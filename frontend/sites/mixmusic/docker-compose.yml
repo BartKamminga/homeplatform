@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  mixmusic:
+    build: .
+    container_name: mixmusic
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - /volume1/Music/music/Mixes:/music:ro
+      - ./static:/app/static:ro
+    environment:
+      - MUSIC_DIR=/music

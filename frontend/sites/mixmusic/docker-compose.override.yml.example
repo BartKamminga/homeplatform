@@ -1,0 +1,16 @@
+# Kopieer dit bestand naar docker-compose.override.yml
+# en pas het pad aan naar jouw muziekmap.
+#
+# docker-compose.override.yml wordt NIET gecommit (staat in .gitignore)
+# zodat jouw persoonlijke NAS-pad niet in Git belandt.
+#
+# Docker Compose laadt automatisch beide bestanden tegelijk:
+#   docker-compose.yml            <- basis, staat in Git
+#   docker-compose.override.yml   <- jouw lokale pad, niet in Git
+
+version: "3.8"
+
+services:
+  mixmusic:
+    volumes:
+      - /volume1/Music/music/Mixes:/music:ro
