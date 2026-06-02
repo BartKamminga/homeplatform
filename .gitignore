@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+
+# Database (lokaal)
+db/*.sqlite
+
+# Node
+node_modules/
+dist/
+
+# VS Code (persoonlijk)
+.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db

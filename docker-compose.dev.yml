@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: homeplatform_backend_dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app            # live mount — wijzigingen direct zichtbaar
+      - ./db:/app/db              # SQLite database
+    environment:
+      - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
+      - SECRET_KEY=dev-secret-key-not-for-production
+      - ENVIRONMENT=development
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # Frontend draait via Vite dev server buiten Docker (sneller HMR)
+  # Start met: cd frontend && npm run dev

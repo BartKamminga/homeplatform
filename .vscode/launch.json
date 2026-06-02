@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FastAPI (uvicorn)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "DATABASE_URL": "sqlite:///./db/homeplatform.sqlite",
+                "SECRET_KEY": "dev-secret-key",
+                "ENVIRONMENT": "development",
+            },
+            "jinja": true,
+            "justMyCode": true,
+        },
+        {
+            "name": "FastAPI via Docker",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {"host": "localhost", "port": "5678"},
+        },
+    ],
+}

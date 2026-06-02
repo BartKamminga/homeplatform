@@ -1,0 +1,102 @@
+/* frontend/core/theme.css
+   Gedeelde CSS custom properties voor alle sites.
+   Thema-tokens worden dynamisch overschreven via JavaScript (zie api.js loadTheme).
+*/
+
+:root {
+  /* Kleuren */
+  --color-primary:        #534AB7;
+  --color-primary-hover:  #3C3489;
+  --color-primary-light:  #EEEDFE;
+  --color-surface:        #F1EFE8;
+  --color-surface-2:      #E8E6DF;
+  --color-background:     #FFFFFF;
+  --color-border:         #D3D1C7;
+  --color-text:           #2C2C2A;
+  --color-text-muted:     #5F5E5A;
+  --color-text-light:     #888780;
+  --color-danger:         #A32D2D;
+  --color-danger-light:   #FCEBEB;
+  --color-success:        #0F6E56;
+  --color-success-light:  #E1F5EE;
+  --color-warning:        #854F0B;
+  --color-warning-light:  #FAEEDA;
+
+  /* Typografie */
+  --font-base:    'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+
+  /* Layout */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.10);
+
+  /* Sidebar */
+  --sidebar-width: 220px;
+}
+
+[data-theme="dark"] {
+  --color-primary:        #AFA9EC;
+  --color-primary-hover:  #CECBF6;
+  --color-primary-light:  #26215C;
+  --color-surface:        #2C2C2A;
+  --color-surface-2:      #444441;
+  --color-background:     #1A1A18;
+  --color-border:         #444441;
+  --color-text:           #F1EFE8;
+  --color-text-muted:     #B4B2A9;
+  --color-text-light:     #888780;
+  --color-danger:         #F09595;
+  --color-danger-light:   #501313;
+  --color-success:        #5DCAA5;
+  --color-success-light:  #04342C;
+  --color-warning:        #FAC775;
+  --color-warning-light:  #412402;
+}
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-base);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background: var(--color-background);
+  line-height: 1.6;
+}
+
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { color: var(--color-primary-hover); }
+
+button {
+  font-family: var(--font-base);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 7px 14px;
+  transition: opacity .15s;
+}
+button:hover { opacity: .85; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+input, select, textarea {
+  font-family: var(--font-base);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  width: 100%;
+  outline: none;
+  transition: border-color .15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-primary);
+}
