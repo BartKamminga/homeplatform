@@ -9,11 +9,12 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./frontend/dist:/srv/www
+      - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/frontend/dist:/srv/www
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - backend
+      - mixmusic
     restart: unless-stopped
 
   backend:
@@ -22,12 +23,23 @@ services:
       dockerfile: Dockerfile
     container_name: homeplatform_backend
     volumes:
-      - /volume1/homeplatform/db:/app/db
-      - /volume1/homeplatform/nas-files:/app/nas-files
+     - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/backend/db:/app/db
+     - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/nas-files:/app/nas-files
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=production
+    restart: unless-stopped
+
+  mixmusic:
+    build:
+      context: ./frontend/sites/mixmusic
+      dockerfile: Dockerfile
+    container_name: homeplatform_mixmusic
+    volumes:
+      - C:/Users/bartk/Music:/music:ro
+    environment:
+      - MUSIC_DIR=/music
     restart: unless-stopped
 
   gitea:
@@ -37,7 +49,7 @@ services:
       - "3000:3000"
       - "2222:22"
     volumes:
-      - /volume1/homeplatform/repos:/data
+      - ./gitea-data:/data
     environment:
       - GITEA__database__DB_TYPE=sqlite3
       - GITEA__database__PATH=/data/gitea.db

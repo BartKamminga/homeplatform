@@ -1,0 +1,29 @@
+:80 {
+
+    handle /admin/* {
+        root * /srv/www
+        try_files {path} /admin/index.html
+        file_server
+    }
+
+    handle /nkhockey/* {
+        root * /srv/www
+        try_files {path} /nkhockey/index.html
+        file_server
+    }
+
+    handle /mixmusic/* {
+        uri strip_prefix /mixmusic
+        reverse_proxy mixmusic:8765
+    }
+
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    handle / {
+        redir /admin/ 302
+    }
+
+    respond 404
+}
