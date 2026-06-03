@@ -1,5 +1,10 @@
-:80 {
+{
+    servers {
+        trusted_proxies static private_ranges
+    }
+}
 
+:80 {
     handle /admin/* {
         root * /srv/www
         try_files {path} /admin/index.html
@@ -13,8 +18,9 @@
     }
 
     handle /mixmusic/* {
-        uri strip_prefix /mixmusic
-        reverse_proxy mixmusic:8765
+       root * /srv/www
+       try_files {path} /mixmusic/index.html
+        file_server
     }
 
     handle /api/* {

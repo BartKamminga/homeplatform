@@ -18,6 +18,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 # Wachtwoord
 # ---------------------------------------------------------------------------
 
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -29,6 +30,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ---------------------------------------------------------------------------
 # JWT
 # ---------------------------------------------------------------------------
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -54,6 +56,7 @@ def decode_token(token: str) -> dict:
 # Huidige gebruiker ophalen
 # ---------------------------------------------------------------------------
 
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),
@@ -65,7 +68,9 @@ def get_current_user(
 
     user = session.get(User, user_id)
     if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="Gebruiker niet gevonden of inactief")
+        raise HTTPException(
+            status_code=401, detail="Gebruiker niet gevonden of inactief"
+        )
     return user
 
 
@@ -78,7 +83,7 @@ def require_admin(
         select(Group)
         .join(UserGroup, UserGroup.group_id == Group.id)
         .where(UserGroup.user_id == current_user.id)
-        .where(Group.slug == "admin")
+        .where(Group.slug == "admins")
     ).first()
 
     if not groups:

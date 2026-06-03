@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from alembic.runtime.migration import MigrationContext
 from core.database import engine
+from fastapi import Request
 import os
 
 router = APIRouter(prefix="/api", tags=["system"])
@@ -29,3 +30,8 @@ def version():
         "db_revision": get_db_revision(),
         "sites": {},
     }
+
+
+@router.get("/debug-headers")
+async def debug_headers(request: Request):
+    return dict(request.headers)

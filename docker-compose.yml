@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   caddy:
     image: caddy:latest
@@ -14,7 +12,6 @@ services:
       - caddy_config:/config
     depends_on:
       - backend
-      - mixmusic
     restart: unless-stopped
 
   backend:
@@ -22,26 +19,17 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: homeplatform_backend
+    ports:
+      - "8000:8000"
     volumes:
-     - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/backend/db:/app/db
-     - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/nas-files:/app/nas-files
+      - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/backend/db:/app/db
+      - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/nas-files:/app/nas-files
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=production
     restart: unless-stopped
-
-  mixmusic:
-    build:
-      context: ./frontend/sites/mixmusic
-      dockerfile: Dockerfile
-    container_name: homeplatform_mixmusic
-    volumes:
-      - C:/Users/bartk/Music:/music:ro
-    environment:
-      - MUSIC_DIR=/music
-    restart: unless-stopped
-
+    
   gitea:
     image: gitea/gitea:latest
     container_name: homeplatform_gitea
