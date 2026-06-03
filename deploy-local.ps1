@@ -1,6 +1,6 @@
 # deploy-local.ps1
 # Bouwt alle frontend sites en pusht naar GitHub
-# Gebruik: .\deploy-local.ps1
+# Gebruik: powershell -ExecutionPolicy Bypass -File .\deploy-local.ps1 "fix: mixmusic player verbeterd"
 # Of met commit message: .\deploy-local.ps1 "mijn commit message"
 
 param(
