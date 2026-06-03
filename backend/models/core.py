@@ -12,6 +12,7 @@ def new_uuid() -> str:
 # Users & Groups
 # ---------------------------------------------------------------------------
 
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -44,6 +45,7 @@ class UserGroup(SQLModel, table=True):
 # Themes & Preferences
 # ---------------------------------------------------------------------------
 
+
 class Theme(SQLModel, table=True):
     __tablename__ = "themes"
 
@@ -67,15 +69,17 @@ class UserPreference(SQLModel, table=True):
 # Sites & Access
 # ---------------------------------------------------------------------------
 
+
 class Site(SQLModel, table=True):
     __tablename__ = "sites"
 
     id: str = Field(default_factory=new_uuid, primary_key=True)
     name: str
     slug: str = Field(unique=True, index=True)
-    module: str = Field(index=True)      # bijv. "hockey", "music"
+    module: str = Field(index=True)  # bijv. "hockey", "music"
     theme_id: Optional[str] = Field(default=None, foreign_key="themes.id")
     is_active: bool = Field(default=True)
+    icon: Optional[str] = Field(default=None)
 
 
 class SiteAccess(SQLModel, table=True):
@@ -88,6 +92,7 @@ class SiteAccess(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 # Audit log
 # ---------------------------------------------------------------------------
+
 
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"

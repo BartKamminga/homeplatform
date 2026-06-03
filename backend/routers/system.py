@@ -1,7 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from alembic.runtime.migration import MigrationContext
 from core.database import engine
-from fastapi import Request
+from sqlmodel import select, Session
+from core.database import get_session
+from models.core import Site
 import os
 
 router = APIRouter(prefix="/api", tags=["system"])
@@ -35,3 +37,13 @@ def version():
 @router.get("/debug-headers")
 async def debug_headers(request: Request):
     return dict(request.headers)
+
+
+@router.get("/sites")
+def public_sites(session: Session = Depends(get_session)):
+    """Publiek endpoint — toont actieve sites zonder auth."""
+    sites = session.exec(select(Site).where(Site.is_active == True)).all()
+    return [
+        {"name": s.name, "slug": s.slug, "module": s.module, "icon": s.icon}
+        for s in sites
+    ]

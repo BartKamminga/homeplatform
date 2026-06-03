@@ -19,6 +19,7 @@ class SiteOut(BaseModel):
     theme_id: Optional[str]
     is_active: bool
     allowed_groups: list[str]
+    icon: Optional[str]
 
 
 class SiteCreate(BaseModel):
@@ -26,6 +27,7 @@ class SiteCreate(BaseModel):
     slug: str
     module: str
     theme_id: Optional[str] = None
+    icon: Optional[str] = None
 
 
 def _enrich(site: Site, session: Session) -> SiteOut:
@@ -42,6 +44,7 @@ def _enrich(site: Site, session: Session) -> SiteOut:
         theme_id=site.theme_id,
         is_active=site.is_active,
         allowed_groups=[g.slug for g in groups],
+        icon=site.icon,
     )
 
 
@@ -63,13 +66,17 @@ def create_site(
     if existing:
         raise HTTPException(status_code=409, detail="Site slug al in gebruik")
 
-    site = Site(name=data.name, slug=data.slug,
-                module=data.module, theme_id=data.theme_id)
+    site = Site(
+        name=data.name,
+        slug=data.slug,
+        module=data.module,
+        theme_id=data.theme_id,
+        icon=data.icon,
+    )
     session.add(site)
     session.commit()
     session.refresh(site)
-    log_action(session, "site.create", user_id=admin.id,
-               payload={"site": data.slug})
+    log_action(session, "site.create", user_id=admin.id, payload={"site": data.slug})
     return _enrich(site, session)
 
 
@@ -86,8 +93,12 @@ def toggle_site(
     site.is_active = not site.is_active
     session.add(site)
     session.commit()
-    log_action(session, "site.toggle", user_id=admin.id,
-               payload={"site": site.slug, "is_active": site.is_active})
+    log_action(
+        session,
+        "site.toggle",
+        user_id=admin.id,
+        payload={"site": site.slug, "is_active": site.is_active},
+    )
     status = "geactiveerd" if site.is_active else "gedeactiveerd"
     return {"message": f"Site '{site.name}' {status}"}
 
@@ -112,8 +123,12 @@ def grant_access(
     if not existing:
         session.add(SiteAccess(site_id=site_id, group_id=group.id))
         session.commit()
-        log_action(session, "site.access.grant", user_id=admin.id,
-                   payload={"site": site.slug, "group": group_slug})
+        log_action(
+            session,
+            "site.access.grant",
+            user_id=admin.id,
+            payload={"site": site.slug, "group": group_slug},
+        )
     return {"message": f"Toegang verleend aan {group_slug} voor {site.slug}"}
 
 
@@ -137,6 +152,10 @@ def revoke_access(
     if link:
         session.delete(link)
         session.commit()
-        log_action(session, "site.access.revoke", user_id=admin.id,
-                   payload={"site": site.slug, "group": group_slug})
+        log_action(
+            session,
+            "site.access.revoke",
+            user_id=admin.id,
+            payload={"site": site.slug, "group": group_slug},
+        )
     return {"message": f"Toegang ingetrokken voor {group_slug} op {site.slug}"}
