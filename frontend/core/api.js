@@ -87,7 +87,7 @@ export async function login(username, password) {
 // ---------------------------------------------------------------------------
 
 export function applyTheme(theme) {
-  document.body.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem(THEME_KEY, theme);
 }
 

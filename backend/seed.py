@@ -18,11 +18,19 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sqlmodel import Session, select
 from core.database import engine, create_db_and_tables
 from core.auth import hash_password
+<<<<<<< HEAD
 from models.core import User, UserGroup, Group, Theme, Site
 
 
 def seed_base(session: Session):
     """Maakt altijd de basis groepen en thema aan."""
+=======
+from models.core import User, UserGroup, Group, Theme
+
+
+def seed_base(session: Session):
+    """Maakt altijd de basis groepen en thema aan — ook als ze al bestaan."""
+>>>>>>> cd2922a (fix: seed maakt altijd basis data aan)
 
     # Groepen
     for name, slug in [("Admins", "admins"), ("Members", "members")]:
@@ -53,6 +61,7 @@ def seed_base(session: Session):
         print("  Thema bestaat al")
 
 
+<<<<<<< HEAD
 def seed_sites(session: Session):
     """Registreert de standaard sites. Bestaande sites krijgen een icon update."""
 
@@ -84,6 +93,12 @@ def seed_sites(session: Session):
 def seed_admin(session: Session, username: str, password: str, email: str):
     """Maakt de admin gebruiker aan en voegt hem toe aan de admins groep."""
 
+=======
+def seed_admin(session: Session, username: str, password: str, email: str):
+    """Maakt de admin gebruiker aan en voegt hem toe aan de admins groep."""
+
+    # Check of gebruiker al bestaat
+>>>>>>> cd2922a (fix: seed maakt altijd basis data aan)
     user = session.exec(select(User).where(User.username == username)).first()
 
     if not user:
@@ -120,6 +135,7 @@ def seed(username: str, password: str, email: str):
     create_db_and_tables()
 
     with Session(engine) as session:
+<<<<<<< HEAD
         print("\n>> Basis data...")
         seed_base(session)
 
@@ -127,6 +143,12 @@ def seed(username: str, password: str, email: str):
         seed_sites(session)
 
         print("\n>> Admin gebruiker...")
+=======
+        print("\n→ Basis data...")
+        seed_base(session)
+
+        print("\n→ Admin gebruiker...")
+>>>>>>> cd2922a (fix: seed maakt altijd basis data aan)
         seed_admin(session, username, password, email)
 
         print("\n✓ Seed klaar")

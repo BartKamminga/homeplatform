@@ -1,153 +1,196 @@
-/* NK Hockey — Stylesheet
-   Platform tokens als basis, hockey-specifieke tokens als aanvulling.
-   theme.css wordt geladen via main.jsx.
-*/
+/* ═══════════════════════════════════════
+   NK Hockey — Stylesheet
+   4 thema's: light, dark, minimal, retro
+   ═══════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap');
 
-/* ── Platform tokens mappen op hockey tokens ── */
+/* ── Light (standaard) ── */
 :root {
-  --bg:             var(--color-background);
-  --bg-card:        var(--color-surface);
-  --bg-header:      var(--color-surface-2);
-  --border:         var(--color-border);
-  --border-light:   var(--color-border);
-  --text:           var(--color-text);
-  --text-secondary: var(--color-text-muted);
-  --text-muted:     var(--color-text-light);
-  --accent:         var(--color-primary);
-  --accent-bg:      var(--color-primary-light);
-  --btn-bg:         var(--color-text);
-  --btn-text:       var(--color-background);
-  --btn-hover:      var(--color-text-muted);
-  --shadow:         var(--shadow-md);
-  --overlay:        rgba(0,0,0,.3);
-
-  /* Hockey-specifieke tokens */
-  --bg-hover:              #f0ede8;
-  --bg-highlight:          #eff6ff;
-  --bg-played:             #f7f5f2;
-  --bg-round-played:       #f0ede8;
-  --bg-round-remaining:    #fef9c3;
-  --bg-gold:               #fffbeb;
-  --border-round-played:   #e0ddd8;
-  --border-round-remaining:#fde68a;
-  --text-faint:            #aaa;
-  --text-vs:               #ccc;
-  --text-round-remaining:  #854d0e;
-  --win:                   #16a34a;
-  --win-bg:                #dcfce7;
-  --draw-text:             #b45309;
-  --draw-bg:               #fef3c7;
-  --lose:                  #dc2626;
-  --lose-bg:               #fee2e2;
-  --btn-predict-bg:        #dbeafe;
-  --btn-predict-text:      #2563eb;
-  --btn-reset-bg:          #f0ede8;
-  --btn-reset-text:        #888;
-  --lock-win-bg:           #dcfce7;
-  --lock-draw-bg:          #fef3c7;
-  --lock-draw-text:        #b45309;
-  --nk-a-bg:               #dbeafe;
-  --nk-a-text:             #1d4ed8;
-  --nk-b-bg:               #dcfce7;
-  --nk-b-text:             #15803d;
+  --bg: #f0ede8;
+  --bg-card: #fff;
+  --bg-header: #f7f5f2;
+  --bg-hover: #f0ede8;
+  --bg-highlight: #eff6ff;
+  --bg-played: #f7f5f2;
+  --bg-round-played: #f0ede8;
+  --bg-round-remaining: #fef9c3;
+  --bg-gold: #fffbeb;
+  --border: #e0ddd8;
+  --border-light: #f0ede8;
+  --border-round-played: #e0ddd8;
+  --border-round-remaining: #fde68a;
+  --text: #1a1a1a;
+  --text-secondary: #555;
+  --text-muted: #888;
+  --text-faint: #aaa;
+  --text-vs: #ccc;
+  --text-round-remaining: #854d0e;
+  --accent: #3b82f6;
+  --accent-bg: #dbeafe;
+  --win: #16a34a;
+  --win-bg: #dcfce7;
+  --draw-text: #b45309;
+  --draw-bg: #fef3c7;
+  --lose: #dc2626;
+  --lose-bg: #fee2e2;
+  --btn-bg: #1a1a1a;
+  --btn-text: #fff;
+  --btn-hover: #333;
+  --btn-predict-bg: #dbeafe;
+  --btn-predict-text: #2563eb;
+  --btn-reset-bg: #f0ede8;
+  --btn-reset-text: #888;
+  --lock-win-bg: #dcfce7;
+  --lock-draw-bg: #fef3c7;
+  --lock-draw-text: #b45309;
+  --overlay: rgba(0,0,0,.3);
+  --shadow: 0 20px 60px rgba(0,0,0,.15);
+  --nk-a-bg: #dbeafe;
+  --nk-a-text: #1d4ed8;
+  --nk-b-bg: #dcfce7;
+  --nk-b-text: #15803d;
 }
 
+/* ── Dark ── */
 [data-theme="dark"] {
-  --bg-hover:              #2c2c2e;
-  --bg-highlight:          #1a2332;
-  --bg-played:             #252528;
-  --bg-round-played:       #252528;
-  --bg-round-remaining:    #2a2518;
-  --bg-gold:               #2a2518;
-  --border-round-played:   #333336;
-  --border-round-remaining:#5a4e1a;
-  --text-faint:            #636366;
-  --text-vs:               #48484a;
-  --text-round-remaining:  #d4a843;
-  --win:                   #34d058;
-  --win-bg:                #162d1b;
-  --draw-text:             #e0a040;
-  --draw-bg:               #2a2518;
-  --lose:                  #f85149;
-  --lose-bg:               #2d1518;
-  --btn-predict-bg:        #1e3a5f;
-  --btn-predict-text:      #6ba8f5;
-  --btn-reset-bg:          #2c2c2e;
-  --btn-reset-text:        #8e8e93;
-  --lock-win-bg:           #1a3322;
-  --lock-draw-bg:          #33291a;
-  --lock-draw-text:        #d4a040;
-  --overlay:               rgba(0,0,0,.6);
-  --nk-a-bg:               #1a2d4d;
-  --nk-a-text:             #5b9ef5;
-  --nk-b-bg:               #162d1b;
-  --nk-b-text:             #34d058;
+  --bg: #111111;
+  --bg-card: #1c1c1e;
+  --bg-header: #252528;
+  --bg-hover: #2c2c2e;
+  --bg-highlight: #1a2332;
+  --bg-played: #252528;
+  --bg-round-played: #252528;
+  --bg-round-remaining: #2a2518;
+  --bg-gold: #2a2518;
+  --border: #333336;
+  --border-light: #2c2c2e;
+  --border-round-played: #333336;
+  --border-round-remaining: #5a4e1a;
+  --text: #e5e5e7;
+  --text-secondary: #a1a1a6;
+  --text-muted: #8e8e93;
+  --text-faint: #636366;
+  --text-vs: #48484a;
+  --text-round-remaining: #d4a843;
+  --accent: #5b9ef5;
+  --accent-bg: #1a2d4d;
+  --win: #34d058;
+  --win-bg: #162d1b;
+  --draw-text: #e0a040;
+  --draw-bg: #2a2518;
+  --lose: #f85149;
+  --lose-bg: #2d1518;
+  --btn-bg: #e5e5e7;
+  --btn-text: #111;
+  --btn-hover: #ccc;
+  --btn-predict-bg: #1e3a5f;
+  --btn-predict-text: #6ba8f5;
+  --btn-reset-bg: #2c2c2e;
+  --btn-reset-text: #8e8e93;
+  --lock-win-bg: #1a3322;
+  --lock-draw-bg: #33291a;
+  --lock-draw-text: #d4a040;
+  --overlay: rgba(0,0,0,.6);
+  --shadow: 0 20px 60px rgba(0,0,0,.5);
+  --nk-a-bg: #1a2d4d;
+  --nk-a-text: #5b9ef5;
+  --nk-b-bg: #162d1b;
+  --nk-b-text: #34d058;
 }
 
-[data-theme="retro"] {
-  --bg-hover:              #261500;
-  --bg-highlight:          #2a2510;
-  --bg-played:             #261500;
-  --bg-round-played:       #261500;
-  --bg-round-remaining:    #2a2510;
-  --bg-gold:               #332d10;
-  --border-round-played:   rgba(245,200,66,0.2);
-  --border-round-remaining:#665a1a;
-  --text-faint:            rgba(245,230,200,0.3);
-  --text-vs:               rgba(245,230,200,0.2);
-  --text-round-remaining:  #f5c842;
-  --win:                   #34d058;
-  --win-bg:                #1a2d10;
-  --draw-text:             #f5c842;
-  --draw-bg:               #332d10;
-  --lose:                  #e84545;
-  --lose-bg:               #2d1010;
-  --btn-predict-bg:        #332d10;
-  --btn-predict-text:      #f5c842;
-  --btn-reset-bg:          #261500;
-  --btn-reset-text:        rgba(245,230,200,0.45);
-  --lock-win-bg:           #1a2d10;
-  --lock-draw-bg:          #332d10;
-  --lock-draw-text:        #f5c842;
-  --overlay:               rgba(0,0,0,.7);
-  --nk-a-bg:               #1a2d4d;
-  --nk-a-text:             #5b9ef5;
-  --nk-b-bg:               #1a2d10;
-  --nk-b-text:             #34d058;
-}
-
+/* ── Minimal ── */
 [data-theme="minimal"] {
-  --bg-hover:              #f0f0f0;
-  --bg-highlight:          #e8e8e8;
-  --bg-played:             #f9f9f9;
-  --bg-round-played:       #f0f0f0;
-  --bg-round-remaining:    #fffbea;
-  --bg-gold:               #fffbea;
-  --border-round-played:   #e0e0e0;
-  --border-round-remaining:#e0d080;
-  --text-faint:            #999;
-  --text-vs:               #ccc;
-  --text-round-remaining:  #996600;
-  --win:                   #006600;
-  --win-bg:                #f0fff0;
-  --draw-text:             #996600;
-  --draw-bg:               #fffbea;
-  --lose:                  #cc0000;
-  --lose-bg:               #fff0f0;
-  --btn-predict-bg:        #e8e8e8;
-  --btn-predict-text:      #1a1a1a;
-  --btn-reset-bg:          #f0f0f0;
-  --btn-reset-text:        #666;
-  --lock-win-bg:           #f0fff0;
-  --lock-draw-bg:          #fffbea;
-  --lock-draw-text:        #996600;
-  --overlay:               rgba(0,0,0,.3);
-  --nk-a-bg:               #e8e8f8;
-  --nk-a-text:             #1a1a8a;
-  --nk-b-bg:               #e8f8e8;
-  --nk-b-text:             #006600;
+  --bg: #ffffff;
+  --bg-card: #ffffff;
+  --bg-header: #f9f9f9;
+  --bg-hover: #f0f0f0;
+  --bg-highlight: #e8e8e8;
+  --bg-played: #f9f9f9;
+  --bg-round-played: #f0f0f0;
+  --bg-round-remaining: #fffbea;
+  --bg-gold: #fffbea;
+  --border: #e0e0e0;
+  --border-light: #f0f0f0;
+  --border-round-played: #e0e0e0;
+  --border-round-remaining: #e0d080;
+  --text: #111111;
+  --text-secondary: #444;
+  --text-muted: #666;
+  --text-faint: #999;
+  --text-vs: #ccc;
+  --text-round-remaining: #996600;
+  --accent: #1a1a1a;
+  --accent-bg: #f0f0f0;
+  --win: #006600;
+  --win-bg: #f0fff0;
+  --draw-text: #996600;
+  --draw-bg: #fffbea;
+  --lose: #cc0000;
+  --lose-bg: #fff0f0;
+  --btn-bg: #1a1a1a;
+  --btn-text: #fff;
+  --btn-hover: #444;
+  --btn-predict-bg: #e8e8e8;
+  --btn-predict-text: #1a1a1a;
+  --btn-reset-bg: #f0f0f0;
+  --btn-reset-text: #666;
+  --lock-win-bg: #f0fff0;
+  --lock-draw-bg: #fffbea;
+  --lock-draw-text: #996600;
+  --overlay: rgba(0,0,0,.3);
+  --shadow: 0 20px 60px rgba(0,0,0,.1);
+  --nk-a-bg: #e8e8f8;
+  --nk-a-text: #1a1a8a;
+  --nk-b-bg: #e8f8e8;
+  --nk-b-text: #006600;
+}
+
+/* ── Retro ── */
+[data-theme="retro"] {
+  --bg: #1a0f00;
+  --bg-card: #261500;
+  --bg-header: #321c00;
+  --bg-hover: #261500;
+  --bg-highlight: #2a2510;
+  --bg-played: #261500;
+  --bg-round-played: #261500;
+  --bg-round-remaining: #2a2510;
+  --bg-gold: #332d10;
+  --border: rgba(245,200,66,0.2);
+  --border-light: rgba(245,200,66,0.1);
+  --border-round-played: rgba(245,200,66,0.2);
+  --border-round-remaining: #665a1a;
+  --text: #f5e6c8;
+  --text-secondary: #d4c478;
+  --text-muted: #a89850;
+  --text-faint: rgba(245,230,200,0.3);
+  --text-vs: rgba(245,230,200,0.2);
+  --text-round-remaining: #f5c842;
+  --accent: #f5c842;
+  --accent-bg: #332d10;
+  --win: #34d058;
+  --win-bg: #1a2d10;
+  --draw-text: #f5c842;
+  --draw-bg: #332d10;
+  --lose: #e84545;
+  --lose-bg: #2d1010;
+  --btn-bg: #f5c842;
+  --btn-text: #1a0f00;
+  --btn-hover: #e0b030;
+  --btn-predict-bg: #332d10;
+  --btn-predict-text: #f5c842;
+  --btn-reset-bg: #261500;
+  --btn-reset-text: rgba(245,230,200,0.45);
+  --lock-win-bg: #1a2d10;
+  --lock-draw-bg: #332d10;
+  --lock-draw-text: #f5c842;
+  --overlay: rgba(0,0,0,.7);
+  --shadow: 0 20px 60px rgba(0,0,0,.6);
+  --nk-a-bg: #1a2d4d;
+  --nk-a-text: #5b9ef5;
+  --nk-b-bg: #1a2d10;
+  --nk-b-text: #34d058;
 }
 
 /* ── Reset ── */
