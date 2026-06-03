@@ -1,0 +1,22 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --color-primary:      #534AB7;
+  --color-primary-light: #EEEDFE;
+  --color-surface:      #F1EFE8;
+  --color-background:   #FFFFFF;
+  --color-border:       #D3D1C7;
+  --color-text:         #2C2C2A;
+  --color-text-muted:   #5F5E5A;
+  --font-base:          'Inter', system-ui, sans-serif;
+  --font-mono:          'JetBrains Mono', monospace;
+  --radius-md:          8px;
+  --radius-lg:          12px;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-base);
+}

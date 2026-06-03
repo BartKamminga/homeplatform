@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@core/theme.css";
 
-import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Users from "./pages/Users.jsx";
@@ -11,7 +10,7 @@ import Groups from "./pages/Groups.jsx";
 import Themes from "./pages/Themes.jsx";
 import Sites from "./pages/Sites.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
-import Changelog  from "./pages/Changelog.jsx";
+import Changelog from "./pages/Changelog.jsx";
 import { isLoggedIn } from "@core/auth.js";
 
 function PrivateRoute({ children }) {
@@ -28,7 +27,6 @@ createRoot(document.getElementById("root")).render(
           element={
             <PrivateRoute>
               <Routes>
-                <Route path="/" element={<Landing />} />
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="users" element={<Users />} />
@@ -36,12 +34,11 @@ createRoot(document.getElementById("root")).render(
                 <Route path="themes" element={<Themes />} />
                 <Route path="sites" element={<Sites />} />
                 <Route path="audit-log" element={<AuditLog />} />
-                <Route path="changelog"  element={<Changelog />} />
+                <Route path="changelog" element={<Changelog />} />
               </Routes>
             </PrivateRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

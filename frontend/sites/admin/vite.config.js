@@ -8,6 +8,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify("0.1.0"),
     __SITE__: JSON.stringify("admin"),
+    __BASE_URL__: JSON.stringify(process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5174'),
   },
   resolve: {
     alias: {

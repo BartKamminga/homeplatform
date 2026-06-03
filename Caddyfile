@@ -31,5 +31,17 @@
         redir /admin/ 302
     }
 
+     handle / {
+        root * /srv/www
+        try_files {path} /landing/index.html
+        file_server
+    }
+
+    handle /landing/* {
+        root * /srv/www
+        try_files {path} /landing/index.html
+        file_server
+    }
+
     respond 404
 }

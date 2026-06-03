@@ -8,7 +8,7 @@ import os
 
 router = APIRouter(prefix="/api", tags=["system"])
 
-CORE_VERSION = "0.2.0"
+CORE_VERSION = "0.3.0"
 
 
 def get_db_revision() -> str:

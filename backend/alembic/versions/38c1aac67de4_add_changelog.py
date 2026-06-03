@@ -16,17 +16,50 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "changelog",
-        sa.Column("id", sa.String, primary_key=True),
-        sa.Column("version", sa.String, nullable=False),
-        sa.Column("site", sa.String, nullable=False, server_default="core"),
-        sa.Column("title", sa.String, nullable=False),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("released_at", sa.DateTime, nullable=False),
-        sa.Column("created_at", sa.DateTime, nullable=False),
-    )
+    import uuid
+    from datetime import datetime
+
+    now = datetime.utcnow().isoformat()
+
+    op.execute(f"""
+        INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at)
+        VALUES (
+            '{uuid.uuid4()}',
+            '0.1.0',
+            'core',
+            'Initiële platform opzet',
+            'Backend FastAPI, SQLite database, auth, gebruikers, groepen, themas, sites, audit log.',
+            '2026-06-02T00:00:00',
+            '{now}'
+        )
+    """)
+    op.execute(f"""
+        INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at)
+        VALUES (
+            '{uuid.uuid4()}',
+            '0.2.0',
+            'core',
+            'Admin frontend, Docker deploy, NAS setup',
+            'Volledige admin UI, Docker Compose stack, Caddy routing, NAS deploy.',
+            '2026-06-02T00:00:00',
+            '{now}'
+        )
+    """)
+    op.execute(f"""
+        INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at)
+        VALUES (
+            '{uuid.uuid4()}',
+            '0.3.0',
+            'core',
+            'Landing pagina, changelog, iconen per site',
+            'Aparte landing site, changelog beheer via admin, icoon veld per site.',
+            '2026-06-03T00:00:00',
+            '{now}'
+        )
+    """)
 
 
 def downgrade() -> None:
-    op.drop_table("changelog")
+    op.execute(
+        "DELETE FROM changelog WHERE version IN ('0.1.0', '0.2.0', '0.3.0') AND site = 'core'"
+    )
