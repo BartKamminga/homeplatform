@@ -3,6 +3,7 @@ import AdminLayout from '../AdminLayout.jsx';
 import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
 import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
+import ThemeSwitcher from '@components/ThemeSwitcher.jsx';
 import { api } from '@core/api.js';
 
 const DEFAULT_TOKENS = {
@@ -78,6 +79,15 @@ export default function Themes() {
 
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>{error}</p>}
 
+      {/* Thema preview & snelle switch */}
+      <div style={{ background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: '16px' }}>
+        <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: '12px', color: 'var(--color-text-muted)' }}>
+          Snelle thema switch
+        </div>
+        <ThemeSwitcher />
+      </div>
+
+      {/* Thema tabel */}
       <div style={{ background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
         <Table columns={columns} rows={themes} emptyMessage="Geen thema's gevonden" />
       </div>

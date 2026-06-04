@@ -3,6 +3,9 @@
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
+const DEFAULT_THEME = "light";
+const THEME_KEY = "hp_theme";
+
 function getToken() {
   return localStorage.getItem("hp_token");
 }
@@ -57,7 +60,7 @@ export const api = {
 };
 
 // ---------------------------------------------------------------------------
-// Login (gebruikt form-encoded, vereist door OAuth2PasswordRequestForm)
+// Login
 // ---------------------------------------------------------------------------
 
 export async function login(username, password) {
@@ -74,29 +77,50 @@ export async function login(username, password) {
   setToken(data.access_token);
   localStorage.setItem(
     "hp_user",
-    JSON.stringify({
-      id: data.user_id,
-      username: data.username,
-    }),
+    JSON.stringify({ id: data.user_id, username: data.username }),
   );
   return data;
 }
 
 // ---------------------------------------------------------------------------
-// Thema laden vanuit backend en toepassen als CSS custom properties
+// Thema
 // ---------------------------------------------------------------------------
 
+export function applyTheme(theme) {
+  document.body.setAttribute("data-theme", theme);
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+export function getActiveTheme() {
+  return localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
+}
+
 export async function loadTheme() {
+  // 1. Lokale voorkeur heeft prioriteit
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored) {
+    document.body.setAttribute("data-theme", stored);
+    return;
+  }
+
+  // 2. Platform thema ophalen uit database
   try {
     const data = await fetch(`${BASE_URL}/api/admin/themes/active`).then((r) =>
       r.json(),
     );
+    // Gebruik theme naam als die beschikbaar is, anders tokens toepassen
+    const themeName = data.name?.toLowerCase() || DEFAULT_THEME;
+    document.body.setAttribute("data-theme", themeName);
+    localStorage.setItem(THEME_KEY, themeName);
+
+    // Extra tokens toepassen als die in de database staan
     const tokens = data.tokens || {};
     const root = document.documentElement;
     Object.entries(tokens).forEach(([key, value]) => {
       root.style.setProperty(key, value);
     });
   } catch {
-    // Geen thema beschikbaar — gebruik CSS standaardwaarden
+    // Geen backend beschikbaar — gebruik standaard thema
+    document.body.setAttribute("data-theme", DEFAULT_THEME);
   }
 }
