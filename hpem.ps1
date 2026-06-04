@@ -12,7 +12,7 @@
 #   .\hpem.ps1 -Status                          # sync check lokaal vs NAS
 #   .\hpem.ps1 -NasSetup                        # eenmalige NAS toegang instellen
 #   .\hpem.ps1 -DbUpgrade                       # alembic upgrade head lokaal
-#   .\hpem.ps1 -DbDowngrade 262247a3a1b0        # alembic downgrade naar revisie
+#   .\hpem.ps1 -DbDowngrade         # alembic downgrade naar revisie
 #   .\hpem.ps1 -DbHistory                       # toon migratie geschiedenis
 #   .\hpem.ps1 -Help                            # deze help tonen
 #
@@ -30,6 +30,8 @@
 #   yes    Pushen naar GitHub [standaard]
 #   no     Niet pushen
 
+
+
 param(
     [string]$Message     = "",
     [ValidateSet("all", "fe", "be", "be_db")]
@@ -45,6 +47,10 @@ param(
     [switch]$DbHistory   = $false,
     [switch]$Help        = $false
 )
+
+# Zichzelf unblocking zodat updates direct werken
+Unblock-File $MyInvocation.MyCommand.Path 2>$null
+
 
 # ---------------------------------------------------------------------------
 # Configuratie

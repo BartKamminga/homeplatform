@@ -16,6 +16,14 @@ export function clearToken() {
   localStorage.removeItem("hp_user");
 }
 
+export function trackEvent(site, path) {
+  fetch("/api/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ site, path }),
+  }).catch(() => {});
+}
+
 async function request(method, path, body = null) {
   const token = getToken();
   const headers = { "Content-Type": "application/json" };

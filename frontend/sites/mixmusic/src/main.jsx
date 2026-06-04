@@ -2,13 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import App from "./App.jsx";
+import { trackEvent } from "@core/api.js";
 
-// Paginabezoek registreren
-fetch("/api/track", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ site: __SITE__, path: window.location.pathname }),
-}).catch(() => {}); // stilletjes falen als backend niet bereikbaar is
+trackEvent(__SITE__, window.location.pathname);
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

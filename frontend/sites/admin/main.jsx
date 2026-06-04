@@ -12,13 +12,9 @@ import Sites from "./pages/Sites.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
 import Changelog from "./pages/Changelog.jsx";
 import { isLoggedIn } from "@core/auth.js";
+import { trackEvent } from "@core/api.js";
 
-// Paginabezoek registreren
-fetch("/api/track", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ site: __SITE__, path: window.location.pathname }),
-}).catch(() => {}); // stilletjes falen als backend niet bereikbaar is
+trackEvent(__SITE__, window.location.pathname);
 
 function PrivateRoute({ children }) {
   return isLoggedIn() ? children : <Navigate to="/admin/login" replace />;
