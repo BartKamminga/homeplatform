@@ -7,6 +7,7 @@ from core.settings import settings
 from routers import system, auth, users, groups, themes, sites, audit
 from routers import mixmusic
 from routers import changelog
+from routers import tracking
 
 
 @asynccontextmanager
@@ -48,6 +49,7 @@ app.include_router(sites.router)
 app.include_router(audit.router)
 app.include_router(mixmusic.router)
 app.include_router(changelog.router)
+app.include_router(tracking.router)
 
 
 @app.get("/")
