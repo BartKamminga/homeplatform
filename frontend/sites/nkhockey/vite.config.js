@@ -1,8 +1,3 @@
+// nkhockey/vite.config.js
 import { createConfig } from "../../vite.base.js";
-export default createConfig(
-  "nkhockey",
-  5174,
-  "/nkhockey/",
-  "../../dist/nkhockey",
-  "1.0.0",
-);
+export default createConfig("nkhockey", 5174);
