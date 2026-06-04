@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { applyTheme, getActiveTheme } from "@core/api.js";
 
 const THEMES = [
@@ -12,8 +12,26 @@ const THEMES = [
 export default function ThemeSwitcher({ compact = false }) {
   const [active, setActive] = useState(getActiveTheme);
 
+  // Sync met body data-theme attribuut via MutationObserver
+  useEffect(() => {
+    // Zet initiële waarde
+    setActive(document.body.getAttribute("data-theme") || getActiveTheme());
+
+    // Luister op veranderingen
+    const observer = new MutationObserver(() => {
+      const theme = document.body.getAttribute("data-theme") || "light";
+      setActive(theme);
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   function handle(key) {
-    setActive(key);
     applyTheme(key);
   }
 
