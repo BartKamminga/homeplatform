@@ -7,7 +7,7 @@ import Landing from "./Landing.jsx";
 import { trackEvent, loadTheme } from "@core/api.js";
 
 trackEvent(__SITE__, "page.view", { path: window.location.pathname });
-
+loadTheme();
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <Landing />
