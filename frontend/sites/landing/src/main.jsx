@@ -1,9 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "@core/theme.css";
 import "./styles.css";
 import Landing from "./Landing.jsx";
 
-import { trackEvent } from "@core/api.js";
+import { trackEvent, loadTheme } from "@core/api.js";
 
 trackEvent(__SITE__, "page.view", { path: window.location.pathname });
 
