@@ -24,8 +24,29 @@
       "name": "Admin frontend",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:5173/admin/login",
+      "url": "http://localhost:5173/admin/",
       "webRoot": "${workspaceFolder}/frontend/sites/admin"
+    },
+    {
+      "name": "NK Hockey frontend",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5174/nkhockey/",
+      "webRoot": "${workspaceFolder}/frontend/sites/nkhockey"
+    },
+    {
+      "name": "Mix Music frontend",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5175/mixmusic/",
+      "webRoot": "${workspaceFolder}/frontend/sites/mixmusic"
+    },
+    {
+      "name": "Landing frontend",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5172/",
+      "webRoot": "${workspaceFolder}/frontend/sites/landing"
     }
   ],
   "compounds": [
@@ -33,6 +54,24 @@
       "name": "▶ Start Homeplatform",
       "configurations": ["FastAPI backend", "Admin frontend"],
       "preLaunchTask": "Start Admin Vite",
+      "stopAll": true
+    },
+    {
+      "name": "▶ Start NK Hockey",
+      "configurations": ["FastAPI backend", "NK Hockey frontend"],
+      "preLaunchTask": "Start Nkhockey Vite",
+      "stopAll": true
+    },
+    {
+      "name": "▶ Start Mix Music",
+      "configurations": ["FastAPI backend", "Mix Music frontend"],
+      "preLaunchTask": "Start Mixmusic Vite",
+      "stopAll": true
+    },
+    {
+      "name": "▶ Start Alles",
+      "configurations": ["FastAPI backend", "Admin frontend", "NK Hockey frontend", "Mix Music frontend", "Landing frontend"],
+      "preLaunchTask": "Start alle Vite servers",
       "stopAll": true
     }
   ]

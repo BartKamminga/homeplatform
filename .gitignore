@@ -32,3 +32,4 @@ Thumbs.db
 gitea-data/
 docker-compose.yml
 Caddyfile
+backend/db/homeplatform.sqlite
