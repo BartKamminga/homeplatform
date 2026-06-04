@@ -5,7 +5,7 @@ import Landing from "./Landing.jsx";
 
 import { trackEvent } from "@core/api.js";
 
-trackEvent(__SITE__, 'page.view', 'path' + window.location.pathname);
+trackEvent(__SITE__, "page.view", { path: window.location.pathname });
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

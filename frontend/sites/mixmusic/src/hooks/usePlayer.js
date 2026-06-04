@@ -54,7 +54,7 @@ export function usePlayer(tracks) {
       setCurrentIdx(idx);
       setProgress(0);
       setDuration(0);
-      trackEvent(__SITE__, "track.play", "track" + t.file);
+      trackEvent(__SITE__, "track.play", { name: t.name, file: t.file });
       if (autoplay) audio.play();
     },
     [tracks],

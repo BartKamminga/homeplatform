@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api", tags=["tracking"])
 class TrackRequest(BaseModel):
     site: str
     action: str
-    details: str
+    details: dict
 
 
 @router.post("/track")
