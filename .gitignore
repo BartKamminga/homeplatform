@@ -8,27 +8,27 @@ __pycache__/
 # Environment
 .env
 
-# Database (lokaal)
+# Database
 db/*.sqlite
+backend/db/*.sqlite
 
 # Node
 node_modules/
-+frontend/sites/*/dist/
+frontend/sites/*/dist/
 
-# VS Code (persoonlijk)
-.vscode/settings.json
+# VS Code
+.vscode/
 
 # OS
 .DS_Store
 Thumbs.db
-backend/db/*.sqlite
 
-gitea-data/
-.Caddyfile.swp
+# Synology
 @eaDir/
 #recycle/
-backend/db/*.sqlite
-docker-compose.yml
+.Caddyfile.swp
 
-#FE sites dist
-frontend/sites/*/dist/
+# NAS specifiek
+gitea-data/
+docker-compose.yml
+Caddyfile
