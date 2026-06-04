@@ -1,13 +1,7 @@
 import React from "react";
 import Popup from "../common/Popup";
 import Toggle from "../common/Toggle";
-import { applyTheme, getActiveTheme } from "@core/api.js";
-
-const THEMES = [
-  { key: "light", label: "☀️ Licht" },
-  { key: "dark", label: "🌙 Donker" },
-  { key: "victoria", label: "⚜️ Victoria" },
-];
+import ThemeSwitcher from "@components/ThemeSwitcher.jsx";
 
 export default function SettingsPopup({
   onClose,
@@ -29,13 +23,6 @@ export default function SettingsPopup({
   setFocusClub,
   allClubs,
 }) {
-  const [theme, setTheme] = React.useState(getActiveTheme);
-
-  function handleTheme(key) {
-    setTheme(key);
-    applyTheme(key);
-  }
-
   return (
     <Popup title="⚙️ Instellingen" onClose={onClose} maxWidth={400}>
       <div style={{ padding: "12px 16px" }}>
@@ -57,28 +44,7 @@ export default function SettingsPopup({
           >
             Thema
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {THEMES.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => handleTheme(t.key)}
-                style={{
-                  flex: 1,
-                  padding: "6px 8px",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  background:
-                    theme === t.key ? "var(--accent)" : "var(--bg-card)",
-                  color: theme === t.key ? "var(--btn-text)" : "var(--text)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  fontFamily: "'DM Sans', sans-serif",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <ThemeSwitcher compact />
         </div>
 
         {/* Toggles */}

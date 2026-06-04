@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
 
 const s = {
   sidebar: {
@@ -14,11 +15,6 @@ const s = {
   logo: {
     fontFamily: 'var(--font-display)', fontSize: '20px',
     fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--accent)',
-  },
-  themeBtns: { display: 'flex', gap: '6px', marginLeft: 'auto' },
-  themeBtn: {
-    width: '22px', height: '22px', borderRadius: '50%',
-    border: '2px solid transparent', cursor: 'pointer', transition: 'border-color 0.2s',
   },
   searchWrap: { padding: '12px 14px' },
   searchInput: {
@@ -54,28 +50,15 @@ const s = {
     color: 'var(--muted)', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer',
     fontFamily: 'var(--font-body)', fontSize: '12px', width: 'calc(100% - 28px)',
   },
+  themeWrap: {
+    padding: '10px 14px',
+    borderTop: '1px solid var(--border)',
+  },
 }
 
-const THEMES = [
-  { key: 'night',   bg: 'linear-gradient(135deg, #0a0a0f 50%, #e8ff47 50%)' },
-  { key: 'day',     bg: 'linear-gradient(135deg, #fafaf8 50%, #ff3e6c 50%)' },
-  { key: 'minimal', bg: 'linear-gradient(135deg, #ffffff 50%, #1a1a1a 50%)', border: '#ccc' },
-  { key: 'retro',   bg: 'linear-gradient(135deg, #1a0f00 50%, #f5c842 50%)' },
-]
-
 export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
-  const [theme, setTheme]       = useState(() => localStorage.getItem('mixmusic-theme') || 'night')
-  const [search, setSearch]     = useState('')
+  const [search, setSearch]       = useState('')
   const [collapsed, setCollapsed] = useState(new Set())
-
-  function applyTheme(t) {
-    setTheme(t)
-    document.body.setAttribute('data-theme', t)
-    localStorage.setItem('mixmusic-theme', t)
-  }
-
-  // Init theme
-  useState(() => { document.body.setAttribute('data-theme', theme) })
 
   const q = search.toLowerCase()
   const filtered = q
@@ -97,20 +80,6 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
       {/* Header */}
       <div style={s.header}>
         <span style={s.logo}>♫ Mix</span>
-        <div style={s.themeBtns}>
-          {THEMES.map(t => (
-            <div
-              key={t.key}
-              title={t.key}
-              onClick={() => applyTheme(t.key)}
-              style={{
-                ...s.themeBtn,
-                background: t.bg,
-                borderColor: theme === t.key ? 'var(--accent)' : (t.border || 'transparent'),
-              }}
-            />
-          ))}
-        </div>
       </div>
 
       {/* Search */}
@@ -186,6 +155,11 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
       </div>
 
       <button style={s.reloadBtn} onClick={onReload}>↺ Vernieuwen</button>
+
+      {/* Thema switch */}
+      <div style={s.themeWrap}>
+        <ThemeSwitcher compact />
+      </div>
     </div>
   )
 }

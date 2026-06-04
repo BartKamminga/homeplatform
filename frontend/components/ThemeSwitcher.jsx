@@ -2,22 +2,35 @@ import { useState, useEffect } from "react";
 import { applyTheme, getActiveTheme } from "@core/api.js";
 
 const THEMES = [
-  { key: "light", label: "☀️ Licht" },
-  { key: "dark", label: "🌙 Donker" },
-  { key: "victoria", label: "⚜️ Victoria" },
-  { key: "minimal", label: "◻ Minimal" },
-  { key: "retro", label: "📻 Retro" },
+  {
+    key: "light",
+    bg: "linear-gradient(135deg, #fafaf8 50%, #ff3e6c 50%)",
+    title: "Licht",
+  },
+  {
+    key: "dark",
+    bg: "linear-gradient(135deg, #0a0a0f 50%, #e8ff47 50%)",
+    title: "Donker",
+  },
+  {
+    key: "minimal",
+    bg: "linear-gradient(135deg, #ffffff 50%, #1a1a1a 50%)",
+    title: "Minimal",
+    border: "#ccc",
+  },
+  {
+    key: "retro",
+    bg: "linear-gradient(135deg, #1a0f00 50%, #f5c842 50%)",
+    title: "Retro",
+  },
 ];
 
 export default function ThemeSwitcher({ compact = false }) {
   const [active, setActive] = useState(getActiveTheme);
 
-  // Sync met body data-theme attribuut via MutationObserver
   useEffect(() => {
-    // Zet initiële waarde
     setActive(document.body.getAttribute("data-theme") || getActiveTheme());
 
-    // Luister op veranderingen
     const observer = new MutationObserver(() => {
       const theme = document.body.getAttribute("data-theme") || "light";
       setActive(theme);
@@ -35,28 +48,27 @@ export default function ThemeSwitcher({ compact = false }) {
     applyTheme(key);
   }
 
+  const size = compact ? 20 : 26;
+
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       {THEMES.map((t) => (
-        <button
+        <div
           key={t.key}
+          title={t.title}
           onClick={() => handle(t.key)}
           style={{
-            padding: compact ? "4px 8px" : "6px 12px",
-            fontSize: compact ? 11 : 13,
-            background:
-              active === t.key
-                ? "var(--color-primary)"
-                : "var(--color-surface)",
-            color: active === t.key ? "#fff" : "var(--color-text)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-md)",
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            background: t.bg,
+            border: `2px solid ${active === t.key ? "var(--color-text)" : t.border || "transparent"}`,
             cursor: "pointer",
-            transition: "background .15s, color .15s",
+            transition: "border-color 0.2s, transform 0.15s",
+            transform: active === t.key ? "scale(1.2)" : "scale(1)",
+            flexShrink: 0,
           }}
-        >
-          {t.label}
-        </button>
+        />
       ))}
     </div>
   );
