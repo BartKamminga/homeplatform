@@ -16,11 +16,11 @@ export function clearToken() {
   localStorage.removeItem("hp_user");
 }
 
-export function trackEvent(site, path) {
+export function trackEvent(site, action, details) {
   fetch("/api/track", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ site, path }),
+    body: JSON.stringify({ site, action, details }),
   }).catch(() => {});
 }
 

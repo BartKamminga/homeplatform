@@ -10,11 +10,12 @@ router = APIRouter(prefix="/api", tags=["tracking"])
 
 class TrackRequest(BaseModel):
     site: str
-    path: str
+    action: str
+    details: str
 
 
 @router.post("/track")
 def track(data: TrackRequest, session: Session = Depends(get_session)):
     """Publiek endpoint — registreert een paginabezoek in de audit log."""
-    log_action(session, "page.view", site=data.site, payload={"path": data.path})
+    log_action(session, data.action, site=data.site, payload=data.details)
     return {"ok": True}

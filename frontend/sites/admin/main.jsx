@@ -14,7 +14,7 @@ import Changelog from "./pages/Changelog.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
 
-trackEvent(__SITE__, window.location.pathname);
+trackEvent(__SITE__, "page.view", "path" + window.location.pathname);
 
 function PrivateRoute({ children }) {
   return isLoggedIn() ? children : <Navigate to="/admin/login" replace />;
