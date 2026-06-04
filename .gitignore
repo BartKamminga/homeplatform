@@ -23,3 +23,9 @@ node_modules/
 Thumbs.db
 backend/db/*.sqlite
 
+gitea-data/
+.Caddyfile.swp
+@eaDir/
+#recycle/
+backend/db/*.sqlite
+docker-compose.yml

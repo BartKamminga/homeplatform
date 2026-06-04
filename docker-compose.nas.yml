@@ -1,0 +1,52 @@
+# docker-compose.nas.yml
+# NAS-specifieke configuratie voor Synology
+# Gebruik: sudo docker-compose -f docker-compose.nas.yml up --build -d
+
+services:
+  caddy:
+    image: caddy:latest
+    container_name: homeplatform_caddy
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./Caddyfile.nas:/etc/caddy/Caddyfile
+      - ./frontend/dist:/srv/www
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: homeplatform_backend
+    volumes:
+      - /volume1/homeplatform/db:/app/db
+      - /volume1/homeplatform/nas-files:/app/nas-files
+      - /volume1/Music/music/Mixes:/app/music:ro
+    environment:
+      - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
+      - MUSIC_DIR=/app/music
+    restart: unless-stopped
+
+  gitea:
+    image: gitea/gitea:latest
+    container_name: homeplatform_gitea
+    ports:
+      - "3000:3000"
+      - "2222:22"
+    volumes:
+      - /volume1/homeplatform/gitea-data:/data
+    environment:
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__database__PATH=/data/gitea.db
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

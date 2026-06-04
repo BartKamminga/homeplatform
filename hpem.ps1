@@ -322,18 +322,18 @@ if ($Deploy -eq "nas") {
             Ok "Frontend live"
         }
         "be" {
-            NasRun "cd $NasPath && sudo docker-compose up --build -d backend" "Backend rebuilden..."
+            NasRun "cd $NasPath && sudo docker-compose -f docker-compose.nas.yml up --build -d backend" "Backend rebuilden..."
             Ok "Backend herstart"
         }
         "be_db" {
-            NasRun "cd $NasPath && sudo docker-compose up --build -d backend" "Backend rebuilden..."
+            NasRun "cd $NasPath && sudo docker-compose -f docker-compose.nas.yml up --build -d backend" "Backend rebuilden..."
             NasRun "docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
             NasRun "docker restart homeplatform_backend" "Backend herstarten..."
             Ok "Backend + migraties + seed klaar"
         }
         "all" {
-            NasRun "cd $NasPath && sudo docker-compose up --build -d backend" "Backend rebuilden..."
+            NasRun "cd $NasPath && sudo docker-compose -f docker-compose.nas.yml up --build -d backend" "Backend rebuilden..."
             NasRun "docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
             NasRun "docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
@@ -349,5 +349,6 @@ if ($Deploy -eq "nas") {
 Write-Host ""
 Ok "Deploy klaar!"
 if ($Deploy -eq "nas") {
-    Write-Host "  http://192.168.30.193:8080/" -ForegroundColor White
+    $nasIp = $NasHost.Split('@')[1]
+    Write-Host "  http://${nasIp}:8080/" -ForegroundColor White
 }
