@@ -50,10 +50,6 @@ const s = {
     color: 'var(--muted)', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer',
     fontFamily: 'var(--font-body)', fontSize: '12px', width: 'calc(100% - 28px)',
   },
-  themeWrap: {
-    padding: '10px 14px',
-    borderTop: '1px solid var(--border)',
-  },
 }
 
 export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
@@ -80,6 +76,9 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
       {/* Header */}
       <div style={s.header}>
         <span style={s.logo}>♫ Mix</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <ThemeSwitcher compact />
+        </div>
       </div>
 
       {/* Search */}
@@ -155,11 +154,6 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
       </div>
 
       <button style={s.reloadBtn} onClick={onReload}>↺ Vernieuwen</button>
-
-      {/* Thema switch */}
-      <div style={s.themeWrap}>
-        <ThemeSwitcher compact />
-      </div>
     </div>
   )
 }
