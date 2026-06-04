@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
+import ChangelogPage from '@components/ChangelogPage.jsx'
+import { VERSION, CHANGELOG } from '../changelog.jsx'
 
 const AVATAR_COLORS = [
   { bg: '#E6F1FB', text: '#0C447C' },
@@ -30,8 +32,7 @@ function Card({ children }) {
 
 function Row({ icon, iconBg, iconColor, title, sub, end, onClick, danger }) {
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '0.5px solid var(--border)', cursor: onClick ? 'pointer' : 'default' }}
-      className="settings-row">
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '0.5px solid var(--border)', cursor: onClick ? 'pointer' : 'default' }}>
       <div style={{ width: 32, height: 32, borderRadius: 8, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <i className={`ti ${icon}`} style={{ fontSize: 16, color: iconColor }} aria-hidden="true" />
       </div>
@@ -92,20 +93,52 @@ function SelectRow({ icon, iconBg, iconColor, title, options, value, onChange })
   )
 }
 
+function ChangelogPopup({ onClose }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.5)', zIndex: 99,
+      display: 'flex', alignItems: 'flex-end',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg-card)', width: '100%', borderRadius: '16px 16px 0 0',
+        maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 16px', borderBottom: '0.5px solid var(--border)',
+        }}>
+          <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>Over DontForget</span>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-muted)', fontSize: 18, padding: '2px 6px',
+          }}>✕</button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '0 0 16px' }}>
+          <ChangelogPage changelog={CHANGELOG} title="" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
-  const [name,         setName]         = useState('Bart')
-  const [avatarColor,  setAvatarColor]  = useState(0)
-  const [photoRequired,setPhotoRequired]= useState(false)
-  const [points,       setPoints]       = useState(true)
-  const [moment,       setMoment]       = useState('Ochtend')
-  const [repeat,       setRepeat]       = useState('Eenmalig')
-  const [history,      setHistory]      = useState('30 dagen')
-  const [editName,     setEditName]     = useState(false)
+  const [name,          setName]          = useState('Bart')
+  const [avatarColor,   setAvatarColor]   = useState(0)
+  const [photoRequired, setPhotoRequired] = useState(false)
+  const [points,        setPoints]        = useState(true)
+  const [moment,        setMoment]        = useState('Ochtend')
+  const [repeat,        setRepeat]        = useState('Eenmalig')
+  const [history,       setHistory]       = useState('30 dagen')
+  const [editName,      setEditName]      = useState(false)
+  const [showChangelog, setShowChangelog] = useState(false)
 
   const avatar = AVATAR_COLORS[avatarColor]
 
   return (
     <div style={{ paddingBottom: 16 }}>
+      {showChangelog && <ChangelogPopup onClose={() => setShowChangelog(false)} />}
+
       {/* Topbar */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--bg-card)' }}>
         <div style={{ flex: 1, fontSize: 17, fontWeight: 500, color: 'var(--text)' }}>Instellingen</div>
@@ -186,6 +219,14 @@ export default function SettingsPage() {
           options={HISTORY_OPTIONS} value={history} onChange={setHistory} />
         <Row icon="ti-trash" iconBg="#FCEBEB" iconColor="#A32D2D" title="Alles resetten"
           sub="Verwijder alle taken en geschiedenis" danger onClick={() => {}} />
+      </Card>
+
+      {/* Over */}
+      <SectionHeader label="Over" />
+      <Card>
+        <Row icon="ti-history" iconBg="#EEEDFE" iconColor="#534AB7" title="Changelog"
+          sub={`Versie ${VERSION}`}
+          end={<ChevronEnd value="" />} onClick={() => setShowChangelog(true)} />
       </Card>
 
     </div>

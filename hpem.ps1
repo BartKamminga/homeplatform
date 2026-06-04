@@ -53,7 +53,7 @@ param(
     [switch]$DbUpgrade   = $false,
     [string]$DbDowngrade = "",
     [switch]$DbHistory   = $false,
-    [switch]$Help        = $false
+    [switch]$Help        = $false,
     [switch]$CaddyRestart = $false,
     [switch]$CaddyReset   = $false
 )
