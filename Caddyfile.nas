@@ -23,6 +23,12 @@
         file_server
     }
 
+     handle /dontforget/* {
+        root * /srv/www
+        try_files {path} /dontforget/index.html
+        file_server
+    }
+
     handle /api/* {
         reverse_proxy backend:8000
     }

@@ -308,6 +308,7 @@ if ($Build -in @("all","fe")) {
     BuildSite "Admin"     "frontend\sites\admin"
     BuildSite "NK Hockey" "frontend\sites\nkhockey"
     BuildSite "Mix Music" "frontend\sites\mixmusic"
+    BuildSite "DontForget" "frontend\sites\dontforget"
 }
 
 # ---------------------------------------------------------------------------
