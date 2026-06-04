@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sqlmodel import Session, select
 from core.database import engine, create_db_and_tables
 from core.auth import hash_password
-from models.core import User, UserGroup, Group, Theme
+from models.core import User, UserGroup, Group, Theme, Site
 
 
 def seed_base(session: Session):
-    """Maakt altijd de basis groepen en thema aan — ook als ze al bestaan."""
+    """Maakt altijd de basis groepen en thema aan."""
 
     # Groepen
     for name, slug in [("Admins", "admins"), ("Members", "members")]:
@@ -53,10 +53,37 @@ def seed_base(session: Session):
         print("  Thema bestaat al")
 
 
+def seed_sites(session: Session):
+    """Registreert de standaard sites. Bestaande sites krijgen een icon update."""
+
+    sites = [
+        ("Admin", "admin", "admin", "⚙️"),
+        ("NK Hockey", "nkhockey", "nkhockey", "🏑"),
+        ("Mix Music", "mixmusic", "mixmusic", "♫"),
+    ]
+
+    for name, slug, module, icon in sites:
+        existing = session.exec(select(Site).where(Site.slug == slug)).first()
+        if not existing:
+            session.add(
+                Site(name=name, slug=slug, module=module, icon=icon, is_active=True)
+            )
+            print(f"  Site '{slug}' aangemaakt")
+        else:
+            # Bijwerken als icon ontbreekt
+            if not existing.icon:
+                existing.icon = icon
+                session.add(existing)
+                print(f"  Site '{slug}' icon bijgewerkt naar {icon}")
+            else:
+                print(f"  Site '{slug}' bestaat al (icon: {existing.icon})")
+
+    session.commit()
+
+
 def seed_admin(session: Session, username: str, password: str, email: str):
     """Maakt de admin gebruiker aan en voegt hem toe aan de admins groep."""
 
-    # Check of gebruiker al bestaat
     user = session.exec(select(User).where(User.username == username)).first()
 
     if not user:
@@ -93,10 +120,13 @@ def seed(username: str, password: str, email: str):
     create_db_and_tables()
 
     with Session(engine) as session:
-        print("\n→ Basis data...")
+        print("\n>> Basis data...")
         seed_base(session)
 
-        print("\n→ Admin gebruiker...")
+        print("\n>> Sites...")
+        seed_sites(session)
+
+        print("\n>> Admin gebruiker...")
         seed_admin(session, username, password, email)
 
         print("\n✓ Seed klaar")

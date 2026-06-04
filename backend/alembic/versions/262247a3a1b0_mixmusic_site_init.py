@@ -24,6 +24,8 @@ def upgrade() -> None:
         INSERT OR IGNORE INTO sites (id, name, slug, module, is_active)
         VALUES ('site-mixmusic', 'Mix Music', 'mixmusic', 'mixmusic', 1)
     """)
+    op.execute("UPDATE sites SET icon = '🏑' WHERE slug = 'nkhockey'")
+    op.execute("UPDATE sites SET icon = '♫' WHERE slug = 'mixmusic'")
 
 
 def downgrade() -> None:
