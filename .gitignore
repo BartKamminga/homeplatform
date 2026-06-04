@@ -29,3 +29,6 @@ gitea-data/
 #recycle/
 backend/db/*.sqlite
 docker-compose.yml
+
+#FE sites dist
+frontend/sites/*/dist/
