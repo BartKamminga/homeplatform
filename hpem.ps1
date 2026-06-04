@@ -45,7 +45,8 @@ param(
     [switch]$DbUpgrade   = $false,
     [string]$DbDowngrade = "",
     [switch]$DbHistory   = $false,
-    [switch]$Help        = $false
+    [switch]$Help        = $false,
+    [switch]$CaddyRestart = $false
 )
 
 # Zichzelf unblocking zodat updates direct werken
@@ -304,10 +305,10 @@ function BuildSite($name, $sitePath) {
 }
 
 if ($Build -in @("all","fe")) {
-    BuildSite "Landing"   "frontend\sites\landing"
-    BuildSite "Admin"     "frontend\sites\admin"
-    BuildSite "NK Hockey" "frontend\sites\nkhockey"
-    BuildSite "Mix Music" "frontend\sites\mixmusic"
+    BuildSite "Landing"    "frontend\sites\landing"
+    BuildSite "Admin"      "frontend\sites\admin"
+    BuildSite "NK Hockey"  "frontend\sites\nkhockey"
+    BuildSite "Mix Music"  "frontend\sites\mixmusic"
     BuildSite "DontForget" "frontend\sites\dontforget"
 }
 
@@ -343,12 +344,17 @@ if ($Deploy -eq "nas") {
         Warn "Geen git pull (Push=no)"
     }
 
-    $dcCmd     = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build -d backend"
-    $docker    = "sudo /usr/local/bin/docker"
+    $dcCmd  = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build -d backend"
+    $dcCaddy = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml restart caddy"
+    $docker = "sudo /usr/local/bin/docker"
 
     switch ($Build) {
         "fe" {
-            NasRun "$docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
+            if ($CaddyRestart) {
+                NasRun $dcCaddy "Caddy herstarten..."
+            } else {
+                NasRun "$docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
+            }
             Ok "Frontend live"
         }
         "be" {
@@ -366,7 +372,11 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
-            NasRun "$docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
+            if ($CaddyRestart) {
+                NasRun $dcCaddy "Caddy herstarten..."
+            } else {
+                NasRun "$docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
+            }
             Ok "Alles live"
         }
     }
