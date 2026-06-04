@@ -2,19 +2,21 @@
 # HomePlatformEnvironmentManager
 #
 # GEBRUIK:
-#   .\hpem.ps1                                  # interactief
-#   .\hpem.ps1 "commit message"                 # alles deployen
-#   .\hpem.ps1 "message" -Build fe              # alleen frontend
-#   .\hpem.ps1 "message" -Build be              # alleen backend
-#   .\hpem.ps1 "message" -Build be_db           # backend + migraties
-#   .\hpem.ps1 "message" -Deploy local          # niet naar NAS
-#   .\hpem.ps1 "message" -Push no -Deploy nas   # NAS deployen zonder push
-#   .\hpem.ps1 -Status                          # sync check lokaal vs NAS
-#   .\hpem.ps1 -NasSetup                        # eenmalige NAS toegang instellen
-#   .\hpem.ps1 -DbUpgrade                       # alembic upgrade head lokaal
-#   .\hpem.ps1 -DbDowngrade         # alembic downgrade naar revisie
-#   .\hpem.ps1 -DbHistory                       # toon migratie geschiedenis
-#   .\hpem.ps1 -Help                            # deze help tonen
+#   .\hpem.ps1                                       # interactief
+#   .\hpem.ps1 "commit message"                      # alles deployen
+#   .\hpem.ps1 "message" -Build fe                   # alleen frontend
+#   .\hpem.ps1 "message" -Build be                   # alleen backend
+#   .\hpem.ps1 "message" -Build be_db                # backend + migraties
+#   .\hpem.ps1 "message" -Deploy local               # niet naar NAS
+#   .\hpem.ps1 "message" -Push no -Deploy nas        # NAS deployen zonder push
+#   .\hpem.ps1 "message" -Build fe -CaddyRestart     # frontend + caddy restart
+#   .\hpem.ps1 -Status                               # sync check lokaal vs NAS
+#   .\hpem.ps1 -NasSetup                             # eenmalige NAS toegang instellen
+#   .\hpem.ps1 -DbUpgrade                            # alembic upgrade head lokaal
+#   .\hpem.ps1 -DbDowngrade <revisie>                # alembic downgrade naar revisie
+#   .\hpem.ps1 -DbHistory                            # toon migratie geschiedenis
+#   .\hpem.ps1 -Help                                 # deze help tonen
+#   .\hpem.ps1 -CaddyReset                          # caddy cache wissen en herstarten
 #
 # BUILD OPTIES:
 #   all    Frontend bouwen + backend [standaard]
@@ -29,6 +31,12 @@
 # PUSH OPTIES:
 #   yes    Pushen naar GitHub [standaard]
 #   no     Niet pushen
+#
+# CADDY OPTIES:
+#   -CaddyRestart   Herstart Caddy container (nodig bij nieuwe routes)
+#                   Zonder deze flag wordt caddy reload gebruikt (sneller)
+#   -CaddyReset     Stop alles, wis Caddy config cache, start alles opnieuw
+#                   Gebruik bij Caddy crashes of config problemen
 
 
 
@@ -45,8 +53,9 @@ param(
     [switch]$DbUpgrade   = $false,
     [string]$DbDowngrade = "",
     [switch]$DbHistory   = $false,
-    [switch]$Help        = $false,
-    [switch]$CaddyRestart = $false
+    [switch]$Help        = $false
+    [switch]$CaddyRestart = $false,
+    [switch]$CaddyReset   = $false
 )
 
 # Zichzelf unblocking zodat updates direct werken
@@ -102,7 +111,7 @@ function LocalAlembic($alembicArgs) {
 # ---------------------------------------------------------------------------
 if ($Help) {
     Get-Content $MyInvocation.MyCommand.Path |
-        Where-Object { $_ -match "^#" } |
+        Where-Object { $_ -match "^# " -or $_ -eq "#" } |
         ForEach-Object { $_ -replace "^# ?", "" }
     exit 0
 }
@@ -149,6 +158,18 @@ if ($NasSetup) {
 
     Write-Host ""
     Ok "NAS Setup klaar!"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Caddy Reset
+# ---------------------------------------------------------------------------
+if ($CaddyReset) {
+    Step "Caddy reset"
+    NasRun "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml down" "Containers stoppen..."
+    NasRun "sudo /usr/local/bin/docker volume rm homeplatform_caddy_config" "Caddy config cache verwijderen..."
+    NasRun "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml up -d" "Alles opstarten..."
+    Ok "Caddy reset klaar"
     exit 0
 }
 
