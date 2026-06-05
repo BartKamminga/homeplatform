@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { VERSION, COMP_LABELS, getSavedForm, saveForm, getSavedPlayed, savePlayed, getSavedMatches, saveMatches, getSavedSimCount, saveSimCount } from './constants'
 import { NK_SCHEDULES } from './lib/nk-schedules'
 import SimTab from './components/SimTab'
+import NavFilter from './components/NavFilter'
+import NavFilterDefault from './components/NavFilterDefault'
 import { useCompetitionData } from './dataloader/useCompetitionData'
 import DisclaimerPopup from './components/popups/DisclaimerPopup'
 import FeedbackPopup from './components/popups/FeedbackPopup'
@@ -10,7 +12,8 @@ import MenuPopup from './components/popups/MenuPopup'
 import SettingsPopup from './components/popups/SettingsPopup'
 import EasterEgg from './components/common/EasterEgg'
 
-// Load theme from homeplatform API
+const USE_NEW_NAV = true  // ← false voor oude navigatie
+
 async function loadTheme() {
   try {
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -20,32 +23,32 @@ async function loadTheme() {
     Object.entries(tokens).forEach(([key, value]) => {
       root.style.setProperty(key, value)
     })
-  } catch {
-    // Use default CSS variables
-  }
+  } catch {}
 }
 
 export default function App() {
-  const [showVersion, setShowVersion] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [showFeedback, setShowFeedback] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
-  const [helpMode, setHelpMode] = useState('tab')
-  const [easterEgg, setEasterEgg] = useState(false)
+  const [showVersion,   setShowVersion]   = useState(false)
+  const [showSettings,  setShowSettings]  = useState(false)
+  const [showFeedback,  setShowFeedback]  = useState(false)
+  const [showHelp,      setShowHelp]      = useState(false)
+  const [helpMode,      setHelpMode]      = useState('tab')
+  const [easterEgg,     setEasterEgg]     = useState(false)
   const easterClicks = React.useRef(0)
-  const easterTimer = React.useRef(null)
+  const easterTimer  = React.useRef(null)
+
+  // NavFilter state
+  const [selectedPhases, setSelectedPhases] = useState(new Set())
+  const [selectedSubs,   setSelectedSubs]   = useState(new Set())
+
   const [showDisclaimer, setShowDisclaimer] = useState(() => {
     try { return localStorage.getItem('nk_disclaimer_seen') !== 'true' } catch { return true }
   })
-  const [showForm, setShowForm] = useState(getSavedForm)
-  const [showPlayed, setShowPlayed] = useState(getSavedPlayed)
+  const [showForm,    setShowForm]    = useState(getSavedForm)
+  const [showPlayed,  setShowPlayed]  = useState(getSavedPlayed)
   const [showMatches, setShowMatches] = useState(getSavedMatches)
-  const [simCount, setSimCount] = useState(getSavedSimCount)
+  const [simCount,    setSimCount]    = useState(getSavedSimCount)
 
-  // Load theme from homeplatform API on mount
-  useEffect(() => {
-    loadTheme()
-  }, [])
+  useEffect(() => { loadTheme() }, [])
 
   function onHockeyClick() {
     if (focusClub) setFocusMode(!focusMode)
@@ -65,6 +68,12 @@ export default function App() {
     myTeam, allClubs, visibleTypes, o16,
     setFocusClub, setFocusMode, setActiveCompetition, fetchFromServer
   } = useCompetitionData()
+
+  function handleSetActiveCompetition(type) {
+    setActiveCompetition(type)
+    setSelectedPhases(new Set())
+    setSelectedSubs(new Set())
+  }
 
   if (loading) return <div className="loading">Laden...</div>
   if (!comps) return (
@@ -95,19 +104,34 @@ export default function App() {
             <button className="reload-btn" onClick={() => setShowVersion(!showVersion)} title="Menu">v{VERSION}</button>
           </div>
         </div>
-        <div className="top-comp-row">
-          {visibleTypes.map(t => <button key={t} className={`top-comp-btn ${effectiveComp === t ? 'active' : ''}`}
-            onClick={() => setActiveCompetition(t)}>{COMP_LABELS[t] || t}</button>)}
-        </div>
+
+        {/* Navigatie */}
+        {USE_NEW_NAV
+          ? <NavFilter
+              visibleTypes={visibleTypes}
+              effectiveComp={effectiveComp}
+              setActiveCompetition={handleSetActiveCompetition}
+              selectedPhases={selectedPhases}
+              setSelectedPhases={setSelectedPhases}
+              selectedSubs={selectedSubs}
+              setSelectedSubs={setSelectedSubs}
+              data={data}
+            />
+          : <NavFilterDefault
+              visibleTypes={visibleTypes}
+              effectiveComp={effectiveComp}
+              setActiveCompetition={handleSetActiveCompetition}
+            />
+        }
       </div>
 
       {/* Popups */}
-      {showVersion && <MenuPopup onClose={() => setShowVersion(false)} onReload={fetchFromServer}
+      {showVersion    && <MenuPopup onClose={() => setShowVersion(false)} onReload={fetchFromServer}
         onShowDisclaimer={() => setShowDisclaimer(true)} onShowFeedback={() => setShowFeedback(true)} onShowHelp={() => { setHelpMode('all'); setShowHelp(true) }} />}
       {showDisclaimer && <DisclaimerPopup onClose={dismissDisclaimer} />}
-      {showFeedback && <FeedbackPopup onClose={() => setShowFeedback(false)} />}
-      {showHelp && <HelpPopup tab={helpMode === 'all' ? 'all' : 'sim'} onClose={() => setShowHelp(false)} />}
-      {showSettings && <SettingsPopup onClose={() => setShowSettings(false)}
+      {showFeedback   && <FeedbackPopup onClose={() => setShowFeedback(false)} />}
+      {showHelp       && <HelpPopup tab={helpMode === 'all' ? 'all' : 'sim'} onClose={() => setShowHelp(false)} />}
+      {showSettings   && <SettingsPopup onClose={() => setShowSettings(false)}
         showForm={showForm} setShowForm={setShowForm} saveForm={saveForm}
         showPlayed={showPlayed} setShowPlayed={setShowPlayed} savePlayed={savePlayed}
         showMatches={showMatches} setShowMatches={setShowMatches} saveMatches={saveMatches}
@@ -116,10 +140,20 @@ export default function App() {
         focusClub={focusClub} setFocusClub={setFocusClub} allClubs={allClubs} />}
 
       {/* Main content */}
-      <SimTab data={data} myTeam={myTeam} effectiveComp={effectiveComp} focusMode={focusMode}
-        showForm={showForm} showPlayed={showPlayed} showMatches={showMatches} simCount={simCount} key={effectiveComp + '_sim'} />
+      <SimTab
+        data={data}
+        myTeam={myTeam}
+        effectiveComp={effectiveComp}
+        focusMode={focusMode}
+        showForm={showForm}
+        showPlayed={showPlayed}
+        showMatches={showMatches}
+        simCount={simCount}
+        selectedPhases={selectedPhases}
+        selectedSubs={selectedSubs}
+        key={effectiveComp + '_sim'}
+      />
 
-      {/* Easter egg */}
       {easterEgg && <EasterEgg />}
     </>
   )

@@ -8,7 +8,7 @@ import O14NKPhase from './O14NKPhase'
 import O16KFPhase from './O16KFPhase'
 import NKChances from './NKChances'
 
-export default function SimTab({ data, myTeam, effectiveComp, focusMode, showForm, showPlayed, showMatches, simCount }) {
+export default function SimTab({ data, myTeam, effectiveComp, focusMode, showForm, showPlayed, showMatches, simCount, selectedPhases = new Set(), selectedSubs = new Set() }) {
   const o16 = IS_O16(effectiveComp)
   const pouleOrder = o16 ? POULE_ORDER_16 : POULE_ORDER_14
   const N = simCount || 15000
@@ -31,9 +31,28 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
 
   const timelinePouleIds = useMemo(() => {
     const all = pouleOrder.filter(id => data[id])
-    if (focusMode && myPouleId) return [myPouleId]
+    if (focusMode && myPouleId && selectedPhases.size === 0) return [myPouleId]
+    if (selectedPhases.size === 0) return all
+    if (!selectedPhases.has('Poules')) return []
+    if (selectedSubs.size > 0) return all.filter(id => selectedSubs.has(id))
     return all
-  }, [pouleOrder, data, focusMode, myPouleId])
+  }, [pouleOrder, data, focusMode, myPouleId, selectedPhases, selectedSubs])
+
+  // NK sub selectie voor O14
+  const selectedNKSubs = useMemo(() => {
+    if (!selectedPhases.has('NK Fase')) return new Set()
+    const nkSubs = new Set()
+    selectedSubs.forEach(s => {
+      if (s.startsWith('NK Poule') || ['KF','HF','Finale'].includes(s)) {
+        nkSubs.add(s)
+      }
+    })
+    return nkSubs
+  }, [selectedPhases, selectedSubs])
+
+  const showPoules     = selectedPhases.size === 0 || selectedPhases.has('Poules')
+  const showNKFase     = selectedPhases.size === 0 || selectedPhases.has('NK Fase')
+  const showSimulaties = selectedPhases.size === 0 || selectedPhases.has('Simulaties')
 
   function doSim(currentLocks) {
     const simLocks = buildAllSimLocks(currentLocks || locks)
@@ -55,19 +74,15 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
     setSimNote(`${N.toLocaleString('nl-NL')} sim · ${new Date().toLocaleString('nl-NL')}`)
   }, [])
 
-  // ── Lock handlers ──
-
   function onToggle(lockKey, outcome) {
     const newLocks = { ...locks }
     if (outcome === null) {
       delete newLocks[lockKey]
     } else {
-      // Check if current lock has same result — if so, remove
       const cur = newLocks[lockKey]
       const curResult = cur ? (typeof cur === 'string' ? cur : cur.result) : null
-      if (curResult === outcome) {
-        delete newLocks[lockKey]
-      } else {
+      if (curResult === outcome) delete newLocks[lockKey]
+      else {
         const [scoreH, scoreA] = generateScore(outcome)
         newLocks[lockKey] = { result: outcome, scoreH, scoreA }
       }
@@ -158,30 +173,49 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
     doSim(newLocks)
   }
 
-  // ── Render ──
-
   return (
     <div>
-      <RemainingPouleCards data={data} showForm={showForm} showPlayed={showPlayed} showMatches={showMatches} pouleIds={timelinePouleIds} myTeam={myTeam} locks={locks}
-        onToggle={onToggle} onSetRound={onSetRound} onPredict={onPredict} onPredictAllRounds={onPredictAllRounds}
-        onPredictSection={onPredictSectionPoules} onResetSection={onResetPoules} />
+      {showPoules && (
+        <RemainingPouleCards
+          data={data} showForm={showForm} showPlayed={showPlayed} showMatches={showMatches}
+          pouleIds={timelinePouleIds} myTeam={myTeam} locks={locks}
+          onToggle={onToggle} onSetRound={onSetRound} onPredict={onPredict}
+          onPredictAllRounds={onPredictAllRounds}
+          onPredictSection={onPredictSectionPoules} onResetSection={onResetPoules}
+        />
+      )}
 
-      {!o16 && <O14NKPhase data={data} locks={locks} myTeam={myTeam}
-        nkSchedule={NK_SCHEDULES[effectiveComp]}
-        onToggle={onToggle} onSetRound={onSetRound} onPredict={r => onPredictNK([r])} onPredictAll={onPredictNK}
-        onPredictSection={onPredictNK} onResetSection={onResetSectionRounds} />}
+      {showNKFase && !o16 && (
+        <O14NKPhase
+          data={data} locks={locks} myTeam={myTeam}
+          nkSchedule={NK_SCHEDULES[effectiveComp]}
+          onToggle={onToggle} onSetRound={onSetRound}
+          onPredict={r => onPredictNK([r])} onPredictAll={onPredictNK}
+          onPredictSection={onPredictNK} onResetSection={onResetSectionRounds}
+          selectedNKSubs={selectedNKSubs}
+        />
+      )}
 
-      {o16 && <O16KFPhase data={data} locks={locks} myTeam={myTeam}
-        onToggle={onToggle} onSetRound={onSetRound} onPredictAll={onPredictNK}
-        onPredictSection={onPredictNK} onResetSection={onResetSectionRounds} />}
+      {showNKFase && o16 && (
+        <O16KFPhase
+          data={data} locks={locks} myTeam={myTeam}
+          onToggle={onToggle} onSetRound={onSetRound} onPredictAll={onPredictNK}
+          onPredictSection={onPredictNK} onResetSection={onResetSectionRounds}
+          selectedNKSubs={selectedNKSubs}
+        />
+      )}
 
-      <NKChances myTeam={myTeam} results={results} baseResults={baseResults} N={N} o16={o16} hasLocks={hasLocks} />
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-        <button className="run-btn" onClick={() => doSim()} disabled={running} style={{ marginLeft: 0 }}>{running ? 'Bezig...' : `Herbereken (${N.toLocaleString('nl-NL')})`}</button>
-      </div>
-
-      {simNote && <div className="sim-note">{simNote}</div>}
+      {showSimulaties && (
+        <>
+          <NKChances myTeam={myTeam} results={results} baseResults={baseResults} N={N} o16={o16} hasLocks={hasLocks} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <button className="run-btn" onClick={() => doSim()} disabled={running} style={{ marginLeft: 0 }}>
+              {running ? 'Bezig...' : `Herbereken (${N.toLocaleString('nl-NL')})`}
+            </button>
+          </div>
+          {simNote && <div className="sim-note">{simNote}</div>}
+        </>
+      )}
     </div>
   )
 }
