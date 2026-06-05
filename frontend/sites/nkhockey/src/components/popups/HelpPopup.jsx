@@ -9,6 +9,15 @@ const HELP = {
         <p style={{ fontWeight: 600, marginBottom: 8 }}>Stand & wedstrijden</p>
         <p>Elke poule-card toont de huidige stand, gespeelde wedstrijden en resterende wedstrijden. Gebruik ⚙️ om gespeelde wedstrijden te tonen/verbergen.</p>
 
+        <p style={{ fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Navigatie & filter</p>
+        <ul>
+          <li>Rij 1 — kies competitie: MO14, JO14, MO16, JO16</li>
+          <li>Rij 2 — kies fase: Poules, NK Fase of Simulaties</li>
+          <li>Rij 3 — kies specifieke poule of NK fase (multi-select)</li>
+          <li>Klik nogmaals op een actieve knop om die selectie te wissen</li>
+          <li>🏑 Focus mode — filtert automatisch op jouw poule en NK fase</li>
+        </ul>
+
         <p style={{ fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Uitslagen voorspellen</p>
         <ul>
           <li>Klik op een <strong>teamnaam</strong> → dat team wint</li>
@@ -41,11 +50,11 @@ const HELP = {
       <div>
         <p>Pas de website aan naar jouw voorkeuren.</p>
         <ul>
-          <li><strong>Thema</strong> — kies tussen Licht, Donker of Victoria (zwart/geel/rood)</li>
+          <li><strong>Thema</strong> — kies tussen ☀️ Licht, 🌙 Donker, ◻ Minimal of 📻 Retro</li>
           <li><strong>🔥 Vorm-badges</strong> — gekleurde cirkel met punten uit de laatste 5 wedstrijden</li>
           <li><strong>🎮 Gespeeld</strong> — toon W-G-V record en gespeelde wedstrijden in de cards</li>
           <li><strong>🎲 Simulaties</strong> — aantal Monte Carlo simulaties (meer = nauwkeuriger)</li>
-          <li><strong>🏑 Focus mode</strong> — toon alleen de poule van jouw club</li>
+          <li><strong>🏑 Focus mode</strong> — filtert automatisch op jouw poule en NK fase</li>
           <li><strong>Club</strong> — kies jouw club voor highlighting en focus mode</li>
         </ul>
         <p className="help-tip">💡 Alle instellingen worden automatisch opgeslagen.</p>
