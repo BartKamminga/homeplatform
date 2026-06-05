@@ -1,7 +1,16 @@
 import React from 'react'
 
-export const VERSION = '6.1'
+export const VERSION = '6.2'
 export const CHANGELOG = [
+  { version: '6.2', date: '5 jun 2026', changes: [
+    'Simulaties is nu een pure schakelaar — zet voorspelknoppen en wedstrijd-klikken aan',
+    'Simulaties toont alleen NK Kansen + herbereken knop',
+    'Poules en NK Fase zijn onafhankelijke filters — geen overlap meer',
+    'Combinatie Poules + Simulaties: poule cards met interactie + NK Kansen',
+    'Combinatie NK Fase + Simulaties: NK fase met interactie + NK Kansen',
+    'Niets geselecteerd: alles zichtbaar, niet interactief',
+    'O16 NK Fase toont geen sub-knoppen meer — altijd KF/HF/Finale in één klik',
+  ]},
   { version: '6.1', date: '5 jun 2026', changes: [
     '🧭 Nieuwe NavFilter navigatie — drie scrollbare rijen: competitie, fase en poule',
     'Multi-select filter: meerdere poules en NK fases tegelijk selecteren',

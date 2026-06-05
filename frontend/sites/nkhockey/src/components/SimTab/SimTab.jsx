@@ -29,30 +29,35 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
 
   const hasLocks = Object.keys(locks).length > 0
 
+  // ── Zichtbaarheid ──
+  const nothingSelected = selectedPhases.size === 0
+  const simMode    = selectedPhases.has('Simulaties')
+  const showPoules = nothingSelected || selectedPhases.has('Poules')
+  const showNKFase = nothingSelected || selectedPhases.has('NK Fase')
+  const showKansen = simMode
+
+  // ── Interactief alleen als Simulaties aan ──
+  const interactive = simMode
+
+  // ── Poule IDs ──
   const timelinePouleIds = useMemo(() => {
     const all = pouleOrder.filter(id => data[id])
-    if (focusMode && myPouleId && selectedPhases.size === 0) return [myPouleId]
-    if (selectedPhases.size === 0) return all
-    if (!selectedPhases.has('Poules')) return []
-    if (selectedSubs.size > 0) return all.filter(id => selectedSubs.has(id))
+    if (focusMode && myPouleId && nothingSelected) return [myPouleId]
+    if (!showPoules) return []
+    if (selectedSubs.size > 0) {
+      const pouleSubs = [...selectedSubs].filter(s => !s.startsWith('NK'))
+      if (pouleSubs.length > 0) return all.filter(id => pouleSubs.includes(id))
+    }
     return all
-  }, [pouleOrder, data, focusMode, myPouleId, selectedPhases, selectedSubs])
+  }, [pouleOrder, data, focusMode, myPouleId, nothingSelected, showPoules, selectedSubs])
 
-  // NK sub selectie voor O14
+  // ── NK sub selectie voor O14 ──
   const selectedNKSubs = useMemo(() => {
     if (!selectedPhases.has('NK Fase')) return new Set()
     const nkSubs = new Set()
-    selectedSubs.forEach(s => {
-      if (s.startsWith('NK Poule') || ['KF','HF','Finale'].includes(s)) {
-        nkSubs.add(s)
-      }
-    })
+    selectedSubs.forEach(s => { if (s.startsWith('NK Poule')) nkSubs.add(s) })
     return nkSubs
   }, [selectedPhases, selectedSubs])
-
-  const showPoules     = selectedPhases.size === 0 || selectedPhases.has('Poules')
-  const showNKFase     = selectedPhases.size === 0 || selectedPhases.has('NK Fase')
-  const showSimulaties = selectedPhases.size === 0 || selectedPhases.has('Simulaties')
 
   function doSim(currentLocks) {
     const simLocks = buildAllSimLocks(currentLocks || locks)
@@ -175,13 +180,14 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
 
   return (
     <div>
-      {showPoules && (
+      {showPoules && timelinePouleIds.length > 0 && (
         <RemainingPouleCards
           data={data} showForm={showForm} showPlayed={showPlayed} showMatches={showMatches}
           pouleIds={timelinePouleIds} myTeam={myTeam} locks={locks}
           onToggle={onToggle} onSetRound={onSetRound} onPredict={onPredict}
           onPredictAllRounds={onPredictAllRounds}
           onPredictSection={onPredictSectionPoules} onResetSection={onResetPoules}
+          interactive={interactive}
         />
       )}
 
@@ -193,6 +199,8 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
           onPredict={r => onPredictNK([r])} onPredictAll={onPredictNK}
           onPredictSection={onPredictNK} onResetSection={onResetSectionRounds}
           selectedNKSubs={selectedNKSubs}
+          showAllNKPhases={selectedPhases.has('NK Fase')}
+          interactive={interactive}
         />
       )}
 
@@ -201,11 +209,12 @@ export default function SimTab({ data, myTeam, effectiveComp, focusMode, showFor
           data={data} locks={locks} myTeam={myTeam}
           onToggle={onToggle} onSetRound={onSetRound} onPredictAll={onPredictNK}
           onPredictSection={onPredictNK} onResetSection={onResetSectionRounds}
-          selectedNKSubs={selectedNKSubs}
+          showAllNKPhases={selectedPhases.has('NK Fase')}
+          interactive={interactive}
         />
       )}
 
-      {showSimulaties && (
+      {showKansen && (
         <>
           <NKChances myTeam={myTeam} results={results} baseResults={baseResults} N={N} o16={o16} hasLocks={hasLocks} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', marginBottom: 8 }}>

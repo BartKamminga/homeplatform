@@ -4,10 +4,14 @@ import SimPouleCard from './SimPouleCard'
 import SectionLabel from './SectionLabel'
 import { getExpectedStandings } from './helpers'
 
-export default function O16KFPhase({ data, locks, myTeam, onToggle, onSetRound, onPredictAll, onPredictSection, onResetSection }) {
+export default function O16KFPhase({ data, locks, myTeam, onToggle, onSetRound, onPredictAll, onPredictSection, onResetSection, selectedNKSubs = new Set(), interactive = true, showAllNKPhases = false }) {
   const expected = useMemo(() => getExpectedStandings(data, locks, POULE_ORDER_16), [data, locks])
   const pk = POULE_ORDER_16.filter(id => expected[id])
   if (pk.length < 4) return null
+
+  const showKF     = true
+  const showHFSub  = true
+  const showFinSub = true
 
   const nr1s = pk.map(k => ({ team: expected[k][0]?.team, poule: k, pts: expected[k][0]?.newPts || 0, ds: expected[k][0]?.ds || 0 }))
     .sort((a, b) => b.pts !== a.pts ? b.pts - a.pts : b.ds - a.ds)
@@ -32,29 +36,34 @@ export default function O16KFPhase({ data, locks, myTeam, onToggle, onSetRound, 
   const hfMatches = [{ h: hf1h, a: hf1a, lockKey: 'nk_hf1', isKO: true }, { h: hf2h, a: hf2a, lockKey: 'nk_hf2', isKO: true }]
   const hfTeams = [...new Set(hfMatches.flatMap(m => [m.h, m.a]))]
   const hfRounds = [{ roundNum: 1, date: '', time: '', matches: hfMatches }]
-  const showHF = kfW1 && kfW2 && kfW3 && kfW4
+  const showHF = ((kfW1 && kfW2 && kfW3 && kfW4) || showAllNKPhases) && showHFSub
 
   const hfW1 = winner('nk_hf1', hf1h, hf1a), hfW2 = winner('nk_hf2', hf2h, hf2a)
   const finH = hfW1 || 'Winnaar HF1', finA = hfW2 || 'Winnaar HF2'
   const finMatches = [{ h: finH, a: finA, lockKey: 'nk_finale', isKO: true }]
   const finTeams = [...new Set(finMatches.flatMap(m => [m.h, m.a]))]
   const finRounds = [{ roundNum: 1, date: '', time: '', matches: finMatches }]
-  const showFin = hfW1 && hfW2
+  const showFin = ((hfW1 && hfW2) || showAllNKPhases) && showFinSub
 
   return (
     <div>
-      <SectionLabel label="NK Kwartfinales" onPredict={() => onPredictSection(kfRounds)} onReset={() => onResetSection(kfRounds)} />
-      <SimPouleCard title="Kwartfinales" hideStandings teams={kfTeams} basePts={kfTeams.map(() => 0)} baseDs={kfTeams.map(() => 0)}
-        rounds={kfRounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onSetRound} onPredictAll={() => onPredictAll(kfRounds)} />
+      {showKF && <>
+        <SectionLabel label="NK Kwartfinales" onPredict={() => onPredictSection(kfRounds)} onReset={() => onResetSection(kfRounds)} />
+        <SimPouleCard title="Kwartfinales" hideStandings teams={kfTeams} basePts={kfTeams.map(() => 0)} baseDs={kfTeams.map(() => 0)}
+          rounds={kfRounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onSetRound}
+          onPredictAll={() => onPredictAll(kfRounds)} interactive={interactive} />
+      </>}
       {showHF && <>
         <SectionLabel label="NK Halve Finales" onPredict={() => onPredictSection(hfRounds)} onReset={() => onResetSection(hfRounds)} />
         <SimPouleCard title="Halve Finales" hideStandings teams={hfTeams} basePts={hfTeams.map(() => 0)} baseDs={hfTeams.map(() => 0)}
-          rounds={hfRounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onSetRound} onPredictAll={() => onPredictAll(hfRounds)} />
+          rounds={hfRounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onSetRound}
+          onPredictAll={() => onPredictAll(hfRounds)} interactive={interactive} />
       </>}
       {showFin && <>
         <SectionLabel label="NK Finale 🏆" onPredict={() => onPredictSection(finRounds)} onReset={() => onResetSection(finRounds)} />
         <SimPouleCard title="Finale" hideStandings teams={finTeams} basePts={finTeams.map(() => 0)} baseDs={finTeams.map(() => 0)}
-          rounds={finRounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onSetRound} onPredictAll={() => onPredictAll(finRounds)} />
+          rounds={finRounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onSetRound}
+          onPredictAll={() => onPredictAll(finRounds)} interactive={interactive} />
       </>}
     </div>
   )

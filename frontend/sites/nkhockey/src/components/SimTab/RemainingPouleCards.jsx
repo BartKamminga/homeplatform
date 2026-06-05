@@ -1,7 +1,7 @@
 import React from 'react'
 import SimPouleCard from './SimPouleCard'
 
-export default function RemainingPouleCards({ data, pouleIds, myTeam, locks, showForm, showPlayed, showMatches, onToggle, onSetRound, onPredict, onPredictAllRounds, onResetAll, onPredictSection, onResetSection }) {
+export default function RemainingPouleCards({ data, pouleIds, myTeam, locks, showForm, showPlayed, showMatches, onToggle, onSetRound, onPredict, onPredictAllRounds, onResetAll, onPredictSection, onResetSection, interactive = true }) {
   const gridCls = pouleIds.length <= 2 ? 'grid-2' : pouleIds.length <= 4 ? 'grid-4' : 'grid-5'
 
   return (
@@ -27,7 +27,8 @@ export default function RemainingPouleCards({ data, pouleIds, myTeam, locks, sho
           }
           return <SimPouleCard key={pouleId} title={`Poule ${pouleId}`} teams={poule.teams} basePts={poule.pts} baseDs={poule.ds}
             rounds={rounds} locks={locks} myTeam={myTeam} onToggle={onToggle} onSetRound={onSetRound} onPredict={onPredict}
-            onPredictAll={() => onPredictAllRounds(rounds, poule)} matchesPlayed={poule.matches_played} showForm={showForm} showPlayed={showPlayed} showMatches={showMatches} />
+            onPredictAll={() => onPredictAllRounds(rounds, poule)} matchesPlayed={poule.matches_played} showForm={showForm} showPlayed={showPlayed} showMatches={showMatches}
+            interactive={interactive} />
         })}
       </div>
     </div>

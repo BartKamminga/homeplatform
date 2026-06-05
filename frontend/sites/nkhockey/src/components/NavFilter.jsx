@@ -5,7 +5,6 @@ import { POULE_ORDER_14, POULE_ORDER_16, IS_O16 } from '../constants'
 const PHASE_OPTIONS = ['Poules', 'NK Fase', 'Simulaties']
 
 const NK_SUBS_14 = ['NK Poule A', 'NK Poule B']
-const NK_SUBS_16 = ['KF', 'HF', 'Finale']
 
 export default function NavFilter({
   visibleTypes,
@@ -27,7 +26,7 @@ export default function NavFilter({
   const availableSubs = useMemo(() => {
     const subs = []
     if (selectedPhases.has('Poules'))  subs.push(...availablePoules)
-    if (selectedPhases.has('NK Fase')) subs.push(...(o16 ? NK_SUBS_16 : NK_SUBS_14))
+    if (selectedPhases.has('NK Fase') && !o16) subs.push(...NK_SUBS_14)
     return subs
   }, [selectedPhases, availablePoules, o16])
 
@@ -55,7 +54,7 @@ export default function NavFilter({
 
   function getSubsForPhase(phase) {
     if (phase === 'Poules')  return availablePoules
-    if (phase === 'NK Fase') return o16 ? NK_SUBS_16 : NK_SUBS_14
+    if (phase === 'NK Fase') return o16 ? [] : NK_SUBS_14
     return []
   }
 
