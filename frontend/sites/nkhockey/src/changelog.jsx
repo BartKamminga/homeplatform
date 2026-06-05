@@ -1,7 +1,17 @@
 import React from 'react'
 
-export const VERSION = '6.0'
+export const VERSION = '6.1'
 export const CHANGELOG = [
+  { version: '6.1', date: '5 jun 2026', changes: [
+    '🧭 Nieuwe NavFilter navigatie — drie scrollbare rijen: competitie, fase en poule',
+    'Multi-select filter: meerdere poules en NK fases tegelijk selecteren',
+    'Focus mode past NavFilter automatisch aan op eigen poule en NK fase',
+    'O14: focus mode selecteert automatisch NK Poule A of B op basis van verwachte stand',
+    'O16: focus mode selecteert automatisch KF als team in top 2 staat',
+    'Thema switch verplaatst naar ⚙️ instellingen — platform-breed via ThemeSwitcher',
+    '4 platform thema\'s: ☀️ Licht, 🌙 Donker, ◻ Minimal, 📻 Retro',
+    'NavFilterDefault beschikbaar als fallback (USE_NEW_NAV toggle in App.jsx)',
+  ]},
   { version: '6.0', date: '31 mei 2026', changes: [
     '🎉 Grote update: alles op één pagina — geen tabs meer',
     'Poule-cards tonen stand + gespeelde wedstrijden + resterende wedstrijden in één card',
