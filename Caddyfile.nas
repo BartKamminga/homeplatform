@@ -29,6 +29,11 @@
         file_server
     }
 
+    handle /assets/* {
+        root * /srv/www
+        file_server
+    }
+
     handle /api/* {
         reverse_proxy backend:8000
     }
