@@ -8,7 +8,8 @@ export function initSentry() {
         Sentry.init({
           dsn: cfg.sentry_dsn,
           environment: cfg.environment,
-          tracesSampleRate: 0.1,
+          tracesSampleRate: 0.01,
+          autoSessionTracking: false,
         });
       }
     })

@@ -12,7 +12,7 @@
         "DATABASE_URL": "sqlite:///../db/homeplatform.sqlite",
         "SECRET_KEY": "dev-secret-key",
         "ENVIRONMENT": "development",
-        "SENTRY_DSN": ""
+        "SENTRY_DSN": "http://38ed1bf38b384dfa86532768e326c417@192.168.30.193:8090/1"
       },
       "justMyCode": true
     },

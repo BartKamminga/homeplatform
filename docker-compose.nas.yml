@@ -73,6 +73,7 @@ services:
     environment:
       DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-db/glitchtip
       CELERY_BROKER_URL: redis://glitchtip-redis:6379/0
+      VALKEY_URL: redis://glitchtip-redis:6379/0
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
       PORT: 8080
       GLITCHTIP_DOMAIN: http://192.168.30.193:8090
@@ -91,6 +92,7 @@ services:
     environment:
       DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-db/glitchtip
       CELERY_BROKER_URL: redis://glitchtip-redis:6379/0
+      VALKEY_URL: redis://glitchtip-redis:6379/0
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
     depends_on:
       - glitchtip-db
