@@ -358,9 +358,10 @@ if ($Deploy -eq "nas") {
         Warn "Geen git pull (Push=no)"
     }
 
-    $dcCmd  = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build -d backend"
-    $dcCaddy = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml restart caddy"
-    $docker = "sudo /usr/local/bin/docker"
+    $dcCmd       = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build -d backend"
+    $dcCaddy     = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml restart caddy"
+    $dcGlitchtip = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml up -d glitchtip-db glitchtip-redis glitchtip glitchtip-worker"
+    $docker      = "sudo /usr/local/bin/docker"
 
     switch ($Build) {
         "fe" {
@@ -379,6 +380,8 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
+            NasRun $dcGlitchtip "GlitchTip starten..."
+            Start-Sleep -Seconds 8
             NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             NasRun "$docker restart homeplatform_backend" "Backend herstarten..."
             Ok "Backend + migraties + seed klaar"
@@ -387,6 +390,8 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
+            NasRun $dcGlitchtip "GlitchTip starten..."
+            Start-Sleep -Seconds 8
             NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             if ($CaddyRestart) {
                 NasRun $dcCaddy "Caddy herstarten..."
