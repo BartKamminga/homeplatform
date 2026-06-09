@@ -35,3 +35,4 @@ Caddyfile
 backend/db/homeplatform.sqlite
 backend/db/homeplatform.sqlite
 backend/db/homeplatform.sqlite-journal
+uploads/

@@ -5,80 +5,83 @@
       "label": "Start Admin Vite",
       "type": "shell",
       "command": "npm run dev",
-      "options": {
-        "cwd": "${workspaceFolder}/frontend/sites/admin"
-      },
+      "options": { "cwd": "${workspaceFolder}/frontend/sites/admin" },
       "isBackground": true,
-      "presentation": {
-        "reveal": "silent",
-        "panel": "dedicated",
-        "label": "Vite Admin"
-      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "label": "Vite Admin" },
       "problemMatcher": {
-        "pattern": {
-          "regexp": "^$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "VITE",
-          "endsPattern": "Local:"
-        }
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE", "endsPattern": "Local:" }
       }
     },
     {
       "label": "Start Nkhockey Vite",
       "type": "shell",
       "command": "npm run dev",
-      "options": {
-        "cwd": "${workspaceFolder}/frontend/sites/nkhockey"
-      },
+      "options": { "cwd": "${workspaceFolder}/frontend/sites/nkhockey" },
       "isBackground": true,
-      "presentation": {
-        "reveal": "silent",
-        "panel": "dedicated",
-        "label": "Vite Nkhockey"
-      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "label": "Vite Nkhockey" },
       "problemMatcher": {
-        "pattern": {
-          "regexp": "^$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "VITE",
-          "endsPattern": "Local:"
-        }
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE", "endsPattern": "Local:" }
       }
     },
     {
       "label": "Start Mixmusic Vite",
       "type": "shell",
       "command": "npm run dev",
-      "options": {
-        "cwd": "${workspaceFolder}/frontend/sites/mixmusic"
-      },
+      "options": { "cwd": "${workspaceFolder}/frontend/sites/mixmusic" },
       "isBackground": true,
-      "presentation": {
-        "reveal": "silent",
-        "panel": "dedicated",
-        "label": "Vite Mixmusic"
-      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "label": "Vite Mixmusic" },
       "problemMatcher": {
-        "pattern": {
-          "regexp": "^$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "VITE",
-          "endsPattern": "Local:"
-        }
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE", "endsPattern": "Local:" }
       }
     },
     {
-      "label": "Start alle Vite servers",
+      "label": "Start Landing Vite",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend/sites/landing" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated", "label": "Vite Landing" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE", "endsPattern": "Local:" }
+      }
+    },
+    {
+      "label": "Start DontForget Vite",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend/sites/dontforget" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated", "label": "Vite DontForget" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE", "endsPattern": "Local:" }
+      }
+    },
+    {
+      "label": "Start Proxy",
+      "type": "shell",
+      "command": "node vite.proxy.js",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated", "label": "Proxy" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "Proxy draait", "endsPattern": "Proxy draait" }
+      }
+    },
+    {
+      "label": "Start Homeplatform",
       "dependsOn": [
         "Start Admin Vite",
         "Start Nkhockey Vite",
-        "Start Mixmusic Vite"
+        "Start Mixmusic Vite",
+        "Start Landing Vite",
+        "Start DontForget Vite",
+        "Start Proxy"
       ],
       "dependsOrder": "parallel"
     }

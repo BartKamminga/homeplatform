@@ -25,6 +25,7 @@ services:
     container_name: homeplatform_backend
     volumes:
       - /volume1/homeplatform/db:/app/db
+      - /volume1/homeplatform/uploads:/app/uploads
       - /volume1/homeplatform/nas-files:/app/nas-files
       - /volume1/Music/music/Mixes:/app/music:ro
     environment:

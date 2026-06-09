@@ -6,12 +6,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
-      "args": [
-        "main:app",
-        "--host", "0.0.0.0",
-        "--port", "8000",
-        "--reload"
-      ],
+      "args": ["main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
       "cwd": "${workspaceFolder}/backend",
       "env": {
         "DATABASE_URL": "sqlite:///./db/homeplatform.sqlite",
@@ -21,57 +16,18 @@
       "justMyCode": true
     },
     {
-      "name": "Admin frontend",
+      "name": "Chrome (proxy)",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:5173/admin/",
-      "webRoot": "${workspaceFolder}/frontend/sites/admin"
-    },
-    {
-      "name": "NK Hockey frontend",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:5174/nkhockey/",
-      "webRoot": "${workspaceFolder}/frontend/sites/nkhockey"
-    },
-    {
-      "name": "Mix Music frontend",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:5175/mixmusic/",
-      "webRoot": "${workspaceFolder}/frontend/sites/mixmusic"
-    },
-    {
-      "name": "Landing frontend",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:5172/",
-      "webRoot": "${workspaceFolder}/frontend/sites/landing"
+      "url": "http://localhost:5170/admin/login",
+      "webRoot": "${workspaceFolder}/frontend"
     }
   ],
   "compounds": [
     {
       "name": "▶ Start Homeplatform",
-      "configurations": ["FastAPI backend", "Admin frontend"],
-      "preLaunchTask": "Start Admin Vite",
-      "stopAll": true
-    },
-    {
-      "name": "▶ Start NK Hockey",
-      "configurations": ["FastAPI backend", "NK Hockey frontend"],
-      "preLaunchTask": "Start Nkhockey Vite",
-      "stopAll": true
-    },
-    {
-      "name": "▶ Start Mix Music",
-      "configurations": ["FastAPI backend", "Mix Music frontend"],
-      "preLaunchTask": "Start Mixmusic Vite",
-      "stopAll": true
-    },
-    {
-      "name": "▶ Start Alles",
-      "configurations": ["FastAPI backend", "Admin frontend", "NK Hockey frontend", "Mix Music frontend", "Landing frontend"],
-      "preLaunchTask": "Start alle Vite servers",
+      "configurations": ["FastAPI backend", "Chrome (proxy)"],
+      "preLaunchTask": "Start Homeplatform",
       "stopAll": true
     }
   ]

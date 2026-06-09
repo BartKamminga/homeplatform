@@ -1,8 +1,12 @@
 import os
 from sqlmodel import SQLModel, create_engine, Session
 from dotenv import load_dotenv
+from models import dontforget  # noqa: F401 — registreert Task model
 
 load_dotenv()
+
+print(f">>> DATABASE_URL: {os.getenv('DATABASE_URL')}")
+print(f">>> UPLOAD_ROOT: {os.getenv('UPLOAD_ROOT')}")
 
 # Get database URL - use absolute path if env var is empty
 db_url = os.getenv("DATABASE_URL")

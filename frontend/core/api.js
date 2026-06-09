@@ -75,6 +75,8 @@ export async function login(username, password) {
   }
   const data = await res.json();
   setToken(data.access_token);
+  // Tijdelijk in Login.jsx na await login():
+  console.log("token na login:", localStorage.getItem("hp_token"));
   localStorage.setItem(
     "hp_user",
     JSON.stringify({ id: data.user_id, username: data.username }),
