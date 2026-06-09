@@ -98,6 +98,17 @@ function NasOut($cmd) {
     NasSsh $cmd 2>$null
 }
 
+function DistUpload {
+    Info "Frontend dist uploaden naar NAS..."
+    $distPath = "$Root\frontend\dist"
+    if (-not (Test-Path $distPath)) { Fail "frontend\dist niet gevonden - run eerst de build stap" }
+    NasSsh "sudo mkdir -p $NasPath/frontend/dist; sudo chmod 777 $NasPath/frontend/dist"
+    $cmdStr = 'tar -czf - -C "' + $distPath + '" . | ssh -i "' + $NasKey + '" -o StrictHostKeyChecking=no ' + $NasHost + ' "sudo tar -xzf - -C ' + $NasPath + '/frontend/dist"'
+    cmd /c $cmdStr
+    if ($LASTEXITCODE -ne 0) { Fail "Upload van dist mislukt" }
+    Ok "Dist geüpload naar NAS"
+}
+
 function LocalAlembic($alembicArgs) {
     $prev = Get-Location
     Set-Location "$Root\backend"
@@ -365,6 +376,7 @@ if ($Deploy -eq "nas") {
 
     switch ($Build) {
         "fe" {
+            DistUpload
             if ($CaddyRestart) {
                 NasRun $dcCaddy "Caddy herstarten..."
             } else {
@@ -393,6 +405,7 @@ if ($Deploy -eq "nas") {
             NasRun $dcGlitchtip "GlitchTip starten..."
             Start-Sleep -Seconds 8
             NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
+            DistUpload
             if ($CaddyRestart) {
                 NasRun $dcCaddy "Caddy herstarten..."
             } else {
