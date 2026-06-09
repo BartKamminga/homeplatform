@@ -9,24 +9,24 @@
       "args": ["main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
       "cwd": "${workspaceFolder}/backend",
       "env": {
-        "DATABASE_URL": "sqlite:///./db/homeplatform.sqlite",
+        "DATABASE_URL": "sqlite:///../db/homeplatform.sqlite",
         "SECRET_KEY": "dev-secret-key",
         "ENVIRONMENT": "development"
       },
       "justMyCode": true
     },
     {
-      "name": "Chrome (proxy)",
+      "name": "Chrome (Vite)",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:5170/admin/login",
-      "webRoot": "${workspaceFolder}/frontend"
+      "url": "http://localhost:5172/landing/",
+      "webRoot": "${workspaceFolder}/frontend/sites"
     }
   ],
   "compounds": [
     {
       "name": "▶ Start Homeplatform",
-      "configurations": ["FastAPI backend", "Chrome (proxy)"],
+      "configurations": ["FastAPI backend", "Chrome (Vite)"],
       "preLaunchTask": "Start Homeplatform",
       "stopAll": true
     }

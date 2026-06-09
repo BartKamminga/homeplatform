@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react";
 
-const isDev = window.location.hostname === "localhost";
-const DEV_PORTS = { admin: 5173, nkhockey: 5174, mixmusic: 5175 };
-
 function siteHref(site) {
-  if (isDev && DEV_PORTS[site.slug]) {
-    return `http://localhost:${DEV_PORTS[site.slug]}/${site.slug}/`;
-  }
   return `/${site.slug}/`;
 }
 

@@ -1,6 +1,6 @@
 {
-  "name": "homeplatform-admin",
-  "version": "0.1.0",
+  "name": "homeplatform-sites",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,6 +15,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.2.11"
+    "vite": "^5.4.0"
   }
 }

@@ -317,20 +317,13 @@ Info "Build=$Build | Push=$Push | Deploy=$Deploy"
 # ---------------------------------------------------------------------------
 # Frontend bouwen
 # ---------------------------------------------------------------------------
-function BuildSite($name, $sitePath) {
-    Step "Bouwen: $name"
-    Set-Location "$Root\$sitePath"
-    npm run build
-    if ($LASTEXITCODE -ne 0) { Fail "$name build mislukt" }
-    Ok "$name gebouwd"
-}
-
 if ($Build -in @("all","fe")) {
-    BuildSite "Landing"    "frontend\sites\landing"
-    BuildSite "Admin"      "frontend\sites\admin"
-    BuildSite "NK Hockey"  "frontend\sites\nkhockey"
-    BuildSite "Mix Music"  "frontend\sites\mixmusic"
-    BuildSite "DontForget" "frontend\sites\dontforget"
+    Step "Bouwen: Frontend (alle sites)"
+    Set-Location "$Root\frontend\sites"
+    npm run build
+    if ($LASTEXITCODE -ne 0) { Fail "Frontend build mislukt" }
+    Set-Location $Root
+    Ok "Frontend gebouwd"
 }
 
 # ---------------------------------------------------------------------------

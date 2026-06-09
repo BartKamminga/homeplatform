@@ -32,7 +32,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=(
-        ["http://localhost:5173", "http://localhost:3000"]
+        ["http://localhost:5172", "http://localhost:3000"]
         if settings.is_dev
         else ["https://jouwdomein.nl"]  # aanpassen voor productie
     ),

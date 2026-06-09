@@ -8,7 +8,7 @@ import App from "./App.jsx";
 
 import { trackEvent, loadTheme } from "@core/api.js";
 
-trackEvent(__SITE__, "page.view", { path: window.location.pathname });
+trackEvent("mixmusic", "page.view", { path: window.location.pathname });
 loadTheme();
 
 createRoot(document.getElementById("root")).render(
