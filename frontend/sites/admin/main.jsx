@@ -13,7 +13,9 @@ import AuditLog from "./pages/AuditLog.jsx";
 import Changelog from "./pages/Changelog.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
+import { initSentry } from "@core/sentry.js";
 
+initSentry();
 trackEvent("admin", "page.view", { path: window.location.pathname });
 
 function PrivateRoute({ children }) {

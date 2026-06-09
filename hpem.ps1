@@ -379,6 +379,7 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
+            NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             NasRun "$docker restart homeplatform_backend" "Backend herstarten..."
             Ok "Backend + migraties + seed klaar"
         }
@@ -386,6 +387,7 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
+            NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             if ($CaddyRestart) {
                 NasRun $dcCaddy "Caddy herstarten..."
             } else {

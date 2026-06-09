@@ -33,6 +33,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=production
       - MUSIC_DIR=/app/music
+      - SENTRY_DSN=${SENTRY_DSN:-}
     restart: unless-stopped
 
   gitea:
@@ -46,6 +47,54 @@ services:
     environment:
       - GITEA__database__DB_TYPE=sqlite3
       - GITEA__database__PATH=/data/gitea.db
+    restart: unless-stopped
+
+  glitchtip-db:
+    image: postgres:16
+    container_name: homeplatform_glitchtip_db
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: glitchtip
+    volumes:
+      - /volume1/homeplatform/glitchtip-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  glitchtip-redis:
+    image: redis:7-alpine
+    container_name: homeplatform_glitchtip_redis
+    restart: unless-stopped
+
+  glitchtip:
+    image: glitchtip/glitchtip:latest
+    container_name: homeplatform_glitchtip
+    ports:
+      - "8090:8080"
+    environment:
+      DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-db/glitchtip
+      CELERY_BROKER_URL: redis://glitchtip-redis:6379/0
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      PORT: 8080
+      GLITCHTIP_DOMAIN: http://192.168.30.193:8090
+      EMAIL_URL: consolemail://
+    volumes:
+      - /volume1/homeplatform/glitchtip-uploads:/code/uploads
+    depends_on:
+      - glitchtip-db
+      - glitchtip-redis
+    restart: unless-stopped
+
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    container_name: homeplatform_glitchtip_worker
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-db/glitchtip
+      CELERY_BROKER_URL: redis://glitchtip-redis:6379/0
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+    depends_on:
+      - glitchtip-db
+      - glitchtip-redis
     restart: unless-stopped
 
 volumes:

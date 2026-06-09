@@ -15,8 +15,9 @@ services:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=dev-secret-key-not-for-production
       - ENVIRONMENT=development
+      - SENTRY_DSN=${SENTRY_DSN:-}
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
 
   # Frontend draait via Vite dev server buiten Docker (sneller HMR)
-  # Start met: cd frontend && npm run dev
+  # Start met: cd frontend/sites && npm run dev

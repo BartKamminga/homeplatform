@@ -14,6 +14,7 @@ class Settings:
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", "sqlite:///./db/homeplatform.sqlite"
     )
+    SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
 
     @property
     def is_dev(self) -> bool:

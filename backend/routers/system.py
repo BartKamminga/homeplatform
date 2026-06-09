@@ -3,6 +3,7 @@ from alembic.runtime.migration import MigrationContext
 from core.database import engine
 from sqlmodel import select, Session
 from core.database import get_session
+from core.settings import settings
 from models.core import Site
 import os
 
@@ -37,6 +38,14 @@ def version():
 @router.get("/debug-headers")
 async def debug_headers(request: Request):
     return dict(request.headers)
+
+
+@router.get("/config")
+def public_config():
+    return {
+        "sentry_dsn": settings.SENTRY_DSN or None,
+        "environment": settings.ENVIRONMENT,
+    }
 
 
 @router.get("/sites")

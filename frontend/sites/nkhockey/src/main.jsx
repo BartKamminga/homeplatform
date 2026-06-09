@@ -7,7 +7,9 @@ import "./styles.css";
 
 import { loadTheme } from "@core/api.js";
 import { trackEvent } from "@core/api.js";
+import { initSentry } from "@core/sentry.js";
 
+initSentry();
 trackEvent("nkhockey", "page.view", { path: window.location.pathname });
 
 // Laad platform thema-tokens als override bovenop styles.css

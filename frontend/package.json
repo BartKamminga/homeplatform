@@ -1,5 +1,6 @@
 {
-  "devDependencies": {
-    "http-proxy": "^1.18.1"
+  "type": "module",
+  "dependencies": {
+    "@sentry/react": "^8.0.0"
   }
 }
