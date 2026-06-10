@@ -2,20 +2,25 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '../AdminLayout.jsx';
 import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
-import Modal, { ModalFooter, BtnPrimary, BtnSecondary, BtnDanger } from '@components/Modal.jsx';
+import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
 import { api } from '@core/api.js';
 
 export default function Users() {
   const [users, setUsers]       = useState([]);
+  const [groups, setGroups]     = useState([]);
   const [error, setError]       = useState('');
   const [showNew, setShowNew]   = useState(false);
   const [form, setForm]         = useState({ username: '', email: '', password: '', locale: 'nl' });
   const [saving, setSaving]     = useState(false);
+  const [groupUser, setGroupUser] = useState(null); // user waarvoor groepen beheerd worden
 
   function load() {
     api.get('/api/admin/users/').then(setUsers).catch(e => setError(e.message));
   }
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    api.get('/api/admin/groups/').then(setGroups).catch(() => {});
+  }, []);
 
   async function createUser() {
     setSaving(true);
@@ -33,6 +38,24 @@ export default function Users() {
     load();
   }
 
+  async function toggleGroup(user, groupSlug, currently) {
+    try {
+      if (currently) {
+        await api.delete(`/api/admin/users/${user.id}/groups/${groupSlug}`);
+      } else {
+        await api.post(`/api/admin/users/${user.id}/groups/${groupSlug}`);
+      }
+      load();
+      setGroupUser(prev => {
+        if (!prev || prev.id !== user.id) return prev;
+        const nextGroups = currently
+          ? prev.groups.filter(g => g !== groupSlug)
+          : [...prev.groups, groupSlug];
+        return { ...prev, groups: nextGroups };
+      });
+    } catch(e) { setError(e.message); }
+  }
+
   const columns = [
     { key: 'username', label: 'Gebruikersnaam' },
     { key: 'email',    label: 'Email' },
@@ -43,16 +66,24 @@ export default function Users() {
       <Badge label={v ? 'Actief' : 'Geblokkeerd'} variant={v ? 'success' : 'danger'} />
     )},
     { key: '_actions', label: '', render: (_, row) => (
-      <button
-        onClick={() => toggleActive(row)}
-        style={{
-          background: row.is_active ? 'var(--color-danger-light)' : 'var(--color-success-light)',
-          color: row.is_active ? 'var(--color-danger)' : 'var(--color-success)',
-          padding: '4px 10px', fontSize: '12px',
-        }}
-      >
-        {row.is_active ? 'Blokkeren' : 'Activeren'}
-      </button>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={() => setGroupUser(row)}
+          style={{ background: 'var(--color-primary-light, #e8e8ff)', color: 'var(--color-primary)', padding: '4px 10px', fontSize: '12px' }}
+        >
+          Groepen
+        </button>
+        <button
+          onClick={() => toggleActive(row)}
+          style={{
+            background: row.is_active ? 'var(--color-danger-light)' : 'var(--color-success-light)',
+            color: row.is_active ? 'var(--color-danger)' : 'var(--color-success)',
+            padding: '4px 10px', fontSize: '12px',
+          }}
+        >
+          {row.is_active ? 'Blokkeren' : 'Activeren'}
+        </button>
+      </div>
     )},
   ];
 
@@ -96,6 +127,34 @@ export default function Users() {
             <BtnPrimary onClick={createUser} disabled={saving}>
               {saving ? 'Opslaan...' : 'Aanmaken'}
             </BtnPrimary>
+          </ModalFooter>
+        </Modal>
+      )}
+
+      {groupUser && (
+        <Modal title={`Groepen — ${groupUser.username}`} onClose={() => { setGroupUser(null); load(); }}>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+            Selecteer de groepen waarvan deze gebruiker lid is.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {groups.map(g => {
+              const active = groupUser.groups.includes(g.slug);
+              return (
+                <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '14px' }}>
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={() => toggleGroup(groupUser, g.slug, active)}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: 500 }}>{g.name}</span>
+                  <code style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>{g.slug}</code>
+                </label>
+              );
+            })}
+          </div>
+          <ModalFooter>
+            <BtnSecondary onClick={() => { setGroupUser(null); load(); }}>Sluiten</BtnSecondary>
           </ModalFooter>
         </Modal>
       )}

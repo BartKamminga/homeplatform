@@ -102,6 +102,14 @@ export default function Sites() {
       label: "",
       render: (_, row) => (
         <div style={{ display: "flex", gap: 6 }}>
+          <a
+            href={`/${row.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ background: "var(--color-surface)", color: "var(--color-text-muted)", padding: "4px 10px", fontSize: "12px", textDecoration: "none", borderRadius: "var(--radius-sm)" }}
+          >
+            ↗ Bezoeken
+          </a>
           <button
             onClick={() => setAccessSite(row)}
             style={{ background: "var(--color-primary-light, #e8e8ff)", color: "var(--color-primary)", padding: "4px 10px", fontSize: "12px" }}

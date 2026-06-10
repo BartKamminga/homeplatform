@@ -351,7 +351,12 @@ if ($Build -in @("all","fe")) {
 if ($Push -eq "yes") {
     Step "Git commit en push"
     Set-Location $Root
+    # git add schrijft CRLF-warnings naar stderr; tijdelijk niet stoppen op native-command output
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     git add .
+    $ErrorActionPreference = $prevEAP
+    if ($LASTEXITCODE -ne 0) { Fail "Git add mislukt" }
     $st = git status --porcelain
     if ($st) {
         git commit -m $Message

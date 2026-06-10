@@ -16,20 +16,28 @@ def scan_tracks(offset: int = 0, limit: int | None = None) -> list[dict]:
     if not MUSIC_DIR.exists():
         return tracks
     for ext in MUSIC_EXTENSIONS:
-        for f in sorted(MUSIC_DIR.rglob(f"*{ext}")):
+        for f in MUSIC_DIR.rglob(f"*{ext}"):
             try:
                 rel = f.relative_to(MUSIC_DIR)
                 parts = rel.parts
+                # Synology @eaDir thumbnail-mappen overslaan
+                if any(p.lower().startswith("@eadir") for p in parts):
+                    continue
+                stat = f.stat()
                 tracks.append({
                     "name": f.stem,
                     "file": str(rel).replace("\\", "/"),
                     "ext": ext[1:].upper(),
                     "folder": str(parts[0]) if len(parts) > 1 else "",
-                    "size": f.stat().st_size,
+                    "size": stat.st_size,
+                    "_mtime": stat.st_mtime,
                 })
             except OSError:
                 continue
-    tracks.sort(key=lambda t: (t["folder"].lower(), t["name"].lower()))
+    # Nieuwste bestanden bovenaan
+    tracks.sort(key=lambda t: t["_mtime"], reverse=True)
+    for t in tracks:
+        del t["_mtime"]
     if limit is not None:
         return tracks[offset:offset + limit]
     return tracks[offset:] if offset else tracks

@@ -2,20 +2,25 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '../AdminLayout.jsx';
 import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
-import Modal, { ModalFooter, BtnPrimary, BtnSecondary, BtnDanger } from '@components/Modal.jsx';
+import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
 import { api } from '@core/api.js';
 
 export default function Groups() {
   const [groups, setGroups]   = useState([]);
+  const [users, setUsers]     = useState([]);
   const [error, setError]     = useState('');
   const [showNew, setShowNew] = useState(false);
   const [form, setForm]       = useState({ name: '', slug: '' });
   const [saving, setSaving]   = useState(false);
+  const [memberGroup, setMemberGroup] = useState(null); // groep waarvoor leden beheerd worden
 
   function load() {
     api.get('/api/admin/groups/').then(setGroups).catch(e => setError(e.message));
   }
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    api.get('/api/admin/users/').then(setUsers).catch(() => {});
+  }, []);
 
   async function createGroup() {
     setSaving(true);
@@ -36,6 +41,24 @@ export default function Groups() {
     } catch(e) { setError(e.message); }
   }
 
+  async function toggleMember(user, groupSlug, currently) {
+    try {
+      if (currently) {
+        await api.delete(`/api/admin/users/${user.id}/groups/${groupSlug}`);
+      } else {
+        await api.post(`/api/admin/users/${user.id}/groups/${groupSlug}`);
+      }
+      load();
+      setUsers(prev => prev.map(u => {
+        if (u.id !== user.id) return u;
+        const nextGroups = currently
+          ? u.groups.filter(g => g !== groupSlug)
+          : [...u.groups, groupSlug];
+        return { ...u, groups: nextGroups };
+      }));
+    } catch(e) { setError(e.message); }
+  }
+
   const columns = [
     { key: 'name',         label: 'Naam' },
     { key: 'slug',         label: 'Slug', render: v => (
@@ -45,14 +68,22 @@ export default function Groups() {
       <Badge label={`${v} leden`} variant="neutral" />
     )},
     { key: '_actions', label: '', render: (_, row) => (
-      !['admins', 'members'].includes(row.slug) && (
+      <div style={{ display: 'flex', gap: 6 }}>
         <button
-          onClick={() => deleteGroup(row)}
-          style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger)', padding: '4px 10px', fontSize: '12px' }}
+          onClick={() => setMemberGroup(row)}
+          style={{ background: 'var(--color-primary-light, #e8e8ff)', color: 'var(--color-primary)', padding: '4px 10px', fontSize: '12px' }}
         >
-          Verwijderen
+          Leden
         </button>
-      )
+        {!['admins', 'members', 'guest'].includes(row.slug) && (
+          <button
+            onClick={() => deleteGroup(row)}
+            style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger)', padding: '4px 10px', fontSize: '12px' }}
+          >
+            Verwijderen
+          </button>
+        )}
+      </div>
     )},
   ];
 
@@ -90,6 +121,34 @@ export default function Groups() {
             <BtnPrimary onClick={createGroup} disabled={saving}>
               {saving ? 'Opslaan...' : 'Aanmaken'}
             </BtnPrimary>
+          </ModalFooter>
+        </Modal>
+      )}
+
+      {memberGroup && (
+        <Modal title={`Leden — ${memberGroup.name}`} onClose={() => { setMemberGroup(null); load(); }}>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+            Selecteer de gebruikers die lid zijn van deze groep.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {users.map(u => {
+              const active = u.groups.includes(memberGroup.slug);
+              return (
+                <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '14px' }}>
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={() => toggleMember(u, memberGroup.slug, active)}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: 500 }}>{u.username}</span>
+                  <code style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>{u.email}</code>
+                </label>
+              );
+            })}
+          </div>
+          <ModalFooter>
+            <BtnSecondary onClick={() => { setMemberGroup(null); load(); }}>Sluiten</BtnSecondary>
           </ModalFooter>
         </Modal>
       )}

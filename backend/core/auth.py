@@ -14,7 +14,8 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 ADMIN_GROUP = "admins"
-PROTECTED_GROUPS = frozenset({"admins", "members"})
+GUEST_GROUP = "guest"
+PROTECTED_GROUPS = frozenset({"admins", "members", "guest"})
 
 
 def hash_password(password: str) -> str:

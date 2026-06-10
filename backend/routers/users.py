@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 from core.database import get_session, persist
-from core.auth import require_admin, hash_password
+from core.auth import require_admin, hash_password, GUEST_GROUP
 from core.logging import log_action
 from models.core import User, UserGroup, Group
 
@@ -93,6 +93,10 @@ def create_user(
         username=data.username, email=data.email,
         password_hash=hash_password(data.password), locale=data.locale,
     ))
+    guest_group = session.exec(select(Group).where(Group.slug == GUEST_GROUP)).first()
+    if guest_group:
+        session.add(UserGroup(user_id=user.id, group_id=guest_group.id))
+        session.commit()
     log_action(session, "user.create", user_id=admin.id, payload={"new_user": user.username})
     return _enrich(user, session)
 

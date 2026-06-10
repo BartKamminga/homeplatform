@@ -74,6 +74,17 @@ def public_sites(
                             select(SiteAccess).where(SiteAccess.group_id.in_(group_ids))
                         ).all()
                     }
+                # Admingroep heeft altijd toegang tot admin-module sites
+                admin_group = session.exec(
+                    select(Group).where(Group.slug == "admins")
+                ).first()
+                if admin_group and admin_group.id in group_ids:
+                    admin_site_ids = {
+                        s.id for s in session.exec(
+                            select(Site).where(Site.module == "admin")
+                        ).all()
+                    }
+                    accessible_ids |= admin_site_ids
         except (JWTError, Exception):
             pass
 
