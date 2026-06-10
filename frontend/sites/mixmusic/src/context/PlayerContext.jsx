@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { useTracks }    from '../hooks/useTracks.js'
 import { usePlayer }    from '../hooks/usePlayer.js'
 import { useTrackMeta, useGenres, useMetas, useHearts } from '../hooks/useTrackMeta.js'
+import { useCast }      from '../hooks/useCast.js'
 
 const PlayerContext = createContext(null)
 
@@ -14,8 +15,16 @@ export function PlayerProvider({ children }) {
   const { genres, addGenre, deleteGenre } = useGenres()
   const { metas, reloadMetas }            = useMetas()
   const { hearts, addHeart, removeHeart } = useHearts(currentTrack)
+  const { castAvailable, castConnected, castTrack, openPicker: openCastPicker, stopCast } = useCast()
 
   const displayName = meta.display_name || null
+
+  // Auto-cast wanneer track wisselt terwijl Cast verbonden is
+  useEffect(() => {
+    if (castConnected && currentTrack) {
+      castTrack(currentTrack, displayName)
+    }
+  }, [currentTrack?.file, castConnected])
 
   function handleMetaChange(patch) {
     updateMeta(patch)
@@ -55,6 +64,8 @@ export function PlayerProvider({ children }) {
       removeHeart: async (id) => { await removeHeart(id); setTimeout(reloadMetas, 300) },
       // bulk metas (for sidebar ratings)
       metas, reloadMetas,
+      // cast
+      castAvailable, castConnected, openCastPicker, stopCast,
     }}>
       {children}
     </PlayerContext.Provider>

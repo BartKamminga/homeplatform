@@ -8,6 +8,14 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;700&family=Syne:wght@400;700;800&family=Space+Grotesk:wght@300;400;600&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <script>
+      // Must be set before the Cast SDK loads
+      window['__onGCastApiAvailable'] = function(isAvailable) {
+        window.__castApiAvailable = isAvailable
+        window.dispatchEvent(new CustomEvent('castApiAvailable', { detail: isAvailable }))
+      }
+    </script>
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <div id="root"></div>
     <script type="module" src="./src/main.jsx"></script>
   </body>
