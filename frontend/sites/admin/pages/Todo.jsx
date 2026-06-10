@@ -51,6 +51,13 @@ const ITEMS = [
     ],
   },
   {
+    site: "NAS / Infrastructuur",
+    done: false,
+    tasks: [
+      { done: false, text: "Externe toegang via DDNS" },
+    ],
+  },
+  {
     site: "Uitgesteld",
     done: false,
     tasks: [
