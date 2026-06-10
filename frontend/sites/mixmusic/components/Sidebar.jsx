@@ -80,15 +80,40 @@ function MomentDots({ moments }) {
 }
 
 export default function Sidebar({ onOpenSettings }) {
-  const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas } = usePlayerContext()
+  const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres } = usePlayerContext()
   const onSelect = (idx) => loadTrack(idx, true)
-  const [search, setSearch]       = useState('')
-  const [collapsed, setCollapsed] = useState(new Set())
+  const [search, setSearch]               = useState('')
+  const [collapsed, setCollapsed]         = useState(new Set())
+  const [sortBy, setSortBy]               = useState('newest')
+  const [filterGenre, setFilterGenre]     = useState(null)
+  const [filterMinRating, setFilterMinRating] = useState(0)
+  const [filterHasHearts, setFilterHasHearts] = useState(false)
 
   const q = search.toLowerCase()
-  const filtered = q
+  const searched = q
     ? tracks.filter(t => t.name.toLowerCase().includes(q) || t.folder.toLowerCase().includes(q))
     : tracks
+
+  // Filters toepassen
+  let filtered = searched
+  if (filterGenre)      filtered = filtered.filter(t => metas[t.file]?.genres?.includes(filterGenre))
+  if (filterMinRating)  filtered = filtered.filter(t => (metas[t.file]?.rating ?? 0) >= filterMinRating)
+  if (filterHasHearts)  filtered = filtered.filter(t => (metas[t.file]?.heart_count ?? 0) > 0)
+
+  // Sortering toepassen
+  if (sortBy === 'name') {
+    filtered = [...filtered].sort((a, b) =>
+      (metas[a.file]?.display_name || a.name).toLowerCase()
+        .localeCompare((metas[b.file]?.display_name || b.name).toLowerCase()))
+  } else if (sortBy === 'rating') {
+    filtered = [...filtered].sort((a, b) => (metas[b.file]?.rating ?? 0) - (metas[a.file]?.rating ?? 0))
+  } else if (sortBy === 'hearts') {
+    filtered = [...filtered].sort((a, b) => (metas[b.file]?.heart_count ?? 0) - (metas[a.file]?.heart_count ?? 0))
+  }
+
+  // Genres die daadwerkelijk in gebruik zijn
+  const usedGenreNames = [...new Set(Object.values(metas).flatMap(m => m.genres || []))]
+    .filter(g => genres.some(x => x.name === g))
 
   const folders = [...new Set(filtered.map(t => t.folder).filter(Boolean))].sort()
 
@@ -162,7 +187,66 @@ export default function Sidebar({ onOpenSettings }) {
         />
       </div>
 
-      <div style={s.count}>{tracks.length} tracks</div>
+      {/* Sort + Filter balk */}
+      <div style={{ padding: '0 14px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Sortering */}
+        <div style={{ display: 'flex', gap: 3 }}>
+          {[['newest', 'Nieuw'], ['name', 'Naam'], ['rating', '★'], ['hearts', '♥']].map(([val, label]) => (
+            <button key={val} onClick={() => setSortBy(val)} style={{
+              flex: 1, padding: '4px 0', fontSize: '11px', border: 'none', borderRadius: 5, cursor: 'pointer',
+              fontFamily: 'var(--font-mono)',
+              background: sortBy === val ? 'var(--accent)' : 'var(--bg3)',
+              color: sortBy === val ? '#fff' : 'var(--muted)',
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Genre chips */}
+        {usedGenreNames.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            {usedGenreNames.map(g => {
+              const obj = genres.find(x => x.name === g)
+              const active = filterGenre === g
+              return (
+                <button key={g} onClick={() => setFilterGenre(active ? null : g)} style={{
+                  padding: '2px 7px', fontSize: '10px', borderRadius: 9, cursor: 'pointer',
+                  background: active ? (obj?.color || 'var(--accent)') : 'var(--bg3)',
+                  color: active ? '#fff' : 'var(--muted)',
+                  border: `1px solid ${active ? (obj?.color || 'var(--accent)') : 'var(--border)'}`,
+                }}>
+                  {g}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Rating + Hartjes filter */}
+        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+          {[0, 5, 7, 9].map(r => (
+            <button key={r} onClick={() => setFilterMinRating(r)} style={{
+              padding: '3px 6px', fontSize: '10px', borderRadius: 5, cursor: 'pointer',
+              background: filterMinRating === r ? 'var(--accent)' : 'var(--bg3)',
+              color: filterMinRating === r ? '#fff' : 'var(--muted)',
+              border: '1px solid var(--border)',
+            }}>
+              {r === 0 ? 'Alle' : `≥${r}★`}
+            </button>
+          ))}
+          <button onClick={() => setFilterHasHearts(v => !v)} style={{
+            padding: '3px 8px', fontSize: '11px', borderRadius: 5, cursor: 'pointer', marginLeft: 'auto',
+            background: filterHasHearts ? '#e11d48' : 'var(--bg3)',
+            color: filterHasHearts ? '#fff' : 'var(--muted)',
+            border: '1px solid var(--border)',
+          }}>
+            ♥
+          </button>
+        </div>
+      </div>
+
+      <div style={s.count}>{filtered.length !== tracks.length ? `${filtered.length} / ${tracks.length} tracks` : `${tracks.length} tracks`}</div>
 
       <div style={s.list}>
         {tracksLoading && (
