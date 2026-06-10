@@ -32,18 +32,20 @@ const s = {
 }
 
 import { useState } from 'react'
+import { usePlayerContext } from '../context/PlayerContext.jsx'
 
 function formatTime(s) {
   if (!s || isNaN(s)) return '0:00'
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 }
 
-export default function NowPlaying({ track, playing, onToggle, error, displayName, onHeart, progress }) {
+export default function NowPlaying() {
+  const { currentTrack: track, playing, togglePlay: onToggle, error, displayName, addHeart, progress } = usePlayerContext()
   const [heartFlash, setHeartFlash] = useState(false)
 
   function handleHeart() {
-    if (!track || !onHeart) return
-    onHeart()
+    if (!track) return
+    addHeart(progress)
     setHeartFlash(true)
     setTimeout(() => setHeartFlash(false), 600)
   }

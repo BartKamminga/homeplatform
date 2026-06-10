@@ -1,21 +1,17 @@
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings:
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-change-me")
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file="../.env", env_file_encoding="utf-8", extra="ignore")
+
+    SECRET_KEY: str = "dev-secret-change-me"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
-        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
-    )
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "sqlite:///./db/homeplatform.sqlite"
-    )
-    SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
-    SENTRY_MIN_LEVEL: str = os.getenv("SENTRY_MIN_LEVEL", "warning")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ENVIRONMENT: str = "development"
+    DATABASE_URL: str = "sqlite:///./db/homeplatform.sqlite"
+    SENTRY_DSN: str = ""
+    SENTRY_MIN_LEVEL: str = "warning"
+    MUSIC_DIR: str = "/app/music"
 
     @property
     def is_dev(self) -> bool:

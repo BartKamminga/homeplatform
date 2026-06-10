@@ -1,6 +1,17 @@
-export const VERSION = "0.5";
+export const VERSION = "0.6";
 
 export const CHANGELOG = [
+  {
+    version: "0.6",
+    date: "10 jun 2026",
+    changes: [
+      "Layouts — 3 desktop varianten (Standaard, Breed, Horizontaal) en 3 mobiele varianten (Gestapeld, Tabs, Sheet)",
+      "Layout keuze instelbaar in de instellingen en wordt onthouden",
+      "Laad-animaties bij het ophalen van tracks en track-metadata",
+      "Mobiel: tab-navigatie (layout A) met Tracks, Speelt en Details tabbladen",
+      "Mobiel: schuifpaneel (layout B) — tracklist met uitschuifend NowPlaying paneel",
+    ],
+  },
   {
     version: "0.5",
     date: "10 jun 2026",

@@ -5,10 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler as _default_http_handler
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from sentry_sdk.integrations.logging import LoggingIntegration
 
 from core.database import create_db_and_tables
+from core.exceptions import AppError
 from core.settings import settings
 
 _LEVEL_ORDER = {"debug": 0, "info": 1, "warning": 2, "error": 3, "fatal": 4}
@@ -94,6 +96,16 @@ async def sentry_http_exception_handler(request: Request, exc: HTTPException):
                 f"HTTP {exc.status_code}: {exc.detail}", level=level
             )
     return await _default_http_handler(request, exc)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    if settings.SENTRY_DSN and exc.status_code >= 500:
+        sentry_sdk.capture_exception(exc)
+    body = {"detail": exc.detail}
+    if exc.code:
+        body["code"] = exc.code
+    return JSONResponse(status_code=exc.status_code, content=body)
 
 
 app.include_router(system.router)

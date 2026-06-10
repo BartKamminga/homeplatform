@@ -10,15 +10,18 @@ function encPath(file) {
 const EMPTY_META = { display_name: null, rating: null, genres: [], moments: [] }
 
 export function useTrackMeta(track) {
-  const [meta, setMeta] = useState(EMPTY_META)
+  const [meta, setMeta]       = useState(EMPTY_META)
+  const [metaLoading, setMetaLoading] = useState(false)
   const saveTimer = useRef(null)
   const latestMeta = useRef(EMPTY_META)
 
   useEffect(() => {
     if (!track) { setMeta(EMPTY_META); return }
+    setMetaLoading(true)
     api.get(`${BASE}/meta/${encPath(track.file)}`)
       .then(m => { setMeta(m); latestMeta.current = m })
       .catch(() => { setMeta({ ...EMPTY_META, file_path: track.file }) })
+      .finally(() => setMetaLoading(false))
   }, [track?.file])
 
   const updateMeta = useCallback((patch) => {
@@ -37,7 +40,7 @@ export function useTrackMeta(track) {
     }, 300)
   }, [track?.file])
 
-  return { meta, updateMeta }
+  return { meta, metaLoading, updateMeta }
 }
 
 export function useGenres() {

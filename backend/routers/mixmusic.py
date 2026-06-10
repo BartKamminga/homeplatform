@@ -1,29 +1,24 @@
-"""
-Mix Music router
-Serveert muziekbestanden en beheert track-metadata (genre, rating, moment).
-"""
+"""Mix Music router — thin HTTP layer; business logic lives in services/mixmusic.py."""
 
-import json
-import os
 import urllib.parse
-from datetime import datetime
-from pathlib import Path
-from typing import Optional  # noqa: F401 — gebruikt in Pydantic schemas
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from core.database import get_session
 from core.auth import get_current_user
+from core.exceptions import AppError
+from core.logging import log_action
 from models.core import User
-from models.mixmusic import Genre, TrackHeart, TrackMeta
+import services.mixmusic as svc
 
 router = APIRouter(prefix="/api/mixmusic", tags=["mixmusic"])
 
-MUSIC_DIR = Path(os.environ.get("MUSIC_DIR", "/app/music"))
-MUSIC_EXTENSIONS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wma"}
+MUSIC_DIR = svc.MUSIC_DIR
+MUSIC_EXTENSIONS = svc.MUSIC_EXTENSIONS
 
 MIME_TYPES = {
     ".mp3": "audio/mpeg",
@@ -32,12 +27,12 @@ MIME_TYPES = {
     ".m4a": "audio/mp4",
     ".aac": "audio/aac",
     ".ogg": "audio/ogg",
-    ".opus": "audio/opus",
+    ".opus": "audio/ogg",
     ".wma": "audio/x-ms-wma",
 }
 
 
-# ── Pydantic schemas ────────────────────────────────────────────────────────
+# ── Schemas ──────────────────────────────────────────────────────────────────
 
 class Track(BaseModel):
     name: str
@@ -71,31 +66,8 @@ class TrackMetaOut(BaseModel):
     moments: list[str] = []
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
-
-def scan_tracks() -> list[dict]:
-    tracks = []
-    if not MUSIC_DIR.exists():
-        return tracks
-    for ext in MUSIC_EXTENSIONS:
-        for f in sorted(MUSIC_DIR.rglob(f"*{ext}")):
-            try:
-                rel = f.relative_to(MUSIC_DIR)
-                parts = rel.parts
-                tracks.append({
-                    "name": f.stem,
-                    "file": str(rel).replace("\\", "/"),
-                    "ext": ext[1:].upper(),
-                    "folder": str(parts[0]) if len(parts) > 1 else "",
-                    "size": f.stat().st_size,
-                })
-            except Exception:
-                continue
-    tracks.sort(key=lambda t: (t["folder"].lower(), t["name"].lower()))
-    return tracks
-
-
-def _meta_to_out(meta: TrackMeta) -> TrackMetaOut:
+def _meta_to_out(meta) -> TrackMetaOut:
+    import json
     return TrackMetaOut(
         file_path=meta.file_path,
         display_name=meta.display_name,
@@ -105,20 +77,20 @@ def _meta_to_out(meta: TrackMeta) -> TrackMetaOut:
     )
 
 
-# ── Bestaande endpoints ──────────────────────────────────────────────────────
+# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "music_dir": str(MUSIC_DIR),
-        "exists": MUSIC_DIR.exists(),
-    }
+    return {"status": "ok", "music_dir": str(MUSIC_DIR), "exists": MUSIC_DIR.exists()}
 
 
 @router.get("/tracks", response_model=list[Track])
-def get_tracks(_: User = Depends(get_current_user)):
-    return scan_tracks()
+def get_tracks(
+    offset: int = Query(default=0, ge=0),
+    limit: Optional[int] = Query(default=None, ge=1),
+    _: User = Depends(get_current_user),
+):
+    return svc.scan_tracks(offset=offset, limit=limit)
 
 
 @router.get("/stream/{filepath:path}")
@@ -129,17 +101,16 @@ async def stream_music(filepath: str, request: Request):
     try:
         music_path.resolve().relative_to(MUSIC_DIR.resolve())
     except ValueError:
-        raise HTTPException(status_code=403, detail="Toegang geweigerd")
+        raise AppError("Toegang geweigerd", status_code=403)
 
     if not music_path.exists():
-        raise HTTPException(status_code=404, detail="Bestand niet gevonden")
+        raise AppError("Bestand niet gevonden", status_code=404)
 
     if music_path.suffix.lower() not in MUSIC_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Bestandstype niet ondersteund")
+        raise AppError("Bestandstype niet ondersteund", status_code=400)
 
     mime = MIME_TYPES.get(music_path.suffix.lower(), "audio/mpeg")
     file_size = music_path.stat().st_size
-
     range_header = request.headers.get("Range")
 
     if range_header:
@@ -186,55 +157,34 @@ async def stream_music(filepath: str, request: Request):
     )
 
 
-# ── Genre endpoints ──────────────────────────────────────────────────────────
+# ── Genres ───────────────────────────────────────────────────────────────────
 
 @router.get("/genres")
 def get_genres(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    return session.exec(select(Genre).order_by(Genre.name)).all()
+    return svc.get_genres(session)
 
 
 @router.post("/genres", status_code=201)
 def add_genre(body: GenreCreate, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    existing = session.exec(select(Genre).where(Genre.name == body.name.strip())).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Genre bestaat al")
-    genre = Genre(name=body.name.strip(), color=body.color)
-    session.add(genre)
-    session.commit()
-    session.refresh(genre)
-    return genre
+    return svc.add_genre(session, body.name.strip(), body.color)
 
 
 @router.delete("/genres/{genre_id}", status_code=204)
 def delete_genre(genre_id: int, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    genre = session.get(Genre, genre_id)
-    if not genre:
-        raise HTTPException(status_code=404, detail="Genre niet gevonden")
-    session.delete(genre)
-    session.commit()
+    svc.delete_genre(session, genre_id)
 
 
-# ── Track-metadata endpoints ─────────────────────────────────────────────────
+# ── Track metadata ───────────────────────────────────────────────────────────
 
 @router.get("/metas")
 def get_all_metas(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    """Alle track-metadata in één keer, als dict filepath→meta."""
-    metas = session.exec(select(TrackMeta)).all()
-    return {
-        m.file_path: {
-            "display_name": m.display_name,
-            "rating": m.rating,
-            "genres": json.loads(m.genres) if m.genres else [],
-            "moments": json.loads(m.moments) if m.moments else [],
-        }
-        for m in metas
-    }
+    return svc.get_all_metas(session)
 
 
 @router.get("/meta/{filepath:path}", response_model=TrackMetaOut)
 def get_track_meta(filepath: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     filepath = urllib.parse.unquote(filepath)
-    meta = session.exec(select(TrackMeta).where(TrackMeta.file_path == filepath)).first()
+    meta = svc.get_track_meta(session, filepath)
     if not meta:
         return TrackMetaOut(file_path=filepath)
     return _meta_to_out(meta)
@@ -248,52 +198,26 @@ def update_track_meta(
     _: User = Depends(get_current_user),
 ):
     filepath = urllib.parse.unquote(filepath)
-    meta = session.exec(select(TrackMeta).where(TrackMeta.file_path == filepath)).first()
-    if not meta:
-        meta = TrackMeta(file_path=filepath)
-        session.add(meta)
-
-    if body.display_name is not None:
-        meta.display_name = body.display_name.strip() or None
-    if body.rating is not None:
-        meta.rating = body.rating if body.rating > 0 else None
-    if body.genres is not None:
-        meta.genres = json.dumps(body.genres)
-    if body.moments is not None:
-        meta.moments = json.dumps(body.moments)
-    meta.updated_at = datetime.utcnow()
-
-    session.commit()
-    session.refresh(meta)
+    meta = svc.upsert_track_meta(session, filepath, **body.model_dump(exclude_unset=True))
     return _meta_to_out(meta)
 
 
-# ── Heart / favoriete momenten endpoints ─────────────────────────────────────
+# ── Hearts ───────────────────────────────────────────────────────────────────
 
 @router.get("/hearts/{filepath:path}")
 def get_hearts(filepath: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    filepath = urllib.parse.unquote(filepath)
-    return session.exec(
-        select(TrackHeart)
-        .where(TrackHeart.file_path == filepath)
-        .order_by(TrackHeart.position)
-    ).all()
+    return svc.get_hearts(session, urllib.parse.unquote(filepath))
 
 
 @router.post("/hearts/{filepath:path}", status_code=201)
-def add_heart(filepath: str, body: HeartIn, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    filepath = urllib.parse.unquote(filepath)
-    heart = TrackHeart(file_path=filepath, position=round(body.position, 1))
-    session.add(heart)
-    session.commit()
-    session.refresh(heart)
+def add_heart(filepath: str, body: HeartIn, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    fp = urllib.parse.unquote(filepath)
+    heart = svc.add_heart(session, fp, body.position)
+    log_action(session, "heart.add", site="mixmusic", user_id=user.id, payload={"file": fp, "position": body.position})
     return heart
 
 
 @router.delete("/hearts/{heart_id}", status_code=204)
-def delete_heart(heart_id: int, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    heart = session.get(TrackHeart, heart_id)
-    if not heart:
-        raise HTTPException(status_code=404, detail="Hart niet gevonden")
-    session.delete(heart)
-    session.commit()
+def delete_heart(heart_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    svc.delete_heart(session, heart_id)
+    log_action(session, "heart.delete", site="mixmusic", user_id=user.id, payload={"heart_id": heart_id})

@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
-from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlmodel import Session
+
 from core.database import get_session
 from core.auth import get_current_user
+from core.logging import log_action
 from models.core import User
-from models.dontforget import Task
+import services.dontforget as svc
 
 router = APIRouter(prefix="/api/dontforget", tags=["dontforget"])
 
@@ -65,12 +67,7 @@ def list_tasks(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """Haal alle taken op voor de huidige gebruiker en zijn groepen."""
-    query = select(Task).where(Task.user_id == user.id)
-    if done is not None:
-        query = query.where(Task.done == done)
-    query = query.order_by(Task.created_at.desc())
-    return session.exec(query).all()
+    return svc.get_tasks(session, user, done)
 
 
 @router.post("/tasks", response_model=TaskOut)
@@ -79,20 +76,8 @@ def create_task(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    task = Task(
-        title=data.title,
-        photo_path=data.photo_path,
-        when=data.when,
-        repeat=data.repeat,
-        day_of_week=data.day_of_week,
-        priority=data.priority,
-        source=data.source,
-        group_id=data.group_id,
-        user_id=user.id,
-    )
-    session.add(task)
-    session.commit()
-    session.refresh(task)
+    task = svc.create_task(session, user, **data.model_dump())
+    log_action(session, "task.create", site="dontforget", user_id=user.id, payload={"task_id": task.id, "title": task.title})
     return task
 
 
@@ -103,19 +88,7 @@ def update_task(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    task = session.get(Task, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Taak niet gevonden")
-    if task.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Geen toegang")
-
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(task, field, value)
-
-    session.add(task)
-    session.commit()
-    session.refresh(task)
-    return task
+    return svc.update_task(session, user, task_id, data.model_dump(exclude_unset=True))
 
 
 @router.post("/tasks/{task_id}/complete", response_model=TaskOut)
@@ -124,17 +97,8 @@ def complete_task(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    task = session.get(Task, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Taak niet gevonden")
-
-    task.done         = True
-    task.completed_at = datetime.utcnow()
-    task.completed_by = user.id
-
-    session.add(task)
-    session.commit()
-    session.refresh(task)
+    task = svc.complete_task(session, user, task_id)
+    log_action(session, "task.complete", site="dontforget", user_id=user.id, payload={"task_id": task.id, "title": task.title})
     return task
 
 
@@ -144,12 +108,5 @@ def delete_task(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    task = session.get(Task, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Taak niet gevonden")
-    if task.user_id != user.id:
-        raise HTTPException(status_code=403, detail="Geen toegang")
-
-    session.delete(task)
-    session.commit()
+    svc.delete_task(session, user, task_id)
     return {"ok": True}

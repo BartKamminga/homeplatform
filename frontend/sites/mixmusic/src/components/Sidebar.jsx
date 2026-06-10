@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { usePlayerContext } from '../context/PlayerContext.jsx'
+import { SkeletonLine } from '@components/Skeleton.jsx'
 
 function ratingColor(r) {
   if (!r) return null
@@ -77,7 +79,9 @@ function MomentDots({ moments }) {
   )
 }
 
-export default function Sidebar({ tracks, currentIdx, onSelect, onReload, metas, onOpenSettings }) {
+export default function Sidebar({ onOpenSettings }) {
+  const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas } = usePlayerContext()
+  const onSelect = (idx) => loadTrack(idx, true)
   const [search, setSearch]       = useState('')
   const [collapsed, setCollapsed] = useState(new Set())
 
@@ -156,23 +160,34 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload, metas,
       <div style={s.count}>{tracks.length} tracks</div>
 
       <div style={s.list}>
-        {folders.map(folder => {
-          const folderTracks = filtered.filter(t => t.folder === folder)
-          const isCollapsed = collapsed.has(folder)
-          return (
-            <div key={folder}>
-              {folder && (
-                <div style={s.folderHeader} onClick={() => toggleFolder(folder)}>
-                  <span style={{ transition: 'transform 0.2s', transform: isCollapsed ? 'rotate(-90deg)' : 'none', fontSize: '10px' }}>▾</span>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder}</span>
-                  <span style={{ fontSize: '11px', opacity: 0.5 }}>{folderTracks.length}</span>
+        {tracksLoading && (
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {Array.from({ length: 8 }, (_, i) => (
+              <SkeletonLine key={i} width={`${55 + (i * 17) % 35}%`} height={11} />
+            ))}
+          </div>
+        )}
+        {!tracksLoading && (
+          <>
+            {folders.map(folder => {
+              const folderTracks = filtered.filter(t => t.folder === folder)
+              const isCollapsed = collapsed.has(folder)
+              return (
+                <div key={folder}>
+                  {folder && (
+                    <div style={s.folderHeader} onClick={() => toggleFolder(folder)}>
+                      <span style={{ transition: 'transform 0.2s', transform: isCollapsed ? 'rotate(-90deg)' : 'none', fontSize: '10px' }}>▾</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder}</span>
+                      <span style={{ fontSize: '11px', opacity: 0.5 }}>{folderTracks.length}</span>
+                    </div>
+                  )}
+                  {!isCollapsed && folderTracks.map((t, i) => renderTrack(t, i))}
                 </div>
-              )}
-              {!isCollapsed && folderTracks.map((t, i) => renderTrack(t, i))}
-            </div>
-          )
-        })}
-        {filtered.filter(t => !t.folder).map((t, i) => renderTrack(t, i))}
+              )
+            })}
+            {filtered.filter(t => !t.folder).map((t, i) => renderTrack(t, i))}
+          </>
+        )}
       </div>
 
     </div>

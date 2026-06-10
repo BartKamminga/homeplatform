@@ -29,7 +29,8 @@ export function saveFocus(v) { try { localStorage.setItem(STORAGE_KEY_FOCUS, v ?
 export function getSavedSimCount() { try { return parseInt(localStorage.getItem('nk_sim_count')) || 15000 } catch { return 15000 } }
 export function saveSimCount(v) { try { localStorage.setItem('nk_sim_count', String(v)) } catch {} }
 
-export const DATA_URLS = ['data/mo14.json', 'data/jo14.json', 'data/mo16.json', 'data/jo16.json']
+const _GH = 'https://bartkamminga.github.io/nk-hockey/data'
+export const DATA_URLS = [`${_GH}/mo14.json`, `${_GH}/jo14.json`, `${_GH}/mo16.json`, `${_GH}/jo16.json`]
 
 
 export { VERSION, CHANGELOG } from './changelog'

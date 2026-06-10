@@ -2,8 +2,22 @@ import { useState } from 'react'
 import { clearToken } from '@core/api.js'
 import { VERSION, CHANGELOG } from '../changelog.jsx'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
+import ChangelogSection from '@components/ChangelogSection.jsx'
+import { usePlayerContext } from '../context/PlayerContext.jsx'
 
-export default function Settings({ onClose, genres, onAddGenre, onDeleteGenre }) {
+const DESKTOP_OPTIONS = [
+  { key: 'C', label: 'Standaard', desc: 'Zijbalk + afspeler rechtsboven' },
+  { key: 'A', label: 'Breed', desc: 'Metadatavenster rechts' },
+  { key: 'B', label: 'Horizontaal', desc: 'Huidige track in de header' },
+]
+const MOBILE_OPTIONS = [
+  { key: 'C', label: 'Gestapeld', desc: 'Afspeler boven, details eronder' },
+  { key: 'A', label: 'Tabs', desc: 'Drie tabbladen onderaan' },
+  { key: 'B', label: 'Sheet', desc: 'Tracklist + schuifpaneel' },
+]
+
+export default function Settings({ onClose, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout }) {
+  const { genres, addGenre: onAddGenre, deleteGenre: onDeleteGenre } = usePlayerContext()
   const [newGenre, setNewGenre] = useState('')
   const [genreError, setGenreError] = useState(null)
 
@@ -54,6 +68,56 @@ export default function Settings({ onClose, genres, onAddGenre, onDeleteGenre })
             <ThemeSwitcher />
           </section>
 
+          {/* Layout desktop */}
+          <section>
+            <div style={sectionLabel}>Layout — desktop</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {DESKTOP_OPTIONS.map(o => (
+                <button
+                  key={o.key}
+                  onClick={() => onDesktopLayout?.(o.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                    borderRadius: 8, border: `1px solid ${desktopLayout === o.key ? 'var(--accent)' : 'var(--border)'}`,
+                    background: desktopLayout === o.key ? 'var(--accent)22' : 'var(--bg2)',
+                    cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, color: desktopLayout === o.key ? 'var(--accent)' : 'var(--text)', minWidth: 20 }}>{o.key}</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: desktopLayout === o.key ? 600 : 400 }}>{o.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Layout mobiel */}
+          <section>
+            <div style={sectionLabel}>Layout — mobiel</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {MOBILE_OPTIONS.map(o => (
+                <button
+                  key={o.key}
+                  onClick={() => onMobileLayout?.(o.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                    borderRadius: 8, border: `1px solid ${mobileLayout === o.key ? 'var(--accent)' : 'var(--border)'}`,
+                    background: mobileLayout === o.key ? 'var(--accent)22' : 'var(--bg2)',
+                    cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, color: mobileLayout === o.key ? 'var(--accent)' : 'var(--text)', minWidth: 20 }}>{o.key}</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: mobileLayout === o.key ? 600 : 400 }}>{o.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
           {/* Account */}
           <section>
             <div style={sectionLabel}>Account</div>
@@ -102,20 +166,7 @@ export default function Settings({ onClose, genres, onAddGenre, onDeleteGenre })
           {/* Changelog */}
           <section>
             <div style={sectionLabel}>Over Mix Music</div>
-            {CHANGELOG.map(entry => (
-              <div key={entry.version} style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>v{entry.version}</span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.date}</span>
-                </div>
-                <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {entry.changes.map((c, i) => (
-                    <li key={i} style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{c}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Mix Music v{VERSION}</div>
+            <ChangelogSection changelog={CHANGELOG} version={`Mix Music v${VERSION}`} />
           </section>
 
         </div>

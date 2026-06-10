@@ -1,3 +1,5 @@
+import { usePlayerContext } from '../context/PlayerContext.jsx'
+
 function formatTime(s) {
   if (!s || isNaN(s)) return '0:00'
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
@@ -33,7 +35,8 @@ const s = {
   volumeArea: { display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 130px' },
 }
 
-export default function PlayerBar({ track, playing, progress, duration, volume, muted, shuffle, repeat, onToggle, onNext, onPrev, onSeek, onVolume, onMute, onShuffle, onRepeat }) {
+export default function PlayerBar() {
+  const { currentTrack: track, playing, progress, duration, volume, muted, shuffle, repeat, togglePlay: onToggle, next: onNext, prev: onPrev, seek: onSeek, changeVolume: onVolume, toggleMute: onMute, toggleShuffle: onShuffle, toggleRepeat: onRepeat } = usePlayerContext()
   const pct = duration ? (progress / duration) * 100 : 0
 
   function handleSeek(e) {

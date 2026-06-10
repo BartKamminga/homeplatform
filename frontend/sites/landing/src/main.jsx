@@ -6,12 +6,15 @@ import Landing from "./Landing.jsx";
 
 import { trackEvent, loadTheme } from "@core/api.js";
 import { initSentry } from "@core/sentry.js";
+import ErrorBoundary from "@components/ErrorBoundary.jsx";
 
 initSentry();
 trackEvent("landing", "page.view", { path: window.location.pathname });
 loadTheme();
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <Landing />
+    <ErrorBoundary label="Landing">
+      <Landing />
+    </ErrorBoundary>
   </StrictMode>,
 );

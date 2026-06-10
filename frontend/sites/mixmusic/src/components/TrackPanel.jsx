@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { usePlayerContext } from '../context/PlayerContext.jsx'
+import { SkeletonLine, SkeletonBlock } from '@components/Skeleton.jsx'
 
 function formatTime(s) {
   if (!s || isNaN(s)) return '0:00'
@@ -19,7 +21,8 @@ function ratingColor(r) {
   return '#22c55e'
 }
 
-export default function TrackPanel({ track, meta, onMetaChange, genres, hearts, onRemoveHeart, onSeek, duration }) {
+export default function TrackPanel() {
+  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, removeHeart: onRemoveHeart, seek: onSeek, duration } = usePlayerContext()
   const [displayName, setDisplayName] = useState('')
   const nameTimer = useRef(null)
 
@@ -29,6 +32,15 @@ export default function TrackPanel({ track, meta, onMetaChange, genres, hearts, 
   }, [track?.file, meta.display_name])
 
   if (!track) return null
+
+  if (metaLoading) return (
+    <div style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <SkeletonLine width="60%" height={14} />
+      <SkeletonBlock lines={2} gap={6} />
+      <SkeletonLine width="40%" height={28} radius={6} />
+      <SkeletonBlock lines={3} gap={6} />
+    </div>
+  )
 
   const activeGenres = meta.genres ?? []
   const activeMoments = meta.moments ?? []
