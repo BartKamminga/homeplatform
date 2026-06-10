@@ -243,28 +243,33 @@ function HeartsTimeline({ hearts, duration, progress, onRemove, onSeek }) {
       </div>
 
       <div
-        style={{ position: 'relative', height: 36, userSelect: 'none', cursor: 'pointer' }}
+        style={{ position: 'relative', height: 40, userSelect: 'none', cursor: 'pointer' }}
         onClick={handleBarClick}
       >
         {/* Track */}
         <div style={{
           position: 'absolute', top: '50%', left: 0, right: 0,
-          height: 4, background: 'var(--bg2)', borderRadius: 2, transform: 'translateY(-50%)',
+          height: 6, background: 'var(--border)', borderRadius: 3,
+          transform: 'translateY(-50%)',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.25)',
         }} />
 
         {/* Progress fill */}
         <div style={{
           position: 'absolute', top: '50%', left: 0,
-          height: 4, background: 'var(--accent)', borderRadius: 2,
+          height: 6, background: 'var(--accent)', borderRadius: 3,
           width: `${pct}%`, transform: 'translateY(-50%)',
           pointerEvents: 'none',
+          boxShadow: '0 0 6px color-mix(in srgb, var(--accent) 50%, transparent)',
         }} />
 
         {/* Progress thumb */}
         <div style={{
           position: 'absolute', top: '50%', left: `${pct}%`,
-          width: 10, height: 10, borderRadius: '50%',
+          width: 14, height: 14, borderRadius: '50%',
           background: 'var(--accent)',
+          border: '2px solid #fff',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
           transform: 'translate(-50%, -50%)',
           pointerEvents: 'none', zIndex: 2,
         }} />
