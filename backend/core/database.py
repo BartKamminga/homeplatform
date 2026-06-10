@@ -1,4 +1,6 @@
+import logging
 import os
+from typing import TypeVar
 from sqlmodel import SQLModel, create_engine, Session
 from dotenv import load_dotenv
 from models import dontforget  # noqa: F401 — registreert Task model
@@ -6,10 +8,8 @@ from models import mixmusic    # noqa: F401 — registreert Genre + TrackMeta
 
 load_dotenv()
 
-print(f">>> DATABASE_URL: {os.getenv('DATABASE_URL')}")
-print(f">>> UPLOAD_ROOT: {os.getenv('UPLOAD_ROOT')}")
+logger = logging.getLogger(__name__)
 
-# Get database URL - use absolute path if env var is empty
 db_url = os.getenv("DATABASE_URL")
 if not db_url or db_url.strip() == "":
     db_dir = os.path.join(os.path.dirname(__file__), "..", "db")
@@ -19,12 +19,13 @@ if not db_url or db_url.strip() == "":
 
 DATABASE_URL = db_url
 
-# connect_args alleen nodig voor SQLite
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False},
     echo=os.getenv("ENVIRONMENT") == "development",
 )
+
+_T = TypeVar("_T", bound=SQLModel)
 
 
 def get_session():
@@ -34,3 +35,11 @@ def get_session():
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+
+
+def persist(session: Session, obj: _T) -> _T:
+    """add + commit + refresh in één aanroep."""
+    session.add(obj)
+    session.commit()
+    session.refresh(obj)
+    return obj

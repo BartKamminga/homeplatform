@@ -8,7 +8,7 @@ from models.dontforget import Task
 
 
 def get_tasks(session: Session, user: User, done: bool | None = None) -> list[Task]:
-    query = select(Task).where(Task.user_id == user.id, Task.deleted_at == None)  # noqa: E711
+    query = select(Task).where(Task.user_id == user.id, Task.deleted_at.is_(None))
     if done is not None:
         query = query.where(Task.done == done)
     return list(session.exec(query.order_by(Task.created_at.desc())).all())

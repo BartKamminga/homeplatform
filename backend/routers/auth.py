@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from core.database import get_session
 from core.auth import verify_password, create_access_token, get_current_user
+from core.limiter import limiter
 from core.logging import log_action
 from models.core import User, UserGroup, Group, Site, SiteAccess
 
@@ -28,7 +29,9 @@ class MeResponse(BaseModel):
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def login(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ):

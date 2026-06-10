@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
-from core.database import get_session
-from core.auth import require_admin, hash_password, ADMIN_GROUP
+from core.database import get_session, persist
+from core.auth import require_admin, hash_password
 from core.logging import log_action
 from models.core import User, UserGroup, Group
 
@@ -21,17 +21,22 @@ class UserOut(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., min_length=5, max_length=200)
+    password: str = Field(..., min_length=8)
     locale: str = "nl"
+
+    @field_validator("username", "email")
+    @classmethod
+    def strip_whitespace(cls, v: str) -> str:
+        return v.strip()
 
 
 class UserUpdate(BaseModel):
-    email: Optional[str] = None
+    email: Optional[str] = Field(default=None, min_length=5, max_length=200)
     locale: Optional[str] = None
     is_active: Optional[bool] = None
-    password: Optional[str] = None
+    password: Optional[str] = Field(default=None, min_length=8)
 
 
 def _enrich(user: User, session: Session) -> UserOut:
@@ -53,9 +58,8 @@ def list_users(
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
-    users = session.exec(select(User)).all()
+    users = session.exec(select(User).order_by(User.username)).all()
 
-    # Eén query voor alle user-groep koppelingen
     rows = session.exec(
         select(UserGroup.user_id, Group.slug)
         .join(Group, Group.id == UserGroup.group_id)
@@ -80,17 +84,15 @@ def create_user(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    existing = session.exec(select(User).where(User.username == data.username)).first()
-    if existing:
+    if session.exec(select(User).where(User.username == data.username)).first():
         raise HTTPException(status_code=409, detail="Gebruikersnaam al in gebruik")
+    if session.exec(select(User).where(User.email == data.email)).first():
+        raise HTTPException(status_code=409, detail="E-mailadres al in gebruik")
 
-    user = User(
+    user = persist(session, User(
         username=data.username, email=data.email,
         password_hash=hash_password(data.password), locale=data.locale,
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    ))
     log_action(session, "user.create", user_id=admin.id, payload={"new_user": user.username})
     return _enrich(user, session)
 
@@ -115,9 +117,7 @@ def update_user(
     if data.password is not None:
         user.password_hash = hash_password(data.password)
 
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    persist(session, user)
     log_action(session, "user.update", user_id=admin.id, payload={"updated_user": user.username})
     return _enrich(user, session)
 

@@ -1,12 +1,13 @@
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session
 
 from core.database import get_session
 from core.auth import get_current_user
+from core.limiter import limiter
 from core.logging import log_action
 from models.core import User
 import services.dontforget as svc
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/api/dontforget", tags=["dontforget"])
 # ---------------------------------------------------------------------------
 
 class TaskCreate(BaseModel):
-    title:        str
+    title:        str = Field(..., min_length=1, max_length=200)
     photo_path:   Optional[str] = None
     when:         str = "morning"
     repeat:       str = "once"
@@ -27,6 +28,14 @@ class TaskCreate(BaseModel):
     priority:     str = "normal"
     source:       str = "user"
     group_id:     Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Titel mag niet leeg zijn")
+        return v
 
 
 class TaskUpdate(BaseModel):
@@ -62,7 +71,9 @@ class TaskOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/tasks", response_model=list[TaskOut])
+@limiter.limit("120/minute")
 def list_tasks(
+    request: Request,
     done: Optional[bool] = None,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
@@ -71,7 +82,9 @@ def list_tasks(
 
 
 @router.post("/tasks", response_model=TaskOut)
+@limiter.limit("30/minute")
 def create_task(
+    request: Request,
     data: TaskCreate,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),

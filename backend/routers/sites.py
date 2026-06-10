@@ -49,7 +49,7 @@ def list_sites(
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
-    sites = session.exec(select(Site)).all()
+    sites = session.exec(select(Site).order_by(Site.name)).all()
 
     # Eén query voor alle site-toegang koppelingen
     access_rows = session.exec(

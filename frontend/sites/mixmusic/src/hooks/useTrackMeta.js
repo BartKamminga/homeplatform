@@ -24,14 +24,18 @@ export function useTrackMeta(track) {
       .finally(() => setMetaLoading(false))
   }, [track?.file])
 
+  // Opruimen bij unmount — voorkomt dat debounced save vuurt op een unmounted component
+  useEffect(() => () => clearTimeout(saveTimer.current), [])
+
   const updateMeta = useCallback((patch) => {
     const next = { ...latestMeta.current, ...patch }
     setMeta(next)
     latestMeta.current = next
     clearTimeout(saveTimer.current)
+    const filePath = track?.file
     saveTimer.current = setTimeout(() => {
-      if (!track) return
-      api.patch(`${BASE}/meta/${encPath(track.file)}`, {
+      if (!filePath) return
+      api.patch(`${BASE}/meta/${encPath(filePath)}`, {
         display_name: next.display_name,
         rating: next.rating,
         genres: next.genres,

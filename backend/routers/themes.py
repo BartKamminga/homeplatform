@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from sqlalchemy import update as sa_update
 from pydantic import BaseModel
 from typing import Optional
 
-from core.database import get_session
+from core.database import get_session, persist
 from core.auth import require_admin
 from core.logging import log_action
 from models.core import User, Theme
@@ -92,11 +93,7 @@ def activate_theme(
     if not theme:
         raise HTTPException(status_code=404, detail="Thema niet gevonden")
 
-    # Zet alle thema's op niet-standaard
-    for t in session.exec(select(Theme)).all():
-        t.is_default = False
-        session.add(t)
-
+    session.execute(sa_update(Theme).values(is_default=False))
     theme.is_default = True
     session.add(theme)
     session.commit()

@@ -23,6 +23,7 @@ class User(SQLModel, table=True):
     locale: str = Field(default="nl")
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
     deleted_at: Optional[datetime] = Field(default=None)
 
 
@@ -32,6 +33,8 @@ class Group(SQLModel, table=True):
     id: str = Field(default_factory=new_uuid, primary_key=True)
     name: str = Field(unique=True)
     slug: str = Field(unique=True, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = Field(default=None)
 
 
 class UserGroup(SQLModel, table=True):
@@ -39,7 +42,7 @@ class UserGroup(SQLModel, table=True):
 
     user_id: str = Field(foreign_key="users.id", primary_key=True)
     group_id: str = Field(foreign_key="groups.id", primary_key=True)
-    role: str = Field(default="member")  # member | admin
+    role: str = Field(default="member")
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +57,8 @@ class Theme(SQLModel, table=True):
     name: str = Field(unique=True)
     tokens: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     is_default: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = Field(default=None)
 
 
 class UserPreference(SQLModel, table=True):
@@ -77,10 +82,12 @@ class Site(SQLModel, table=True):
     id: str = Field(default_factory=new_uuid, primary_key=True)
     name: str
     slug: str = Field(unique=True, index=True)
-    module: str = Field(index=True)  # bijv. "hockey", "music"
+    module: str = Field(index=True)
     theme_id: Optional[str] = Field(default=None, foreign_key="themes.id")
     is_active: bool = Field(default=True)
     icon: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = Field(default=None)
 
 
 class SiteAccess(SQLModel, table=True):

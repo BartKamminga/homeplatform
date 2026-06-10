@@ -6,29 +6,19 @@ import {
   POULE_ORDER_14,
   POULE_ORDER_16,
   IS_O16,
-  getSavedForm,
-  saveForm,
-  getSavedPlayed,
-  savePlayed,
-  getSavedMatches,
-  saveMatches,
-  getSavedSimCount,
-  saveSimCount,
 } from "./constants";
 import { NK_SCHEDULES } from "./lib/nk-schedules";
 import { getExpectedStandings } from "./components/SimTab/helpers";
 import SimTab from "./components/SimTab";
 import NavFilter from "./components/NavFilter";
-import NavFilterDefault from "./components/NavFilterDefault";
 import { useCompetitionData } from "./dataloader/useCompetitionData";
+import { useNKAppState } from "./hooks/useNKAppState";
 import DisclaimerPopup from "./components/popups/DisclaimerPopup";
 import FeedbackPopup from "./components/popups/FeedbackPopup";
 import HelpPopup from "./components/popups/HelpPopup";
 import MenuPopup from "./components/popups/MenuPopup";
 import SettingsPopup from "./components/popups/SettingsPopup";
 import EasterEgg from "./components/common/EasterEgg";
-
-const USE_NEW_NAV = true; // ← false voor oude navigatie
 
 async function loadTheme() {
   try {
@@ -98,29 +88,25 @@ function getFocusFilter(myTeam, data, effectiveComp) {
 }
 
 export default function App() {
-  const [showVersion, setShowVersion] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const [helpMode, setHelpMode] = useState("tab");
-  const [easterEgg, setEasterEgg] = useState(false);
+  const {
+    showVersion, setShowVersion,
+    showSettings, setShowSettings,
+    showFeedback, setShowFeedback,
+    showHelp, setShowHelp,
+    helpMode, setHelpMode,
+    easterEgg, setEasterEgg,
+    showDisclaimer, dismissDisclaimer,
+    showForm, setShowForm, saveForm,
+    showPlayed, setShowPlayed, savePlayed,
+    showMatches, setShowMatches, saveMatches,
+    simCount, setSimCount, saveSimCount,
+  } = useNKAppState();
+
   const easterClicks = React.useRef(0);
   const easterTimer = React.useRef(null);
 
   const [selectedPhases, setSelectedPhases] = useState(new Set());
   const [selectedSubs, setSelectedSubs] = useState(new Set());
-
-  const [showDisclaimer, setShowDisclaimer] = useState(() => {
-    try {
-      return localStorage.getItem("nk_disclaimer_seen") !== "true";
-    } catch {
-      return true;
-    }
-  });
-  const [showForm, setShowForm] = useState(getSavedForm);
-  const [showPlayed, setShowPlayed] = useState(getSavedPlayed);
-  const [showMatches, setShowMatches] = useState(getSavedMatches);
-  const [simCount, setSimCount] = useState(getSavedSimCount);
 
   useEffect(() => {
     loadTheme();
@@ -169,13 +155,6 @@ export default function App() {
     easterTimer.current = setTimeout(() => {
       easterClicks.current = 0;
     }, 1500);
-  }
-
-  function dismissDisclaimer() {
-    setShowDisclaimer(false);
-    try {
-      localStorage.setItem("nk_disclaimer_seen", "true");
-    } catch {}
   }
 
   function handleSetActiveCompetition(type) {
@@ -264,24 +243,16 @@ export default function App() {
           </div>
         </div>
 
-        {USE_NEW_NAV ? (
-          <NavFilter
-            visibleTypes={visibleTypes}
-            effectiveComp={effectiveComp}
-            setActiveCompetition={handleSetActiveCompetition}
-            selectedPhases={selectedPhases}
-            setSelectedPhases={setSelectedPhases}
-            selectedSubs={selectedSubs}
-            setSelectedSubs={setSelectedSubs}
-            data={data}
-          />
-        ) : (
-          <NavFilterDefault
-            visibleTypes={visibleTypes}
-            effectiveComp={effectiveComp}
-            setActiveCompetition={handleSetActiveCompetition}
-          />
-        )}
+        <NavFilter
+          visibleTypes={visibleTypes}
+          effectiveComp={effectiveComp}
+          setActiveCompetition={handleSetActiveCompetition}
+          selectedPhases={selectedPhases}
+          setSelectedPhases={setSelectedPhases}
+          selectedSubs={selectedSubs}
+          setSelectedSubs={setSelectedSubs}
+          data={data}
+        />
       </div>
 
       {showVersion && (

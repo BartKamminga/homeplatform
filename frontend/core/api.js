@@ -22,15 +22,20 @@ export function clearToken() {
   localStorage.removeItem("hp_user");
 }
 
+export function parseToken(token) {
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    clearToken();
+    return null;
+  }
+}
+
 export function isTokenValid() {
   const token = localStorage.getItem("hp_token");
   if (!token) return false;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.exp * 1000 > Date.now();
-  } catch {
-    return false;
-  }
+  const payload = parseToken(token);
+  return payload ? payload.exp * 1000 > Date.now() : false;
 }
 
 export function trackEvent(site, action, details = {}) {
@@ -41,13 +46,15 @@ export function trackEvent(site, action, details = {}) {
   }).catch(() => {});
 }
 
+// Ververs token als het binnen 5 min verloopt (best-effort, stille fout)
 async function maybeRefreshToken() {
   const token = localStorage.getItem("hp_token");
   if (!token) return;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const expiresInMs = payload.exp * 1000 - Date.now();
-    if (expiresInMs > 0 && expiresInMs < 5 * 60 * 1000) {
+  const payload = parseToken(token);
+  if (!payload) return;
+  const expiresInMs = payload.exp * 1000 - Date.now();
+  if (expiresInMs > 0 && expiresInMs < 5 * 60 * 1000) {
+    try {
       const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -56,9 +63,9 @@ async function maybeRefreshToken() {
         const data = await res.json();
         setToken(data.access_token);
       }
+    } catch {
+      // Stille fout
     }
-  } catch {
-    // Stille fout — token refresh is best-effort
   }
 }
 
@@ -100,6 +107,21 @@ export const api = {
   delete: (path) => request("DELETE", path),
 };
 
+// Synchroniseer inlogstatus over tabs via StorageEvent
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === "hp_token") {
+      if (!e.newValue && e.oldValue) {
+        // Token verwijderd in andere tab → redirect naar login
+        window.location.href = "/admin/login";
+      } else if (e.newValue && !e.oldValue) {
+        // Nieuw ingelogd in andere tab → herladen
+        window.location.reload();
+      }
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Login
 // ---------------------------------------------------------------------------
@@ -137,31 +159,26 @@ export function getActiveTheme() {
 }
 
 export async function loadTheme() {
-  // 1. Lokale voorkeur heeft prioriteit
   const stored = localStorage.getItem(THEME_KEY);
   if (stored) {
     document.body.setAttribute("data-theme", stored);
     return;
   }
 
-  // 2. Platform thema ophalen uit database
   try {
     const data = await fetch(`${BASE_URL}/api/admin/themes/active`).then((r) =>
       r.json(),
     );
-    // Gebruik theme naam als die beschikbaar is, anders tokens toepassen
     const themeName = data.name?.toLowerCase() || DEFAULT_THEME;
     document.body.setAttribute("data-theme", themeName);
     localStorage.setItem(THEME_KEY, themeName);
 
-    // Extra tokens toepassen als die in de database staan
     const tokens = data.tokens || {};
     const root = document.documentElement;
     Object.entries(tokens).forEach(([key, value]) => {
       root.style.setProperty(key, value);
     });
   } catch {
-    // Geen backend beschikbaar — gebruik standaard thema
     document.body.setAttribute("data-theme", DEFAULT_THEME);
   }
 }

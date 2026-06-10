@@ -1,21 +1,25 @@
-from fastapi import APIRouter, Depends
-from alembic.runtime.migration import MigrationContext  # type: ignore  # pylint: disable=no-name-in-module
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, Request
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from sqlalchemy import inspect as sa_inspect, text, update as sa_update
 from sqlmodel import Session, select
+from typing import Optional
 
 from core.database import engine, get_session
 from core.settings import settings
 from core.auth import require_admin
+from core.limiter import limiter
 from core.stats import api_call_stats, api_call_since
 from models.core import AuditLog, Group, Site, SiteAccess, User, UserGroup
 
 router = APIRouter(prefix="/api", tags=["system"])
 
-CORE_VERSION = "0.7"
+_optional_token = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 def get_db_revision() -> str:
     try:
+        from alembic.runtime.migration import MigrationContext  # type: ignore
         with engine.connect() as conn:
             context = MigrationContext.configure(conn)
             return context.get_current_revision() or "geen migraties"
@@ -30,7 +34,7 @@ def health():
 
 @router.get("/version")
 def version():
-    return {"core": CORE_VERSION, "db_revision": get_db_revision(), "sites": {}}
+    return {"core": settings.APP_VERSION, "db_revision": get_db_revision(), "sites": {}}
 
 
 @router.get("/config")
@@ -43,9 +47,44 @@ def public_config():
 
 
 @router.get("/sites")
-def public_sites(session: Session = Depends(get_session)):
-    sites = session.exec(select(Site).where(Site.is_active == True)).all()
-    return [{"name": s.name, "slug": s.slug, "module": s.module, "icon": s.icon} for s in sites]
+def public_sites(
+    session: Session = Depends(get_session),
+    token: Optional[str] = Depends(_optional_token),
+):
+    """Retourneert alleen sites die zichtbaar zijn voor de aanvrager.
+
+    Onbeperkte sites (geen SiteAccess-rijen) zijn altijd zichtbaar.
+    Beperkte sites zijn alleen zichtbaar voor ingelogde gebruikers met de juiste groep.
+    """
+    restricted_ids = {sa.site_id for sa in session.exec(select(SiteAccess)).all()}
+
+    accessible_ids: set[str] = set()
+    if token:
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id:
+                group_ids = set(session.exec(
+                    select(UserGroup.group_id).where(UserGroup.user_id == user_id)
+                ).all())
+                if group_ids:
+                    accessible_ids = {
+                        sa.site_id
+                        for sa in session.exec(
+                            select(SiteAccess).where(SiteAccess.group_id.in_(group_ids))
+                        ).all()
+                    }
+        except (JWTError, Exception):
+            pass
+
+    sites = session.exec(
+        select(Site).where(Site.is_active.is_(True)).order_by(Site.name)
+    ).all()
+    return [
+        {"name": s.name, "slug": s.slug, "module": s.module, "icon": s.icon}
+        for s in sites
+        if s.id not in restricted_ids or s.id in accessible_ids
+    ]
 
 
 # ── Admin: System overview ────────────────────────────────────────────────────
@@ -61,27 +100,30 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         select(AuditLog).order_by(AuditLog.created_at.desc()).limit(6)
     ).all()
 
-    # group member counts
     group_members: dict[str, int] = {}
     for ug in user_grps:
         group_members[ug.group_id] = group_members.get(ug.group_id, 0) + 1
 
-    # table row counts
+    # Tabeltellingen via inspect (valideert tabelnamen via DB-metadata)
     tables = [
         "users", "groups", "user_groups", "themes", "user_preferences",
         "sites", "site_access", "audit_log",
         "tasks", "mixmusic_genres", "mixmusic_track_meta", "mixmusic_track_hearts",
     ]
+    inspector = sa_inspect(engine)
+    available_tables = set(inspector.get_table_names())
     table_counts: dict[str, int] = {}
     with engine.connect() as conn:
         for t in tables:
+            if t not in available_tables:
+                table_counts[t] = 0
+                continue
             try:
-                row = conn.execute(text(f"SELECT COUNT(*) FROM \"{t}\"")).fetchone()
+                row = conn.execute(text(f'SELECT COUNT(*) FROM "{t}"')).fetchone()
                 table_counts[t] = row[0] if row else 0
             except Exception:
-                pass
+                table_counts[t] = 0
 
-    # mask DB path — show only filename
     db_url = settings.DATABASE_URL
     db_display = db_url.rsplit("/", 1)[-1] if "/" in db_url else db_url
 
@@ -91,7 +133,7 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "db_revision": get_db_revision(),
         "sentry_enabled": bool(settings.SENTRY_DSN),
         "sentry_min_level": settings.SENTRY_MIN_LEVEL,
-        "backend_version": CORE_VERSION,
+        "backend_version": settings.APP_VERSION,
         "music_dir": settings.MUSIC_DIR,
         "users": {
             "total": len(users),
@@ -131,7 +173,7 @@ def _build_links() -> dict:
             from urllib.parse import urlparse
             p = urlparse(settings.SENTRY_DSN)
             glitchtip = f"{p.scheme}://{p.hostname}"
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             pass
     return {
         "glitchtip": glitchtip,
@@ -159,3 +201,29 @@ def get_api_stats(_: User = Depends(require_admin)):
             for k, v in entries
         ],
     }
+
+
+# ── Admin: Audit log ──────────────────────────────────────────────────────────
+
+@router.get("/admin/audit-log")
+@limiter.limit("60/minute")
+def get_audit_log(
+    request: Request,
+    limit: int = 50,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    entries = session.exec(
+        select(AuditLog).order_by(AuditLog.created_at.desc()).limit(min(limit, 200))
+    ).all()
+    return [
+        {
+            "id": e.id,
+            "action": e.action,
+            "site": e.site,
+            "user_id": e.user_id,
+            "payload": e.payload,
+            "created_at": e.created_at.isoformat(),
+        }
+        for e in entries
+    ]

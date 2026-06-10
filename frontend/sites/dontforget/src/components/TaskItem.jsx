@@ -1,4 +1,5 @@
 export default function TaskItem({ task, onToggle, onEdit }) {
+  if (!task) return null
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -30,7 +31,10 @@ export default function TaskItem({ task, onToggle, onEdit }) {
       {task.photo_path && (
         <img
           src={`/api/uploads/${task.photo_path}`}
-          alt=""
+          alt="Taak foto"
+          loading="lazy"
+          width={36}
+          height={36}
           style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)' }}
         />
       )}

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 MAX_SIZE_MB = 10
 
 
@@ -31,6 +32,9 @@ async def upload_file(
     category: str = "general",
     user: User = Depends(get_current_user),
 ):
+    ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
     if file.content_type not in ALLOWED_TYPES:
         allowed = ", ".join(ALLOWED_TYPES)
         raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}. Toegestaan: {allowed}")
@@ -39,7 +43,7 @@ async def upload_file(
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {MAX_SIZE_MB}MB")
 
-    ext = Path(file.filename or "upload").suffix or ".jpg"
+    ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
 
     abs_path = _safe_path(category, user.id, filename)

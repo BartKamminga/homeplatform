@@ -25,7 +25,7 @@ class TrackMeta(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     file_path: str = Field(unique=True, index=True)
     display_name: Optional[str] = Field(default=None)
-    rating: Optional[int] = Field(default=None)
+    rating: Optional[int] = Field(default=None, ge=1, le=5)
     genres: Optional[list] = Field(default=None, sa_column=Column(SAJSON))
     moments: Optional[list] = Field(default=None, sa_column=Column(SAJSON))
     updated_at: datetime = Field(default_factory=datetime.utcnow)
