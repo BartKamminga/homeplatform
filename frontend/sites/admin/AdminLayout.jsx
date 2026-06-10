@@ -12,6 +12,7 @@ const NAV = [
   { to: "/admin/system", icon: "⚙", label: "Systeem" },
   { to: "/admin/api-stats", icon: "▤", label: "API stats" },
   { to: "/admin/monitoring", icon: "🔗", label: "Beheer & links" },
+  { to: "/admin/todo", icon: "☑", label: "Todo" },
 ];
 
 export default function AdminLayout({ children }) {
