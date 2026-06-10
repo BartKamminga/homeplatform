@@ -1,4 +1,5 @@
 import logging
+import time
 import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler as _default_http_handler
@@ -65,6 +66,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    ms = (time.time() - start) * 1000
+    logger.info("%s %s %s %.0fms", request.method, request.url.path, response.status_code, ms)
+    return response
 
 
 @app.exception_handler(HTTPException)

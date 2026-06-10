@@ -1,0 +1,99 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { api } from '@core/api.js'
+
+const BASE = '/api/mixmusic'
+
+function encPath(file) {
+  return file.split('/').map(encodeURIComponent).join('/')
+}
+
+const EMPTY_META = { display_name: null, rating: null, genres: [], moments: [] }
+
+export function useTrackMeta(track) {
+  const [meta, setMeta] = useState(EMPTY_META)
+  const saveTimer = useRef(null)
+  const latestMeta = useRef(EMPTY_META)
+
+  useEffect(() => {
+    if (!track) { setMeta(EMPTY_META); return }
+    api.get(`${BASE}/meta/${encPath(track.file)}`)
+      .then(m => { setMeta(m); latestMeta.current = m })
+      .catch(() => { setMeta({ ...EMPTY_META, file_path: track.file }) })
+  }, [track?.file])
+
+  const updateMeta = useCallback((patch) => {
+    const next = { ...latestMeta.current, ...patch }
+    setMeta(next)
+    latestMeta.current = next
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      if (!track) return
+      api.patch(`${BASE}/meta/${encPath(track.file)}`, {
+        display_name: next.display_name,
+        rating: next.rating,
+        genres: next.genres,
+        moments: next.moments,
+      }).catch(() => {})
+    }, 300)
+  }, [track?.file])
+
+  return { meta, updateMeta }
+}
+
+export function useGenres() {
+  const [genres, setGenres] = useState([])
+
+  function load() {
+    api.get(`${BASE}/genres`).then(setGenres).catch(() => {})
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function addGenre(name) {
+    await api.post(`${BASE}/genres`, { name })
+    load()
+  }
+
+  async function deleteGenre(id) {
+    await api.delete(`${BASE}/genres/${id}`)
+    load()
+  }
+
+  return { genres, addGenre, deleteGenre, reloadGenres: load }
+}
+
+export function useHearts(track) {
+  const [hearts, setHearts] = useState([])
+
+  function load() {
+    if (!track) { setHearts([]); return }
+    api.get(`${BASE}/hearts/${encPath(track.file)}`).then(setHearts).catch(() => {})
+  }
+
+  useEffect(() => { load() }, [track?.file])
+
+  async function addHeart(position) {
+    if (!track) return
+    await api.post(`${BASE}/hearts/${encPath(track.file)}`, { position })
+    load()
+  }
+
+  async function removeHeart(id) {
+    await api.delete(`${BASE}/hearts/${id}`)
+    load()
+  }
+
+  return { hearts, addHeart, removeHeart }
+}
+
+export function useMetas() {
+  const [metas, setMetas] = useState({})
+
+  function reload() {
+    api.get(`${BASE}/metas`).then(setMetas).catch(() => {})
+  }
+
+  useEffect(() => { reload() }, [])
+
+  return { metas, reloadMetas: reload }
+}

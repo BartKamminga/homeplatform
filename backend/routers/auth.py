@@ -9,7 +9,7 @@ from core.auth import (
     get_current_user, hash_password,
 )
 from core.logging import log_action
-from models.core import User, UserGroup, Group
+from models.core import User, UserGroup, Group, Site, SiteAccess
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -56,6 +56,27 @@ def login(
         user_id=user.id,
         username=user.username,
     )
+
+
+@router.get("/me/sites")
+def my_sites(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    user_groups = session.exec(
+        select(UserGroup).where(UserGroup.user_id == current_user.id)
+    ).all()
+    group_ids = {ug.group_id for ug in user_groups}
+
+    accessible = []
+    for site in session.exec(select(Site).where(Site.is_active == True)).all():
+        restrictions = session.exec(
+            select(SiteAccess).where(SiteAccess.site_id == site.id)
+        ).all()
+        if not restrictions or any(r.group_id in group_ids for r in restrictions):
+            accessible.append(site.slug)
+
+    return {"sites": accessible}
 
 
 @router.post("/logout")

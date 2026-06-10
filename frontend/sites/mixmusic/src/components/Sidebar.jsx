@@ -1,5 +1,19 @@
 import { useState } from 'react'
-import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
+
+function ratingColor(r) {
+  if (!r) return null
+  if (r <= 3) return '#ef4444'
+  if (r <= 5) return '#f97316'
+  if (r <= 7) return '#eab308'
+  return '#22c55e'
+}
+
+const MOMENT_COLORS = {
+  morning: '#f59e0b',
+  afternoon: '#10b981',
+  evening: '#818cf8',
+  night: '#475569',
+}
 
 const s = {
   sidebar: {
@@ -31,8 +45,8 @@ const s = {
     userSelect: 'none',
   },
   trackItem: (active) => ({
-    padding: '8px 14px 8px 28px', fontSize: '13px', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: '10px',
+    padding: '7px 14px 7px 28px', fontSize: '13px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: '8px',
     background: active ? 'var(--bg3)' : 'transparent',
     transition: 'background 0.15s',
   }),
@@ -52,7 +66,18 @@ const s = {
   },
 }
 
-export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
+function MomentDots({ moments }) {
+  if (!moments?.length) return null
+  return (
+    <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+      {moments.map(m => (
+        <div key={m} style={{ width: 5, height: 5, borderRadius: '50%', background: MOMENT_COLORS[m] ?? 'var(--muted)' }} />
+      ))}
+    </div>
+  )
+}
+
+export default function Sidebar({ tracks, currentIdx, onSelect, onReload, metas, onOpenSettings }) {
   const [search, setSearch]       = useState('')
   const [collapsed, setCollapsed] = useState(new Set())
 
@@ -71,17 +96,53 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
     })
   }
 
+  function renderTrack(t, i) {
+    const idx = tracks.indexOf(t)
+    const active = idx === currentIdx
+    const m = metas[t.file]
+    const color = m?.rating ? ratingColor(m.rating) : null
+    const label = m?.display_name || t.name
+    return (
+      <div
+        key={t.file}
+        style={s.trackItem(active)}
+        onClick={() => onSelect(idx)}
+        onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg3)' }}
+        onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+      >
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--muted)', minWidth: '18px' }}>
+          {active ? '▶' : i + 1}
+        </span>
+        <span style={s.trackName(active)} title={label}>{label}</span>
+        {m?.moments?.length > 0 && <MomentDots moments={m.moments} />}
+        {color && (
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', padding: '2px 5px', borderRadius: '4px', background: color + '22', color, border: `1px solid ${color}55`, flexShrink: 0 }}>
+            {m.rating}
+          </span>
+        )}
+        <span style={s.badge}>{t.ext}</span>
+      </div>
+    )
+  }
+
   return (
     <div style={s.sidebar}>
-      {/* Header */}
       <div style={s.header}>
         <span style={s.logo}>♫ Mix</span>
-        <div style={{ marginLeft: 'auto' }}>
-          <ThemeSwitcher compact />
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={onOpenSettings}
+            title="Instellingen"
+            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', borderRadius: 6 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Search */}
       <div style={s.searchWrap}>
         <input
           style={s.searchInput}
@@ -94,7 +155,6 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
 
       <div style={s.count}>{tracks.length} tracks</div>
 
-      {/* Track list */}
       <div style={s.list}>
         {folders.map(folder => {
           const folderTracks = filtered.filter(t => t.folder === folder)
@@ -108,52 +168,13 @@ export default function Sidebar({ tracks, currentIdx, onSelect, onReload }) {
                   <span style={{ fontSize: '11px', opacity: 0.5 }}>{folderTracks.length}</span>
                 </div>
               )}
-              {!isCollapsed && folderTracks.map((t, i) => {
-                const idx = tracks.indexOf(t)
-                const active = idx === currentIdx
-                return (
-                  <div
-                    key={t.file}
-                    style={s.trackItem(active)}
-                    onClick={() => onSelect(idx)}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg3)' }}
-                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--muted)', minWidth: '20px' }}>
-                      {active ? '▶' : i + 1}
-                    </span>
-                    <span style={s.trackName(active)} title={t.name}>{t.name}</span>
-                    <span style={s.badge}>{t.ext}</span>
-                  </div>
-                )
-              })}
+              {!isCollapsed && folderTracks.map((t, i) => renderTrack(t, i))}
             </div>
           )
         })}
-
-        {/* Tracks zonder map */}
-        {filtered.filter(t => !t.folder).map((t, i) => {
-          const idx = tracks.indexOf(t)
-          const active = idx === currentIdx
-          return (
-            <div
-              key={t.file}
-              style={s.trackItem(active)}
-              onClick={() => onSelect(idx)}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg3)' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-            >
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--muted)', minWidth: '20px' }}>
-                {active ? '▶' : i + 1}
-              </span>
-              <span style={s.trackName(active)} title={t.name}>{t.name}</span>
-              <span style={s.badge}>{t.ext}</span>
-            </div>
-          )
-        })}
+        {filtered.filter(t => !t.folder).map((t, i) => renderTrack(t, i))}
       </div>
 
-      <button style={s.reloadBtn} onClick={onReload}>↺ Vernieuwen</button>
     </div>
   )
 }

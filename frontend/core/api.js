@@ -56,7 +56,8 @@ async function request(method, path, body = null) {
     reportMessage(`Sessie verlopen: ${method} ${path}`, "warning", { "api.path": path });
     clearToken();
     await Sentry.flush(1500);
-    window.location.href = "/admin/login";
+    const returnUrl = encodeURIComponent(window.location.href);
+    window.location.href = `/admin/login?redirect=${returnUrl}`;
     return;
   }
 
@@ -93,8 +94,6 @@ export async function login(username, password) {
   }
   const data = await res.json();
   setToken(data.access_token);
-  // Tijdelijk in Login.jsx na await login():
-  console.log("token na login:", localStorage.getItem("hp_token"));
   localStorage.setItem(
     "hp_user",
     JSON.stringify({ id: data.user_id, username: data.username }),

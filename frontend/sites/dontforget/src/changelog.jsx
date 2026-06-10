@@ -1,8 +1,17 @@
 // frontend/sites/dontforget/src/changelog.jsx
 
-export const VERSION = "0.9";
+export const VERSION = "1.0";
 
 export const CHANGELOG = [
+  {
+    version: "1.0",
+    date: "10 jun 2026",
+    changes: [
+      "Login scherm direct in de app — niet meer doorgestuurd naar admin",
+      "Toegang instelbaar per groep via de admin omgeving",
+      "Geen toegang scherm als je account niet is toegewezen aan DontForget",
+    ],
+  },
   {
     version: "0.9",
     date: "10 jun 2026",

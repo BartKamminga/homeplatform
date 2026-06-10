@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { api } from '@core/api.js'
 
 export function useTracks() {
   const [tracks, setTracks] = useState([])
@@ -9,9 +10,7 @@ export function useTracks() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/mixmusic/tracks')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await api.get('/api/mixmusic/tracks')
       setTracks(data)
     } catch (e) {
       setError(e.message)
