@@ -18,12 +18,8 @@ depends_on = None
 def upgrade() -> None:
     now = datetime.utcnow().isoformat()
     entries = [
-        ('0.1.0', 'Taken en fotos',
-         'Taken ophalen uit database, fotos als thumbnail in het overzicht, taken aanmaken en bewerken met foto-upload.'),
-        ('0.2.0', 'Routines en dag-van-de-week',
-         'Terugkerende taken (dagelijks, wekelijks, maandelijks). Wekelijkse routines tonen alleen op de ingestelde dag. Overzicht toont foto of herhaal-icoon.'),
-        ('0.3.0', 'Geschiedenis en formulier',
-         'Geschiedenis pagina met afgeronde taken gegroepeerd per dag. Formulier verbeterd: herhaling bovenaan, contextuele opties per herhalingstype, foto en omschrijving zij aan zij.'),
+        ('0.9', 'Taken, routines en formulier verbeteringen',
+         'Echte taken uit database met fotos, routines met dag-keuze, geschiedenis pagina, verbeterd formulier met foto en omschrijving zij aan zij.'),
     ]
     for version, title, description in entries:
         op.execute(

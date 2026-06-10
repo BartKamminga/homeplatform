@@ -121,10 +121,13 @@ export default function AddTask({ onClose, task, onSaved }) {
         <span onClick={onClose} style={{ fontSize:13, color:'var(--text-muted)', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
           <i className="ti ti-chevron-left" style={{ fontSize:18 }} aria-hidden="true" /> Terug
         </span>
-        <span style={{ flex:1, textAlign:'center', fontSize:15, fontWeight:500, color:'var(--text)' }}>
+        <span style={{ flex:1, textAlign:'center', fontSize:15, fontWeight:500, color:'var(--text)', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+          {!editing && <i className="ti ti-clipboard-plus" style={{ fontSize:17, color:'var(--accent)' }} aria-hidden="true" />}
           {editing ? 'Bewerken' : 'Nieuwe taak'}
         </span>
-        <span style={{ width:48 }} />
+        <span onClick={handleSave} style={{ width:48, display:'flex', justifyContent:'flex-end', cursor:'pointer' }}>
+          <i className={saving ? 'ti ti-loader' : 'ti ti-check'} style={{ fontSize:20, color:'var(--accent)' }} aria-hidden="true" />
+        </span>
       </div>
 
       <div style={{ flex:1, overflowY:'auto', background:'var(--bg)' }}>
