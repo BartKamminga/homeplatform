@@ -4,12 +4,12 @@ import "./styles.css";
 import App from "./App.jsx";
 import { trackEvent, loadTheme } from "@core/api.js";
 import { initSentry } from "@core/sentry.js";
+import { isTokenValid } from "@core/api.js";
+import { isLoggedIn } from "@core/auth.js";
 
 initSentry();
-const token = localStorage.getItem("hp_token");
-console.log("Token found dontforget  :", token); // Debug: Check if token is present
 
-if (!token) {
+if (!isLoggedIn()) {
   const loginBase = "/admin/login";
   const returnUrl = encodeURIComponent(window.location.href);
   window.location.href = `${loginBase}?redirect=${returnUrl}`;

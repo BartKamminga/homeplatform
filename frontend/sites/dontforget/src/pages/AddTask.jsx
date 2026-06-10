@@ -1,30 +1,69 @@
 import { useState, useRef } from 'react'
 import { api } from '@core/api.js'
+import { uploadPhoto } from '../api.js'
 
-import { uploadPhoto, createTask, updateTask, deleteTask } from '../api.js'
+const REPEAT   = ['Eenmalig', 'Dagelijks', 'Wekelijks', 'Maandelijks']
+const HORIZONS = ['Vandaag', 'Morgen', 'Deze week', 'Deze maand']
+const TIMES    = ['Ochtend', 'Middag', 'Heledag']
+const PRIO     = ['Hoog', 'Normaal', 'Laag']
+const DAYS     = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']
 
-const WHEN   = ['Vandaag', 'Vanavond', 'Morgen', 'Deze week']
-const REPEAT = ['Eenmalig', 'Dagelijks', 'Wekelijks', 'Maandelijks']
-const PRIO   = ['Hoog', 'Normaal', 'Laag']
+const REPEAT_MAP  = { 'Eenmalig': 'once', 'Dagelijks': 'daily', 'Wekelijks': 'weekly', 'Maandelijks': 'monthly' }
+const PRIO_MAP    = { 'Hoog': 'high', 'Normaal': 'normal', 'Laag': 'low' }
+const HORIZON_MAP = { 'Vandaag': null, 'Morgen': 'tomorrow', 'Deze week': 'week', 'Deze maand': 'month' }
+const TIME_MAP    = { 'Ochtend': 'morning', 'Middag': 'afternoon', 'Heledag': 'allday' }
 
-const WHEN_MAP   = { 'Vandaag': 'morning', 'Vanavond': 'evening', 'Morgen': 'morning', 'Deze week': 'week' }
-const REPEAT_MAP = { 'Eenmalig': 'once', 'Dagelijks': 'daily', 'Wekelijks': 'weekly', 'Maandelijks': 'monthly' }
-const PRIO_MAP   = { 'Hoog': 'high', 'Normaal': 'normal', 'Laag': 'low' }
+const REPEAT_REV  = Object.fromEntries(Object.entries(REPEAT_MAP).map(([k,v]) => [v,k]))
+const PRIO_REV    = Object.fromEntries(Object.entries(PRIO_MAP).map(([k,v]) => [v,k]))
 
+function whenToHorizon(w) {
+  return { tomorrow: 'Morgen', week: 'Deze week', month: 'Deze maand' }[w] ?? 'Vandaag'
+}
+function whenToTime(w) {
+  return { morning: 'Ochtend', afternoon: 'Middag' }[w] ?? 'Heledag'
+}
 
+function Chips({ opts, value, onSelect, small }) {
+  return (
+    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+      {opts.map(o => (
+        <div key={o} onClick={() => onSelect(o)} style={{
+          padding: small ? '4px 10px' : '6px 14px',
+          borderRadius:20, fontSize: small ? 11 : 12, cursor:'pointer',
+          border: value === o ? 'none' : '0.5px solid var(--border)',
+          background: value === o ? 'var(--accent-bg)' : 'var(--bg-secondary)',
+          color: value === o ? 'var(--accent-text)' : 'var(--text-muted)',
+        }}>
+          {o}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function AddTask({ onClose, task, onSaved }) {
-  const [title,     setTitle]     = useState(task?.title || '')
-  const [when,      setWhen]      = useState(task?.when || 'Vandaag')
-  const [repeat,    setRepeat]    = useState(task?.repeat || 'Eenmalig')
-  const [prio,      setPrio]      = useState(task?.priority || 'Normaal')
-  const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(task?.photo_path || null)
-  const [saving,    setSaving]    = useState(false)
-  const [error,     setError]     = useState(null)
+  const [repeat,    setRepeatState] = useState(task ? (REPEAT_REV[task.repeat] ?? 'Eenmalig') : 'Eenmalig')
+  const [horizon,   setHorizon]     = useState(task ? whenToHorizon(task.when) : 'Vandaag')
+  const [timeOfDay, setTimeOfDay]   = useState(task ? whenToTime(task.when) : 'Heledag')
+  const [dayOfWeek, setDayOfWeek]   = useState(task?.day_of_week ?? null)
+  const [prio,      setPrio]        = useState(task ? (PRIO_REV[task.priority] ?? 'Normaal') : 'Normaal')
+  const [title,     setTitle]       = useState(task?.title ?? '')
+  const [photoFile, setPhotoFile]   = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(task?.photo_path ? `/api/uploads/${task.photo_path}` : null)
+  const [saving,    setSaving]      = useState(false)
+  const [error,     setError]       = useState(null)
   const fileRef = useRef()
-
   const editing = !!task
+
+  function handleRepeat(r) {
+    setRepeatState(r)
+  }
+
+  function getWhen() {
+    if (repeat !== 'Eenmalig') return 'allday'
+    if (horizon !== 'Vandaag') return HORIZON_MAP[horizon]
+    return TIME_MAP[timeOfDay]
+  }
 
   function handlePhotoChange(e) {
     const file = e.target.files[0]
@@ -35,35 +74,27 @@ export default function AddTask({ onClose, task, onSaved }) {
 
   async function handleSave() {
     if (!title.trim()) { setError('Vul een titel in'); return }
-    setSaving(true)
-    setError(null)
-
+    setSaving(true); setError(null)
     try {
-      let photo_path = task?.photo_path || null
-
-      // 1. Upload foto als aanwezig
+      let photo_path = task?.photo_path ?? null
       if (photoFile) {
         const result = await uploadPhoto(photoFile)
         photo_path = result.path
       }
-
-      // 2. Taak aanmaken of bijwerken
       const data = {
-        title: title.trim(),
+        title:       title.trim(),
         photo_path,
-        when: WHEN_MAP[when],
-        repeat: REPEAT_MAP[repeat],
-        priority: PRIO_MAP[prio],
+        when:        getWhen(),
+        repeat:      REPEAT_MAP[repeat],
+        priority:    PRIO_MAP[prio],
+        day_of_week: repeat === 'Wekelijks' ? dayOfWeek : null,
       }
-
       if (editing) {
         await api.patch(`/api/dontforget/tasks/${task.id}`, data)
       } else {
         await api.post('/api/dontforget/tasks', data)
       }
-
-      onSaved?.()
-      onClose()
+      onSaved?.(); onClose()
     } catch (e) {
       setError(e.message || 'Er ging iets mis')
     } finally {
@@ -72,12 +103,10 @@ export default function AddTask({ onClose, task, onSaved }) {
   }
 
   async function handleDelete() {
-    if (!editing) return
     setSaving(true)
     try {
       await api.delete(`/api/dontforget/tasks/${task.id}`)
-      onSaved?.()
-      onClose()
+      onSaved?.(); onClose()
     } catch (e) {
       setError(e.message || 'Verwijderen mislukt')
     } finally {
@@ -95,54 +124,80 @@ export default function AddTask({ onClose, task, onSaved }) {
         <span style={{ flex:1, textAlign:'center', fontSize:15, fontWeight:500, color:'var(--text)' }}>
           {editing ? 'Bewerken' : 'Nieuwe taak'}
         </span>
-        <span style={{ width: 48 }} />
+        <span style={{ width:48 }} />
       </div>
 
       <div style={{ flex:1, overflowY:'auto', background:'var(--bg)' }}>
 
-        {/* Foto */}
+        {/* Foto + Titel zij aan zij bovenaan */}
         <input ref={fileRef} type="file" accept="image/*" capture="environment"
           style={{ display:'none' }} onChange={handlePhotoChange} />
-        <div onClick={() => fileRef.current.click()} style={{
-          margin:16, border:`1.5px dashed var(--border)`, borderRadius:12,
-          padding:'20px 16px', display:'flex', flexDirection:'column', alignItems:'center', gap:8,
-          cursor:'pointer', background:'var(--bg-secondary)', overflow:'hidden',
-        }}>
-          {photoPreview
-            ? <img src={photoPreview} alt="foto" style={{ width:'100%', maxHeight:160, objectFit:'cover', borderRadius:8 }} />
-            : <>
-                <i className="ti ti-camera" style={{ fontSize:28, color:'var(--text-faint)' }} aria-hidden="true" />
-                <span style={{ fontSize:13, color:'var(--text-muted)' }}>Foto toevoegen</span>
-                <span style={{ fontSize:11, color:'var(--text-faint)' }}>Tik om te fotograferen of uploaden</span>
-              </>
-          }
+        <div style={{ display:'flex', gap:12, padding:'16px 16px 12px', alignItems:'flex-start' }}>
+          <div onClick={() => fileRef.current.click()} style={{
+            width:72, height:72, flexShrink:0, borderRadius:10, overflow:'hidden',
+            border:'1.5px dashed var(--border)', background:'var(--bg-secondary)',
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            gap:4, cursor:'pointer',
+          }}>
+            {photoPreview
+              ? <img src={photoPreview} alt="foto" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : <>
+                  <i className="ti ti-camera" style={{ fontSize:22, color:'var(--text-faint)' }} aria-hidden="true" />
+                  <span style={{ fontSize:9, color:'var(--text-faint)' }}>Foto</span>
+                </>
+            }
+          </div>
+          <div style={{ flex:1, paddingTop:2 }}>
+            <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Wat moet er gebeuren?</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="bijv. Wasmachine uitruimen"
+              style={{ width:'100%', background:'var(--bg-secondary)', border:'0.5px solid var(--border)', borderRadius:8, padding:'10px 12px', fontSize:14, color:'var(--text)', outline:'none', fontFamily:'inherit', boxSizing:'border-box' }} />
+          </div>
         </div>
 
-        {/* Titel */}
+        {/* Herhaling */}
         <div style={{ padding:'0 16px 12px' }}>
-          <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Wat moet er gebeuren?</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="bijv. Wasmachine uitruimen"
-            style={{ width:'100%', background:'var(--bg-secondary)', border:'0.5px solid var(--border)', borderRadius:8, padding:'10px 12px', fontSize:14, color:'var(--text)', outline:'none', fontFamily:'inherit', boxSizing:'border-box' }} />
+          <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Herhaling</label>
+          <Chips opts={REPEAT} value={repeat} onSelect={handleRepeat} />
         </div>
 
-        {/* Wanneer / Herhaling / Prioriteit */}
-        {[['Wanneer?', WHEN, when, setWhen], ['Herhaling', REPEAT, repeat, setRepeat], ['Prioriteit', PRIO, prio, setPrio]].map(([label, opts, val, set]) => (
-          <div key={label} style={{ padding:'0 16px 12px' }}>
-            <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>{label}</label>
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-              {opts.map(o => (
-                <div key={o} onClick={() => set(o)} style={{
-                  padding:'6px 14px', borderRadius:20, fontSize:12, cursor:'pointer',
-                  border: val === o ? 'none' : '0.5px solid var(--border)',
-                  background: val === o ? 'var(--accent-bg)' : 'var(--bg-secondary)',
-                  color: val === o ? 'var(--accent-text)' : 'var(--text-muted)',
+        {/* Wanneer — alleen bij Eenmalig */}
+        {repeat === 'Eenmalig' && (
+          <div style={{ padding:'0 16px 12px' }}>
+            <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Wanneer?</label>
+            <Chips opts={HORIZONS} value={horizon} onSelect={setHorizon} />
+            {horizon === 'Vandaag' && (
+              <div style={{ marginTop:8 }}>
+                <Chips opts={TIMES} value={timeOfDay} onSelect={setTimeOfDay} small />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Dag van de week — alleen bij Wekelijks */}
+        {repeat === 'Wekelijks' && (
+          <div style={{ padding:'0 16px 12px' }}>
+            <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Op welke dag?</label>
+            <div style={{ display:'flex', gap:6 }}>
+              {DAYS.map((d, i) => (
+                <div key={i} onClick={() => setDayOfWeek(dayOfWeek === i ? null : i)} style={{
+                  width:36, height:36, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:12, cursor:'pointer', flexShrink:0,
+                  border: dayOfWeek === i ? 'none' : '0.5px solid var(--border)',
+                  background: dayOfWeek === i ? 'var(--accent-bg)' : 'var(--bg-secondary)',
+                  color: dayOfWeek === i ? 'var(--accent-text)' : 'var(--text-muted)',
                 }}>
-                  {o}
+                  {d}
                 </div>
               ))}
             </div>
           </div>
-        ))}
+        )}
+
+        {/* Prioriteit */}
+        <div style={{ padding:'0 16px 12px' }}>
+          <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Prioriteit</label>
+          <Chips opts={PRIO} value={prio} onSelect={setPrio} />
+        </div>
 
         {/* Foutmelding */}
         {error && (

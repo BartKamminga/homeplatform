@@ -15,6 +15,7 @@ class Settings:
         "DATABASE_URL", "sqlite:///./db/homeplatform.sqlite"
     )
     SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
+    SENTRY_MIN_LEVEL: str = os.getenv("SENTRY_MIN_LEVEL", "warning")
 
     @property
     def is_dev(self) -> bool:

@@ -1,42 +1,106 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import TopBar from '../components/TopBar.jsx'
 import TaskItem from '../components/TaskItem.jsx'
-
-const DEMO = [
-  { id:1, title:'Wasmachine uitruimen', when:'morning', repeat:'weekly',  priority:'normal', done:false, photo:true },
-  { id:2, title:'Koffie zetten',        when:'morning', repeat:'daily',   priority:'normal', done:true,  photo:false },
-  { id:3, title:'Boodschappen doen',    when:'afternoon',repeat:'once',   priority:'high',   done:false, photo:false },
-  { id:4, title:'Vaatwasser inruimen',  when:'afternoon',repeat:'daily',  priority:'normal', done:false, photo:true },
-  { id:5, title:'Prullenbak buiten',    when:'evening', repeat:'weekly',  priority:'normal', done:false, photo:false },
-]
+import { listTasks, completeTask, updateTask } from '../api.js'
 
 const MOMENTS = [
-  { key:'morning',   label:'Ochtend' },
-  { key:'afternoon', label:'Middag' },
-  { key:'evening',   label:'Avond' },
+  { key: 'morning',   label: 'Ochtend' },
+  { key: 'afternoon', label: 'Middag' },
+  { key: 'allday',    label: 'Heledag' },
+  { key: 'tomorrow',  label: 'Morgen' },
+  { key: 'week',      label: 'Deze week' },
+  { key: 'month',     label: 'Deze maand' },
 ]
 
-const today = new Date().toLocaleDateString('nl-NL', { weekday:'long', day:'numeric', month:'long' })
+const today = new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+// Convert JS getDay() (0=Sunday) to our 0=Monday system
+const todayDow = (new Date().getDay() + 6) % 7
 
-export default function TodayPage({ onAdd }) {
-  const [tasks, setTasks] = useState(DEMO)
+function isForToday(task) {
+  if (task.repeat === 'once')    return true
+  if (task.repeat === 'daily')   return true
+  if (task.repeat === 'monthly') return true
+  if (task.repeat === 'weekly')  return task.day_of_week === null || task.day_of_week === undefined || task.day_of_week === todayDow
+  return true
+}
 
-  function toggle(id) {
-    setTasks(t => t.map(task => task.id === id ? { ...task, done: !task.done } : task))
+export default function TodayPage({ onAdd, onEdit, refreshKey }) {
+  const [tasks,   setTasks]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const all = await listTasks(false)
+      setTasks(all.filter(isForToday))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load, refreshKey])
+
+  async function toggle(task) {
+    setTasks(ts => ts.map(t => t.id === task.id ? { ...t, done: !t.done } : t))
+    try {
+      if (!task.done) {
+        await completeTask(task.id)
+      } else {
+        await updateTask(task.id, { done: false })
+      }
+    } catch {
+      setTasks(ts => ts.map(t => t.id === task.id ? task : t))
+    }
   }
+
+  if (loading) return (
+    <>
+      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} />
+      <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>
+        Laden…
+      </div>
+    </>
+  )
+
+  if (error) return (
+    <>
+      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} />
+      <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--danger)', fontSize: 14 }}>
+        {error}
+      </div>
+    </>
+  )
+
+  const hasTasks = tasks.length > 0
 
   return (
     <div>
       <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} />
+      {!hasTasks && (
+        <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>
+          Geen taken voor vandaag
+        </div>
+      )}
       {MOMENTS.map(m => {
         const mt = tasks.filter(t => t.when === m.key)
         if (!mt.length) return null
         return (
           <div key={m.key}>
-            <div style={{ padding:'12px 16px 4px', fontSize:11, fontWeight:500, letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--text-faint)' }}>
+            <div style={{ padding: '12px 16px 4px', fontSize: 11, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
               {m.label}
             </div>
-            {mt.map(t => <TaskItem key={t.id} task={t} onToggle={toggle} onEdit={() => {}} />)}
+            {mt.map(t => (
+              <TaskItem
+                key={t.id}
+                task={t}
+                onToggle={() => toggle(t)}
+                onEdit={() => onEdit(t)}
+              />
+            ))}
           </div>
         )
       })}

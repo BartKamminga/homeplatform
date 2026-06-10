@@ -45,6 +45,7 @@ def public_config():
     return {
         "sentry_dsn": settings.SENTRY_DSN or None,
         "environment": settings.ENVIRONMENT,
+        "sentry_min_level": settings.SENTRY_MIN_LEVEL,
     }
 
 

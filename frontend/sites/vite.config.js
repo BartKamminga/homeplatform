@@ -5,8 +5,25 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+const APPS = ['landing', 'admin', 'nkhockey', 'mixmusic', 'dontforget']
+
+function spaFallback() {
+  return {
+    name: 'spa-fallback',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const app = APPS.find(a => req.url?.startsWith(`/${a}/`))
+        if (app && !req.url.includes('.')) {
+          req.url = `/${app}/index.html`
+        }
+        next()
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), spaFallback()],
   root: __dirname,
   base: '/',
   resolve: {

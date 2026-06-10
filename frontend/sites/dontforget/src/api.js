@@ -2,6 +2,7 @@
 // DontForget API helpers
 
 import { api } from '@core/api.js'
+import { reportError } from '@core/sentry.js'
 
 // ---------------------------------------------------------------------------
 // Uploads
@@ -17,7 +18,11 @@ export async function uploadPhoto(file, category = 'dontforget') {
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
   })
-  if (!res.ok) throw new Error('Upload mislukt')
+  if (!res.ok) {
+    const error = new Error(res.status === 401 ? 'Sessie verlopen, log opnieuw in' : 'Upload mislukt')
+    reportError(error, { 'api.path': '/api/uploads', 'api.status': res.status })
+    throw error
+  }
   return res.json()
 }
 

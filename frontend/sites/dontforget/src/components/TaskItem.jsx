@@ -27,13 +27,12 @@ export default function TaskItem({ task, onToggle, onEdit }) {
           {task.repeat === 'once' && <><i className="ti ti-clock" style={{ fontSize: 11 }} />Eenmalig</>}
         </div>
       </div>
-      {task.photo && (
-        <div style={{
-          width: 36, height: 36, borderRadius: 6, background: 'var(--bg-secondary)',
-          border: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <i className="ti ti-photo" style={{ fontSize: 16, color: 'var(--text-faint)' }} aria-hidden="true" />
-        </div>
+      {task.photo_path && (
+        <img
+          src={`/api/uploads/${task.photo_path}`}
+          alt=""
+          style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)' }}
+        />
       )}
       <div style={{
         width: 6, height: 6, borderRadius: '50%', flexShrink: 0,

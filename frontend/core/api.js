@@ -1,6 +1,9 @@
 // frontend/core/api.js
 // Centrale fetch wrapper. Voegt automatisch de JWT Authorization header toe.
 
+import * as Sentry from "@sentry/react";
+import { reportError, reportMessage } from "@core/sentry.js";
+
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 const DEFAULT_THEME = "light";
@@ -17,6 +20,17 @@ export function setToken(token) {
 export function clearToken() {
   localStorage.removeItem("hp_token");
   localStorage.removeItem("hp_user");
+}
+
+export function isTokenValid() {
+  const token = localStorage.getItem("hp_token");
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
 }
 
 export function trackEvent(site, action, details = {}) {
@@ -39,14 +53,18 @@ async function request(method, path, body = null) {
   });
 
   if (res.status === 401) {
+    reportMessage(`Sessie verlopen: ${method} ${path}`, "warning", { "api.path": path });
     clearToken();
+    await Sentry.flush(1500);
     window.location.href = "/admin/login";
     return;
   }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Onbekende fout");
+    const error = new Error(err.detail || "Onbekende fout");
+    reportError(error, { "api.method": method, "api.path": path, "api.status": res.status });
+    throw error;
   }
 
   return res.status === 204 ? null : res.json();

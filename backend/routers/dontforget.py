@@ -17,23 +17,25 @@ router = APIRouter(prefix="/api/dontforget", tags=["dontforget"])
 # ---------------------------------------------------------------------------
 
 class TaskCreate(BaseModel):
-    title:      str
-    photo_path: Optional[str] = None
-    when:       str = "morning"
-    repeat:     str = "once"
-    priority:   str = "normal"
-    source:     str = "user"
-    group_id:   Optional[str] = None
+    title:        str
+    photo_path:   Optional[str] = None
+    when:         str = "morning"
+    repeat:       str = "once"
+    day_of_week:  Optional[int] = None
+    priority:     str = "normal"
+    source:       str = "user"
+    group_id:     Optional[str] = None
 
 
 class TaskUpdate(BaseModel):
-    title:      Optional[str] = None
-    photo_path: Optional[str] = None
-    when:       Optional[str] = None
-    repeat:     Optional[str] = None
-    priority:   Optional[str] = None
-    done:       Optional[bool] = None
-    group_id:   Optional[str] = None
+    title:        Optional[str] = None
+    photo_path:   Optional[str] = None
+    when:         Optional[str] = None
+    repeat:       Optional[str] = None
+    day_of_week:  Optional[int] = None
+    priority:     Optional[str] = None
+    done:         Optional[bool] = None
+    group_id:     Optional[str] = None
 
 
 class TaskOut(BaseModel):
@@ -42,6 +44,7 @@ class TaskOut(BaseModel):
     photo_path:   Optional[str]
     when:         str
     repeat:       str
+    day_of_week:  Optional[int]
     priority:     str
     done:         bool
     source:       str
@@ -81,6 +84,7 @@ def create_task(
         photo_path=data.photo_path,
         when=data.when,
         repeat=data.repeat,
+        day_of_week=data.day_of_week,
         priority=data.priority,
         source=data.source,
         group_id=data.group_id,

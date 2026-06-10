@@ -86,9 +86,8 @@ async def get_file(
     category: str,
     user_id: str,
     filename: str,
-    user: User = Depends(get_current_user),
 ):
-    """Haal een geupload bestand op."""
+    """Haal een geupload bestand op (publiek leesbaar, upload vereist auth)."""
     abs_path = get_upload_path(category, user_id, filename)
 
     if not os.path.exists(abs_path):

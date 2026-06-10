@@ -16,6 +16,7 @@ class Task(SQLModel, table=True):
     photo_path:   Optional[str]      = Field(default=None)
     when:         str      = Field(default="morning")   # morning | afternoon | evening | week | later
     repeat:       str      = Field(default="once")      # once | daily | weekly | monthly
+    day_of_week:  Optional[int]      = Field(default=None)  # 0=ma … 6=zo, None=elke dag
     priority:     str      = Field(default="normal")    # high | normal | low
     done:         bool     = Field(default=False)
     source:       str      = Field(default="user")      # user | routine

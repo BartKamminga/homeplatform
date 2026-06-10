@@ -7,29 +7,36 @@ import AddTask from './pages/AddTask.jsx'
 import TabBar from './components/TabBar.jsx'
 import { getActiveTheme } from '@core/api.js'
 
+// editTask: undefined = gesloten, null = nieuw, object = bewerken
 export default function App() {
-  const [tab, setTab]       = useState('today')
-  const [adding, setAdding] = useState(false)
-  const [theme, setTheme]   = useState(getActiveTheme)
+  const [tab,        setTab]        = useState('today')
+  const [editTask,   setEditTask]   = useState(undefined)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [theme,      setTheme]      = useState(getActiveTheme)
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
       setTheme(document.documentElement.getAttribute('data-theme') || 'light')
     })
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
     return () => observer.disconnect()
   }, [])
 
-  if (adding) return <AddTask onClose={() => setAdding(false)} />
+  if (editTask !== undefined) {
+    return (
+      <AddTask
+        task={editTask}
+        onClose={() => setEditTask(undefined)}
+        onSaved={() => { setEditTask(undefined); setRefreshKey(k => k + 1) }}
+      />
+    )
+  }
 
   return (
     <div key={theme} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {tab === 'today'    && <TodayPage onAdd={() => setAdding(true)} />}
-        {tab === 'routines' && <RoutinesPage onAdd={() => setAdding(true)} />}
+        {tab === 'today'    && <TodayPage onAdd={() => setEditTask(null)} onEdit={setEditTask} refreshKey={refreshKey} />}
+        {tab === 'routines' && <RoutinesPage onAdd={() => setEditTask(null)} onEdit={setEditTask} refreshKey={refreshKey} />}
         {tab === 'history'  && <HistoryPage />}
         {tab === 'settings' && <SettingsPage />}
       </div>

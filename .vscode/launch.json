@@ -5,6 +5,7 @@
       "name": "FastAPI backend",
       "type": "debugpy",
       "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "module": "uvicorn",
       "args": ["main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
       "cwd": "${workspaceFolder}/backend",
