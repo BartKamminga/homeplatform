@@ -90,7 +90,7 @@ export default function Sidebar({ onOpenSettings }) {
     ? tracks.filter(t => t.name.toLowerCase().includes(q) || t.folder.toLowerCase().includes(q))
     : tracks
 
-  const folders = [...new Set(filtered.map(t => t.folder))].sort()
+  const folders = [...new Set(filtered.map(t => t.folder).filter(Boolean))].sort()
 
   function toggleFolder(f) {
     setCollapsed(prev => {
