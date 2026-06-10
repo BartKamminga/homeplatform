@@ -11,6 +11,9 @@ import Themes from "./pages/Themes.jsx";
 import Sites from "./pages/Sites.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
 import Changelog from "./pages/Changelog.jsx";
+import System from "./pages/System.jsx";
+import ApiStats from "./pages/ApiStats.jsx";
+import Monitoring from "./pages/Monitoring.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
 import { initSentry } from "@core/sentry.js";
@@ -40,6 +43,9 @@ createRoot(document.getElementById("root")).render(
                 <Route path="sites" element={<Sites />} />
                 <Route path="audit-log" element={<AuditLog />} />
                 <Route path="changelog" element={<Changelog />} />
+                <Route path="system" element={<System />} />
+                <Route path="api-stats" element={<ApiStats />} />
+                <Route path="monitoring" element={<Monitoring />} />
               </Routes>
             </PrivateRoute>
           }

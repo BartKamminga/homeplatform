@@ -51,8 +51,8 @@ export function PlayerProvider({ children }) {
       genres, addGenre, deleteGenre,
       // hearts
       hearts,
-      addHeart: (position) => addHeart(position),
-      removeHeart,
+      addHeart: async (position) => { await addHeart(position); setTimeout(reloadMetas, 300) },
+      removeHeart: async (id) => { await removeHeart(id); setTimeout(reloadMetas, 300) },
       // bulk metas (for sidebar ratings)
       metas, reloadMetas,
     }}>

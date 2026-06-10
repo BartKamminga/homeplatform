@@ -47,4 +47,9 @@ def list_audit_log(
         base.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)
     ).all()
 
-    return AuditLogPage(items=list(items), total=total, offset=offset, limit=limit)
+    return AuditLogPage(
+        items=[AuditLogOut.model_validate(i, from_attributes=True) for i in items],
+        total=total,
+        offset=offset,
+        limit=limit,
+    )

@@ -46,17 +46,37 @@ export default function BaseLayout({
           flexShrink: 0,
         }}
       >
-        {/* Logo */}
+        {/* Logo + home button */}
         <div
           style={{
-            padding: "20px 16px",
+            padding: "14px 16px",
             borderBottom: "1px solid var(--color-border)",
-            fontWeight: 600,
-            fontSize: "15px",
-            color: "var(--color-primary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          {siteTitle}
+          <span style={{ fontWeight: 600, fontSize: "15px", color: "var(--color-primary)" }}>
+            {siteTitle}
+          </span>
+          <a
+            href="/"
+            title="Naar startpagina"
+            style={{
+              fontSize: "12px",
+              color: "var(--color-text-muted)",
+              textDecoration: "none",
+              padding: "4px 8px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            ← Home
+          </a>
         </div>
 
         {/* Navigatie */}

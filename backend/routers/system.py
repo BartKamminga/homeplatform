@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, Request
-from alembic.runtime.migration import MigrationContext
-from core.database import engine
-from sqlmodel import select, Session
-from core.database import get_session
+from fastapi import APIRouter, Depends
+from alembic.runtime.migration import MigrationContext  # type: ignore  # pylint: disable=no-name-in-module
+from sqlalchemy import text
+from sqlmodel import Session, select
+
+from core.database import engine, get_session
 from core.settings import settings
-from models.core import Site
-import os
+from core.auth import require_admin
+from core.stats import api_call_stats, api_call_since
+from models.core import AuditLog, Group, Site, SiteAccess, User, UserGroup
 
 router = APIRouter(prefix="/api", tags=["system"])
 
-CORE_VERSION = "0.3.0"
+CORE_VERSION = "0.7"
 
 
 def get_db_revision() -> str:
@@ -23,21 +25,12 @@ def get_db_revision() -> str:
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "environment": os.getenv("ENVIRONMENT", "development")}
+    return {"status": "ok", "environment": settings.ENVIRONMENT}
 
 
 @router.get("/version")
 def version():
-    return {
-        "core": CORE_VERSION,
-        "db_revision": get_db_revision(),
-        "sites": {},
-    }
-
-
-@router.get("/debug-headers")
-async def debug_headers(request: Request):
-    return dict(request.headers)
+    return {"core": CORE_VERSION, "db_revision": get_db_revision(), "sites": {}}
 
 
 @router.get("/config")
@@ -51,9 +44,118 @@ def public_config():
 
 @router.get("/sites")
 def public_sites(session: Session = Depends(get_session)):
-    """Publiek endpoint — toont actieve sites zonder auth."""
     sites = session.exec(select(Site).where(Site.is_active == True)).all()
-    return [
-        {"name": s.name, "slug": s.slug, "module": s.module, "icon": s.icon}
-        for s in sites
+    return [{"name": s.name, "slug": s.slug, "module": s.module, "icon": s.icon} for s in sites]
+
+
+# ── Admin: System overview ────────────────────────────────────────────────────
+
+@router.get("/admin/system/overview")
+def system_overview(session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    users      = session.exec(select(User)).all()
+    groups     = session.exec(select(Group)).all()
+    user_grps  = session.exec(select(UserGroup)).all()
+    sites      = session.exec(select(Site)).all()
+    site_acc   = session.exec(select(SiteAccess)).all()
+    recent_log = session.exec(
+        select(AuditLog).order_by(AuditLog.created_at.desc()).limit(6)
+    ).all()
+
+    # group member counts
+    group_members: dict[str, int] = {}
+    for ug in user_grps:
+        group_members[ug.group_id] = group_members.get(ug.group_id, 0) + 1
+
+    # table row counts
+    tables = [
+        "users", "groups", "user_groups", "themes", "user_preferences",
+        "sites", "site_access", "audit_log",
+        "tasks", "mixmusic_genres", "mixmusic_track_meta", "mixmusic_track_hearts",
     ]
+    table_counts: dict[str, int] = {}
+    with engine.connect() as conn:
+        for t in tables:
+            try:
+                row = conn.execute(text(f"SELECT COUNT(*) FROM \"{t}\"")).fetchone()
+                table_counts[t] = row[0] if row else 0
+            except Exception:
+                pass
+
+    # mask DB path — show only filename
+    db_url = settings.DATABASE_URL
+    db_display = db_url.rsplit("/", 1)[-1] if "/" in db_url else db_url
+
+    return {
+        "environment": settings.ENVIRONMENT,
+        "database_file": db_display,
+        "db_revision": get_db_revision(),
+        "sentry_enabled": bool(settings.SENTRY_DSN),
+        "sentry_min_level": settings.SENTRY_MIN_LEVEL,
+        "backend_version": CORE_VERSION,
+        "music_dir": settings.MUSIC_DIR,
+        "users": {
+            "total": len(users),
+            "active": sum(1 for u in users if u.is_active),
+            "inactive": sum(1 for u in users if not u.is_active),
+        },
+        "groups": [
+            {"id": g.id, "name": g.name, "slug": g.slug, "members": group_members.get(g.id, 0)}
+            for g in groups
+        ],
+        "sites": [
+            {
+                "name": s.name, "slug": s.slug, "module": s.module,
+                "is_active": s.is_active, "icon": s.icon,
+                "restricted": any(sa.site_id == s.id for sa in site_acc),
+            }
+            for s in sites
+        ],
+        "tables": table_counts,
+        "recent_audit": [
+            {
+                "action": e.action,
+                "site": e.site,
+                "user_id": e.user_id,
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in recent_log
+        ],
+        "links": _build_links(),
+    }
+
+
+def _build_links() -> dict:
+    glitchtip = None
+    if settings.SENTRY_DSN:
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(settings.SENTRY_DSN)
+            glitchtip = f"{p.scheme}://{p.hostname}"
+        except Exception:  # pylint: disable=broad-except
+            pass
+    return {
+        "glitchtip": glitchtip,
+        "nas": settings.NAS_URL or None,
+        "api_docs": "/api/docs" if settings.is_dev else None,
+    }
+
+
+# ── Admin: API call stats ─────────────────────────────────────────────────────
+
+@router.get("/admin/api-stats")
+def get_api_stats(_: User = Depends(require_admin)):
+    total = sum(api_call_stats.values())
+    entries = sorted(api_call_stats.items(), key=lambda x: x[1], reverse=True)
+    return {
+        "since": api_call_since,
+        "total": total,
+        "endpoints": [
+            {
+                "method": k.split(" ", 1)[0],
+                "path": k.split(" ", 1)[1] if " " in k else k,
+                "calls": v,
+                "pct": round(v / total * 100, 1) if total else 0,
+            }
+            for k, v in entries
+        ],
+    }

@@ -1,10 +1,5 @@
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 
-function formatTime(s) {
-  if (!s || isNaN(s)) return '0:00'
-  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-}
-
 const s = {
   bar: {
     height: 'var(--bar-h)', background: 'var(--bg2)',
@@ -28,22 +23,11 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: 'var(--bg)',
   },
-  progressArea: { flex: 1, display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 },
-  time: { fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--muted)', minWidth: '36px', whiteSpace: 'nowrap' },
-  progressBar: { flex: 1, height: '4px', background: 'var(--bg3)', borderRadius: '2px', cursor: 'pointer', position: 'relative' },
-  progressFill: (pct) => ({ height: '100%', background: 'var(--accent)', borderRadius: '2px', width: `${pct}%`, pointerEvents: 'none' }),
   volumeArea: { display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 130px' },
 }
 
 export default function PlayerBar() {
-  const { currentTrack: track, playing, progress, duration, volume, muted, shuffle, repeat, togglePlay: onToggle, next: onNext, prev: onPrev, seek: onSeek, changeVolume: onVolume, toggleMute: onMute, toggleShuffle: onShuffle, toggleRepeat: onRepeat } = usePlayerContext()
-  const pct = duration ? (progress / duration) * 100 : 0
-
-  function handleSeek(e) {
-    const bar = e.currentTarget
-    const ratio = (e.clientX - bar.getBoundingClientRect().left) / bar.offsetWidth
-    onSeek(ratio)
-  }
+  const { currentTrack: track, playing, volume, muted, shuffle, repeat, togglePlay: onToggle, next: onNext, prev: onPrev, changeVolume: onVolume, toggleMute: onMute, toggleShuffle: onShuffle, toggleRepeat: onRepeat } = usePlayerContext()
 
   return (
     <div style={s.bar}>
@@ -83,15 +67,6 @@ export default function PlayerBar() {
             <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
           </svg>
         </button>
-      </div>
-
-      {/* Progress */}
-      <div style={s.progressArea}>
-        <span style={s.time}>{formatTime(progress)}</span>
-        <div style={s.progressBar} onClick={handleSeek}>
-          <div style={s.progressFill(pct)} />
-        </div>
-        <span style={{ ...s.time, textAlign: 'right' }}>{formatTime(duration)}</span>
       </div>
 
       {/* Volume */}

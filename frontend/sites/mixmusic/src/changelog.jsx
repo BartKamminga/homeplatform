@@ -1,6 +1,17 @@
-export const VERSION = "0.6";
+export const VERSION = "0.7";
 
 export const CHANGELOG = [
+  {
+    version: "0.7",
+    date: "10 jun 2026",
+    changes: [
+      "Voortgangsbalk verplaatst van de transportbalk naar de hartjes-tijdlijn",
+      "Tijdlijn is klikbaar — klik om naar dat moment te springen",
+      "Huidige positie en totaalduur getoond boven de tijdlijn",
+      "Helptekst 'Druk ♥...' verdwijnt automatisch na 2 seconden",
+      "Aantal hartjes per nummer zichtbaar in de tracklijst",
+    ],
+  },
   {
     version: "0.6",
     date: "10 jun 2026",

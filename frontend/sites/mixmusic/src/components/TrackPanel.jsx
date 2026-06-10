@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 import { SkeletonLine, SkeletonBlock } from '@components/Skeleton.jsx'
 
@@ -22,7 +22,7 @@ function ratingColor(r) {
 }
 
 export default function TrackPanel() {
-  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, removeHeart: onRemoveHeart, seek: onSeek, duration } = usePlayerContext()
+  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, removeHeart: onRemoveHeart, seek: onSeek, duration, progress } = usePlayerContext()
   const [displayName, setDisplayName] = useState('')
   const nameTimer = useRef(null)
 
@@ -190,7 +190,7 @@ export default function TrackPanel() {
       </div>
 
       {/* Favoriete momenten tijdlijn */}
-      <HeartsTimeline hearts={hearts} duration={duration} onRemove={onRemoveHeart} onSeek={onSeek} />
+      <HeartsTimeline hearts={hearts} duration={duration} progress={progress} onRemove={onRemoveHeart} onSeek={onSeek} />
 
     </div>
   )
@@ -202,38 +202,87 @@ const labelStyle = {
   color: 'var(--muted)', marginBottom: 8,
 }
 
-function HeartsTimeline({ hearts, duration, onRemove, onSeek }) {
+function HeartsTimeline({ hearts, duration, progress, onRemove, onSeek }) {
   const [hovered, setHovered] = useState(null)
+  const [showHint, setShowHint] = useState(true)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    clearTimeout(timerRef.current)
+    if (hearts.length === 0) {
+      setShowHint(true)
+      timerRef.current = setTimeout(() => setShowHint(false), 2000)
+    } else {
+      setShowHint(false)
+    }
+    return () => clearTimeout(timerRef.current)
+  }, [hearts.length > 0])  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!duration) return null
 
+  const pct = duration ? (progress / duration) * 100 : 0
+
+  function handleBarClick(e) {
+    const bar = e.currentTarget
+    const ratio = (e.clientX - bar.getBoundingClientRect().left) / bar.offsetWidth
+    onSeek(Math.max(0, Math.min(1, ratio)))
+  }
+
   return (
     <div>
-      <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
-        Favoriete momenten
-        {hearts.length > 0 && (
-          <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--muted)', letterSpacing: 0, textTransform: 'none' }}>— {hearts.length}×</span>
-        )}
+      <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>
+          Favoriete momenten
+          {hearts.length > 0 && (
+            <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--muted)', letterSpacing: 0, textTransform: 'none', marginLeft: 5 }}>— {hearts.length}×</span>
+          )}
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400, letterSpacing: 0, textTransform: 'none', color: 'var(--muted)' }}>
+          {formatTime(progress)} / {formatTime(duration)}
+        </span>
       </div>
 
-      <div style={{ position: 'relative', height: 36, userSelect: 'none' }}>
+      <div
+        style={{ position: 'relative', height: 36, userSelect: 'none', cursor: 'pointer' }}
+        onClick={handleBarClick}
+      >
+        {/* Track */}
         <div style={{
           position: 'absolute', top: '50%', left: 0, right: 0,
-          height: 3, background: 'var(--bg2)', borderRadius: 2, transform: 'translateY(-50%)',
+          height: 4, background: 'var(--bg2)', borderRadius: 2, transform: 'translateY(-50%)',
         }} />
 
+        {/* Progress fill */}
+        <div style={{
+          position: 'absolute', top: '50%', left: 0,
+          height: 4, background: 'var(--accent)', borderRadius: 2,
+          width: `${pct}%`, transform: 'translateY(-50%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Progress thumb */}
+        <div style={{
+          position: 'absolute', top: '50%', left: `${pct}%`,
+          width: 10, height: 10, borderRadius: '50%',
+          background: 'var(--accent)',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none', zIndex: 2,
+        }} />
+
+        {/* Heart markers */}
         {hearts.map(h => {
-          const pct = (h.position / duration) * 100
+          const hp = (h.position / duration) * 100
           const isHovered = hovered === h.id
           return (
             <div
               key={h.id}
               onMouseEnter={() => setHovered(h.id)}
               onMouseLeave={() => setHovered(null)}
+              onClick={e => { e.stopPropagation(); onSeek(h.position / duration) }}
               style={{
-                position: 'absolute', left: `${pct}%`, top: '50%',
+                position: 'absolute', left: `${hp}%`, top: '50%',
                 transform: `translate(-50%, -50%) scale(${isHovered ? 1.3 : 1})`,
-                transition: 'transform 0.15s', cursor: 'pointer', zIndex: 1,
+                transition: 'transform 0.15s', cursor: 'pointer', zIndex: 3,
               }}
             >
               {isHovered && (
@@ -247,25 +296,27 @@ function HeartsTimeline({ hearts, duration, onRemove, onSeek }) {
                 }}>
                   {formatTime(h.position)}
                   <span
-                    onClick={(e) => { e.stopPropagation(); onRemove(h.id) }}
+                    onClick={e => { e.stopPropagation(); onRemove(h.id) }}
                     style={{ color: 'var(--muted)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
                     title="Verwijderen"
                   >×</span>
                 </div>
               )}
-              <svg
-                width="16" height="16" viewBox="0 0 24 24"
-                fill="#e11d48" stroke="#e11d48" strokeWidth="1"
-                onClick={() => onSeek(h.position / duration)}
-              >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#e11d48" stroke="#e11d48" strokeWidth="1">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
             </div>
           )
         })}
 
-        {hearts.length === 0 && (
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', opacity: 0.6 }}>
+        {/* Hint (auto-hides after 2s) */}
+        {hearts.length === 0 && showHint && (
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', opacity: 0.6,
+            pointerEvents: 'none',
+          }}>
             Druk ♥ tijdens het afspelen om momenten te markeren
           </div>
         )}

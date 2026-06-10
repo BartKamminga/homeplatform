@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     SENTRY_MIN_LEVEL: str = "warning"
     MUSIC_DIR: str = "/app/music"
+    NAS_URL: str = ""
 
     @property
     def is_dev(self) -> bool:

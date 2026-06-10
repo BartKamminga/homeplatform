@@ -9,6 +9,9 @@ const NAV = [
   { to: "/admin/sites", icon: "◫", label: "Sites" },
   { to: "/admin/audit-log", icon: "◳", label: "Audit log" },
   { to: "/admin/changelog", icon: "◷", label: "Changelog" },
+  { to: "/admin/system", icon: "⚙", label: "Systeem" },
+  { to: "/admin/api-stats", icon: "▤", label: "API stats" },
+  { to: "/admin/monitoring", icon: "🔗", label: "Beheer & links" },
 ];
 
 export default function AdminLayout({ children }) {

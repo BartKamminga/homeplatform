@@ -12,6 +12,7 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from core.database import create_db_and_tables
 from core.exceptions import AppError
 from core.settings import settings
+from core.stats import api_call_stats
 
 _LEVEL_ORDER = {"debug": 0, "info": 1, "warning": 2, "error": 3, "fatal": 4}
 
@@ -76,6 +77,9 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     ms = (time.time() - start) * 1000
     logger.info("%s %s %s %.0fms", request.method, request.url.path, response.status_code, ms)
+    route = request.scope.get("route")
+    path = route.path if route else request.url.path
+    api_call_stats[f"{request.method} {path}"] += 1
     return response
 
 

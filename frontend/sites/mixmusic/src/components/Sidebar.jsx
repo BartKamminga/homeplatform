@@ -119,6 +119,11 @@ export default function Sidebar({ onOpenSettings }) {
         </span>
         <span style={s.trackName(active)} title={label}>{label}</span>
         {m?.moments?.length > 0 && <MomentDots moments={m.moments} />}
+        {m?.heart_count > 0 && (
+          <span style={{ fontSize: '10px', color: '#e11d48', flexShrink: 0 }} title={`${m.heart_count} favoriete moment${m.heart_count !== 1 ? 'en' : ''}`}>
+            {'♥'.repeat(Math.min(m.heart_count, 3))}{m.heart_count > 3 ? `+${m.heart_count - 3}` : ''}
+          </span>
+        )}
         {color && (
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', padding: '2px 5px', borderRadius: '4px', background: color + '22', color, border: `1px solid ${color}55`, flexShrink: 0 }}>
             {m.rating}

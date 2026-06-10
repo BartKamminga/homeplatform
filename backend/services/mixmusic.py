@@ -63,16 +63,28 @@ def delete_genre(session: Session, genre_id: int) -> None:
 # ── Track metadata ───────────────────────────────────────────────────────────
 
 def get_all_metas(session: Session) -> dict:
+    from sqlalchemy import func as sqla_func
     metas = session.exec(select(TrackMeta)).all()
-    return {
+    heart_rows = session.exec(
+        select(TrackHeart.file_path, sqla_func.count(TrackHeart.id))
+        .group_by(TrackHeart.file_path)
+    ).all()
+    heart_counts = {row[0]: row[1] for row in heart_rows}
+
+    result = {
         m.file_path: {
             "display_name": m.display_name,
             "rating": m.rating,
             "genres": json.loads(m.genres) if m.genres else [],
             "moments": json.loads(m.moments) if m.moments else [],
+            "heart_count": heart_counts.get(m.file_path, 0),
         }
         for m in metas
     }
+    for fp, cnt in heart_counts.items():
+        if fp not in result:
+            result[fp] = {"display_name": None, "rating": None, "genres": [], "moments": [], "heart_count": cnt}
+    return result
 
 
 def get_track_meta(session: Session, filepath: str) -> TrackMeta | None:
