@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import Sidebar    from '../components/Sidebar.jsx'
 import NowPlaying from '../components/NowPlaying.jsx'
-import PlayerBar  from '../components/PlayerBar.jsx'
 import TrackPanel from '../components/TrackPanel.jsx'
 
 const TABS = [
-  { key: 'tracks',   label: 'Tracks',  icon: '♫' },
-  { key: 'playing',  label: 'Speelt',  icon: '▶' },
-  { key: 'details',  label: 'Details', icon: '✎' },
+  { key: 'tracks',  label: 'Tracks',  icon: '♫' },
+  { key: 'playing', label: 'Speelt',  icon: '▶' },
+  { key: 'details', label: 'Details', icon: '✎' },
 ]
 
 export default function MobileA({ onOpenSettings }) {
@@ -15,7 +14,6 @@ export default function MobileA({ onOpenSettings }) {
 
   return (
     <div style={{ display: 'flex', height: '100dvh', flexDirection: 'column', overflow: 'hidden' }}>
-
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {tab === 'tracks'  && <Sidebar onOpenSettings={onOpenSettings} />}
         {tab === 'playing' && (
@@ -28,8 +26,6 @@ export default function MobileA({ onOpenSettings }) {
           <div style={{ flex: 1, overflowY: 'auto' }}><TrackPanel /></div>
         )}
       </div>
-
-      <PlayerBar />
 
       <div style={{
         display: 'flex', borderTop: '1px solid var(--border)',

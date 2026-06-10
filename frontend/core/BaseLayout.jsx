@@ -60,7 +60,7 @@ export default function BaseLayout({
             {siteTitle}
           </span>
           <a
-            href="/"
+            href="/landing/"
             title="Naar startpagina"
             style={{
               fontSize: "12px",

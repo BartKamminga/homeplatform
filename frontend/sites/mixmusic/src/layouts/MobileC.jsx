@@ -1,6 +1,5 @@
 import Sidebar    from '../components/Sidebar.jsx'
 import NowPlaying from '../components/NowPlaying.jsx'
-import PlayerBar  from '../components/PlayerBar.jsx'
 import TrackPanel from '../components/TrackPanel.jsx'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 
@@ -19,7 +18,6 @@ export default function MobileC({ onOpenSettings }) {
           <Sidebar onOpenSettings={onOpenSettings} />
         </div>
       )}
-      <PlayerBar />
     </div>
   )
 }
