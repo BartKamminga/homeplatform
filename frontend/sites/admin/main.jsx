@@ -14,6 +14,7 @@ import Changelog from "./pages/Changelog.jsx";
 import System from "./pages/System.jsx";
 import ApiStats from "./pages/ApiStats.jsx";
 import Monitoring from "./pages/Monitoring.jsx";
+import ErrorBoundary from "@components/ErrorBoundary.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
 import { initSentry } from "@core/sentry.js";
@@ -27,6 +28,7 @@ function PrivateRoute({ children }) {
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
+    <ErrorBoundary label="Admin">
     <BrowserRouter>
       <Routes>
         <Route path="/admin/login" element={<Login />} />
@@ -52,5 +54,6 @@ createRoot(document.getElementById("root")).render(
         />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 );
