@@ -17,24 +17,20 @@ depends_on = None
 
 def upgrade() -> None:
     now = datetime.utcnow().isoformat()
-    op.execute(f"""
-        INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at)
-        VALUES ('{uuid.uuid4()}', '0.1.0', 'dontforget', 'Taken en foto\'s',
-        'Taken ophalen uit database, foto\'s als thumbnail in het overzicht, taken aanmaken en bewerken met foto-upload.',
-        '2026-06-10T00:00:00', '{now}')
-    """)
-    op.execute(f"""
-        INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at)
-        VALUES ('{uuid.uuid4()}', '0.2.0', 'dontforget', 'Routines en dag-van-de-week',
-        'Terugkerende taken (dagelijks, wekelijks, maandelijks). Wekelijkse routines tonen alleen op de ingestelde dag. Overzicht toont foto of herhaal-icoon.',
-        '2026-06-10T00:00:00', '{now}')
-    """)
-    op.execute(f"""
-        INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at)
-        VALUES ('{uuid.uuid4()}', '0.3.0', 'dontforget', 'Geschiedenis en formulier',
-        'Geschiedenis pagina met afgeronde taken gegroepeerd per dag. Formulier verbeterd: herhaling bovenaan, contextuele opties per herhalingstype, foto en omschrijving zij aan zij.',
-        '2026-06-10T00:00:00', '{now}')
-    """)
+    entries = [
+        ('0.1.0', 'Taken en fotos',
+         'Taken ophalen uit database, fotos als thumbnail in het overzicht, taken aanmaken en bewerken met foto-upload.'),
+        ('0.2.0', 'Routines en dag-van-de-week',
+         'Terugkerende taken (dagelijks, wekelijks, maandelijks). Wekelijkse routines tonen alleen op de ingestelde dag. Overzicht toont foto of herhaal-icoon.'),
+        ('0.3.0', 'Geschiedenis en formulier',
+         'Geschiedenis pagina met afgeronde taken gegroepeerd per dag. Formulier verbeterd: herhaling bovenaan, contextuele opties per herhalingstype, foto en omschrijving zij aan zij.'),
+    ]
+    for version, title, description in entries:
+        op.execute(
+            f"INSERT OR IGNORE INTO changelog (id, version, site, title, description, released_at, created_at) "
+            f"VALUES ('{uuid.uuid4()}', '{version}', 'dontforget', '{title}', '{description}', "
+            f"'2026-06-10T00:00:00', '{now}')"
+        )
 
 
 def downgrade() -> None:
