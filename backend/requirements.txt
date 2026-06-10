@@ -9,3 +9,4 @@ python-multipart==0.0.9
 python-dotenv==1.0.1
 pydantic-settings==2.14.1
 sentry-sdk[fastapi]
+slowapi==0.1.9

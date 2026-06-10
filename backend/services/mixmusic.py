@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -75,20 +74,25 @@ def get_all_metas(session: Session) -> dict:
         m.file_path: {
             "display_name": m.display_name,
             "rating": m.rating,
-            "genres": json.loads(m.genres) if m.genres else [],
-            "moments": json.loads(m.moments) if m.moments else [],
+            "genres": m.genres or [],
+            "moments": m.moments or [],
             "heart_count": heart_counts.get(m.file_path, 0),
         }
         for m in metas
     }
     for fp, cnt in heart_counts.items():
         if fp not in result:
-            result[fp] = {"display_name": None, "rating": None, "genres": [], "moments": [], "heart_count": cnt}
+            result[fp] = {
+                "display_name": None, "rating": None,
+                "genres": [], "moments": [], "heart_count": cnt,
+            }
     return result
 
 
 def get_track_meta(session: Session, filepath: str) -> TrackMeta | None:
-    return session.exec(select(TrackMeta).where(TrackMeta.file_path == filepath)).first()
+    return session.exec(
+        select(TrackMeta).where(TrackMeta.file_path == filepath)
+    ).first()
 
 
 def upsert_track_meta(session: Session, filepath: str, **updates) -> TrackMeta:
@@ -97,18 +101,14 @@ def upsert_track_meta(session: Session, filepath: str, **updates) -> TrackMeta:
         meta = TrackMeta(file_path=filepath)
         session.add(meta)
 
-    display_name = updates.get("display_name")
-    if display_name is not None:
-        meta.display_name = display_name.strip() or None
-    rating = updates.get("rating")
-    if rating is not None:
-        meta.rating = rating if rating > 0 else None
-    genres = updates.get("genres")
-    if genres is not None:
-        meta.genres = json.dumps(genres)
-    moments = updates.get("moments")
-    if moments is not None:
-        meta.moments = json.dumps(moments)
+    if (val := updates.get("display_name")) is not None:
+        meta.display_name = val.strip() or None
+    if (val := updates.get("rating")) is not None:
+        meta.rating = val if val > 0 else None
+    if (val := updates.get("genres")) is not None:
+        meta.genres = val
+    if (val := updates.get("moments")) is not None:
+        meta.moments = val
     meta.updated_at = datetime.utcnow()
 
     session.commit()

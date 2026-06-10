@@ -4,10 +4,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from core.database import get_session
-from core.auth import (
-    verify_password, create_access_token,
-    get_current_user, hash_password,
-)
+from core.auth import verify_password, create_access_token, get_current_user
 from core.logging import log_action
 from models.core import User, UserGroup, Group, Site, SiteAccess
 
@@ -35,9 +32,7 @@ def login(
     form: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ):
-    user = session.exec(
-        select(User).where(User.username == form.username)
-    ).first()
+    user = session.exec(select(User).where(User.username == form.username)).first()
 
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(
@@ -49,34 +44,17 @@ def login(
 
     token = create_access_token({"sub": user.id})
     log_action(session, "login", user_id=user.id)
-
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-        user_id=user.id,
-        username=user.username,
-    )
+    return TokenResponse(access_token=token, token_type="bearer",
+                         user_id=user.id, username=user.username)
 
 
-@router.get("/me/sites")
-def my_sites(
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_token(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
 ):
-    user_groups = session.exec(
-        select(UserGroup).where(UserGroup.user_id == current_user.id)
-    ).all()
-    group_ids = {ug.group_id for ug in user_groups}
-
-    accessible = []
-    for site in session.exec(select(Site).where(Site.is_active == True)).all():
-        restrictions = session.exec(
-            select(SiteAccess).where(SiteAccess.site_id == site.id)
-        ).all()
-        if not restrictions or any(r.group_id in group_ids for r in restrictions):
-            accessible.append(site.slug)
-
-    return {"sites": accessible}
+    token = create_access_token({"sub": current_user.id})
+    return TokenResponse(access_token=token, token_type="bearer",
+                         user_id=current_user.id, username=current_user.username)
 
 
 @router.post("/logout")
@@ -98,12 +76,28 @@ def me(
         .join(UserGroup, UserGroup.group_id == Group.id)
         .where(UserGroup.user_id == current_user.id)
     ).all()
-
     return MeResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
-        locale=current_user.locale,
-        is_active=current_user.is_active,
-        groups=[g.slug for g in groups],
+        id=current_user.id, username=current_user.username,
+        email=current_user.email, locale=current_user.locale,
+        is_active=current_user.is_active, groups=[g.slug for g in groups],
     )
+
+
+@router.get("/me/sites")
+def my_sites(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    user_groups = session.exec(
+        select(UserGroup).where(UserGroup.user_id == current_user.id)
+    ).all()
+    group_ids = {ug.group_id for ug in user_groups}
+
+    accessible = []
+    for site in session.exec(select(Site).where(Site.is_active.is_(True))).all():
+        restrictions = session.exec(
+            select(SiteAccess).where(SiteAccess.site_id == site.id)
+        ).all()
+        if not restrictions or any(r.group_id in group_ids for r in restrictions):
+            accessible.append(site.slug)
+    return {"sites": accessible}

@@ -23,6 +23,7 @@ class User(SQLModel, table=True):
     locale: str = Field(default="nl")
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = Field(default=None)
 
 
 class Group(SQLModel, table=True):

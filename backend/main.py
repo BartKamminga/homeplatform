@@ -8,9 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sqlalchemy.exc import IntegrityError
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from core.database import create_db_and_tables
 from core.exceptions import AppError
+from core.limiter import limiter
 from core.settings import settings
 from core.stats import api_call_stats
 
@@ -34,12 +38,8 @@ if settings.SENTRY_DSN:
         before_send=_before_send,
     )
 
-from routers import system, auth, users, groups, themes, sites, audit
-from routers import mixmusic
-from routers import changelog
-from routers import tracking
-from routers import dontforget
-from routers import uploads
+from routers import system, auth, users, groups, themes, sites, audit  # noqa: E402
+from routers import mixmusic, changelog, tracking, dontforget, uploads  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
 
@@ -47,6 +47,8 @@ logger = logging.getLogger("homeplatform")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     create_db_and_tables()
+    if not settings.is_dev and settings.SECRET_KEY == "dev-secret-change-me":
+        logger.warning("SECRET_KEY is still the default dev value — change it in production!")
     yield
 
 
@@ -58,13 +60,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=(
-        ["http://localhost:5172", "http://localhost:3000"]
-        if settings.is_dev
-        else ["https://jouwdomein.nl"]
-    ),
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,19 +87,12 @@ async def log_requests(request: Request, call_next):
 @app.exception_handler(HTTPException)
 async def sentry_http_exception_handler(request: Request, exc: HTTPException):
     if settings.SENTRY_DSN:
-        if exc.status_code >= 500:
-            level = "error"
-        elif exc.status_code in (401, 403):
-            level = "warning"
-        else:
-            level = "info"
+        level = "error" if exc.status_code >= 500 else ("warning" if exc.status_code in (401, 403) else "info")
         with sentry_sdk.new_scope() as scope:
             scope.set_tag("http.status_code", exc.status_code)
             scope.set_tag("http.path", str(request.url.path))
             scope.set_tag("http.method", request.method)
-            sentry_sdk.capture_message(
-                f"HTTP {exc.status_code}: {exc.detail}", level=level
-            )
+            sentry_sdk.capture_message(f"HTTP {exc.status_code}: {exc.detail}", level=level)
     return await _default_http_handler(request, exc)
 
 
@@ -110,6 +104,12 @@ async def app_error_handler(request: Request, exc: AppError):
     if exc.code:
         body["code"] = exc.code
     return JSONResponse(status_code=exc.status_code, content=body)
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    logger.warning("IntegrityError op %s: %s", request.url.path, exc)
+    return JSONResponse(status_code=409, content={"detail": "Dubbele waarde of database-conflict"})
 
 
 app.include_router(system.router)

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 
 from core.database import get_session
-from core.auth import require_admin, hash_password
+from core.auth import require_admin, hash_password, ADMIN_GROUP
 from core.logging import log_action
 from models.core import User, UserGroup, Group
 
@@ -35,17 +35,15 @@ class UserUpdate(BaseModel):
 
 
 def _enrich(user: User, session: Session) -> UserOut:
+    """Bouw UserOut voor één gebruiker (single-row operaties)."""
     groups = session.exec(
         select(Group)
         .join(UserGroup, UserGroup.group_id == Group.id)
         .where(UserGroup.user_id == user.id)
     ).all()
     return UserOut(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        locale=user.locale,
-        is_active=user.is_active,
+        id=user.id, username=user.username, email=user.email,
+        locale=user.locale, is_active=user.is_active,
         groups=[g.slug for g in groups],
     )
 
@@ -53,10 +51,27 @@ def _enrich(user: User, session: Session) -> UserOut:
 @router.get("/", response_model=list[UserOut])
 def list_users(
     session: Session = Depends(get_session),
-    admin: User = Depends(require_admin),
+    _: User = Depends(require_admin),
 ):
     users = session.exec(select(User)).all()
-    return [_enrich(u, session) for u in users]
+
+    # Eén query voor alle user-groep koppelingen
+    rows = session.exec(
+        select(UserGroup.user_id, Group.slug)
+        .join(Group, Group.id == UserGroup.group_id)
+    ).all()
+    groups_by_user: dict[str, list[str]] = {}
+    for uid, slug in rows:
+        groups_by_user.setdefault(uid, []).append(slug)
+
+    return [
+        UserOut(
+            id=u.id, username=u.username, email=u.email,
+            locale=u.locale, is_active=u.is_active,
+            groups=groups_by_user.get(u.id, []),
+        )
+        for u in users
+    ]
 
 
 @router.post("/", response_model=UserOut, status_code=201)
@@ -65,24 +80,18 @@ def create_user(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    existing = session.exec(
-        select(User).where(User.username == data.username)
-    ).first()
+    existing = session.exec(select(User).where(User.username == data.username)).first()
     if existing:
         raise HTTPException(status_code=409, detail="Gebruikersnaam al in gebruik")
 
     user = User(
-        username=data.username,
-        email=data.email,
-        password_hash=hash_password(data.password),
-        locale=data.locale,
+        username=data.username, email=data.email,
+        password_hash=hash_password(data.password), locale=data.locale,
     )
     session.add(user)
     session.commit()
     session.refresh(user)
-
-    log_action(session, "user.create", user_id=admin.id,
-               payload={"new_user": user.username})
+    log_action(session, "user.create", user_id=admin.id, payload={"new_user": user.username})
     return _enrich(user, session)
 
 
@@ -109,9 +118,7 @@ def update_user(
     session.add(user)
     session.commit()
     session.refresh(user)
-
-    log_action(session, "user.update", user_id=admin.id,
-               payload={"updated_user": user.username})
+    log_action(session, "user.update", user_id=admin.id, payload={"updated_user": user.username})
     return _enrich(user, session)
 
 

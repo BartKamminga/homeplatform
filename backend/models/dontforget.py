@@ -14,14 +14,15 @@ class Task(SQLModel, table=True):
     id:           str      = Field(default_factory=new_uuid, primary_key=True)
     title:        str
     photo_path:   Optional[str]      = Field(default=None)
-    when:         str      = Field(default="morning")   # morning | afternoon | evening | week | later
-    repeat:       str      = Field(default="once")      # once | daily | weekly | monthly
-    day_of_week:  Optional[int]      = Field(default=None)  # 0=ma … 6=zo, None=elke dag
-    priority:     str      = Field(default="normal")    # high | normal | low
+    when:         str      = Field(default="morning")
+    repeat:       str      = Field(default="once")
+    day_of_week:  Optional[int]      = Field(default=None)
+    priority:     str      = Field(default="normal")
     done:         bool     = Field(default=False)
-    source:       str      = Field(default="user")      # user | routine
+    source:       str      = Field(default="user")
     created_at:   datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = Field(default=None)
     completed_by: Optional[str]      = Field(default=None, foreign_key="users.id")
+    deleted_at:   Optional[datetime] = Field(default=None)
     user_id:      str      = Field(foreign_key="users.id", index=True)
     group_id:     Optional[str]      = Field(default=None, foreign_key="groups.id", index=True)

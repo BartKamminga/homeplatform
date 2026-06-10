@@ -13,10 +13,8 @@ from models.core import User, UserGroup, Group
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-
-# ---------------------------------------------------------------------------
-# Wachtwoord
-# ---------------------------------------------------------------------------
+ADMIN_GROUP = "admins"
+PROTECTED_GROUPS = frozenset({"admins", "members"})
 
 
 def hash_password(password: str) -> str:
@@ -25,11 +23,6 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
-
-
-# ---------------------------------------------------------------------------
-# JWT
-# ---------------------------------------------------------------------------
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -44,17 +37,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except JWTError:
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Ongeldige of verlopen token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-# ---------------------------------------------------------------------------
-# Huidige gebruiker ophalen
-# ---------------------------------------------------------------------------
+        ) from exc
 
 
 def get_current_user(
@@ -68,9 +56,7 @@ def get_current_user(
 
     user = session.get(User, user_id)
     if not user or not user.is_active:
-        raise HTTPException(
-            status_code=401, detail="Gebruiker niet gevonden of inactief"
-        )
+        raise HTTPException(status_code=401, detail="Gebruiker niet gevonden of inactief")
     return user
 
 
@@ -78,12 +64,11 @@ def require_admin(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> User:
-    """Dependency: gooit 403 als de gebruiker geen admin is."""
     groups = session.exec(
         select(Group)
         .join(UserGroup, UserGroup.group_id == Group.id)
         .where(UserGroup.user_id == current_user.id)
-        .where(Group.slug == "admins")
+        .where(Group.slug == ADMIN_GROUP)
     ).first()
 
     if not groups:

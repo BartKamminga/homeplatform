@@ -66,7 +66,15 @@ Unblock-File $MyInvocation.MyCommand.Path 2>$null
 # Configuratie
 # ---------------------------------------------------------------------------
 $Root    = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# NAS IP: lees uit .env als NAS_IP= aanwezig is, anders fallback
 $NasIp   = "192.168.30.193"
+$EnvFile = "$Root\.env"
+if (Test-Path $EnvFile) {
+    $envLine = Get-Content $EnvFile | Where-Object { $_ -match "^NAS_IP\s*=" } | Select-Object -First 1
+    if ($envLine) { $NasIp = ($envLine -split "=", 2)[1].Trim() }
+}
+
 $NasUser = "admin"
 $NasHost = "${NasUser}@${NasIp}"
 $NasKey  = "$env:USERPROFILE\.ssh\homeplatform"

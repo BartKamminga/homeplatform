@@ -41,7 +41,29 @@ export function trackEvent(site, action, details = {}) {
   }).catch(() => {});
 }
 
+async function maybeRefreshToken() {
+  const token = localStorage.getItem("hp_token");
+  if (!token) return;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const expiresInMs = payload.exp * 1000 - Date.now();
+    if (expiresInMs > 0 && expiresInMs < 5 * 60 * 1000) {
+      const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setToken(data.access_token);
+      }
+    }
+  } catch {
+    // Stille fout — token refresh is best-effort
+  }
+}
+
 async function request(method, path, body = null) {
+  await maybeRefreshToken();
   const token = getToken();
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;

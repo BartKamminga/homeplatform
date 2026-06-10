@@ -7,7 +7,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/frontend/dist:/srv/www
+      - ./frontend/dist:/srv/www
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -22,8 +22,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/backend/db:/app/db
-      - C:/Users/bartk/OneDrive/Document/Diversen/GitHub/homeplatform/nas-files:/app/nas-files
+      - ./backend/db:/app/db
+      - ./nas-files:/app/nas-files
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from sqlalchemy import func
 from pydantic import BaseModel
-from typing import Optional
 
 from core.database import get_session
-from core.auth import require_admin
+from core.auth import require_admin, PROTECTED_GROUPS
 from core.logging import log_action
 from models.core import User, Group, UserGroup
 
@@ -26,16 +26,21 @@ class GroupCreate(BaseModel):
 @router.get("/", response_model=list[GroupOut])
 def list_groups(
     session: Session = Depends(get_session),
-    admin: User = Depends(require_admin),
+    _: User = Depends(require_admin),
 ):
     groups = session.exec(select(Group)).all()
-    result = []
-    for g in groups:
-        count = len(session.exec(
-            select(UserGroup).where(UserGroup.group_id == g.id)
-        ).all())
-        result.append(GroupOut(id=g.id, name=g.name, slug=g.slug, member_count=count))
-    return result
+
+    # Eén query voor alle member counts
+    count_rows = session.exec(
+        select(UserGroup.group_id, func.count(UserGroup.user_id))
+        .group_by(UserGroup.group_id)
+    ).all()
+    counts = {gid: cnt for gid, cnt in count_rows}
+
+    return [
+        GroupOut(id=g.id, name=g.name, slug=g.slug, member_count=counts.get(g.id, 0))
+        for g in groups
+    ]
 
 
 @router.post("/", response_model=GroupOut, status_code=201)
@@ -52,9 +57,7 @@ def create_group(
     session.add(group)
     session.commit()
     session.refresh(group)
-
-    log_action(session, "group.create", user_id=admin.id,
-               payload={"group": data.slug})
+    log_action(session, "group.create", user_id=admin.id, payload={"group": data.slug})
     return GroupOut(id=group.id, name=group.name, slug=group.slug, member_count=0)
 
 
@@ -67,11 +70,10 @@ def delete_group(
     group = session.get(Group, group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Groep niet gevonden")
-    if group.slug in ("admins", "members"):
-        raise HTTPException(status_code=400, detail="Standaard groepen kunnen niet verwijderd worden")
+    if group.slug in PROTECTED_GROUPS:
+        raise HTTPException(status_code=400, detail="Standaard groepen kunnen niet worden verwijderd")
 
     session.delete(group)
     session.commit()
-    log_action(session, "group.delete", user_id=admin.id,
-               payload={"group": group.slug})
+    log_action(session, "group.delete", user_id=admin.id, payload={"group": group.slug})
     return {"message": f"Groep {group.slug} verwijderd"}

@@ -1,76 +1,53 @@
-import os
+import logging
 import uuid
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
-from sqlmodel import Session
 
-from core.database import get_session
 from core.auth import get_current_user
+from core.settings import settings
 from models.core import User
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
-print(f">>> UPLOAD_ROOT at import: {os.getenv('UPLOAD_ROOT')}")
-UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", "/app/uploads")
-UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", "/app/uploads")
-if not os.path.isabs(UPLOAD_ROOT):
-    UPLOAD_ROOT = os.path.abspath(UPLOAD_ROOT)
-print(f">>> UPLOAD_ROOT absolute: {UPLOAD_ROOT}")
+logger = logging.getLogger(__name__)
+
+UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_SIZE_MB = 10
-print(f">>> UPLOAD_ROOT resolved: {UPLOAD_ROOT}")
 
 
-def get_upload_path(category: str, user_id: str, filename: str) -> str:
-    """Geeft het absolute pad terug voor een upload."""
-    safe_category = category.replace("/", "").replace("..", "")
-    safe_filename = filename.replace("/", "").replace("..", "")
-    return os.path.join(UPLOAD_ROOT, safe_category, user_id, safe_filename)
-
-
-def get_relative_path(category: str, user_id: str, filename: str) -> str:
-    """Geeft het relatieve pad terug (opgeslagen in database)."""
-    return f"{category}/{user_id}/{filename}"
+def _safe_path(category: str, user_id: str, filename: str) -> Path:
+    """Geeft absoluut pad terug; gooit 400 bij path traversal poging."""
+    candidate = (UPLOAD_ROOT / category / user_id / filename).resolve()
+    if not str(candidate).startswith(str(UPLOAD_ROOT)):
+        raise HTTPException(status_code=400, detail="Ongeldig pad")
+    return candidate
 
 
 @router.post("")
 async def upload_file(
     file: UploadFile = File(...),
     category: str = "general",
-    session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """Upload een bestand naar de NAS."""
-    print(f"UPLOAD_ROOT = {UPLOAD_ROOT}")
-    print(">>> upload_file aangeroepen")
-    print(f">>> UPLOAD_ROOT: {UPLOAD_ROOT}")
-    print(f">>> category: {category}")
-
-    # Valideer bestandstype
     if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bestandstype niet toegestaan: {file.content_type}. Toegestaan: {', '.join(ALLOWED_TYPES)}",
-        )
+        allowed = ", ".join(ALLOWED_TYPES)
+        raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}. Toegestaan: {allowed}")
 
-    # Lees bestand en valideer grootte
     content = await file.read()
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
-        raise HTTPException(
-            status_code=400, detail=f"Bestand te groot. Maximum is {MAX_SIZE_MB}MB"
-        )
+        raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {MAX_SIZE_MB}MB")
 
-    # Genereer unieke bestandsnaam
-    ext = os.path.splitext(file.filename or "upload")[1] or ".jpg"
+    ext = Path(file.filename or "upload").suffix or ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
 
-    # Maak map aan en sla op
-    abs_path = get_upload_path(category, user.id, filename)
-    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    abs_path = _safe_path(category, user.id, filename)
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(content)
 
-    with open(abs_path, "wb") as f:
-        f.write(content)
-
-    rel_path = get_relative_path(category, user.id, filename)
+    rel_path = f"{category}/{user.id}/{filename}"
+    logger.info("Upload: %s door user %s", rel_path, user.id)
 
     return {
         "path": rel_path,
@@ -82,18 +59,11 @@ async def upload_file(
 
 
 @router.get("/{category}/{user_id}/{filename}")
-async def get_file(
-    category: str,
-    user_id: str,
-    filename: str,
-):
-    """Haal een geupload bestand op (publiek leesbaar, upload vereist auth)."""
-    abs_path = get_upload_path(category, user_id, filename)
-
-    if not os.path.exists(abs_path):
+async def get_file(category: str, user_id: str, filename: str):
+    abs_path = _safe_path(category, user_id, filename)
+    if not abs_path.exists():
         raise HTTPException(status_code=404, detail="Bestand niet gevonden")
-
-    return FileResponse(abs_path)
+    return FileResponse(str(abs_path))
 
 
 @router.delete("/{category}/{user_id}/{filename}")
@@ -103,15 +73,12 @@ async def delete_file(
     filename: str,
     user: User = Depends(get_current_user),
 ):
-    """Verwijder een geupload bestand."""
-    # Alleen eigen bestanden verwijderen
     if user_id != user.id:
         raise HTTPException(status_code=403, detail="Geen toegang")
 
-    abs_path = get_upload_path(category, user_id, filename)
-
-    if not os.path.exists(abs_path):
+    abs_path = _safe_path(category, user_id, filename)
+    if not abs_path.exists():
         raise HTTPException(status_code=404, detail="Bestand niet gevonden")
 
-    os.remove(abs_path)
+    abs_path.unlink()
     return {"ok": True}

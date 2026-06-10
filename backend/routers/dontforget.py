@@ -77,7 +77,8 @@ def create_task(
     user: User = Depends(get_current_user),
 ):
     task = svc.create_task(session, user, **data.model_dump())
-    log_action(session, "task.create", site="dontforget", user_id=user.id, payload={"task_id": task.id, "title": task.title})
+    log_action(session, "task.create", site="dontforget", user_id=user.id,
+               payload={"task_id": task.id, "title": task.title})
     return task
 
 
@@ -88,7 +89,10 @@ def update_task(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    return svc.update_task(session, user, task_id, data.model_dump(exclude_unset=True))
+    task = svc.update_task(session, user, task_id, data.model_dump(exclude_unset=True))
+    log_action(session, "task.update", site="dontforget", user_id=user.id,
+               payload={"task_id": task.id, "fields": list(data.model_dump(exclude_unset=True))})
+    return task
 
 
 @router.post("/tasks/{task_id}/complete", response_model=TaskOut)
@@ -98,7 +102,8 @@ def complete_task(
     user: User = Depends(get_current_user),
 ):
     task = svc.complete_task(session, user, task_id)
-    log_action(session, "task.complete", site="dontforget", user_id=user.id, payload={"task_id": task.id, "title": task.title})
+    log_action(session, "task.complete", site="dontforget", user_id=user.id,
+               payload={"task_id": task.id, "title": task.title})
     return task
 
 
@@ -108,5 +113,7 @@ def delete_task(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    svc.delete_task(session, user, task_id)
+    title = svc.delete_task(session, user, task_id)
+    log_action(session, "task.delete", site="dontforget", user_id=user.id,
+               payload={"task_id": task_id, "title": title})
     return {"ok": True}

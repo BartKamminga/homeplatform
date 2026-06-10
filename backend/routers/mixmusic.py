@@ -67,13 +67,12 @@ class TrackMetaOut(BaseModel):
 
 
 def _meta_to_out(meta) -> TrackMetaOut:
-    import json
     return TrackMetaOut(
         file_path=meta.file_path,
         display_name=meta.display_name,
         rating=meta.rating,
-        genres=json.loads(meta.genres) if meta.genres else [],
-        moments=json.loads(meta.moments) if meta.moments else [],
+        genres=meta.genres or [],
+        moments=meta.moments or [],
     )
 
 
