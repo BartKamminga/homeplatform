@@ -39,6 +39,7 @@ const ITEMS = [
       { done: true,  text: "Login direct in de app" },
       { done: true,  text: "Toegang per groep instelbaar" },
       { done: false, text: "Alle settings werkend maken" },
+      { done: false, text: "Koppeling platform — snel task toevoegen (context-gebonden)" },
     ],
   },
   {
