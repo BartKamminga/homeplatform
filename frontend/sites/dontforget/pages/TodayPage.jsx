@@ -16,12 +16,35 @@ const today = new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'nu
 // Convert JS getDay() (0=Sunday) to our 0=Monday system
 const todayDow = (new Date().getDay() + 6) % 7
 
+function periodStart(unit) {
+  const d = new Date(); d.setHours(0, 0, 0, 0)
+  if (unit === 'week')  d.setDate(d.getDate() - todayDow)
+  if (unit === 'month') d.setDate(1)
+  return d
+}
+
+function completedIn(task, unit) {
+  if (!task.completed_at) return false
+  return new Date(task.completed_at) >= periodStart(unit)
+}
+
+function isDoneForPeriod(task) {
+  if (task.repeat === 'once')    return task.done
+  if (task.repeat === 'daily')   return completedIn(task, 'day')
+  if (task.repeat === 'weekly')  return completedIn(task, 'week')
+  if (task.repeat === 'monthly') return completedIn(task, 'month')
+  return task.done
+}
+
 function isForToday(task) {
-  if (task.repeat === 'once')    return true
-  if (task.repeat === 'daily')   return true
-  if (task.repeat === 'monthly') return true
-  if (task.repeat === 'weekly')  return task.day_of_week === null || task.day_of_week === undefined || task.day_of_week === todayDow
-  return true
+  if (task.repeat === 'once')    return !task.done
+  if (task.repeat === 'daily')   return !isDoneForPeriod(task)
+  if (task.repeat === 'monthly') return !isDoneForPeriod(task)
+  if (task.repeat === 'weekly') {
+    const dayMatch = task.day_of_week === null || task.day_of_week === undefined || task.day_of_week === todayDow
+    return dayMatch && !isDoneForPeriod(task)
+  }
+  return !task.done
 }
 
 export default function TodayPage({ onAdd, onEdit, refreshKey }) {
@@ -33,7 +56,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
     setLoading(true)
     setError(null)
     try {
-      const all = await listTasks(false)
+      const all = await listTasks()
       setTasks(all.filter(isForToday))
     } catch (e) {
       setError(e.message)
@@ -49,15 +72,22 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
   }, [load])
 
   async function toggle(task) {
-    setTasks(ts => ts.map(t => t.id === task.id ? { ...t, done: !t.done } : t))
-    try {
-      if (!task.done) {
+    const wasDone = isDoneForPeriod(task)
+    if (!wasDone) {
+      // Optimistisch afvinken: taak verdwijnt direct uit de lijst
+      const now = new Date().toISOString()
+      setTasks(ts => ts.map(t => t.id === task.id ? { ...t, done: true, completed_at: now } : t))
+      try {
         await completeTask(task.id)
-      } else {
-        await updateTask(task.id, { done: false })
+      } catch {
+        setTasks(ts => ts.map(t => t.id === task.id ? task : t))
       }
-    } catch {
-      setTasks(ts => ts.map(t => t.id === task.id ? task : t))
+    } else {
+      // Ongedaan maken: server updaten en dan herladen
+      try {
+        await updateTask(task.id, { done: false })
+        await load()
+      } catch {}
     }
   }
 
@@ -100,7 +130,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
             {mt.map(t => (
               <TaskItem
                 key={t.id}
-                task={t}
+                task={{ ...t, done: isDoneForPeriod(t) }}
                 onToggle={() => toggle(t)}
                 onEdit={() => onEdit(t)}
               />
