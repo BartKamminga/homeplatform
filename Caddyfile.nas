@@ -1,4 +1,5 @@
 {
+    auto_https off
     servers {
         trusted_proxies static private_ranges
             103.21.244.0/22 103.22.200.0/22 103.31.4.0/22
