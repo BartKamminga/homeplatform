@@ -1,8 +1,18 @@
 // frontend/sites/dontforget/src/changelog.jsx
 
-export const VERSION = "1.0";
+export const VERSION = "1.1";
 
 export const CHANGELOG = [
+  {
+    version: "1.1",
+    date: "11 jun 2026",
+    changes: [
+      "Taken per groep — elke groep heeft een eigen takenlijst, persoonlijk blijft apart",
+      "Groepswisselaar in Instellingen → Huishouden",
+      "Ledenantal van de actieve groep zichtbaar in Leden",
+      "Herhaaltaken verschijnen automatisch opnieuw na hun periode (dag/week/maand)",
+    ],
+  },
   {
     version: "1.0",
     date: "10 jun 2026",

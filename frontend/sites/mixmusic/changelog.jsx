@@ -1,6 +1,15 @@
-export const VERSION = "0.7";
+export const VERSION = "0.8";
 
 export const CHANGELOG = [
+  {
+    version: "0.8",
+    date: "11 jun 2026",
+    changes: [
+      "Muziekdata per groep — beoordelingen, genres en hartjes zijn groepspecifiek",
+      "Data herlaadt automatisch bij wisselen van actieve groep",
+      "Groepswisselaar beschikbaar in instellingen",
+    ],
+  },
   {
     version: "0.7",
     date: "10 jun 2026",
