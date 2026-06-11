@@ -103,6 +103,17 @@ class SiteAccess(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class InviteToken(SQLModel, table=True):
+    __tablename__ = "invite_tokens"
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    token: str = Field(unique=True, index=True)
+    created_by: str = Field(foreign_key="users.id")
+    expires_at: datetime
+    used_at: Optional[datetime] = Field(default=None)
+    used_by_user_id: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
 

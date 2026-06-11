@@ -29,6 +29,12 @@
         file_server
     }
 
+    handle /account/* {
+        root * /srv/www
+        try_files {path} /account/index.html
+        file_server
+    }
+
     handle /assets/* {
         root * /srv/www
         file_server

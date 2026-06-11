@@ -1,3 +1,5 @@
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -7,10 +9,10 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from core.database import get_session
-from core.auth import verify_password, create_access_token, get_current_user
+from core.auth import verify_password, create_access_token, get_current_user, hash_password
 from core.limiter import limiter
 from core.logging import log_action
-from models.core import User, UserGroup, Group, Site, SiteAccess
+from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -156,3 +158,100 @@ def my_sites(
         if not restrictions or any(r.group_id in group_ids for r in restrictions):
             accessible.append(site.slug)
     return {"sites": accessible}
+
+
+# ── Profiel bewerken ──────────────────────────────────────────────────────────
+
+class UpdateMeIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.patch("/me")
+def update_me(
+    body: UpdateMeIn,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    if not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Huidig wachtwoord klopt niet")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=422, detail="Nieuw wachtwoord minimaal 8 tekens")
+    current_user.password_hash = hash_password(body.new_password)
+    current_user.updated_at = datetime.utcnow()
+    session.add(current_user)
+    session.commit()
+    return {"message": "Wachtwoord gewijzigd"}
+
+
+# ── Uitnodigingen ─────────────────────────────────────────────────────────────
+
+class AcceptInviteIn(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+
+
+@router.post("/invite")
+def create_invite(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    admin_group = session.exec(select(Group).where(Group.slug == "admins")).first()
+    if admin_group:
+        is_admin = session.exec(
+            select(UserGroup)
+            .where(UserGroup.user_id == current_user.id)
+            .where(UserGroup.group_id == admin_group.id)
+        ).first()
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Alleen admins kunnen uitnodigen")
+    token_str = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(days=7)
+    session.add(InviteToken(token=token_str, created_by=current_user.id, expires_at=expires))
+    session.commit()
+    return {"token": token_str, "expires_at": expires.isoformat()}
+
+
+@router.get("/invite/{token}")
+def check_invite(token: str, session: Session = Depends(get_session)):
+    invite = session.exec(select(InviteToken).where(InviteToken.token == token)).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Uitnodiging niet gevonden")
+    if invite.used_at:
+        raise HTTPException(status_code=410, detail="Deze uitnodiging is al gebruikt")
+    if invite.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="Uitnodiging verlopen")
+    return {"valid": True, "expires_at": invite.expires_at.isoformat()}
+
+
+@router.post("/invite/{token}/accept", response_model=TokenResponse)
+def accept_invite(token: str, body: AcceptInviteIn, session: Session = Depends(get_session)):
+    invite = session.exec(select(InviteToken).where(InviteToken.token == token)).first()
+    if not invite or invite.used_at or invite.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Ongeldige of verlopen uitnodiging")
+    if not body.username.strip():
+        raise HTTPException(status_code=422, detail="Gebruikersnaam is verplicht")
+    if session.exec(select(User).where(User.username == body.username.strip())).first():
+        raise HTTPException(status_code=409, detail="Gebruikersnaam al in gebruik")
+    email = body.email.strip() if body.email else f"{body.username.strip()}@homeplatform.local"
+    if body.email and session.exec(select(User).where(User.email == email)).first():
+        raise HTTPException(status_code=409, detail="E-mailadres al in gebruik")
+    user = User(
+        username=body.username.strip(),
+        email=email,
+        password_hash=hash_password(body.password),
+        is_active=True,
+    )
+    session.add(user)
+    session.flush()
+    members_group = session.exec(select(Group).where(Group.slug == "members")).first()
+    if members_group:
+        session.add(UserGroup(user_id=user.id, group_id=members_group.id))
+    invite.used_at = datetime.utcnow()
+    invite.used_by_user_id = user.id
+    session.commit()
+    log_action(session, "user.invite_accept", user_id=user.id, payload={"username": user.username})
+    access_token = create_access_token({"sub": user.id})
+    return TokenResponse(access_token=access_token, token_type="bearer",
+                         user_id=user.id, username=user.username)

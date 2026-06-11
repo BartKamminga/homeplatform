@@ -9,10 +9,12 @@ export default function Users() {
   const [users, setUsers]       = useState([]);
   const [groups, setGroups]     = useState([]);
   const [error, setError]       = useState('');
-  const [showNew, setShowNew]   = useState(false);
-  const [form, setForm]         = useState({ username: '', email: '', password: '', locale: 'nl' });
-  const [saving, setSaving]     = useState(false);
-  const [groupUser, setGroupUser] = useState(null); // user waarvoor groepen beheerd worden
+  const [showNew, setShowNew]       = useState(false);
+  const [form, setForm]             = useState({ username: '', email: '', password: '', locale: 'nl' });
+  const [saving, setSaving]         = useState(false);
+  const [groupUser, setGroupUser]   = useState(null);
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   function load() {
     api.get('/api/admin/users/').then(setUsers).catch(e => setError(e.message));
@@ -31,6 +33,21 @@ export default function Users() {
       load();
     } catch(e) { setError(e.message); }
     finally { setSaving(false); }
+  }
+
+  async function createInvite() {
+    try {
+      const result = await api.post('/api/auth/invite');
+      const link = `${window.location.origin}/account/invite/${result.token}`;
+      setInviteLink(link);
+      setInviteCopied(false);
+    } catch(e) { setError(e.message); }
+  }
+
+  function copyInvite() {
+    navigator.clipboard.writeText(inviteLink).catch(() => {});
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2500);
   }
 
   async function toggleActive(user) {
@@ -94,12 +111,20 @@ export default function Users() {
           <h1 style={{ fontSize: '22px', fontWeight: 600 }}>Gebruikers</h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>{users.length} gebruikers</p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          style={{ background: 'var(--color-primary)', color: '#fff', padding: '9px 16px' }}
-        >
-          + Nieuwe gebruiker
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={createInvite}
+            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)', padding: '9px 16px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: '14px' }}
+          >
+            ✉ Uitnodigen
+          </button>
+          <button
+            onClick={() => setShowNew(true)}
+            style={{ background: 'var(--color-primary)', color: '#fff', padding: '9px 16px' }}
+          >
+            + Nieuwe gebruiker
+          </button>
+        </div>
       </div>
 
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>{error}</p>}
@@ -127,6 +152,30 @@ export default function Users() {
             <BtnPrimary onClick={createUser} disabled={saving}>
               {saving ? 'Opslaan...' : 'Aanmaken'}
             </BtnPrimary>
+          </ModalFooter>
+        </Modal>
+      )}
+
+      {inviteLink && (
+        <Modal title="Uitnodigingslink" onClose={() => setInviteLink('')}>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.6 }}>
+            Stuur deze link naar de persoon die je wilt uitnodigen. De link is 7 dagen geldig en kan maar één keer gebruikt worden.
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              readOnly value={inviteLink}
+              onClick={e => e.target.select()}
+              style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: '12px', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', outline: 'none' }}
+            />
+            <button
+              onClick={copyInvite}
+              style={{ padding: '8px 14px', fontSize: '13px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: inviteCopied ? '#22c55e' : 'var(--color-surface)', color: inviteCopied ? '#fff' : 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+            >
+              {inviteCopied ? '✓ Gekopieerd' : 'Kopieer'}
+            </button>
+          </div>
+          <ModalFooter>
+            <BtnSecondary onClick={() => setInviteLink('')}>Sluiten</BtnSecondary>
           </ModalFooter>
         </Modal>
       )}
