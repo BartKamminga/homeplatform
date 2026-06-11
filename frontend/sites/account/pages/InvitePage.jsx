@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { setToken, loadTheme } from '@core/api.js';
+import Logo from '@core/Logo.jsx';
 
 loadTheme();
 
@@ -71,8 +72,8 @@ export default function InvitePage() {
   return (
     <div style={wrap}>
       <div style={{ width: '100%', maxWidth: 440, padding: '48px 24px' }}>
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '1.5rem' }}>
-          Homeplatform
+        <div style={{ marginBottom: '1.5rem' }}>
+          <Logo size={32} showName nameStyle={{ fontSize: 17, color: 'var(--color-text)' }} />
         </div>
 
         {status === 'checking' && (
@@ -100,7 +101,7 @@ export default function InvitePage() {
               Account aanmaken
             </h1>
             <p style={{ fontSize: 15, color: 'var(--color-text-muted)', marginBottom: '2rem', lineHeight: 1.6 }}>
-              Je bent uitgenodigd voor Homeplatform{groupName ? <> — groep <strong style={{ color: 'var(--color-text)' }}>{groupName}</strong></> : ''}.
+              Je bent uitgenodigd voor WebHeaven{groupName ? <> — groep <strong style={{ color: 'var(--color-text)' }}>{groupName}</strong></> : ''}.
               Kies een gebruikersnaam en wachtwoord.
             </p>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

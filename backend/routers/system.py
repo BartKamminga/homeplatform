@@ -186,10 +186,14 @@ def _build_links() -> dict:
             glitchtip = f"{p.scheme}://{p.hostname}:{p.port}" if p.port else f"{p.scheme}://{p.hostname}"
         except Exception:
             pass
+    external = settings.EXTERNAL_URL.rstrip("/") if settings.EXTERNAL_URL else None
     return {
         "glitchtip": glitchtip,
         "nas": settings.NAS_URL or None,
         "api_docs": "/api/docs" if settings.is_dev else None,
+        "external_url": external,
+        "cloudflare_tunnel": "https://one.dash.cloudflare.com/networks/tunnels" if external else None,
+        "cloudflare_analytics": f"https://dash.cloudflare.com" if external else None,
     }
 
 

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { login } from '@core/api.js'
 import ThemeSwitcher from './ThemeSwitcher.jsx'
+import Logo from '@core/Logo.jsx'
 
-export default function LoginScreen({ siteName = 'HomePlatform', onLogin }) {
+export default function LoginScreen({ siteName = 'WebHeaven', onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState(null)
@@ -34,11 +35,10 @@ export default function LoginScreen({ siteName = 'HomePlatform', onLogin }) {
         boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🔐</div>
-          <div style={{ fontFamily: 'var(--font-display, sans-serif)', fontSize: 20, fontWeight: 700, color: 'var(--text, #fff)' }}>
-            {siteName}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+            <Logo size={36} showName nameStyle={{ fontSize: 20, color: 'var(--text, #fff)' }} />
           </div>
-          <div style={{ fontSize: 12, color: 'var(--muted, #666)', marginTop: 4 }}>Log in om verder te gaan</div>
+          <div style={{ fontSize: 12, color: 'var(--muted, #666)' }}>Log in om verder te gaan</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

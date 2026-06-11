@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     SENTRY_MIN_LEVEL: str = "warning"
     MUSIC_DIR: str = "/app/music"
     NAS_URL: str = ""
+    EXTERNAL_URL: str = ""
     UPLOAD_ROOT: str = "/app/uploads"
     CORS_ORIGINS: str = ""  # kommagescheiden; leeg = automatisch op basis van omgeving
 

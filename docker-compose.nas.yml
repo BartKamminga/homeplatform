@@ -34,6 +34,8 @@ services:
       - ENVIRONMENT=production
       - MUSIC_DIR=/app/music
       - SENTRY_DSN=${SENTRY_DSN:-}
+      - NAS_URL=${NAS_URL:-}
+      - EXTERNAL_URL=${EXTERNAL_URL:-}
     restart: unless-stopped
 
   gitea:

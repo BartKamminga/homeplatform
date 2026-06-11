@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { api, clearToken } from '@core/api.js';
+import Logo from '@core/Logo.jsx';
 
 const navLink = ({ isActive }) => ({
   textDecoration: 'none', fontSize: 14, fontWeight: 500,
@@ -22,11 +23,9 @@ export default function AccountLayout({ title, children }) {
         padding: '0 24px', borderBottom: '1px solid var(--color-border)',
         display: 'flex', alignItems: 'center', height: 54, gap: 4,
       }}>
-        <a href="/landing/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, marginRight: 28, color: 'var(--color-text-muted)', fontSize: 13 }}>
-          ←
-          <span style={{ fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 11 }}>
-            Homeplatform
-          </span>
+        <a href="/landing/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, marginRight: 28 }}>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>←</span>
+          <Logo size={22} showName nameStyle={{ fontSize: 13, color: 'var(--color-text)' }} />
         </a>
         <NavLink to="/account/profile"    style={navLink}>Profiel</NavLink>
         <NavLink to="/account/groups"     style={navLink}>Groepen</NavLink>

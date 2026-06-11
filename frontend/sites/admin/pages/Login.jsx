@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "@core/api.js";
+import Logo from "@core/Logo.jsx";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -51,9 +52,9 @@ export default function Login() {
           boxShadow: "var(--shadow-md)",
         }}
       >
-        <h1 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "4px" }}>
-          Homeplatform
-        </h1>
+        <div style={{ marginBottom: "16px" }}>
+          <Logo size={32} showName nameStyle={{ fontSize: 18, color: 'var(--color-text)' }} />
+        </div>
         <p
           style={{
             color: "var(--color-text-muted)",

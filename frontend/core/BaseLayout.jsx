@@ -4,6 +4,7 @@ import { NavLink } from "react-router-dom";
 import { logout, getCurrentUser } from "./auth.js";
 import { loadTheme } from "./api.js";
 import GroupSwitcher from "@components/GroupSwitcher.jsx";
+import Logo from "./Logo.jsx";
 
 export default function BaseLayout({
   children,
@@ -56,9 +57,7 @@ export default function BaseLayout({
             justifyContent: "space-between",
           }}
         >
-          <span style={{ fontWeight: 600, fontSize: "15px", color: "var(--color-primary)" }}>
-            {siteTitle}
-          </span>
+          <Logo size={22} showName nameStyle={{ fontSize: 13, color: 'var(--color-text)' }} />
           <a
             href="/landing/"
             title="Naar startpagina"
