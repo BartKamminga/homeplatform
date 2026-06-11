@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useTracks }    from '../hooks/useTracks.js'
 import { usePlayer }    from '../hooks/usePlayer.js'
-import { useTrackMeta, useGenres, useMetas, useHearts } from '../hooks/useTrackMeta.js'
+import { useTrackMeta, useGenres, useMetas, useHearts, incrementPlay } from '../hooks/useTrackMeta.js'
 import { useCast }      from '../hooks/useCast.js'
 
 const PlayerContext = createContext(null)
@@ -18,6 +18,16 @@ export function PlayerProvider({ children }) {
   const { castAvailable, castConnected, castTrack, openPicker: openCastPicker, stopCast } = useCast()
 
   const displayName = meta.display_name || null
+
+  // Speelteller ophogen bij trackwissel
+  const prevTrackFile = useRef(null)
+  useEffect(() => {
+    if (!currentTrack) return
+    if (currentTrack.file === prevTrackFile.current) return
+    prevTrackFile.current = currentTrack.file
+    incrementPlay(currentTrack.file)
+    setTimeout(reloadMetas, 400)
+  }, [currentTrack?.file])
 
   // Auto-cast wanneer track wisselt terwijl Cast verbonden is
   useEffect(() => {

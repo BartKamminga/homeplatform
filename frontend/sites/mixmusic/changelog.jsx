@@ -1,6 +1,26 @@
-export const VERSION = "0.8";
+export const VERSION = "1.0";
 
 export const CHANGELOG = [
+  {
+    version: "1.0",
+    date: "11 jun 2026",
+    changes: [
+      "Afspeelteller per nummer — bijgehouden per groep, zichtbaar in lijst en detailpaneel",
+      "Sorteer op meest afgespeeld via ▶-knop in de sidebar",
+      "Favoriete momenten boven \"Wanneer klinkt het goed?\" in het detailpaneel",
+      "Duidelijke ♥-knop in het detailpaneel om het huidige afspeelmoment direct te markeren",
+    ],
+  },
+  {
+    version: "0.9",
+    date: "10 jun 2026",
+    changes: [
+      "Sortering en filtering in de sidebar: nieuwste, naam, beoordeling, hartjes",
+      "Genre-filter als klikbare chips",
+      "Beoordelingsfilter toont alleen tracks boven een minimumbeoordeling",
+      "Hartjes-filter toont alleen tracks met favoriete momenten",
+    ],
+  },
   {
     version: "0.8",
     date: "11 jun 2026",

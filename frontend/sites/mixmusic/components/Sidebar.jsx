@@ -109,6 +109,8 @@ export default function Sidebar({ onOpenSettings }) {
     filtered = [...filtered].sort((a, b) => (metas[b.file]?.rating ?? 0) - (metas[a.file]?.rating ?? 0))
   } else if (sortBy === 'hearts') {
     filtered = [...filtered].sort((a, b) => (metas[b.file]?.heart_count ?? 0) - (metas[a.file]?.heart_count ?? 0))
+  } else if (sortBy === 'plays') {
+    filtered = [...filtered].sort((a, b) => (metas[b.file]?.play_count ?? 0) - (metas[a.file]?.play_count ?? 0))
   }
 
   // Genres die daadwerkelijk in gebruik zijn
@@ -147,6 +149,11 @@ export default function Sidebar({ onOpenSettings }) {
         {m?.heart_count > 0 && (
           <span style={{ fontSize: '10px', color: '#e11d48', flexShrink: 0 }} title={`${m.heart_count} favoriete moment${m.heart_count !== 1 ? 'en' : ''}`}>
             {'♥'.repeat(Math.min(m.heart_count, 3))}{m.heart_count > 3 ? `+${m.heart_count - 3}` : ''}
+          </span>
+        )}
+        {m?.play_count > 0 && (
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--muted)', flexShrink: 0 }} title={`${m.play_count}× afgespeeld`}>
+            ▶{m.play_count}
           </span>
         )}
         {color && (
@@ -191,7 +198,7 @@ export default function Sidebar({ onOpenSettings }) {
       <div style={{ padding: '0 14px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Sortering */}
         <div style={{ display: 'flex', gap: 3 }}>
-          {[['newest', 'Nieuw'], ['name', 'Naam'], ['rating', '★'], ['hearts', '♥']].map(([val, label]) => (
+          {[['newest', 'Nieuw'], ['name', 'Naam'], ['rating', '★'], ['hearts', '♥'], ['plays', '▶']].map(([val, label]) => (
             <button key={val} onClick={() => setSortBy(val)} style={{
               flex: 1, padding: '4px 0', fontSize: '11px', border: 'none', borderRadius: 5, cursor: 'pointer',
               fontFamily: 'var(--font-mono)',

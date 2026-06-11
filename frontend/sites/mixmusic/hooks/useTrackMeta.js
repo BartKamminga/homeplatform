@@ -7,7 +7,11 @@ function encPath(file) {
   return file.split('/').map(encodeURIComponent).join('/')
 }
 
-const EMPTY_META = { display_name: null, rating: null, genres: [], moments: [] }
+const EMPTY_META = { display_name: null, rating: null, genres: [], moments: [], play_count: 0 }
+
+export function incrementPlay(filePath) {
+  api.post(`${BASE}/play/${encPath(filePath)}`).catch(() => {})
+}
 
 export function useTrackMeta(track) {
   const [meta, setMeta]       = useState(EMPTY_META)

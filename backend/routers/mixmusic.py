@@ -71,6 +71,7 @@ class TrackMetaOut(BaseModel):
     rating: Optional[int] = None
     genres: list[str] = []
     moments: list[str] = []
+    play_count: int = 0
 
 
 def _meta_to_out(meta) -> TrackMetaOut:
@@ -80,6 +81,7 @@ def _meta_to_out(meta) -> TrackMetaOut:
         rating=meta.rating,
         genres=meta.genres or [],
         moments=meta.moments or [],
+        play_count=meta.play_count or 0,
     )
 
 
@@ -249,3 +251,16 @@ def add_heart(
 def delete_heart(heart_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     svc.delete_heart(session, heart_id)
     log_action(session, "heart.delete", site="mixmusic", user_id=user.id, payload={"heart_id": heart_id})
+
+
+# ── Play count ────────────────────────────────────────────────────────────────
+
+@router.post("/play/{filepath:path}", status_code=204)
+def record_play(
+    filepath: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    fp = urllib.parse.unquote(filepath)
+    uid, gid = _scope(user)
+    svc.increment_play_count(session, fp, uid, gid)

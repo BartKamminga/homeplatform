@@ -22,7 +22,7 @@ function ratingColor(r) {
 }
 
 export default function TrackPanel() {
-  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, removeHeart: onRemoveHeart, seek: onSeek, duration, progress } = usePlayerContext()
+  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, addHeart: onAddHeart, removeHeart: onRemoveHeart, seek: onSeek, duration, progress } = usePlayerContext()
   const [displayName, setDisplayName] = useState('')
   const nameTimer = useRef(null)
 
@@ -94,9 +94,15 @@ export default function TrackPanel() {
             boxSizing: 'border-box',
           }}
         />
-        {displayName && displayName !== track.name && (
-          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>Bestandsnaam: {track.name}</div>
-        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+          {displayName && displayName !== track.name
+            ? <span style={{ fontSize: 10, color: 'var(--muted)' }}>Bestandsnaam: {track.name}</span>
+            : <span />
+          }
+          {meta.play_count > 0 && (
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>▶ {meta.play_count}×</span>
+          )}
+        </div>
       </div>
 
       {/* Genre */}
@@ -158,7 +164,10 @@ export default function TrackPanel() {
         </div>
       </div>
 
-      {/* Moment / Timeline */}
+      {/* Favoriete momenten tijdlijn */}
+      <HeartsTimeline hearts={hearts} duration={duration} progress={progress} onAdd={onAddHeart} onRemove={onRemoveHeart} onSeek={onSeek} />
+
+      {/* Wanneer klinkt het goed? */}
       <div>
         <label style={labelStyle}>Wanneer klinkt het goed?</label>
         <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', height: 48, border: '1px solid var(--border)' }}>
@@ -189,9 +198,6 @@ export default function TrackPanel() {
         </div>
       </div>
 
-      {/* Favoriete momenten tijdlijn */}
-      <HeartsTimeline hearts={hearts} duration={duration} progress={progress} onRemove={onRemoveHeart} onSeek={onSeek} />
-
     </div>
   )
 }
@@ -202,7 +208,7 @@ const labelStyle = {
   color: 'var(--muted)', marginBottom: 8,
 }
 
-function HeartsTimeline({ hearts, duration, progress, onRemove, onSeek }) {
+function HeartsTimeline({ hearts, duration, progress, onAdd, onRemove, onSeek }) {
   const [hovered, setHovered] = useState(null)
   const [showHint, setShowHint] = useState(true)
   const timerRef = useRef(null)
@@ -230,16 +236,32 @@ function HeartsTimeline({ hearts, duration, progress, onRemove, onSeek }) {
 
   return (
     <div>
-      <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>
+      <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ flexShrink: 0 }}>
           Favoriete momenten
           {hearts.length > 0 && (
             <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--muted)', letterSpacing: 0, textTransform: 'none', marginLeft: 5 }}>— {hearts.length}×</span>
           )}
         </span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400, letterSpacing: 0, textTransform: 'none', color: 'var(--muted)' }}>
-          {formatTime(progress)} / {formatTime(duration)}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400, letterSpacing: 0, textTransform: 'none', color: 'var(--muted)', flexShrink: 0 }}>
+            {formatTime(progress)} / {formatTime(duration)}
+          </span>
+          {duration > 0 && (
+            <button
+              onClick={() => onAdd(progress)}
+              title={`Markeer op ${formatTime(progress)}`}
+              style={{
+                background: '#e11d4815', border: '1px solid #e11d4850', color: '#e11d48',
+                borderRadius: 6, padding: '3px 8px', fontSize: 12, cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontWeight: 500,
+                letterSpacing: 0, textTransform: 'none', flexShrink: 0, lineHeight: 1.4,
+              }}
+            >
+              ♥ {formatTime(progress)}
+            </button>
+          )}
+        </div>
       </div>
 
       <div
@@ -322,7 +344,7 @@ function HeartsTimeline({ hearts, duration, progress, onRemove, onSeek }) {
             fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', opacity: 0.6,
             pointerEvents: 'none',
           }}>
-            Druk ♥ tijdens het afspelen om momenten te markeren
+            Gebruik ♥ hierboven om een moment te markeren
           </div>
         )}
       </div>
