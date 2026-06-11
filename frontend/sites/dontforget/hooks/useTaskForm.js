@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { api } from '@core/api.js'
-import { uploadPhoto } from '../api.js'
+import { uploadPhoto, uploadAudio } from '../api.js'
 
 export const REPEAT   = ['Eenmalig', 'Dagelijks', 'Wekelijks', 'Maandelijks']
 export const HORIZONS = ['Vandaag', 'Morgen', 'Deze week', 'Deze maand']
@@ -26,17 +26,26 @@ function whenToTime(w) {
 export function useTaskForm(task, { onSaved, onClose }) {
   const editing = !!task
 
-  const [repeat,       setRepeat]       = useState(task ? (REPEAT_REV[task.repeat] ?? 'Eenmalig') : 'Eenmalig')
-  const [horizon,      setHorizon]      = useState(task ? whenToHorizon(task.when) : 'Vandaag')
-  const [timeOfDay,    setTimeOfDay]    = useState(task ? whenToTime(task.when) : 'Heledag')
-  const [dayOfWeek,    setDayOfWeek]    = useState(task?.day_of_week ?? null)
-  const [prio,         setPrio]         = useState(task ? (PRIO_REV[task.priority] ?? 'Normaal') : 'Normaal')
-  const [title,        setTitle]        = useState(task?.title ?? '')
-  const [photoFile,    setPhotoFile]    = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(task?.photo_path ? `/api/uploads/${task.photo_path}` : null)
-  const [saving,       setSaving]       = useState(false)
-  const [error,        setError]        = useState(null)
-  const fileRef = useRef()
+  const [repeat,        setRepeat]        = useState(task ? (REPEAT_REV[task.repeat] ?? 'Eenmalig') : 'Eenmalig')
+  const [horizon,       setHorizon]       = useState(task ? whenToHorizon(task.when) : 'Vandaag')
+  const [timeOfDay,     setTimeOfDay]     = useState(task ? whenToTime(task.when) : 'Heledag')
+  const [dayOfWeek,     setDayOfWeek]     = useState(task?.day_of_week ?? null)
+  const [prio,          setPrio]          = useState(task ? (PRIO_REV[task.priority] ?? 'Normaal') : 'Normaal')
+  const [title,         setTitle]         = useState(task?.title ?? '')
+  const [photoFile,     setPhotoFile]     = useState(null)
+  const [photoPreview,  setPhotoPreview]  = useState(task?.photo_path ? `/api/uploads/${task.photo_path}` : null)
+  const [audioBlob,     setAudioBlob]     = useState(null)
+  const [audioPreview,  setAudioPreview]  = useState(task?.audio_path ? `/api/uploads/${task.audio_path}` : null)
+  const [audioCleared,  setAudioCleared]  = useState(false)
+  const [recording,     setRecording]     = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [saving,        setSaving]        = useState(false)
+  const [error,         setError]         = useState(null)
+
+  const fileRef     = useRef()
+  const recorderRef = useRef(null)
+  const chunksRef   = useRef([])
+  const timerRef    = useRef(null)
 
   function getWhen() {
     if (repeat !== 'Eenmalig') return 'allday'
@@ -51,8 +60,45 @@ export function useTaskForm(task, { onSaved, onClose }) {
     setPhotoPreview(URL.createObjectURL(file))
   }
 
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      chunksRef.current = []
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' })
+        setAudioBlob(blob)
+        setAudioPreview(URL.createObjectURL(blob))
+        setAudioCleared(false)
+        stream.getTracks().forEach(t => t.stop())
+      }
+      mediaRecorder.start()
+      recorderRef.current = mediaRecorder
+      setRecording(true)
+      setRecordingTime(0)
+      timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
+    } catch {
+      setError('Microfoon toegang geweigerd')
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop()
+    clearInterval(timerRef.current)
+    setRecording(false)
+  }
+
+  function clearAudio() {
+    if (recording) stopRecording()
+    setAudioBlob(null)
+    setAudioPreview(null)
+    setAudioCleared(true)
+  }
+
   async function handleSave() {
     if (!title.trim()) { setError('Vul een titel in'); return }
+    if (recording) stopRecording()
     setSaving(true); setError(null)
     try {
       let photo_path = task?.photo_path ?? null
@@ -60,9 +106,15 @@ export function useTaskForm(task, { onSaved, onClose }) {
         const result = await uploadPhoto(photoFile)
         photo_path = result.path
       }
+      let audio_path = audioCleared ? null : (task?.audio_path ?? null)
+      if (audioBlob) {
+        const result = await uploadAudio(audioBlob)
+        audio_path = result.path
+      }
       const data = {
         title:       title.trim(),
         photo_path,
+        audio_path,
         when:        getWhen(),
         repeat:      REPEAT_MAP[repeat],
         priority:    PRIO_MAP[prio],
@@ -102,7 +154,9 @@ export function useTaskForm(task, { onSaved, onClose }) {
     prio, setPrio,
     title, setTitle,
     photoPreview, fileRef,
+    audioPreview, recording, recordingTime,
     saving, error,
     handlePhotoChange, handleSave, handleDelete,
+    startRecording, stopRecording, clearAudio,
   }
 }

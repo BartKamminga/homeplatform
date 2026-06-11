@@ -13,8 +13,14 @@ router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 logger = logging.getLogger(__name__)
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_TYPES = {
+    "image/jpeg", "image/png", "image/webp", "image/gif",
+    "audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg",
+}
+ALLOWED_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp", ".gif",
+    ".webm", ".ogg", ".mp4", ".wav", ".mp3", ".m4a",
+}
 MAX_SIZE_MB = 10
 
 
@@ -35,8 +41,9 @@ async def upload_file(
     ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
-    if file.content_type not in ALLOWED_TYPES:
-        allowed = ", ".join(ALLOWED_TYPES)
+    base_type = (file.content_type or "").split(";")[0].strip()
+    if base_type not in ALLOWED_TYPES:
+        allowed = ", ".join(sorted(ALLOWED_TYPES))
         raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}. Toegestaan: {allowed}")
 
     content = await file.read()

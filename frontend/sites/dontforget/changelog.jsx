@@ -1,8 +1,18 @@
 // frontend/sites/dontforget/src/changelog.jsx
 
-export const VERSION = "1.1";
+export const VERSION = "1.2";
 
 export const CHANGELOG = [
+  {
+    version: "1.2",
+    date: "11 jun 2026",
+    changes: [
+      "Geluidsopname toevoegen aan een taak via de microfoon",
+      "Opname starten en stoppen met een timer, direct terugluisteren",
+      "Opname verwijderen of vervangen bij het bewerken van een taak",
+      "Microfoon-indicator zichtbaar in het taakoverzicht",
+    ],
+  },
   {
     version: "1.1",
     date: "11 jun 2026",

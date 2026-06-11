@@ -14,6 +14,7 @@ class Task(SQLModel, table=True):
     id:           str      = Field(default_factory=new_uuid, primary_key=True)
     title:        str
     photo_path:   Optional[str]      = Field(default=None)
+    audio_path:   Optional[str]      = Field(default=None)
     when:         str      = Field(default="morning")
     repeat:       str      = Field(default="once")
     day_of_week:  Optional[int]      = Field(default=None)

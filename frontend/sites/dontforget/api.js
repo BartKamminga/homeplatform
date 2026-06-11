@@ -8,10 +8,10 @@ import { reportError } from '@core/sentry.js'
 // Uploads
 // ---------------------------------------------------------------------------
 
-export async function uploadPhoto(file, category = 'dontforget') {
+async function _upload(file, name, category = 'dontforget') {
   const token = localStorage.getItem('hp_token')
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', file, name)
   formData.append('category', category)
   const res = await fetch('/api/uploads', {
     method: 'POST',
@@ -24,6 +24,18 @@ export async function uploadPhoto(file, category = 'dontforget') {
     throw error
   }
   return res.json()
+}
+
+export function uploadPhoto(file, category = 'dontforget') {
+  return _upload(file, file.name || 'photo.jpg', category)
+}
+
+export function uploadAudio(blob, category = 'dontforget') {
+  const ext = blob.type.includes('ogg') ? '.ogg'
+    : blob.type.includes('mp4') ? '.mp4'
+    : blob.type.includes('wav') ? '.wav'
+    : '.webm'
+  return _upload(blob, `recording${ext}`, category)
 }
 
 // ---------------------------------------------------------------------------

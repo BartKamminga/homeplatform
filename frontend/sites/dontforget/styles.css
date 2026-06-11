@@ -96,3 +96,8 @@ html, body {
 }
 
 #root { height: 100%; display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; }
+
+@keyframes dfPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}

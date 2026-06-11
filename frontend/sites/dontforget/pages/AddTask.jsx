@@ -28,9 +28,14 @@ export default function AddTask({ onClose, task, onSaved }) {
     prio, setPrio,
     title, setTitle,
     photoPreview, fileRef,
+    audioPreview, recording, recordingTime,
     saving, error,
     handlePhotoChange, handleSave, handleDelete,
+    startRecording, stopRecording, clearAudio,
   } = useTaskForm(task, { onSaved, onClose })
+
+  const recMin = String(Math.floor(recordingTime / 60)).padStart(2, '0')
+  const recSec = String(recordingTime % 60).padStart(2, '0')
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -118,6 +123,37 @@ export default function AddTask({ onClose, task, onSaved }) {
         <div style={{ padding:'0 16px 12px' }}>
           <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Prioriteit</label>
           <Chips opts={PRIO} value={prio} onSelect={setPrio} />
+        </div>
+
+        {/* Geluidsopname */}
+        <div style={{ padding:'0 16px 12px' }}>
+          <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5 }}>Geluidsopname</label>
+          {audioPreview ? (
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <audio src={audioPreview} controls style={{ flex:1, height:32, minWidth:0 }} />
+              <div onClick={clearAudio} style={{ cursor:'pointer', color:'var(--danger)', padding:4, flexShrink:0 }}>
+                <i className="ti ti-x" style={{ fontSize:16 }} aria-hidden="true" />
+              </div>
+            </div>
+          ) : recording ? (
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:8, height:8, borderRadius:'50%', background:'#ef4444', flexShrink:0, animation:'dfPulse 1s ease-in-out infinite' }} />
+              <span style={{ fontSize:13, color:'var(--text-muted)', fontVariantNumeric:'tabular-nums' }}>{recMin}:{recSec}</span>
+              <button onClick={stopRecording} style={{
+                padding:'5px 14px', borderRadius:16, background:'#ef4444', color:'#fff',
+                border:'none', cursor:'pointer', fontFamily:'inherit', fontSize:12,
+              }}>Stop</button>
+            </div>
+          ) : (
+            <button onClick={startRecording} style={{
+              display:'flex', alignItems:'center', gap:8, padding:'8px 16px',
+              borderRadius:20, border:'0.5px solid var(--border)', background:'var(--bg-secondary)',
+              color:'var(--text-muted)', cursor:'pointer', fontFamily:'inherit', fontSize:13,
+            }}>
+              <i className="ti ti-microphone" style={{ fontSize:15 }} aria-hidden="true" />
+              Opname starten
+            </button>
+          )}
         </div>
 
         {/* Foutmelding */}

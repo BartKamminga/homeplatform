@@ -38,6 +38,11 @@ export default function TaskItem({ task, onToggle, onEdit }) {
           style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)' }}
         />
       )}
+      {task.audio_path && !task.photo_path && (
+        <div style={{ width:36, height:36, borderRadius:6, flexShrink:0, border:'0.5px solid var(--border)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <i className="ti ti-microphone" style={{ fontSize:16, color:'var(--text-faint)' }} aria-hidden="true" />
+        </div>
+      )}
       <div style={{
         width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
         background: task.priority === 'high' ? 'var(--prio-high)' : 'var(--prio-normal)',

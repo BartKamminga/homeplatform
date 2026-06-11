@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/dontforget", tags=["dontforget"])
 class TaskCreate(BaseModel):
     title:        str = Field(..., min_length=1, max_length=200)
     photo_path:   Optional[str] = None
+    audio_path:   Optional[str] = None
     when:         str = "morning"
     repeat:       str = "once"
     day_of_week:  Optional[int] = None
@@ -41,6 +42,7 @@ class TaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     title:        Optional[str] = None
     photo_path:   Optional[str] = None
+    audio_path:   Optional[str] = None
     when:         Optional[str] = None
     repeat:       Optional[str] = None
     day_of_week:  Optional[int] = None
@@ -53,6 +55,7 @@ class TaskOut(BaseModel):
     id:           str
     title:        str
     photo_path:   Optional[str]
+    audio_path:   Optional[str]
     when:         str
     repeat:       str
     day_of_week:  Optional[int]
