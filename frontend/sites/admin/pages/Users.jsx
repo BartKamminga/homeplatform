@@ -13,7 +13,9 @@ export default function Users() {
   const [form, setForm]             = useState({ username: '', email: '', password: '', locale: 'nl' });
   const [saving, setSaving]         = useState(false);
   const [groupUser, setGroupUser]   = useState(null);
-  const [inviteLink, setInviteLink] = useState('');
+  const [showInvite, setShowInvite]     = useState(false);
+  const [inviteGroup, setInviteGroup]   = useState('');
+  const [inviteLink, setInviteLink]     = useState('');
   const [inviteCopied, setInviteCopied] = useState(false);
 
   function load() {
@@ -37,7 +39,7 @@ export default function Users() {
 
   async function createInvite() {
     try {
-      const result = await api.post('/api/auth/invite');
+      const result = await api.post('/api/auth/invite', { group_slug: inviteGroup || null });
       const link = `${window.location.origin}/account/invite/${result.token}`;
       setInviteLink(link);
       setInviteCopied(false);
@@ -113,7 +115,7 @@ export default function Users() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={createInvite}
+            onClick={() => { setShowInvite(true); setInviteGroup(''); setInviteLink(''); setError(''); }}
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)', padding: '9px 16px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: '14px' }}
           >
             ✉ Uitnodigen
@@ -156,10 +158,39 @@ export default function Users() {
         </Modal>
       )}
 
-      {inviteLink && (
-        <Modal title="Uitnodigingslink" onClose={() => setInviteLink('')}>
+      {showInvite && !inviteLink && (
+        <Modal title="Uitnodiging versturen" onClose={() => setShowInvite(false)}>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
+            Kies de groep waarvoor je uitnodigt. De nieuwe gebruiker wordt meteen lid.
+          </p>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+              Groep
+            </label>
+            <select
+              value={inviteGroup}
+              onChange={e => setInviteGroup(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', fontSize: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontFamily: 'inherit', outline: 'none' }}
+            >
+              <option value="">— Geen groep (alleen admin)</option>
+              {groups.filter(g => g.slug !== 'admins').map(g => (
+                <option key={g.id} value={g.slug}>{g.name} ({g.slug})</option>
+              ))}
+            </select>
+          </div>
+          {error && <p style={{ fontSize: '13px', color: 'var(--color-danger)', marginBottom: '12px' }}>{error}</p>}
+          <ModalFooter>
+            <BtnSecondary onClick={() => setShowInvite(false)}>Annuleren</BtnSecondary>
+            <BtnPrimary onClick={createInvite}>Link genereren</BtnPrimary>
+          </ModalFooter>
+        </Modal>
+      )}
+
+      {showInvite && inviteLink && (
+        <Modal title="Uitnodigingslink" onClose={() => { setShowInvite(false); setInviteLink(''); }}>
           <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.6 }}>
-            Stuur deze link naar de persoon die je wilt uitnodigen. De link is 7 dagen geldig en kan maar één keer gebruikt worden.
+            Stuur deze link naar de persoon die je wilt uitnodigen. De link is 7 dagen geldig en eenmalig.
+            {inviteGroup && <><br /><strong>Groep: {inviteGroup}</strong></>}
           </p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
@@ -175,7 +206,7 @@ export default function Users() {
             </button>
           </div>
           <ModalFooter>
-            <BtnSecondary onClick={() => setInviteLink('')}>Sluiten</BtnSecondary>
+            <BtnSecondary onClick={() => { setShowInvite(false); setInviteLink(''); }}>Sluiten</BtnSecondary>
           </ModalFooter>
         </Modal>
       )}

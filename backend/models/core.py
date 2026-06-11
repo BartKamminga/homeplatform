@@ -108,6 +108,7 @@ class InviteToken(SQLModel, table=True):
     id: str = Field(default_factory=new_uuid, primary_key=True)
     token: str = Field(unique=True, index=True)
     created_by: str = Field(foreign_key="users.id")
+    group_id: Optional[str] = Field(default=None, foreign_key="groups.id")
     expires_at: datetime
     used_at: Optional[datetime] = Field(default=None)
     used_by_user_id: Optional[str] = Field(default=None)

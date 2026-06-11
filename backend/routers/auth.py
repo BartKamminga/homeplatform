@@ -186,6 +186,10 @@ def update_me(
 
 # ── Uitnodigingen ─────────────────────────────────────────────────────────────
 
+class CreateInviteIn(BaseModel):
+    group_slug: Optional[str] = None
+
+
 class AcceptInviteIn(BaseModel):
     username: str
     password: str
@@ -194,21 +198,36 @@ class AcceptInviteIn(BaseModel):
 
 @router.post("/invite")
 def create_invite(
+    body: CreateInviteIn,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    admin_group = session.exec(select(Group).where(Group.slug == "admins")).first()
-    if admin_group:
-        is_admin = session.exec(
+    group_id = None
+    if body.group_slug:
+        group = session.exec(select(Group).where(Group.slug == body.group_slug)).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="Groep niet gevonden")
+        is_member = session.exec(
+            select(UserGroup)
+            .where(UserGroup.user_id == current_user.id)
+            .where(UserGroup.group_id == group.id)
+        ).first()
+        if not is_member:
+            raise HTTPException(status_code=403, detail="Niet lid van deze groep")
+        group_id = group.id
+    else:
+        admin_group = session.exec(select(Group).where(Group.slug == "admins")).first()
+        is_admin = admin_group and session.exec(
             select(UserGroup)
             .where(UserGroup.user_id == current_user.id)
             .where(UserGroup.group_id == admin_group.id)
         ).first()
         if not is_admin:
-            raise HTTPException(status_code=403, detail="Alleen admins kunnen uitnodigen")
+            raise HTTPException(status_code=403, detail="Kies een groep of gebruik een admin-account")
     token_str = secrets.token_urlsafe(32)
     expires = datetime.utcnow() + timedelta(days=7)
-    session.add(InviteToken(token=token_str, created_by=current_user.id, expires_at=expires))
+    session.add(InviteToken(token=token_str, created_by=current_user.id,
+                             expires_at=expires, group_id=group_id))
     session.commit()
     return {"token": token_str, "expires_at": expires.isoformat()}
 
@@ -222,7 +241,12 @@ def check_invite(token: str, session: Session = Depends(get_session)):
         raise HTTPException(status_code=410, detail="Deze uitnodiging is al gebruikt")
     if invite.expires_at < datetime.utcnow():
         raise HTTPException(status_code=410, detail="Uitnodiging verlopen")
-    return {"valid": True, "expires_at": invite.expires_at.isoformat()}
+    group_name = None
+    if invite.group_id:
+        g = session.get(Group, invite.group_id)
+        if g:
+            group_name = g.name
+    return {"valid": True, "expires_at": invite.expires_at.isoformat(), "group_name": group_name}
 
 
 @router.post("/invite/{token}/accept", response_model=TokenResponse)
@@ -248,6 +272,10 @@ def accept_invite(token: str, body: AcceptInviteIn, session: Session = Depends(g
     members_group = session.exec(select(Group).where(Group.slug == "members")).first()
     if members_group:
         session.add(UserGroup(user_id=user.id, group_id=members_group.id))
+    if invite.group_id and invite.group_id != (members_group.id if members_group else None):
+        session.add(UserGroup(user_id=user.id, group_id=invite.group_id))
+        user.active_group_id = invite.group_id
+        session.add(user)
     invite.used_at = datetime.utcnow()
     invite.used_by_user_id = user.id
     session.commit()

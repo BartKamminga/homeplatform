@@ -424,11 +424,7 @@ if ($Deploy -eq "nas") {
             Step "Lokale database upgraden"
             LocalAlembic "upgrade head"
             DistUpload
-            if ($CaddyRestart) {
-                NasRun $dcCaddy "Caddy herstarten..."
-            } else {
-                NasRun "$docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
-            }
+            NasRun $dcCaddy "Caddy herstarten..."
             Ok "Alles live"
         }
     }

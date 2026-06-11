@@ -20,16 +20,17 @@ const labelStyle = {
 
 export default function InvitePage() {
   const { token } = useParams();
-  const [status,  setStatus]  = useState('checking'); // checking | valid | invalid | success
-  const [message, setMessage] = useState('');
-  const [form,    setForm]    = useState({ username: '', password: '', confirm: '', email: '' });
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState('');
+  const [status,    setStatus]    = useState('checking'); // checking | valid | invalid | success
+  const [message,   setMessage]   = useState('');
+  const [groupName, setGroupName] = useState(null);
+  const [form,      setForm]      = useState({ username: '', password: '', confirm: '', email: '' });
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState('');
 
   useEffect(() => {
     fetch(`/api/auth/invite/${token}`)
       .then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.detail || 'Ongeldig') }))
-      .then(() => setStatus('valid'))
+      .then(d => { setGroupName(d.group_name || null); setStatus('valid'); })
       .catch(e => { setStatus('invalid'); setMessage(e.message); });
   }, [token]);
 
@@ -99,7 +100,8 @@ export default function InvitePage() {
               Account aanmaken
             </h1>
             <p style={{ fontSize: 15, color: 'var(--color-text-muted)', marginBottom: '2rem', lineHeight: 1.6 }}>
-              Je bent uitgenodigd voor Homeplatform. Kies een gebruikersnaam en wachtwoord.
+              Je bent uitgenodigd voor Homeplatform{groupName ? <> — groep <strong style={{ color: 'var(--color-text)' }}>{groupName}</strong></> : ''}.
+              Kies een gebruikersnaam en wachtwoord.
             </p>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
