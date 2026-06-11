@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { clearToken } from '@core/api.js'
 import { VERSION, CHANGELOG } from '../changelog.jsx'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
+import GroupSwitcher from '@components/GroupSwitcher.jsx'
 import ChangelogSection from '@components/ChangelogSection.jsx'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 
@@ -123,6 +124,9 @@ export default function Settings({ onClose, desktopLayout, mobileLayout, onDeskt
             <div style={sectionLabel}>Account</div>
             <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
               Ingelogd als <strong>{user.username || '—'}</strong>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <GroupSwitcher />
             </div>
             <button onClick={handleLogout} style={dangerBtn}>
               Uitloggen

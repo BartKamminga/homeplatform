@@ -1,8 +1,9 @@
 // frontend/core/BaseLayout.jsx
 import { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { logout, getCurrentUser } from "./auth.js";
-import { loadTheme, api } from "./api.js";
+import { loadTheme } from "./api.js";
+import GroupSwitcher from "@components/GroupSwitcher.jsx";
 
 export default function BaseLayout({
   children,
@@ -10,13 +11,9 @@ export default function BaseLayout({
   siteTitle = "Admin",
 }) {
   const user = getCurrentUser();
-  const navigate = useNavigate();
   const [theme, setTheme] = useState(
     () => document.documentElement.getAttribute("data-theme") || "light",
   );
-  const [groups, setGroups] = useState([]);
-  const [activeGroup, setActiveGroup] = useState(null);
-
   useEffect(() => {
     loadTheme();
 
@@ -28,26 +25,11 @@ export default function BaseLayout({
       attributeFilter: ["data-theme"],
     });
 
-    api.get("/api/auth/me").then((data) => {
-      setGroups(data.groups || []);
-      setActiveGroup(data.active_group || null);
-    }).catch(() => {});
-
     return () => observer.disconnect();
   }, []);
 
   async function handleLogout() {
     await logout();
-  }
-
-  async function handleGroupChange(slug) {
-    const next = slug === "" ? null : slug;
-    try {
-      await api.patch("/api/auth/me/active-group", { group_slug: next });
-      setActiveGroup(next);
-    } catch {
-      // stille fout
-    }
   }
 
   return (
@@ -147,27 +129,9 @@ export default function BaseLayout({
             {user?.username || "—"}
           </div>
 
-          {groups.length > 1 && (
-            <select
-              value={activeGroup || ""}
-              onChange={(e) => handleGroupChange(e.target.value)}
-              style={{
-                width: "100%",
-                marginBottom: "8px",
-                background: "var(--color-surface)",
-                border: "1px solid var(--color-border)",
-                color: "var(--color-text-muted)",
-                fontSize: "var(--font-size-sm)",
-                padding: "5px 8px",
-                borderRadius: "var(--radius-md)",
-              }}
-            >
-              <option value="">Persoonlijk</option>
-              {groups.map((slug) => (
-                <option key={slug} value={slug}>{slug}</option>
-              ))}
-            </select>
-          )}
+          <div style={{ marginBottom: "8px" }}>
+            <GroupSwitcher />
+          </div>
 
           <button
             onClick={handleLogout}

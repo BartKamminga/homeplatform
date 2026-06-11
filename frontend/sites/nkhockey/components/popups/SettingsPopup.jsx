@@ -2,6 +2,7 @@ import React from "react";
 import Popup from "../common/Popup";
 import Toggle from "../common/Toggle";
 import ThemeSwitcher from "@components/ThemeSwitcher.jsx";
+import GroupSwitcher from "@components/GroupSwitcher.jsx";
 
 export default function SettingsPopup({
   onClose,
@@ -46,6 +47,9 @@ export default function SettingsPopup({
           </div>
           <ThemeSwitcher compact />
         </div>
+
+        {/* Groep */}
+        <GroupSwitcher compact />
 
         {/* Toggles */}
         <Toggle
