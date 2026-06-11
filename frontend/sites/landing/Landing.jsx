@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isTokenValid, setToken } from "@core/api.js";
 
 function siteHref(site) {
@@ -67,21 +67,59 @@ function LoginForm({ onLogin }) {
   );
 }
 
+const MAX_RETRIES = 10;
+const RETRY_DELAY = 2000;
+
 export default function Landing() {
-  const [loggedIn, setLoggedIn] = useState(isTokenValid);
-  const [sites,    setSites]    = useState([]);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
+  const [loggedIn,    setLoggedIn]    = useState(isTokenValid);
+  const [sites,       setSites]       = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState("");
+  const [retryCount,  setRetryCount]  = useState(0);
+  const [retrying,    setRetrying]    = useState(false);
+  const [reloadKey,   setReloadKey]   = useState(0);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (!loggedIn) return;
-    setLoading(true); setError("");
-    const token = localStorage.getItem("hp_token");
-    fetch("/api/sites", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => { if (!r.ok) throw new Error("Laden mislukt"); return r.json(); })
-      .then(data => { setSites(data); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
-  }, [loggedIn]);
+    let attempt = 0;
+    let cancelled = false;
+
+    async function tryLoad() {
+      if (cancelled) return;
+      setLoading(true);
+      setError("");
+      setRetrying(false);
+      try {
+        const token = localStorage.getItem("hp_token");
+        const r = await fetch("/api/sites", { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error("Laden mislukt");
+        const data = await r.json();
+        if (!cancelled) { setSites(data); setLoading(false); setRetryCount(0); }
+      } catch {
+        if (cancelled) return;
+        attempt++;
+        setRetryCount(attempt);
+        if (attempt >= MAX_RETRIES) {
+          setError("Laden mislukt na 10 pogingen");
+          setLoading(false);
+        } else {
+          setLoading(false);
+          setRetrying(true);
+          timerRef.current = setTimeout(tryLoad, RETRY_DELAY);
+        }
+      }
+    }
+
+    setRetryCount(0);
+    setError("");
+    tryLoad();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timerRef.current);
+    };
+  }, [loggedIn, reloadKey]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -108,8 +146,36 @@ export default function Landing() {
               Kies een applicatie om te starten
             </p>
 
-            {loading && <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Laden...</p>}
-            {error   && <p style={{ color: "#A32D2D", fontSize: "13px" }}>{error}</p>}
+            {loading && !retrying && (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Laden...</p>
+            )}
+            {retrying && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <p style={{ color: "var(--color-text-muted)", fontSize: "13px", marginBottom: "10px" }}>
+                  Verbinding verbroken — opnieuw proberen ({retryCount} van {MAX_RETRIES})
+                </p>
+                <div style={{ display: "flex", gap: "5px" }}>
+                  {Array.from({ length: MAX_RETRIES }).map((_, i) => (
+                    <div key={i} style={{
+                      flex: 1, height: "4px", borderRadius: "2px",
+                      background: i < retryCount ? "var(--color-primary)" : "var(--color-border)",
+                      transition: "background 0.3s",
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {error && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <p style={{ color: "#A32D2D", fontSize: "13px", marginBottom: "10px" }}>{error}</p>
+                <button
+                  onClick={() => setReloadKey(k => k + 1)}
+                  style={{ fontSize: "13px", color: "var(--color-primary)", border: "1px solid var(--color-primary)", borderRadius: "var(--radius-md)", padding: "6px 14px", background: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Opnieuw proberen
+                </button>
+              </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: "12px", marginBottom: "2.5rem" }}>
               {sites.map((site) => (

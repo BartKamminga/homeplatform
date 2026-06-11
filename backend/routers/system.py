@@ -183,7 +183,7 @@ def _build_links() -> dict:
         try:
             from urllib.parse import urlparse
             p = urlparse(settings.SENTRY_DSN)
-            glitchtip = f"{p.scheme}://{p.hostname}"
+            glitchtip = f"{p.scheme}://{p.hostname}:{p.port}" if p.port else f"{p.scheme}://{p.hostname}"
         except Exception:
             pass
     return {
