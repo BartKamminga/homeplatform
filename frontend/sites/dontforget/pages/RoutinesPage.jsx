@@ -32,6 +32,10 @@ export default function RoutinesPage({ onAdd, onEdit, refreshKey }) {
   }, [])
 
   useEffect(() => { load() }, [load, refreshKey])
+  useEffect(() => {
+    window.addEventListener('groupchange', load)
+    return () => window.removeEventListener('groupchange', load)
+  }, [load])
 
   return (
     <div>

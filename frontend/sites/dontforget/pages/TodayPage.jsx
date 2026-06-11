@@ -43,6 +43,10 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
   }, [])
 
   useEffect(() => { load() }, [load, refreshKey])
+  useEffect(() => {
+    window.addEventListener('groupchange', load)
+    return () => window.removeEventListener('groupchange', load)
+  }, [load])
 
   async function toggle(task) {
     setTasks(ts => ts.map(t => t.id === task.id ? { ...t, done: !t.done } : t))

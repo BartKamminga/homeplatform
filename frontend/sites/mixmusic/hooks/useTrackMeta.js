@@ -16,12 +16,17 @@ export function useTrackMeta(track) {
   const latestMeta = useRef(EMPTY_META)
 
   useEffect(() => {
-    if (!track) { setMeta(EMPTY_META); return }
-    setMetaLoading(true)
-    api.get(`${BASE}/meta/${encPath(track.file)}`)
-      .then(m => { setMeta(m); latestMeta.current = m })
-      .catch(() => { setMeta({ ...EMPTY_META, file_path: track.file }) })
-      .finally(() => setMetaLoading(false))
+    function load() {
+      if (!track) { setMeta(EMPTY_META); return }
+      setMetaLoading(true)
+      api.get(`${BASE}/meta/${encPath(track.file)}`)
+        .then(m => { setMeta(m); latestMeta.current = m })
+        .catch(() => { setMeta({ ...EMPTY_META, file_path: track.file }) })
+        .finally(() => setMetaLoading(false))
+    }
+    load()
+    window.addEventListener('groupchange', load)
+    return () => window.removeEventListener('groupchange', load)
   }, [track?.file])
 
   // Opruimen bij unmount — voorkomt dat debounced save vuurt op een unmounted component
@@ -77,7 +82,11 @@ export function useHearts(track) {
     api.get(`${BASE}/hearts/${encPath(track.file)}`).then(setHearts).catch(() => {})
   }
 
-  useEffect(() => { load() }, [track?.file])
+  useEffect(() => {
+    load()
+    window.addEventListener('groupchange', load)
+    return () => window.removeEventListener('groupchange', load)
+  }, [track?.file])
 
   async function addHeart(position) {
     if (!track) return
@@ -100,7 +109,11 @@ export function useMetas() {
     api.get(`${BASE}/metas`).then(setMetas).catch(() => {})
   }
 
-  useEffect(() => { reload() }, [])
+  useEffect(() => {
+    reload()
+    window.addEventListener('groupchange', reload)
+    return () => window.removeEventListener('groupchange', reload)
+  }, [])
 
   return { metas, reloadMetas: reload }
 }

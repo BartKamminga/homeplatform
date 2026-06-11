@@ -45,6 +45,10 @@ export default function HistoryPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    window.addEventListener('groupchange', load)
+    return () => window.removeEventListener('groupchange', load)
+  }, [load])
 
   const groups = []
   const idx = {}
