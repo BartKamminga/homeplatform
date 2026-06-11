@@ -20,6 +20,13 @@ router = APIRouter(prefix="/api/mixmusic", tags=["mixmusic"])
 MUSIC_DIR = svc.MUSIC_DIR
 MUSIC_EXTENSIONS = svc.MUSIC_EXTENSIONS
 
+
+def _scope(user: User) -> tuple:
+    """Geeft (user_id, group_id) terug op basis van de actieve groep."""
+    if user.active_group_id:
+        return None, user.active_group_id
+    return user.id, None
+
 MIME_TYPES = {
     ".mp3": "audio/mpeg",
     ".wav": "audio/wav",
@@ -176,14 +183,23 @@ def delete_genre(genre_id: int, session: Session = Depends(get_session), _: User
 # ── Track metadata ───────────────────────────────────────────────────────────
 
 @router.get("/metas")
-def get_all_metas(session: Session = Depends(get_session), user: User = Depends(get_current_user)):
-    return svc.get_all_metas(session, user.id)
+def get_all_metas(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    uid, gid = _scope(user)
+    return svc.get_all_metas(session, uid, gid)
 
 
 @router.get("/meta/{filepath:path}", response_model=TrackMetaOut)
-def get_track_meta(filepath: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+def get_track_meta(
+    filepath: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     filepath = urllib.parse.unquote(filepath)
-    meta = svc.get_track_meta(session, filepath, user.id)
+    uid, gid = _scope(user)
+    meta = svc.get_track_meta(session, filepath, uid, gid)
     if not meta:
         return TrackMetaOut(file_path=filepath)
     return _meta_to_out(meta)
@@ -197,22 +213,35 @@ def update_track_meta(
     user: User = Depends(get_current_user),
 ):
     filepath = urllib.parse.unquote(filepath)
-    meta = svc.upsert_track_meta(session, filepath, user.id, **body.model_dump(exclude_unset=True))
+    uid, gid = _scope(user)
+    meta = svc.upsert_track_meta(session, filepath, uid, gid, **body.model_dump(exclude_unset=True))
     return _meta_to_out(meta)
 
 
 # ── Hearts ───────────────────────────────────────────────────────────────────
 
 @router.get("/hearts/{filepath:path}")
-def get_hearts(filepath: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
-    return svc.get_hearts(session, urllib.parse.unquote(filepath), user.id)
+def get_hearts(
+    filepath: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    uid, gid = _scope(user)
+    return svc.get_hearts(session, urllib.parse.unquote(filepath), uid, gid)
 
 
 @router.post("/hearts/{filepath:path}", status_code=201)
-def add_heart(filepath: str, body: HeartIn, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+def add_heart(
+    filepath: str,
+    body: HeartIn,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     fp = urllib.parse.unquote(filepath)
-    heart = svc.add_heart(session, fp, body.position, user.id)
-    log_action(session, "heart.add", site="mixmusic", user_id=user.id, payload={"file": fp, "position": body.position})
+    uid, gid = _scope(user)
+    heart = svc.add_heart(session, fp, body.position, uid, gid)
+    log_action(session, "heart.add", site="mixmusic", user_id=user.id,
+               payload={"file": fp, "position": body.position})
     return heart
 
 

@@ -1,6 +1,8 @@
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
+from sqlalchemy import func as sqla_func
 from sqlmodel import Session, select
 
 from core.exceptions import AppError
@@ -65,16 +67,33 @@ def delete_genre(session: Session, genre_id: int) -> None:
     session.commit()
 
 
+# ── Scope helpers ────────────────────────────────────────────────────────────
+
+def _meta_filter(user_id: Optional[str], group_id: Optional[str]):
+    if group_id:
+        return TrackMeta.group_id == group_id
+    return (TrackMeta.user_id == user_id) & TrackMeta.group_id.is_(None)
+
+
+def _heart_filter(user_id: Optional[str], group_id: Optional[str]):
+    if group_id:
+        return TrackHeart.group_id == group_id
+    return (TrackHeart.user_id == user_id) & TrackHeart.group_id.is_(None)
+
+
 # ── Track metadata ───────────────────────────────────────────────────────────
 
-def get_all_metas(session: Session, user_id: str) -> dict:
-    from sqlalchemy import func as sqla_func
+def get_all_metas(
+    session: Session,
+    user_id: Optional[str],
+    group_id: Optional[str],
+) -> dict:
     metas = session.exec(
-        select(TrackMeta).where(TrackMeta.user_id == user_id)
+        select(TrackMeta).where(_meta_filter(user_id, group_id))
     ).all()
     heart_rows = session.exec(
         select(TrackHeart.file_path, sqla_func.count(TrackHeart.id))
-        .where(TrackHeart.user_id == user_id)
+        .where(_heart_filter(user_id, group_id))
         .group_by(TrackHeart.file_path)
     ).all()
     heart_counts = {row[0]: row[1] for row in heart_rows}
@@ -98,18 +117,29 @@ def get_all_metas(session: Session, user_id: str) -> dict:
     return result
 
 
-def get_track_meta(session: Session, filepath: str, user_id: str) -> TrackMeta | None:
+def get_track_meta(
+    session: Session,
+    filepath: str,
+    user_id: Optional[str],
+    group_id: Optional[str],
+) -> TrackMeta | None:
     return session.exec(
         select(TrackMeta)
         .where(TrackMeta.file_path == filepath)
-        .where(TrackMeta.user_id == user_id)
+        .where(_meta_filter(user_id, group_id))
     ).first()
 
 
-def upsert_track_meta(session: Session, filepath: str, user_id: str, **updates) -> TrackMeta:
-    meta = get_track_meta(session, filepath, user_id)
+def upsert_track_meta(
+    session: Session,
+    filepath: str,
+    user_id: Optional[str],
+    group_id: Optional[str],
+    **updates,
+) -> TrackMeta:
+    meta = get_track_meta(session, filepath, user_id, group_id)
     if not meta:
-        meta = TrackMeta(file_path=filepath, user_id=user_id)
+        meta = TrackMeta(file_path=filepath, user_id=user_id, group_id=group_id)
         session.add(meta)
 
     if (val := updates.get("display_name")) is not None:
@@ -129,17 +159,33 @@ def upsert_track_meta(session: Session, filepath: str, user_id: str, **updates) 
 
 # ── Hearts ───────────────────────────────────────────────────────────────────
 
-def get_hearts(session: Session, filepath: str, user_id: str) -> list[TrackHeart]:
+def get_hearts(
+    session: Session,
+    filepath: str,
+    user_id: Optional[str],
+    group_id: Optional[str],
+) -> list[TrackHeart]:
     return list(session.exec(
         select(TrackHeart)
         .where(TrackHeart.file_path == filepath)
-        .where(TrackHeart.user_id == user_id)
+        .where(_heart_filter(user_id, group_id))
         .order_by(TrackHeart.position)
     ).all())
 
 
-def add_heart(session: Session, filepath: str, position: float, user_id: str) -> TrackHeart:
-    heart = TrackHeart(file_path=filepath, position=round(position, 1), user_id=user_id)
+def add_heart(
+    session: Session,
+    filepath: str,
+    position: float,
+    user_id: Optional[str],
+    group_id: Optional[str],
+) -> TrackHeart:
+    heart = TrackHeart(
+        file_path=filepath,
+        position=round(position, 1),
+        user_id=user_id,
+        group_id=group_id,
+    )
     session.add(heart)
     session.commit()
     session.refresh(heart)
