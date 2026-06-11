@@ -124,7 +124,8 @@ function ChangelogPopup({ onClose }) {
 }
 
 export default function SettingsPage() {
-  const { groups, active, setActiveGroup } = useGroups()
+  const { groups, active, setActiveGroup, groupDetails } = useGroups()
+  const memberCount = groupDetails.find(g => g.slug === active)?.member_count ?? 1
   const [name,          setName]          = useState('Bart')
   const [avatarColor,   setAvatarColor]   = useState(0)
   const [photoRequired, setPhotoRequired] = useState(false)
@@ -188,22 +189,6 @@ export default function SettingsPage() {
           <div style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>Thema</div>
           <ThemeSwitcher compact />
         </div>
-        {groups.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#E6F1FB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <i className="ti ti-users-group" style={{ fontSize: 16, color: '#185FA5' }} aria-hidden="true" />
-            </div>
-            <div style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>Groep</div>
-            <select
-              value={active || ''}
-              onChange={e => setActiveGroup(e.target.value)}
-              style={{ background: 'transparent', border: '0.5px solid var(--border)', color: 'var(--text)', borderRadius: 6, padding: '4px 8px', fontSize: 13 }}
-            >
-              <option value=''>Persoonlijk</option>
-              {groups.map(slug => <option key={slug} value={slug}>{slug}</option>)}
-            </select>
-          </div>
-        )}
         <Row icon="ti-language" iconBg="#E6F1FB" iconColor="#185FA5" title="Taal"
           end={<ChevronEnd value="Nederlands" />} onClick={() => {}} />
       </Card>
@@ -223,8 +208,26 @@ export default function SettingsPage() {
       {/* Huishouden */}
       <SectionHeader label="Huishouden" />
       <Card>
-        <Row icon="ti-users" iconBg="#E6F1FB" iconColor="#185FA5" title="Leden" sub="2 leden"
-          end={<ChevronEnd value="" />} onClick={() => {}} />
+        <Row icon="ti-users" iconBg="#E6F1FB" iconColor="#185FA5" title="Leden"
+          sub={active ? `${memberCount} ${memberCount === 1 ? 'lid' : 'leden'}` : 'Persoonlijk'} />
+        {groups.length > 1 && (
+          <Row
+            icon="ti-users-group"
+            iconBg="#E6F1FB"
+            iconColor="#185FA5"
+            title="Actieve groep"
+            end={
+              <select
+                value={active || ''}
+                onChange={e => setActiveGroup(e.target.value)}
+                style={{ background: 'transparent', border: '0.5px solid var(--border)', color: 'var(--text)', borderRadius: 6, padding: '4px 8px', fontSize: 13 }}
+              >
+                <option value=''>Persoonlijk</option>
+                {groups.map(slug => <option key={slug} value={slug}>{slug}</option>)}
+              </select>
+            }
+          />
+        )}
         <Row icon="ti-trophy" iconBg="#FAEEDA" iconColor="#854F0B" title="Punten systeem"
           sub="Wie doet de meeste klusjes?"
           end={<Toggle value={points} onChange={setPoints} />} />

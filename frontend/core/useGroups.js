@@ -4,11 +4,13 @@ import { api } from "./api.js";
 export function useGroups() {
   const [groups, setGroups] = useState([]);
   const [active, setActive] = useState(null);
+  const [groupDetails, setGroupDetails] = useState([]);
 
   useEffect(() => {
     api.get("/api/auth/me").then((data) => {
       setGroups(data.groups || []);
       setActive(data.active_group || null);
+      setGroupDetails(data.group_details || []);
     }).catch(() => {});
 
     function onGroupChange(e) {
@@ -27,5 +29,5 @@ export function useGroups() {
     } catch {}
   }
 
-  return { groups, active, setActiveGroup };
+  return { groups, active, setActiveGroup, groupDetails };
 }

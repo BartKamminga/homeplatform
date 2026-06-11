@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func as sa_func
 from sqlmodel import Session, select
 from pydantic import BaseModel
 
@@ -21,6 +22,11 @@ class TokenResponse(BaseModel):
     username: str
 
 
+class GroupDetail(BaseModel):
+    slug: str
+    member_count: int
+
+
 class MeResponse(BaseModel):
     id: str
     username: str
@@ -29,6 +35,7 @@ class MeResponse(BaseModel):
     is_active: bool
     groups: list[str]
     active_group: Optional[str] = None
+    group_details: list[GroupDetail] = []
 
 
 class ActiveGroupIn(BaseModel):
@@ -91,11 +98,18 @@ def me(
         g = session.get(Group, current_user.active_group_id)
         if g:
             active_group = g.slug
+    count_rows = session.exec(
+        select(UserGroup.group_id, sa_func.count(UserGroup.user_id))
+        .where(UserGroup.group_id.in_([g.id for g in groups]))
+        .group_by(UserGroup.group_id)
+    ).all()
+    counts = dict(count_rows)
+    group_details = [GroupDetail(slug=g.slug, member_count=counts.get(g.id, 0)) for g in groups]
     return MeResponse(
         id=current_user.id, username=current_user.username,
         email=current_user.email, locale=current_user.locale,
         is_active=current_user.is_active, groups=[g.slug for g in groups],
-        active_group=active_group,
+        active_group=active_group, group_details=group_details,
     )
 
 
