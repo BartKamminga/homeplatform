@@ -120,6 +120,7 @@ function DistUpload {
 function LocalAlembic($alembicArgs) {
     $prev = Get-Location
     Set-Location "$Root\backend"
+    $env:DATABASE_URL = "sqlite:///" + ($Root -replace '\\', '/') + "/db/homeplatform.sqlite"
     & "$Root\.venv\Scripts\python.exe" -m alembic ($alembicArgs -split " ")
     if ($LASTEXITCODE -ne 0) { Fail "Alembic commando mislukt" }
     Set-Location $prev
@@ -409,6 +410,8 @@ if ($Deploy -eq "nas") {
             Start-Sleep -Seconds 8
             NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             NasRun "$docker restart homeplatform_backend" "Backend herstarten..."
+            Step "Lokale database upgraden"
+            LocalAlembic "upgrade head"
             Ok "Backend + migraties + seed klaar"
         }
         "all" {
@@ -418,6 +421,8 @@ if ($Deploy -eq "nas") {
             NasRun $dcGlitchtip "GlitchTip starten..."
             Start-Sleep -Seconds 8
             NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
+            Step "Lokale database upgraden"
+            LocalAlembic "upgrade head"
             DistUpload
             if ($CaddyRestart) {
                 NasRun $dcCaddy "Caddy herstarten..."
