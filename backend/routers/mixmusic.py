@@ -176,14 +176,14 @@ def delete_genre(genre_id: int, session: Session = Depends(get_session), _: User
 # ── Track metadata ───────────────────────────────────────────────────────────
 
 @router.get("/metas")
-def get_all_metas(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    return svc.get_all_metas(session)
+def get_all_metas(session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    return svc.get_all_metas(session, user.id)
 
 
 @router.get("/meta/{filepath:path}", response_model=TrackMetaOut)
-def get_track_meta(filepath: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+def get_track_meta(filepath: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     filepath = urllib.parse.unquote(filepath)
-    meta = svc.get_track_meta(session, filepath)
+    meta = svc.get_track_meta(session, filepath, user.id)
     if not meta:
         return TrackMetaOut(file_path=filepath)
     return _meta_to_out(meta)
@@ -194,24 +194,24 @@ def update_track_meta(
     filepath: str,
     body: TrackMetaIn,
     session: Session = Depends(get_session),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     filepath = urllib.parse.unquote(filepath)
-    meta = svc.upsert_track_meta(session, filepath, **body.model_dump(exclude_unset=True))
+    meta = svc.upsert_track_meta(session, filepath, user.id, **body.model_dump(exclude_unset=True))
     return _meta_to_out(meta)
 
 
 # ── Hearts ───────────────────────────────────────────────────────────────────
 
 @router.get("/hearts/{filepath:path}")
-def get_hearts(filepath: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    return svc.get_hearts(session, urllib.parse.unquote(filepath))
+def get_hearts(filepath: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    return svc.get_hearts(session, urllib.parse.unquote(filepath), user.id)
 
 
 @router.post("/hearts/{filepath:path}", status_code=201)
 def add_heart(filepath: str, body: HeartIn, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     fp = urllib.parse.unquote(filepath)
-    heart = svc.add_heart(session, fp, body.position)
+    heart = svc.add_heart(session, fp, body.position, user.id)
     log_action(session, "heart.add", site="mixmusic", user_id=user.id, payload={"file": fp, "position": body.position})
     return heart
 

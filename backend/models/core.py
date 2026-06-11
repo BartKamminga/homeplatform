@@ -22,6 +22,7 @@ class User(SQLModel, table=True):
     password_hash: str
     locale: str = Field(default="nl")
     is_active: bool = Field(default=True)
+    active_group_id: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     deleted_at: Optional[datetime] = Field(default=None)

@@ -20,7 +20,6 @@ def scan_tracks(offset: int = 0, limit: int | None = None) -> list[dict]:
             try:
                 rel = f.relative_to(MUSIC_DIR)
                 parts = rel.parts
-                # Synology @eaDir thumbnail-mappen overslaan
                 if any(p.lower().startswith("@eadir") for p in parts):
                     continue
                 stat = f.stat()
@@ -34,7 +33,6 @@ def scan_tracks(offset: int = 0, limit: int | None = None) -> list[dict]:
                 })
             except OSError:
                 continue
-    # Nieuwste bestanden bovenaan
     tracks.sort(key=lambda t: t["_mtime"], reverse=True)
     for t in tracks:
         del t["_mtime"]
@@ -69,11 +67,14 @@ def delete_genre(session: Session, genre_id: int) -> None:
 
 # ── Track metadata ───────────────────────────────────────────────────────────
 
-def get_all_metas(session: Session) -> dict:
+def get_all_metas(session: Session, user_id: str) -> dict:
     from sqlalchemy import func as sqla_func
-    metas = session.exec(select(TrackMeta)).all()
+    metas = session.exec(
+        select(TrackMeta).where(TrackMeta.user_id == user_id)
+    ).all()
     heart_rows = session.exec(
         select(TrackHeart.file_path, sqla_func.count(TrackHeart.id))
+        .where(TrackHeart.user_id == user_id)
         .group_by(TrackHeart.file_path)
     ).all()
     heart_counts = {row[0]: row[1] for row in heart_rows}
@@ -97,16 +98,18 @@ def get_all_metas(session: Session) -> dict:
     return result
 
 
-def get_track_meta(session: Session, filepath: str) -> TrackMeta | None:
+def get_track_meta(session: Session, filepath: str, user_id: str) -> TrackMeta | None:
     return session.exec(
-        select(TrackMeta).where(TrackMeta.file_path == filepath)
+        select(TrackMeta)
+        .where(TrackMeta.file_path == filepath)
+        .where(TrackMeta.user_id == user_id)
     ).first()
 
 
-def upsert_track_meta(session: Session, filepath: str, **updates) -> TrackMeta:
-    meta = get_track_meta(session, filepath)
+def upsert_track_meta(session: Session, filepath: str, user_id: str, **updates) -> TrackMeta:
+    meta = get_track_meta(session, filepath, user_id)
     if not meta:
-        meta = TrackMeta(file_path=filepath)
+        meta = TrackMeta(file_path=filepath, user_id=user_id)
         session.add(meta)
 
     if (val := updates.get("display_name")) is not None:
@@ -126,16 +129,17 @@ def upsert_track_meta(session: Session, filepath: str, **updates) -> TrackMeta:
 
 # ── Hearts ───────────────────────────────────────────────────────────────────
 
-def get_hearts(session: Session, filepath: str) -> list[TrackHeart]:
+def get_hearts(session: Session, filepath: str, user_id: str) -> list[TrackHeart]:
     return list(session.exec(
         select(TrackHeart)
         .where(TrackHeart.file_path == filepath)
+        .where(TrackHeart.user_id == user_id)
         .order_by(TrackHeart.position)
     ).all())
 
 
-def add_heart(session: Session, filepath: str, position: float) -> TrackHeart:
-    heart = TrackHeart(file_path=filepath, position=round(position, 1))
+def add_heart(session: Session, filepath: str, position: float, user_id: str) -> TrackHeart:
+    heart = TrackHeart(file_path=filepath, position=round(position, 1), user_id=user_id)
     session.add(heart)
     session.commit()
     session.refresh(heart)

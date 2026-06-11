@@ -26,6 +26,11 @@ class MeResponse(BaseModel):
     locale: str
     is_active: bool
     groups: list[str]
+    active_group: Optional[str] = None
+
+
+class ActiveGroupIn(BaseModel):
+    group_slug: Optional[str] = None
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -79,11 +84,42 @@ def me(
         .join(UserGroup, UserGroup.group_id == Group.id)
         .where(UserGroup.user_id == current_user.id)
     ).all()
+    active_group = None
+    if current_user.active_group_id:
+        g = session.get(Group, current_user.active_group_id)
+        if g:
+            active_group = g.slug
     return MeResponse(
         id=current_user.id, username=current_user.username,
         email=current_user.email, locale=current_user.locale,
         is_active=current_user.is_active, groups=[g.slug for g in groups],
+        active_group=active_group,
     )
+
+
+@router.patch("/me/active-group")
+def set_active_group(
+    body: ActiveGroupIn,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    if body.group_slug:
+        group = session.exec(select(Group).where(Group.slug == body.group_slug)).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="Groep niet gevonden")
+        member = session.exec(
+            select(UserGroup)
+            .where(UserGroup.user_id == current_user.id)
+            .where(UserGroup.group_id == group.id)
+        ).first()
+        if not member:
+            raise HTTPException(status_code=403, detail="Niet lid van deze groep")
+        current_user.active_group_id = group.id
+    else:
+        current_user.active_group_id = None
+    session.add(current_user)
+    session.commit()
+    return {"active_group": body.group_slug}
 
 
 @router.get("/me/sites")
