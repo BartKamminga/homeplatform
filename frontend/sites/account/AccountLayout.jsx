@@ -28,8 +28,9 @@ export default function AccountLayout({ title, children }) {
             Homeplatform
           </span>
         </a>
-        <NavLink to="/account/profile" style={navLink}>Profiel</NavLink>
-        <NavLink to="/account/groups"  style={navLink}>Groepen</NavLink>
+        <NavLink to="/account/profile"    style={navLink}>Profiel</NavLink>
+        <NavLink to="/account/groups"     style={navLink}>Groepen</NavLink>
+        <NavLink to="/account/changelog"  style={navLink}>Changelog</NavLink>
         <div style={{ marginLeft: 'auto' }}>
           <button
             onClick={handleLogout}

@@ -24,6 +24,7 @@ function LoginForm({ onLogin }) {
       if (!res.ok) throw new Error("Ongeldige inloggegevens");
       const data = await res.json();
       setToken(data.access_token);
+      localStorage.setItem("hp_user", JSON.stringify({ id: data.user_id, username: data.username }));
       onLogin();
     } catch (e) {
       setError(e.message);
@@ -70,8 +71,14 @@ function LoginForm({ onLogin }) {
 const MAX_RETRIES = 10;
 const RETRY_DELAY = 2000;
 
+function getStoredUsername() {
+  try { return JSON.parse(localStorage.getItem("hp_user") || "{}").username || ""; }
+  catch { return ""; }
+}
+
 export default function Landing() {
   const [loggedIn,    setLoggedIn]    = useState(isTokenValid);
+  const [username,    setUsername]    = useState(getStoredUsername);
   const [sites,       setSites]       = useState([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState("");
@@ -130,7 +137,7 @@ export default function Landing() {
         </div>
 
         <h1 style={{ fontSize: "32px", fontWeight: 600, color: "var(--color-text)", marginBottom: "8px", letterSpacing: "-0.5px" }}>
-          Welkom
+          {loggedIn && username ? `Welkom, ${username}` : "Welkom"}
         </h1>
 
         {!loggedIn ? (
@@ -138,7 +145,7 @@ export default function Landing() {
             <p style={{ fontSize: "15px", color: "var(--color-text-muted)", marginBottom: "2rem", lineHeight: 1.6 }}>
               Log in om verder te gaan
             </p>
-            <LoginForm onLogin={() => setLoggedIn(true)} />
+            <LoginForm onLogin={() => { setLoggedIn(true); setUsername(getStoredUsername()); }} />
           </>
         ) : (
           <>
@@ -201,15 +208,15 @@ export default function Landing() {
 
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <a
-                href="/admin/"
+                href="/account/profile"
                 style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--color-text-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "7px 14px", textDecoration: "none" }}
                 onMouseEnter={e => { e.currentTarget.style.color = "var(--color-text)"; e.currentTarget.style.borderColor = "var(--color-primary)"; }}
                 onMouseLeave={e => { e.currentTarget.style.color = "var(--color-text-muted)"; e.currentTarget.style.borderColor = "var(--color-border)"; }}
               >
-                ⚙ Beheer
+                👤 Account
               </a>
               <button
-                onClick={() => { localStorage.removeItem("hp_token"); setLoggedIn(false); setSites([]); }}
+                onClick={() => { localStorage.removeItem("hp_token"); localStorage.removeItem("hp_user"); setLoggedIn(false); setSites([]); setUsername(""); }}
                 style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--color-text-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "7px 14px", background: "none", cursor: "pointer", fontFamily: "inherit" }}
                 onMouseEnter={e => { e.currentTarget.style.color = "var(--color-text)"; e.currentTarget.style.borderColor = "var(--color-primary)"; }}
                 onMouseLeave={e => { e.currentTarget.style.color = "var(--color-text-muted)"; e.currentTarget.style.borderColor = "var(--color-border)"; }}
