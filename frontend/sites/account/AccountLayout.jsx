@@ -2,6 +2,14 @@ import { NavLink } from 'react-router-dom';
 import { api, clearToken } from '@core/api.js';
 import Logo from '@core/Logo.jsx';
 
+const APP_LABELS = {
+  '/dontforget/': 'DontForget',
+  '/mixmusic/':   'Mix Music',
+  '/tournix/':    'Tournix',
+  '/fiets/':      'FietsPrognose',
+  '/nkhockey/':   'NK Hockey',
+}
+
 const navLink = ({ isActive }) => ({
   textDecoration: 'none', fontSize: 14, fontWeight: 500,
   padding: '4px 0', marginRight: 28,
@@ -11,6 +19,9 @@ const navLink = ({ isActive }) => ({
 });
 
 export default function AccountLayout({ title, children }) {
+  const backUrl = new URLSearchParams(window.location.search).get('back')
+  const backLabel = backUrl ? (APP_LABELS[backUrl] ?? 'App') : null
+
   async function handleLogout() {
     try { await api.post('/api/auth/logout'); } catch {}
     clearToken();
@@ -23,10 +34,17 @@ export default function AccountLayout({ title, children }) {
         padding: '0 24px', borderBottom: '1px solid var(--color-border)',
         display: 'flex', alignItems: 'center', height: 54, gap: 4,
       }}>
-        <a href="/landing/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, marginRight: 28 }}>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>←</span>
-          <Logo size={22} showName nameStyle={{ fontSize: 13, color: 'var(--color-text)' }} />
-        </a>
+        {backLabel ? (
+          <a href={backUrl} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, marginRight: 28, color: 'var(--color-text-muted)', fontSize: 13 }}>
+            <span>←</span>
+            <span>{backLabel}</span>
+          </a>
+        ) : (
+          <a href="/landing/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, marginRight: 28 }}>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>←</span>
+            <Logo size={22} showName nameStyle={{ fontSize: 13, color: 'var(--color-text)' }} />
+          </a>
+        )}
         <NavLink to="/account/profile"    style={navLink}>Profiel</NavLink>
         <NavLink to="/account/groups"     style={navLink}>Groepen</NavLink>
         <NavLink to="/account/changelog"  style={navLink}>Changelog</NavLink>

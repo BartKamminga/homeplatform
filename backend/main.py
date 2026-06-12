@@ -40,6 +40,7 @@ if settings.SENTRY_DSN:
 
 from routers import system, auth, users, groups, themes, sites, audit  # noqa: E402
 from routers import mixmusic, changelog, tracking, dontforget, uploads  # noqa: E402
+from routers import tournix, fiets, backup  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
 
@@ -124,6 +125,9 @@ app.include_router(changelog.router)
 app.include_router(tracking.router)
 app.include_router(dontforget.router)
 app.include_router(uploads.router)
+app.include_router(tournix.router)
+app.include_router(fiets.router)
+app.include_router(backup.router)
 
 
 @app.get("/")

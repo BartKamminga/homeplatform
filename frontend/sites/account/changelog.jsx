@@ -1,6 +1,13 @@
-export const VERSION = "1.2";
+export const VERSION = "1.3";
 
 export const CHANGELOG = [
+  {
+    version: "1.3",
+    date: "12 jun 2026",
+    changes: [
+      "Terugknop herkent Tournix en FietsPrognose — navigeert terug naar de app na het aanpassen van groepsinstellingen",
+    ],
+  },
   {
     version: "1.2",
     date: "12 jun 2026",

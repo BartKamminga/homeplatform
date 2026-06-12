@@ -1,8 +1,16 @@
 // frontend/sites/dontforget/src/changelog.jsx
 
-export const VERSION = "1.4";
+export const VERSION = "1.5";
 
 export const CHANGELOG = [
+  {
+    version: "1.5",
+    date: "12 jun 2026",
+    changes: [
+      "Actieve groep zichtbaar als chip in de topbar — direct zien welke groep actief is",
+      "Klik op de chip om van groep te wisselen zonder naar Instellingen te gaan",
+    ],
+  },
   {
     version: "1.4",
     date: "12 jun 2026",

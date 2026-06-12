@@ -221,6 +221,7 @@ const DB_USER_ROWS = [
   { label: 'active_group_id',                      where: 'users',            note: 'Globale actieve groep' },
   { label: 'pref_group_dontforget',                where: 'users',            note: 'Voorkeurs-groep DontForget' },
   { label: 'pref_group_mixmusic',                  where: 'users',            note: 'Voorkeurs-groep MixMusic' },
+  { label: 'pref_group_tournix',                   where: 'users',            note: 'Voorkeurs-groep Tournix' },
   { label: 'theme_id, language',                   where: 'user_preferences', note: 'Thema en taal' },
   { label: 'df_moment, df_repeat, df_history, df_photo_required', where: 'user_preferences.extra', note: 'DontForget instellingen' },
   { label: 'mm_desktop_layout, mm_mobile_layout',  where: 'user_preferences.extra', note: 'MixMusic layout' },
@@ -232,6 +233,9 @@ const DB_GROUP_ROWS = [
   { label: 'Taken (group_id = …)',                 where: 'tasks',                  note: 'DontForget — gedeeld' },
   { label: 'display_name, rating, genres, moments, play_count', where: 'mixmusic_track_meta', note: 'MixMusic meta per track' },
   { label: 'file_path, position',                  where: 'mixmusic_track_hearts',  note: 'MixMusic favoriete momenten' },
+  { label: 'Toernooien (group_id = …)',             where: 'tournix_tournaments',    note: 'Tournix — per groep' },
+  { label: 'Teams, velden, wedstrijden',            where: 'tournix_teams / fields / matches', note: 'Tournix — per toernooi' },
+  { label: 'Voorspellingen (user_id)',              where: 'tournix_predictions',    note: 'Tournix — per gebruiker' },
 ];
 
 const LS_ROWS = [

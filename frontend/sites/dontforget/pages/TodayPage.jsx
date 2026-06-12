@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import TopBar from '../components/TopBar.jsx'
 import TaskItem from '../components/TaskItem.jsx'
+import GroupChip from '@components/GroupChip.jsx'
 import { listTasks, completeTask, updateTask } from '../api.js'
 
 const MOMENTS = [
@@ -93,7 +94,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
 
   if (loading) return (
     <>
-      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} />
+      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} right={<GroupChip app="dontforget" />} />
       <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>
         Laden…
       </div>
@@ -102,7 +103,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
 
   if (error) return (
     <>
-      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} />
+      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} right={<GroupChip app="dontforget" />} />
       <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--danger)', fontSize: 14 }}>
         {error}
       </div>
@@ -113,7 +114,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
 
   return (
     <div>
-      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} />
+      <TopBar title="Vandaag" subtitle={today} onAdd={onAdd} right={<GroupChip app="dontforget" />} />
       {!hasTasks && (
         <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>
           Geen taken voor vandaag

@@ -6,9 +6,19 @@
 }
 
 :80 {
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
     handle /admin/* {
         root * /srv/www
         try_files {path} /admin/index.html
+        file_server
+    }
+
+    handle /landing/* {
+        root * /srv/www
+        try_files {path} /landing/index.html
         file_server
     }
 
@@ -24,7 +34,7 @@
         file_server
     }
 
-     handle /dontforget/* {
+    handle /dontforget/* {
         root * /srv/www
         try_files {path} /dontforget/index.html
         file_server
@@ -36,27 +46,19 @@
         file_server
     }
 
-    handle /assets/* {
+    handle /tournix/* {
         root * /srv/www
+        try_files {path} /tournix/index.html
         file_server
     }
 
-    handle /favicon.svg {
+    handle /fiets/* {
         root * /srv/www
+        try_files {path} /fiets/index.html
         file_server
-    }
-
-    handle /api/* {
-        reverse_proxy backend:8000
     }
 
     handle / {
-        root * /srv/www
-        try_files {path} /landing/index.html
-        file_server
-    }
-
-    handle /landing/* {
         root * /srv/www
         try_files {path} /landing/index.html
         file_server

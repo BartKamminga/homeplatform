@@ -25,6 +25,7 @@ class User(SQLModel, table=True):
     active_group_id: Optional[str] = Field(default=None)
     pref_group_dontforget: Optional[str] = Field(default=None)
     pref_group_mixmusic: Optional[str] = Field(default=None)
+    pref_group_tournix: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     deleted_at: Optional[datetime] = Field(default=None)

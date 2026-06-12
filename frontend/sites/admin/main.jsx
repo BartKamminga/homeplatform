@@ -15,6 +15,7 @@ import System from "./pages/System.jsx";
 import ApiStats from "./pages/ApiStats.jsx";
 import Monitoring from "./pages/Monitoring.jsx";
 import Todo from "./pages/Todo.jsx";
+import Backup from "./pages/Backup.jsx";
 import ErrorBoundary from "@components/ErrorBoundary.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
@@ -49,6 +50,7 @@ createRoot(document.getElementById("root")).render(
                 <Route path="system" element={<System />} />
                 <Route path="api-stats" element={<ApiStats />} />
                 <Route path="monitoring" element={<Monitoring />} />
+                <Route path="backup" element={<Backup />} />
                 <Route path="todo" element={<Todo />} />
               </Routes>
             </PrivateRoute>

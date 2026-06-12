@@ -9,6 +9,7 @@ from .core import (
     AuditLog,
 )
 from .changelog import ChangelogEntry
+from .tournix import Tournament, TournixTeam, TournixField, TournixMatch, TournixPrediction
 
 __all__ = [
     "User",
@@ -19,4 +20,9 @@ __all__ = [
     "Site",
     "SiteAccess",
     "AuditLog",
+    "Tournament",
+    "TournixTeam",
+    "TournixField",
+    "TournixMatch",
+    "TournixPrediction",
 ]

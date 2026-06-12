@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
 import ChangelogPage from '@components/ChangelogPage.jsx'
+import AppGroupSwitcher from '@components/AppGroupSwitcher.jsx'
 import { VERSION, CHANGELOG } from '../changelog.jsx'
 import { useUiPref } from '@core/useUiPref.js'
 
@@ -132,12 +133,22 @@ export default function SettingsPage() {
         <div style={{ flex: 1, fontSize: 17, fontWeight: 500, color: 'var(--text)' }}>Instellingen</div>
       </div>
 
-      {/* Account */}
-      <SectionHeader label="Account" />
+      {/* Huishouden */}
+      <SectionHeader label="Huishouden" />
       <Card>
-        <a href="/account/groups" style={{ textDecoration: 'none', display: 'block' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+          <AppGroupSwitcher
+            app="dontforget"
+            labelStyle={{ color: 'var(--text-muted)' }}
+            selectStyle={{
+              background: 'var(--bg-secondary)', border: '0.5px solid var(--border)',
+              color: 'var(--text)', borderRadius: 8, padding: '7px 10px',
+            }}
+          />
+        </div>
+        <a href="/account/groups?back=/dontforget/" style={{ textDecoration: 'none', display: 'block' }}>
           <Row icon="ti-user-circle" iconBg="#E6F1FB" iconColor="#185FA5" title="Profiel &amp; groepen"
-            sub="Naam, wachtwoord, actieve groep en app-voorkeuren"
+            sub="Wachtwoord wijzigen en overige instellingen"
             end={<i className="ti ti-chevron-right" style={{ fontSize: 16, color: 'var(--text-faint)' }} />} />
         </a>
       </Card>

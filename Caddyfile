@@ -5,9 +5,19 @@
 }
 
 :80 {
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
     handle /admin/* {
         root * /srv/www
         try_files {path} /admin/index.html
+        file_server
+    }
+
+    handle /landing/* {
+        root * /srv/www
+        try_files {path} /landing/index.html
         file_server
     }
 
@@ -18,8 +28,8 @@
     }
 
     handle /mixmusic/* {
-       root * /srv/www
-       try_files {path} /mixmusic/index.html
+        root * /srv/www
+        try_files {path} /mixmusic/index.html
         file_server
     }
 
@@ -35,21 +45,19 @@
         file_server
     }
 
-    handle /api/* {
-        reverse_proxy backend:8000
-    }
-
-    handle / {
-        redir /admin/ 302
-    }
-
-     handle / {
+    handle /tournix/* {
         root * /srv/www
-        try_files {path} /landing/index.html
+        try_files {path} /tournix/index.html
         file_server
     }
 
-    handle /landing/* {
+    handle /fiets/* {
+        root * /srv/www
+        try_files {path} /fiets/index.html
+        file_server
+    }
+
+    handle / {
         root * /srv/www
         try_files {path} /landing/index.html
         file_server

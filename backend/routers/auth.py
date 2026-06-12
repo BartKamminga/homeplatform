@@ -40,6 +40,7 @@ class MeResponse(BaseModel):
     group_details: list[GroupDetail] = []
     pref_group_dontforget: Optional[str] = None
     pref_group_mixmusic: Optional[str] = None
+    pref_group_tournix: Optional[str] = None
 
 
 class ActiveGroupIn(BaseModel):
@@ -49,6 +50,7 @@ class ActiveGroupIn(BaseModel):
 class PreferencesIn(BaseModel):
     pref_group_dontforget: Optional[str] = None
     pref_group_mixmusic: Optional[str] = None
+    pref_group_tournix: Optional[str] = None
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -128,6 +130,7 @@ def me(
         active_group=active_group, group_details=group_details,
         pref_group_dontforget=_group_slug(current_user.pref_group_dontforget),
         pref_group_mixmusic=_group_slug(current_user.pref_group_mixmusic),
+        pref_group_tournix=_group_slug(current_user.pref_group_tournix),
     )
 
 
@@ -181,9 +184,15 @@ def set_preferences(
         current_user.pref_group_dontforget = _resolve_group_id(body.pref_group_dontforget)
     if "pref_group_mixmusic" in body.model_fields_set:
         current_user.pref_group_mixmusic = _resolve_group_id(body.pref_group_mixmusic)
+    if "pref_group_tournix" in body.model_fields_set:
+        current_user.pref_group_tournix = _resolve_group_id(body.pref_group_tournix)
     session.add(current_user)
     session.commit()
-    return {"pref_group_dontforget": body.pref_group_dontforget, "pref_group_mixmusic": body.pref_group_mixmusic}
+    return {
+        "pref_group_dontforget": body.pref_group_dontforget,
+        "pref_group_mixmusic": body.pref_group_mixmusic,
+        "pref_group_tournix": body.pref_group_tournix,
+    }
 
 
 @router.get("/me/sites")

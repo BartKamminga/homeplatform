@@ -120,6 +120,8 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "users", "groups", "user_groups", "themes", "user_preferences",
         "sites", "site_access", "audit_log",
         "tasks", "mixmusic_genres", "mixmusic_track_meta", "mixmusic_track_hearts",
+        "tournix_tournaments", "tournix_teams", "tournix_fields",
+        "tournix_matches", "tournix_predictions",
     ]
     inspector = sa_inspect(engine)
     available_tables = set(inspector.get_table_names())

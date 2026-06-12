@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { clearToken } from '@core/api.js'
 import { VERSION, CHANGELOG } from '../changelog.jsx'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
-import GroupSwitcher from '@components/GroupSwitcher.jsx'
+import AppGroupSwitcher from '@components/AppGroupSwitcher.jsx'
 import ChangelogSection from '@components/ChangelogSection.jsx'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 
@@ -122,12 +122,18 @@ export default function Settings({ onClose, desktopLayout, mobileLayout, onDeskt
           {/* Account */}
           <section>
             <div style={sectionLabel}>Account</div>
-            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
               Ingelogd als <strong>{user.username || '—'}</strong>
             </div>
-            <div style={{ marginBottom: 10 }}>
-              <GroupSwitcher />
+            <div style={{ marginBottom: 14 }}>
+              <AppGroupSwitcher app="mixmusic" />
             </div>
+            <a
+              href={'/account/groups?back=/mixmusic/'}
+              style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 12, textDecoration: 'none' }}
+            >
+              Meer groepsinstellingen →
+            </a>
             <button onClick={handleLogout} style={dangerBtn}>
               Uitloggen
             </button>
