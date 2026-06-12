@@ -1,87 +1,59 @@
 /* DontForget — Stylesheet
-   4 thema's: light, dark, minimal, retro
-   Volledig zelfstandig — geen platform tokens import
+   Platform-geïntegreerd via @core/theme.css
 */
 
 :root {
-  --bg:          #fafaf8;
-  --bg-card:     #ffffff;
-  --bg-secondary:#f0eeea;
-  --border:      rgba(0,0,0,0.08);
-  --text:        #1a1a1a;
-  --text-muted:  rgba(26,26,26,0.55);
-  --text-faint:  rgba(26,26,26,0.35);
-  --accent:      #185FA5;
-  --accent-bg:   #E6F1FB;
-  --accent-text: #0C447C;
-  --done:        #3B6D11;
-  --done-bg:     #EAF3DE;
-  --danger:      #A32D2D;
-  --danger-bg:   #FCEBEB;
-  --prio-high:   #A32D2D;
-  --prio-normal: #B4B2A9;
-  --font:        'Inter', system-ui, sans-serif;
-  --radius-sm:   8px;
-  --radius-md:   12px;
-  --radius-lg:   16px;
-  --transition:  0.15s ease;
+  /* DontForget accent → blauw (overschrijft platform-roze) */
+  --color-primary:        #185FA5;
+  --color-primary-hover:  #0f4d8a;
+  --color-primary-light:  #E6F1FB;
+
+  /* Platform-aliassen */
+  --bg:           var(--color-background);
+  --bg-card:      var(--color-surface);
+  --bg-secondary: var(--color-surface-2);
+  --border:       var(--color-border);
+  --text:         var(--color-text);
+  --text-muted:   var(--color-text-muted);
+  --text-faint:   var(--color-text-light);
+  --accent:       var(--color-primary);
+  --accent-bg:    var(--color-primary-light);
+  --danger:       var(--color-danger);
+  --danger-bg:    var(--color-danger-light);
+  --done:         var(--color-success);
+  --done-bg:      var(--color-success-light);
+
+  /* DontForget-specifiek */
+  --accent-text:  #0C447C;
+  --prio-high:    var(--color-danger);
+  --prio-normal:  #B4B2A9;
+
+  --font:         'Inter', system-ui, sans-serif;
+  --radius-sm:    8px;
+  --radius-md:    12px;
+  --radius-lg:    16px;
+  --transition:   0.15s ease;
 }
 
 [data-theme="dark"] {
-  --bg:          #0a0a0f;
-  --bg-card:     #111118;
-  --bg-secondary:#1a1a24;
-  --border:      rgba(255,255,255,0.08);
-  --text:        #f0f0f0;
-  --text-muted:  rgba(240,240,240,0.45);
-  --text-faint:  rgba(240,240,240,0.25);
-  --accent:      #5b9ef5;
-  --accent-bg:   #1a2d4d;
-  --accent-text: #85B7EB;
-  --done:        #34d058;
-  --done-bg:     #162d1b;
-  --danger:      #f85149;
-  --danger-bg:   #2d1518;
-  --prio-high:   #f85149;
-  --prio-normal: #636366;
+  --color-primary:        #5b9ef5;
+  --color-primary-hover:  #4a8fe0;
+  --color-primary-light:  #1a2d4d;
+  --accent-text:          #85B7EB;
+  --prio-normal:          #636366;
 }
 
 [data-theme="minimal"] {
-  --bg:          #ffffff;
-  --bg-card:     #ffffff;
-  --bg-secondary:#f5f5f5;
-  --border:      rgba(0,0,0,0.1);
-  --text:        #111111;
-  --text-muted:  rgba(17,17,17,0.5);
-  --text-faint:  rgba(17,17,17,0.3);
-  --accent:      #111111;
-  --accent-bg:   #f0f0f0;
-  --accent-text: #111111;
-  --done:        #006600;
-  --done-bg:     #f0fff0;
-  --danger:      #cc0000;
-  --danger-bg:   #fff0f0;
-  --prio-high:   #cc0000;
-  --prio-normal: #999999;
+  --color-primary:        #111111;
+  --color-primary-hover:  #444444;
+  --color-primary-light:  #f0f0f0;
+  --accent-text:          #111111;
+  --prio-normal:          #999999;
 }
 
 [data-theme="retro"] {
-  --bg:          #1a0f00;
-  --bg-card:     #261500;
-  --bg-secondary:#321c00;
-  --border:      rgba(245,200,66,0.2);
-  --text:        #f5e6c8;
-  --text-muted:  rgba(245,230,200,0.55);
-  --text-faint:  rgba(245,230,200,0.3);
-  --accent:      #f5c842;
-  --accent-bg:   #332d10;
-  --accent-text: #f5c842;
-  --done:        #34d058;
-  --done-bg:     #1a2d10;
-  --danger:      #e84545;
-  --danger-bg:   #2d1010;
-  --prio-high:   #e84545;
-  --prio-normal: rgba(245,230,200,0.3);
+  --accent-text:          #f5c842;
+  --prio-normal:          rgba(245,230,200,0.3);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -95,7 +67,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-#root { height: 100%; display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; }
+#root { height: 100%; display: flex; flex-direction: column; max-width: 720px; margin: 0 auto; padding: 0 16px; }
+
+@media (max-width: 600px) { #root { max-width: 100%; padding: 0 12px; } }
 
 @keyframes dfPulse {
   0%, 100% { opacity: 1; }

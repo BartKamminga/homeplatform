@@ -20,6 +20,7 @@ class Tournament(SQLModel, table=True):
     group_id:    Optional[str]     = Field(default=None, foreign_key="groups.id", index=True)
     created_by:  Optional[str]     = Field(default=None, foreign_key="users.id")
     created_at:  datetime          = Field(default_factory=datetime.utcnow)
+    stage:       str               = Field(default="inregel")  # inregel | test | productie
 
 
 class TournixTeam(SQLModel, table=True):
@@ -68,3 +69,13 @@ class TournixPrediction(SQLModel, table=True):
     pred_b:     int
     points:     Optional[int] = Field(default=None)
     created_at: datetime      = Field(default_factory=datetime.utcnow)
+
+
+class TournixSnapshot(SQLModel, table=True):
+    __tablename__ = "tournix_snapshots"
+
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    tournament_id:  str           = Field(foreign_key="tournix_tournaments.id", index=True)
+    round:          int
+    snapshot_json:  str
+    created_at:     datetime      = Field(default_factory=datetime.utcnow)

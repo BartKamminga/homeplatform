@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "@core/theme.css";
 import "./styles.css";
 import App from "./App.jsx";
 import AuthGate from "@components/AuthGate.jsx";

@@ -20,3 +20,33 @@ html, body, #root {
   color: var(--color-text);
   font-family: var(--font-base);
 }
+
+/* Responsive app card grid */
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 12px;
+  margin-bottom: 2.5rem;
+}
+
+@media (max-width: 767px) {
+  .app-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .app-grid a {
+    padding: 14px 12px !important;
+  }
+}
+
+@media (max-width: 479px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .app-grid a {
+    padding: 14px 12px !important;
+  }
+}

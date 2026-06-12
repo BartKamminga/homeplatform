@@ -11,7 +11,7 @@ from core.database import get_session
 from core.auth import get_current_user, require_admin
 from core.logging import log_action
 from models.core import User
-from models.tournix import Tournament, TournixTeam, TournixField, TournixMatch, TournixPrediction
+from models.tournix import Tournament, TournixTeam, TournixField, TournixMatch, TournixPrediction, TournixSnapshot
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -31,6 +31,7 @@ class TournamentUpdate(BaseModel):
     location:    Optional[str]      = None
     description: Optional[str]      = None
     status:      Optional[str]      = None
+    stage:       Optional[str]      = None
 
 class TeamCreate(BaseModel):
     name:       str
@@ -271,3 +272,121 @@ def predict(
 @router.get("/matches/{mid}/predictions")
 def list_predictions(mid: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     return session.exec(select(TournixPrediction).where(TournixPrediction.match_id == mid)).all()
+
+
+# ── Snapshots ─────────────────────────────────────────────────────────────────
+
+@router.post("/tournaments/{tid}/snapshots", dependencies=[Depends(require_admin)])
+def create_snapshot(
+    tid: str,
+    round: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Save a standings snapshot for a completed round."""
+    tournament = session.get(Tournament, tid)
+    if not tournament:
+        raise HTTPException(404, "Toernooi niet gevonden")
+
+    # Get all finished matches for this tournament up to this round
+    matches = session.exec(
+        select(TournixMatch).where(
+            TournixMatch.tournament_id == tid,
+            TournixMatch.round <= round,
+            TournixMatch.status == "finished"
+        )
+    ).all()
+
+    # Get teams
+    teams = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
+
+    # Calculate standings
+    standings = {}
+    for team in teams:
+        standings[team.id] = {"team_id": team.id, "name": team.name, "w": 0, "d": 0, "l": 0, "gf": 0, "ga": 0, "pts": 0}
+
+    for match in matches:
+        if match.score_a is None or match.score_b is None:
+            continue
+        a, b = standings.get(match.team_a_id), standings.get(match.team_b_id)
+        if not a or not b:
+            continue
+        a["gf"] += match.score_a; a["ga"] += match.score_b
+        b["gf"] += match.score_b; b["ga"] += match.score_a
+        if match.score_a > match.score_b:
+            a["w"] += 1; a["pts"] += 3; b["l"] += 1
+        elif match.score_a < match.score_b:
+            b["w"] += 1; b["pts"] += 3; a["l"] += 1
+        else:
+            a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
+
+    import json
+    snapshot_data = {
+        "round": round,
+        "standings": sorted(standings.values(), key=lambda x: (-x["pts"], -(x["gf"] - x["ga"]))),
+        "matches": [
+            {
+                "id": m.id,
+                "round": m.round,
+                "team_a_id": m.team_a_id,
+                "team_b_id": m.team_b_id,
+                "score_a": m.score_a,
+                "score_b": m.score_b,
+            }
+            for m in matches
+        ],
+    }
+
+    # Upsert snapshot for this round
+    existing = session.exec(
+        select(TournixSnapshot).where(
+            TournixSnapshot.tournament_id == tid,
+            TournixSnapshot.round == round
+        )
+    ).first()
+
+    if existing:
+        existing.snapshot_json = json.dumps(snapshot_data)
+        session.add(existing)
+    else:
+        session.add(TournixSnapshot(
+            tournament_id=tid,
+            round=round,
+            snapshot_json=json.dumps(snapshot_data),
+        ))
+
+    session.commit()
+    return {"ok": True, "round": round}
+
+
+@router.get("/tournaments/{tid}/snapshots")
+def list_snapshots(
+    tid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    snapshots = session.exec(
+        select(TournixSnapshot)
+        .where(TournixSnapshot.tournament_id == tid)
+        .order_by(TournixSnapshot.round)
+    ).all()
+    return [{"id": s.id, "round": s.round, "created_at": s.created_at} for s in snapshots]
+
+
+@router.get("/tournaments/{tid}/snapshots/{round}")
+def get_snapshot(
+    tid: str,
+    round: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    snapshot = session.exec(
+        select(TournixSnapshot).where(
+            TournixSnapshot.tournament_id == tid,
+            TournixSnapshot.round == round
+        )
+    ).first()
+    if not snapshot:
+        raise HTTPException(404, "Geen snapshot gevonden voor ronde " + str(round))
+    import json
+    return json.loads(snapshot.snapshot_json)

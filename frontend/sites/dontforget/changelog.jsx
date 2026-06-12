@@ -1,8 +1,15 @@
 // frontend/sites/dontforget/src/changelog.jsx
 
-export const VERSION = "1.5";
+export const VERSION = "1.6";
 
 export const CHANGELOG = [
+  {
+    version: "1.6",
+    date: "12 jun 2026",
+    changes: [
+      "Bredere weergave op tablet en desktop — layout schaalt nu mee tot 720px",
+    ],
+  },
   {
     version: "1.5",
     date: "12 jun 2026",

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import OverzichtPage  from './pages/OverzichtPage.jsx'
 import ProgrammaPage  from './pages/ProgrammaPage.jsx'
 import VoorspelPage   from './pages/VoorspelPage.jsx'
 import BeheerPage     from './pages/BeheerPage.jsx'
 import GroupChip      from '@components/GroupChip.jsx'
+import { getTournaments } from './api.js'
 
 const TABS = [
   { id: 'overzicht', label: 'Overzicht', icon: 'ti-trophy'   },
@@ -12,8 +13,28 @@ const TABS = [
   { id: 'beheer',    label: 'Beheer',    icon: 'ti-settings' },
 ]
 
+const STAGE_STYLE = {
+  inregel:   { background: 'var(--color-primary)', color: '#fff' },
+  test:      { background: 'var(--color-warning)',  color: '#fff' },
+  productie: { background: 'var(--color-success)',  color: '#fff' },
+}
+
 export default function App() {
-  const [tab, setTab] = useState('overzicht')
+  const [tab,        setTab]        = useState('overzicht')
+  const [tournament, setTournament] = useState(null)
+
+  function loadActiveTournament() {
+    getTournaments()
+      .then(list => {
+        const act = list.find(t => t.status === 'active') ?? list[0] ?? null
+        setTournament(act)
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => { loadActiveTournament() }, [])
+
+  const stage = tournament?.stage ?? null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--color-background)', color: 'var(--color-text)' }}>
@@ -25,6 +46,18 @@ export default function App() {
       }}>
         <span style={{ fontSize: 20 }}>🏆</span>
         <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.3px' }}>Tournix</span>
+
+        {/* Stage badge */}
+        {stage && (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+            letterSpacing: '0.04em', textTransform: 'uppercase',
+            ...STAGE_STYLE[stage],
+          }}>
+            {stage === 'inregel' ? 'Inregel' : stage === 'test' ? 'Test' : 'Productie'}
+          </span>
+        )}
+
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <GroupChip app="tournix" />
           <a href="/account/groups?back=/tournix/" style={{
@@ -37,10 +70,10 @@ export default function App() {
 
       {/* Content */}
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 72 }}>
-        {tab === 'overzicht' && <OverzichtPage  onTab={setTab} />}
-        {tab === 'programma' && <ProgrammaPage />}
-        {tab === 'voorspel'  && <VoorspelPage  />}
-        {tab === 'beheer'    && <BeheerPage    />}
+        {tab === 'overzicht' && <OverzichtPage  onTab={setTab} stage={stage} onTournamentChange={loadActiveTournament} />}
+        {tab === 'programma' && <ProgrammaPage  stage={stage} />}
+        {tab === 'voorspel'  && <VoorspelPage   stage={stage} />}
+        {tab === 'beheer'    && <BeheerPage      stage={stage} onStageChange={loadActiveTournament} />}
       </main>
 
       {/* Tab bar */}

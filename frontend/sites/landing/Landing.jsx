@@ -185,7 +185,7 @@ export default function Landing() {
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: "12px", marginBottom: "2.5rem" }}>
+            <div className="app-grid">
               {sites.map((site) => (
                 <a
                   key={site.slug}

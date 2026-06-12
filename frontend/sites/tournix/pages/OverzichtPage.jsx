@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { getTournaments, getStandings } from '../api.js'
+import { getTournaments, getStandings, getSnapshots, getSnapshot } from '../api.js'
 
-export default function OverzichtPage({ onTab }) {
+export default function OverzichtPage({ onTab, stage }) {
   const [tournaments, setTournaments] = useState([])
   const [active,      setActive]      = useState(null)
   const [standings,   setStandings]   = useState([])
+  const [snapshots,   setSnapshots]   = useState([])
+  const [viewRound,   setViewRound]   = useState(null)
   const [error,       setError]       = useState('')
 
   useEffect(() => {
@@ -13,10 +15,34 @@ export default function OverzichtPage({ onTab }) {
         setTournaments(list)
         const act = list.find(t => t.status === 'active') ?? list[0] ?? null
         setActive(act)
-        if (act) getStandings(act.id).then(setStandings).catch(() => {})
+        if (act) {
+          getStandings(act.id).then(setStandings).catch(() => {})
+          getSnapshots(act.id).then(setSnapshots).catch(() => {})
+        }
       })
       .catch(e => setError(e.message))
   }, [])
+
+  // When viewRound changes, load snapshot standings or fall back to live
+  useEffect(() => {
+    if (!active) return
+    if (viewRound === null) {
+      getStandings(active.id).then(setStandings).catch(() => {})
+    } else {
+      getSnapshot(active.id, viewRound)
+        .then(snap => { if (snap?.standings) setStandings(snap.standings) })
+        .catch(() => {})
+    }
+  }, [viewRound, active?.id])
+
+  function switchTournament(t) {
+    setActive(t)
+    setViewRound(null)
+    setSnapshots([])
+    setStandings([])
+    getStandings(t.id).then(setStandings).catch(() => {})
+    getSnapshots(t.id).then(setSnapshots).catch(() => {})
+  }
 
   if (error) return <p style={err}>{error}</p>
 
@@ -53,7 +79,7 @@ export default function OverzichtPage({ onTab }) {
           {tournaments.map(t => (
             <button
               key={t.id}
-              onClick={() => { setActive(t); getStandings(t.id).then(setStandings).catch(() => {}) }}
+              onClick={() => switchTournament(t)}
               style={{
                 padding: '5px 12px', fontSize: 12, borderRadius: 20, fontFamily: 'inherit', cursor: 'pointer',
                 border: `1px solid ${t.id === active.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
@@ -67,9 +93,31 @@ export default function OverzichtPage({ onTab }) {
       )}
 
       {/* Stand */}
-      {standings.length > 0 && (
-        <>
-          <h2 style={sectionTitle}>Stand</h2>
+      <>
+        <h2 style={sectionTitle}>Stand</h2>
+
+        {/* Time travel: round selector */}
+        {snapshots.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setViewRound(null)}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 99, border: viewRound === null ? 'none' : '1px solid var(--color-border)', background: viewRound === null ? 'var(--color-primary)' : 'transparent', color: viewRound === null ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Live
+            </button>
+            {snapshots.map(s => (
+              <button
+                key={s.round}
+                onClick={() => setViewRound(s.round)}
+                style={{ fontSize: 11, padding: '4px 10px', borderRadius: 99, border: viewRound === s.round ? 'none' : '1px solid var(--color-border)', background: viewRound === s.round ? 'var(--color-primary)' : 'transparent', color: viewRound === s.round ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Ronde {s.round}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {standings.length > 0 ? (
           <div style={{
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
             borderRadius: 12, overflow: 'hidden', marginBottom: 20,
@@ -93,14 +141,12 @@ export default function OverzichtPage({ onTab }) {
               </div>
             ))}
           </div>
-        </>
-      )}
-
-      {standings.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '20px 0' }}>
-          Stand verschijnt zodra er wedstrijden zijn gespeeld.
-        </p>
-      )}
+        ) : (
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '20px 0' }}>
+            Stand verschijnt zodra er wedstrijden zijn gespeeld.
+          </p>
+        )}
+      </>
     </div>
   )
 }

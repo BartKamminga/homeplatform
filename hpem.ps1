@@ -391,11 +391,7 @@ if ($Deploy -eq "nas") {
     switch ($Build) {
         "fe" {
             DistUpload
-            if ($CaddyRestart) {
-                NasRun $dcCaddy "Caddy herstarten..."
-            } else {
-                NasRun "$docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile" "Caddy herladen..."
-            }
+            NasRun $dcCaddy "Caddy herstarten..."
             Ok "Frontend live"
         }
         "be" {

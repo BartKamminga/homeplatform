@@ -127,3 +127,21 @@ class AuditLog(SQLModel, table=True):
     action: str
     payload: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Roadmap
+# ---------------------------------------------------------------------------
+
+
+class RoadmapItem(SQLModel, table=True):
+    __tablename__ = "roadmap_items"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    description: Optional[str] = None
+    site: str = Field(default="platform")  # landing/admin/account/dontforget/mixmusic/nkhockey/tournix/fiets/platform
+    priority: str = Field(default="midden")  # hoog/midden/laag
+    status: str = Field(default="idee")  # idee/in_progress/klaar
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

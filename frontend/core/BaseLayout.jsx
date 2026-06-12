@@ -15,6 +15,8 @@ export default function BaseLayout({
   const [theme, setTheme] = useState(
     () => document.documentElement.getAttribute("data-theme") || "light",
   );
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   useEffect(() => {
     loadTheme();
 
@@ -35,8 +37,62 @@ export default function BaseLayout({
 
   return (
     <div key={theme} style={{ display: "flex", minHeight: "100vh" }}>
+      <style>{`
+        @media (max-width: 767px) {
+          .bl-sidebar {
+            position: fixed !important;
+            top: 0; left: 0;
+            height: 100vh;
+            z-index: 200;
+            transform: translateX(-100%);
+            transition: transform 0.2s ease;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+          }
+          .bl-sidebar.bl-sidebar--open {
+            transform: translateX(0);
+          }
+          .bl-overlay {
+            display: block !important;
+          }
+          .bl-hamburger {
+            display: flex !important;
+          }
+          .bl-main {
+            padding: 16px !important;
+          }
+        }
+        .bl-overlay {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.35);
+          z-index: 199;
+        }
+        .bl-hamburger {
+          display: none;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          margin-bottom: 16px;
+          font-size: 20px;
+          cursor: pointer;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          color: var(--color-text);
+          flex-shrink: 0;
+        }
+      `}</style>
+
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="bl-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
       <aside
+        className={`bl-sidebar${sidebarOpen ? " bl-sidebar--open" : ""}`}
         style={{
           width: "var(--sidebar-width)",
           background: "var(--color-surface)",
@@ -152,6 +208,7 @@ export default function BaseLayout({
 
       {/* Hoofdinhoud */}
       <main
+        className="bl-main"
         style={{
           flex: 1,
           padding: "32px",
@@ -159,6 +216,13 @@ export default function BaseLayout({
           background: "var(--color-background)",
         }}
       >
+        <button
+          className="bl-hamburger"
+          onClick={() => setSidebarOpen(o => !o)}
+          aria-label="Menu openen"
+        >
+          ☰
+        </button>
         {children}
       </main>
     </div>

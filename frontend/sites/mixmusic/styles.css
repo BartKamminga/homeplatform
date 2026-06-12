@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   NK Hockey — Stylesheet
+   Mix Music — Stylesheet
    4 thema's: light, dark, minimal, retro
    ═══════════════════════════════════════ */
 
@@ -7,6 +7,10 @@
 
 /* ── Light (standaard) ── */
 :root {
+  /* Site-accent voor gedeelde componenten */
+  --color-primary:        #3b82f6;
+  --color-primary-hover:  #2563eb;
+  --color-primary-light:  #dbeafe;
   --bg: #f0ede8;
   --bg-card: #fff;
   --bg-header: #f7f5f2;

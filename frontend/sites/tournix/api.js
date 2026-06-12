@@ -20,3 +20,8 @@ export const getStandings           = (tid)       => api.get(`/api/tournix/tourn
 
 export const predict                = (mid, data) => api.post(`/api/tournix/matches/${mid}/predict`, data)
 export const getPredictions         = (mid)       => api.get(`/api/tournix/matches/${mid}/predictions`)
+
+export const updateTournamentStage  = (tid, stage)  => api.patch(`/api/tournix/tournaments/${tid}`, { stage })
+export const saveSnapshot           = (tid, round)   => api.post(`/api/tournix/tournaments/${tid}/snapshots?round=${round}`)
+export const getSnapshots           = (tid)          => api.get(`/api/tournix/tournaments/${tid}/snapshots`)
+export const getSnapshot            = (tid, round)   => api.get(`/api/tournix/tournaments/${tid}/snapshots/${round}`)

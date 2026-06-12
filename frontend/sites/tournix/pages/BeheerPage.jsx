@@ -4,11 +4,12 @@ import {
   getTeams, createTeam, deleteTeam,
   getFields, createField,
   getMatches, createMatch, setResult,
+  updateTournamentStage, saveSnapshot, getSnapshots,
 } from '../api.js'
 
 const TABS = ['Toernooi', 'Teams', 'Velden', 'Wedstrijden']
 
-export default function BeheerPage() {
+export default function BeheerPage({ stage, onStageChange }) {
   const [tab,  setTab]  = useState('Toernooi')
   const [tid,  setTid]  = useState(null)
   const [list, setList] = useState([])
@@ -22,6 +23,13 @@ export default function BeheerPage() {
   }, [])
 
   const active = list.find(t => t.id === tid) ?? null
+
+  async function loadTournaments() {
+    const l = await getTournaments()
+    setList(l)
+    if (!tid && l[0]) setTid(l[0].id)
+    if (onStageChange) onStageChange()
+  }
 
   return (
     <div style={{ padding: '16px' }}>
@@ -40,10 +48,10 @@ export default function BeheerPage() {
         ))}
       </div>
 
-      {tab === 'Toernooi'    && <TournamentTab list={list} active={active} tid={tid} setTid={setTid} onRefresh={() => getTournaments().then(l => { setList(l); if (!tid && l[0]) setTid(l[0].id) })} />}
+      {tab === 'Toernooi'    && <TournamentTab list={list} active={active} tid={tid} setTid={setTid} onRefresh={loadTournaments} />}
       {tab === 'Teams'       && <TeamsTab     tid={tid} />}
       {tab === 'Velden'      && <FieldsTab    tid={tid} />}
-      {tab === 'Wedstrijden' && <MatchesTab   tid={tid} />}
+      {tab === 'Wedstrijden' && <MatchesTab   tid={tid} tournament={active} />}
     </div>
   )
 }
@@ -73,6 +81,12 @@ function TournamentTab({ list, active, tid, setTid, onRefresh }) {
     await onRefresh()
   }
 
+  async function handleStageChange(newStage) {
+    if (!active) return
+    await updateTournamentStage(active.id, newStage)
+    await onRefresh()
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Lijst */}
@@ -94,6 +108,43 @@ function TournamentTab({ list, active, tid, setTid, onRefresh }) {
               {t.status !== 'active' && <button onClick={() => activate(t.id)} style={ghostBtn}>Activeer</button>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Stage management */}
+      {active && (
+        <div style={{ marginTop: 0, padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+            FASE
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['inregel', 'test', 'productie'].map(s => (
+              <button
+                key={s}
+                onClick={() => handleStageChange(s)}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 13,
+                  borderRadius: 6,
+                  border: active.stage === s ? 'none' : '1px solid var(--color-border)',
+                  background: active.stage === s
+                    ? (s === 'inregel' ? 'var(--color-primary)' : s === 'test' ? 'var(--color-warning)' : 'var(--color-success)')
+                    : 'transparent',
+                  color: active.stage === s ? '#fff' : 'var(--color-text-muted)',
+                  cursor: 'pointer', fontWeight: active.stage === s ? 600 : 400,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8 }}>
+            {active.stage === 'inregel' && 'Vrij bewerken — teams, velden en wedstrijden aanmaken.'}
+            {active.stage === 'test' && 'Bevroren data — scores simuleren zonder opslaan.'}
+            {active.stage === 'productie' && 'Live — scores worden opgeslagen, voorspellingen tellen mee.'}
+            {!active.stage && 'Kies een fase om te activeren.'}
+          </div>
         </div>
       )}
 
@@ -185,29 +236,36 @@ function FieldsTab({ tid }) {
 }
 
 /* ── Wedstrijden ── */
-function MatchesTab({ tid }) {
-  const [matches,  setMatches]  = useState([])
-  const [teams,    setTeams]    = useState([])
-  const [fields,   setFields]   = useState([])
-  const [teamA,    setTeamA]    = useState('')
-  const [teamB,    setTeamB]    = useState('')
-  const [fieldId,  setFieldId]  = useState('')
-  const [round,    setRound]    = useState('')
-  const [time,     setTime]     = useState('')
-  const [saving,   setSaving]   = useState(false)
+function MatchesTab({ tid, tournament }) {
+  const [matches,   setMatches]   = useState([])
+  const [teams,     setTeams]     = useState([])
+  const [fields,    setFields]    = useState([])
+  const [teamA,     setTeamA]     = useState('')
+  const [teamB,     setTeamB]     = useState('')
+  const [fieldId,   setFieldId]   = useState('')
+  const [round,     setRound]     = useState('')
+  const [time,      setTime]      = useState('')
+  const [saving,    setSaving]    = useState(false)
   const [scoreEdit, setScoreEdit] = useState(null)
-  const [scoreA,   setScoreA]   = useState('')
-  const [scoreB,   setScoreB]   = useState('')
+  const [scoreA,    setScoreA]    = useState('')
+  const [scoreB,    setScoreB]    = useState('')
+  const [snapshots, setSnapshots] = useState([])
+  const [snapSaving, setSnapSaving] = useState(null)
 
   useEffect(() => {
     if (!tid) return
     Promise.all([getMatches(tid), getTeams(tid), getFields(tid)])
       .then(([m, t, f]) => { setMatches(m); setTeams(t); setFields(f) })
       .catch(() => {})
+    getSnapshots(tid).then(setSnapshots).catch(() => {})
   }, [tid])
 
   const teamMap  = Object.fromEntries(teams.map(t  => [t.id, t]))
   const fieldMap = Object.fromEntries(fields.map(f => [f.id, f]))
+
+  // Collect distinct rounds from matches
+  const rounds = [...new Set(matches.map(m => m.round).filter(r => r != null))].sort((a, b) => a - b)
+  const savedRounds = new Set(snapshots.map(s => s.round))
 
   async function submit(e) {
     e.preventDefault()
@@ -232,10 +290,47 @@ function MatchesTab({ tid }) {
     setMatches(await getMatches(tid))
   }
 
+  async function handleSaveSnapshot(r) {
+    setSnapSaving(r)
+    try {
+      await saveSnapshot(tid, r)
+      const updated = await getSnapshots(tid)
+      setSnapshots(updated)
+    } finally { setSnapSaving(null) }
+  }
+
   if (!tid) return <p style={noTid}>Selecteer eerst een toernooi.</p>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* Snapshot buttons per round */}
+      {rounds.length > 0 && (
+        <div style={{ padding: '10px 14px', background: 'var(--color-surface-2)', borderRadius: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+            SNAPSHOTS
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {rounds.map(r => (
+              <button
+                key={r}
+                onClick={() => handleSaveSnapshot(r)}
+                disabled={snapSaving === r}
+                style={{
+                  padding: '5px 12px', fontSize: 12, borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer',
+                  border: '1px solid var(--color-border)',
+                  background: savedRounds.has(r) ? 'var(--color-success)' : 'var(--color-surface)',
+                  color: savedRounds.has(r) ? '#fff' : 'var(--color-text)',
+                  opacity: snapSaving === r ? 0.6 : 1,
+                }}
+              >
+                {snapSaving === r ? '…' : savedRounds.has(r) ? `Ronde ${r} ✓` : `Bewaar ronde ${r}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {matches.map(m => (
         <div key={m.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
