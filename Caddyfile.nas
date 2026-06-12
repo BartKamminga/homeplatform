@@ -58,6 +58,16 @@
         file_server
     }
 
+    handle /assets/* {
+        root * /srv/www
+        file_server
+    }
+
+    handle /favicon.svg {
+        root * /srv/www
+        file_server
+    }
+
     handle / {
         root * /srv/www
         try_files {path} /landing/index.html
