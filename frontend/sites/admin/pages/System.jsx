@@ -35,6 +35,7 @@ export default function System() {
           <SitesCard data={data} />
           <TablesCard data={data} />
           <RecentCard data={data} />
+          <DataStorageCard />
         </div>
       )}
     </AdminLayout>
@@ -211,6 +212,92 @@ function RecentCard({ data }) {
       <div style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '10px' }}>
         Volledige history via admin → Audit log
       </div>
+    </Card>
+  );
+}
+
+const DB_USER_ROWS = [
+  { label: 'username, email, locale',              where: 'users',            note: 'Basisprofiel' },
+  { label: 'active_group_id',                      where: 'users',            note: 'Globale actieve groep' },
+  { label: 'pref_group_dontforget',                where: 'users',            note: 'Voorkeurs-groep DontForget' },
+  { label: 'pref_group_mixmusic',                  where: 'users',            note: 'Voorkeurs-groep MixMusic' },
+  { label: 'theme_id, language',                   where: 'user_preferences', note: 'Thema en taal' },
+  { label: 'df_moment, df_repeat, df_history, df_photo_required', where: 'user_preferences.extra', note: 'DontForget instellingen' },
+  { label: 'mm_desktop_layout, mm_mobile_layout',  where: 'user_preferences.extra', note: 'MixMusic layout' },
+  { label: 'group_id, role',                       where: 'user_groups',      note: 'Groepslidmaatschappen' },
+  { label: 'Taken (group_id = NULL)',              where: 'tasks',            note: 'DontForget — persoonlijk' },
+];
+
+const DB_GROUP_ROWS = [
+  { label: 'Taken (group_id = …)',                 where: 'tasks',                  note: 'DontForget — gedeeld' },
+  { label: 'display_name, rating, genres, moments, play_count', where: 'mixmusic_track_meta', note: 'MixMusic meta per track' },
+  { label: 'file_path, position',                  where: 'mixmusic_track_hearts',  note: 'MixMusic favoriete momenten' },
+];
+
+const LS_ROWS = [
+  { label: 'hp_token',           note: 'JWT access token',                    scope: 'alle sites' },
+  { label: 'hp_user',            note: '{ id, username } — gecached bij login', scope: 'alle sites' },
+  { label: 'hp_theme',           note: 'Actief thema',                         scope: 'alle sites' },
+  { label: 'df_moment / df_repeat / df_history', note: 'DontForget instellingen — cache (gesynchroniseerd via DB)', scope: 'DontForget' },
+  { label: 'df_photo_required',  note: 'Foto verplicht — cache (gesynchroniseerd via DB)',  scope: 'DontForget' },
+  { label: 'mm_desktop_layout',  note: 'Desktop layout — cache (gesynchroniseerd via DB)',  scope: 'MixMusic' },
+  { label: 'mm_mobile_layout',   note: 'Mobiel layout — cache (gesynchroniseerd via DB)',   scope: 'MixMusic' },
+  { label: 'nk_club / nk_comp',  note: 'Gekozen club en competitie',           scope: 'NKHockey' },
+  { label: 'nk_form / nk_played / nk_focus', note: 'Weergave-instellingen',   scope: 'NKHockey' },
+  { label: 'nk_sim_count',       note: 'Simulatieaantal',                      scope: 'NKHockey' },
+  { label: 'nk_disclaimer_seen', note: 'Disclaimer gezien',                    scope: 'NKHockey' },
+];
+
+function DataStorageCard() {
+  const subHeader = (label) => (
+    <div style={{
+      fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+      color: 'var(--color-text-light)', margin: '14px 0 6px',
+    }}>{label}</div>
+  );
+
+  const dataRow = (key, col1, col2, col3) => (
+    <div key={key} style={{
+      display: 'grid', gridTemplateColumns: '2fr 1.4fr 2fr',
+      gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--color-border)',
+      alignItems: 'baseline',
+    }}>
+      <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col1}</span>
+      <span style={{ fontSize: '11px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '1px 5px', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', justifySelf: 'start' }}>{col2}</span>
+      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{col3}</span>
+    </div>
+  );
+
+  return (
+    <Card title="Data &amp; instellingen" icon="◈" wide>
+      <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '4px', lineHeight: 1.5 }}>
+        Overzicht van wat per gebruiker of groep wordt opgeslagen, en waar.
+      </p>
+
+      {subHeader('Database — per gebruiker')}
+      {DB_USER_ROWS.map((r, i) => dataRow(i, r.label, r.where, r.note))}
+
+      {subHeader('Database — per groep')}
+      {DB_GROUP_ROWS.map((r, i) => dataRow('g' + i, r.label, r.where, r.note))}
+
+      <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '6px' }}>
+        mixmusic_genres is globaal — niet per user of groep.
+      </p>
+
+      {subHeader('localStorage — per browser / apparaat')}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '2fr 1.4fr 2fr',
+        gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--color-border)',
+      }}>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-light)' }}>Sleutel</span>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-light)' }}>Site</span>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-light)' }}>Omschrijving</span>
+      </div>
+      {LS_ROWS.map((r, i) => dataRow('ls' + i, r.label, r.scope, r.note))}
+
+      <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '8px' }}>
+        localStorage is apparaatgebonden — niet gesynchroniseerd tussen browsers of gebruikers.
+      </p>
     </Card>
   );
 }

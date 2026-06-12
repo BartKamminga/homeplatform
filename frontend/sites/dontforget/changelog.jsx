@@ -1,8 +1,25 @@
 // frontend/sites/dontforget/src/changelog.jsx
 
-export const VERSION = "1.2";
+export const VERSION = "1.4";
 
 export const CHANGELOG = [
+  {
+    version: "1.4",
+    date: "12 jun 2026",
+    changes: [
+      "Instellingen gesynchroniseerd — standaard moment, herhaling, foto verplicht en geschiedenis bewaren worden opgeslagen in je account",
+      "Instellingen zijn nu zichtbaar op elk apparaat en elke browser",
+    ],
+  },
+  {
+    version: "1.3",
+    date: "12 jun 2026",
+    changes: [
+      "Profiel en groepsinstellingen verplaatst naar de Account-site",
+      "Instellingen toont directe link naar Account → Groepen & app-voorkeuren",
+      "DontForget gebruikt nu de voorkeurs-groep die je instelt in Account",
+    ],
+  },
   {
     version: "1.2",
     date: "11 jun 2026",

@@ -194,6 +194,7 @@ def _build_links() -> dict:
         "external_url": external,
         "cloudflare_tunnel": "https://one.dash.cloudflare.com/networks/tunnels" if external else None,
         "cloudflare_analytics": f"https://dash.cloudflare.com" if external else None,
+        "github": "https://github.com/BartKamminga/homeplatform",
     }
 
 

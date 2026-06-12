@@ -87,6 +87,12 @@ export default function Monitoring() {
             href="/admin/api-stats"
             internal
           />
+          <LinkCard
+            icon="🐙"
+            title="GitHub"
+            description="Broncode van het platform. Commits, branches, pull requests en de volledige history."
+            href={links.github}
+          />
         </div>
       </Section>
 

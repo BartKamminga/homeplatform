@@ -1,6 +1,15 @@
-export const VERSION = "1.1";
+export const VERSION = "1.2";
 
 export const CHANGELOG = [
+  {
+    version: "1.2",
+    date: "12 jun 2026",
+    changes: [
+      "Voorkeurs-groep per app — stel apart in welke groep DontForget en MixMusic gebruiken",
+      "App voorkeuren zichtbaar onderaan Account → Groepen",
+      "DontForget instellingen (profiel en groep) verplaatst naar de Account-site",
+    ],
+  },
   {
     version: "1.1",
     date: "11 jun 2026",

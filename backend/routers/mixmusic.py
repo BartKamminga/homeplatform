@@ -22,9 +22,9 @@ MUSIC_EXTENSIONS = svc.MUSIC_EXTENSIONS
 
 
 def _scope(user: User) -> tuple:
-    """Geeft (user_id, group_id) terug op basis van de actieve groep."""
-    if user.active_group_id:
-        return None, user.active_group_id
+    """Geeft (user_id, group_id) terug op basis van de voorkeurs-groep voor MixMusic."""
+    if user.pref_group_mixmusic:
+        return None, user.pref_group_mixmusic
     return user.id, None
 
 MIME_TYPES = {

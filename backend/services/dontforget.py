@@ -7,15 +7,21 @@ from models.core import User
 from models.dontforget import Task
 
 
+def _scope_group(user: User):
+    return user.pref_group_dontforget
+
+
 def _owns(task: Task, user: User) -> bool:
+    group_id = _scope_group(user)
     if task.group_id:
-        return task.group_id == user.active_group_id
+        return task.group_id == group_id
     return task.user_id == user.id
 
 
 def get_tasks(session: Session, user: User, done: bool | None = None) -> list[Task]:
-    if user.active_group_id:
-        scope_filter = Task.group_id == user.active_group_id
+    group_id = _scope_group(user)
+    if group_id:
+        scope_filter = Task.group_id == group_id
     else:
         scope_filter = (Task.user_id == user.id) & Task.group_id.is_(None)
 
@@ -27,7 +33,7 @@ def get_tasks(session: Session, user: User, done: bool | None = None) -> list[Ta
 
 def create_task(session: Session, user: User, **fields) -> Task:
     fields.pop("group_id", None)
-    task = Task(user_id=user.id, group_id=user.active_group_id, **fields)
+    task = Task(user_id=user.id, group_id=_scope_group(user), **fields)
     session.add(task)
     session.commit()
     session.refresh(task)

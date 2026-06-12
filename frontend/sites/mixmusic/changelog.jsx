@@ -1,6 +1,22 @@
-export const VERSION = "1.0";
+export const VERSION = "1.2";
 
 export const CHANGELOG = [
+  {
+    version: "1.2",
+    date: "12 jun 2026",
+    changes: [
+      "Layout-voorkeur gesynchroniseerd — desktop en mobiel layout worden opgeslagen in je account",
+      "Layout is nu hetzelfde op elk apparaat en elke browser",
+    ],
+  },
+  {
+    version: "1.1",
+    date: "12 jun 2026",
+    changes: [
+      "Muziekdata gebruikt nu de voorkeurs-groep die je instelt in Account → Groepen",
+      "MixMusic en DontForget kunnen elk een eigen groep gebruiken, onafhankelijk van elkaar",
+    ],
+  },
   {
     version: "1.0",
     date: "11 jun 2026",

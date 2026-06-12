@@ -2,14 +2,7 @@ import { useState } from 'react'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
 import ChangelogPage from '@components/ChangelogPage.jsx'
 import { VERSION, CHANGELOG } from '../changelog.jsx'
-import { useGroups } from '@core/useGroups.js'
-
-const AVATAR_COLORS = [
-  { bg: '#E6F1FB', text: '#0C447C' },
-  { bg: '#EAF3DE', text: '#27500A' },
-  { bg: '#FBEAF0', text: '#72243E' },
-  { bg: '#FAEEDA', text: '#633806' },
-]
+import { useUiPref } from '@core/useUiPref.js'
 
 const HISTORY_OPTIONS = ['7 dagen', '30 dagen', 'Altijd']
 const MOMENT_OPTIONS  = ['Ochtend', 'Middag', 'Avond']
@@ -124,19 +117,11 @@ function ChangelogPopup({ onClose }) {
 }
 
 export default function SettingsPage() {
-  const { groups, active, setActiveGroup, groupDetails } = useGroups()
-  const memberCount = groupDetails.find(g => g.slug === active)?.member_count ?? 1
-  const [name,          setName]          = useState('Bart')
-  const [avatarColor,   setAvatarColor]   = useState(0)
-  const [photoRequired, setPhotoRequired] = useState(false)
-  const [points,        setPoints]        = useState(true)
-  const [moment,        setMoment]        = useState('Ochtend')
-  const [repeat,        setRepeat]        = useState('Eenmalig')
-  const [history,       setHistory]       = useState('30 dagen')
-  const [editName,      setEditName]      = useState(false)
+  const [photoRequired, setPhotoRequired] = useUiPref('df_photo_required', false, v => v === 'true' || v === true)
+  const [moment,        setMoment]        = useUiPref('df_moment', 'Ochtend')
+  const [repeat,        setRepeat]        = useUiPref('df_repeat', 'Eenmalig')
+  const [history,       setHistory]       = useUiPref('df_history', '30 dagen')
   const [showChangelog, setShowChangelog] = useState(false)
-
-  const avatar = AVATAR_COLORS[avatarColor]
 
   return (
     <div style={{ paddingBottom: 16 }}>
@@ -147,36 +132,14 @@ export default function SettingsPage() {
         <div style={{ flex: 1, fontSize: 17, fontWeight: 500, color: 'var(--text)' }}>Instellingen</div>
       </div>
 
-      {/* Profiel */}
-      <SectionHeader label="Profiel" />
+      {/* Account */}
+      <SectionHeader label="Account" />
       <Card>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', background: avatar.bg, color: avatar.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 500, flexShrink: 0 }}>
-            {name.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ flex: 1 }}>
-            {editName
-              ? <input autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setEditName(false)}
-                  style={{ fontSize: 14, color: 'var(--text)', background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: 6, padding: '4px 8px', width: '100%', fontFamily: 'inherit', outline: 'none' }} />
-              : <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>{name}</div>
-            }
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, cursor: 'pointer' }} onClick={() => setEditName(true)}>Naam wijzigen</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#EAF3DE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <i className="ti ti-palette" style={{ fontSize: 16, color: '#3B6D11' }} aria-hidden="true" />
-          </div>
-          <div style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>Avatar kleur</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {AVATAR_COLORS.map((c, i) => (
-              <div key={i} onClick={() => setAvatarColor(i)} style={{
-                width: 22, height: 22, borderRadius: '50%', background: c.bg, cursor: 'pointer',
-                border: avatarColor === i ? `2px solid var(--accent)` : '2px solid transparent',
-              }} />
-            ))}
-          </div>
-        </div>
+        <a href="/account/groups" style={{ textDecoration: 'none', display: 'block' }}>
+          <Row icon="ti-user-circle" iconBg="#E6F1FB" iconColor="#185FA5" title="Profiel &amp; groepen"
+            sub="Naam, wachtwoord, actieve groep en app-voorkeuren"
+            end={<i className="ti ti-chevron-right" style={{ fontSize: 16, color: 'var(--text-faint)' }} />} />
+        </a>
       </Card>
 
       {/* Weergave */}
@@ -203,34 +166,6 @@ export default function SettingsPage() {
         <Row icon="ti-camera" iconBg="#FBEAF0" iconColor="#993556" title="Foto verplicht"
           sub="Altijd een foto bij nieuwe taak"
           end={<Toggle value={photoRequired} onChange={setPhotoRequired} />} />
-      </Card>
-
-      {/* Huishouden */}
-      <SectionHeader label="Huishouden" />
-      <Card>
-        <Row icon="ti-users" iconBg="#E6F1FB" iconColor="#185FA5" title="Leden"
-          sub={active ? `${memberCount} ${memberCount === 1 ? 'lid' : 'leden'}` : 'Persoonlijk'} />
-        {groups.length > 1 && (
-          <Row
-            icon="ti-users-group"
-            iconBg="#E6F1FB"
-            iconColor="#185FA5"
-            title="Actieve groep"
-            end={
-              <select
-                value={active || ''}
-                onChange={e => setActiveGroup(e.target.value)}
-                style={{ background: 'transparent', border: '0.5px solid var(--border)', color: 'var(--text)', borderRadius: 6, padding: '4px 8px', fontSize: 13 }}
-              >
-                <option value=''>Persoonlijk</option>
-                {groups.map(slug => <option key={slug} value={slug}>{slug}</option>)}
-              </select>
-            }
-          />
-        )}
-        <Row icon="ti-trophy" iconBg="#FAEEDA" iconColor="#854F0B" title="Punten systeem"
-          sub="Wie doet de meeste klusjes?"
-          end={<Toggle value={points} onChange={setPoints} />} />
       </Card>
 
       {/* Data */}

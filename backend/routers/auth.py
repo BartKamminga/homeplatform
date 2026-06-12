@@ -12,7 +12,7 @@ from core.database import get_session
 from core.auth import verify_password, create_access_token, get_current_user, hash_password
 from core.limiter import limiter
 from core.logging import log_action
-from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken
+from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken, UserPreference
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -38,10 +38,17 @@ class MeResponse(BaseModel):
     groups: list[str]
     active_group: Optional[str] = None
     group_details: list[GroupDetail] = []
+    pref_group_dontforget: Optional[str] = None
+    pref_group_mixmusic: Optional[str] = None
 
 
 class ActiveGroupIn(BaseModel):
     group_slug: Optional[str] = None
+
+
+class PreferencesIn(BaseModel):
+    pref_group_dontforget: Optional[str] = None
+    pref_group_mixmusic: Optional[str] = None
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -107,11 +114,20 @@ def me(
     ).all()
     counts = dict(count_rows)
     group_details = [GroupDetail(slug=g.slug, member_count=counts.get(g.id, 0)) for g in groups]
+
+    def _group_slug(group_id: Optional[str]) -> Optional[str]:
+        if not group_id:
+            return None
+        g = session.get(Group, group_id)
+        return g.slug if g else None
+
     return MeResponse(
         id=current_user.id, username=current_user.username,
         email=current_user.email, locale=current_user.locale,
         is_active=current_user.is_active, groups=[g.slug for g in groups],
         active_group=active_group, group_details=group_details,
+        pref_group_dontforget=_group_slug(current_user.pref_group_dontforget),
+        pref_group_mixmusic=_group_slug(current_user.pref_group_mixmusic),
     )
 
 
@@ -140,6 +156,36 @@ def set_active_group(
     return {"active_group": body.group_slug}
 
 
+@router.patch("/me/preferences")
+def set_preferences(
+    body: PreferencesIn,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    def _resolve_group_id(slug: Optional[str]) -> Optional[str]:
+        if not slug:
+            return None
+        group = session.exec(select(Group).where(Group.slug == slug)).first()
+        if not group:
+            raise HTTPException(status_code=404, detail=f"Groep niet gevonden: {slug}")
+        is_member = session.exec(
+            select(UserGroup)
+            .where(UserGroup.user_id == current_user.id)
+            .where(UserGroup.group_id == group.id)
+        ).first()
+        if not is_member:
+            raise HTTPException(status_code=403, detail=f"Niet lid van groep: {slug}")
+        return group.id
+
+    if "pref_group_dontforget" in body.model_fields_set:
+        current_user.pref_group_dontforget = _resolve_group_id(body.pref_group_dontforget)
+    if "pref_group_mixmusic" in body.model_fields_set:
+        current_user.pref_group_mixmusic = _resolve_group_id(body.pref_group_mixmusic)
+    session.add(current_user)
+    session.commit()
+    return {"pref_group_dontforget": body.pref_group_dontforget, "pref_group_mixmusic": body.pref_group_mixmusic}
+
+
 @router.get("/me/sites")
 def my_sites(
     current_user: User = Depends(get_current_user),
@@ -158,6 +204,37 @@ def my_sites(
         if not restrictions or any(r.group_id in group_ids for r in restrictions):
             accessible.append(site.slug)
     return {"sites": accessible}
+
+
+# ── UI-voorkeuren (opgeslagen in user_preferences.extra) ─────────────────────
+
+@router.get("/me/ui-prefs")
+def get_ui_prefs(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    row = session.exec(select(UserPreference).where(UserPreference.user_id == current_user.id)).first()
+    return row.extra or {} if row else {}
+
+
+@router.patch("/me/ui-prefs")
+async def set_ui_prefs(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    data = await request.json()
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=422, detail="Body moet een object zijn")
+    row = session.exec(select(UserPreference).where(UserPreference.user_id == current_user.id)).first()
+    if not row:
+        row = UserPreference(user_id=current_user.id, extra={})
+        session.add(row)
+        session.flush()
+    row.extra = {**(row.extra or {}), **data}
+    session.add(row)
+    session.commit()
+    return row.extra
 
 
 # ── Profiel bewerken ──────────────────────────────────────────────────────────
