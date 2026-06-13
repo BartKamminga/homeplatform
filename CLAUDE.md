@@ -10,15 +10,18 @@
   - `be_db` — backend + alembic migraties + seed
   - `all` — alles (standaard)
 
-## Changelog bijwerken vóór elke deploy
+## Roadmap en changelog
 
-Elke deploy die gebruikersgerichte wijzigingen bevat moet vergezeld gaan van:
+De **NAS-database is de centrale backlog**. Todos en changelog werken samen via de `roadmap_items` tabel:
 
-1. **Een nieuwe alembic-migratie** in `backend/alembic/versions/` die changelog-rijen invoegt voor de betreffende site(s).
-   - Geen apostrofs in SQL-strings — gebruik dubbele aanhalingstekens of schrijf ze weg.
-   - `down_revision` moet wijzen naar de vorige migratie in de keten.
-2. **Een frontend changelog-update** in de relevante site (indien aanwezig).
-3. Als het versienummer niet duidelijk is: **eerst vragen** aan de gebruiker.
+- **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) — niet in conversatienotities.
+- **Aan het begin van een sessie**: relevante open roadmap-items ophalen via `GET /api/roadmap?status=idee` of `in_progress`.
+- **Na afronden van een taak**: item markeren als `klaar` + versienummer invullen → changelog-entry wordt automatisch aangemaakt.
+- **Versienummer onduidelijk**: eerst vragen aan de gebruiker.
+- Handmatige alembic-migraties voor changelog zijn niet meer nodig bij items die via de roadmap lopen.
+- Voor infrastructurele DB-wijzigingen (nieuwe tabellen, kolommen) blijft de alembic-migratie vereist:
+  - Geen apostrofs in SQL-strings — gebruik dubbele aanhalingstekens of schrijf ze weg.
+  - `down_revision` moet wijzen naar de vorige migratie in de keten.
 
 ## Technische afspraken
 

@@ -1,0 +1,182 @@
+[
+    {
+        "federation_reference_id":  "HH11AR3",
+        "name":  "Amsterdam",
+        "logo_url":  "https://images.static-hw.nl/FjXSsUBKUz6cMLnqhbP7sk_nY-4=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11AR3/0505a081-cdab-4c5f-8caa-ba0a9c4be404/logo.jpg",
+        "team_id":  2068
+    },
+    {
+        "federation_reference_id":  "HH11BW1",
+        "name":  "Bloemendaal",
+        "logo_url":  "https://images.static-hw.nl/8YepInGfFPymSrp5rCiOcWeYNeY=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BW1/259ee4fc-0414-450c-9e7d-f9608fe9c6a8/logo.jpg",
+        "team_id":  2554
+    },
+    {
+        "federation_reference_id":  "HH11CC4",
+        "name":  "Breda",
+        "logo_url":  "https://images.static-hw.nl/mor_XwIDUKJgp_moPNrxa_R_zX0=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11CC4/0ed10b21-91d9-4482-be11-4fd169e8c033/logo.png",
+        "team_id":  2645
+    },
+    {
+        "federation_reference_id":  "HH11CJ3",
+        "name":  "Cartouche",
+        "logo_url":  "https://images.static-hw.nl/h9XTGRguVckZizAbwO1Zd4fp3XQ=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11CJ3/b3084e4e-f8ef-41c6-843f-054797480740/logo.png",
+        "team_id":  2744
+    },
+    {
+        "federation_reference_id":  "HH11FH8",
+        "name":  "Fletiomare",
+        "logo_url":  "https://images.static-hw.nl/OBUUNT23mV1v4DbSoSKt09z-kAs=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11FH8/f908cd59-9803-4f47-ab33-7192abf9ce07/logo.jpg",
+        "team_id":  3364
+    },
+    {
+        "federation_reference_id":  "HH11FY7",
+        "name":  "Gooische",
+        "logo_url":  "https://images.static-hw.nl/ODVwTtBtwdbSej0sjldix4XiaPc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11FY7/ded89030-a639-4fa1-9578-9cc1eeeb521c/logo.jpg",
+        "team_id":  3674
+    },
+    {
+        "federation_reference_id":  "HH11GG4",
+        "name":  "Groningen",
+        "logo_url":  "https://images.static-hw.nl/MO4b5uOFRikEACcLqG8Hpt6Mpy4=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11GG4/d27cdfbd-bf71-4cab-a603-2b9faac5584f/logo.png",
+        "team_id":  3801
+    },
+    {
+        "federation_reference_id":  "HH11GQ4",
+        "name":  "HBS",
+        "logo_url":  "https://images.static-hw.nl/fFqVf9ZlgezJYCu7Ri_YlLt-RAQ=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11GQ4/bac35e27-db71-4799-810a-c2dbc455f910/logo.jpg",
+        "team_id":  3930
+    },
+    {
+        "federation_reference_id":  "HH11GW6",
+        "name":  "HDM",
+        "logo_url":  "https://images.static-hw.nl/m7sb5v2WE5wBH29m-h57CRIBlQA=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11GW6/846158c2-ecf8-40ae-95c1-b668cd66853a/logo.jpg",
+        "team_id":  8299
+    },
+    {
+        "federation_reference_id":  "HH11HM9",
+        "name":  "Den Bosch",
+        "logo_url":  "https://images.static-hw.nl/Qy3DqLuy1iF735xpSgmfCt8Vdzg=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11HM9/4a4c3c10-6ebe-47b1-8f47-edc8e06a7fe6/logo.jpg",
+        "team_id":  8770
+    },
+    {
+        "federation_reference_id":  "HH11JR0",
+        "name":  "Hurley",
+        "logo_url":  "https://images.static-hw.nl/4LLOQQLfLMgaA7pv5yP2reaG-rk=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11JR0/19d59575-3403-46b1-85b0-311870b663a8/logo.jpg",
+        "team_id":  4522
+    },
+    {
+        "federation_reference_id":  "HH11KB1",
+        "name":  "Klein Zwitserland",
+        "logo_url":  "https://images.static-hw.nl/J3N-FYwSymrD0k1wSf4fdhbowW4=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11KB1/ab754634-5585-432d-9e45-bdf660334545/logo.jpg",
+        "team_id":  4805
+    },
+    {
+        "federation_reference_id":  "HH11KK4",
+        "name":  "Leiden",
+        "logo_url":  "https://images.static-hw.nl/nf0Ce-4x2J_M1Ep1LZAqkC2D7YA=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11KK4/cabfa6b8-b84e-4176-8fd5-b07f32df3199/logo.jpg",
+        "team_id":  5009
+    },
+    {
+        "federation_reference_id":  "HH11KW8",
+        "name":  "Maarssen",
+        "logo_url":  "https://images.static-hw.nl/QLhVs-Wjv5zv0dNnLK0hSTYf6qw=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11KW8/6965fbc6-a458-41a2-9014-b79a32bca2cc/logo.png",
+        "team_id":  5243
+    },
+    {
+        "federation_reference_id":  "HH11LG9",
+        "name":  "MEP",
+        "logo_url":  "https://images.static-hw.nl/p8DzDH4bWkgQHgmQyxmn37JuIRU=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11LG9/0a58ab7f-c1cb-4934-bbc2-3737d0b01b1a/logo.jpg",
+        "team_id":  5376
+    },
+    {
+        "federation_reference_id":  "HH11LW1",
+        "name":  "Naarden",
+        "logo_url":  "https://images.static-hw.nl/YTX2_InT-mjLT7mWf2LmNT2YZaI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11LW1/c77bffae-111f-4821-96de-55bd3013fcbe/logo.png",
+        "team_id":  5579
+    },
+    {
+        "federation_reference_id":  "HH11MG2",
+        "name":  "Nijmegen",
+        "logo_url":  "https://images.static-hw.nl/n5AaGD4RhFmWO6Vry_kOghOePJQ=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11MG2/b18c6a01-5571-4e02-95ba-17af17ccd878/logo.jpg",
+        "team_id":  5722
+    },
+    {
+        "federation_reference_id":  "HH11MW4",
+        "name":  "Pinoké",
+        "logo_url":  "https://images.static-hw.nl/Bf6C_ql1PIy1Fk0Biqmey2gI5SI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11MW4/8b72a716-0cc5-478f-b320-150a94606dd6/logo.jpg",
+        "team_id":  6031
+    },
+    {
+        "federation_reference_id":  "HH11NC7",
+        "name":  "Push",
+        "logo_url":  "https://images.static-hw.nl/_d8NNOUPyo1l7QgVvr7NHiNIqY4=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11NC7/9eff24da-3e8c-4444-8ad3-e7575b94592c/logo.png",
+        "team_id":  6195
+    },
+    {
+        "federation_reference_id":  "HH11NT6",
+        "name":  "Rood-Wit",
+        "logo_url":  "https://images.static-hw.nl/yWyFi-0RQ-zHabYffqDfwL3rzBU=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11NT6/b74e25ff-ca9a-43b2-93c5-94729b9e604b/logo.jpg",
+        "team_id":  6518
+    },
+    {
+        "federation_reference_id":  "HH11NV0",
+        "name":  "Roomburg",
+        "logo_url":  "https://images.static-hw.nl/FDZSQmJ9djlE-q3S4yZCgXKhCyo=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11NV0/6ea50671-2676-43ff-9b25-de471745f10a/logo.jpg",
+        "team_id":  6572
+    },
+    {
+        "federation_reference_id":  "HH11NX4",
+        "name":  "Rotterdam",
+        "logo_url":  "https://images.static-hw.nl/AxDh_JIg-IP55uJRkTLT3sVrEoE=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11NX4/3c4b8ed6-3aaa-4ec7-b914-e324cef73a60/logo.jpg",
+        "team_id":  6678
+    },
+    {
+        "federation_reference_id":  "HH11PC3",
+        "name":  "Schaerweijde",
+        "logo_url":  "https://images.static-hw.nl/QJKnTYEkjkGtWOuj7j1bHb8QvSo=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11PC3/0dc95bca-3e11-49cc-9d7a-72c7b525d685/logo.jpg",
+        "team_id":  6807
+    },
+    {
+        "federation_reference_id":  "HH11PD0",
+        "name":  "SCHC",
+        "logo_url":  "https://images.static-hw.nl/p4tLJ3rIVoC98vuhnBiXVkomZBI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11PD0/4b6e827c-6f32-4a7b-97ad-06492513dd89/logo.jpg",
+        "team_id":  6871
+    },
+    {
+        "federation_reference_id":  "HH11PQ1",
+        "name":  "Spandersbosch",
+        "logo_url":  "https://images.static-hw.nl/N7JvoHfHYN7_UfYx1bHq0wRzxiQ=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11PQ1/455fad74-9154-432c-8177-66c79b037a99/logo.jpg",
+        "team_id":  9335
+    },
+    {
+        "federation_reference_id":  "HH11QP7",
+        "name":  "Upward",
+        "logo_url":  "https://images.static-hw.nl/JCqdAAJuVcqp387CyFsVcjmDKeY=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QP7/087dac2c-ec3c-4c53-bc6c-0c2cb10141b0/logo.jpg",
+        "team_id":  7349
+    },
+    {
+        "federation_reference_id":  "HH11QW6",
+        "name":  "Victoria",
+        "logo_url":  "https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png",
+        "team_id":  7463
+    },
+    {
+        "federation_reference_id":  "MJ56BV2",
+        "name":  "Tilburg",
+        "logo_url":  "https://images.static-hw.nl/W3o1M6b71RojcuDe9kMZEO_nBRI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/MJ56BV2/fa975b50-75af-463c-b99a-54c6d0e601b8/logo.jpg",
+        "team_id":  19738
+    },
+    {
+        "federation_reference_id":  "MK12LJ1",
+        "name":  "Zwolle",
+        "logo_url":  "https://images.static-hw.nl/bXXZAa5k4SW-DzSbAS0BGjfPjtM=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/MK12LJ1/d266ae54-8e95-4ef9-8988-f1989ba07456/logo.png",
+        "team_id":  21266
+    },
+    {
+        "federation_reference_id":  "MK22GS0",
+        "name":  "Oranje-Rood",
+        "logo_url":  "https://images.static-hw.nl/d2i2kAsx6yIcqMCUMueyBHW63ow=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/MK22GS0/626de194-4535-4f5a-a9f6-7f6b373e19bd/logo.png",
+        "team_id":  25601
+    }
+]

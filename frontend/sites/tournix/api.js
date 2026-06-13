@@ -4,16 +4,22 @@ export const getTournaments         = ()          => api.get('/api/tournix/tourn
 export const getTournament          = (id)        => api.get(`/api/tournix/tournaments/${id}`)
 export const createTournament       = (data)      => api.post('/api/tournix/tournaments', data)
 export const updateTournament       = (id, data)  => api.patch(`/api/tournix/tournaments/${id}`, data)
+export const deleteTournament       = (id)        => api.delete(`/api/tournix/tournaments/${id}`)
+export const getMe                  = ()          => api.get('/api/me')
 
 export const getTeams               = (tid)       => api.get(`/api/tournix/tournaments/${tid}/teams`)
 export const createTeam             = (tid, data) => api.post(`/api/tournix/tournaments/${tid}/teams`, data)
+export const updateTeam             = (id, data)  => api.patch(`/api/tournix/teams/${id}`, data)
 export const deleteTeam             = (id)        => api.delete(`/api/tournix/teams/${id}`)
 
 export const getFields              = (tid)       => api.get(`/api/tournix/tournaments/${tid}/fields`)
 export const createField            = (tid, data) => api.post(`/api/tournix/tournaments/${tid}/fields`, data)
+export const deleteField            = (id)        => api.delete(`/api/tournix/fields/${id}`)
 
 export const getMatches             = (tid)       => api.get(`/api/tournix/tournaments/${tid}/matches`)
 export const createMatch            = (tid, data) => api.post(`/api/tournix/tournaments/${tid}/matches`, data)
+export const updateMatch            = (mid, data) => api.patch(`/api/tournix/matches/${mid}`, data)
+export const deleteMatch            = (mid)       => api.delete(`/api/tournix/matches/${mid}`)
 export const setResult              = (mid, data) => api.patch(`/api/tournix/matches/${mid}/result`, data)
 
 export const getStandings           = (tid)       => api.get(`/api/tournix/tournaments/${tid}/standings`)
@@ -25,3 +31,27 @@ export const updateTournamentStage  = (tid, stage)  => api.patch(`/api/tournix/t
 export const saveSnapshot           = (tid, round)   => api.post(`/api/tournix/tournaments/${tid}/snapshots?round=${round}`)
 export const getSnapshots           = (tid)          => api.get(`/api/tournix/tournaments/${tid}/snapshots`)
 export const getSnapshot            = (tid, round)   => api.get(`/api/tournix/tournaments/${tid}/snapshots/${round}`)
+
+export const getPools               = (tid)          => api.get(`/api/tournix/tournaments/${tid}/pools`)
+export const createPool             = (tid, body)    => api.post(`/api/tournix/tournaments/${tid}/pools`, body)
+export const deletePool             = (pid)          => api.delete(`/api/tournix/pools/${pid}`)
+export const assignTeamPool         = (teamId, poolId) => api.patch(`/api/tournix/teams/${teamId}/pool`, { pool_id: poolId })
+export const autoAssignPools        = (tid)          => api.post(`/api/tournix/tournaments/${tid}/auto-assign`)
+export const updateTournamentPools  = (tid, num_pools, pool_type) => api.patch(`/api/tournix/tournaments/${tid}`, { num_pools, pool_type })
+
+export async function generateSchedule(tid, clearExisting = false) {
+  return api.post(`/api/tournix/tournaments/${tid}/generate-schedule`, { clear_existing: clearExisting })
+}
+export async function generateKnockout(tid) {
+  return api.post(`/api/tournix/tournaments/${tid}/generate-knockout`)
+}
+export async function updateTournamentKnockout(tid, knockout_type, knockout_advance) {
+  return api.patch(`/api/tournix/tournaments/${tid}`, { knockout_type, knockout_advance })
+}
+
+export const getClubs    = ()          => api.get('/api/tournix/clubs')
+export const createClub  = (data)      => api.post('/api/tournix/clubs', data)
+export const updateClub  = (id, data)  => api.patch(`/api/tournix/clubs/${id}`, data)
+export const deleteClub  = (id)        => api.delete(`/api/tournix/clubs/${id}`)
+
+export const importTournament = (data) => api.post('/api/tournix/import', data)

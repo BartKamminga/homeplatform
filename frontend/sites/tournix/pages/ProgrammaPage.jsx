@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
-import { getTournaments, getMatches, getTeams, getFields, setResult } from '../api.js'
+import { getMatches, getTeams, getFields, getPools, setResult } from '../api.js'
 
 const STATUS_LABEL = { scheduled: 'Gepland', playing: 'Bezig', finished: 'Klaar' }
 const STATUS_COLOR = { scheduled: 'var(--color-text-muted)', playing: '#f59e0b', finished: '#22c55e' }
 
-export default function ProgrammaPage({ stage }) {
-  const [tid,      setTid]      = useState(null)
+export default function ProgrammaPage({ stage, tournament }) {
   const [matches,  setMatches]  = useState([])
   const [teams,    setTeams]    = useState({})
   const [fields,   setFields]   = useState({})
-  const [loading,  setLoading]  = useState(true)
+  const [pools,    setPools]    = useState([])
+  const [viewMode, setViewMode] = useState('ronde')  // 'ronde' | 'poule'
+  const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
   // Simulation state for test mode
@@ -27,21 +28,19 @@ export default function ProgrammaPage({ stage }) {
   const isTest = stage === 'test'
 
   useEffect(() => {
-    getTournaments()
-      .then(list => {
-        const act = list.find(t => t.status === 'active') ?? list[0] ?? null
-        if (!act) { setLoading(false); return }
-        setTid(act.id)
-        return Promise.all([getMatches(act.id), getTeams(act.id), getFields(act.id)])
-          .then(([m, t, f]) => {
-            setMatches(m)
-            setTeams(Object.fromEntries(t.map(x => [x.id, x])))
-            setFields(Object.fromEntries(f.map(x => [x.id, x])))
-          })
+    setMatches([]); setTeams({}); setFields({}); setPools([])
+    if (!tournament?.id) return
+    setLoading(true)
+    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getFields(tournament.id), getPools(tournament.id)])
+      .then(([m, t, f, p]) => {
+        setMatches(m)
+        setTeams(Object.fromEntries(t.map(x => [x.id, x])))
+        setFields(Object.fromEntries(f.map(x => [x.id, x])))
+        setPools(p)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [tournament?.id])
 
   // Reset sim state when leaving test mode
   useEffect(() => {
@@ -51,12 +50,39 @@ export default function ProgrammaPage({ stage }) {
     }
   }, [isTest])
 
-  const grouped = matches.reduce((acc, m) => {
-    const key = m.round != null ? `Ronde ${m.round}` : 'Overig'
+  const groupedByRonde = matches.reduce((acc, m) => {
+    const key = m.match_type === 'ko'
+      ? 'Knock-out'
+      : m.round != null ? `Ronde ${m.round}` : 'Overig'
     if (!acc[key]) acc[key] = []
     acc[key].push(m)
     return acc
   }, {})
+
+  // Group pool matches by pool; KO matches in their own section
+  const groupedByPoule = (() => {
+    const result = {}
+    for (const p of pools) {
+      const poolMatches = matches.filter(m =>
+        m.match_type !== 'ko' &&
+        teams[m.team_a_id]?.pool_id === p.id &&
+        teams[m.team_b_id]?.pool_id === p.id
+      )
+      if (poolMatches.length > 0) result[p.name] = poolMatches
+    }
+    // Matches without a pool (or cross-pool)
+    const unassigned = matches.filter(m =>
+      m.match_type !== 'ko' &&
+      pools.length > 0 &&
+      !(teams[m.team_a_id]?.pool_id && teams[m.team_a_id]?.pool_id === teams[m.team_b_id]?.pool_id)
+    )
+    if (unassigned.length > 0) result['Overig'] = unassigned
+    const ko = matches.filter(m => m.match_type === 'ko')
+    if (ko.length > 0) result['Knock-out'] = ko
+    return result
+  })()
+
+  const grouped = viewMode === 'poule' && pools.length > 0 ? groupedByPoule : groupedByRonde
 
   function openSimEdit(mid) {
     const existing = simScores[mid]
@@ -84,7 +110,7 @@ export default function ProgrammaPage({ stage }) {
     try {
       await setResult(mid, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
       setScoreEdit(null); setScoreA(''); setScoreB('')
-      const updated = await getMatches(tid)
+      const updated = await getMatches(tournament.id)
       setMatches(updated)
     } catch (e) {
       setError(e.message)
@@ -93,9 +119,9 @@ export default function ProgrammaPage({ stage }) {
     }
   }
 
+  if (!tournament) return <p style={muted}>Selecteer een toernooi in de header.</p>
   if (loading) return <p style={muted}>Laden…</p>
   if (error)   return <p style={err}>{error}</p>
-  if (!tid)    return <p style={muted}>Geen actief toernooi.</p>
 
   if (Object.keys(grouped).length === 0) return (
     <p style={muted}>Nog geen wedstrijden gepland.</p>
@@ -103,6 +129,21 @@ export default function ProgrammaPage({ stage }) {
 
   return (
     <div style={{ padding: '20px 16px' }}>
+      {/* View toggle — alleen tonen als er poules zijn */}
+      {pools.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {[['ronde', 'Per ronde'], ['poule', 'Per poule']].map(([mode, label]) => (
+            <button key={mode} onClick={() => setViewMode(mode)} style={{
+              padding: '6px 14px', fontSize: 12, borderRadius: 20, fontFamily: 'inherit', cursor: 'pointer',
+              border: `1px solid ${viewMode === mode ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              background: viewMode === mode ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: viewMode === mode ? '#fff' : 'var(--color-text)',
+              fontWeight: viewMode === mode ? 600 : 400,
+            }}>{label}</button>
+          ))}
+        </div>
+      )}
+
       {/* Simulation banner */}
       {isTest && (
         <div style={{

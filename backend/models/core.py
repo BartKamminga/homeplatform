@@ -143,5 +143,6 @@ class RoadmapItem(SQLModel, table=True):
     priority: str = Field(default="midden")  # hoog/midden/laag
     status: str = Field(default="idee")  # idee/in_progress/klaar
     notes: Optional[str] = None
+    version: Optional[str] = Field(default=None)  # versienummer bij afsluiten, triggert changelog
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

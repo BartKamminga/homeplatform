@@ -29,6 +29,7 @@ const EMPTY_FORM = {
   priority: "midden",
   status: "idee",
   notes: "",
+  version: "",
 };
 
 /* ── Styles ─────────────────────────────────────────────────────────────── */
@@ -219,6 +220,18 @@ function RoadmapForm({ initial, onSave, onCancel, saving }) {
           options={PRIORITIES.filter((p) => p !== "alle")} />
         <SelectField label="Status" name="status" value={form.status} onChange={handleChange}
           options={STATUSES.filter((s) => s !== "alle")} />
+        {form.status === "klaar" && (
+          <div style={s.formGroup}>
+            <label style={s.label}>Versienummer <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(→ changelog)</span></label>
+            <input
+              style={s.input}
+              name="version"
+              value={form.version || ""}
+              onChange={handleChange}
+              placeholder="bijv. 0.8 of 1.3.1"
+            />
+          </div>
+        )}
         <div style={{ gridColumn: "1 / -1" }} />
         <TextareaField
           label="Notities / Claude-context"
@@ -277,6 +290,11 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
               }}>
                 {STATUS_LABEL[item.status]}
               </span>
+              {item.version && (
+                <span style={s.badge({ background: "var(--color-success-light)", color: "var(--color-success)", fontFamily: "var(--font-mono)" })}>
+                  v{item.version}
+                </span>
+              )}
             </div>
             {item.description && (
               <div style={s.desc}>{item.description}</div>

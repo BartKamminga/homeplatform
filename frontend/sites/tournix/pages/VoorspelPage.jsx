@@ -1,31 +1,27 @@
 import { useState, useEffect } from 'react'
-import { getTournaments, getMatches, getTeams, predict } from '../api.js'
+import { getMatches, getTeams, predict } from '../api.js'
 
-export default function VoorspelPage() {
-  const [tid,     setTid]     = useState(null)
+export default function VoorspelPage({ tournament }) {
   const [matches, setMatches] = useState([])
   const [teams,   setTeams]   = useState({})
   const [preds,   setPreds]   = useState({})
   const [saving,  setSaving]  = useState(null)
   const [saved,   setSaved]   = useState({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
   useEffect(() => {
-    getTournaments()
-      .then(list => {
-        const act = list.find(t => t.status === 'active') ?? list[0] ?? null
-        if (!act) { setLoading(false); return }
-        setTid(act.id)
-        return Promise.all([getMatches(act.id), getTeams(act.id)])
-          .then(([m, t]) => {
-            setMatches(m.filter(x => x.status !== 'finished'))
-            setTeams(Object.fromEntries(t.map(x => [x.id, x])))
-          })
+    setMatches([]); setTeams({})
+    if (!tournament?.id) return
+    setLoading(true)
+    Promise.all([getMatches(tournament.id), getTeams(tournament.id)])
+      .then(([m, t]) => {
+        setMatches(m.filter(x => x.status !== 'finished'))
+        setTeams(Object.fromEntries(t.map(x => [x.id, x])))
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [tournament?.id])
 
   function setPred(mid, side, val) {
     const n = parseInt(val)
@@ -47,9 +43,9 @@ export default function VoorspelPage() {
     }
   }
 
+  if (!tournament) return <p style={muted}>Selecteer een toernooi in de header.</p>
   if (loading) return <p style={muted}>Laden…</p>
   if (error)   return <p style={err}>{error}</p>
-  if (!tid)    return <p style={muted}>Geen actief toernooi.</p>
   if (matches.length === 0) return <p style={muted}>Geen openstaande wedstrijden om te voorspellen.</p>
 
   return (
