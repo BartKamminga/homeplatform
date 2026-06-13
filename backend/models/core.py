@@ -144,7 +144,8 @@ class RoadmapItem(SQLModel, table=True):
     status: str = Field(default="idee")  # idee/in_progress/klaar
     notes: Optional[str] = None
     version: Optional[str] = Field(default=None)  # versienummer bij afsluiten, triggert changelog
-    impact: Optional[str] = Field(default=None)   # laag/midden/hoog
+    impact: Optional[str] = Field(default=None)   # laag/midden/hoog — impact op de gebruiker
     risico: Optional[str] = Field(default=None)   # laag/midden/hoog
+    scope: Optional[str] = Field(default=None)    # frontend/backend/beide
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

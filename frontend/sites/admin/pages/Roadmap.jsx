@@ -3,14 +3,16 @@ import AdminLayout from "../AdminLayout.jsx";
 import { api } from "@core/api.js";
 
 const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets"];
-const STATUSES = ["alle", "idee", "in_progress", "gereed", "deploying", "klaar"];
+const STATUSES = ["alle", "idee", "geanalyseerd", "in_progress", "gereed", "deploying", "klaar"];
 const PRIORITIES = ["alle", "hoog", "midden", "laag"];
+const SCOPES = ["frontend", "backend", "beide"];
 
-const STATUS_CYCLE = { idee: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
+const STATUS_CYCLE = { idee: "geanalyseerd", geanalyseerd: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
 
-const STATUS_LABEL = { idee: "Idee", in_progress: "In uitvoering", gereed: "Gereed voor deploy", deploying: "Deploying", klaar: "Klaar" };
+const STATUS_LABEL = { idee: "Idee", geanalyseerd: "Geanalyseerd", in_progress: "In uitvoering", gereed: "Gereed voor deploy", deploying: "Deploying", klaar: "Klaar" };
 const STATUS_COLOR = {
   idee: "var(--color-text-muted)",
+  geanalyseerd: "#8b5cf6",
   in_progress: "var(--color-primary)",
   gereed: "var(--color-warning)",
   deploying: "var(--color-danger)",
@@ -37,6 +39,7 @@ const EMPTY_FORM = {
   version: "",
   impact: null,
   risico: null,
+  scope: null,
 };
 
 /* ── Styles ─────────────────────────────────────────────────────────────── */
@@ -279,8 +282,29 @@ function RoadmapForm({ initial, onSave, onCancel, saving }) {
             />
           </div>
         )}
-        <MeterField label="Impact" name="impact" value={form.impact} onChange={handleChange} />
+        <MeterField label="Impact op gebruiker" name="impact" value={form.impact} onChange={handleChange} />
         <MeterField label="Risico" name="risico" value={form.risico} onChange={handleChange} />
+        <div style={s.formGroup}>
+          <label style={s.label}>Scope</label>
+          <div style={{ display: "flex", gap: "6px" }}>
+            {[null, ...SCOPES].map((v) => (
+              <button
+                key={v ?? "geen"}
+                type="button"
+                onClick={() => handleChange({ target: { name: "scope", value: v } })}
+                style={{
+                  padding: "3px 10px", fontSize: "12px", borderRadius: "99px", cursor: "pointer",
+                  border: `1px solid ${form.scope === v ? "var(--color-primary)" : "var(--color-border)"}`,
+                  background: form.scope === v ? "var(--color-primary)" : "transparent",
+                  color: form.scope === v ? "#fff" : "var(--color-text-muted)",
+                  fontWeight: form.scope === v ? 600 : 400,
+                }}
+              >
+                {v ?? "—"}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ gridColumn: "1 / -1" }} />
         <TextareaField
           label="Notities / Claude-context"
@@ -352,6 +376,11 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
                   ⚠ {item.risico}
                 </span>
               )}
+              {item.scope && (
+                <span style={s.badge({ background: "var(--color-surface-2)", color: "var(--color-text-muted)" })}>
+                  {item.scope}
+                </span>
+              )}
               {item.version && (
                 <span style={s.badge({ background: "var(--color-success-light)", color: "var(--color-success)", fontFamily: "var(--font-mono)" })}>
                   v{item.version}
@@ -378,7 +407,7 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
 
 /* ── Main page ───────────────────────────────────────────────────────────── */
 
-const STATUS_ORDER = ["deploying", "in_progress", "gereed", "idee", "klaar"];
+const STATUS_ORDER = ["deploying", "in_progress", "gereed", "geanalyseerd", "idee", "klaar"];
 
 export default function Roadmap() {
   const [items, setItems] = useState([]);

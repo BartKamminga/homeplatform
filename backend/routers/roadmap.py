@@ -24,6 +24,7 @@ class RoadmapItemCreate(BaseModel):
     version: Optional[str] = None
     impact: Optional[str] = None
     risico: Optional[str] = None
+    scope: Optional[str] = None
 
 
 class RoadmapItemUpdate(BaseModel):
@@ -36,6 +37,7 @@ class RoadmapItemUpdate(BaseModel):
     version: Optional[str] = None
     impact: Optional[str] = None
     risico: Optional[str] = None
+    scope: Optional[str] = None
 
 
 def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:

@@ -81,7 +81,7 @@ if ($List) {
 import sqlite3
 con = sqlite3.connect('$DB', timeout=10)
 cur = con.cursor()
-cur.execute("SELECT id, status, site, priority, title, version FROM roadmap_items WHERE $where ORDER BY CASE status WHEN 'deploying' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'gereed' THEN 2 WHEN 'idee' THEN 3 ELSE 4 END, CASE priority WHEN 'hoog' THEN 0 WHEN 'midden' THEN 1 ELSE 2 END, id")
+cur.execute("SELECT id, status, site, priority, title, version FROM roadmap_items WHERE $where ORDER BY CASE status WHEN 'deploying' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'gereed' THEN 2 WHEN 'geanalyseerd' THEN 3 WHEN 'idee' THEN 4 ELSE 5 END, CASE priority WHEN 'hoog' THEN 0 WHEN 'midden' THEN 1 ELSE 2 END, id")
 rows = cur.fetchall()
 print("ID    STATUS         SITE        PRIOR   TITEL")
 print("-" * 72)
