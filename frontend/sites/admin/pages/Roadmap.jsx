@@ -324,6 +324,9 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
           />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "11px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
+                #{item.id}
+              </span>
               <span style={s.title}>{item.title}</span>
               <span style={s.badge(PRIORITY_STYLE[item.priority] || {})}>
                 {PRIORITY_LABEL[item.priority] || item.priority}

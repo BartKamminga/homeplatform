@@ -93,6 +93,20 @@ export default function Monitoring() {
             description="Broncode van het platform. Commits, branches, pull requests en de volledige history."
             href={links.github}
           />
+          <LinkCard
+            icon="◈"
+            title="Roadmap"
+            description="Ideeën, lopende taken en voltooide items. De centrale backlog van het platform."
+            href="/admin/roadmap"
+            internal
+          />
+          <LinkCard
+            icon="◷"
+            title="Changelog"
+            description="Overzicht van alle releases en wijzigingen die live zijn gegaan."
+            href="/admin/changelog"
+            internal
+          />
         </div>
       </Section>
 
@@ -112,6 +126,59 @@ export default function Monitoring() {
           </div>
         </Section>
       )}
+
+      {/* ── Roadmap workflow ── */}
+      <Section title="Roadmap workflow">
+        <div style={{
+          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)', padding: '20px 24px',
+        }}>
+          {/* Flow bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            flexWrap: 'wrap', marginBottom: '20px',
+          }}>
+            {[
+              { status: 'idee',        color: 'var(--color-text-muted)', label: 'idee' },
+              { status: 'in_progress', color: 'var(--color-primary)',    label: 'in_progress' },
+              { status: 'gereed',      color: 'var(--color-warning)',    label: 'gereed' },
+              { status: 'deploying',   color: 'var(--color-danger)',     label: 'deploying' },
+              { status: 'klaar',       color: 'var(--color-success)',    label: 'klaar' },
+            ].map(({ status, color, label }, i, arr) => (
+              <span key={status} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  padding: '3px 10px', borderRadius: '99px', fontSize: '12px', fontWeight: 600,
+                  background: color + '1a', color, border: `1px solid ${color}44`,
+                  fontFamily: 'var(--font-mono)',
+                }}>{label}</span>
+                {i < arr.length - 1 && (
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>→</span>
+                )}
+              </span>
+            ))}
+          </div>
+          {/* Status descriptions */}
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {[
+              { status: 'idee',        color: 'var(--color-text-muted)', desc: 'Nieuwe wens of taak — staat in de backlog, nog niet opgepakt.' },
+              { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
+              { status: 'gereed',      color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gedeployed naar de NAS.' },
+              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Deploy bezig via hpem.ps1 — platform herstart.' },
+              { status: 'klaar',       color: 'var(--color-success)',    desc: 'Live op de NAS — changelog-entry is automatisch aangemaakt.' },
+            ].map(({ status, color, desc }) => (
+              <div key={status} style={{ display: 'flex', alignItems: 'baseline', gap: '12px', fontSize: '13px' }}>
+                <span style={{
+                  minWidth: '82px', padding: '1px 8px', borderRadius: '99px', fontSize: '11px',
+                  fontWeight: 600, textAlign: 'center', flexShrink: 0,
+                  background: color + '1a', color, border: `1px solid ${color}44`,
+                  fontFamily: 'var(--font-mono)',
+                }}>{status}</span>
+                <span style={{ color: 'var(--color-text-muted)', lineHeight: 1.5 }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
 
       {/* ── Deploy workflow ── */}
       <Section title="Deploy workflow">

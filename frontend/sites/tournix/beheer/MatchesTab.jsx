@@ -71,12 +71,17 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
   const [scoreEdit,  setScoreEdit]  = useState(false)
   const [scoreA,     setScoreA]     = useState('')
   const [scoreB,     setScoreB]     = useState('')
+  const [saving,     setSaving]     = useState(false)
   const [fieldEdit,  setFieldEdit]  = useState(false)
 
   async function saveResult() {
-    await setResult(m.id, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
-    setScoreEdit(false); setScoreA(''); setScoreB('')
-    await onRefresh()
+    if (scoreA === '' || scoreB === '') return
+    setSaving(true)
+    try {
+      await setResult(m.id, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
+      setScoreEdit(false); setScoreA(''); setScoreB('')
+      await onRefresh()
+    } finally { setSaving(false) }
   }
 
   async function saveField(fid) {
@@ -89,6 +94,12 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
     if (!window.confirm('Wedstrijd verwijderen?')) return
     await deleteMatch(m.id)
     await onRefresh()
+  }
+
+  function openScoreEdit() {
+    setScoreA(m.status === 'finished' ? String(m.score_a) : '')
+    setScoreB(m.status === 'finished' ? String(m.score_b) : '')
+    setScoreEdit(true)
   }
 
   return (
@@ -104,9 +115,11 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
         </span>
         <span style={{ fontWeight: 600 }}>{teamMap[m.team_b_id]?.name ?? '—'}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-          {canScore && m.status !== 'finished' && (
-            <button onClick={() => { setScoreEdit(true); setScoreA(''); setScoreB('') }}
-              style={{ ...ghostBtn, padding: '4px 10px', fontSize: 11 }}>Uitslag</button>
+          {canScore && !scoreEdit && (
+            <button onClick={openScoreEdit}
+              style={{ ...ghostBtn, padding: '4px 10px', fontSize: 11 }}>
+              {m.status === 'finished' ? 'Wijzig' : 'Uitslag'}
+            </button>
           )}
           {!structureLocked && (
             <button onClick={handleDelete}
@@ -146,10 +159,66 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
           <span>–</span>
           <input type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)}
             style={{ ...inputStyle, width: 52, textAlign: 'center' }} placeholder="0" />
-          <button onClick={saveResult} style={primaryBtn}>Opslaan</button>
+          <button onClick={saveResult} disabled={saving || scoreA === '' || scoreB === ''} style={{ ...primaryBtn, padding: '6px 14px', fontSize: 12, opacity: (saving || scoreA === '' || scoreB === '') ? 0.6 : 1 }}>
+            {saving ? '…' : 'Opslaan'}
+          </button>
           <button onClick={() => setScoreEdit(false)} style={ghostBtn}>Annuleer</button>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── Compact score row for round entry view ── */
+function ScoreRow({ m, teamMap, onRefresh }) {
+  const [scoreA, setScoreA] = useState(m.status === 'finished' ? String(m.score_a) : '')
+  const [scoreB, setScoreB] = useState(m.status === 'finished' ? String(m.score_b) : '')
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(m.status === 'finished')
+
+  // Keep inputs in sync when match data refreshes
+  useEffect(() => {
+    if (m.status === 'finished') {
+      setScoreA(String(m.score_a)); setScoreB(String(m.score_b)); setSaved(true)
+    }
+  }, [m.score_a, m.score_b, m.status])
+
+  async function save() {
+    if (scoreA === '' || scoreB === '') return
+    setSaving(true)
+    try {
+      await setResult(m.id, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
+      setSaved(true)
+      await onRefresh()
+    } finally { setSaving(false) }
+  }
+
+  const dirty = scoreA !== (m.status === 'finished' ? String(m.score_a) : '')
+             || scoreB !== (m.status === 'finished' ? String(m.score_b) : '')
+
+  const nameA = teamMap[m.team_a_id]?.name ?? '—'
+  const nameB = teamMap[m.team_b_id]?.name ?? '—'
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+      padding: '6px 10px', borderRadius: 8,
+      background: saved && !dirty ? 'var(--color-surface-2)' : 'var(--color-surface)',
+      border: `1px solid ${dirty ? 'var(--color-primary)' : 'var(--color-border)'}` }}>
+      <span style={{ flex: 1, fontWeight: 600, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameA}</span>
+      <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaved(false) }}
+        style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
+      <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>–</span>
+      <input type="number" min="0" value={scoreB} onChange={e => { setScoreB(e.target.value); setSaved(false) }}
+        style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
+      <span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameB}</span>
+      <button onClick={save} disabled={saving || scoreA === '' || scoreB === '' || !dirty}
+        style={{ padding: '4px 12px', borderRadius: 7, fontSize: 12, border: 'none', fontFamily: 'inherit',
+          fontWeight: 600, cursor: (saving || scoreA === '' || scoreB === '' || !dirty) ? 'default' : 'pointer',
+          background: dirty ? 'var(--color-primary)' : 'var(--color-surface)',
+          color: dirty ? '#fff' : 'var(--color-text-muted)',
+          opacity: saving ? 0.6 : 1, minWidth: 52 }}>
+        {saving ? '…' : saved && !dirty ? 'Opgeslagen' : 'Opslaan'}
+      </button>
     </div>
   )
 }
@@ -271,29 +340,71 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
         </div>
       )}
 
-      {/* Snapshots — alleen in productie */}
+      {/* Uitslagen per ronde — alleen in productie */}
       {canScore && rounds.length > 0 && (
-        <div style={{ padding: '10px 14px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>SNAPSHOTS</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {rounds.map(r => (
-              <button key={r} onClick={async () => {
-                setSnapSaving(r)
-                try { await saveSnapshot(tid, r); setSnapshots(await getSnapshots(tid)) }
-                finally { setSnapSaving(null) }
-              }} disabled={snapSaving === r}
-                style={{ padding: '5px 12px', fontSize: 12, borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer',
-                  border: '1px solid var(--color-border)',
-                  background: savedRounds.has(r) ? 'var(--color-success)' : 'var(--color-surface)',
-                  color: savedRounds.has(r) ? '#fff' : 'var(--color-text)', opacity: snapSaving === r ? 0.6 : 1 }}>
-                {snapSaving === r ? '…' : savedRounds.has(r) ? `Ronde ${r} ✓` : `Bewaar ronde ${r}`}
-              </button>
-            ))}
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {rounds.map(r => {
+            const roundMatches = matches.filter(m => m.round === r)
+            const allDone = roundMatches.length > 0 && roundMatches.every(m => m.status === 'finished')
+            return (
+              <div key={r} style={{ background: 'var(--color-surface-2)', borderRadius: 10, overflow: 'hidden' }}>
+                {/* Round header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 12px', borderBottom: '1px solid var(--color-border)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)',
+                    letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    Ronde {r}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {allDone && (
+                      <span style={{ fontSize: 11, color: 'var(--color-success)', fontWeight: 600 }}>Volledig</span>
+                    )}
+                    <button onClick={async () => {
+                      setSnapSaving(r)
+                      try { await saveSnapshot(tid, r); setSnapshots(await getSnapshots(tid)) }
+                      finally { setSnapSaving(null) }
+                    }} disabled={snapSaving === r || !allDone}
+                      style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, fontFamily: 'inherit', cursor: (snapSaving === r || !allDone) ? 'default' : 'pointer',
+                        border: '1px solid var(--color-border)',
+                        background: savedRounds.has(r) ? 'var(--color-success)' : 'var(--color-surface)',
+                        color: savedRounds.has(r) ? '#fff' : 'var(--color-text)',
+                        opacity: (snapSaving === r || !allDone) ? 0.5 : 1, fontWeight: 600 }}>
+                      {snapSaving === r ? '…' : savedRounds.has(r) ? 'Snapshot ✓' : 'Bewaar snapshot'}
+                    </button>
+                  </div>
+                </div>
+                {/* Score rows */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
+                  {roundMatches.map(m => (
+                    <ScoreRow key={m.id} m={m} teamMap={teamMap} onRefresh={load} />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+          {/* Matches without a round */}
+          {matches.filter(m => m.round == null && m.match_type !== 'ko').length > 0 && (
+            <div style={{ background: 'var(--color-surface-2)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--color-border)',
+                fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)',
+                letterSpacing: '0.06em', textTransform: 'uppercase' }}>Zonder ronde</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
+                {matches.filter(m => m.round == null && m.match_type !== 'ko').map(m => (
+                  <ScoreRow key={m.id} m={m} teamMap={teamMap} onRefresh={load} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Wedstrijden per poule */}
+      {/* Wedstrijden overzicht (per poule) */}
+      {canScore && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.07em',
+          textTransform: 'uppercase', paddingTop: 4, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
+          Overzicht per poule
+        </div>
+      )}
       {(pools ?? []).length > 0 ? (
         <>
           {(pools ?? []).map(p => (
