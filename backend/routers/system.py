@@ -118,10 +118,11 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
     # Tabeltellingen via inspect (valideert tabelnamen via DB-metadata)
     tables = [
         "users", "groups", "user_groups", "themes", "user_preferences",
-        "sites", "site_access", "audit_log",
+        "sites", "site_access", "invite_tokens", "audit_log",
+        "roadmap_items", "changelog",
         "tasks", "mixmusic_genres", "mixmusic_track_meta", "mixmusic_track_hearts",
-        "tournix_tournaments", "tournix_teams", "tournix_fields",
-        "tournix_matches", "tournix_predictions",
+        "tournix_clubs", "tournix_tournaments", "tournix_pools", "tournix_teams",
+        "tournix_fields", "tournix_matches", "tournix_predictions", "tournix_snapshots",
     ]
     inspector = sa_inspect(engine)
     available_tables = set(inspector.get_table_names())

@@ -234,7 +234,9 @@ const DB_GROUP_ROWS = [
   { label: 'display_name, rating, genres, moments, play_count', where: 'mixmusic_track_meta', note: 'MixMusic meta per track' },
   { label: 'file_path, position',                  where: 'mixmusic_track_hearts',  note: 'MixMusic favoriete momenten' },
   { label: 'Toernooien (group_id = …)',             where: 'tournix_tournaments',    note: 'Tournix — per groep' },
+  { label: 'Poules',                               where: 'tournix_pools',          note: 'Tournix — per toernooi' },
   { label: 'Teams, velden, wedstrijden',            where: 'tournix_teams / fields / matches', note: 'Tournix — per toernooi' },
+  { label: 'Standen snapshots',                    where: 'tournix_snapshots',      note: 'Tournix — per ronde' },
   { label: 'Voorspellingen (user_id)',              where: 'tournix_predictions',    note: 'Tournix — per gebruiker' },
 ];
 
@@ -285,7 +287,7 @@ function DataStorageCard() {
       {DB_GROUP_ROWS.map((r, i) => dataRow('g' + i, r.label, r.where, r.note))}
 
       <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '6px' }}>
-        mixmusic_genres is globaal — niet per user of groep.
+        Globaal (niet per user of groep): mixmusic_genres, tournix_clubs, changelog, roadmap_items.
       </p>
 
       {subHeader('localStorage — per browser / apparaat')}
