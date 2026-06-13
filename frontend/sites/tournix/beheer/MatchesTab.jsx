@@ -171,10 +171,11 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
 
 /* ── Compact score row for round entry view ── */
 function ScoreRow({ m, teamMap, onRefresh }) {
-  const [scoreA, setScoreA] = useState(m.status === 'finished' ? String(m.score_a) : '')
-  const [scoreB, setScoreB] = useState(m.status === 'finished' ? String(m.score_b) : '')
-  const [saving, setSaving] = useState(false)
-  const [saved,  setSaved]  = useState(m.status === 'finished')
+  const [scoreA,    setScoreA]    = useState(m.status === 'finished' ? String(m.score_a) : '0')
+  const [scoreB,    setScoreB]    = useState(m.status === 'finished' ? String(m.score_b) : '0')
+  const [saving,    setSaving]    = useState(false)
+  const [saved,     setSaved]     = useState(m.status === 'finished')
+  const [saveError, setSaveError] = useState('')
 
   // Keep inputs in sync when match data refreshes
   useEffect(() => {
@@ -185,40 +186,48 @@ function ScoreRow({ m, teamMap, onRefresh }) {
 
   async function save() {
     if (scoreA === '' || scoreB === '') return
-    setSaving(true)
+    setSaving(true); setSaveError('')
     try {
       await setResult(m.id, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
       setSaved(true)
       await onRefresh()
+    } catch (e) {
+      setSaveError(e.message)
     } finally { setSaving(false) }
   }
 
-  const dirty = scoreA !== (m.status === 'finished' ? String(m.score_a) : '')
-             || scoreB !== (m.status === 'finished' ? String(m.score_b) : '')
+  // Unfinished match: always saveable (0-0 is a valid result).
+  // Finished match: dirty when the displayed score differs from the saved score.
+  const dirty = m.status !== 'finished'
+             || scoreA !== String(m.score_a)
+             || scoreB !== String(m.score_b)
 
   const nameA = teamMap[m.team_a_id]?.name ?? '—'
   const nameB = teamMap[m.team_b_id]?.name ?? '—'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-      padding: '6px 10px', borderRadius: 8,
-      background: saved && !dirty ? 'var(--color-surface-2)' : 'var(--color-surface)',
-      border: `1px solid ${dirty ? 'var(--color-primary)' : 'var(--color-border)'}` }}>
-      <span style={{ flex: 1, fontWeight: 600, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameA}</span>
-      <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaved(false) }}
-        style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
-      <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>–</span>
-      <input type="number" min="0" value={scoreB} onChange={e => { setScoreB(e.target.value); setSaved(false) }}
-        style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
-      <span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameB}</span>
-      <button onClick={save} disabled={saving || scoreA === '' || scoreB === '' || !dirty}
-        style={{ padding: '4px 12px', borderRadius: 7, fontSize: 12, border: 'none', fontFamily: 'inherit',
-          fontWeight: 600, cursor: (saving || scoreA === '' || scoreB === '' || !dirty) ? 'default' : 'pointer',
-          background: dirty ? 'var(--color-primary)' : 'var(--color-surface)',
-          color: dirty ? '#fff' : 'var(--color-text-muted)',
-          opacity: saving ? 0.6 : 1, minWidth: 52 }}>
-        {saving ? '…' : saved && !dirty ? 'Opgeslagen' : 'Opslaan'}
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+        padding: '6px 10px', borderRadius: 8,
+        background: saved && !dirty ? 'var(--color-surface-2)' : 'var(--color-surface)',
+        border: `1px solid ${saveError ? 'var(--color-danger)' : dirty ? 'var(--color-primary)' : 'var(--color-border)'}` }}>
+        <span style={{ flex: 1, fontWeight: 600, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameA}</span>
+        <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaved(false); setSaveError('') }}
+          style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
+        <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>–</span>
+        <input type="number" min="0" value={scoreB} onChange={e => { setScoreB(e.target.value); setSaved(false); setSaveError('') }}
+          style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
+        <span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameB}</span>
+        <button onClick={save} disabled={saving || scoreA === '' || scoreB === '' || !dirty}
+          style={{ padding: '4px 12px', borderRadius: 7, fontSize: 12, border: 'none', fontFamily: 'inherit',
+            fontWeight: 600, cursor: (saving || scoreA === '' || scoreB === '' || !dirty) ? 'default' : 'pointer',
+            background: dirty ? 'var(--color-primary)' : 'var(--color-surface)',
+            color: dirty ? '#fff' : 'var(--color-text-muted)',
+            opacity: (saving || scoreA === '' || scoreB === '' || !dirty) ? 0.6 : 1, minWidth: 52 }}>
+          {saving ? '…' : saved && !dirty ? 'Opgeslagen' : 'Opslaan'}
+        </button>
+      </div>
+      {saveError && <div style={{ fontSize: 11, color: 'var(--color-danger)', paddingLeft: 10 }}>{saveError}</div>}
     </div>
   )
 }

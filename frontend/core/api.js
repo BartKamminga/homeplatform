@@ -92,7 +92,10 @@ async function request(method, path, body = null) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    const error = new Error(err.detail || "Onbekende fout");
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(d => d.msg).join('; ')
+      : (err.detail || "Onbekende fout");
+    const error = new Error(detail);
     reportError(error, { "api.method": method, "api.path": path, "api.status": res.status });
     throw error;
   }

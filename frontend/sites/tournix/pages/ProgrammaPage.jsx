@@ -24,6 +24,7 @@ export default function ProgrammaPage({ stage, tournament }) {
   const [scoreA,      setScoreA]      = useState('')
   const [scoreB,      setScoreB]      = useState('')
   const [savingScore, setSavingScore] = useState(null)
+  const [saveError,   setSaveError]   = useState('')
 
   const isTest = stage === 'test'
 
@@ -106,6 +107,7 @@ export default function ProgrammaPage({ stage, tournament }) {
   }
 
   async function saveRealResult(mid) {
+    if (scoreA === '' || scoreB === '') return
     setSavingScore(mid)
     try {
       await setResult(mid, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
@@ -113,7 +115,7 @@ export default function ProgrammaPage({ stage, tournament }) {
       const updated = await getMatches(tournament.id)
       setMatches(updated)
     } catch (e) {
-      setError(e.message)
+      setSaveError(e.message)
     } finally {
       setSavingScore(null)
     }
@@ -240,20 +242,27 @@ export default function ProgrammaPage({ stage, tournament }) {
 
                   {/* Productie mode: real score input */}
                   {!isTest && stage === 'productie' && m.status !== 'finished' && isRealEditing && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                      <input type="number" min="0" value={scoreA} onChange={e => setScoreA(e.target.value)} style={{ ...scoreInput, width: 52 }} placeholder="0" />
-                      <span>–</span>
-                      <input type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)} style={{ ...scoreInput, width: 52 }} placeholder="0" />
-                      <button onClick={() => saveRealResult(m.id)} disabled={savingScore === m.id} style={primaryBtn}>
-                        {savingScore === m.id ? 'Opslaan…' : 'Opslaan'}
-                      </button>
-                      <button onClick={() => setScoreEdit(null)} style={ghostBtn}>Annuleer</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaveError('') }} style={{ ...scoreInput, width: 52 }} placeholder="0" autoFocus />
+                        <span>–</span>
+                        <input type="number" min="0" value={scoreB} onChange={e => { setScoreB(e.target.value); setSaveError('') }} style={{ ...scoreInput, width: 52 }} placeholder="0" />
+                        <button
+                          onClick={() => saveRealResult(m.id)}
+                          disabled={savingScore === m.id || scoreA === '' || scoreB === ''}
+                          style={{ ...primaryBtn, opacity: (savingScore === m.id || scoreA === '' || scoreB === '') ? 0.5 : 1 }}
+                        >
+                          {savingScore === m.id ? 'Opslaan…' : 'Opslaan'}
+                        </button>
+                        <button onClick={() => { setScoreEdit(null); setSaveError('') }} style={ghostBtn}>Annuleer</button>
+                      </div>
+                      {saveError && <div style={{ fontSize: 11, color: 'var(--color-danger)' }}>{saveError}</div>}
                     </div>
                   )}
                   {!isTest && stage === 'productie' && m.status !== 'finished' && !isRealEditing && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
                       <button
-                        onClick={() => { setScoreEdit(m.id); setScoreA(''); setScoreB('') }}
+                        onClick={() => { setScoreEdit(m.id); setScoreA('0'); setScoreB('0'); setSaveError('') }}
                         style={{ ...ghostBtn, fontSize: 11, padding: '4px 10px' }}
                       >
                         Uitslag invoeren
