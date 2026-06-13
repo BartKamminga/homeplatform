@@ -1,7 +1,16 @@
+import { useState, useEffect } from 'react'
 import PrognosePage from './pages/PrognosePage.jsx'
-import { VERSION } from './changelog.jsx'
 
 export default function FietsLayout() {
+  const [version, setVersion] = useState('')
+
+  useEffect(() => {
+    fetch('/api/changelog?site=fiets')
+      .then(r => r.json())
+      .then(data => { if (data[0]) setVersion(data[0].version) })
+      .catch(() => {})
+  }, [])
+
   return (
     <div style={{
       minHeight: '100dvh',
@@ -21,7 +30,7 @@ export default function FietsLayout() {
           <span style={{ fontSize: 24 }}>🚴</span>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.1 }}>FietsPrognose</div>
-            <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>v{VERSION}</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>v{version}</div>
           </div>
         </div>
         <a href="/account/groups?back=/fiets/" style={{

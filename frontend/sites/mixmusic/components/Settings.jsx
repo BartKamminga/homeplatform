@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { clearToken } from '@core/api.js'
-import { VERSION, CHANGELOG } from '../changelog.jsx'
+
+function toEntries(data) {
+  return data.map(e => ({
+    version: e.version,
+    date: new Date(e.released_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
+    changes: e.description ? e.description.split('\n').filter(Boolean) : [e.title],
+  }))
+}
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
 import AppGroupSwitcher from '@components/AppGroupSwitcher.jsx'
 import ChangelogSection from '@components/ChangelogSection.jsx'
@@ -19,8 +26,18 @@ const MOBILE_OPTIONS = [
 
 export default function Settings({ onClose, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout }) {
   const { genres, addGenre: onAddGenre, deleteGenre: onDeleteGenre } = usePlayerContext()
-  const [newGenre, setNewGenre] = useState('')
+  const [newGenre,   setNewGenre]   = useState('')
   const [genreError, setGenreError] = useState(null)
+  const [changelog,  setChangelog]  = useState([])
+
+  useEffect(() => {
+    fetch('/api/changelog?site=mixmusic')
+      .then(r => r.json())
+      .then(data => setChangelog(toEntries(data)))
+      .catch(() => {})
+  }, [])
+
+  const version = changelog[0]?.version ?? '…'
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('hp_user') || '{}') } catch { return {} } })()
 
@@ -176,7 +193,7 @@ export default function Settings({ onClose, desktopLayout, mobileLayout, onDeskt
           {/* Changelog */}
           <section>
             <div style={sectionLabel}>Over Mix Music</div>
-            <ChangelogSection changelog={CHANGELOG} version={`Mix Music v${VERSION}`} />
+            <ChangelogSection changelog={changelog} version={`Mix Music v${version}`} />
           </section>
 
         </div>
