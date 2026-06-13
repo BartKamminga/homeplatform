@@ -50,7 +50,7 @@ def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:
         version=item.version,
         site=item.site,
         title=item.title,
-        description=item.description,
+        description=item.notes or item.description,
         released_at=datetime.utcnow(),
     )
     session.add(entry)

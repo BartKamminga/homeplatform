@@ -16,7 +16,12 @@ De **NAS-database is de centrale backlog**. Todos en changelog werken samen via 
 
 - **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) — niet in conversatienotities.
 - **Aan het begin van een sessie**: relevante open roadmap-items ophalen via `GET /api/roadmap?status=idee` of `in_progress`.
-- **Na afronden van een taak**: item markeren als `klaar` + versienummer invullen → changelog-entry wordt automatisch aangemaakt.
+- **Werkwijze per item**:
+  1. Begin → status `in_progress`
+  2. Tijdens werken → notities bijhouden in het `notes`-veld (gaan later naar changelog)
+  3. Code klaar, nog niet gedeployed → status `gereed`
+  4. Deploy gestart → status `deploying`
+  5. Na succesvolle deploy naar NAS → status `klaar` + versienummer → changelog-entry automatisch aangemaakt
 - **Versienummer onduidelijk**: eerst vragen aan de gebruiker.
 - Handmatige alembic-migraties voor changelog zijn niet meer nodig bij items die via de roadmap lopen.
 - Voor infrastructurele DB-wijzigingen (nieuwe tabellen, kolommen) blijft de alembic-migratie vereist:

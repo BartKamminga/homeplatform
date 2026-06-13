@@ -3,15 +3,17 @@ import AdminLayout from "../AdminLayout.jsx";
 import { api } from "@core/api.js";
 
 const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets"];
-const STATUSES = ["alle", "idee", "in_progress", "klaar"];
+const STATUSES = ["alle", "idee", "in_progress", "gereed", "deploying", "klaar"];
 const PRIORITIES = ["alle", "hoog", "midden", "laag"];
 
-const STATUS_CYCLE = { idee: "in_progress", in_progress: "klaar", klaar: "idee" };
+const STATUS_CYCLE = { idee: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
 
-const STATUS_LABEL = { idee: "Idee", in_progress: "In uitvoering", klaar: "Klaar" };
+const STATUS_LABEL = { idee: "Idee", in_progress: "In uitvoering", gereed: "Gereed voor deploy", deploying: "Deploying", klaar: "Klaar" };
 const STATUS_COLOR = {
   idee: "var(--color-text-muted)",
   in_progress: "var(--color-primary)",
+  gereed: "var(--color-warning)",
+  deploying: "var(--color-danger)",
   klaar: "var(--color-success)",
 };
 
@@ -38,14 +40,24 @@ const s = {
   header: { fontSize: "22px", fontWeight: 600, marginBottom: "6px" },
   subtitle: { color: "var(--color-text-muted)", marginBottom: "24px", fontSize: "13px" },
   filterBar: {
-    display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap",
-    alignItems: "center",
+    display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px",
   },
-  select: {
-    padding: "6px 10px", fontSize: "13px", borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--color-border)", background: "var(--color-surface)",
-    color: "var(--color-text)", cursor: "pointer",
+  filterRow: {
+    display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center",
   },
+  filterLabel: {
+    fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em",
+    textTransform: "uppercase", color: "var(--color-text-muted)",
+    minWidth: "64px", flexShrink: 0,
+  },
+  filterBtn: (active) => ({
+    padding: "4px 10px", fontSize: "12px", borderRadius: "99px", cursor: "pointer",
+    border: "1px solid var(--color-border)",
+    background: active ? "var(--color-primary)" : "transparent",
+    color: active ? "#fff" : "var(--color-text-muted)",
+    fontWeight: active ? 600 : 400,
+    transition: "background 0.1s, color 0.1s",
+  }),
   btnPrimary: {
     padding: "7px 14px", fontSize: "13px", fontWeight: 600,
     borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
@@ -238,7 +250,7 @@ function RoadmapForm({ initial, onSave, onCancel, saving }) {
           name="notes"
           value={form.notes}
           onChange={handleChange}
-          placeholder="Interne aantekeningen, context voor Claude, technische details…"
+          placeholder="Leg vast wat er gedaan is tijdens het werken — bij afsluiten gaat dit als omschrijving naar de changelog."
         />
       </div>
       <div style={s.formActions}>
@@ -316,7 +328,7 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
 
 /* ── Main page ───────────────────────────────────────────────────────────── */
 
-const STATUS_ORDER = ["in_progress", "idee", "klaar"];
+const STATUS_ORDER = ["deploying", "in_progress", "gereed", "idee", "klaar"];
 
 export default function Roadmap() {
   const [items, setItems] = useState([]);
@@ -428,42 +440,36 @@ export default function Roadmap() {
 
       {/* Filter bar */}
       <div style={s.filterBar}>
-        <select
-          style={s.select}
-          value={filterSite}
-          onChange={(e) => setFilterSite(e.target.value)}
-          title="Filter op site"
-        >
-          {SITES.map((s) => (
-            <option key={s} value={s}>{s === "alle" ? "Alle sites" : s}</option>
+        <div style={s.filterRow}>
+          <span style={s.filterLabel}>Status</span>
+          {STATUSES.map((v) => (
+            <button key={v} style={s.filterBtn(filterStatus === v)} onClick={() => setFilterStatus(v)}>
+              {v === "alle" ? "Alle" : STATUS_LABEL[v] || v}
+            </button>
           ))}
-        </select>
-        <select
-          style={s.select}
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          title="Filter op status"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>{s === "alle" ? "Alle statussen" : STATUS_LABEL[s] || s}</option>
+        </div>
+        <div style={s.filterRow}>
+          <span style={s.filterLabel}>Prioriteit</span>
+          {PRIORITIES.map((v) => (
+            <button key={v} style={s.filterBtn(filterPriority === v)} onClick={() => setFilterPriority(v)}>
+              {v === "alle" ? "Alle" : PRIORITY_LABEL[v] || v}
+            </button>
           ))}
-        </select>
-        <select
-          style={s.select}
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-          title="Filter op prioriteit"
-        >
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>{p === "alle" ? "Alle prioriteiten" : PRIORITY_LABEL[p] || p}</option>
+        </div>
+        <div style={s.filterRow}>
+          <span style={s.filterLabel}>Site</span>
+          {SITES.map((v) => (
+            <button key={v} style={s.filterBtn(filterSite === v)} onClick={() => setFilterSite(v)}>
+              {v === "alle" ? "Alle" : v}
+            </button>
           ))}
-        </select>
-        <button
-          style={s.btnPrimary}
-          onClick={() => { setShowNewForm(true); setEditingId(null); }}
-        >
-          + Nieuw item
-        </button>
+          <button
+            style={{ ...s.btnPrimary, marginLeft: "auto" }}
+            onClick={() => { setShowNewForm(true); setEditingId(null); }}
+          >
+            + Nieuw item
+          </button>
+        </div>
       </div>
 
       {/* New item form */}
