@@ -17,6 +17,7 @@ import Monitoring from "./pages/Monitoring.jsx";
 import Todo from "./pages/Todo.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
 import Backup from "./pages/Backup.jsx";
+import DataStorage from "./pages/DataStorage.jsx";
 import ErrorBoundary from "@components/ErrorBoundary.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
@@ -54,6 +55,7 @@ createRoot(document.getElementById("root")).render(
                 <Route path="backup" element={<Backup />} />
                 <Route path="todo" element={<Todo />} />
                 <Route path="roadmap" element={<Roadmap />} />
+                <Route path="data-storage" element={<DataStorage />} />
               </Routes>
             </PrivateRoute>
           }
