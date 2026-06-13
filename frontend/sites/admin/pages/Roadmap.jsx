@@ -3,43 +3,43 @@ import AdminLayout from "../AdminLayout.jsx";
 import { api } from "@core/api.js";
 
 const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets"];
-const STATUSES = ["alle", "idee", "geanalyseerd", "pak_op", "in_progress", "gereed", "deploying", "klaar"];
-const PRIORITIES = ["alle", "hoog", "midden", "laag"];
+const STATUSES = ["alle", "idea", "analyzed", "pick_up", "in_progress", "ready", "deploying", "done"];
+const PRIORITIES = ["alle", "high", "medium", "low"];
 const SCOPES = ["frontend", "backend", "beide", "infra", "database", "platform"];
 
-const STATUS_CYCLE = { idee: "geanalyseerd", geanalyseerd: "pak_op", pak_op: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
+const STATUS_CYCLE = { idea: "analyzed", analyzed: "pick_up", pick_up: "in_progress", in_progress: "ready", ready: "deploying", deploying: "done", done: "idea" };
 
-const STATUS_LABEL = { idee: "Idee", geanalyseerd: "Geanalyseerd", pak_op: "Pak op", in_progress: "In uitvoering", gereed: "Gereed voor deploy", deploying: "Deploying", klaar: "Klaar" };
+const STATUS_LABEL = { idea: "Idea", analyzed: "Analyzed", pick_up: "Pick up", in_progress: "In progress", ready: "Ready to deploy", deploying: "Deploying", done: "Done" };
 const STATUS_COLOR = {
-  idee: "var(--color-text-muted)",
-  geanalyseerd: "#8b5cf6",
-  pak_op: "#0ea5e9",
+  idea: "var(--color-text-muted)",
+  analyzed: "#8b5cf6",
+  pick_up: "#0ea5e9",
   in_progress: "var(--color-primary)",
-  gereed: "var(--color-warning)",
+  ready: "var(--color-warning)",
   deploying: "var(--color-danger)",
-  klaar: "var(--color-success)",
+  done: "var(--color-success)",
 };
 
-const PRIORITY_LABEL = { hoog: "Hoog", midden: "Midden", laag: "Laag" };
+const PRIORITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
 const PRIORITY_STYLE = {
-  hoog: { background: "var(--color-danger-light)", color: "var(--color-danger)" },
-  midden: { background: "var(--color-warning-light)", color: "var(--color-warning)" },
-  laag: { background: "var(--color-surface-2)", color: "var(--color-text-muted)" },
+  high:   { background: "var(--color-danger-light)",  color: "var(--color-danger)" },
+  medium: { background: "var(--color-warning-light)", color: "var(--color-warning)" },
+  low:    { background: "var(--color-surface-2)",     color: "var(--color-text-muted)" },
 };
 
-const METER_VALUES = ["laag", "midden", "hoog"];
-const METER_COLOR = { laag: "var(--color-success)", midden: "var(--color-warning)", hoog: "var(--color-danger)" };
+const METER_VALUES = ["low", "medium", "high"];
+const METER_COLOR = { low: "var(--color-success)", medium: "var(--color-warning)", high: "var(--color-danger)" };
 
 const EMPTY_FORM = {
   title: "",
   description: "",
   site: "platform",
-  priority: "midden",
-  status: "idee",
+  priority: "medium",
+  status: "idea",
   notes: "",
   version: "",
   impact: null,
-  risico: null,
+  risk: null,
   scope: null,
 };
 
@@ -271,7 +271,7 @@ function RoadmapForm({ initial, onSave, onCancel, saving }) {
           options={PRIORITIES.filter((p) => p !== "alle")} />
         <SelectField label="Status" name="status" value={form.status} onChange={handleChange}
           options={STATUSES.filter((s) => s !== "alle")} />
-        {form.status === "klaar" && (
+        {form.status === "done" && (
           <div style={s.formGroup}>
             <label style={s.label}>Versienummer <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(→ changelog)</span></label>
             <input
@@ -284,7 +284,7 @@ function RoadmapForm({ initial, onSave, onCancel, saving }) {
           </div>
         )}
         <MeterField label="Impact op gebruiker" name="impact" value={form.impact} onChange={handleChange} />
-        <MeterField label="Risico" name="risico" value={form.risico} onChange={handleChange} />
+        <MeterField label="Risk" name="risk" value={form.risk} onChange={handleChange} />
         <div style={s.formGroup}>
           <label style={s.label}>Scope</label>
           <div style={{ display: "flex", gap: "6px" }}>
@@ -372,9 +372,9 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
                   ↑ {item.impact}
                 </span>
               )}
-              {item.risico && (
-                <span style={s.badge({ background: METER_COLOR[item.risico] + "22", color: METER_COLOR[item.risico] })}>
-                  ⚠ {item.risico}
+              {item.risk && (
+                <span style={s.badge({ background: METER_COLOR[item.risk] + "22", color: METER_COLOR[item.risk] })}>
+                  ⚠ {item.risk}
                 </span>
               )}
               {item.scope && (
@@ -408,7 +408,7 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
 
 /* ── Main page ───────────────────────────────────────────────────────────── */
 
-const STATUS_ORDER = ["deploying", "in_progress", "gereed", "pak_op", "geanalyseerd", "idee", "klaar"];
+const STATUS_ORDER = ["deploying", "in_progress", "ready", "pick_up", "analyzed", "idea", "done"];
 
 export default function Roadmap() {
   const [items, setItems] = useState([]);
@@ -461,7 +461,7 @@ export default function Roadmap() {
   }
 
   async function handleStatusCycle(item) {
-    const newStatus = STATUS_CYCLE[item.status] || "idee";
+    const newStatus = STATUS_CYCLE[item.status] || "idea";
     // Optimistic update
     setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: newStatus } : it)));
     try {

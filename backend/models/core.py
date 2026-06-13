@@ -140,12 +140,12 @@ class RoadmapItem(SQLModel, table=True):
     title: str
     description: Optional[str] = None
     site: str = Field(default="platform")  # landing/admin/account/dontforget/mixmusic/nkhockey/tournix/fiets/platform
-    priority: str = Field(default="midden")  # hoog/midden/laag
-    status: str = Field(default="idee")  # idee/in_progress/klaar
+    priority: str = Field(default="medium")  # high/medium/low
+    status: str = Field(default="idea")    # idea/analyzed/pick_up/in_progress/ready/deploying/done
     notes: Optional[str] = None
     version: Optional[str] = Field(default=None)  # versienummer bij afsluiten, triggert changelog
-    impact: Optional[str] = Field(default=None)   # laag/midden/hoog — impact op de gebruiker
-    risico: Optional[str] = Field(default=None)   # laag/midden/hoog
+    impact: Optional[str] = Field(default=None)   # low/medium/high — impact op de gebruiker
+    risk: Optional[str] = Field(default=None)     # low/medium/high
     scope: Optional[str] = Field(default=None)    # frontend/backend/beide
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

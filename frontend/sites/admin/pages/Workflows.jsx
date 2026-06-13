@@ -19,13 +19,13 @@ export default function Workflows() {
             flexWrap: 'wrap', marginBottom: '20px',
           }}>
             {[
-              { status: 'idee',         color: 'var(--color-text-muted)', label: 'idee' },
-              { status: 'geanalyseerd', color: '#8b5cf6',                 label: 'geanalyseerd' },
-              { status: 'pak_op',       color: '#0ea5e9',                 label: 'pak_op' },
-              { status: 'in_progress',  color: 'var(--color-primary)',    label: 'in_progress' },
-              { status: 'gereed',       color: 'var(--color-warning)',    label: 'gereed' },
-              { status: 'deploying',    color: 'var(--color-danger)',     label: 'deploying' },
-              { status: 'klaar',        color: 'var(--color-success)',    label: 'klaar' },
+              { status: 'idea',        color: 'var(--color-text-muted)', label: 'idea' },
+              { status: 'analyzed',    color: '#8b5cf6',                 label: 'analyzed' },
+              { status: 'pick_up',     color: '#0ea5e9',                 label: 'pick_up' },
+              { status: 'in_progress', color: 'var(--color-primary)',    label: 'in_progress' },
+              { status: 'ready',       color: 'var(--color-warning)',    label: 'ready' },
+              { status: 'deploying',   color: 'var(--color-danger)',     label: 'deploying' },
+              { status: 'done',        color: 'var(--color-success)',    label: 'done' },
             ].map(({ status, color, label }, i, arr) => (
               <span key={status} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{
@@ -41,13 +41,13 @@ export default function Workflows() {
           </div>
           <div style={{ display: 'grid', gap: '8px' }}>
             {[
-              { status: 'idee',         color: 'var(--color-text-muted)', desc: 'Nieuwe wens of taak — staat in de backlog, nog niet opgepakt.' },
-              { status: 'geanalyseerd', color: '#8b5cf6',                 desc: 'Impact, risico en scope zijn ingevuld — klaar voor verdere prioritering.' },
-              { status: 'pak_op',       color: '#0ea5e9',                 desc: 'Expliciet geprioriteerd — wordt als eerste opgepakt in de volgende sessie.' },
-              { status: 'in_progress',  color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
-              { status: 'gereed',       color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gedeployed naar de NAS.' },
-              { status: 'deploying',    color: 'var(--color-danger)',     desc: 'Deploy bezig via hpem.ps1 — platform herstart.' },
-              { status: 'klaar',        color: 'var(--color-success)',    desc: 'Live op de NAS — changelog-entry is automatisch aangemaakt.' },
+              { status: 'idea',        color: 'var(--color-text-muted)', desc: 'Nieuwe wens of taak — staat in de backlog, nog niet opgepakt.' },
+              { status: 'analyzed',    color: '#8b5cf6',                 desc: 'Impact, risk en scope zijn ingevuld — klaar voor verdere prioritering.' },
+              { status: 'pick_up',     color: '#0ea5e9',                 desc: 'Expliciet geprioriteerd — wordt als eerste opgepakt in de volgende sessie.' },
+              { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
+              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gedeployed naar de NAS.' },
+              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Deploy bezig via hpem.ps1 — platform herstart.' },
+              { status: 'done',        color: 'var(--color-success)',    desc: 'Live op de NAS — changelog-entry is automatisch aangemaakt.' },
             ].map(({ status, color, desc }) => (
               <div key={status} style={{ display: 'flex', alignItems: 'baseline', gap: '12px', fontSize: '13px' }}>
                 <span style={{

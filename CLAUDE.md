@@ -16,18 +16,18 @@ De **NAS-database is de centrale backlog**. Todos en changelog werken samen via 
 
 - **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) of `.\roadmap.ps1` — niet in conversatienotities.
 - **Aan het begin van een sessie**:
-  1. Haal hoog-items op met status `idee`: `.\roadmap.ps1 -List -Priority hoog -Status idee`
-  2. Analyseer die items eerst (zie stap 1 hieronder) — verplicht voor `hoog`, optioneel voor andere prioriteiten
-  3. Daarna: pak `pak_op`-items op als eerste, dan `geanalyseerd`-items in volgorde van prioriteit
+  1. Haal high-items op met status `idea`: `.\roadmap.ps1 -List -Priority high -Status idea`
+  2. Analyseer die items eerst (zie stap 1 hieronder) — verplicht voor `high`, optioneel voor andere prioriteiten
+  3. Daarna: pak `pick_up`-items op als eerste, dan `analyzed`-items in volgorde van prioriteit
 - **Werkwijze per item**:
-  1. Analyseer → status `geanalyseerd`: vul `impact` (op gebruiker), `risico`, `scope` in, en sla de redenering op in het `notes`-veld
-     - **Hoog-items: altijd analyseren vóór je begint**
-  2. (Optioneel) Gebruiker markeert item als `pak_op` — geeft expliciete prioriteit voor volgende sessie
+  1. Analyseer → status `analyzed`: vul `impact` (op gebruiker), `risk`, `scope` in, en sla de redenering op in het `notes`-veld
+     - **High-items: altijd analyseren vóór je begint**
+  2. (Optioneel) Gebruiker markeert item als `pick_up` — geeft expliciete prioriteit voor volgende sessie
   3. Begin → status `in_progress`
   4. Tijdens werken → notities bijhouden in het `notes`-veld (gaan later naar changelog)
-  5. Code klaar, nog niet gedeployed → status `gereed`
+  5. Code klaar, nog niet gedeployed → status `ready`
   6. Deploy gestart → status `deploying`
-  7. Na succesvolle deploy naar NAS → status `klaar` + versienummer → changelog-entry automatisch aangemaakt
+  7. Na succesvolle deploy naar NAS → status `done` + versienummer → changelog-entry automatisch aangemaakt
 - **Versienummer onduidelijk**: eerst vragen aan de gebruiker.
 - Handmatige alembic-migraties voor changelog zijn niet meer nodig bij items die via de roadmap lopen.
 - Voor infrastructurele DB-wijzigingen (nieuwe tabellen, kolommen) blijft de alembic-migratie vereist:

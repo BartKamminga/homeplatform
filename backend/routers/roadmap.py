@@ -18,12 +18,12 @@ class RoadmapItemCreate(BaseModel):
     title: str
     description: Optional[str] = None
     site: str = "platform"
-    priority: str = "midden"
-    status: str = "idee"
+    priority: str = "medium"
+    status: str = "idea"
     notes: Optional[str] = None
     version: Optional[str] = None
     impact: Optional[str] = None
-    risico: Optional[str] = None
+    risk: Optional[str] = None
     scope: Optional[str] = None
 
 
@@ -36,13 +36,13 @@ class RoadmapItemUpdate(BaseModel):
     notes: Optional[str] = None
     version: Optional[str] = None
     impact: Optional[str] = None
-    risico: Optional[str] = None
+    risk: Optional[str] = None
     scope: Optional[str] = None
 
 
 def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:
     """Auto-create a changelog entry when an item is marked klaar with a version."""
-    if item.status != "klaar" or not item.version:
+    if item.status != "done" or not item.version:
         return
     existing = session.exec(
         select(ChangelogEntry).where(

@@ -2,9 +2,9 @@
 #
 # GEBRUIK:
 #   .\roadmap.ps1 -List                              # toon alle items
-#   .\roadmap.ps1 -List -Status idee                 # filter op status
+#   .\roadmap.ps1 -List -Status idea                 # filter op status
 #   .\roadmap.ps1 -List -Site tournix                # filter op site
-#   .\roadmap.ps1 -Add -Site tournix -Title "..." -Priority hoog   # nieuw item
+#   .\roadmap.ps1 -Add -Site tournix -Title "..." -Priority high   # nieuw item
 #   .\roadmap.ps1 -Close -Id 8 -Version 0.4          # afsluiten + changelog
 #   .\roadmap.ps1 -CloseMany -Ids "8,11,12" -Version 0.4           # meerdere tegelijk
 #   .\roadmap.ps1 -Update -Id 8 -Status in_progress  # status wijzigen
@@ -20,7 +20,7 @@ param(
 
     [string]$Status    = "",
     [string]$Site      = "",
-    [string]$Priority  = "midden",
+    [string]$Priority  = "",
     [string]$Title     = "",
     [string]$Notes     = "",
     [string]$Version   = "",
@@ -81,7 +81,7 @@ if ($List) {
 import sqlite3
 con = sqlite3.connect('$DB', timeout=10)
 cur = con.cursor()
-cur.execute("SELECT id, status, site, priority, title, version FROM roadmap_items WHERE $where ORDER BY CASE status WHEN 'deploying' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'gereed' THEN 2 WHEN 'geanalyseerd' THEN 3 WHEN 'idee' THEN 4 ELSE 5 END, CASE priority WHEN 'hoog' THEN 0 WHEN 'midden' THEN 1 ELSE 2 END, id")
+cur.execute("SELECT id, status, site, priority, title, version FROM roadmap_items WHERE $where ORDER BY CASE status WHEN 'deploying' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'ready' THEN 2 WHEN 'pick_up' THEN 3 WHEN 'analyzed' THEN 4 WHEN 'idea' THEN 5 ELSE 6 END, CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, id")
 rows = cur.fetchall()
 print("ID    STATUS         SITE        PRIOR   TITEL")
 print("-" * 72)
@@ -127,7 +127,7 @@ con = sqlite3.connect('$DB')
 now = datetime.utcnow().isoformat()
 con.execute(
     "INSERT INTO roadmap_items (title,site,priority,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
-    ("$Title","$Site","$Priority","idee",None,now,now)
+    ("$Title","$Site","$Priority" if "$Priority" else "medium","idea",None,now,now)
 )
 con.commit()
 print("[OK] Toegevoegd:", "$Title")
@@ -159,7 +159,7 @@ else:
     cur.execute("SELECT notes, description FROM roadmap_items WHERE id=?", ($Id,))
     nd = cur.fetchone()
     cl_desc = (nd[0] or nd[1]) if nd else None
-    cur.execute("UPDATE roadmap_items SET status='klaar', version=?, updated_at=? WHERE id=?", ("$Version", now, $Id))
+    cur.execute("UPDATE roadmap_items SET status='done', version=?, updated_at=? WHERE id=?", ("$Version", now, $Id))
     cur.execute("SELECT id FROM changelog WHERE site=? AND version=? AND title=?", (site, "$Version", title))
     if not cur.fetchone():
         cur.execute(
@@ -201,7 +201,7 @@ for rid in ids:
     cur.execute("SELECT notes, description FROM roadmap_items WHERE id=?", (rid,))
     nd = cur.fetchone()
     cl_desc = (nd[0] or nd[1]) if nd else None
-    cur.execute("UPDATE roadmap_items SET status='klaar', version=?, updated_at=? WHERE id=?", ("$Version", now, rid))
+    cur.execute("UPDATE roadmap_items SET status='done', version=?, updated_at=? WHERE id=?", ("$Version", now, rid))
     cur.execute("SELECT id FROM changelog WHERE site=? AND version=? AND title=?", (site, "$Version", title))
     if not cur.fetchone():
         cur.execute(
