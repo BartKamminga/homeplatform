@@ -2,13 +2,13 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import delete, text
+from sqlalchemy import delete, inspect as sa_inspect, text
 from sqlmodel import Session, select
 
-from core.auth import require_admin
+from core.auth import get_current_user, require_admin
 from core.database import get_session, engine
 from core.exceptions import AppError
 from core.settings import settings
@@ -17,6 +17,7 @@ from models.mixmusic import Genre, TrackHeart, TrackMeta
 from models.tournix import Tournament, TournixField, TournixMatch, TournixPrediction, TournixTeam
 
 router = APIRouter(prefix="/api/admin/backup", tags=["backup"])
+backup_router = APIRouter(prefix="/api/backup", tags=["backup"])
 
 # Tabellen per app in volgorde van afhankelijkheid (DELETE in omgekeerde volgorde)
 APP_CONFIG = {
@@ -160,3 +161,87 @@ def download_snapshot(_user=Depends(require_admin)):
         filename=f"homeplatform-snapshot-{stamp}.sqlite",
         media_type="application/octet-stream",
     )
+
+
+# ---------------------------------------------------------------------------
+# /api/backup — download + status
+# ---------------------------------------------------------------------------
+
+def _resolve_db_path() -> str:
+    """Vertaal DATABASE_URL naar een absoluut bestandspad."""
+    db_url = settings.DATABASE_URL
+    if not db_url.startswith("sqlite"):
+        raise AppError(400, "Backup alleen beschikbaar voor SQLite")
+    path = db_url.replace("sqlite:///", "")
+    if path.startswith("./"):
+        path = os.path.join(os.getcwd(), path[2:])
+    return os.path.abspath(path)
+
+
+@backup_router.get("/download")
+def download_db(_user=Depends(get_current_user)):
+    """Download de volledige SQLite-database als .sqlite bestand (login vereist)."""
+    db_path = _resolve_db_path()
+    if not os.path.exists(db_path):
+        raise AppError(404, "Database bestand niet gevonden")
+
+    # WAL checkpoint zodat de snapshot compleet is
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+    except Exception:
+        pass
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    return FileResponse(
+        path=db_path,
+        filename=f"homeplatform-{stamp}.sqlite",
+        media_type="application/octet-stream",
+    )
+
+
+@backup_router.get("/status")
+def backup_status(_user=Depends(get_current_user)):
+    """Geeft DB-bestandsgrootte, laatste wijziging, alembic-versie en rij-tellingen."""
+    db_path = _resolve_db_path()
+
+    if not os.path.exists(db_path):
+        raise AppError(404, "Database bestand niet gevonden")
+
+    stat = os.stat(db_path)
+    size_bytes = stat.st_size
+    last_modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+
+    # Alembic-revisie
+    try:
+        from alembic.runtime.migration import MigrationContext  # type: ignore
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            alembic_version = ctx.get_current_revision() or "geen migraties"
+    except Exception:
+        alembic_version = "onbekend"
+
+    # Rij-tellingen voor kernstabellen
+    key_tables = ["roadmap_items", "changelog", "users", "groups"]
+    inspector = sa_inspect(engine)
+    available = set(inspector.get_table_names())
+    row_counts: dict[str, int] = {}
+    with engine.connect() as conn:
+        for t in key_tables:
+            if t not in available:
+                row_counts[t] = 0
+                continue
+            try:
+                row = conn.execute(text(f'SELECT COUNT(*) FROM "{t}"')).fetchone()
+                row_counts[t] = row[0] if row else 0
+            except Exception:
+                row_counts[t] = 0
+
+    return {
+        "db_path": db_path,
+        "size_bytes": size_bytes,
+        "size_mb": round(size_bytes / 1024 / 1024, 3),
+        "last_modified": last_modified,
+        "alembic_version": alembic_version,
+        "row_counts": row_counts,
+    }

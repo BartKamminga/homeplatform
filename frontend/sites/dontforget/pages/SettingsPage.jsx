@@ -4,6 +4,7 @@ import ChangelogPage from '@components/ChangelogPage.jsx'
 import AppGroupSwitcher from '@components/AppGroupSwitcher.jsx'
 import { VERSION, CHANGELOG } from '../changelog.jsx'
 import { useUiPref } from '@core/useUiPref.js'
+import { api } from '@core/api.js'
 
 const HISTORY_OPTIONS = ['7 dagen', '30 dagen', 'Altijd']
 const MOMENT_OPTIONS  = ['Ochtend', 'Middag', 'Avond']
@@ -82,6 +83,71 @@ function SelectRow({ icon, iconBg, iconColor, title, options, value, onChange })
               {o}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RoadmapQuickAdd() {
+  const [title,   setTitle]   = useState('')
+  const [status,  setStatus]  = useState(null) // null | 'ok' | 'err'
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const t = title.trim()
+    if (!t) return
+    setLoading(true)
+    try {
+      await api.post('/api/roadmap', { title: t, site: 'dontforget', priority: 'midden', status: 'idee' })
+      setTitle('')
+      setStatus('ok')
+      setTimeout(() => setStatus(null), 2500)
+    } catch {
+      setStatus('err')
+      setTimeout(() => setStatus(null), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Idee of verbeterpunt…"
+          disabled={loading}
+          style={{
+            flex: 1, fontSize: 14, padding: '8px 11px',
+            borderRadius: 8, border: '0.5px solid var(--border)',
+            background: 'var(--bg-secondary)', color: 'var(--text)',
+            outline: 'none',
+          }}
+        />
+        <button
+          type="submit"
+          disabled={loading || !title.trim()}
+          style={{
+            padding: '8px 14px', borderRadius: 8, border: 'none',
+            background: 'var(--accent)', color: '#fff',
+            fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            opacity: loading || !title.trim() ? 0.5 : 1,
+          }}
+        >
+          {loading ? '…' : 'Stuur'}
+        </button>
+      </form>
+      {status === 'ok' && (
+        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <i className="ti ti-circle-check" aria-hidden="true" /> Toegevoegd aan roadmap ✓
+        </div>
+      )}
+      {status === 'err' && (
+        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--danger)' }}>
+          Opslaan mislukt, probeer opnieuw.
         </div>
       )}
     </div>
@@ -186,6 +252,21 @@ export default function SettingsPage() {
           options={HISTORY_OPTIONS} value={history} onChange={setHistory} />
         <Row icon="ti-trash" iconBg="#FCEBEB" iconColor="#A32D2D" title="Alles resetten"
           sub="Verwijder alle taken en geschiedenis" danger onClick={() => {}} />
+      </Card>
+
+      {/* Roadmap */}
+      <SectionHeader label="Verbetervoorstel" />
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ti ti-bulb" style={{ fontSize: 16, color: '#B45309' }} aria-hidden="true" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, color: 'var(--text)' }}>Snel naar roadmap</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Voeg een idee of verbeterpunt toe</div>
+          </div>
+        </div>
+        <RoadmapQuickAdd />
       </Card>
 
       {/* Over */}
