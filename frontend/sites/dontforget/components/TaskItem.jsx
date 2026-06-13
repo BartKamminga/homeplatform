@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 export default function TaskItem({ task, onToggle, onEdit, onSendToRoadmap }) {
-  const [roadmapState, setRoadmapState] = useState(null) // null | 'loading' | 'ok'
+  const [roadmapState, setRoadmapState] = useState(null) // null | 'loading' | 'ok' | 'error'
 
   if (!task) return null
 
@@ -14,7 +14,8 @@ export default function TaskItem({ task, onToggle, onEdit, onSendToRoadmap }) {
       setRoadmapState('ok')
       setTimeout(() => setRoadmapState(null), 2000)
     } catch {
-      setRoadmapState(null)
+      setRoadmapState('error')
+      setTimeout(() => setRoadmapState(null), 3000)
     }
   }
 
@@ -68,11 +69,11 @@ export default function TaskItem({ task, onToggle, onEdit, onSendToRoadmap }) {
           style={{
             flexShrink: 0, border: 'none', background: 'none', cursor: roadmapState ? 'default' : 'pointer',
             padding: '2px 4px', borderRadius: 4, fontSize: 11,
-            color: roadmapState === 'ok' ? 'var(--accent)' : 'var(--text-faint)',
+            color: roadmapState === 'ok' ? 'var(--accent)' : roadmapState === 'error' ? 'var(--danger)' : 'var(--text-faint)',
             transition: 'color 0.2s',
           }}
         >
-          {roadmapState === 'ok' ? 'Toegevoegd ✓' : '→ Roadmap'}
+          {roadmapState === 'ok' ? 'Toegevoegd ✓' : roadmapState === 'error' ? 'Geen toegang ✕' : '→ Roadmap'}
         </button>
       )}
       <div style={{

@@ -147,12 +147,12 @@ export default function ProgrammaPage({ stage, tournament }) {
       {/* Simulation banner */}
       {isTest && (
         <div style={{
-          background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 10,
+          background: 'var(--color-warning)', color: '#fff', borderRadius: 10,
           padding: '10px 14px', marginBottom: 16,
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>
             Simulatiemodus — scores worden NIET opgeslagen
           </span>
         </div>
@@ -174,8 +174,8 @@ export default function ProgrammaPage({ stage, tournament }) {
 
               return (
                 <div key={m.id} style={{
-                  background: isTest && hasSimScore ? '#fffbeb' : 'var(--color-surface)',
-                  border: `1px solid ${isTest && hasSimScore ? '#fcd34d' : 'var(--color-border)'}`,
+                  background: isTest && hasSimScore ? 'color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))' : 'var(--color-surface)',
+                  border: `1px solid ${isTest && hasSimScore ? 'var(--color-warning)' : 'var(--color-border)'}`,
                   borderRadius: 12, padding: '12px 16px',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -186,7 +186,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                       {showFinished
                         ? <span style={{ fontSize: 16, fontWeight: 700 }}>{m.score_a} – {m.score_b}</span>
                         : showSim
-                          ? <span style={{ fontSize: 16, fontWeight: 700, color: '#d97706' }}>{sim.a} – {sim.b}</span>
+                          ? <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-warning)' }}>{sim.a} – {sim.b}</span>
                           : <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>vs</span>
                       }
                     </div>
@@ -204,7 +204,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                     )}
                     <span style={{ color: STATUS_COLOR[m.status] }}>{STATUS_LABEL[m.status]}</span>
                     {isTest && hasSimScore && (
-                      <span style={{ color: '#d97706', fontWeight: 600 }}>Simulatie</span>
+                      <span style={{ color: 'var(--color-warning)', fontWeight: 600 }}>Simulatie</span>
                     )}
                   </div>
 

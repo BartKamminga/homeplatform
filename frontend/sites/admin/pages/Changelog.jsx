@@ -10,12 +10,16 @@ function formatDate(dt) {
 }
 
 export default function Changelog() {
-  const [entries, setEntries] = useState([])
-  const [error, setError]     = useState('')
+  const [entries,    setEntries]    = useState([])
+  const [siteFilter, setSiteFilter] = useState('alle')
+  const [error,      setError]      = useState('')
 
   useEffect(() => {
     api.get('/api/admin/changelog').then(setEntries).catch(e => setError(e.message))
   }, [])
+
+  const sites = ['alle', ...Array.from(new Set(entries.map(e => e.site))).sort()]
+  const visible = siteFilter === 'alle' ? entries : entries.filter(e => e.site === siteFilter)
 
   const columns = [
     { key: 'released_at', label: 'Datum', render: v => (
@@ -35,15 +39,31 @@ export default function Changelog() {
 
   return (
     <AdminLayout>
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '16px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: 600 }}>Changelog</h1>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>{entries.length} entries — beheerd via deploy-migraties</p>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>{visible.length} van {entries.length} entries</p>
       </div>
 
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>{error}</p>}
 
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '16px' }}>
+        {sites.map(s => (
+          <button
+            key={s}
+            onClick={() => setSiteFilter(s)}
+            style={{
+              padding: '5px 12px', fontSize: 12, borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
+              border: `1px solid ${siteFilter === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              background: siteFilter === s ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: siteFilter === s ? '#fff' : 'var(--color-text)',
+              fontWeight: siteFilter === s ? 600 : 400,
+            }}
+          >{s}</button>
+        ))}
+      </div>
+
       <div style={{ background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
-        <Table columns={columns} rows={entries} emptyMessage="Nog geen changelog entries" />
+        <Table columns={columns} rows={visible} emptyMessage="Geen changelog entries" />
       </div>
     </AdminLayout>
   )

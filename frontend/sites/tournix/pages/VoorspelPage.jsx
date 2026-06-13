@@ -60,7 +60,7 @@ export default function VoorspelPage({ tournament }) {
           const busy = saving === m.id
           return (
             <div key={m.id} style={{
-              background: 'var(--color-surface)', border: `1px solid ${ok ? '#22c55e' : 'var(--color-border)'}`,
+              background: 'var(--color-surface)', border: `1px solid ${ok ? 'var(--color-success)' : 'var(--color-border)'}`,
               borderRadius: 12, padding: '14px 16px', transition: 'border-color 0.2s',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -86,7 +86,7 @@ export default function VoorspelPage({ tournament }) {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 {ok
-                  ? <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>✓ Opgeslagen</span>
+                  ? <span style={{ fontSize: 12, color: 'var(--color-success)', fontWeight: 600 }}>✓ Opgeslagen</span>
                   : (
                     <button
                       onClick={() => submitPred(m.id)}

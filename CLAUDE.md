@@ -14,16 +14,19 @@
 
 De **NAS-database is de centrale backlog**. Todos en changelog werken samen via de `roadmap_items` tabel:
 
-- **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) — niet in conversatienotities.
-- **Aan het begin van een sessie**: relevante open roadmap-items ophalen via `GET /api/roadmap?status=idee` of `in_progress`.
-- **Nieuwe hoog-items analyseren**: stel voor elk item `impact`, `risico` en `scope` in en zet status op `geanalyseerd`. Dit is onderdeel van de standaard workflow.
+- **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) of `.\roadmap.ps1` — niet in conversatienotities.
+- **Aan het begin van een sessie**:
+  1. Haal hoog-items op met status `idee`: `.\roadmap.ps1 -List -Priority hoog -Status idee`
+  2. Analyseer die items eerst (zie stap 1 hieronder) — verplicht voor `hoog`, optioneel voor andere prioriteiten
+  3. Daarna: pak `geanalyseerd`-items op in volgorde van prioriteit
 - **Werkwijze per item**:
-  1. Optioneel: analyseer item → status `geanalyseerd` (impact/risico/scope invullen)
+  1. Analyseer → status `geanalyseerd`: vul `impact` (op gebruiker), `risico`, `scope` in, en sla de redenering op in het `notes`-veld
+     - **Hoog-items: altijd analyseren vóór je begint**
   2. Begin → status `in_progress`
-  2. Tijdens werken → notities bijhouden in het `notes`-veld (gaan later naar changelog)
-  3. Code klaar, nog niet gedeployed → status `gereed`
-  4. Deploy gestart → status `deploying`
-  5. Na succesvolle deploy naar NAS → status `klaar` + versienummer → changelog-entry automatisch aangemaakt
+  3. Tijdens werken → notities bijhouden in het `notes`-veld (gaan later naar changelog)
+  4. Code klaar, nog niet gedeployed → status `gereed`
+  5. Deploy gestart → status `deploying`
+  6. Na succesvolle deploy naar NAS → status `klaar` + versienummer → changelog-entry automatisch aangemaakt
 - **Versienummer onduidelijk**: eerst vragen aan de gebruiker.
 - Handmatige alembic-migraties voor changelog zijn niet meer nodig bij items die via de roadmap lopen.
 - Voor infrastructurele DB-wijzigingen (nieuwe tabellen, kolommen) blijft de alembic-migratie vereist:
@@ -63,7 +66,7 @@ homeplatform/
   backend/          FastAPI + SQLModel + SQLite + Alembic
   frontend/
     core/           Gedeelde helpers (api.js, sentry.js, theme.css)
-    sites/          Vite MPA: landing, admin, dontforget, nkhockey, mixmusic
+    sites/          Vite MPA: landing, admin, dontforget, tournix, nkhockey, mixmusic
   hpem.ps1          Deploy-script (HomePlatformEnvironmentManager)
   docker-compose.nas.yml
 ```
