@@ -33,10 +33,14 @@ class ChangelogCreate(BaseModel):
 
 # Publiek endpoint — geen auth nodig
 @router.get("/api/changelog", response_model=list[ChangelogOut])
-def public_changelog(session: Session = Depends(get_session)):
-    return session.exec(
-        select(ChangelogEntry).order_by(ChangelogEntry.released_at.desc())
-    ).all()
+def public_changelog(
+    site: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    q = select(ChangelogEntry)
+    if site:
+        q = q.where(ChangelogEntry.site == site)
+    return session.exec(q.order_by(ChangelogEntry.released_at.desc())).all()
 
 
 # Admin endpoints
