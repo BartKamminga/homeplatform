@@ -1,5 +1,23 @@
-export default function TaskItem({ task, onToggle, onEdit }) {
+import { useState } from 'react'
+
+export default function TaskItem({ task, onToggle, onEdit, onSendToRoadmap }) {
+  const [roadmapState, setRoadmapState] = useState(null) // null | 'loading' | 'ok'
+
   if (!task) return null
+
+  async function handleRoadmap(e) {
+    e.stopPropagation()
+    if (roadmapState) return
+    setRoadmapState('loading')
+    try {
+      await onSendToRoadmap(task)
+      setRoadmapState('ok')
+      setTimeout(() => setRoadmapState(null), 2000)
+    } catch {
+      setRoadmapState(null)
+    }
+  }
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -42,6 +60,20 @@ export default function TaskItem({ task, onToggle, onEdit }) {
         <div style={{ width:36, height:36, borderRadius:6, flexShrink:0, border:'0.5px solid var(--border)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'center' }}>
           <i className="ti ti-microphone" style={{ fontSize:16, color:'var(--text-faint)' }} aria-hidden="true" />
         </div>
+      )}
+      {onSendToRoadmap && (
+        <button
+          onClick={handleRoadmap}
+          title="Stuur naar roadmap"
+          style={{
+            flexShrink: 0, border: 'none', background: 'none', cursor: roadmapState ? 'default' : 'pointer',
+            padding: '2px 4px', borderRadius: 4, fontSize: 11,
+            color: roadmapState === 'ok' ? 'var(--accent)' : 'var(--text-faint)',
+            transition: 'color 0.2s',
+          }}
+        >
+          {roadmapState === 'ok' ? 'Toegevoegd ✓' : '→ Roadmap'}
+        </button>
       )}
       <div style={{
         width: 6, height: 6, borderRadius: '50%', flexShrink: 0,

@@ -161,7 +161,7 @@ export function getActiveTheme() {
 export async function loadTheme() {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored) {
-    document.body.setAttribute("data-theme", stored);
+    document.documentElement.setAttribute("data-theme", stored);
     return;
   }
 
@@ -170,7 +170,7 @@ export async function loadTheme() {
       r.json(),
     );
     const themeName = data.name?.toLowerCase() || DEFAULT_THEME;
-    document.body.setAttribute("data-theme", themeName);
+    document.documentElement.setAttribute("data-theme", themeName);
     localStorage.setItem(THEME_KEY, themeName);
 
     const tokens = data.tokens || {};
@@ -179,6 +179,6 @@ export async function loadTheme() {
       root.style.setProperty(key, value);
     });
   } catch {
-    document.body.setAttribute("data-theme", DEFAULT_THEME);
+    document.documentElement.setAttribute("data-theme", DEFAULT_THEME);
   }
 }

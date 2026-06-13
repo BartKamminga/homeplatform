@@ -2,6 +2,12 @@ import { useState, useRef } from 'react'
 import { api } from '@core/api.js'
 import { uploadPhoto, uploadAudio } from '../api.js'
 
+// Read UI-prefs that were stored by useUiPref (localStorage mirror of backend)
+function getPref(key, fallback) {
+  const v = localStorage.getItem(key)
+  return v !== null ? v : fallback
+}
+
 export const REPEAT   = ['Eenmalig', 'Dagelijks', 'Wekelijks', 'Maandelijks']
 export const HORIZONS = ['Vandaag', 'Morgen', 'Deze week', 'Deze maand']
 export const TIMES    = ['Ochtend', 'Middag', 'Heledag']
@@ -26,9 +32,14 @@ function whenToTime(w) {
 export function useTaskForm(task, { onSaved, onClose }) {
   const editing = !!task
 
-  const [repeat,        setRepeat]        = useState(task ? (REPEAT_REV[task.repeat] ?? 'Eenmalig') : 'Eenmalig')
+  // For new tasks, fall back to user's default prefs (saved by SettingsPage via useUiPref)
+  const defaultRepeat  = getPref('df_repeat', 'Eenmalig')
+  const defaultMoment  = getPref('df_moment', 'Ochtend')
+  const photoRequired  = getPref('df_photo_required', 'false') === 'true'
+
+  const [repeat,        setRepeat]        = useState(task ? (REPEAT_REV[task.repeat] ?? 'Eenmalig') : defaultRepeat)
   const [horizon,       setHorizon]       = useState(task ? whenToHorizon(task.when) : 'Vandaag')
-  const [timeOfDay,     setTimeOfDay]     = useState(task ? whenToTime(task.when) : 'Heledag')
+  const [timeOfDay,     setTimeOfDay]     = useState(task ? whenToTime(task.when) : defaultMoment)
   const [dayOfWeek,     setDayOfWeek]     = useState(task?.day_of_week ?? null)
   const [prio,          setPrio]          = useState(task ? (PRIO_REV[task.priority] ?? 'Normaal') : 'Normaal')
   const [title,         setTitle]         = useState(task?.title ?? '')
@@ -98,6 +109,7 @@ export function useTaskForm(task, { onSaved, onClose }) {
 
   async function handleSave() {
     if (!title.trim()) { setError('Vul een titel in'); return }
+    if (!editing && photoRequired && !photoFile) { setError('Een foto is verplicht bij deze taak'); return }
     if (recording) stopRecording()
     setSaving(true); setError(null)
     try {
@@ -154,6 +166,7 @@ export function useTaskForm(task, { onSaved, onClose }) {
     prio, setPrio,
     title, setTitle,
     photoPreview, fileRef,
+    photoRequired,
     audioPreview, recording, recordingTime,
     saving, error,
     handlePhotoChange, handleSave, handleDelete,

@@ -3,6 +3,7 @@ import TopBar from '../components/TopBar.jsx'
 import TaskItem from '../components/TaskItem.jsx'
 import GroupChip from '@components/GroupChip.jsx'
 import { listTasks, completeTask, updateTask } from '../api.js'
+import { api } from '@core/api.js'
 
 const MOMENTS = [
   { key: 'morning',   label: 'Ochtend' },
@@ -72,6 +73,10 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
     return () => window.removeEventListener('groupchange', load)
   }, [load])
 
+  async function sendToRoadmap(task) {
+    await api.post('/api/roadmap', { title: task.title, site: 'dontforget', priority: 'midden', status: 'idee' })
+  }
+
   async function toggle(task) {
     const wasDone = isDoneForPeriod(task)
     if (!wasDone) {
@@ -134,6 +139,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
                 task={{ ...t, done: isDoneForPeriod(t) }}
                 onToggle={() => toggle(t)}
                 onEdit={() => onEdit(t)}
+                onSendToRoadmap={sendToRoadmap}
               />
             ))}
           </div>

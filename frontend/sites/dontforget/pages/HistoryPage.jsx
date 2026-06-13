@@ -3,6 +3,17 @@ import TopBar from '../components/TopBar.jsx'
 import { listTasks } from '../api.js'
 import { api } from '@core/api.js'
 
+const HISTORY_DAYS = { '7 dagen': 7, '30 dagen': 30, 'Altijd': null }
+
+function getHistoryCutoff() {
+  const pref = localStorage.getItem('df_history') ?? '30 dagen'
+  const days = HISTORY_DAYS[pref] ?? 30
+  if (days === null) return null
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  return cutoff
+}
+
 function dayLabel(dateStr) {
   if (!dateStr) return 'Onbekend'
   const d = new Date(dateStr)
@@ -34,8 +45,12 @@ export default function HistoryPage() {
         listTasks(true),
         api.get('/api/auth/me'),
       ])
-      tasks.sort((a, b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at))
-      setItems(tasks)
+      const cutoff = getHistoryCutoff()
+      const filtered = cutoff
+        ? tasks.filter(t => new Date(t.completed_at || t.created_at) >= cutoff)
+        : tasks
+      filtered.sort((a, b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at))
+      setItems(filtered)
       setMe(user)
     } catch (e) {
       setError(e.message)

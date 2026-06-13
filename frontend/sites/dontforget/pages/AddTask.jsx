@@ -28,6 +28,7 @@ export default function AddTask({ onClose, task, onSaved }) {
     prio, setPrio,
     title, setTitle,
     photoPreview, fileRef,
+    photoRequired,
     audioPreview, recording, recordingTime,
     saving, error,
     handlePhotoChange, handleSave, handleDelete,
@@ -61,15 +62,16 @@ export default function AddTask({ onClose, task, onSaved }) {
         <div style={{ display:'flex', gap:12, padding:'16px 16px 12px', alignItems:'flex-start' }}>
           <div onClick={() => fileRef.current.click()} style={{
             width:72, height:72, flexShrink:0, borderRadius:10, overflow:'hidden',
-            border:'1.5px dashed var(--border)', background:'var(--bg-secondary)',
+            border: !editing && photoRequired && !photoPreview ? '1.5px dashed var(--danger)' : '1.5px dashed var(--border)',
+            background:'var(--bg-secondary)',
             display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
             gap:4, cursor:'pointer',
           }}>
             {photoPreview
               ? <img src={photoPreview} alt="foto" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
               : <>
-                  <i className="ti ti-camera" style={{ fontSize:22, color:'var(--text-faint)' }} aria-hidden="true" />
-                  <span style={{ fontSize:9, color:'var(--text-faint)' }}>Foto</span>
+                  <i className="ti ti-camera" style={{ fontSize:22, color: !editing && photoRequired ? 'var(--danger)' : 'var(--text-faint)' }} aria-hidden="true" />
+                  <span style={{ fontSize:9, color: !editing && photoRequired ? 'var(--danger)' : 'var(--text-faint)' }}>Foto*</span>
                 </>
             }
           </div>
