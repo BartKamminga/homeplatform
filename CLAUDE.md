@@ -16,6 +16,7 @@ De **NAS-database is de centrale backlog**. Todos en changelog werken samen via 
 
 - **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) — niet in conversatienotities.
 - **Aan het begin van een sessie**: relevante open roadmap-items ophalen via `GET /api/roadmap?status=idee` of `in_progress`.
+- **Nieuwe hoog-items analyseren**: stel voor elk item `impact`, `risico` en `scope` in en zet status op `geanalyseerd`. Dit is onderdeel van de standaard workflow.
 - **Werkwijze per item**:
   1. Optioneel: analyseer item → status `geanalyseerd` (impact/risico/scope invullen)
   2. Begin → status `in_progress`

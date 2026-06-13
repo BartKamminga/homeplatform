@@ -5,7 +5,7 @@ import { api } from "@core/api.js";
 const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets"];
 const STATUSES = ["alle", "idee", "geanalyseerd", "in_progress", "gereed", "deploying", "klaar"];
 const PRIORITIES = ["alle", "hoog", "midden", "laag"];
-const SCOPES = ["frontend", "backend", "beide"];
+const SCOPES = ["frontend", "backend", "beide", "infra", "database", "platform"];
 
 const STATUS_CYCLE = { idee: "geanalyseerd", geanalyseerd: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
 
