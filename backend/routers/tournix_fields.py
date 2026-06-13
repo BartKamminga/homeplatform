@@ -2,12 +2,13 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user, require_admin
+from core.crud import get_or_404
 from models.core import User
 from models.tournix import TournixField
 
@@ -44,8 +45,6 @@ def create_field(
 
 @router.delete("/fields/{field_id}", status_code=204)
 def delete_field(field_id: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
-    field = session.get(TournixField, field_id)
-    if not field:
-        raise HTTPException(404, "Veld niet gevonden")
+    field = get_or_404(session, TournixField, field_id, "Veld")
     session.delete(field)
     session.commit()

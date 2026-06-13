@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user, require_admin
+from core.crud import get_or_404
 from core.logging import log_action
 from models.core import User
 from models.tournix import (
@@ -93,10 +94,7 @@ def get_tournament(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    t = session.get(Tournament, tid)
-    if not t:
-        raise HTTPException(404, "Toernooi niet gevonden")
-    return t
+    return get_or_404(session, Tournament, tid, "Toernooi")
 
 
 @router.post("/tournaments", status_code=201)
@@ -120,9 +118,7 @@ def update_tournament(
     session: Session = Depends(get_session),
     user: User = Depends(require_admin),
 ):
-    t = session.get(Tournament, tid)
-    if not t:
-        raise HTTPException(404, "Toernooi niet gevonden")
+    t = get_or_404(session, Tournament, tid, "Toernooi")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(t, k, v)
     session.add(t)
@@ -133,9 +129,7 @@ def update_tournament(
 
 @router.delete("/tournaments/{tid}", status_code=204)
 def delete_tournament(tid: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
-    t = session.get(Tournament, tid)
-    if not t:
-        raise HTTPException(404, "Toernooi niet gevonden")
+    t = get_or_404(session, Tournament, tid, "Toernooi")
     # Cascade: predictions → matches → snapshots → teams → fields → pools → tournament
     matches = session.exec(select(TournixMatch).where(TournixMatch.tournament_id == tid)).all()
     for m in matches:

@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import AccountLayout from '../AccountLayout.jsx';
-
-function toEntries(data) {
-  return data.map(e => ({
-    version: e.version,
-    date: new Date(e.released_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
-    changes: e.description ? e.description.split('\n').filter(Boolean) : [e.title],
-  }))
-}
+import { toEntries } from '@components/ChangelogPage.jsx';
 
 export default function ChangelogPage() {
   const [entries, setEntries] = useState([])

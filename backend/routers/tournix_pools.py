@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user, require_admin
+from core.crud import get_or_404
 from models.core import User
 from models.tournix import Tournament, TournixPool, TournixTeam
 
@@ -43,9 +44,7 @@ def create_pool(tid: str, body: PoolCreate, session: Session = Depends(get_sessi
 
 @router.delete("/pools/{pid}", dependencies=[Depends(require_admin)])
 def delete_pool(pid: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    pool = session.get(TournixPool, pid)
-    if not pool:
-        raise HTTPException(404, "Poule niet gevonden")
+    pool = get_or_404(session, TournixPool, pid, "Poule")
     # Unassign teams from this pool
     teams = session.exec(select(TournixTeam).where(TournixTeam.pool_id == pid)).all()
     for t in teams:
@@ -58,9 +57,7 @@ def delete_pool(pid: str, session: Session = Depends(get_session), _: User = Dep
 
 @router.patch("/teams/{team_id}/pool", dependencies=[Depends(require_admin)])
 def assign_team_pool(team_id: str, body: TeamPoolAssign, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    team = session.get(TournixTeam, team_id)
-    if not team:
-        raise HTTPException(404, "Team niet gevonden")
+    team = get_or_404(session, TournixTeam, team_id, "Team")
     team.pool_id = body.pool_id
     session.add(team)
     session.commit()
@@ -71,9 +68,7 @@ def assign_team_pool(team_id: str, body: TeamPoolAssign, session: Session = Depe
 @router.post("/tournaments/{tid}/auto-assign", dependencies=[Depends(require_admin)])
 def auto_assign_pools(tid: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     """Distribute teams evenly across pools (serpentine/snake draft)."""
-    tournament = session.get(Tournament, tid)
-    if not tournament:
-        raise HTTPException(404, "Toernooi niet gevonden")
+    tournament = get_or_404(session, Tournament, tid, "Toernooi")
 
     # Always recreate pools to match current num_pools setting
     existing_pools = session.exec(

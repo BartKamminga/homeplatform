@@ -10,11 +10,13 @@ from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user, require_admin
+from core.crud import get_or_404
 from models.core import User
 from models.tournix import (
     Tournament, TournixPool, TournixTeam, TournixField,
     TournixMatch, TournixPrediction, TournixSnapshot,
 )
+from routers.tournix_utils import calc_standings
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -96,9 +98,7 @@ def update_match(
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
-    match = session.get(TournixMatch, mid)
-    if not match:
-        raise HTTPException(404, "Wedstrijd niet gevonden")
+    match = get_or_404(session, TournixMatch, mid, "Wedstrijd")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(match, k, v)
     session.add(match)
@@ -114,9 +114,7 @@ def set_result(
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
-    match = session.get(TournixMatch, mid)
-    if not match:
-        raise HTTPException(404, "Wedstrijd niet gevonden")
+    match = get_or_404(session, TournixMatch, mid, "Wedstrijd")
     match.score_a = body.score_a
     match.score_b = body.score_b
     match.status = "finished"
@@ -128,9 +126,7 @@ def set_result(
 
 @router.delete("/matches/{mid}", status_code=204)
 def delete_match(mid: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
-    match = session.get(TournixMatch, mid)
-    if not match:
-        raise HTTPException(404, "Wedstrijd niet gevonden")
+    match = get_or_404(session, TournixMatch, mid, "Wedstrijd")
     for pred in session.exec(select(TournixPrediction).where(TournixPrediction.match_id == mid)).all():
         session.delete(pred)
     session.delete(match)
@@ -145,44 +141,7 @@ def get_standings(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    teams   = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
-    matches = session.exec(
-        select(TournixMatch)
-        .where(TournixMatch.tournament_id == tid, TournixMatch.status == "finished")
-    ).all()
-
-    stats = {t.id: {"id": t.id, "name": t.name, "short_name": t.short_name, "color": t.color,
-                     "played": 0, "won": 0, "draw": 0, "lost": 0, "gf": 0, "ga": 0, "pts": 0}
-             for t in teams}
-
-    for m in matches:
-        if m.team_a_id not in stats or m.team_b_id not in stats:
-            continue
-        a, b = stats[m.team_a_id], stats[m.team_b_id]
-        a["played"] += 1; b["played"] += 1
-        a["gf"] += m.score_a; a["ga"] += m.score_b
-        b["gf"] += m.score_b; b["ga"] += m.score_a
-        if m.score_a > m.score_b:
-            a["won"] += 1; a["pts"] += 3; b["lost"] += 1
-        elif m.score_a < m.score_b:
-            b["won"] += 1; b["pts"] += 3; a["lost"] += 1
-        else:
-            a["draw"] += 1; a["pts"] += 1; b["draw"] += 1; b["pts"] += 1
-
-    result = sorted(stats.values(), key=lambda x: (-x["pts"], -(x["gf"] - x["ga"]), -x["gf"]))
-
-    # Add pool info
-    pools_by_id = {}
-    pools = session.exec(select(TournixPool).where(TournixPool.tournament_id == tid)).all()
-    for p in pools:
-        pools_by_id[p.id] = p.name
-
-    for row in result:
-        team = session.get(TournixTeam, row["id"])
-        row["pool_id"] = team.pool_id if team else None
-        row["pool_name"] = pools_by_id.get(team.pool_id, None) if team and team.pool_id else None
-
-    return result
+    return calc_standings(tid, session)
 
 
 # ── Voorspellingen ────────────────────────────────────────────────────────────
@@ -194,9 +153,7 @@ def predict(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    match = session.get(TournixMatch, mid)
-    if not match:
-        raise HTTPException(404, "Wedstrijd niet gevonden")
+    match = get_or_404(session, TournixMatch, mid, "Wedstrijd")
     if match.status == "finished":
         raise HTTPException(400, "Wedstrijd is al afgelopen")
     existing = session.exec(
@@ -228,9 +185,7 @@ def create_snapshot(
     current_user: User = Depends(get_current_user),
 ):
     """Save a standings snapshot for a completed round."""
-    tournament = session.get(Tournament, tid)
-    if not tournament:
-        raise HTTPException(404, "Toernooi niet gevonden")
+    tournament = get_or_404(session, Tournament, tid, "Toernooi")
 
     # Get all finished matches for this tournament up to this round
     matches = session.exec(
@@ -339,9 +294,7 @@ def get_snapshot(
 @router.post("/tournaments/{tid}/generate-schedule", dependencies=[Depends(require_admin)])
 def generate_schedule(tid: str, body: ScheduleGenerateBody, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     """Generate round-robin matches for all pools in a tournament."""
-    tournament = session.get(Tournament, tid)
-    if not tournament:
-        raise HTTPException(404, "Toernooi niet gevonden")
+    tournament = get_or_404(session, Tournament, tid, "Toernooi")
 
     # Get all pools
     pools = session.exec(
@@ -411,9 +364,7 @@ def generate_schedule(tid: str, body: ScheduleGenerateBody, session: Session = D
 @router.post("/tournaments/{tid}/generate-knockout", dependencies=[Depends(require_admin)])
 def generate_knockout(tid: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     """Seed teams from pool standings and create knockout matches."""
-    tournament = session.get(Tournament, tid)
-    if not tournament:
-        raise HTTPException(404, "Toernooi niet gevonden")
+    tournament = get_or_404(session, Tournament, tid, "Toernooi")
     if tournament.knockout_type == "none":
         raise HTTPException(400, "Knockout is uitgeschakeld voor dit toernooi")
 

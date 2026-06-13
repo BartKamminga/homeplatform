@@ -4,6 +4,7 @@ import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
 import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
 import { api } from '@core/api.js';
+import { toggleEndpoint } from '../adminUtils.js';
 
 export default function Groups() {
   const [groups, setGroups]   = useState([]);
@@ -43,11 +44,7 @@ export default function Groups() {
 
   async function toggleMember(user, groupSlug, currently) {
     try {
-      if (currently) {
-        await api.delete(`/api/admin/users/${user.id}/groups/${groupSlug}`);
-      } else {
-        await api.post(`/api/admin/users/${user.id}/groups/${groupSlug}`);
-      }
+      await toggleEndpoint(`/api/admin/users/${user.id}/groups/${groupSlug}`, currently);
       load();
       setUsers(prev => prev.map(u => {
         if (u.id !== user.id) return u;

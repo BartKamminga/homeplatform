@@ -1,7 +1,18 @@
+import { useState, useEffect } from 'react'
 import { updateTournament, updateTournamentStage, updateTournamentKnockout } from '../api.js'
 import { inputStyle, noTid } from './styles.js'
 
 export default function TournamentTab({ active, clubs, onRefresh }) {
+  const [nameInput, setNameInput] = useState(active?.name ?? '')
+  useEffect(() => { setNameInput(active?.name ?? '') }, [active?.id])
+
+  async function handleRename(e) {
+    e.preventDefault()
+    if (!active || !nameInput.trim() || nameInput === active.name) return
+    await updateTournament(active.id, { name: nameInput })
+    await onRefresh()
+  }
+
   async function handleStageChange(s) {
     if (!active) return
     await updateTournamentStage(active.id, s)
@@ -24,6 +35,29 @@ export default function TournamentTab({ active, clubs, onRefresh }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Naam */}
+      <div style={{ padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>NAAM</div>
+        <form onSubmit={handleRename} style={{ display: 'flex', gap: 8 }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            placeholder="Naam van het toernooi"
+          />
+          <button
+            type="submit"
+            disabled={!nameInput.trim() || nameInput === active.name}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 6, fontFamily: 'inherit',
+              background: 'var(--color-primary)', color: '#fff', border: 'none',
+              cursor: nameInput.trim() && nameInput !== active.name ? 'pointer' : 'default',
+              opacity: nameInput.trim() && nameInput !== active.name ? 1 : 0.5 }}
+          >
+            Opslaan
+          </button>
+        </form>
+      </div>
 
       {/* Locatie */}
       {clubs.length > 0 && (

@@ -8,6 +8,7 @@ import Modal, {
   BtnSecondary,
 } from "@components/Modal.jsx";
 import { api } from "@core/api.js";
+import { toggleEndpoint } from "../adminUtils.js";
 
 export default function Sites() {
   const [sites, setSites]       = useState([]);
@@ -51,11 +52,7 @@ export default function Sites() {
 
   async function toggleAccess(site, groupSlug, currently) {
     try {
-      if (currently) {
-        await api.delete(`/api/admin/sites/${site.id}/access/${groupSlug}`);
-      } else {
-        await api.post(`/api/admin/sites/${site.id}/access/${groupSlug}`);
-      }
+      await toggleEndpoint(`/api/admin/sites/${site.id}/access/${groupSlug}`, currently);
       load();
       // accessSite bijwerken met nieuwe data
       setAccessSite(prev => {
