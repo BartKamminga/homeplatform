@@ -3,16 +3,17 @@ import AdminLayout from "../AdminLayout.jsx";
 import { api } from "@core/api.js";
 
 const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets"];
-const STATUSES = ["alle", "idee", "geanalyseerd", "in_progress", "gereed", "deploying", "klaar"];
+const STATUSES = ["alle", "idee", "geanalyseerd", "pak_op", "in_progress", "gereed", "deploying", "klaar"];
 const PRIORITIES = ["alle", "hoog", "midden", "laag"];
 const SCOPES = ["frontend", "backend", "beide", "infra", "database", "platform"];
 
-const STATUS_CYCLE = { idee: "geanalyseerd", geanalyseerd: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
+const STATUS_CYCLE = { idee: "geanalyseerd", geanalyseerd: "pak_op", pak_op: "in_progress", in_progress: "gereed", gereed: "deploying", deploying: "klaar", klaar: "idee" };
 
-const STATUS_LABEL = { idee: "Idee", geanalyseerd: "Geanalyseerd", in_progress: "In uitvoering", gereed: "Gereed voor deploy", deploying: "Deploying", klaar: "Klaar" };
+const STATUS_LABEL = { idee: "Idee", geanalyseerd: "Geanalyseerd", pak_op: "Pak op", in_progress: "In uitvoering", gereed: "Gereed voor deploy", deploying: "Deploying", klaar: "Klaar" };
 const STATUS_COLOR = {
   idee: "var(--color-text-muted)",
   geanalyseerd: "#8b5cf6",
+  pak_op: "#0ea5e9",
   in_progress: "var(--color-primary)",
   gereed: "var(--color-warning)",
   deploying: "var(--color-danger)",
@@ -407,7 +408,7 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
 
 /* ── Main page ───────────────────────────────────────────────────────────── */
 
-const STATUS_ORDER = ["deploying", "in_progress", "gereed", "geanalyseerd", "idee", "klaar"];
+const STATUS_ORDER = ["deploying", "in_progress", "gereed", "pak_op", "geanalyseerd", "idee", "klaar"];
 
 export default function Roadmap() {
   const [items, setItems] = useState([]);

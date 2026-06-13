@@ -140,6 +140,8 @@ export default function Monitoring() {
           }}>
             {[
               { status: 'idee',        color: 'var(--color-text-muted)', label: 'idee' },
+              { status: 'geanalyseerd',color: '#8b5cf6',                 label: 'geanalyseerd' },
+              { status: 'pak_op',      color: '#0ea5e9',                 label: 'pak_op' },
               { status: 'in_progress', color: 'var(--color-primary)',    label: 'in_progress' },
               { status: 'gereed',      color: 'var(--color-warning)',    label: 'gereed' },
               { status: 'deploying',   color: 'var(--color-danger)',     label: 'deploying' },
@@ -161,6 +163,8 @@ export default function Monitoring() {
           <div style={{ display: 'grid', gap: '8px' }}>
             {[
               { status: 'idee',        color: 'var(--color-text-muted)', desc: 'Nieuwe wens of taak — staat in de backlog, nog niet opgepakt.' },
+              { status: 'geanalyseerd',color: '#8b5cf6',                 desc: 'Impact, risico en scope zijn ingevuld — klaar voor verdere prioritering.' },
+              { status: 'pak_op',      color: '#0ea5e9',                 desc: 'Expliciet geprioriteerd — wordt als eerste opgepakt in de volgende sessie.' },
               { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
               { status: 'gereed',      color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gedeployed naar de NAS.' },
               { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Deploy bezig via hpem.ps1 — platform herstart.' },
