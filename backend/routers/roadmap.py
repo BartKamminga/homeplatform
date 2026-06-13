@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user
+from core.crud import get_or_404
 from models.core import RoadmapItem, User
 from models.changelog import ChangelogEntry
 
@@ -21,6 +22,8 @@ class RoadmapItemCreate(BaseModel):
     status: str = "idee"
     notes: Optional[str] = None
     version: Optional[str] = None
+    impact: Optional[str] = None
+    risico: Optional[str] = None
 
 
 class RoadmapItemUpdate(BaseModel):
@@ -31,6 +34,8 @@ class RoadmapItemUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     version: Optional[str] = None
+    impact: Optional[str] = None
+    risico: Optional[str] = None
 
 
 def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:
@@ -96,9 +101,7 @@ def update_item(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    item = session.get(RoadmapItem, item_id)
-    if not item:
-        raise HTTPException(404, "Niet gevonden")
+    item = get_or_404(session, RoadmapItem, item_id, "RoadmapItem")
     data = body.model_dump(exclude_unset=True)
     for k, v in data.items():
         setattr(item, k, v)
@@ -116,9 +119,7 @@ def delete_item(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    item = session.get(RoadmapItem, item_id)
-    if not item:
-        raise HTTPException(404, "Niet gevonden")
+    item = get_or_404(session, RoadmapItem, item_id, "RoadmapItem")
     session.delete(item)
     session.commit()
     return {"ok": True}

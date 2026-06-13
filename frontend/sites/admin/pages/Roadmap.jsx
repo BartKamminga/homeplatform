@@ -24,6 +24,9 @@ const PRIORITY_STYLE = {
   laag: { background: "var(--color-surface-2)", color: "var(--color-text-muted)" },
 };
 
+const METER_VALUES = ["laag", "midden", "hoog"];
+const METER_COLOR = { laag: "var(--color-success)", midden: "var(--color-warning)", hoog: "var(--color-danger)" };
+
 const EMPTY_FORM = {
   title: "",
   description: "",
@@ -32,6 +35,8 @@ const EMPTY_FORM = {
   status: "idee",
   notes: "",
   version: "",
+  impact: null,
+  risico: null,
 };
 
 /* ── Styles ─────────────────────────────────────────────────────────────── */
@@ -143,6 +148,36 @@ const s = {
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
+function MeterField({ label, name, value, onChange }) {
+  return (
+    <div style={s.formGroup}>
+      <label style={s.label}>{label}</label>
+      <div style={{ display: "flex", gap: "6px" }}>
+        {[null, ...METER_VALUES].map((v) => {
+          const active = value === v;
+          const color = v ? METER_COLOR[v] : "var(--color-text-muted)";
+          return (
+            <button
+              key={v ?? "geen"}
+              type="button"
+              onClick={() => onChange({ target: { name, value: v } })}
+              style={{
+                padding: "3px 10px", fontSize: "12px", borderRadius: "99px", cursor: "pointer",
+                border: `1px solid ${active ? color : "var(--color-border)"}`,
+                background: active ? color : "transparent",
+                color: active ? "#fff" : "var(--color-text-muted)",
+                fontWeight: active ? 600 : 400,
+              }}
+            >
+              {v ?? "—"}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SelectField({ label, name, value, onChange, options }) {
   return (
     <div style={s.formGroup}>
@@ -244,6 +279,8 @@ function RoadmapForm({ initial, onSave, onCancel, saving }) {
             />
           </div>
         )}
+        <MeterField label="Impact" name="impact" value={form.impact} onChange={handleChange} />
+        <MeterField label="Risico" name="risico" value={form.risico} onChange={handleChange} />
         <div style={{ gridColumn: "1 / -1" }} />
         <TextareaField
           label="Notities / Claude-context"
@@ -302,6 +339,16 @@ function RoadmapItem({ item, onStatusCycle, onEdit, onDelete }) {
               }}>
                 {STATUS_LABEL[item.status]}
               </span>
+              {item.impact && (
+                <span style={s.badge({ background: METER_COLOR[item.impact] + "22", color: METER_COLOR[item.impact] })}>
+                  ↑ {item.impact}
+                </span>
+              )}
+              {item.risico && (
+                <span style={s.badge({ background: METER_COLOR[item.risico] + "22", color: METER_COLOR[item.risico] })}>
+                  ⚠ {item.risico}
+                </span>
+              )}
               {item.version && (
                 <span style={s.badge({ background: "var(--color-success-light)", color: "var(--color-success)", fontFamily: "var(--font-mono)" })}>
                   v{item.version}

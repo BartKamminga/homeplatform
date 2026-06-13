@@ -5,6 +5,7 @@ from typing import Optional
 
 from core.database import get_session, persist
 from core.auth import require_admin, hash_password, GUEST_GROUP
+from core.crud import get_or_404
 from core.logging import log_action
 from models.core import User, UserGroup, Group
 
@@ -108,9 +109,7 @@ def update_user(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    user = session.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Gebruiker niet gevonden")
+    user = get_or_404(session, User, user_id, "Gebruiker")
 
     if data.email is not None:
         user.email = data.email
