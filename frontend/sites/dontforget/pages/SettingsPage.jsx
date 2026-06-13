@@ -117,7 +117,7 @@ function ChangelogPopup({ onClose }) {
           }}>✕</button>
         </div>
         <div style={{ overflowY: 'auto', padding: '0 0 16px' }}>
-          <ChangelogPage changelog={CHANGELOG} title="" />
+          <ChangelogPage changelog={changelog} title="" />
         </div>
       </div>
     </div>
