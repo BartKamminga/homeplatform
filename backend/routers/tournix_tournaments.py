@@ -164,18 +164,65 @@ def copy_tournament(
         session.flush()
         pool_id_map[p.id] = new_p.id
 
+    team_id_map: dict[str, str] = {}
     for team in session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all():
-        session.add(TournixTeam(
+        if team.is_placeholder:
+            continue
+        new_team = TournixTeam(
             tournament_id=new_t.id,
             name=team.name,
             short_name=team.short_name,
             color=team.color,
             pool_id=pool_id_map.get(team.pool_id) if team.pool_id else None,
             club_id=team.club_id,
-        ))
+        )
+        session.add(new_team)
+        team_id_map[team.id] = new_team.id
 
     for field in session.exec(select(TournixField).where(TournixField.tournament_id == tid)).all():
         session.add(TournixField(tournament_id=new_t.id, name=field.name, club_id=field.club_id))
+
+    # Copy phases
+    phase_id_map: dict[str, str] = {}
+    old_phases = session.exec(
+        select(TournixPhase).where(TournixPhase.tournament_id == tid).order_by(TournixPhase.order)
+    ).all()
+    for phase in old_phases:
+        new_phase = TournixPhase(
+            tournament_id=new_t.id,
+            name=phase.name,
+            order=phase.order,
+            phase_type=phase.phase_type,
+            ko_type=phase.ko_type,
+            pool_type=phase.pool_type,
+        )
+        session.add(new_phase)
+        session.flush()
+        phase_id_map[phase.id] = new_phase.id
+
+    # Backfill phase_id on pools that were linked to a phase
+    for old_pid, new_pid in pool_id_map.items():
+        old_p = next((p for p in old_pools if p.id == old_pid), None)
+        if old_p and old_p.phase_id and old_p.phase_id in phase_id_map:
+            new_p = session.get(TournixPool, new_pid)
+            if new_p:
+                new_p.phase_id = phase_id_map[old_p.phase_id]
+                session.add(new_p)
+
+    # Copy phase team assignments (skip placeholder teams)
+    for phase in old_phases:
+        new_phase_id = phase_id_map.get(phase.id)
+        if not new_phase_id:
+            continue
+        for pt in session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == phase.id)).all():
+            new_team_id = team_id_map.get(pt.team_id)
+            if not new_team_id:
+                continue
+            session.add(TournixPhaseTeam(
+                phase_id=new_phase_id,
+                team_id=new_team_id,
+                group_name=pt.group_name,
+            ))
 
     session.commit()
     session.refresh(new_t)
