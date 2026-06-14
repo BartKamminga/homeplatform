@@ -124,6 +124,10 @@ def set_result(
     session.add(match)
     session.flush()
 
+    # KO-bracket: vul volgende ronde in
+    if match.match_type == "ko":
+        _fill_next_ko_slot(match, session)
+
     # Auto-resolve placeholders als alle wedstrijden in deze fase klaar zijn
     if match.phase_id:
         _try_auto_resolve(match.phase_id, session)
@@ -161,6 +165,30 @@ def _try_auto_resolve(source_phase_id: str, session: Session):
     from routers.tournix_phases import resolve_placeholders
     for dep_pid in dependent_phase_ids:
         resolve_placeholders(dep_pid, session)
+
+
+def _fill_next_ko_slot(match: TournixMatch, session: Session):
+    """Vul team-slots in de volgende KO-ronde in na het invoeren van een uitslag."""
+    if match.score_a is None or match.score_b is None:
+        return
+
+    # Bepaal winnaar en verliezer
+    if match.score_a > match.score_b:
+        winner_id, loser_id = match.team_a_id, match.team_b_id
+    elif match.score_b > match.score_a:
+        winner_id, loser_id = match.team_b_id, match.team_a_id
+    elif match.shootout_winner == "a":
+        winner_id, loser_id = match.team_a_id, match.team_b_id
+    else:
+        winner_id, loser_id = match.team_b_id, match.team_a_id
+
+    for nm in session.exec(select(TournixMatch).where(TournixMatch.source_match_a_id == match.id)).all():
+        nm.team_a_id = loser_id if nm.source_a_takes == "loser" else winner_id
+        session.add(nm)
+
+    for nm in session.exec(select(TournixMatch).where(TournixMatch.source_match_b_id == match.id)).all():
+        nm.team_b_id = loser_id if nm.source_b_takes == "loser" else winner_id
+        session.add(nm)
 
 
 @router.delete("/matches/{mid}", status_code=204)

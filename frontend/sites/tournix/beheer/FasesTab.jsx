@@ -156,6 +156,13 @@ function PhaseCard({
     else unassigned.push(t)
   }
 
+  async function handleSetKoType(value) {
+    try {
+      await updatePhase(phase.id, { ko_type: value })
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+  }
+
   async function handleApplySlots() {
     const positions = Array.from({ length: perPool }, (_, i) => i + 1)
     try {
@@ -415,7 +422,41 @@ function PhaseCard({
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Alle toernooiteams doen mee.</div>
             </div>
           ) : (
-            doorGangUI
+            <>
+              {doorGangUI}
+
+              {/* KO-type kiezen */}
+              {!isReadonly && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={sectionLabel}>KO-TYPE</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { value: 'single',      label: 'Enkelvoudig' },
+                      { value: 'consolation', label: '+ Troostfinale' },
+                      { value: 'double',      label: 'Dubbel', disabled: true },
+                    ].map(({ value, label, disabled }) => {
+                      const active = (phase.ko_type || 'single') === value
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => !disabled && handleSetKoType(value)}
+                          disabled={disabled}
+                          style={{
+                            padding: '4px 14px', fontSize: 12, borderRadius: 99,
+                            cursor: disabled ? 'default' : 'pointer',
+                            fontFamily: 'inherit', border: 'none',
+                            background: active ? 'var(--color-primary)' : 'var(--color-surface)',
+                            color: active ? '#fff' : disabled ? 'var(--color-text-muted)' : 'var(--color-text)',
+                            outline: active ? 'none' : '1px solid var(--color-border)',
+                            opacity: disabled ? 0.45 : 1,
+                          }}
+                        >{label}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

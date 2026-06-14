@@ -24,13 +24,15 @@ router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 class PhaseCreate(BaseModel):
     name: str
     order: int = 0
-    phase_type: str = "pool"  # "pool" | "ko"
+    phase_type: str = "pool"   # "pool" | "ko"
+    ko_type: str = "single"    # "single" | "consolation" | "double"
 
 
 class PhaseUpdate(BaseModel):
-    name: Optional[str] = None
-    order: Optional[int] = None
+    name:       Optional[str] = None
+    order:      Optional[int] = None
     phase_type: Optional[str] = None
+    ko_type:    Optional[str] = None
 
 
 class PhaseTeamIn(BaseModel):
@@ -123,6 +125,7 @@ def _phase_dict(phase: TournixPhase, session: Session) -> dict:
         "name": phase.name,
         "order": phase.order,
         "phase_type": phase.phase_type,
+        "ko_type": phase.ko_type or "single",
         "match_count": len(match_count),
         "is_main_phase": _is_main_phase(phase, session),
         "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
@@ -580,58 +583,99 @@ def generate_phase_schedule(
 
     elif phase.phase_type == "ko":
         phase_team_rows = session.exec(
-            select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
+            select(TournixPhaseTeam)
+            .where(TournixPhaseTeam.phase_id == pid)
+            .order_by(TournixPhaseTeam.id)
         ).all()
         if not phase_team_rows:
             raise HTTPException(400, "Geen teams toegewezen aan deze fase")
 
-        all_team_ids = [pt.team_id for pt in phase_team_rows]
-
-        pool_matches = session.exec(
-            select(TournixMatch).where(
-                TournixMatch.tournament_id == tid,
-                TournixMatch.status == "finished",
-            )
-        ).all()
-        stats: dict = {t: {"pts": 0, "gf": 0, "ga": 0} for t in all_team_ids}
-        for m in pool_matches:
-            if m.score_a is None or m.score_b is None:
-                continue
-            if m.team_a_id in stats:
-                stats[m.team_a_id]["gf"] += m.score_a
-                stats[m.team_a_id]["ga"] += m.score_b
-                if m.score_a > m.score_b:
-                    stats[m.team_a_id]["pts"] += 3
-                elif m.score_a == m.score_b:
-                    stats[m.team_a_id]["pts"] += 1
-            if m.team_b_id in stats:
-                stats[m.team_b_id]["gf"] += m.score_b
-                stats[m.team_b_id]["ga"] += m.score_a
-                if m.score_b > m.score_a:
-                    stats[m.team_b_id]["pts"] += 3
-                elif m.score_a == m.score_b:
-                    stats[m.team_b_id]["pts"] += 1
-
-        sorted_ids = sorted(
-            all_team_ids,
-            key=lambda t: (-stats[t]["pts"], -(stats[t]["gf"] - stats[t]["ga"]))
-        )
-        n = len(sorted_ids)
+        teams_ordered = [
+            session.get(TournixTeam, pt.team_id)
+            for pt in phase_team_rows
+            if session.get(TournixTeam, pt.team_id) is not None
+        ]
+        n = len(teams_ordered)
         if n < 2:
             raise HTTPException(400, "Te weinig teams voor knock-out")
 
-        for i in range(n // 2):
-            fid = field_ids[field_counter % len(field_ids)] if field_ids else None
-            session.add(TournixMatch(
-                tournament_id=tid,
-                team_a_id=sorted_ids[i],
-                team_b_id=sorted_ids[n - 1 - i],
-                match_type="ko",
-                phase_id=pid,
-                field_id=fid,
-            ))
-            created += 1
-            field_counter += 1
+        import math
+        bracket_size = 2 ** math.ceil(math.log2(n))
+        if bracket_size > 32:
+            raise HTTPException(400, "Te veel teams voor knock-out (max 32)")
+
+        # Pad met None voor byes
+        padded = teams_ordered + [None] * (bracket_size - n)
+
+        ko_type = phase.ko_type or "single"
+
+        # Paringen: #1 vs #N, #2 vs #(N-1) ...
+        half = bracket_size // 2
+        r1_pairs = [(padded[i], padded[bracket_size - 1 - i]) for i in range(half)]
+
+        all_rounds: list[list] = []
+        current_pairs = r1_pairs
+        bracket_round = 1
+
+        while current_pairs:
+            round_matches = []
+            for team_a, team_b in current_pairs:
+                fid = field_ids[field_counter % len(field_ids)] if field_ids else None
+                m = TournixMatch(
+                    tournament_id=tid,
+                    phase_id=pid,
+                    team_a_id=team_a.id if team_a else None,
+                    team_b_id=team_b.id if team_b else None,
+                    match_type="ko",
+                    bracket_round=bracket_round,
+                    field_id=fid,
+                )
+                # Bye: één team is None → direct doorgaan
+                if team_a is None or team_b is None:
+                    m.status = "finished"
+                    m.score_a = 0 if team_a is None else 1
+                    m.score_b = 0 if team_b is None else 1
+                session.add(m)
+                session.flush()
+                round_matches.append(m)
+                created += 1
+                field_counter += 1
+            all_rounds.append(round_matches)
+            if len(round_matches) <= 1:
+                break
+            current_pairs = [(None, None)] * (len(round_matches) // 2)
+            bracket_round += 1
+
+        # Koppel ronden via source_match_a/b_id
+        for ri in range(1, len(all_rounds)):
+            prev = all_rounds[ri - 1]
+            for j, m in enumerate(all_rounds[ri]):
+                m.source_match_a_id = prev[2 * j].id
+                m.source_match_b_id = prev[2 * j + 1].id
+                m.source_a_takes = "winner"
+                m.source_b_takes = "winner"
+                session.add(m)
+
+        # Troostfinale: losers van de halve finales
+        if ko_type == "consolation" and len(all_rounds) >= 2:
+            semis = all_rounds[-2]
+            if len(semis) >= 2:
+                fid = field_ids[field_counter % len(field_ids)] if field_ids else None
+                third = TournixMatch(
+                    tournament_id=tid,
+                    phase_id=pid,
+                    team_a_id=None,
+                    team_b_id=None,
+                    match_type="ko",
+                    bracket_round=len(all_rounds),
+                    source_match_a_id=semis[0].id,
+                    source_match_b_id=semis[1].id,
+                    source_a_takes="loser",
+                    source_b_takes="loser",
+                    field_id=fid,
+                )
+                session.add(third)
+                created += 1
 
     session.commit()
     return {"created": created}
