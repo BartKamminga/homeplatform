@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getPhases, createPhase, updatePhase, deletePhase,
-  setPhaseTeams, phaseTeamsFromStandings, generatePhaseSchedule,
+  setPhaseTeams, phaseTeamsFromStandings,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   assignTeamPool, getTeams,
 } from '../api.js'
@@ -67,14 +67,6 @@ export default function FasesTab({ tid, stage }) {
     } catch (e) { flash(e.message, true) }
   }
 
-  async function handleGenerateSchedule(pid) {
-    try {
-      const r = await generatePhaseSchedule(pid)
-      flash(`${r.created} wedstrijden aangemaakt`)
-      await load()
-    } catch (e) { flash(e.message, true) }
-  }
-
   if (!tid) return <p style={noTid}>Selecteer een toernooi via de keuzelijst bovenaan.</p>
   if (loading) return <p style={muted}>Laden…</p>
 
@@ -101,7 +93,6 @@ export default function FasesTab({ tid, stage }) {
           setEditName={setEditName}
           onRename={handleRename}
           onDelete={handleDelete}
-          onGenerateSchedule={handleGenerateSchedule}
           flash={flash}
           onRefresh={load}
         />
@@ -136,7 +127,7 @@ export default function FasesTab({ tid, stage }) {
 function PhaseCard({
   phase, teams, isReadonly,
   editId, editName, setEditId, setEditName,
-  onRename, onDelete, onGenerateSchedule,
+  onRename, onDelete,
   flash, onRefresh,
 }) {
   const [numPools,    setNumPools]    = useState(2)
@@ -262,7 +253,7 @@ function PhaseCard({
         <>
           {/* Sub-poule kaarten */}
           {hasPools && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
               {(phase.pools ?? []).map(pool => {
                 const poolTeams = teamsByPool[pool.id] ?? []
                 return (
@@ -357,7 +348,7 @@ function PhaseCard({
             </div>
           )}
 
-          {/* Acties: auto-verdelen + poule toevoegen + schema */}
+          {/* Acties: auto-verdelen + poule toevoegen + van standen */}
           {!isReadonly && (
             <div style={actionRow}>
               {/* Auto-verdelen */}
@@ -390,9 +381,6 @@ function PhaseCard({
                 <button onClick={() => setAddingPool(true)} style={{ ...ghostBtn, fontSize: 12 }}>+ Poule</button>
               )}
 
-              <button onClick={() => onGenerateSchedule(phase.id)} style={{ ...primaryBtn, fontSize: 12 }}>
-                Genereer schema
-              </button>
               {!phase.is_main_phase && (
                 <button onClick={handleFromStandings} style={{ ...ghostBtn, fontSize: 12 }}>
                   Vul uit standen
@@ -433,16 +421,11 @@ function PhaseCard({
             )}
           </div>
 
-          {!isReadonly && (
+          {!isReadonly && !phase.is_main_phase && (
             <div style={actionRow}>
-              <button onClick={() => onGenerateSchedule(phase.id)} style={{ ...primaryBtn, fontSize: 12 }}>
-                Genereer schema
+              <button onClick={handleFromStandings} style={{ ...ghostBtn, fontSize: 12 }}>
+                Vul uit standen
               </button>
-              {!phase.is_main_phase && (
-                <button onClick={handleFromStandings} style={{ ...ghostBtn, fontSize: 12 }}>
-                  Vul uit standen
-                </button>
-              )}
             </div>
           )}
         </>
@@ -469,7 +452,7 @@ const typePill      = { fontSize: 11, padding: '2px 8px', borderRadius: 99, back
 const mainPill      = { fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'var(--color-primary)', color: '#fff' }
 const deleteBtn     = { padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-danger)', background: 'transparent', color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'inherit' }
 const smallDeleteBtn = { marginLeft: 'auto', padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-danger)', background: 'transparent', color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'inherit' }
-const poolCard      = { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }
+const poolCard      = { flex: '1 1 220px', minWidth: 180, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }
 const poolHeader    = { display: 'flex', alignItems: 'center', padding: '7px 12px', background: 'var(--color-primary)', color: '#fff' }
 const teamPoolSelect = { fontSize: 11, padding: '2px 4px', border: '1px solid var(--color-border)', borderRadius: 4, background: 'var(--color-background)', color: 'var(--color-text)', cursor: 'pointer' }
 const sectionLabel  = { fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6, textTransform: 'uppercase' }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { updateTournament, updateTournamentStage, updateTournamentKnockout, copyTournament } from '../api.js'
+import { updateTournament, updateTournamentStage, copyTournament } from '../api.js'
 import { inputStyle, noTid } from './styles.js'
 
 export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
@@ -16,12 +16,6 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
   async function handleStageChange(s) {
     if (!active) return
     await updateTournamentStage(active.id, s)
-    await onRefresh()
-  }
-
-  async function handleKnockoutSettings(type, advance) {
-    if (!active) return
-    await updateTournamentKnockout(active.id, type, advance)
     await onRefresh()
   }
 
@@ -101,41 +95,6 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
           {active.stage === 'test'      && 'Bevroren data — scores simuleren zonder opslaan.'}
           {active.stage === 'productie' && 'Live — scores worden opgeslagen, voorspellingen tellen mee.'}
         </div>
-      </div>
-
-      {/* Knock-out */}
-      <div style={{ padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8,
-        opacity: active.stage !== 'inregel' ? 0.5 : 1, pointerEvents: active.stage !== 'inregel' ? 'none' : 'auto' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 10 }}>KNOCK-OUT</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, color: 'var(--color-text)' }}>Type</span>
-          {[['none','Geen'],['seeded','Geseeded']].map(([val, label]) => (
-            <button key={val} onClick={() => handleKnockoutSettings(val, active.knockout_advance)}
-              style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, fontFamily: 'inherit',
-                border: active.knockout_type === val ? 'none' : '1px solid var(--color-border)',
-                background: active.knockout_type === val ? 'var(--color-primary)' : 'transparent',
-                color: active.knockout_type === val ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer' }}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {active.knockout_type !== 'none' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, color: 'var(--color-text)' }}>Doorgaan per poule</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[1,2,3,4].map(n => (
-                <button key={n} onClick={() => handleKnockoutSettings(active.knockout_type, n)}
-                  style={{ width: 32, height: 32, borderRadius: 6, fontFamily: 'inherit',
-                    border: active.knockout_advance === n ? 'none' : '1px solid var(--color-border)',
-                    background: active.knockout_advance === n ? 'var(--color-primary)' : 'transparent',
-                    color: active.knockout_advance === n ? '#fff' : 'var(--color-text-muted)',
-                    cursor: 'pointer', fontWeight: 600 }}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Status */}

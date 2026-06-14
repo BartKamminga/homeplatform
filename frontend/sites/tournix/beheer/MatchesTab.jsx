@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   getMatches, createMatch, updateMatch, deleteMatch, setResult,
   getTeams, getFields, getSnapshots, saveSnapshot,
-  generateSchedule, generateKnockout,
+  getPhases, generatePhaseSchedule,
 } from '../api.js'
 import { inputStyle, primaryBtn, ghostBtn, noTid } from './styles.js'
 
@@ -284,20 +284,22 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
   const [matches,    setMatches]    = useState([])
   const [localTeams, setLocalTeams] = useState([])
   const [fields,     setFields]     = useState([])
+  const [phases,     setPhases]     = useState([])
   const [snapshots,  setSnapshots]  = useState([])
   const [snapSaving, setSnapSaving] = useState(null)
   const [genMsg,     setGenMsg]     = useState('')
-  const [genLoading, setGenLoading] = useState(false)
+  const [genLoading, setGenLoading] = useState(null)  // null | phase_id
   const [showAdd,    setShowAdd]    = useState(false)
 
   async function load() {
     if (!tid) return
-    const [m, t, f] = await Promise.all([
+    const [m, t, f, p] = await Promise.all([
       getMatches(tid).catch(() => []),
       getTeams(tid).catch(() => []),
       getFields(tid).catch(() => []),
+      getPhases(tid).catch(() => []),
     ])
-    setMatches(m); setLocalTeams(t); setFields(f)
+    setMatches(m); setLocalTeams(t); setFields(f); setPhases(p)
     getSnapshots(tid).then(setSnapshots).catch(() => {})
   }
 
@@ -322,24 +324,14 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
     } else { unmapped.push(m) }
   })
 
-  async function handleGenerateSchedule(clearExisting) {
-    setGenLoading(true); setGenMsg('')
+  async function handleGeneratePhase(pid) {
+    setGenLoading(pid); setGenMsg('')
     try {
-      const result = await generateSchedule(tid, clearExisting)
+      const result = await generatePhaseSchedule(pid)
       await load()
       setGenMsg(`${result?.created ?? '?'} wedstrijden aangemaakt`)
     } catch (e) { setGenMsg(`Fout: ${e.message}`) }
-    finally { setGenLoading(false) }
-  }
-
-  async function handleGenerateKnockout() {
-    setGenLoading(true); setGenMsg('')
-    try {
-      await generateKnockout(tid)
-      await load()
-      setGenMsg('Knock-out ronde aangemaakt')
-    } catch (e) { setGenMsg(`Fout: ${e.message}`) }
-    finally { setGenLoading(false) }
+    finally { setGenLoading(null) }
   }
 
   const cardProps = { teamMap, fieldMap, fields, canScore, onRefresh: load, structureLocked }
@@ -349,46 +341,39 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* Schema genereren — alleen in inregel */}
-      {!structureLocked && (
+      {/* Schema genereren per fase — alleen in inregel */}
+      {!structureLocked && phases.length > 0 && (
         <div style={{ padding: '10px 14px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>SCHEMA GENEREREN</div>
-          {poolMatches.length > 0 ? (
-            <>
-              <div style={{ fontSize: 12, color: 'var(--color-warning)', marginBottom: 8 }}>
-                Er zijn al {poolMatches.length} wedstrijden. Opnieuw genereren verwijdert deze.
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => handleGenerateSchedule(true)} disabled={genLoading}
-                  style={{ fontSize: 12, padding: '6px 14px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
-                    background: 'var(--color-danger)', color: '#fff', cursor: 'pointer', fontWeight: 600, opacity: genLoading ? 0.6 : 1 }}>
-                  {genLoading ? '…' : 'Vervang schema'}
-                </button>
-                <button onClick={() => handleGenerateSchedule(false)} disabled={genLoading}
-                  style={{ ...ghostBtn, fontSize: 12, opacity: genLoading ? 0.6 : 1 }}>
-                  {genLoading ? '…' : 'Voeg toe'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <button onClick={() => handleGenerateSchedule(false)} disabled={genLoading}
-              style={{ fontSize: 12, padding: '6px 14px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
-                background: 'var(--color-primary)', color: '#fff', cursor: 'pointer', fontWeight: 600, opacity: genLoading ? 0.6 : 1 }}>
-              {genLoading ? 'Genereren…' : 'Genereer schema'}
-            </button>
-          )}
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 10 }}>SCHEMA GENEREREN</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {phases.map(ph => {
+              const phaseMatchCount = matches.filter(m => m.phase_id === ph.id).length
+              const isLoading = genLoading === ph.id
+              return (
+                <div key={ph.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ flex: 1, fontSize: 13 }}>{ph.name}</span>
+                  <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 99,
+                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-muted)' }}>
+                    {ph.phase_type === 'ko' ? 'knock-out' : 'round-robin'}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', minWidth: 80, textAlign: 'right' }}>
+                    {phaseMatchCount} wedstrijden
+                  </span>
+                  <button
+                    onClick={() => handleGeneratePhase(ph.id)}
+                    disabled={genLoading !== null}
+                    style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
+                      background: phaseMatchCount > 0 ? 'var(--color-warning)' : 'var(--color-primary)',
+                      color: '#fff', cursor: genLoading !== null ? 'default' : 'pointer',
+                      fontWeight: 600, opacity: genLoading !== null ? 0.6 : 1, minWidth: 80 }}>
+                    {isLoading ? '…' : phaseMatchCount > 0 ? 'Hermaak' : 'Genereer'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
           {genMsg && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 8 }}>{genMsg}</div>}
-
-          {active?.knockout_type !== 'none' && (
-            <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-              <button onClick={handleGenerateKnockout} disabled={genLoading}
-                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
-                  background: 'var(--color-warning)', color: '#fff', cursor: 'pointer', fontWeight: 600, opacity: genLoading ? 0.6 : 1 }}>
-                Genereer knock-out ronde
-              </button>
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8 }}>Op basis van huidige stand</span>
-            </div>
-          )}
         </div>
       )}
 
