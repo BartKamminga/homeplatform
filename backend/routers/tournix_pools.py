@@ -8,7 +8,7 @@ from core.database import get_session
 from core.auth import get_current_user, require_admin
 from core.crud import get_or_404
 from models.core import User
-from models.tournix import Tournament, TournixPool, TournixTeam
+from models.tournix import Tournament, TournixPool, TournixTeam, TournixPhase
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -87,9 +87,20 @@ def auto_assign_pools(tid: str, session: Session = Depends(get_session), _: User
 
     session.commit()
 
+    # Zorg dat er een poule-fase is (maak aan als nodig)
+    first_phase = session.exec(
+        select(TournixPhase)
+        .where(TournixPhase.tournament_id == tid, TournixPhase.phase_type == "pool")
+        .order_by(TournixPhase.order)
+    ).first()
+    if not first_phase:
+        first_phase = TournixPhase(tournament_id=tid, name="Poule fase", order=0, phase_type="pool")
+        session.add(first_phase)
+        session.flush()
+
     letters = "ABCDEFGH"
     for i in range(min(tournament.num_pools, 8)):
-        pool = TournixPool(tournament_id=tid, name=f"Poule {letters[i]}", order=i)
+        pool = TournixPool(tournament_id=tid, name=f"Poule {letters[i]}", order=i, phase_id=first_phase.id)
         session.add(pool)
     session.commit()
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTournaments, updateTournament, deleteTournament, getPools, getTeams, getClubs } from '../api.js'
 import TournamentTab         from '../beheer/TournamentTab.jsx'
-import PoolsTab              from '../beheer/PoolsTab.jsx'
 import TeamsTab              from '../beheer/TeamsTab.jsx'
 import FieldsTab             from '../beheer/FieldsTab.jsx'
 import MatchesTab            from '../beheer/MatchesTab.jsx'
@@ -11,7 +10,7 @@ import ImportTab             from '../beheer/ImportTab.jsx'
 import CreateTournamentPopup from '../beheer/CreateTournamentPopup.jsx'
 import { inputStyle, primaryBtn, ghostBtn } from '../beheer/styles.js'
 
-const TABS = ['Toernooi', 'Poules', 'Teams', 'Velden', 'Wedstrijden', 'Fases', 'Clubs', 'Importeer']
+const TABS = ['Toernooi', 'Fases', 'Teams', 'Velden', 'Wedstrijden', 'Clubs', 'Importeer']
 
 export default function BeheerPage({ isAdmin, onStageChange }) {
   const [tab,        setTab]        = useState('Toernooi')
@@ -111,11 +110,10 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
       </div>
 
       {tab === 'Toernooi'    && <TournamentTab active={active} clubs={clubs} onRefresh={loadAll} onSelect={setTid} />}
-      {tab === 'Poules'      && <PoolsTab      tid={tid} active={active} pools={pools} teams={teams} stage={stage} loadPools={loadPools} loadTeams={loadTeams} onRefresh={loadAll} />}
+      {tab === 'Fases'       && <FasesTab      tid={tid} stage={stage} />}
       {tab === 'Teams'       && <TeamsTab      tid={tid} pools={pools} teams={teams} clubs={clubs} stage={stage} loadTeams={loadTeams} />}
       {tab === 'Velden'      && <FieldsTab     tid={tid} clubs={clubs} stage={stage} />}
       {tab === 'Wedstrijden' && <MatchesTab    tid={tid} tournament={active} pools={pools} teams={teams} stage={stage} />}
-      {tab === 'Fases'       && <FasesTab      tid={tid} stage={stage} />}
       {tab === 'Clubs'       && <ClubsTab      clubs={clubs} onRefresh={loadClubs} />}
       {tab === 'Importeer'   && <ImportTab     onImported={loadAll} />}
     </div>

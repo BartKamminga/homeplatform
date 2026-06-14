@@ -1,4 +1,4 @@
-"""Tournix — fases (follow-up brackets na de poule fase)."""
+"""Tournix — fases (alle bracket-typen na of inclusief de poule fase)."""
 
 from typing import Optional
 
@@ -46,9 +46,19 @@ class FromStandingsBody(BaseModel):
     positions: list[int]  # 1-indexed per pool, bijv. [1, 2] = top 2
 
 
+class PoolInPhaseCreate(BaseModel):
+    name: str
+    order: int = 0
+
+
+class AutoPoolsBody(BaseModel):
+    num_pools: int
+    pool_type: str = "half"  # "half" | "vol"
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _calc_pool_standings(pool_id: str, pool_teams: list, pool_matches: list) -> list:
+def _calc_pool_standings(pool_teams: list, pool_matches: list) -> list:
     stats = {t.id: {"team": t, "pts": 0, "gf": 0, "ga": 0} for t in pool_teams}
     for m in pool_matches:
         if m.score_a is None or m.score_b is None:
@@ -74,7 +84,53 @@ def _calc_pool_standings(pool_id: str, pool_teams: list, pool_matches: list) -> 
     )
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+def _is_main_phase(phase: TournixPhase, session: Session) -> bool:
+    """True als dit de eerste pool-type fase is (de poule-fase)."""
+    first = session.exec(
+        select(TournixPhase)
+        .where(TournixPhase.tournament_id == phase.tournament_id, TournixPhase.phase_type == "pool")
+        .order_by(TournixPhase.order, TournixPhase.created_at)
+    ).first()
+    return first is not None and first.id == phase.id
+
+
+def _phase_dict(phase: TournixPhase, session: Session) -> dict:
+    members = session.exec(
+        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == phase.id)
+    ).all()
+    match_count = session.exec(
+        select(TournixMatch).where(TournixMatch.phase_id == phase.id)
+    ).all()
+    pools = session.exec(
+        select(TournixPool)
+        .where(TournixPool.phase_id == phase.id)
+        .order_by(TournixPool.order)
+    ).all()
+    pool_data = []
+    for p in pools:
+        team_count = len(session.exec(
+            select(TournixTeam).where(TournixTeam.pool_id == p.id)
+        ).all())
+        pool_data.append({
+            "id": p.id,
+            "name": p.name,
+            "order": p.order,
+            "team_count": team_count,
+        })
+    return {
+        "id": phase.id,
+        "tournament_id": phase.tournament_id,
+        "name": phase.name,
+        "order": phase.order,
+        "phase_type": phase.phase_type,
+        "match_count": len(match_count),
+        "is_main_phase": _is_main_phase(phase, session),
+        "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
+        "pools": pool_data,
+    }
+
+
+# ── Fase CRUD ─────────────────────────────────────────────────────────────────
 
 @router.get("/tournaments/{tid}/phases")
 def list_phases(tid: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
@@ -83,24 +139,7 @@ def list_phases(tid: str, session: Session = Depends(get_session), _: User = Dep
         .where(TournixPhase.tournament_id == tid)
         .order_by(TournixPhase.order, TournixPhase.created_at)
     ).all()
-    result = []
-    for p in phases:
-        members = session.exec(
-            select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == p.id)
-        ).all()
-        match_count = len(session.exec(
-            select(TournixMatch).where(TournixMatch.phase_id == p.id)
-        ).all())
-        result.append({
-            "id": p.id,
-            "tournament_id": p.tournament_id,
-            "name": p.name,
-            "order": p.order,
-            "phase_type": p.phase_type,
-            "match_count": match_count,
-            "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
-        })
-    return result
+    return [_phase_dict(p, session) for p in phases]
 
 
 @router.post("/tournaments/{tid}/phases", status_code=201)
@@ -115,7 +154,7 @@ def create_phase(
     session.add(phase)
     session.commit()
     session.refresh(phase)
-    return phase
+    return _phase_dict(phase, session)
 
 
 @router.patch("/phases/{pid}")
@@ -131,7 +170,7 @@ def update_phase(
     session.add(phase)
     session.commit()
     session.refresh(phase)
-    return phase
+    return _phase_dict(phase, session)
 
 
 @router.delete("/phases/{pid}", status_code=204)
@@ -141,9 +180,131 @@ def delete_phase(pid: str, session: Session = Depends(get_session), _: User = De
         session.delete(m)
     for pt in session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)).all():
         session.delete(pt)
+    for p in session.exec(select(TournixPool).where(TournixPool.phase_id == pid)).all():
+        for t in session.exec(select(TournixTeam).where(TournixTeam.pool_id == p.id)).all():
+            t.pool_id = None
+            session.add(t)
+        session.delete(p)
     session.delete(phase)
     session.commit()
 
+
+# ── Pools binnen een fase ─────────────────────────────────────────────────────
+
+@router.post("/phases/{pid}/pools", status_code=201)
+def create_pool_in_phase(
+    pid: str,
+    body: PoolInPhaseCreate,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    phase = get_or_404(session, TournixPhase, pid, "Fase")
+    if phase.phase_type != "pool":
+        raise HTTPException(400, "Alleen pool-type fases kunnen sub-poules hebben")
+    pool = TournixPool(
+        tournament_id=phase.tournament_id,
+        name=body.name,
+        order=body.order,
+        phase_id=pid,
+    )
+    session.add(pool)
+    session.commit()
+    session.refresh(pool)
+    return pool
+
+
+@router.delete("/phases/{pid}/pools/{pool_id}", status_code=204)
+def delete_pool_in_phase(
+    pid: str,
+    pool_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    pool = get_or_404(session, TournixPool, pool_id, "Poule")
+    if pool.phase_id != pid:
+        raise HTTPException(400, "Poule hoort niet bij deze fase")
+    for t in session.exec(select(TournixTeam).where(TournixTeam.pool_id == pool_id)).all():
+        t.pool_id = None
+        session.add(t)
+    session.delete(pool)
+    session.commit()
+
+
+@router.post("/phases/{pid}/auto-pools")
+def auto_pools_in_phase(
+    pid: str,
+    body: AutoPoolsBody,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Hermaak sub-poules en verdeel teams gelijkmatig (slangendraft)."""
+    phase = get_or_404(session, TournixPhase, pid, "Fase")
+    if phase.phase_type != "pool":
+        raise HTTPException(400, "Alleen pool-type fases")
+    tid = phase.tournament_id
+
+    # Verwijder bestaande pools + ontkoppel teams
+    for p in session.exec(select(TournixPool).where(TournixPool.phase_id == pid)).all():
+        for t in session.exec(select(TournixTeam).where(TournixTeam.pool_id == p.id)).all():
+            t.pool_id = None
+            session.add(t)
+        session.delete(p)
+    session.flush()
+
+    # Maak nieuwe pools aan
+    letters = "ABCDEFGH"
+    new_pools = []
+    for i in range(min(body.num_pools, 8)):
+        p = TournixPool(
+            tournament_id=tid,
+            name=f"Poule {letters[i]}",
+            order=i,
+            phase_id=pid,
+        )
+        session.add(p)
+        new_pools.append(p)
+    session.flush()
+
+    # Bepaal welke teams in deze fase zitten
+    is_main = _is_main_phase(phase, session)
+    if is_main:
+        phase_teams = session.exec(
+            select(TournixTeam)
+            .where(TournixTeam.tournament_id == tid)
+            .order_by(TournixTeam.created_at)
+        ).all()
+    else:
+        pt_rows = session.exec(
+            select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
+        ).all()
+        team_ids = [r.team_id for r in pt_rows]
+        phase_teams = session.exec(
+            select(TournixTeam)
+            .where(TournixTeam.id.in_(team_ids))
+            .order_by(TournixTeam.created_at)
+        ).all()
+
+    # Slangenpatroon
+    n = len(new_pools)
+    if n == 0:
+        raise HTTPException(400, "Geen poules aangemaakt")
+
+    forward = list(range(n))
+    backward = list(reversed(range(n)))
+    direction = forward
+    i = 0
+    for team in phase_teams:
+        team.pool_id = new_pools[direction[i % n]].id
+        session.add(team)
+        i += 1
+        if i % n == 0:
+            direction = backward if direction is forward else forward
+
+    session.commit()
+    return {"ok": True, "pools": n, "assigned": len(phase_teams)}
+
+
+# ── Team-toewijzing (voor KO-fases en handmatige override) ───────────────────
 
 @router.post("/phases/{pid}/teams")
 def set_phase_teams(
@@ -168,26 +329,33 @@ def phase_teams_from_standings(
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
-    """Vul teams automatisch op basis van poule-standen."""
+    """Vul teams op basis van poule-standen uit de eerste pool-fase."""
     phase = get_or_404(session, TournixPhase, pid, "Fase")
     tid = phase.tournament_id
 
+    # Zoek de eerste pool-fase (de bronfase)
+    source_phase = session.exec(
+        select(TournixPhase)
+        .where(TournixPhase.tournament_id == tid, TournixPhase.phase_type == "pool")
+        .order_by(TournixPhase.order, TournixPhase.created_at)
+    ).first()
+    if not source_phase or source_phase.id == pid:
+        raise HTTPException(400, "Geen eerdere poule-fase gevonden om standen van te halen")
+
     pools = session.exec(
         select(TournixPool)
-        .where(TournixPool.tournament_id == tid)
+        .where(TournixPool.phase_id == source_phase.id)
         .order_by(TournixPool.order)
     ).all()
     if not pools:
-        raise HTTPException(400, "Geen poules gevonden")
+        raise HTTPException(400, "Geen poules in de poule-fase gevonden")
 
     all_teams = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
     pool_teams_map = {p.id: [t for t in all_teams if t.pool_id == p.id] for p in pools}
 
     pool_matches = session.exec(
         select(TournixMatch).where(
-            TournixMatch.tournament_id == tid,
-            TournixMatch.phase_id.is_(None),
-            TournixMatch.match_type == "pool",
+            TournixMatch.phase_id == source_phase.id,
             TournixMatch.status == "finished",
         )
     ).all()
@@ -197,7 +365,7 @@ def phase_teams_from_standings(
 
     added = 0
     for pool in pools:
-        ranked = _calc_pool_standings(pool.id, pool_teams_map[pool.id], pool_matches)
+        ranked = _calc_pool_standings(pool_teams_map[pool.id], pool_matches)
         for pos in body.positions:
             idx = pos - 1
             if 0 <= idx < len(ranked):
@@ -212,21 +380,17 @@ def phase_teams_from_standings(
     return {"ok": True, "added": added}
 
 
+# ── Schema genereren ──────────────────────────────────────────────────────────
+
 @router.post("/phases/{pid}/generate-schedule")
 def generate_phase_schedule(
     pid: str,
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
-    """Genereer wedstrijden voor een fase (round-robin per groep, of KO)."""
+    """Genereer wedstrijden voor een fase."""
     phase = get_or_404(session, TournixPhase, pid, "Fase")
     tid = phase.tournament_id
-
-    phase_team_rows = session.exec(
-        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
-    ).all()
-    if not phase_team_rows:
-        raise HTTPException(400, "Geen teams toegewezen aan deze fase")
 
     for m in session.exec(select(TournixMatch).where(TournixMatch.phase_id == pid)).all():
         session.delete(m)
@@ -237,21 +401,23 @@ def generate_phase_schedule(
     field_counter = 0
     created = 0
 
-    groups: dict[str, list[str]] = {}
-    for pt in phase_team_rows:
-        key = pt.group_name or "__all__"
-        if key not in groups:
-            groups[key] = []
-        groups[key].append(pt.team_id)
-
     if phase.phase_type == "pool":
-        for group_name, team_ids in groups.items():
-            if len(team_ids) < 2:
-                continue
-            teams = session.exec(
-                select(TournixTeam).where(TournixTeam.id.in_(team_ids))
+        # Gebruik pools (sub-poules) voor round-robin
+        pools = session.exec(
+            select(TournixPool)
+            .where(TournixPool.phase_id == pid)
+            .order_by(TournixPool.order)
+        ).all()
+        if not pools:
+            raise HTTPException(400, "Geen sub-poules aangemaakt voor deze fase")
+
+        for pool in pools:
+            pool_teams = session.exec(
+                select(TournixTeam).where(TournixTeam.pool_id == pool.id)
             ).all()
-            rounds = _round_robin_pairs(teams)
+            if len(pool_teams) < 2:
+                continue
+            rounds = _round_robin_pairs(pool_teams)
             for round_idx, round_pairs in enumerate(rounds, start=1):
                 for team_a, team_b in round_pairs:
                     fid = field_ids[field_counter % len(field_ids)] if field_ids else None
@@ -268,16 +434,21 @@ def generate_phase_schedule(
                     field_counter += 1
 
     elif phase.phase_type == "ko":
-        all_team_ids = [tid_item for ids in groups.values() for tid_item in ids]
+        phase_team_rows = session.exec(
+            select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
+        ).all()
+        if not phase_team_rows:
+            raise HTTPException(400, "Geen teams toegewezen aan deze fase")
+
+        all_team_ids = [pt.team_id for pt in phase_team_rows]
 
         pool_matches = session.exec(
             select(TournixMatch).where(
                 TournixMatch.tournament_id == tid,
-                TournixMatch.phase_id.is_(None),
                 TournixMatch.status == "finished",
             )
         ).all()
-        stats: dict[str, dict] = {t: {"pts": 0, "gf": 0, "ga": 0} for t in all_team_ids}
+        stats: dict = {t: {"pts": 0, "gf": 0, "ga": 0} for t in all_team_ids}
         for m in pool_matches:
             if m.score_a is None or m.score_b is None:
                 continue
@@ -321,22 +492,16 @@ def generate_phase_schedule(
     return {"created": created}
 
 
+# ── Standen per fase ──────────────────────────────────────────────────────────
+
 @router.get("/phases/{pid}/standings")
 def get_phase_standings(
     pid: str,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    """Standen voor een specifieke fase (alleen voor round-robin fases)."""
+    """Standen voor een fase (round-robin). Groepeert op sub-poule als beschikbaar."""
     phase = get_or_404(session, TournixPhase, pid, "Fase")
-
-    phase_team_rows = session.exec(
-        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
-    ).all()
-    team_ids = {pt.team_id for pt in phase_team_rows}
-
-    teams = session.exec(select(TournixTeam).where(TournixTeam.id.in_(list(team_ids)))).all()
-    team_map = {t.id: t for t in teams}
 
     phase_matches = session.exec(
         select(TournixMatch).where(
@@ -345,35 +510,66 @@ def get_phase_standings(
         )
     ).all()
 
-    stats = {
+    pools = session.exec(
+        select(TournixPool)
+        .where(TournixPool.phase_id == pid)
+        .order_by(TournixPool.order)
+    ).all()
+
+    if pools:
+        result = []
+        pools_by_id = {p.id: p.name for p in pools}
+        all_pool_teams = session.exec(
+            select(TournixTeam).where(TournixTeam.pool_id.in_([p.id for p in pools]))
+        ).all()
+        stats = {}
+        for t in all_pool_teams:
+            stats[t.id] = {
+                "id": t.id, "name": t.name,
+                "pts": 0, "gf": 0, "ga": 0, "w": 0, "d": 0, "l": 0,
+                "pool_id": t.pool_id,
+                "pool_name": pools_by_id.get(t.pool_id),
+            }
+        for m in phase_matches:
+            a = stats.get(m.team_a_id)
+            b = stats.get(m.team_b_id)
+            if not a or not b or m.score_a is None or m.score_b is None:
+                continue
+            a["gf"] += m.score_a; a["ga"] += m.score_b
+            b["gf"] += m.score_b; b["ga"] += m.score_a
+            if m.score_a > m.score_b:
+                a["w"] += 1; a["pts"] += 3; b["l"] += 1
+            elif m.score_a == m.score_b:
+                a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
+            else:
+                b["w"] += 1; b["pts"] += 3; a["l"] += 1
+        return sorted(stats.values(), key=lambda s: (s.get("pool_id", ""), -s["pts"], -(s["gf"] - s["ga"])))
+
+    # Fallback: geen pools, gebruik TournixPhaseTeam
+    phase_team_rows = session.exec(
+        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
+    ).all()
+    team_ids = {pt.team_id for pt in phase_team_rows}
+    teams = session.exec(select(TournixTeam).where(TournixTeam.id.in_(list(team_ids)))).all()
+    team_map = {t.id: t for t in teams}
+    stats2 = {
         tid: {"id": tid, "name": team_map[tid].name, "pts": 0, "gf": 0, "ga": 0, "w": 0, "d": 0, "l": 0}
         for tid in team_ids
         if tid in team_map
     }
-
     for m in phase_matches:
         if m.score_a is None or m.score_b is None:
             continue
-        a = stats.get(m.team_a_id)
-        b = stats.get(m.team_b_id)
+        a = stats2.get(m.team_a_id)
+        b = stats2.get(m.team_b_id)
         if not a or not b:
             continue
-        a["gf"] += m.score_a
-        a["ga"] += m.score_b
-        b["gf"] += m.score_b
-        b["ga"] += m.score_a
+        a["gf"] += m.score_a; a["ga"] += m.score_b
+        b["gf"] += m.score_b; b["ga"] += m.score_a
         if m.score_a > m.score_b:
-            a["w"] += 1
-            a["pts"] += 3
-            b["l"] += 1
+            a["w"] += 1; a["pts"] += 3; b["l"] += 1
         elif m.score_a == m.score_b:
-            a["d"] += 1
-            a["pts"] += 1
-            b["d"] += 1
-            b["pts"] += 1
+            a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
         else:
-            b["w"] += 1
-            b["pts"] += 3
-            a["l"] += 1
-
-    return sorted(stats.values(), key=lambda s: (-s["pts"], -(s["gf"] - s["ga"]), -s["gf"]))
+            b["w"] += 1; b["pts"] += 3; a["l"] += 1
+    return sorted(stats2.values(), key=lambda s: (-s["pts"], -(s["gf"] - s["ga"]), -s["gf"]))

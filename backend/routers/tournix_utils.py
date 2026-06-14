@@ -1,20 +1,59 @@
 """Tournix — shared utility functions."""
 
 from sqlmodel import Session, select
-from models.tournix import TournixTeam, TournixMatch, TournixPool
+from models.tournix import TournixTeam, TournixMatch, TournixPool, TournixPhase
 
 
-def calc_standings(tid: str, session: Session) -> list[dict]:
-    """Calculate standings for a tournament. Returns sorted list of team stats."""
+def calc_standings(tid: str, session: Session, phase_id: str | None = None) -> list[dict]:
+    """Calculate standings for a tournament, filtered to a specific phase.
+
+    If phase_id is None, uses the first pool-type phase (or all pool matches as fallback).
+    """
+    if phase_id is None:
+        first_phase = session.exec(
+            select(TournixPhase)
+            .where(TournixPhase.tournament_id == tid, TournixPhase.phase_type == "pool")
+            .order_by(TournixPhase.order, TournixPhase.created_at)
+        ).first()
+        if first_phase:
+            phase_id = first_phase.id
+
     teams = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
-    matches = session.exec(
-        select(TournixMatch)
-        .where(TournixMatch.tournament_id == tid, TournixMatch.status == "finished")
-    ).all()
 
-    stats = {t.id: {"id": t.id, "name": t.name, "short_name": t.short_name, "color": t.color,
-                    "played": 0, "won": 0, "draw": 0, "lost": 0, "gf": 0, "ga": 0, "pts": 0}
-             for t in teams}
+    if phase_id:
+        matches = session.exec(
+            select(TournixMatch)
+            .where(
+                TournixMatch.tournament_id == tid,
+                TournixMatch.phase_id == phase_id,
+                TournixMatch.status == "finished",
+            )
+        ).all()
+        pools_by_id = {
+            p.id: p.name
+            for p in session.exec(select(TournixPool).where(TournixPool.phase_id == phase_id)).all()
+        }
+    else:
+        matches = session.exec(
+            select(TournixMatch)
+            .where(
+                TournixMatch.tournament_id == tid,
+                TournixMatch.match_type == "pool",
+                TournixMatch.status == "finished",
+            )
+        ).all()
+        pools_by_id = {
+            p.id: p.name
+            for p in session.exec(select(TournixPool).where(TournixPool.tournament_id == tid)).all()
+        }
+
+    stats = {
+        t.id: {
+            "id": t.id, "name": t.name, "short_name": t.short_name, "color": t.color,
+            "played": 0, "won": 0, "draw": 0, "lost": 0, "gf": 0, "ga": 0, "pts": 0,
+        }
+        for t in teams
+    }
 
     for m in matches:
         if m.team_a_id not in stats or m.team_b_id not in stats:
@@ -31,9 +70,6 @@ def calc_standings(tid: str, session: Session) -> list[dict]:
             a["draw"] += 1; a["pts"] += 1; b["draw"] += 1; b["pts"] += 1
 
     result = sorted(stats.values(), key=lambda x: (-x["pts"], -(x["gf"] - x["ga"]), -x["gf"]))
-
-    pools_by_id = {p.id: p.name for p in
-                   session.exec(select(TournixPool).where(TournixPool.tournament_id == tid)).all()}
 
     for row in result:
         team = session.get(TournixTeam, row["id"])

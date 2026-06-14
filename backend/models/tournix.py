@@ -41,10 +41,11 @@ class Tournament(SQLModel, table=True):
 
 class TournixPool(SQLModel, table=True):
     __tablename__ = "tournix_pools"
-    id:            str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    tournament_id: str = Field(foreign_key="tournix_tournaments.id")
-    name:          str           # "Poule A", "Poule B", …
-    order:         int = Field(default=0)
+    id:            str           = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    tournament_id: str           = Field(foreign_key="tournix_tournaments.id")
+    name:          str
+    order:         int           = Field(default=0)
+    phase_id:      Optional[str] = Field(default=None, foreign_key="tournix_phases.id", index=True)
 
 
 class TournixTeam(SQLModel, table=True):
