@@ -133,7 +133,11 @@ export default function ProgrammaPage({ stage, tournament }) {
   if (loading) return <p style={muted}>Laden…</p>
   if (error)   return <p style={err}>{error}</p>
 
-  if (Object.keys(grouped).length === 0) return (
+  const hasUpcomingPhaseMatches = phases.some(p =>
+    matches.some(m => m.phase_id === p.id && m.status !== 'finished')
+  )
+
+  if (Object.keys(grouped).length === 0 && !hasUpcomingPhaseMatches) return (
     <p style={muted}>Geen aankomende wedstrijden.</p>
   )
 
