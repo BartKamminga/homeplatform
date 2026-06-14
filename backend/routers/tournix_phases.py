@@ -630,8 +630,8 @@ def generate_phase_schedule(
                     bracket_round=bracket_round,
                     field_id=fid,
                 )
-                # Bye: één team is None → direct doorgaan
-                if team_a is None or team_b is None:
+                # Bye: precies één team is None → direct doorgaan (niet als beide None zijn)
+                if (team_a is None) != (team_b is None):
                     m.status = "finished"
                     m.score_a = 0 if team_a is None else 1
                     m.score_b = 0 if team_b is None else 1

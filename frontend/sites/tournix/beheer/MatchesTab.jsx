@@ -234,43 +234,50 @@ function ScoreRow({ m, teamMap, onRefresh }) {
   const nameB = teamMap[m.team_b_id]?.name ?? '—'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-        padding: '6px 10px', borderRadius: 8,
-        background: saved && !dirty ? 'var(--color-surface-2)' : 'var(--color-surface)',
-        border: `1px solid ${saveError ? 'var(--color-danger)' : dirty ? 'var(--color-primary)' : 'var(--color-border)'}` }}>
-        <span style={{ flex: 1, fontWeight: 600, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameA}</span>
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 4,
+      background: saved && !dirty ? 'var(--color-surface-2)' : 'var(--color-surface)',
+      border: `1px solid ${saveError ? 'var(--color-danger)' : dirty ? 'var(--color-primary)' : 'var(--color-border)'}`,
+      borderRadius: 8, padding: '8px 10px', minWidth: 0,
+    }}>
+      {/* Team A */}
+      <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameA}</div>
+      {/* Score */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, margin: '2px 0' }}>
         <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaved(false); setSaveError('') }}
-          style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
-        <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>–</span>
+          style={{ ...inputStyle, width: 38, textAlign: 'center', padding: '3px 4px', fontSize: 15, fontWeight: 700 }} placeholder="—" />
+        <span style={{ color: 'var(--color-text-muted)', fontWeight: 700, fontSize: 12 }}>–</span>
         <input type="number" min="0" value={scoreB} onChange={e => { setScoreB(e.target.value); setSaved(false); setSaveError('') }}
-          style={{ ...inputStyle, width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 13 }} placeholder="—" />
-        <span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameB}</span>
-        <button onClick={save} disabled={saving || scoreA === '' || scoreB === '' || !dirty}
-          style={{ padding: '4px 12px', borderRadius: 7, fontSize: 12, border: 'none', fontFamily: 'inherit',
-            fontWeight: 600, cursor: (saving || scoreA === '' || scoreB === '' || !dirty) ? 'default' : 'pointer',
-            background: dirty ? 'var(--color-primary)' : 'var(--color-surface)',
-            color: dirty ? '#fff' : 'var(--color-text-muted)',
-            opacity: (saving || scoreA === '' || scoreB === '' || !dirty) ? 0.6 : 1, minWidth: 52 }}>
-          {saving ? '…' : saved && !dirty ? 'Opgeslagen' : 'Opslaan'}
-        </button>
+          style={{ ...inputStyle, width: 38, textAlign: 'center', padding: '3px 4px', fontSize: 15, fontWeight: 700 }} placeholder="—" />
       </div>
+      {/* Team B */}
+      <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{nameB}</div>
+      {/* PSO (KO gelijkspel) */}
       {isKo && tied && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 10, fontSize: 12 }}>
-          <span style={{ color: 'var(--color-text-muted)' }}>PSO gewonnen door:</span>
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 2 }}>
           {[['a', nameA], ['b', nameB]].map(([key, name]) => (
             <button key={key} type="button"
               onClick={() => { setShootoutWinner(prev => prev === key ? null : key); setSaved(false) }}
-              style={{ padding: '2px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
+              style={{ flex: 1, padding: '2px 4px', fontSize: 10, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
                 border: `1px solid ${shootoutWinner === key ? 'var(--color-primary)' : 'var(--color-border)'}`,
                 background: shootoutWinner === key ? 'var(--color-primary)' : 'transparent',
-                color: shootoutWinner === key ? '#fff' : 'var(--color-text-muted)', fontWeight: shootoutWinner === key ? 600 : 400 }}>
+                color: shootoutWinner === key ? '#fff' : 'var(--color-text-muted)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: shootoutWinner === key ? 600 : 400 }}>
               {name}
             </button>
           ))}
         </div>
       )}
-      {saveError && <div style={{ fontSize: 11, color: 'var(--color-danger)', paddingLeft: 10 }}>{saveError}</div>}
+      {/* Opslaan */}
+      <button onClick={save} disabled={saving || scoreA === '' || scoreB === '' || !dirty}
+        style={{ marginTop: 2, padding: '4px 0', borderRadius: 6, fontSize: 11, border: 'none', fontFamily: 'inherit',
+          fontWeight: 600, cursor: (saving || scoreA === '' || scoreB === '' || !dirty) ? 'default' : 'pointer',
+          background: dirty ? 'var(--color-primary)' : 'transparent',
+          color: dirty ? '#fff' : 'var(--color-success)',
+          opacity: (saving || scoreA === '' || scoreB === '' || !dirty) ? 0.55 : 1 }}>
+        {saving ? '…' : saved && !dirty ? '✓ Opgeslagen' : 'Opslaan'}
+      </button>
+      {saveError && <div style={{ fontSize: 10, color: 'var(--color-danger)' }}>{saveError}</div>}
     </div>
   )
 }
@@ -411,7 +418,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
                   </div>
                 </div>
                 {/* Score rows */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, padding: '8px 10px' }}>
                   {roundMatches.map(m => (
                     <ScoreRow key={m.id} m={m} teamMap={teamMap} onRefresh={load} />
                   ))}
@@ -425,7 +432,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
               <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--color-border)',
                 fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)',
                 letterSpacing: '0.06em', textTransform: 'uppercase' }}>Zonder ronde</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, padding: '8px 10px' }}>
                 {matches.filter(m => m.round == null && m.match_type !== 'ko').map(m => (
                   <ScoreRow key={m.id} m={m} teamMap={teamMap} onRefresh={load} />
                 ))}

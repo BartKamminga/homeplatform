@@ -1,6 +1,114 @@
 import { useState, useEffect } from 'react'
 import { getStandings, getSnapshots, getSnapshot, getMatches, getTeams, getPools, getClubs, getPhases, getPhaseStandings } from '../api.js'
 
+/* ── Poule card met live-voorspelling ── */
+function PoolCard({ poolName, rows, poolMatches, teamMap }) {
+  const [preds, setPreds] = useState({})
+
+  const pts = {}, ds = {}
+  rows.forEach(r => { pts[r.id] = r.pts; ds[r.id] = r.gf - r.ga })
+
+  const pending = poolMatches.filter(m => m.status !== 'finished' && m.team_a_id && m.team_b_id)
+  for (const m of pending) {
+    const p = preds[m.id]
+    if (!p) continue
+    if (p === 'W') pts[m.team_a_id] = (pts[m.team_a_id] || 0) + 3
+    else if (p === 'D') { pts[m.team_a_id] = (pts[m.team_a_id] || 0) + 1; pts[m.team_b_id] = (pts[m.team_b_id] || 0) + 1 }
+    else pts[m.team_b_id] = (pts[m.team_b_id] || 0) + 3
+  }
+
+  const live = rows
+    .map(r => ({ ...r, livePts: pts[r.id] || 0, liveDs: ds[r.id] || 0 }))
+    .sort((a, b) => b.livePts - a.livePts || b.liveDs - a.liveDs)
+
+  const roundMap = {}
+  for (const m of pending) {
+    const r = m.round ?? 0
+    if (!roundMap[r]) roundMap[r] = []
+    roundMap[r].push(m)
+  }
+  const openRounds = Object.keys(roundMap).length
+  const anyPreds = Object.values(preds).some(Boolean)
+
+  function toggle(id, side) {
+    setPreds(prev => ({ ...prev, [id]: prev[id] === side ? undefined : side }))
+  }
+  function predictAll() {
+    const next = {}
+    for (const m of pending) {
+      const r = Math.random()
+      next[m.id] = r < 0.45 ? 'W' : r < 0.65 ? 'D' : 'L'
+    }
+    setPreds(next)
+  }
+
+  const WIN_BG  = 'rgba(0,0,0,0.07)'
+  const WIN_ACT = 'var(--color-primary)'
+
+  return (
+    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 13px', borderBottom: '1px solid var(--color-border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>{poolName}</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+            {openRounds > 0 ? `nog ${openRounds} ronde${openRounds !== 1 ? 's' : ''}` : '✓ klaar'}
+          </span>
+        </div>
+        {openRounds > 0 && (
+          <div style={{ display: 'flex', gap: 5 }}>
+            {anyPreds && (
+              <button onClick={() => setPreds({})} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)' }}>✕</button>
+            )}
+            <button onClick={predictAll} style={{ fontSize: 11, padding: '2px 9px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', border: 'none', background: 'var(--color-primary)', color: '#fff', fontStyle: 'italic' }} title="Voorspel alle wedstrijden">✦</button>
+          </div>
+        )}
+      </div>
+
+      {/* Standings */}
+      <div style={{ padding: '6px 0' }}>
+        {live.map((row, i) => (
+          <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 26px 34px', alignItems: 'center', gap: 4, padding: '4px 13px', fontSize: 12 }}>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>{i + 1}</span>
+            <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
+            <span style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-primary)' }}>{row.livePts}</span>
+            <span style={{ textAlign: 'right', fontSize: 11, color: row.liveDs > 0 ? 'var(--color-success)' : row.liveDs < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
+              {row.liveDs > 0 ? '+' : ''}{row.liveDs}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Resterende rondes */}
+      {Object.entries(roundMap).sort(([a], [b]) => Number(a) - Number(b)).map(([r, ms]) => (
+        <div key={r}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '5px 13px 2px', borderTop: '1px solid var(--color-border)' }}>
+            Ronde {r}
+          </div>
+          {ms.map(m => {
+            const ta = teamMap[m.team_a_id]
+            const tb = teamMap[m.team_b_id]
+            const p = preds[m.id]
+            return (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', fontSize: 12, padding: '2px 8px' }}>
+                <div onClick={() => toggle(m.id, 'W')} style={{ flex: 1, textAlign: 'right', padding: '4px 5px', cursor: 'pointer', borderRadius: '4px 0 0 4px', background: p === 'W' ? WIN_ACT : 'transparent', color: p === 'W' ? '#fff' : 'var(--color-text)', fontWeight: p === 'W' ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ta?.name ?? '—'}
+                </div>
+                <div onClick={() => toggle(m.id, 'D')} style={{ padding: '4px 5px', cursor: 'pointer', textAlign: 'center', minWidth: 24, background: p === 'D' ? WIN_ACT : WIN_BG, color: p === 'D' ? '#fff' : 'var(--color-text-muted)', fontWeight: 700, fontSize: 10, borderRadius: 0 }}>
+                  {p === 'D' ? 'G' : '–'}
+                </div>
+                <div onClick={() => toggle(m.id, 'L')} style={{ flex: 1, textAlign: 'left', padding: '4px 5px', cursor: 'pointer', borderRadius: '0 4px 4px 0', background: p === 'L' ? WIN_ACT : 'transparent', color: p === 'L' ? '#fff' : 'var(--color-text)', fontWeight: p === 'L' ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {tb?.name ?? '—'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
   const [standings,     setStandings]     = useState([])
   const [snapshots,     setSnapshots]     = useState([])
@@ -12,19 +120,17 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
   const [clubs,         setClubs]         = useState([])
   const [phases,        setPhases]        = useState([])
   const [phaseStandings, setPhaseStandings] = useState({})
-  const [simOpen,       setSimOpen]       = useState(false)
-  const [simResults,    setSimResults]    = useState(null)
-  const [simRunning,    setSimRunning]    = useState(false)
 
   useEffect(() => {
     getClubs().then(setClubs).catch(() => {})
   }, [])
 
   useEffect(() => {
-    setViewRound(null); setSimOpen(false); setSimResults(null)
+    setViewRound(null)
     setStandings([]); setSnapshots([]); setMatches([]); setTeams([]); setPools([])
     setPhases([]); setPhaseStandings({})
     if (!active?.id) return
+
     getStandings(active.id).then(setStandings).catch(() => {})
     getSnapshots(active.id).then(setSnapshots).catch(() => {})
     getMatches(active.id).then(setMatches).catch(() => {})
@@ -52,57 +158,6 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
         .catch(() => {})
     }
   }, [viewRound, active?.id])
-
-  function runMonteCarlo(currentStandings, pendingMatches, N = 10000) {
-    const n = currentStandings.length
-    if (n === 0) return []
-
-    const posCount = {}
-    currentStandings.forEach(s => { posCount[s.id] = Array(n).fill(0) })
-
-    for (let sim = 0; sim < N; sim++) {
-      const pts = {}, gf = {}, ga = {}
-      currentStandings.forEach(s => { pts[s.id] = s.pts; gf[s.id] = s.gf; ga[s.id] = s.ga })
-
-      for (const m of pendingMatches) {
-        if (!m.team_a_id || !m.team_b_id) continue
-        const r = Math.random()
-        let sA, sB
-        if (r < 0.4) {
-          sA = 1 + Math.floor(Math.random() * 3)
-          sB = Math.floor(Math.random() * sA)
-        } else if (r < 0.65) {
-          sA = sB = Math.floor(Math.random() * 3)
-        } else {
-          sB = 1 + Math.floor(Math.random() * 3)
-          sA = Math.floor(Math.random() * sB)
-        }
-        if (pts[m.team_a_id] !== undefined) { gf[m.team_a_id] += sA; ga[m.team_a_id] += sB }
-        if (pts[m.team_b_id] !== undefined) { gf[m.team_b_id] += sB; ga[m.team_b_id] += sA }
-        if (sA > sB) { if (pts[m.team_a_id] !== undefined) pts[m.team_a_id] += 3 }
-        else if (sA === sB) {
-          if (pts[m.team_a_id] !== undefined) pts[m.team_a_id] += 1
-          if (pts[m.team_b_id] !== undefined) pts[m.team_b_id] += 1
-        } else { if (pts[m.team_b_id] !== undefined) pts[m.team_b_id] += 3 }
-      }
-
-      const sorted = [...currentStandings].sort((a, b) => {
-        const pd = (pts[b.id]||0) - (pts[a.id]||0)
-        if (pd !== 0) return pd
-        const gda = (gf[a.id]||0) - (ga[a.id]||0)
-        const gdb = (gf[b.id]||0) - (ga[b.id]||0)
-        if (gdb !== gda) return gdb - gda
-        return (gf[b.id]||0) - (gf[a.id]||0)
-      })
-      sorted.forEach((t, i) => { if (posCount[t.id]) posCount[t.id][i]++ })
-    }
-
-    return currentStandings.map(t => ({
-      id: t.id,
-      name: t.name,
-      probs: posCount[t.id].map(c => Math.round(c / N * 100)),
-    }))
-  }
 
   if (error) return <p style={err}>{error}</p>
 
@@ -206,29 +261,34 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
 
         {standings.length > 0 ? (() => {
           const hasPoules = standings.some(s => s.pool_id)
-          const pouleGroups = hasPoules
-            ? Object.values(standings.reduce((acc, s) => {
-                const key = s.pool_id || '__none__'
-                if (!acc[key]) acc[key] = { name: s.pool_name || 'Zonder poule', rows: [] }
-                acc[key].rows.push(s)
-                return acc
-              }, {}))
-            : null
+          const teamMap = Object.fromEntries(teams.map(t => [t.id, t]))
 
-          const StandingsTable = ({ rows }) => (
-            <div style={{
-              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-              borderRadius: 12, overflow: 'hidden', marginBottom: 20,
-            }}>
+          if (hasPoules) {
+            const pouleGroups = Object.values(standings.reduce((acc, s) => {
+              const key = s.pool_id || '__none__'
+              if (!acc[key]) acc[key] = { poolId: s.pool_id, name: s.pool_name || 'Zonder poule', rows: [] }
+              acc[key].rows.push(s)
+              return acc
+            }, {}))
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginBottom: 20 }}>
+                {pouleGroups.map(group => {
+                  const teamIds = new Set(group.rows.map(r => r.id))
+                  const poolMatches = matches.filter(m => m.match_type === 'pool' && teamIds.has(m.team_a_id) && teamIds.has(m.team_b_id))
+                  return <PoolCard key={group.name} poolName={group.name} rows={group.rows} poolMatches={poolMatches} teamMap={teamMap} />
+                })}
+              </div>
+            )
+          }
+
+          // Geen poules — gewone tabel
+          return (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 32px 32px 32px 32px 40px', gap: 8, padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
                 <span>#</span><span>Team</span><span style={{ textAlign: 'center' }}>W</span><span style={{ textAlign: 'center' }}>G</span><span style={{ textAlign: 'center' }}>V</span><span style={{ textAlign: 'center' }}>D</span><span style={{ textAlign: 'right' }}>Pts</span>
               </div>
-              {rows.map((row, i) => (
-                <div key={row.id} style={{
-                  display: 'grid', gridTemplateColumns: '28px 1fr 32px 32px 32px 32px 40px',
-                  gap: 8, padding: '10px 12px', fontSize: 13, alignItems: 'center',
-                  borderBottom: i < rows.length - 1 ? '1px solid var(--color-border)' : 'none',
-                }}>
+              {standings.map((row, i) => (
+                <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 32px 32px 32px 32px 40px', gap: 8, padding: '10px 12px', fontSize: 13, alignItems: 'center', borderBottom: i < standings.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                   <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{i + 1}</span>
                   <span style={{ fontWeight: 500 }}>{row.name}</span>
                   <span style={{ textAlign: 'center' }}>{row.won}</span>
@@ -240,83 +300,10 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
               ))}
             </div>
           )
-
-          if (hasPoules) {
-            return pouleGroups.map(group => (
-              <div key={group.name}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  {group.name}
-                </div>
-                <StandingsTable rows={group.rows} />
-              </div>
-            ))
-          }
-          return <StandingsTable rows={standings} />
         })() : (
           <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '20px 0' }}>
             Stand verschijnt zodra er wedstrijden zijn gespeeld.
           </p>
-        )}
-
-        {/* Monte Carlo simulation */}
-        {matches.filter(m => m.status !== 'finished' && m.match_type === 'pool').length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <button onClick={() => {
-              if (simOpen) { setSimOpen(false); setSimResults(null); return }
-              setSimOpen(true)
-              setSimRunning(true)
-              const pending = matches.filter(m => m.status !== 'finished' && m.match_type === 'pool')
-              setTimeout(() => {
-                const results = runMonteCarlo(standings, pending, 10000)
-                setSimResults(results)
-                setSimRunning(false)
-              }, 10)
-            }} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20, border: '1px solid var(--color-border)',
-              background: simOpen ? 'var(--color-primary)' : 'var(--color-surface)',
-              color: simOpen ? '#fff' : 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
-              {simOpen ? 'Verberg simulatie' : '⚡ Simuleer kansen'}
-            </button>
-
-            {simOpen && (
-              <div style={{ marginTop: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--color-border)', fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  Kansen op eindpositie — 10.000 simulaties van nog te spelen wedstrijden
-                </div>
-                {simRunning ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>Berekenen…</div>
-                ) : simResults && (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-muted)' }}>Team</th>
-                          {simResults[0].probs.map((_, i) => (
-                            <th key={i} style={{ padding: '8px 8px', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-muted)', minWidth: 36 }}>{i+1}e</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {simResults.map(row => (
-                          <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{row.name}</td>
-                            {row.probs.map((p, i) => (
-                              <td key={i} style={{ padding: '6px 8px', textAlign: 'center',
-                                background: p >= 50 ? 'var(--color-primary-light, #ffe0e8)' :
-                                            p >= 20 ? 'var(--color-surface-2)' : 'transparent',
-                                color: p > 0 ? 'var(--color-text)' : 'var(--color-text-muted)',
-                                fontWeight: p >= 40 ? 700 : 400 }}>
-                                {p > 0 ? `${p}%` : '—'}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         )}
       </>
 
@@ -357,17 +344,37 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
         )
       })()}
 
-      {/* Fases (follow-up brackets) */}
-      {phases.length > 0 && phases.map(phase => {
+      {/* Vervolg-fases (hoofd-fase overgeslagen — staat al in "Stand" hierboven) */}
+      {phases.filter(p => !p.is_main_phase).map(phase => {
         const teamMap = Object.fromEntries(teams.map(t => [t.id, t]))
         const phaseMatches = matches.filter(m => m.phase_id === phase.id)
         const ps = phaseStandings[phase.id] || []
+
+        // KO: groepeer per bracket_round
+        const koRounds = {}
+        if (phase.phase_type === 'ko') {
+          for (const m of phaseMatches) {
+            if (!m.team_a_id && !m.team_b_id) continue  // nog onbekend, overslaan
+            const r = m.bracket_round ?? 0
+            if (!koRounds[r]) koRounds[r] = []
+            koRounds[r].push(m)
+          }
+        }
+        const maxKoRound = Object.keys(koRounds).length ? Math.max(...Object.keys(koRounds).map(Number)) : 0
+
+        function koRoundLabel(r) {
+          const isConsolation = (koRounds[r] || []).some(m => m.source_a_takes === 'loser' || m.source_b_takes === 'loser')
+          if (r === maxKoRound) return isConsolation ? 'Troostfinale' : 'Finale'
+          if (r === maxKoRound - 1) return 'Halve finales'
+          if (r === maxKoRound - 2) return 'Kwartfinales'
+          return `Ronde ${r}`
+        }
 
         return (
           <div key={phase.id} style={{ marginTop: 24 }}>
             <h2 style={sectionTitle}>{phase.name}</h2>
 
-            {/* Round-robin standings */}
+            {/* Pool-fase standen (vervolg-poule) */}
             {phase.phase_type === 'pool' && ps.length > 0 && (
               <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden', marginBottom: 12 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 32px 32px 32px 32px 40px', gap: 8, padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
@@ -387,9 +394,9 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
               </div>
             )}
 
-            {/* Matches for this phase */}
-            {phaseMatches.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Pool-fase wedstrijden */}
+            {phase.phase_type === 'pool' && phaseMatches.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {phaseMatches.map(m => {
                   const ta = teamMap[m.team_a_id]
                   const tb = teamMap[m.team_b_id]
@@ -397,23 +404,79 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
                   const winA = done && m.score_a > m.score_b
                   const winB = done && m.score_b > m.score_a
                   return (
-                    <div key={m.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 16px' }}>
+                    <div key={m.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ flex: 1, fontWeight: winA ? 700 : 500, color: winB ? 'var(--color-text-muted)' : 'var(--color-text)' }}>{ta?.name ?? '—'}</span>
-                        <span style={{ fontSize: 16, fontWeight: 700, minWidth: 60, textAlign: 'center' }}>
-                          {done ? `${m.score_a}–${m.score_b}` : <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>vs</span>}
+                        <span style={{ fontSize: 15, fontWeight: 700, minWidth: 52, textAlign: 'center', color: done ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                          {done ? `${m.score_a}–${m.score_b}` : 'vs'}
                         </span>
                         <span style={{ flex: 1, textAlign: 'right', fontWeight: winB ? 700 : 500, color: winA ? 'var(--color-text-muted)' : 'var(--color-text)' }}>{tb?.name ?? '—'}</span>
                       </div>
-                      {done && m.shootout_winner && (
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, textAlign: 'center' }}>
-                          PSO — {m.shootout_winner === 'a' ? ta?.name : tb?.name}
-                        </div>
-                      )}
                       {m.round && <div style={{ fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 2 }}>Ronde {m.round}</div>}
                     </div>
                   )
                 })}
+              </div>
+            )}
+
+            {/* KO-bracket per ronde */}
+            {phase.phase_type === 'ko' && Object.keys(koRounds).length > 0 && (
+              <div>
+                {Object.entries(koRounds)
+                  .sort(([a], [b]) => Number(a) - Number(b))
+                  .map(([r, rMatches]) => {
+                    const rNum = Number(r)
+                    const isFinalRound = rNum === maxKoRound
+                    const consolationMatches = rMatches.filter(m => m.source_a_takes === 'loser' || m.source_b_takes === 'loser')
+                    const mainMatches = rMatches.filter(m => m.source_a_takes !== 'loser' && m.source_b_takes !== 'loser')
+
+                    const renderKoMatch = (m, label) => {
+                      const ta = teamMap[m.team_a_id]
+                      const tb = teamMap[m.team_b_id]
+                      const done = m.status === 'finished' && (m.team_a_id || m.team_b_id)
+                      const winA = done && m.score_a > m.score_b
+                      const winB = done && m.score_b > m.score_a
+                      return (
+                        <div key={m.id} style={{ background: 'var(--color-surface)', border: `1px solid ${isFinalRound && !label?.includes('Troost') ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 12, padding: '12px 16px', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ flex: 1, fontWeight: winA ? 700 : 500, color: winB ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: ta?.is_placeholder ? 'italic' : 'normal' }}>{ta?.name ?? '—'}</span>
+                            <span style={{ fontSize: 16, fontWeight: 700, minWidth: 56, textAlign: 'center', color: done ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                              {done ? `${m.score_a}–${m.score_b}` : 'vs'}
+                            </span>
+                            <span style={{ flex: 1, textAlign: 'right', fontWeight: winB ? 700 : 500, color: winA ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: tb?.is_placeholder ? 'italic' : 'normal' }}>{tb?.name ?? '—'}</span>
+                          </div>
+                          {done && m.shootout_winner && (
+                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, textAlign: 'center' }}>
+                              PSO — {m.shootout_winner === 'a' ? ta?.name : tb?.name}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div key={r} style={{ marginBottom: 16 }}>
+                        {/* Hoofdmatches label */}
+                        {mainMatches.length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                              {isFinalRound ? 'Finale' : koRoundLabel(rNum)}
+                            </div>
+                            {mainMatches.map(m => renderKoMatch(m, isFinalRound ? 'Finale' : koRoundLabel(rNum)))}
+                          </>
+                        )}
+                        {/* Troostfinale */}
+                        {consolationMatches.length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, marginTop: mainMatches.length ? 12 : 0 }}>
+                              Troostfinale
+                            </div>
+                            {consolationMatches.map(m => renderKoMatch(m, 'Troostfinale'))}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
               </div>
             )}
           </div>
