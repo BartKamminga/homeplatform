@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
   getPhases, createPhase, updatePhase, deletePhase,
-  setPhaseTeams, phaseTeamsFromStandings, getPhaseStandings,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
   assignTeamPool, getTeams,
@@ -72,7 +71,6 @@ export default function FasesTab({ tid, stage }) {
   if (loading) return <p style={muted}>Laden…</p>
 
   const isReadonly = stage !== 'inregel'
-  const mainPhase  = phases.find(p => p.is_main_phase) ?? null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -87,7 +85,6 @@ export default function FasesTab({ tid, stage }) {
         <PhaseCard
           key={phase.id}
           phase={phase}
-          mainPhase={mainPhase}
           teams={teams}
           isReadonly={isReadonly}
           editId={editId}
@@ -128,51 +125,50 @@ export default function FasesTab({ tid, stage }) {
 // ── Sub-component: één fase ───────────────────────────────────────────────────
 
 function PhaseCard({
-  phase, mainPhase, teams, isReadonly,
+  phase, teams, isReadonly,
   editId, editName, setEditId, setEditName,
   onRename, onDelete,
   flash, onRefresh,
 }) {
-  const [numPools,         setNumPools]         = useState(2)
-  const [newPoolName,      setNewPoolName]       = useState('')
-  const [addingPool,       setAddingPool]        = useState(false)
-  const [showStandingsUI,  setShowStandingsUI]   = useState(false)
+  const [numPools,    setNumPools]    = useState(2)
+  const [newPoolName, setNewPoolName] = useState('')
+  const [addingPool,  setAddingPool]  = useState(false)
+  const [perPool,     setPerPool]     = useState(2)
 
-  // Teams die in deze fase zitten
+  // Teams die in deze fase zitten (main = iedereen, anders: TournixPhaseTeam)
   const phaseTeamIds = new Set(
     phase.is_main_phase
       ? teams.map(t => t.id)
       : phase.teams.map(t => t.team_id)
   )
-  const phaseTeams = teams.filter(t => phaseTeamIds.has(t.id))
+  const phaseTeamObjects = teams.filter(t => phaseTeamIds.has(t.id))
+  const phasePlaceholders = phaseTeamObjects.filter(t => t.is_placeholder)
+  const phaseRealTeams    = phaseTeamObjects.filter(t => !t.is_placeholder)
+  const hasPlaceholders   = phasePlaceholders.length > 0
+  const hasRealTeams      = phaseRealTeams.length > 0
 
-  // Sub-pools: phase.pools
-  const poolMap = Object.fromEntries((phase.pools ?? []).map(p => [p.id, p]))
+  // Sub-pools: toon alle teamobjecten inclusief placeholders in poule-kaarten
   const teamsByPool = {}
   for (const p of (phase.pools ?? [])) teamsByPool[p.id] = []
   const unassigned = []
-  for (const t of phaseTeams) {
+  for (const t of phaseTeamObjects) {
     if (t.pool_id && teamsByPool[t.pool_id] !== undefined) teamsByPool[t.pool_id].push(t)
     else unassigned.push(t)
   }
 
-  async function handleFromStandingsConfirm(positions) {
+  async function handleApplySlots() {
+    const positions = Array.from({ length: perPool }, (_, i) => i + 1)
     try {
-      const r = await phaseTeamsFromStandings(phase.id, positions)
-      flash(`${r.added} teams ingevuld vanuit standen`)
-      setShowStandingsUI(false)
+      const r = await preAllocatePhaseTeams(phase.id, positions)
+      flash(`${r.created} slots aangemaakt vanuit "${r.source_phase}"`)
       await onRefresh()
     } catch (e) { flash(e.message, true) }
   }
 
-  async function handleToggleTeam(teamId) {
-    const current = phase.teams ?? []
-    const already = current.some(t => t.team_id === teamId)
-    const next = already
-      ? current.filter(t => t.team_id !== teamId)
-      : [...current, { team_id: teamId, group_name: null }]
+  async function handleResolveNow() {
     try {
-      await setPhaseTeams(phase.id, next)
+      const r = await resolvePhaseplaceholders(phase.id)
+      flash(`${r.resolved} teams opgelost`)
       await onRefresh()
     } catch (e) { flash(e.message, true) }
   }
@@ -214,6 +210,54 @@ function PhaseCard({
   const typeBadge = phase.phase_type === 'ko' ? 'knock-out' : 'round-robin'
   const hasPools  = (phase.pools ?? []).length > 0
 
+  // Inline doorgang-configuratie voor niet-hoofd fases
+  const doorGangUI = !phase.is_main_phase && (
+    <div style={doorGangBox}>
+      {hasPlaceholders ? (
+        <>
+          <div style={sectionLabel}>GEPLANDE DOORGANG ({phasePlaceholders.length} slots)</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {phasePlaceholders.map(t => <span key={t.id} style={slotChip}>{t.name}</span>)}
+          </div>
+          {!isReadonly && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Hermaak:</span>
+              {[1,2,3,4].map(n => (
+                <button key={n} onClick={() => setPerPool(n)} style={perPoolBtnStyle(n === perPool)}>{n}</button>
+              ))}
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>per poule</span>
+              <button onClick={handleApplySlots} style={{ ...ghostBtn, fontSize: 12 }}>↺ Hermaak</button>
+              <button onClick={handleResolveNow} style={{ ...ghostBtn, fontSize: 12 }}>✓ Resolveer nu</button>
+            </div>
+          )}
+        </>
+      ) : hasRealTeams ? (
+        <>
+          <div style={sectionLabel}>DOORGESTUURDE TEAMS ({phaseRealTeams.length})</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {phaseRealTeams.map(t => <span key={t.id} style={teamChip}>{t.name}</span>)}
+          </div>
+        </>
+      ) : !isReadonly ? (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+            Doorgang uit vorige fase
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13 }}>de eerste</span>
+            {[1,2,3,4].map(n => (
+              <button key={n} onClick={() => setPerPool(n)} style={perPoolBtnStyle(n === perPool)}>{n}</button>
+            ))}
+            <span style={{ fontSize: 13 }}>per poule gaan door</span>
+            <button onClick={handleApplySlots} style={{ ...primaryBtn, fontSize: 13 }}>Toepassen</button>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Geen teams geconfigureerd.</div>
+      )}
+    </div>
+  )
+
   return (
     <div style={card}>
       {/* Header */}
@@ -249,9 +293,12 @@ function PhaseCard({
         )}
       </div>
 
-      {/* Pool-type: sub-pools + team-indeling */}
+      {/* Pool-type fase */}
       {phase.phase_type === 'pool' && (
         <>
+          {/* Doorgang-configuratie (alleen voor niet-hoofd fases) */}
+          {doorGangUI}
+
           {/* Sub-poule kaarten */}
           {hasPools && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -272,8 +319,8 @@ function PhaseCard({
                       ) : poolTeams.map(t => (
                         <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                           {t.color && <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />}
-                          <span style={{ flex: 1, fontSize: 13 }}>{t.name}</span>
-                          {!isReadonly && (
+                          <span style={{ flex: 1, fontSize: 13, fontStyle: t.is_placeholder ? 'italic' : 'normal', opacity: t.is_placeholder ? 0.7 : 1 }}>{t.name}</span>
+                          {!isReadonly && !t.is_placeholder && (
                             <select
                               value={t.pool_id || ''}
                               onChange={e => handleAssignTeamPool(t.id, e.target.value)}
@@ -294,11 +341,11 @@ function PhaseCard({
             </div>
           )}
 
-          {/* Niet-ingedeelde teams */}
-          {unassigned.length > 0 && hasPools && (
+          {/* Niet-ingedeelde teams (alleen echte teams tonen) */}
+          {unassigned.filter(t => !t.is_placeholder).length > 0 && hasPools && (
             <div style={{ padding: '8px 12px', border: '1px dashed var(--color-border)', borderRadius: 8, marginBottom: 12 }}>
-              <div style={sectionLabel}>ZONDER POULE ({unassigned.length})</div>
-              {unassigned.map(t => (
+              <div style={sectionLabel}>ZONDER POULE ({unassigned.filter(t => !t.is_placeholder).length})</div>
+              {unassigned.filter(t => !t.is_placeholder).map(t => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   {t.color && <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />}
                   <span style={{ flex: 1, fontSize: 13 }}>{t.name}</span>
@@ -313,46 +360,21 @@ function PhaseCard({
             </div>
           )}
 
-          {/* Geen pools maar wel teams: toon teams overzicht */}
-          {!hasPools && phaseTeams.length > 0 && (
+          {/* Geen pools: toon teams als chips (hoofd-fase) */}
+          {!hasPools && phase.is_main_phase && phaseRealTeams.length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              <div style={sectionLabel}>TEAMS ({phaseTeams.length})</div>
+              <div style={sectionLabel}>TEAMS ({phaseRealTeams.length})</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {phaseTeams.map(t => (
+                {phaseRealTeams.map(t => (
                   <span key={t.id} style={teamChip}>{t.name}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Voor niet-hoofd fases: team-selectie toggle */}
-          {!phase.is_main_phase && !isReadonly && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={sectionLabel}>DEELNEMENDE TEAMS</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                {teams.map(t => {
-                  const inPhase = phaseTeamIds.has(t.id)
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => handleToggleTeam(t.id)}
-                      style={{
-                        padding: '3px 10px', fontSize: 12, borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
-                        border: `1px solid ${inPhase ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                        background: inPhase ? 'var(--color-primary)' : 'transparent',
-                        color: inPhase ? '#fff' : 'var(--color-text-muted)',
-                      }}
-                    >{t.name}</button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Acties: auto-verdelen + poule toevoegen + van standen */}
+          {/* Acties: auto-verdelen + poule toevoegen */}
           {!isReadonly && (
             <div style={actionRow}>
-              {/* Auto-verdelen */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <select
                   value={numPools}
@@ -364,7 +386,6 @@ function PhaseCard({
                 <button onClick={handleAutoPool} style={{ ...primaryBtn, fontSize: 12 }}>⚡ Auto-verdelen</button>
               </div>
 
-              {/* Poule toevoegen */}
               {addingPool ? (
                 <form onSubmit={handleAddPool} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input
@@ -381,255 +402,30 @@ function PhaseCard({
               ) : (
                 <button onClick={() => setAddingPool(true)} style={{ ...ghostBtn, fontSize: 12 }}>+ Poule</button>
               )}
-
-              {!phase.is_main_phase && (
-                <button onClick={() => setShowStandingsUI(true)} style={{ ...ghostBtn, fontSize: 12 }}>
-                  Vul uit standen
-                </button>
-              )}
             </div>
           )}
         </>
       )}
 
-      {/* KO-type: team-toggles */}
+      {/* KO-type fase */}
       {phase.phase_type === 'ko' && (
         <>
-          <div style={{ marginBottom: 12 }}>
-            <div style={sectionLabel}>DEELNEMENDE TEAMS</div>
-            {!phase.is_main_phase ? (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {teams.map(t => {
-                  const inPhase = phaseTeamIds.has(t.id)
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => !isReadonly && handleToggleTeam(t.id)}
-                      disabled={isReadonly}
-                      style={{
-                        padding: '3px 10px', fontSize: 12, borderRadius: 99,
-                        cursor: isReadonly ? 'default' : 'pointer', fontFamily: 'inherit',
-                        border: `1px solid ${inPhase ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                        background: inPhase ? 'var(--color-primary)' : 'transparent',
-                        color: inPhase ? '#fff' : 'var(--color-text-muted)',
-                      }}
-                    >{t.name}</button>
-                  )
-                })}
-              </div>
-            ) : (
+          {phase.is_main_phase ? (
+            <div style={{ marginBottom: 12 }}>
+              <div style={sectionLabel}>DEELNEMENDE TEAMS</div>
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Alle toernooiteams doen mee.</div>
-            )}
-          </div>
-
-          {!isReadonly && !phase.is_main_phase && (
-            <div style={actionRow}>
-              <button onClick={() => setShowStandingsUI(true)} style={{ ...ghostBtn, fontSize: 12 }}>
-                Vul uit standen
-              </button>
             </div>
+          ) : (
+            doorGangUI
           )}
         </>
-      )}
-
-      {/* Standen-panel */}
-      {showStandingsUI && (
-        <FromStandingsPanel
-          phase={phase}
-          mainPhase={mainPhase}
-          onConfirm={handleFromStandingsConfirm}
-          onCancel={() => setShowStandingsUI(false)}
-          flash={flash}
-          onRefresh={onRefresh}
-        />
       )}
 
       {/* Waarschuwing: teams maar geen schema */}
-      {(hasPools || phaseTeams.length > 0) && phase.match_count === 0 && !isReadonly && (
+      {(hasPools || phaseTeamObjects.length > 0) && phase.match_count === 0 && !isReadonly && (
         <div style={{ fontSize: 11, color: 'var(--color-warning)', marginTop: 8 }}>
           Teams zijn toegewezen maar er is nog geen schema gegenereerd.
         </div>
-      )}
-    </div>
-  )
-}
-
-// ── FromStandingsPanel ────────────────────────────────────────────────────────
-
-function FromStandingsPanel({ phase, mainPhase, onConfirm, onCancel, flash, onRefresh }) {
-  const [standings,  setStandings]  = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [perPool,    setPerPool]    = useState(2)
-  const [saving,     setSaving]     = useState(false)
-
-  // true = echte standen beschikbaar (>=1 wedstrijd gespeeld)
-  const hasRealStandings = standings.some(s => (s.w ?? 0) + (s.d ?? 0) + (s.l ?? 0) > 0)
-
-  // Modus: 'pre' = placeholders aanmaken; 'real' = echte standen invullen
-  const [mode, setMode] = useState(null)  // null = laden
-
-  useEffect(() => {
-    if (!mainPhase) { setLoading(false); setMode('pre'); return }
-    getPhaseStandings(mainPhase.id)
-      .then(s => {
-        setStandings(s)
-        const hasMatches = s.some(st => (st.w ?? 0) + (st.d ?? 0) + (st.l ?? 0) > 0)
-        setMode(hasMatches ? 'real' : 'pre')
-      })
-      .catch(() => setMode('pre'))
-      .finally(() => setLoading(false))
-  }, [mainPhase?.id])
-
-  // Pools voor pre-modus: uit mainPhase.pools
-  const sourcePools = mainPhase?.pools ?? []
-
-  // Pools voor real-modus: groepeer standings op pool_name
-  const standingsByPool = []
-  const poolIndex = {}
-  for (const s of standings) {
-    const key = s.pool_name ?? 'Zonder poule'
-    if (poolIndex[key] === undefined) {
-      poolIndex[key] = standingsByPool.length
-      standingsByPool.push({ name: key, teams: [] })
-    }
-    standingsByPool[poolIndex[key]].teams.push(s)
-  }
-
-  const positions = Array.from({ length: perPool }, (_, i) => i + 1)
-  const totalPre  = sourcePools.reduce((acc, p) => acc + Math.min(perPool, p.team_count || perPool), 0)
-  const totalReal = standingsByPool.reduce((acc, p) => acc + Math.min(perPool, p.teams.length), 0)
-
-  async function handlePreAllocate() {
-    setSaving(true)
-    try {
-      const r = await preAllocatePhaseTeams(phase.id, positions)
-      flash(`${r.created} placeholder-teams aangemaakt vanuit "${r.source_phase}"`)
-      onCancel()
-      await onRefresh()
-    } catch (e) { flash(e.message, true) }
-    finally { setSaving(false) }
-  }
-
-  async function handleRealStandings() {
-    setSaving(true)
-    try {
-      const r = await onConfirm(positions)
-      // onConfirm handles flash + refresh
-    } catch (e) { flash(e.message, true) }
-    finally { setSaving(false) }
-  }
-
-  const perPoolBtns = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-      <span style={{ fontSize: 13 }}>Aantal per poule:</span>
-      {[1, 2, 3, 4].map(n => (
-        <button key={n} onClick={() => setPerPool(n)} style={{
-          width: 34, height: 34, borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: 14,
-          cursor: 'pointer', border: 'none',
-          background: perPool === n ? 'var(--color-primary)' : 'var(--color-surface)',
-          color: perPool === n ? '#fff' : 'var(--color-text-muted)',
-          outline: perPool === n ? 'none' : '1px solid var(--color-border)',
-        }}>{n}</button>
-      ))}
-    </div>
-  )
-
-  return (
-    <div style={standingsPanel}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', flex: 1 }}>
-          Teams toevoegen aan fase
-        </span>
-        {/* Tab-wissel als beide opties beschikbaar zijn */}
-        {hasRealStandings && (
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[['pre', 'Placeholders'], ['real', 'Echte standen']].map(([m, label]) => (
-              <button key={m} onClick={() => setMode(m)} style={{
-                padding: '3px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
-                border: `1px solid ${mode === m ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                background: mode === m ? 'var(--color-primary)' : 'transparent',
-                color: mode === m ? '#fff' : 'var(--color-text-muted)',
-              }}>{label}</button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {loading ? (
-        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>Laden…</div>
-      ) : mode === 'pre' ? (
-        /* ── Pre-alloceer modus ── */
-        <>
-          {perPoolBtns}
-          {sourcePools.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--color-warning)', marginBottom: 12 }}>
-              Nog geen sub-poules aangemaakt in de poule-fase. Maak eerst poules aan via Auto-verdelen.
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                {sourcePools.map(pool => (
-                  <div key={pool.id} style={previewPoolCard}>
-                    <div style={previewPoolHeader}>{pool.name}</div>
-                    <div style={{ padding: '6px 10px' }}>
-                      {Array.from({ length: perPool }, (_, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 3, alignItems: 'center' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', minWidth: 16 }}>#{i + 1}</span>
-                          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{pool.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
-                Er worden {totalPre} placeholder-teams aangemaakt (bijv. "#1 Poule A"). Zodra alle wedstrijden in de poule-fase gespeeld zijn, verschijnen de echte namen automatisch.
-              </div>
-            </>
-          )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handlePreAllocate} disabled={saving || sourcePools.length === 0}
-              style={{ ...primaryBtn, opacity: (saving || sourcePools.length === 0) ? 0.5 : 1 }}>
-              {saving ? '…' : `Pre-alloceer (${totalPre} slots)`}
-            </button>
-            <button onClick={onCancel} style={ghostBtn}>Annuleren</button>
-          </div>
-        </>
-      ) : (
-        /* ── Echte standen modus ── */
-        <>
-          {perPoolBtns}
-          {standingsByPool.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>Geen standen beschikbaar.</div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              {standingsByPool.map(pool => (
-                <div key={pool.name} style={previewPoolCard}>
-                  <div style={previewPoolHeader}>{pool.name}</div>
-                  <div style={{ padding: '6px 10px' }}>
-                    {pool.teams.map((t, i) => {
-                      const sel = i < perPool
-                      return (
-                        <div key={t.id} style={{ display: 'flex', gap: 6, marginBottom: 3, opacity: sel ? 1 : 0.35 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, minWidth: 16, color: sel ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>{i + 1}.</span>
-                          <span style={{ flex: 1, fontSize: 12, fontWeight: sel ? 600 : 400 }}>{t.name}</span>
-                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.pts}p</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => onConfirm(positions)} disabled={saving || standingsByPool.length === 0}
-              style={{ ...primaryBtn, opacity: (saving || standingsByPool.length === 0) ? 0.5 : 1 }}>
-              {saving ? '…' : `Bevestigen (${totalReal} teams)`}
-            </button>
-            <button onClick={onCancel} style={ghostBtn}>Annuleren</button>
-          </div>
-        </>
       )}
     </div>
   )
@@ -651,7 +447,16 @@ const poolHeader    = { display: 'flex', alignItems: 'center', padding: '7px 12p
 const teamPoolSelect = { fontSize: 11, padding: '2px 4px', border: '1px solid var(--color-border)', borderRadius: 4, background: 'var(--color-background)', color: 'var(--color-text)', cursor: 'pointer' }
 const sectionLabel  = { fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6, textTransform: 'uppercase' }
 const teamChip      = { padding: '3px 10px', fontSize: 12, borderRadius: 99, background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }
+const slotChip      = { padding: '3px 10px', fontSize: 12, borderRadius: 99, fontStyle: 'italic', background: 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))', border: '1px dashed var(--color-primary)', color: 'var(--color-primary)' }
 const actionRow     = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12, marginTop: 4 }
-const standingsPanel    = { marginTop: 12, padding: '14px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-primary)', borderRadius: 10 }
-const previewPoolCard   = { flex: '1 1 140px', minWidth: 120, background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }
-const previewPoolHeader = { padding: '5px 10px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--color-border)' }
+const doorGangBox   = { padding: '12px 14px', background: 'rgba(0,0,0,0.03)', border: '1px dashed var(--color-border)', borderRadius: 8, marginBottom: 12 }
+
+function perPoolBtnStyle(active) {
+  return {
+    width: 32, height: 32, borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: 14,
+    cursor: 'pointer', border: 'none',
+    background: active ? 'var(--color-primary)' : 'var(--color-surface)',
+    color: active ? '#fff' : 'var(--color-text-muted)',
+    outline: active ? 'none' : '1px solid var(--color-border)',
+  }
+}
