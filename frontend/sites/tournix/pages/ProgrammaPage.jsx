@@ -1,19 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getMatches, getTeams, getFields, getPools, setResult, getPhases } from '../api.js'
+import { resolveTeam } from '../helpers.js'
 
 const STATUS_LABEL = { scheduled: 'Gepland', playing: 'Bezig', finished: 'Klaar' }
 const STATUS_COLOR = { scheduled: 'var(--color-text-muted)', playing: '#f59e0b', finished: '#22c55e' }
-
-function resolveTeam(teamId, sourceId, takes, teamMap, matchMap) {
-  if (teamId) return teamMap[teamId] ?? null
-  if (!sourceId) return null
-  const src = matchMap?.[sourceId]
-  if (!src) return null
-  const label = takes === 'loser' ? 'Verl.' : 'Win.'
-  const tA = src.team_a_id ? (teamMap[src.team_a_id]?.name ?? '?') : '?'
-  const tB = src.team_b_id ? (teamMap[src.team_b_id]?.name ?? '?') : '?'
-  return { name: `${label} ${tA}–${tB}`, is_placeholder: true }
-}
 
 export default function ProgrammaPage({ stage, tournament }) {
   const [matches,  setMatches]  = useState([])

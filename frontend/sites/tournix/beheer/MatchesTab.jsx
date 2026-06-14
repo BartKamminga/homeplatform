@@ -5,6 +5,7 @@ import {
   getPhases, generatePhaseSchedule, planPhaseSchedule,
 } from '../api.js'
 import { inputStyle, primaryBtn, ghostBtn, noTid } from './styles.js'
+import { resolveTeam } from '../helpers.js'
 
 /* ── Add-match popup ── */
 function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
@@ -64,17 +65,6 @@ function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
       </div>
     </div>
   )
-}
-
-function resolveTeam(teamId, sourceId, takes, teamMap, matchMap) {
-  if (teamId) return teamMap[teamId] ?? null
-  if (!sourceId) return null
-  const src = matchMap?.[sourceId]
-  if (!src) return null
-  const label = takes === 'loser' ? 'Verl.' : 'Win.'
-  const tA = src.team_a_id ? (teamMap[src.team_a_id]?.name ?? '?') : '?'
-  const tB = src.team_b_id ? (teamMap[src.team_b_id]?.name ?? '?') : '?'
-  return { name: `${label} ${tA}–${tB}` }
 }
 
 /* ── Single match card ── */
