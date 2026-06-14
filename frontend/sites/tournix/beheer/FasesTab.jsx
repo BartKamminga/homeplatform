@@ -3,13 +3,15 @@ import {
   getPhases, createPhase, updatePhase, deletePhase,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
-  assignTeamPool, getTeams,
+  assignTeamPool, getTeams, getFields,
+  setPhaseFields, planPhaseSchedule,
 } from '../api.js'
 import { inputStyle, primaryBtn, ghostBtn, noTid } from './styles.js'
 
 export default function FasesTab({ tid, stage }) {
   const [phases,   setPhases]   = useState([])
   const [teams,    setTeams]    = useState([])
+  const [fields,   setFields]   = useState([])
   const [loading,  setLoading]  = useState(false)
   const [msg,      setMsg]      = useState('')
   const [error,    setError]    = useState('')
@@ -23,9 +25,10 @@ export default function FasesTab({ tid, stage }) {
   async function load() {
     setLoading(true)
     try {
-      const [p, t] = await Promise.all([getPhases(tid), getTeams(tid)])
+      const [p, t, f] = await Promise.all([getPhases(tid), getTeams(tid), getFields(tid)])
       setPhases(p)
       setTeams(t)
+      setFields(f)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -86,6 +89,8 @@ export default function FasesTab({ tid, stage }) {
           key={phase.id}
           phase={phase}
           teams={teams}
+          fields={fields}
+          stage={stage}
           isReadonly={isReadonly}
           editId={editId}
           editName={editName}
@@ -125,15 +130,19 @@ export default function FasesTab({ tid, stage }) {
 // ── Sub-component: één fase ───────────────────────────────────────────────────
 
 function PhaseCard({
-  phase, teams, isReadonly,
+  phase, teams, fields, stage, isReadonly,
   editId, editName, setEditId, setEditName,
   onRename, onDelete,
   flash, onRefresh,
 }) {
-  const [numPools,    setNumPools]    = useState(2)
-  const [newPoolName, setNewPoolName] = useState('')
-  const [addingPool,  setAddingPool]  = useState(false)
-  const [perPool,     setPerPool]     = useState(2)
+  const [numPools,      setNumPools]      = useState(2)
+  const [newPoolName,   setNewPoolName]   = useState('')
+  const [addingPool,    setAddingPool]    = useState(false)
+  const [perPool,       setPerPool]       = useState(2)
+  const [duration,      setDuration]      = useState(phase.match_duration_min ?? 20)
+  const [breakMin,      setBreakMin]      = useState(phase.break_min ?? 5)
+  const [selectedFids,  setSelectedFids]  = useState(new Set(phase.field_ids ?? []))
+  const [planning,      setPlanning]      = useState(false)
 
   // Teams die in deze fase zitten (main = iedereen, anders: TournixPhaseTeam)
   const phaseTeamIds = new Set(
@@ -219,6 +228,36 @@ function PhaseCard({
       await assignTeamPool(teamId, poolId || null)
       await onRefresh()
     } catch (e) { flash(e.message, true) }
+  }
+
+  async function handleSaveScheduleParams() {
+    try {
+      await updatePhase(phase.id, { match_duration_min: duration, break_min: breakMin })
+      await setPhaseFields(phase.id, Array.from(selectedFids))
+      flash('Inplanning instellingen opgeslagen')
+    } catch (e) { flash(e.message, true) }
+  }
+
+  async function handlePlan() {
+    if (!window.confirm(`Schema inplannen voor "${phase.name}"? Bestaande tijden en velden worden overschreven.`)) return
+    setPlanning(true)
+    try {
+      await updatePhase(phase.id, { match_duration_min: duration, break_min: breakMin })
+      await setPhaseFields(phase.id, Array.from(selectedFids))
+      const r = await planPhaseSchedule(phase.id)
+      flash(`${r.updated} wedstrijden ingepland in ${r.slots} slots`)
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+    finally { setPlanning(false) }
+  }
+
+  function toggleField(fid) {
+    setSelectedFids(prev => {
+      const next = new Set(prev)
+      if (next.has(fid)) next.delete(fid)
+      else next.add(fid)
+      return next
+    })
   }
 
   const typeBadge = phase.phase_type === 'ko' ? 'knock-out' : 'round-robin'
@@ -490,6 +529,100 @@ function PhaseCard({
           )}
         </>
       )}
+
+      {/* Inplannen */}
+      <div style={{ marginTop: 14, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+        <div style={sectionLabel}>INPLANNEN</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+
+          {/* Duur + pauze */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Duur</label>
+            <input
+              type="number" min="1" max="120" value={duration}
+              onChange={e => setDuration(Number(e.target.value))}
+              disabled={isReadonly}
+              style={{ ...inputStyle, width: 54, fontSize: 12, padding: '4px 6px' }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>min</span>
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', marginLeft: 8 }}>Pauze</label>
+            <input
+              type="number" min="0" max="60" value={breakMin}
+              onChange={e => setBreakMin(Number(e.target.value))}
+              disabled={isReadonly}
+              style={{ ...inputStyle, width: 44, fontSize: 12, padding: '4px 6px' }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>min</span>
+          </div>
+
+          {/* Velden */}
+          {fields.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Velden:</span>
+              {fields.map(f => {
+                const active = selectedFids.has(f.id) || selectedFids.size === 0
+                const checked = selectedFids.has(f.id)
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    disabled={isReadonly}
+                    onClick={() => toggleField(f.id)}
+                    style={{
+                      padding: '3px 10px', fontSize: 11, borderRadius: 99, cursor: isReadonly ? 'default' : 'pointer',
+                      fontFamily: 'inherit', border: 'none',
+                      background: checked ? 'var(--color-primary)' : 'var(--color-surface)',
+                      color: checked ? '#fff' : 'var(--color-text-muted)',
+                      outline: checked ? 'none' : '1px solid var(--color-border)',
+                      opacity: isReadonly ? 0.6 : 1,
+                    }}
+                    title={selectedFids.size === 0 && !checked ? 'Alle velden (geen selectie = alles)' : undefined}
+                  >
+                    {f.name}
+                  </button>
+                )
+              })}
+              {selectedFids.size > 0 && !isReadonly && (
+                <button type="button" onClick={() => setSelectedFids(new Set())}
+                  style={{ fontSize: 11, background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', textDecoration: 'underline' }}>
+                  alles
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Acties */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+          {stage === 'productie' ? (
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+              In productie: alleen handmatig aanpassen via Wedstrijden-tab
+            </span>
+          ) : (
+            <>
+              {!isReadonly && (
+                <button onClick={handleSaveScheduleParams} style={{ ...ghostBtn, fontSize: 12 }}>
+                  Opslaan
+                </button>
+              )}
+              <button
+                onClick={handlePlan}
+                disabled={planning || phase.match_count === 0}
+                style={{
+                  ...primaryBtn, fontSize: 12,
+                  opacity: (planning || phase.match_count === 0) ? 0.5 : 1,
+                  cursor: (planning || phase.match_count === 0) ? 'default' : 'pointer',
+                }}
+              >
+                {planning ? '…' : '📅 Plan in'}
+              </button>
+              {phase.match_count === 0 && (
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Genereer eerst het schema</span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Waarschuwing: teams maar geen schema */}
       {(hasPools || phaseTeamObjects.length > 0) && phase.match_count === 0 && !isReadonly && (

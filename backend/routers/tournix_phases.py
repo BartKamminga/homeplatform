@@ -12,7 +12,7 @@ from core.crud import get_or_404
 from models.core import User
 from models.tournix import (
     Tournament, TournixPhase, TournixPhaseTeam, TournixTeam,
-    TournixField, TournixMatch, TournixPool,
+    TournixField, TournixMatch, TournixPool, TournixPhaseField,
 )
 from routers.tournix_matches import _round_robin_pairs
 
@@ -24,17 +24,25 @@ router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 class PhaseCreate(BaseModel):
     name: str
     order: int = 0
-    phase_type: str = "pool"    # "pool" | "ko"
-    ko_type: str = "single"     # "single" | "consolation" | "double"
-    pool_type: Optional[str] = None  # "half" | "vol" | None = erft van tournament
+    phase_type: str = "pool"
+    ko_type: str = "single"
+    pool_type: Optional[str] = None
+    match_duration_min: int = 20
+    break_min: int = 5
 
 
 class PhaseUpdate(BaseModel):
-    name:       Optional[str] = None
-    order:      Optional[int] = None
-    phase_type: Optional[str] = None
-    ko_type:    Optional[str] = None
-    pool_type:  Optional[str] = None
+    name:               Optional[str] = None
+    order:              Optional[int] = None
+    phase_type:         Optional[str] = None
+    ko_type:            Optional[str] = None
+    pool_type:          Optional[str] = None
+    match_duration_min: Optional[int] = None
+    break_min:          Optional[int] = None
+
+
+class SetPhaseFieldsBody(BaseModel):
+    field_ids: list[str]
 
 
 class PhaseTeamIn(BaseModel):
@@ -121,6 +129,9 @@ def _phase_dict(phase: TournixPhase, session: Session) -> dict:
             "order": p.order,
             "team_count": team_count,
         })
+    phase_field_rows = session.exec(
+        select(TournixPhaseField).where(TournixPhaseField.phase_id == phase.id)
+    ).all()
     return {
         "id": phase.id,
         "tournament_id": phase.tournament_id,
@@ -129,6 +140,9 @@ def _phase_dict(phase: TournixPhase, session: Session) -> dict:
         "phase_type": phase.phase_type,
         "ko_type": phase.ko_type or "single",
         "pool_type": phase.pool_type,
+        "match_duration_min": phase.match_duration_min,
+        "break_min": phase.break_min,
+        "field_ids": [pf.field_id for pf in phase_field_rows],
         "match_count": len(match_count),
         "is_main_phase": _is_main_phase(phase, session),
         "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
@@ -548,13 +562,9 @@ def generate_phase_schedule(
         session.delete(m)
     session.flush()
 
-    fields = session.exec(select(TournixField).where(TournixField.tournament_id == tid)).all()
-    field_ids = [f.id for f in fields]
-    field_counter = 0
     created = 0
 
     if phase.phase_type == "pool":
-        # Gebruik pools (sub-poules) voor round-robin
         pools = session.exec(
             select(TournixPool)
             .where(TournixPool.phase_id == pid)
@@ -575,18 +585,15 @@ def generate_phase_schedule(
                 rounds = rounds + [[(b, a) for a, b in r] for r in rounds]
             for round_idx, round_pairs in enumerate(rounds, start=1):
                 for team_a, team_b in round_pairs:
-                    fid = field_ids[field_counter % len(field_ids)] if field_ids else None
                     session.add(TournixMatch(
                         tournament_id=tid,
                         team_a_id=team_a.id,
                         team_b_id=team_b.id,
                         round=round_idx,
-                        field_id=fid,
                         match_type="pool",
                         phase_id=pid,
                     ))
                     created += 1
-                    field_counter += 1
 
     elif phase.phase_type == "ko":
         phase_team_rows = session.exec(
@@ -611,12 +618,8 @@ def generate_phase_schedule(
         if bracket_size > 32:
             raise HTTPException(400, "Te veel teams voor knock-out (max 32)")
 
-        # Pad met None voor byes
         padded = teams_ordered + [None] * (bracket_size - n)
-
         ko_type = phase.ko_type or "single"
-
-        # Paringen: #1 vs #N, #2 vs #(N-1) ...
         half = bracket_size // 2
         r1_pairs = [(padded[i], padded[bracket_size - 1 - i]) for i in range(half)]
 
@@ -627,7 +630,6 @@ def generate_phase_schedule(
         while current_pairs:
             round_matches = []
             for team_a, team_b in current_pairs:
-                fid = field_ids[field_counter % len(field_ids)] if field_ids else None
                 m = TournixMatch(
                     tournament_id=tid,
                     phase_id=pid,
@@ -635,9 +637,7 @@ def generate_phase_schedule(
                     team_b_id=team_b.id if team_b else None,
                     match_type="ko",
                     bracket_round=bracket_round,
-                    field_id=fid,
                 )
-                # Bye: precies één team is None → direct doorgaan (niet als beide None zijn)
                 if (team_a is None) != (team_b is None):
                     m.status = "finished"
                     m.score_a = 0 if team_a is None else 1
@@ -646,14 +646,12 @@ def generate_phase_schedule(
                 session.flush()
                 round_matches.append(m)
                 created += 1
-                field_counter += 1
             all_rounds.append(round_matches)
             if len(round_matches) <= 1:
                 break
             current_pairs = [(None, None)] * (len(round_matches) // 2)
             bracket_round += 1
 
-        # Koppel ronden via source_match_a/b_id
         for ri in range(1, len(all_rounds)):
             prev = all_rounds[ri - 1]
             for j, m in enumerate(all_rounds[ri]):
@@ -663,11 +661,9 @@ def generate_phase_schedule(
                 m.source_b_takes = "winner"
                 session.add(m)
 
-        # Troostfinale: losers van de halve finales
         if ko_type == "consolation" and len(all_rounds) >= 2:
             semis = all_rounds[-2]
             if len(semis) >= 2:
-                fid = field_ids[field_counter % len(field_ids)] if field_ids else None
                 third = TournixMatch(
                     tournament_id=tid,
                     phase_id=pid,
@@ -679,13 +675,150 @@ def generate_phase_schedule(
                     source_match_b_id=semis[1].id,
                     source_a_takes="loser",
                     source_b_takes="loser",
-                    field_id=fid,
                 )
                 session.add(third)
                 created += 1
 
     session.commit()
     return {"created": created}
+
+
+# ── Velden per fase ───────────────────────────────────────────────────────────
+
+@router.put("/phases/{pid}/fields")
+def set_phase_fields(
+    pid: str,
+    body: SetPhaseFieldsBody,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Sla de beschikbare velden op voor deze fase (leeg = alle toernooivelden)."""
+    get_or_404(session, TournixPhase, pid, "Fase")
+    for pf in session.exec(select(TournixPhaseField).where(TournixPhaseField.phase_id == pid)).all():
+        session.delete(pf)
+    for fid in body.field_ids:
+        session.add(TournixPhaseField(phase_id=pid, field_id=fid))
+    session.commit()
+    return {"ok": True, "count": len(body.field_ids)}
+
+
+# ── Inplannen (greedy slot-packing) ──────────────────────────────────────────
+
+@router.post("/phases/{pid}/plan-schedule")
+def plan_phase_schedule(
+    pid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Wijs scheduled_at + field_id toe via greedy slot-packing. Geblokkeerd in productie."""
+    phase = get_or_404(session, TournixPhase, pid, "Fase")
+    tournament = get_or_404(session, Tournament, phase.tournament_id, "Toernooi")
+
+    if tournament.stage == "productie":
+        raise HTTPException(400, "Inplannen is geblokkeerd in productie — pas handmatig aan")
+
+    # Bepaal beschikbare velden
+    pf_rows = session.exec(select(TournixPhaseField).where(TournixPhaseField.phase_id == pid)).all()
+    if pf_rows:
+        field_ids = [pf.field_id for pf in pf_rows]
+    else:
+        all_fields = session.exec(
+            select(TournixField).where(TournixField.tournament_id == phase.tournament_id)
+        ).all()
+        field_ids = [f.id for f in all_fields]
+
+    if not field_ids:
+        raise HTTPException(400, "Geen velden beschikbaar — voeg eerst velden toe aan het toernooi")
+
+    n_fields = len(field_ids)
+    duration = phase.match_duration_min or 20
+    pause = phase.break_min or 5
+    start_dt = tournament.date  # kan None zijn
+
+    # Haal alle wedstrijden op (sla byes over)
+    matches = session.exec(
+        select(TournixMatch)
+        .where(TournixMatch.phase_id == pid)
+        .order_by(TournixMatch.round, TournixMatch.id)
+    ).all()
+    matches = [m for m in matches if m.team_a_id and m.team_b_id]
+
+    if not matches:
+        raise HTTPException(400, "Geen wedstrijden gevonden — genereer eerst het schema")
+
+    # Bouw team→pool map
+    team_ids = list({m.team_a_id for m in matches} | {m.team_b_id for m in matches})
+    teams = session.exec(select(TournixTeam).where(TournixTeam.id.in_(team_ids))).all()
+    team_pool = {t.id: (t.pool_id or "nopool") for t in teams}
+
+    # Index: (team_id, pool_key) -> {round: match}
+    team_round_match: dict = {}
+    for m in matches:
+        pool_key = team_pool.get(m.team_a_id, "nopool")
+        for tid_key in [m.team_a_id, m.team_b_id]:
+            key = (tid_key, pool_key)
+            if key not in team_round_match:
+                team_round_match[key] = {}
+            if m.round is not None:
+                team_round_match[key][m.round] = m
+
+    # Greedy slot-packing
+    remaining = list(matches)
+    match_slot: dict[str, int] = {}
+    assignments: list[tuple] = []  # (match.id, slot, field_idx)
+
+    slot = 0
+    while remaining:
+        used_teams: set[str] = set()
+        slot_batch: list = []
+
+        for m in list(remaining):
+            if len(slot_batch) >= n_fields:
+                break
+            if m.team_a_id in used_teams or m.team_b_id in used_teams:
+                continue
+            # Soepel rondvolgorde: beide teams moeten vorige ronde in eerder slot hebben
+            if m.round is not None and m.round > 1:
+                ok = True
+                pool_key = team_pool.get(m.team_a_id, "nopool")
+                for tid_key in [m.team_a_id, m.team_b_id]:
+                    prev = team_round_match.get((tid_key, pool_key), {}).get(m.round - 1)
+                    if prev and (prev.id not in match_slot or match_slot[prev.id] >= slot):
+                        ok = False
+                        break
+                if not ok:
+                    continue
+            slot_batch.append(m)
+            used_teams.add(m.team_a_id)
+            used_teams.add(m.team_b_id)
+
+        if not slot_batch:
+            slot += 1
+            if slot > len(matches) + n_fields:
+                break
+            continue
+
+        for idx, m in enumerate(slot_batch):
+            match_slot[m.id] = slot
+            assignments.append((m.id, slot, idx))
+            remaining.remove(m)
+
+        slot += 1
+
+    # Schrijf scheduled_at + field_id terug
+    from datetime import timedelta
+    updated = 0
+    for mid, slot_num, field_idx in assignments:
+        m = session.get(TournixMatch, mid)
+        if m:
+            m.field_id = field_ids[field_idx % n_fields]
+            if start_dt:
+                m.scheduled_at = start_dt + timedelta(minutes=slot_num * (duration + pause))
+            session.add(m)
+            updated += 1
+
+    session.commit()
+    return {"updated": updated, "slots": slot}
 
 
 # ── Standen per fase ──────────────────────────────────────────────────────────

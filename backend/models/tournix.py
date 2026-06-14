@@ -80,14 +80,24 @@ class TournixField(SQLModel, table=True):
 class TournixPhase(SQLModel, table=True):
     __tablename__ = "tournix_phases"
 
-    id:            str           = Field(default_factory=new_uuid, primary_key=True)
-    tournament_id: str           = Field(foreign_key="tournix_tournaments.id", index=True)
-    name:          str
-    order:         int           = Field(default=0)
-    phase_type:    str           = Field(default="pool")    # "pool" | "ko"
-    ko_type:       Optional[str] = Field(default="single")  # "single" | "consolation" | "double"
-    pool_type:     Optional[str] = Field(default=None)       # "half" | "vol" | None = erft van tournament
-    created_at:    datetime      = Field(default_factory=datetime.utcnow)
+    id:                  str           = Field(default_factory=new_uuid, primary_key=True)
+    tournament_id:       str           = Field(foreign_key="tournix_tournaments.id", index=True)
+    name:                str
+    order:               int           = Field(default=0)
+    phase_type:          str           = Field(default="pool")    # "pool" | "ko"
+    ko_type:             Optional[str] = Field(default="single")  # "single" | "consolation" | "double"
+    pool_type:           Optional[str] = Field(default=None)      # "half" | "vol" | None = erft van tournament
+    match_duration_min:  int           = Field(default=20)        # wedstrijdduur in minuten
+    break_min:           int           = Field(default=5)         # pauze tussen slots
+    created_at:          datetime      = Field(default_factory=datetime.utcnow)
+
+
+class TournixPhaseField(SQLModel, table=True):
+    __tablename__ = "tournix_phase_fields"
+
+    id:       str = Field(default_factory=new_uuid, primary_key=True)
+    phase_id: str = Field(foreign_key="tournix_phases.id", index=True)
+    field_id: str = Field(foreign_key="tournix_fields.id")
 
 
 class TournixMatch(SQLModel, table=True):
