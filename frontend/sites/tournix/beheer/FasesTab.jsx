@@ -163,6 +163,13 @@ function PhaseCard({
     } catch (e) { flash(e.message, true) }
   }
 
+  async function handleSetPoolType(value) {
+    try {
+      await updatePhase(phase.id, { pool_type: value })
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+  }
+
   async function handleApplySlots() {
     const positions = Array.from({ length: perPool }, (_, i) => i + 1)
     try {
@@ -304,6 +311,29 @@ function PhaseCard({
         <>
           {/* Doorgang-configuratie (alleen voor niet-hoofd fases) */}
           {doorGangUI}
+
+          {/* Speelschema kiezen */}
+          {!isReadonly && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={sectionLabel}>SPEELSCHEMA</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { value: 'half', label: 'Halve competitie' },
+                  { value: 'vol',  label: 'Hele competitie'  },
+                ].map(({ value, label }) => {
+                  const isActive = (phase.pool_type ?? 'half') === value
+                  return (
+                    <button key={value} onClick={() => handleSetPoolType(value)}
+                      style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, border: 'none', fontFamily: 'inherit', cursor: 'pointer', fontWeight: isActive ? 700 : 400,
+                        background: isActive ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                        color: isActive ? '#fff' : 'var(--color-text-muted)' }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Sub-poule kaarten */}
           {hasPools && (

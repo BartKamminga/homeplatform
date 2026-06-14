@@ -86,6 +86,7 @@ class TournixPhase(SQLModel, table=True):
     order:         int           = Field(default=0)
     phase_type:    str           = Field(default="pool")    # "pool" | "ko"
     ko_type:       Optional[str] = Field(default="single")  # "single" | "consolation" | "double"
+    pool_type:     Optional[str] = Field(default=None)       # "half" | "vol" | None = erft van tournament
     created_at:    datetime      = Field(default_factory=datetime.utcnow)
 
 

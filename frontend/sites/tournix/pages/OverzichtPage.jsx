@@ -203,36 +203,6 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
         )}
       </div>
 
-      {/* Poule-indeling */}
-      {pools.length > 0 && (() => {
-        const teamMap = Object.fromEntries(teams.map(t => [t.id, t]))
-        return (
-          <div style={{ marginBottom: 24 }}>
-            <h2 style={sectionTitle}>Poule-indeling</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
-              {pools.map(p => {
-                const poolTeams = teams.filter(t => t.pool_id === p.id)
-                return (
-                  <div key={p.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 8 }}>
-                      {p.name}
-                    </div>
-                    {poolTeams.length === 0
-                      ? <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Geen teams</div>
-                      : poolTeams.map(t => (
-                          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            {t.color && <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />}
-                            <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{t.name}</span>
-                          </div>
-                        ))
-                    }
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })()}
 
       {/* Stand */}
       <>

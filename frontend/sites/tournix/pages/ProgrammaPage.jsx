@@ -54,7 +54,7 @@ export default function ProgrammaPage({ stage, tournament }) {
     }
   }, [isTest])
 
-  const nonPhaseMatches = matches.filter(m => !m.phase_id)
+  const nonPhaseMatches = matches.filter(m => !m.phase_id && m.status !== 'finished')
 
   const groupedByRonde = nonPhaseMatches.reduce((acc, m) => {
     const key = m.match_type === 'ko'
@@ -134,7 +134,7 @@ export default function ProgrammaPage({ stage, tournament }) {
   if (error)   return <p style={err}>{error}</p>
 
   if (Object.keys(grouped).length === 0) return (
-    <p style={muted}>Nog geen wedstrijden gepland.</p>
+    <p style={muted}>Geen aankomende wedstrijden.</p>
   )
 
   return (
@@ -310,7 +310,7 @@ export default function ProgrammaPage({ stage, tournament }) {
 
       {/* Fase-wedstrijden */}
       {phases.filter(p => p.match_count > 0).map(phase => {
-        const phaseMatches = matches.filter(m => m.phase_id === phase.id)
+        const phaseMatches = matches.filter(m => m.phase_id === phase.id && m.status !== 'finished')
         if (!phaseMatches.length) return null
         const byRound = phaseMatches.reduce((acc, m) => {
           const key = m.round != null ? `${phase.name} — Ronde ${m.round}` : phase.name

@@ -24,8 +24,9 @@ router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 class PhaseCreate(BaseModel):
     name: str
     order: int = 0
-    phase_type: str = "pool"   # "pool" | "ko"
-    ko_type: str = "single"    # "single" | "consolation" | "double"
+    phase_type: str = "pool"    # "pool" | "ko"
+    ko_type: str = "single"     # "single" | "consolation" | "double"
+    pool_type: Optional[str] = None  # "half" | "vol" | None = erft van tournament
 
 
 class PhaseUpdate(BaseModel):
@@ -33,6 +34,7 @@ class PhaseUpdate(BaseModel):
     order:      Optional[int] = None
     phase_type: Optional[str] = None
     ko_type:    Optional[str] = None
+    pool_type:  Optional[str] = None
 
 
 class PhaseTeamIn(BaseModel):
@@ -126,6 +128,7 @@ def _phase_dict(phase: TournixPhase, session: Session) -> dict:
         "order": phase.order,
         "phase_type": phase.phase_type,
         "ko_type": phase.ko_type or "single",
+        "pool_type": phase.pool_type,
         "match_count": len(match_count),
         "is_main_phase": _is_main_phase(phase, session),
         "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
@@ -539,6 +542,7 @@ def generate_phase_schedule(
     """Genereer wedstrijden voor een fase."""
     phase = get_or_404(session, TournixPhase, pid, "Fase")
     tid = phase.tournament_id
+    tournament = get_or_404(session, Tournament, tid, "Toernooi")
 
     for m in session.exec(select(TournixMatch).where(TournixMatch.phase_id == pid)).all():
         session.delete(m)
@@ -565,7 +569,10 @@ def generate_phase_schedule(
             ).all()
             if len(pool_teams) < 2:
                 continue
+            effective_pool_type = phase.pool_type or tournament.pool_type or "half"
             rounds = _round_robin_pairs(pool_teams)
+            if effective_pool_type == "vol":
+                rounds = rounds + [[(b, a) for a, b in r] for r in rounds]
             for round_idx, round_pairs in enumerate(rounds, start=1):
                 for team_a, team_b in round_pairs:
                     fid = field_ids[field_counter % len(field_ids)] if field_ids else None

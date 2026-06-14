@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
 import OverzichtPage  from './pages/OverzichtPage.jsx'
 import ProgrammaPage  from './pages/ProgrammaPage.jsx'
-import VoorspelPage   from './pages/VoorspelPage.jsx'
+import UitslagenPage  from './pages/UitslagenPage.jsx'
 import BeheerPage     from './pages/BeheerPage.jsx'
 import GroupChip      from '@components/GroupChip.jsx'
 import { getTournaments, getMe } from './api.js'
 
 const TABS = [
-  { id: 'overzicht', label: 'Overzicht', icon: 'ti-trophy'   },
-  { id: 'programma', label: 'Programma', icon: 'ti-calendar' },
-  { id: 'voorspel',  label: 'Voorspellen', icon: 'ti-target' },
-  { id: 'beheer',    label: 'Beheer',    icon: 'ti-settings' },
+  { id: 'overzicht', label: 'Overzicht', icon: 'ti-trophy'    },
+  { id: 'programma', label: 'Programma', icon: 'ti-calendar'  },
+  { id: 'uitslagen', label: 'Uitslagen', icon: 'ti-list-check' },
+  { id: 'beheer',    label: 'Beheer',    icon: 'ti-settings'  },
 ]
 
 const STAGE_STYLE = {
@@ -99,7 +99,7 @@ export default function App() {
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 72 }}>
         {tab === 'overzicht' && <OverzichtPage  onTab={setTab} isAdmin={isAdmin} tournament={tournament} />}
         {tab === 'programma' && <ProgrammaPage  stage={stage} tournament={tournament} />}
-        {tab === 'voorspel'  && <VoorspelPage   tournament={tournament} />}
+        {tab === 'uitslagen' && <UitslagenPage   tournament={tournament} />}
         {tab === 'beheer'    && <BeheerPage      isAdmin={isAdmin} onStageChange={loadTournaments} />}
       </main>
 

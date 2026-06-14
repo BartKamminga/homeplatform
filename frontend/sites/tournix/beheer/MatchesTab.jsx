@@ -194,13 +194,15 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
 }
 
 /* ── Compact score row for round entry view ── */
-function ScoreRow({ m, teamMap, onRefresh }) {
+function ScoreRow({ m, teamMap, fields, tournamentDate, onRefresh }) {
   const [scoreA,         setScoreA]         = useState(m.status === 'finished' ? String(m.score_a) : '0')
   const [scoreB,         setScoreB]         = useState(m.status === 'finished' ? String(m.score_b) : '0')
   const [shootoutWinner, setShootoutWinner] = useState(m.shootout_winner ?? null)
   const [saving,         setSaving]         = useState(false)
   const [saved,          setSaved]          = useState(m.status === 'finished')
   const [saveError,      setSaveError]      = useState('')
+  const [matchTime,      setMatchTime]      = useState(m.scheduled_at ? m.scheduled_at.slice(11, 16) : '')
+  const [matchField,     setMatchField]     = useState(m.field_id ?? '')
 
   useEffect(() => {
     if (m.status === 'finished') {
@@ -208,6 +210,13 @@ function ScoreRow({ m, teamMap, onRefresh }) {
       setShootoutWinner(m.shootout_winner ?? null)
     }
   }, [m.score_a, m.score_b, m.status, m.shootout_winner])
+
+  async function saveSchedule(time, fieldId) {
+    const base = tournamentDate ? tournamentDate.split('T')[0] : new Date().toISOString().split('T')[0]
+    const scheduled_at = time ? `${base}T${time}:00` : null
+    try { await updateMatch(m.id, { scheduled_at, field_id: fieldId || null }) }
+    catch (e) { /* silent — niet kritisch */ }
+  }
 
   async function save() {
     if (scoreA === '' || scoreB === '') return
@@ -278,6 +287,21 @@ function ScoreRow({ m, teamMap, onRefresh }) {
         {saving ? '…' : saved && !dirty ? '✓ Opgeslagen' : 'Opslaan'}
       </button>
       {saveError && <div style={{ fontSize: 10, color: 'var(--color-danger)' }}>{saveError}</div>}
+      {/* Tijd + veld */}
+      <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+        <input type="time" value={matchTime}
+          onChange={e => setMatchTime(e.target.value)}
+          onBlur={e => saveSchedule(e.target.value, matchField)}
+          style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '2px 4px', textAlign: 'center' }} />
+        {fields && fields.length > 0 && (
+          <select value={matchField}
+            onChange={e => { setMatchField(e.target.value); saveSchedule(matchTime, e.target.value) }}
+            style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '2px 4px' }}>
+            <option value="">— veld —</option>
+            {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        )}
+      </div>
     </div>
   )
 }
@@ -420,7 +444,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
                 {/* Score rows */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, padding: '8px 10px' }}>
                   {roundMatches.map(m => (
-                    <ScoreRow key={m.id} m={m} teamMap={teamMap} onRefresh={load} />
+                    <ScoreRow key={m.id} m={m} teamMap={teamMap} fields={fields} tournamentDate={active?.date} onRefresh={load} />
                   ))}
                 </div>
               </div>
@@ -434,7 +458,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
                 letterSpacing: '0.06em', textTransform: 'uppercase' }}>Zonder ronde</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, padding: '8px 10px' }}>
                 {matches.filter(m => m.round == null && m.match_type !== 'ko').map(m => (
-                  <ScoreRow key={m.id} m={m} teamMap={teamMap} onRefresh={load} />
+                  <ScoreRow key={m.id} m={m} teamMap={teamMap} fields={fields} tournamentDate={active?.date} onRefresh={load} />
                 ))}
               </div>
             </div>
@@ -442,47 +466,6 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
         </div>
       )}
 
-      {/* Wedstrijden overzicht (per poule) */}
-      {canScore && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.07em',
-          textTransform: 'uppercase', paddingTop: 4, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
-          Overzicht per poule
-        </div>
-      )}
-      {(pools ?? []).length > 0 ? (
-        <>
-          {(pools ?? []).map(p => (
-            <div key={p.id}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em',
-                textTransform: 'uppercase', padding: '4px 0 6px', borderBottom: '1px solid var(--color-border)', marginBottom: 6 }}>
-                {p.name}
-                <span style={{ fontWeight: 400, marginLeft: 6 }}>({(matchesByPool[p.id] ?? []).length})</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(matchesByPool[p.id] ?? []).length === 0
-                  ? <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Geen wedstrijden</p>
-                  : (matchesByPool[p.id] ?? []).map(m => <MatchCard key={m.id} m={m} {...cardProps} />)
-                }
-              </div>
-            </div>
-          ))}
-          {unmapped.length > 0 && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em',
-                textTransform: 'uppercase', padding: '4px 0 6px', borderBottom: '1px solid var(--color-border)', marginBottom: 6 }}>
-                Overig
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {unmapped.map(m => <MatchCard key={m.id} m={m} {...cardProps} />)}
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {poolMatches.map(m => <MatchCard key={m.id} m={m} {...cardProps} />)}
-        </div>
-      )}
 
       {/* KO */}
       {koMatches.length > 0 && (
