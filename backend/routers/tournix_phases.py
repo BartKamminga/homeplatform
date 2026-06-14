@@ -164,7 +164,67 @@ def list_phases(tid: str, session: Session = Depends(get_session), _: User = Dep
         .where(TournixPhase.tournament_id == tid)
         .order_by(TournixPhase.order, TournixPhase.created_at)
     ).all()
-    return [_phase_dict(p, session) for p in phases]
+    if not phases:
+        return []
+
+    phase_ids = [p.id for p in phases]
+
+    # Batch-laad alles in een handvol queries (vermijdt N+1)
+    all_members = session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id.in_(phase_ids))).all()
+    all_match_pids = session.exec(select(TournixMatch.phase_id).where(TournixMatch.phase_id.in_(phase_ids))).all()
+    all_pools = session.exec(select(TournixPool).where(TournixPool.phase_id.in_(phase_ids)).order_by(TournixPool.order)).all()
+    pool_ids = [p.id for p in all_pools]
+    all_teams = session.exec(select(TournixTeam).where(TournixTeam.pool_id.in_(pool_ids))).all() if pool_ids else []
+    all_pf = session.exec(select(TournixPhaseField).where(TournixPhaseField.phase_id.in_(phase_ids))).all()
+
+    # Groepeer per fase / pool
+    members_by_phase: dict = {}
+    for m in all_members:
+        members_by_phase.setdefault(m.phase_id, []).append(m)
+
+    match_count_by_phase: dict = {}
+    for pid in all_match_pids:
+        match_count_by_phase[pid] = match_count_by_phase.get(pid, 0) + 1
+
+    pools_by_phase: dict = {}
+    for p in all_pools:
+        pools_by_phase.setdefault(p.phase_id, []).append(p)
+
+    team_count_by_pool: dict = {}
+    for t in all_teams:
+        team_count_by_pool[t.pool_id] = team_count_by_pool.get(t.pool_id, 0) + 1
+
+    fields_by_phase: dict = {}
+    for pf in all_pf:
+        fields_by_phase.setdefault(pf.phase_id, []).append(pf.field_id)
+
+    # Bepaal main phase (eerste pool-fase)
+    first_pool_phase_id = next((p.id for p in phases if p.phase_type == "pool"), None)
+
+    result = []
+    for phase in phases:
+        phase_pools = pools_by_phase.get(phase.id, [])
+        members = members_by_phase.get(phase.id, [])
+        result.append({
+            "id": phase.id,
+            "tournament_id": phase.tournament_id,
+            "name": phase.name,
+            "order": phase.order,
+            "phase_type": phase.phase_type,
+            "ko_type": phase.ko_type or "single",
+            "pool_type": phase.pool_type,
+            "match_duration_min": phase.match_duration_min,
+            "break_min": phase.break_min,
+            "field_ids": fields_by_phase.get(phase.id, []),
+            "match_count": match_count_by_phase.get(phase.id, 0),
+            "is_main_phase": phase.id == first_pool_phase_id,
+            "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
+            "pools": [
+                {"id": p.id, "name": p.name, "order": p.order, "team_count": team_count_by_pool.get(p.id, 0)}
+                for p in phase_pools
+            ],
+        })
+    return result
 
 
 @router.post("/tournaments/{tid}/phases", status_code=201)

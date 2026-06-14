@@ -314,6 +314,25 @@ def import_tournament_data(
             session.flush()
             team_map[t_data.name] = team
 
+    # Maak standaard pool-fase aan en koppel pools + teams
+    default_phase = None
+    if pool_map:
+        default_phase = TournixPhase(
+            tournament_id=tournament.id,
+            name="Poule fase",
+            order=0,
+            phase_type="pool",
+            pool_type=payload.pool_type,
+        )
+        session.add(default_phase)
+        session.flush()
+        for pool in pool_map.values():
+            pool.phase_id = default_phase.id
+            session.add(pool)
+        for team in team_map.values():
+            session.add(TournixPhaseTeam(phase_id=default_phase.id, team_id=team.id))
+        session.flush()
+
     field_map: dict[str, TournixField] = {}
     for f_data in payload.fields:
         field = TournixField(
@@ -350,6 +369,7 @@ def import_tournament_data(
             status="finished" if has_score else m_data.status,
             score_a=m_data.score_a,
             score_b=m_data.score_b,
+            phase_id=default_phase.id if (default_phase and m_data.match_type == "pool") else None,
         )
         session.add(match)
         match_count += 1
