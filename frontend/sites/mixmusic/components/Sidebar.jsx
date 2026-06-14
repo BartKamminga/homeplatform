@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 import { SkeletonLine } from '@components/Skeleton.jsx'
+import { useUiPref } from '@core/useUiPref.js'
 
 function ratingColor(r) {
   if (!r) return null
@@ -84,10 +85,10 @@ export default function Sidebar({ onOpenSettings }) {
   const onSelect = (idx) => loadTrack(idx, true)
   const [search, setSearch]               = useState('')
   const [collapsed, setCollapsed]         = useState(new Set())
-  const [sortBy, setSortBy]               = useState('newest')
-  const [filterGenre, setFilterGenre]     = useState(null)
-  const [filterMinRating, setFilterMinRating] = useState(0)
-  const [filterHasHearts, setFilterHasHearts] = useState(false)
+  const [sortBy, setSortBy]               = useUiPref('mm_sort', 'newest')
+  const [filterGenre, setFilterGenre]     = useUiPref('mm_filter_genre', null, v => v === 'null' ? null : v)
+  const [filterMinRating, setFilterMinRating] = useUiPref('mm_filter_rating', 0, Number)
+  const [filterHasHearts, setFilterHasHearts] = useUiPref('mm_filter_hearts', false, v => v === 'true')
 
   const q = search.toLowerCase()
   const searched = q
@@ -242,7 +243,7 @@ export default function Sidebar({ onOpenSettings }) {
               {r === 0 ? 'Alle' : `≥${r}★`}
             </button>
           ))}
-          <button onClick={() => setFilterHasHearts(v => !v)} style={{
+          <button onClick={() => setFilterHasHearts(!filterHasHearts)} style={{
             padding: '3px 8px', fontSize: '11px', borderRadius: 5, cursor: 'pointer', marginLeft: 'auto',
             background: filterHasHearts ? '#e11d48' : 'var(--bg3)',
             color: filterHasHearts ? '#fff' : 'var(--muted)',

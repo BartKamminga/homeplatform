@@ -12,6 +12,8 @@ from core.auth import get_current_user, require_admin
 from core.database import get_session, engine
 from core.exceptions import AppError
 from core.settings import settings
+from models.changelog import ChangelogEntry
+from models.core import RoadmapItem
 from models.dontforget import Task
 from models.mixmusic import Genre, TrackHeart, TrackMeta
 from models.tournix import Tournament, TournixField, TournixMatch, TournixPrediction, TournixTeam
@@ -32,6 +34,10 @@ APP_CONFIG = {
     "tournix": {
         "tables": [Tournament, TournixTeam, TournixField, TournixMatch, TournixPrediction],
         "keys":   ["tournaments", "teams", "fields", "matches", "predictions"],
+    },
+    "platform": {
+        "tables": [RoadmapItem, ChangelogEntry],
+        "keys":   ["roadmap_items", "changelog"],
     },
 }
 
