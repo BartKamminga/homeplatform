@@ -241,11 +241,15 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
               return acc
             }, {}))
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginBottom: 20 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
                 {pouleGroups.map(group => {
                   const teamIds = new Set(group.rows.map(r => r.id))
                   const poolMatches = matches.filter(m => m.match_type === 'pool' && teamIds.has(m.team_a_id) && teamIds.has(m.team_b_id))
-                  return <PoolCard key={group.name} poolName={group.name} rows={group.rows} poolMatches={poolMatches} teamMap={teamMap} />
+                  return (
+                    <div key={group.name} style={{ flex: '1 1 260px', maxWidth: 340 }}>
+                      <PoolCard poolName={group.name} rows={group.rows} poolMatches={poolMatches} teamMap={teamMap} />
+                    </div>
+                  )
                 })}
               </div>
             )
