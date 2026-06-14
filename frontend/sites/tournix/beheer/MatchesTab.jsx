@@ -336,9 +336,10 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
   const [snapSaving, setSnapSaving] = useState(null)
   const [genMsg,     setGenMsg]     = useState('')
   const [genLoading, setGenLoading] = useState(null)  // null | phase_id
-  const [planLoading, setPlanLoading] = useState(null) // null | phase_id
-  const [planMsg,    setPlanMsg]    = useState('')
-  const [showAdd,    setShowAdd]    = useState(false)
+  const [planLoading,     setPlanLoading]     = useState(null) // null | phase_id
+  const [planMsg,         setPlanMsg]         = useState('')
+  const [phaseStartTimes, setPhaseStartTimes] = useState({})  // { [phase_id]: datetime-local string }
+  const [showAdd,         setShowAdd]         = useState(false)
 
   async function load() {
     if (!tid) return
@@ -387,9 +388,11 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
     if (!window.confirm(`Schema inplannen voor "${ph.name}"? Bestaande tijden en velden worden overschreven.`)) return
     setPlanLoading(ph.id); setPlanMsg('')
     try {
-      const r = await planPhaseSchedule(ph.id)
+      const startTime = phaseStartTimes[ph.id] || null
+      const r = await planPhaseSchedule(ph.id, startTime)
       await load()
-      setPlanMsg(`${r.updated} wedstrijden ingepland in ${r.slots} slots`)
+      const conflictWarn = r.conflicts > 0 ? ` — ⚠️ ${r.conflicts} veldconflict(en)` : ''
+      setPlanMsg(`${r.updated} wedstrijden ingepland in ${r.slots} slots${conflictWarn}`)
     } catch (e) { setPlanMsg(`Fout: ${e.message}`) }
     finally { setPlanLoading(null) }
   }
@@ -448,21 +451,31 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
               const isLoading = planLoading === ph.id
               const params = ph.match_duration_min ? `${ph.match_duration_min} min · ${ph.break_min ?? 5} min pauze` : ''
               return (
-                <div key={ph.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ flex: 1, fontSize: 13 }}>{ph.name}</span>
-                  {params && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{params}</span>}
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', minWidth: 80, textAlign: 'right' }}>
-                    {phaseMatchCount} wedstrijden
-                  </span>
-                  <button
-                    onClick={() => handlePlanPhase(ph)}
-                    disabled={planLoading !== null || phaseMatchCount === 0}
-                    style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
-                      background: 'var(--color-primary)', color: '#fff',
-                      cursor: (planLoading !== null || phaseMatchCount === 0) ? 'default' : 'pointer',
-                      fontWeight: 600, opacity: (planLoading !== null || phaseMatchCount === 0) ? 0.5 : 1, minWidth: 80 }}>
-                    {isLoading ? '…' : 'Plan in'}
-                  </button>
+                <div key={ph.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{ph.name}</span>
+                    {params && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{params}</span>}
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      {phaseMatchCount} wedstrijden
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="datetime-local"
+                      value={phaseStartTimes[ph.id] || ''}
+                      onChange={e => setPhaseStartTimes(prev => ({ ...prev, [ph.id]: e.target.value }))}
+                      style={{ ...inputStyle, fontSize: 11, padding: '3px 6px', flex: 1, maxWidth: 200 }}
+                    />
+                    <button
+                      onClick={() => handlePlanPhase(ph)}
+                      disabled={planLoading !== null || phaseMatchCount === 0}
+                      style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
+                        background: 'var(--color-primary)', color: '#fff',
+                        cursor: (planLoading !== null || phaseMatchCount === 0) ? 'default' : 'pointer',
+                        fontWeight: 600, opacity: (planLoading !== null || phaseMatchCount === 0) ? 0.5 : 1, minWidth: 80 }}>
+                      {isLoading ? '…' : 'Plan in'}
+                    </button>
+                  </div>
                 </div>
               )
             })}

@@ -71,4 +71,4 @@ export const autoPoolsInPhase       = (pid, data)  => api.post(`/api/tournix/pha
 export const preAllocatePhaseTeams  = (pid, positions) => api.post(`/api/tournix/phases/${pid}/teams/pre-allocate`, { positions })
 export const resolvePhaseplaceholders = (pid)      => api.post(`/api/tournix/phases/${pid}/resolve-placeholders`)
 export const setPhaseFields           = (pid, field_ids) => api.post(`/api/tournix/phases/${pid}/fields`, { field_ids })
-export const planPhaseSchedule        = (pid)            => api.post(`/api/tournix/phases/${pid}/plan-schedule`)
+export const planPhaseSchedule        = (pid, startTime) => api.post(`/api/tournix/phases/${pid}/plan-schedule`, { start_time: startTime || null })

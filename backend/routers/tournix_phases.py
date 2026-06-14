@@ -1,5 +1,6 @@
 """Tournix — fases (alle bracket-typen na of inclusief de poule fase)."""
 
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +44,10 @@ class PhaseUpdate(BaseModel):
 
 class SetPhaseFieldsBody(BaseModel):
     field_ids: list[str]
+
+
+class PlanScheduleBody(BaseModel):
+    start_time: Optional[datetime] = None
 
 
 class PhaseTeamIn(BaseModel):
@@ -707,10 +712,13 @@ def set_phase_fields(
 @router.post("/phases/{pid}/plan-schedule")
 def plan_phase_schedule(
     pid: str,
+    body: PlanScheduleBody = None,
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ):
     """Wijs scheduled_at + field_id toe via greedy slot-packing. Geblokkeerd in productie."""
+    if body is None:
+        body = PlanScheduleBody()
     phase = get_or_404(session, TournixPhase, pid, "Fase")
     tournament = get_or_404(session, Tournament, phase.tournament_id, "Toernooi")
 
@@ -733,13 +741,13 @@ def plan_phase_schedule(
     n_fields = len(field_ids)
     duration = phase.match_duration_min or 20
     pause = phase.break_min or 5
-    start_dt = tournament.date  # kan None zijn
+    start_dt = body.start_time or tournament.date  # 133: start_time uit body, fallback op toernooidatum
 
-    # Haal alle wedstrijden op (sla byes over)
+    # Haal alle wedstrijden op gesorteerd op bracket_round (KO), dan round (pool)
     matches = session.exec(
         select(TournixMatch)
         .where(TournixMatch.phase_id == pid)
-        .order_by(TournixMatch.round, TournixMatch.id)
+        .order_by(TournixMatch.bracket_round, TournixMatch.round, TournixMatch.id)
     ).all()
     matches = [m for m in matches if m.team_a_id and m.team_b_id]
 
@@ -762,6 +770,22 @@ def plan_phase_schedule(
             if m.round is not None:
                 team_round_match[key][m.round] = m
 
+    # 131: lookup per match_id voor KO bracket dependency check
+    match_by_id = {m.id: m for m in matches}
+
+    # 132: laad bestaande bezette (field_id, scheduled_at) paren uit andere fases
+    occupied_slots: set = set()
+    if start_dt:
+        existing_scheduled = session.exec(
+            select(TournixMatch)
+            .where(TournixMatch.tournament_id == phase.tournament_id)
+            .where(TournixMatch.phase_id != pid)
+            .where(TournixMatch.scheduled_at != None)  # noqa: E711
+            .where(TournixMatch.field_id != None)      # noqa: E711
+        ).all()
+        for ex in existing_scheduled:
+            occupied_slots.add((ex.field_id, ex.scheduled_at))
+
     # Greedy slot-packing
     remaining = list(matches)
     match_slot: dict[str, int] = {}
@@ -777,7 +801,8 @@ def plan_phase_schedule(
                 break
             if m.team_a_id in used_teams or m.team_b_id in used_teams:
                 continue
-            # Soepel rondvolgorde: beide teams moeten vorige ronde in eerder slot hebben
+
+            # Soepel rondvolgorde (pool): beide teams moeten vorige ronde in eerder slot hebben
             if m.round is not None and m.round > 1:
                 ok = True
                 pool_key = team_pool.get(m.team_a_id, "nopool")
@@ -788,6 +813,18 @@ def plan_phase_schedule(
                         break
                 if not ok:
                     continue
+
+            # 131: KO bracket dependency — source matches moeten in eerder slot zitten
+            if m.match_type == "ko" and (m.source_match_a_id or m.source_match_b_id):
+                ok = True
+                for src_id in [m.source_match_a_id, m.source_match_b_id]:
+                    if src_id and src_id in match_by_id:
+                        if src_id not in match_slot or match_slot[src_id] >= slot:
+                            ok = False
+                            break
+                if not ok:
+                    continue
+
             slot_batch.append(m)
             used_teams.add(m.team_a_id)
             used_teams.add(m.team_b_id)
@@ -805,20 +842,34 @@ def plan_phase_schedule(
 
         slot += 1
 
-    # Schrijf scheduled_at + field_id terug
-    from datetime import timedelta
+    # Schrijf scheduled_at + field_id terug met conflict-vermijding (132)
     updated = 0
+    conflicts = 0
     for mid, slot_num, field_idx in assignments:
         m = session.get(TournixMatch, mid)
         if m:
-            m.field_id = field_ids[field_idx % n_fields]
             if start_dt:
-                m.scheduled_at = start_dt + timedelta(minutes=slot_num * (duration + pause))
+                match_time = start_dt + timedelta(minutes=slot_num * (duration + pause))
+                # Probeer veld zonder conflict; val terug op standaard als alle velden bezet zijn
+                chosen_field = None
+                for i in range(n_fields):
+                    candidate = field_ids[(field_idx + i) % n_fields]
+                    if (candidate, match_time) not in occupied_slots:
+                        chosen_field = candidate
+                        break
+                if chosen_field is None:
+                    chosen_field = field_ids[field_idx % n_fields]
+                    conflicts += 1
+                m.field_id = chosen_field
+                m.scheduled_at = match_time
+                occupied_slots.add((chosen_field, match_time))
+            else:
+                m.field_id = field_ids[field_idx % n_fields]
             session.add(m)
             updated += 1
 
     session.commit()
-    return {"updated": updated, "slots": slot}
+    return {"updated": updated, "slots": slot, "conflicts": conflicts}
 
 
 # ── Standen per fase ──────────────────────────────────────────────────────────
