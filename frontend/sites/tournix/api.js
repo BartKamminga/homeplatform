@@ -39,9 +39,6 @@ export const assignTeamPool         = (teamId, poolId) => api.patch(`/api/tourni
 export const autoAssignPools        = (tid)          => api.post(`/api/tournix/tournaments/${tid}/auto-assign`)
 export const updateTournamentPools  = (tid, num_pools, pool_type) => api.patch(`/api/tournix/tournaments/${tid}`, { num_pools, pool_type })
 
-export async function generateSchedule(tid, clearExisting = false) {
-  return api.post(`/api/tournix/tournaments/${tid}/generate-schedule`, { clear_existing: clearExisting })
-}
 export async function generateKnockout(tid) {
   return api.post(`/api/tournix/tournaments/${tid}/generate-knockout`)
 }

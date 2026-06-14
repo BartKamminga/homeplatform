@@ -15,7 +15,7 @@ from models.core import User
 from models.tournix import (
     Tournament, TournixClub, TournixPool, TournixTeam,
     TournixField, TournixMatch, TournixPrediction, TournixSnapshot,
-    TournixPhase, TournixPhaseTeam,
+    TournixPhase, TournixPhaseTeam, TournixPhaseField,
 )
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
@@ -244,6 +244,8 @@ def delete_tournament(tid: str, session: Session = Depends(get_session), _: User
     for phase in session.exec(select(TournixPhase).where(TournixPhase.tournament_id == tid)).all():
         for pt in session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == phase.id)).all():
             session.delete(pt)
+        for pf in session.exec(select(TournixPhaseField).where(TournixPhaseField.phase_id == phase.id)).all():
+            session.delete(pf)
         session.delete(phase)
     for team in session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all():
         session.delete(team)

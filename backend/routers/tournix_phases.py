@@ -15,7 +15,7 @@ from models.tournix import (
     Tournament, TournixPhase, TournixPhaseTeam, TournixTeam,
     TournixField, TournixMatch, TournixPool, TournixPhaseField,
 )
-from routers.tournix_matches import _round_robin_pairs
+from routers.tournix_utils import _round_robin_pairs
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 

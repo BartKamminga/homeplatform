@@ -13,11 +13,11 @@ from core.auth import get_current_user, require_admin
 from core.crud import get_or_404
 from models.core import User
 from models.tournix import (
-    Tournament, TournixPool, TournixTeam, TournixField,
+    Tournament, TournixPool, TournixTeam,
     TournixMatch, TournixPrediction, TournixSnapshot,
-    TournixPhase, TournixPhaseTeam,
+    TournixPhaseTeam,
 )
-from routers.tournix_utils import calc_standings
+from routers.tournix_utils import calc_standings, calc_match_stats
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -46,26 +46,6 @@ class MatchResult(BaseModel):
 class PredictionIn(BaseModel):
     pred_a: int = Field(..., ge=0)
     pred_b: int = Field(..., ge=0)
-
-class ScheduleGenerateBody(BaseModel):
-    clear_existing: bool = False
-
-
-# ── Helper ────────────────────────────────────────────────────────────────────
-
-def _round_robin_pairs(teams):
-    """Circle method: returns list of rounds, each round is list of (team_a, team_b) tuples."""
-    lst = list(teams)
-    if len(lst) % 2 == 1:
-        lst.append(None)  # bye placeholder
-    n = len(lst)
-    rounds = []
-    for _ in range(n - 1):
-        round_pairs = [(lst[i], lst[n - 1 - i]) for i in range(n // 2) if lst[i] and lst[n - 1 - i]]
-        rounds.append(round_pairs)
-        # Keep lst[0] fixed, rotate the rest
-        lst = [lst[0]] + [lst[-1]] + lst[1:-1]
-    return rounds
 
 
 # ── Wedstrijden ───────────────────────────────────────────────────────────────
@@ -263,32 +243,25 @@ def create_snapshot(
         )
     ).all()
 
-    # Get teams
     teams = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
+    team_map = {t.id: t for t in teams}
 
-    # Calculate standings
-    standings = {}
-    for team in teams:
-        standings[team.id] = {"team_id": team.id, "name": team.name, "w": 0, "d": 0, "l": 0, "gf": 0, "ga": 0, "pts": 0}
-
-    for match in matches:
-        if match.score_a is None or match.score_b is None:
-            continue
-        a, b = standings.get(match.team_a_id), standings.get(match.team_b_id)
-        if not a or not b:
-            continue
-        a["gf"] += match.score_a; a["ga"] += match.score_b
-        b["gf"] += match.score_b; b["ga"] += match.score_a
-        if match.score_a > match.score_b:
-            a["w"] += 1; a["pts"] += 3; b["l"] += 1
-        elif match.score_a < match.score_b:
-            b["w"] += 1; b["pts"] += 3; a["l"] += 1
-        else:
-            a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
+    raw = calc_match_stats(matches, teams)
+    standings_list = sorted(
+        [
+            {
+                "team_id": tid_key, "name": team_map[tid_key].name,
+                "w": s["won"], "d": s["draw"], "l": s["lost"],
+                "gf": s["gf"], "ga": s["ga"], "pts": s["pts"],
+            }
+            for tid_key, s in raw.items() if tid_key in team_map
+        ],
+        key=lambda x: (-x["pts"], -(x["gf"] - x["ga"])),
+    )
 
     snapshot_data = {
         "round": round,
-        "standings": sorted(standings.values(), key=lambda x: (-x["pts"], -(x["gf"] - x["ga"]))),
+        "standings": standings_list,
         "matches": [
             {
                 "id": m.id,
@@ -356,78 +329,6 @@ def get_snapshot(
     return json.loads(snapshot.snapshot_json)
 
 
-# ── Schedule generation ───────────────────────────────────────────────────────
-
-@router.post("/tournaments/{tid}/generate-schedule", dependencies=[Depends(require_admin)])
-def generate_schedule(tid: str, body: ScheduleGenerateBody, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    """Generate round-robin matches for all pools in a tournament."""
-    tournament = get_or_404(session, Tournament, tid, "Toernooi")
-
-    # Get all pools
-    pools = session.exec(
-        select(TournixPool).where(TournixPool.tournament_id == tid).order_by(TournixPool.order)
-    ).all()
-
-    if not pools:
-        # Treat all teams as one pool
-        teams = session.exec(
-            select(TournixTeam).where(TournixTeam.tournament_id == tid)
-        ).all()
-        pools_with_teams = [(None, teams)]
-    else:
-        pools_with_teams = []
-        for p in pools:
-            teams = session.exec(
-                select(TournixTeam).where(TournixTeam.pool_id == p.id)
-            ).all()
-            pools_with_teams.append((p, teams))
-
-    if body.clear_existing:
-        # Only remove pool matches, keep KO matches
-        existing = session.exec(
-            select(TournixMatch).where(
-                TournixMatch.tournament_id == tid,
-                TournixMatch.match_type == "pool",
-            )
-        ).all()
-        for m in existing:
-            session.delete(m)
-        session.commit()
-
-    fields = session.exec(
-        select(TournixField).where(TournixField.tournament_id == tid)
-    ).all()
-    field_ids = [f.id for f in fields] if fields else []
-
-    created = 0
-    match_counter = 0
-    for pool, teams in pools_with_teams:
-        if len(teams) < 2:
-            continue
-        rounds = _round_robin_pairs(teams)
-        if tournament.pool_type == "vol":
-            reverse_rounds = [[(b, a) for a, b in r] for r in rounds]
-            rounds = rounds + reverse_rounds
-
-        for round_idx, round_pairs in enumerate(rounds, start=1):
-            for team_a, team_b in round_pairs:
-                fid = field_ids[match_counter % len(field_ids)] if field_ids else None
-                m = TournixMatch(
-                    tournament_id=tid,
-                    team_a_id=team_a.id,
-                    team_b_id=team_b.id,
-                    round=round_idx,
-                    field_id=fid,
-                    match_type="pool",
-                )
-                session.add(m)
-                created += 1
-                match_counter += 1
-
-    session.commit()
-    return {"created": created}
-
-
 @router.post("/tournaments/{tid}/generate-knockout", dependencies=[Depends(require_admin)])
 def generate_knockout(tid: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     """Seed teams from pool standings and create knockout matches."""
@@ -448,24 +349,11 @@ def generate_knockout(tid: str, session: Session = Depends(get_session), _: User
         select(TournixTeam).where(TournixTeam.tournament_id == tid)
     ).all()
 
-    stats = {}
-    for t in teams_all:
-        stats[t.id] = {"team": t, "pts": 0, "gf": 0, "ga": 0, "pool_id": t.pool_id}
-
-    for m in pool_matches:
-        if m.score_a is None or m.score_b is None:
-            continue
-        a, b = m.team_a_id, m.team_b_id
-        if a not in stats or b not in stats:
-            continue
-        stats[a]["gf"] += m.score_a; stats[a]["ga"] += m.score_b
-        stats[b]["gf"] += m.score_b; stats[b]["ga"] += m.score_a
-        if m.score_a > m.score_b:
-            stats[a]["pts"] += 3
-        elif m.score_a == m.score_b:
-            stats[a]["pts"] += 1; stats[b]["pts"] += 1
-        else:
-            stats[b]["pts"] += 3
+    raw = calc_match_stats(pool_matches, teams_all)
+    stats = {
+        t.id: {"team": t, "pool_id": t.pool_id, **raw[t.id]}
+        for t in teams_all
+    }
 
     pools = session.exec(
         select(TournixPool).where(TournixPool.tournament_id == tid).order_by(TournixPool.order)
