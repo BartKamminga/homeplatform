@@ -3,8 +3,7 @@ import {
   getPhases, createPhase, updatePhase, deletePhase,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
-  assignTeamPool, getTeams, getFields,
-  setPhaseFields,
+  assignTeamPool, getTeams, getFields, setPhaseFields,
 } from '../api.js'
 import {
   inputStyle, primaryBtn, ghostBtn, noTid,
@@ -136,24 +135,38 @@ function DoorGangSection({ phase, phasePlaceholders, phaseRealTeams, hasPlacehol
     } catch (e) { flash(e.message, true) }
   }
 
+  async function handleResolve() {
+    try {
+      const r = await resolvePhaseplaceholders(phase.id)
+      if (r.resolved === 0) flash('Nog geen teams op te lossen — vorige fase heeft nog open wedstrijden.', true)
+      else { flash(`${r.resolved} teams opgelost`); await onRefresh() }
+    } catch (e) { flash(e.message, true) }
+  }
+
   return (
     <div style={doorGangBox}>
       {hasPlaceholders ? (
         <>
           <div style={sectionLabel}>GEPLANDE DOORGANG ({phasePlaceholders.length} slots)</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
             {phasePlaceholders.map(t => <span key={t.id} style={slotChip}>{t.name}</span>)}
           </div>
-          {!isReadonly && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Hermaak:</span>
-              {[1,2,3,4].map(n => (
-                <button key={n} onClick={() => setPerPool(n)} style={perPoolBtnStyle(n === perPool)}>{n}</button>
-              ))}
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>per poule</span>
-              <button onClick={handleApplySlots} style={{ ...ghostBtn, fontSize: 12 }}>↺ Hermaak</button>
-            </div>
-          )}
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+            Worden vervangen door echte teams zodra de vorige fase afgerond is.
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={handleResolve} style={{ ...primaryBtn, fontSize: 12 }}>Oplossen</button>
+            {!isReadonly && (
+              <>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Hermaak:</span>
+                {[1,2,3,4].map(n => (
+                  <button key={n} onClick={() => setPerPool(n)} style={perPoolBtnStyle(n === perPool)}>{n}</button>
+                ))}
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>per poule</span>
+                <button onClick={handleApplySlots} style={{ ...ghostBtn, fontSize: 12 }}>↺ Hermaak</button>
+              </>
+            )}
+          </div>
         </>
       ) : hasRealTeams ? (
         <>

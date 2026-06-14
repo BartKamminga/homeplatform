@@ -4,7 +4,7 @@ import {
   getTeams, getFields, getSnapshots, saveSnapshot,
   getPhases, generatePhaseSchedule, planPhaseSchedule,
 } from '../api.js'
-import { inputStyle, primaryBtn, ghostBtn, noTid } from './styles.js'
+import { inputStyle, primaryBtn, ghostBtn, noTid, successBanner, errorBanner } from './styles.js'
 import { resolveTeam } from '../helpers.js'
 
 /* ── Add-match popup ── */
@@ -324,10 +324,10 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
   const [phases,     setPhases]     = useState([])
   const [snapshots,  setSnapshots]  = useState([])
   const [snapSaving, setSnapSaving] = useState(null)
-  const [genMsg,     setGenMsg]     = useState('')
+  const [genMsg,     setGenMsg]     = useState({ text: '', isErr: false })
   const [genLoading, setGenLoading] = useState(null)  // null | phase_id
-  const [planLoading,     setPlanLoading]     = useState(null) // null | phase_id
-  const [planMsg,         setPlanMsg]         = useState('')
+  const [planLoading, setPlanLoading] = useState(null) // null | phase_id
+  const [planMsg,     setPlanMsg]     = useState({ text: '', isErr: false })
   const [phaseStartTimes, setPhaseStartTimes] = useState({})  // { [phase_id]: datetime-local string }
   const [showAdd,         setShowAdd]         = useState(false)
 
@@ -365,26 +365,32 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
   })
 
   async function handleGeneratePhase(pid) {
-    setGenLoading(pid); setGenMsg('')
+    setGenLoading(pid); setGenMsg({ text: '', isErr: false })
     try {
       const result = await generatePhaseSchedule(pid)
       await load()
-      setGenMsg(`${result?.created ?? '?'} wedstrijden aangemaakt`)
-    } catch (e) { setGenMsg(`Fout: ${e.message}`) }
-    finally { setGenLoading(null) }
+      setGenMsg({ text: `${result?.created ?? '?'} wedstrijden aangemaakt`, isErr: false })
+      setTimeout(() => setGenMsg({ text: '', isErr: false }), 3000)
+    } catch (e) {
+      setGenMsg({ text: `Fout: ${e.message}`, isErr: true })
+      setTimeout(() => setGenMsg({ text: '', isErr: false }), 4000)
+    } finally { setGenLoading(null) }
   }
 
   async function handlePlanPhase(ph) {
     if (!window.confirm(`Schema inplannen voor "${ph.name}"? Bestaande tijden en velden worden overschreven.`)) return
-    setPlanLoading(ph.id); setPlanMsg('')
+    setPlanLoading(ph.id); setPlanMsg({ text: '', isErr: false })
     try {
       const startTime = phaseStartTimes[ph.id] || null
       const r = await planPhaseSchedule(ph.id, startTime)
       await load()
       const conflictWarn = r.conflicts > 0 ? ` — ⚠️ ${r.conflicts} veldconflict(en)` : ''
-      setPlanMsg(`${r.updated} wedstrijden ingepland in ${r.slots} slots${conflictWarn}`)
-    } catch (e) { setPlanMsg(`Fout: ${e.message}`) }
-    finally { setPlanLoading(null) }
+      setPlanMsg({ text: `${r.updated} wedstrijden ingepland in ${r.slots} slots${conflictWarn}`, isErr: false })
+      setTimeout(() => setPlanMsg({ text: '', isErr: false }), 3000)
+    } catch (e) {
+      setPlanMsg({ text: `Fout: ${e.message}`, isErr: true })
+      setTimeout(() => setPlanMsg({ text: '', isErr: false }), 4000)
+    } finally { setPlanLoading(null) }
   }
 
   const matchMap  = Object.fromEntries(matches.map(m => [m.id, m]))
@@ -427,7 +433,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
               )
             })}
           </div>
-          {genMsg && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 8 }}>{genMsg}</div>}
+          {genMsg.text && <div style={{ ...genMsg.isErr ? errorBanner : successBanner, marginTop: 8 }}>{genMsg.text}</div>}
         </div>
       )}
 
@@ -470,7 +476,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
               )
             })}
           </div>
-          {planMsg && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 8 }}>{planMsg}</div>}
+          {planMsg.text && <div style={{ ...planMsg.isErr ? errorBanner : successBanner, marginTop: 8 }}>{planMsg.text}</div>}
         </div>
       )}
 

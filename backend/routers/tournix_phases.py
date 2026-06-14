@@ -623,6 +623,10 @@ def generate_phase_schedule(
     tid = phase.tournament_id
     tournament = get_or_404(session, Tournament, tid, "Toernooi")
 
+    # Auto-resolve placeholders zodat het schema met echte teams gegenereerd wordt
+    resolve_placeholders(pid, session)
+    session.flush()
+
     for m in session.exec(select(TournixMatch).where(TournixMatch.phase_id == pid)).all():
         session.delete(m)
     session.flush()
@@ -822,12 +826,12 @@ def plan_phase_schedule(
     # Index: (team_id, pool_key) -> {round: match}
     team_round_match: dict = {}
     for m in matches:
-        pool_key = team_pool.get(m.team_a_id, "nopool")
-        for tid_key in [m.team_a_id, m.team_b_id]:
-            key = (tid_key, pool_key)
-            if key not in team_round_match:
-                team_round_match[key] = {}
-            if m.round is not None:
+        if m.round is not None:
+            for tid_key in [m.team_a_id, m.team_b_id]:
+                pool_key = team_pool.get(tid_key, "nopool")
+                key = (tid_key, pool_key)
+                if key not in team_round_match:
+                    team_round_match[key] = {}
                 team_round_match[key][m.round] = m
 
     # 131: lookup per match_id voor KO bracket dependency check
@@ -865,8 +869,8 @@ def plan_phase_schedule(
             # Soepel rondvolgorde (pool): beide teams moeten vorige ronde in eerder slot hebben
             if m.round is not None and m.round > 1:
                 ok = True
-                pool_key = team_pool.get(m.team_a_id, "nopool")
                 for tid_key in [m.team_a_id, m.team_b_id]:
+                    pool_key = team_pool.get(tid_key, "nopool")
                     prev = team_round_match.get((tid_key, pool_key), {}).get(m.round - 1)
                     if prev and (prev.id not in match_slot or match_slot[prev.id] >= slot):
                         ok = False
