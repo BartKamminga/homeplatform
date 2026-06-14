@@ -395,21 +395,38 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
               </div>
             )}
 
-            {/* KO-bracket — horizontale weergave */}
+            {/* KO-bracket — horizontale weergave met verbindingslijntjes */}
             {phase.phase_type === 'ko' && Object.keys(koRounds).length > 0 && (() => {
-              const renderBracketMatch = (m, isFinal) => {
+              const MH = 78   // match card height
+              const SH = 110  // slot height per round-1 match
+              const CW = 176  // match card width
+              const LW = 44   // connector zone between columns
+              const HH = 26   // header row height
+
+              const renderCard = (m, isFinal, small) => {
                 const ta = resolveTeam(m.team_a_id, m.source_match_a_id, m.source_a_takes, teamMap, matchMap)
                 const tb = resolveTeam(m.team_b_id, m.source_match_b_id, m.source_b_takes, teamMap, matchMap)
                 const done = m.status === 'finished' && (m.team_a_id || m.team_b_id)
                 const winA = done && m.score_a > m.score_b
                 const winB = done && m.score_b > m.score_a
+                const fs = small ? 11 : 12
                 return (
-                  <div key={m.id} style={{ background: 'var(--color-surface)', border: `1px solid ${isFinal ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 10, padding: '10px 12px' }}>
-                    <div style={{ fontSize: 12, fontWeight: winA ? 700 : 500, color: winB ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: ta?.is_placeholder ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ta?.name ?? '—'}</div>
-                    <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: done ? 'var(--color-text)' : 'var(--color-text-muted)', padding: '3px 0' }}>
+                  <div style={{
+                    background: 'var(--color-surface)',
+                    border: `1px solid ${isFinal ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    borderRadius: 8,
+                    padding: small ? '5px 8px' : '8px 10px',
+                    ...(isFinal ? { boxShadow: '0 0 0 2px var(--color-primary-light)' } : {}),
+                  }}>
+                    <div style={{ fontSize: fs, fontWeight: winA ? 700 : 500, color: winB ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: ta?.is_placeholder ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ta?.name ?? '—'}
+                    </div>
+                    <div style={{ textAlign: 'center', fontSize: small ? 11 : 13, fontWeight: 700, color: done ? 'var(--color-text)' : 'var(--color-text-muted)', padding: '2px 0' }}>
                       {done ? `${m.score_a} – ${m.score_b}` : 'vs'}
                     </div>
-                    <div style={{ fontSize: 12, fontWeight: winB ? 700 : 500, color: winA ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: tb?.is_placeholder ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tb?.name ?? '—'}</div>
+                    <div style={{ fontSize: fs, fontWeight: winB ? 700 : 500, color: winA ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: tb?.is_placeholder ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tb?.name ?? '—'}
+                    </div>
                     {done && m.shootout_winner && (
                       <div style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 2 }}>
                         PSO — {m.shootout_winner === 'a' ? ta?.name : tb?.name}
@@ -420,41 +437,91 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
               }
 
               const sorted = Object.entries(koRounds).sort(([a], [b]) => Number(a) - Number(b))
-              const mainRounds = sorted.map(([r, ms]) => [r, ms.filter(m => m.source_a_takes !== 'loser' && m.source_b_takes !== 'loser')]).filter(([, ms]) => ms.length > 0)
+              const mainRounds = sorted
+                .map(([r, ms]) => [r, ms.filter(m => m.source_a_takes !== 'loser' && m.source_b_takes !== 'loser')])
+                .filter(([, ms]) => ms.length > 0)
               const consolations = sorted.flatMap(([, ms]) => ms.filter(m => m.source_a_takes === 'loser' || m.source_b_takes === 'loser'))
-              const firstCount = mainRounds[0]?.[1].length ?? 1
-              const bracketH = firstCount * 110
+
+              const N  = mainRounds[0]?.[1].length ?? 1
+              const nR = mainRounds.length
+              const colH = N * SH
+              const svgW = nR * CW + (nR - 1) * LW
+
+              // Y-center of match mi in round ri, relative to bracket area top (below header)
+              const cy = (ri, mi) => {
+                const M = mainRounds[ri]?.[1].length ?? 1
+                return (mi + 0.5) * (N / M) * SH
+              }
 
               return (
-                <>
-                  <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
-                      {mainRounds.map(([r, rMatches]) => {
+                <div style={{ overflowX: 'auto' }}>
+                  <div style={{ position: 'relative', width: svgW, margin: '0 auto' }}>
+
+                    {/* SVG connector lines — drawn behind cards */}
+                    <svg width={svgW} height={colH + HH}
+                      style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                      {mainRounds.slice(0, -1).map(([r, rMatches], ri) =>
+                        rMatches.map((_, mi) => {
+                          const x0 = ri * (CW + LW) + CW
+                          const y0 = HH + cy(ri, mi)
+                          const x1 = (ri + 1) * (CW + LW)
+                          const y1 = HH + cy(ri + 1, Math.floor(mi / 2))
+                          const mx = x0 + LW / 2
+                          return (
+                            <path key={`l${r}-${mi}`}
+                              d={`M${x0},${y0} H${mx} V${y1} H${x1}`}
+                              fill="none" stroke="var(--color-border)" strokeWidth={1.5}
+                              strokeLinecap="round" strokeLinejoin="round" />
+                          )
+                        })
+                      )}
+                    </svg>
+
+                    {/* Column headers */}
+                    <div style={{ display: 'flex', height: HH }}>
+                      {mainRounds.map(([r], ri) => {
                         const rNum = Number(r)
                         const isFinalRound = rNum === maxKoRound
                         const label = isFinalRound ? 'Finale' : koRoundLabel(rNum)
                         return (
-                          <div key={r} style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column', height: bracketH + 24 }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, textAlign: 'center' }}>
+                          <div key={r} style={{ width: CW + (ri < nR - 1 ? LW : 0), flexShrink: 0 }}>
+                            <div style={{ width: CW, textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: `${HH}px` }}>
                               {label}
-                            </div>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-around', gap: 4 }}>
-                              {rMatches.map(m => renderBracketMatch(m, isFinalRound))}
                             </div>
                           </div>
                         )
                       })}
                     </div>
+
+                    {/* Match cards — absolutely positioned */}
+                    <div style={{ position: 'relative', height: colH }}>
+                      {mainRounds.map(([r, rMatches], ri) => {
+                        const rNum = Number(r)
+                        const isFinalRound = rNum === maxKoRound
+                        return rMatches.map((m, mi) => (
+                          <div key={m.id} style={{ position: 'absolute', top: cy(ri, mi) - MH / 2, left: ri * (CW + LW), width: CW }}>
+                            {renderCard(m, isFinalRound, false)}
+                          </div>
+                        ))
+                      })}
+                    </div>
+
                   </div>
+
+                  {/* Troostfinale — kleiner en gecentreerd */}
                   {consolations.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.7 }}>
                         Troostfinale
                       </div>
-                      {consolations.map(m => renderBracketMatch(m, false))}
+                      <div style={{ width: 140 }}>
+                        {consolations.map(m => (
+                          <div key={m.id}>{renderCard(m, false, true)}</div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </>
+                </div>
               )
             })()}
           </div>
