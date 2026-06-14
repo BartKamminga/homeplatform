@@ -68,18 +68,22 @@ function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
 
 /* ── Single match card ── */
 function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structureLocked }) {
-  const [scoreEdit,  setScoreEdit]  = useState(false)
-  const [scoreA,     setScoreA]     = useState('')
-  const [scoreB,     setScoreB]     = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [fieldEdit,  setFieldEdit]  = useState(false)
+  const [scoreEdit,      setScoreEdit]      = useState(false)
+  const [scoreA,         setScoreA]         = useState('')
+  const [scoreB,         setScoreB]         = useState('')
+  const [shootoutWinner, setShootoutWinner] = useState(null)
+  const [saving,         setSaving]         = useState(false)
+  const [fieldEdit,      setFieldEdit]      = useState(false)
 
   async function saveResult() {
     if (scoreA === '' || scoreB === '') return
     setSaving(true)
     try {
-      await setResult(m.id, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
+      const data = { score_a: parseInt(scoreA), score_b: parseInt(scoreB) }
+      if (m.match_type === 'ko') data.shootout_winner = shootoutWinner
+      await setResult(m.id, data)
       setScoreEdit(false); setScoreA(''); setScoreB('')
+      setShootoutWinner(null)
       await onRefresh()
     } finally { setSaving(false) }
   }
@@ -99,6 +103,7 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
   function openScoreEdit() {
     setScoreA(m.status === 'finished' ? String(m.score_a) : '')
     setScoreB(m.status === 'finished' ? String(m.score_b) : '')
+    setShootoutWinner(m.shootout_winner ?? null)
     setScoreEdit(true)
   }
 
@@ -111,7 +116,9 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
         )}
         <span style={{ fontWeight: 600 }}>{teamMap[m.team_a_id]?.name ?? '—'}</span>
         <span style={{ color: 'var(--color-text-muted)' }}>
-          {m.status === 'finished' ? `${m.score_a}–${m.score_b}` : 'vs'}
+          {m.status === 'finished'
+            ? `${m.score_a}–${m.score_b}${m.shootout_winner ? ' (PSO)' : ''}`
+            : 'vs'}
         </span>
         <span style={{ fontWeight: 600 }}>{teamMap[m.team_b_id]?.name ?? '—'}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -153,16 +160,33 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
       </div>
 
       {scoreEdit && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-          <input type="number" min="0" value={scoreA} onChange={e => setScoreA(e.target.value)}
-            style={{ ...inputStyle, width: 52, textAlign: 'center' }} placeholder="0" autoFocus />
-          <span>–</span>
-          <input type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)}
-            style={{ ...inputStyle, width: 52, textAlign: 'center' }} placeholder="0" />
-          <button onClick={saveResult} disabled={saving || scoreA === '' || scoreB === ''} style={{ ...primaryBtn, padding: '6px 14px', fontSize: 12, opacity: (saving || scoreA === '' || scoreB === '') ? 0.6 : 1 }}>
-            {saving ? '…' : 'Opslaan'}
-          </button>
-          <button onClick={() => setScoreEdit(false)} style={ghostBtn}>Annuleer</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="number" min="0" value={scoreA} onChange={e => setScoreA(e.target.value)}
+              style={{ ...inputStyle, width: 52, textAlign: 'center' }} placeholder="0" autoFocus />
+            <span>–</span>
+            <input type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)}
+              style={{ ...inputStyle, width: 52, textAlign: 'center' }} placeholder="0" />
+            <button onClick={saveResult} disabled={saving || scoreA === '' || scoreB === ''} style={{ ...primaryBtn, padding: '6px 14px', fontSize: 12, opacity: (saving || scoreA === '' || scoreB === '') ? 0.6 : 1 }}>
+              {saving ? '…' : 'Opslaan'}
+            </button>
+            <button onClick={() => setScoreEdit(false)} style={ghostBtn}>Annuleer</button>
+          </div>
+          {m.match_type === 'ko' && scoreA !== '' && scoreB !== '' && parseInt(scoreA) === parseInt(scoreB) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>PSO gewonnen door:</span>
+              {[['a', teamMap[m.team_a_id]?.name], ['b', teamMap[m.team_b_id]?.name]].map(([key, name]) => (
+                <button key={key} type="button"
+                  onClick={() => setShootoutWinner(prev => prev === key ? null : key)}
+                  style={{ padding: '3px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${shootoutWinner === key ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: shootoutWinner === key ? 'var(--color-primary)' : 'transparent',
+                    color: shootoutWinner === key ? '#fff' : 'var(--color-text-muted)', fontWeight: shootoutWinner === key ? 600 : 400 }}>
+                  {name ?? '—'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -171,24 +195,27 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
 
 /* ── Compact score row for round entry view ── */
 function ScoreRow({ m, teamMap, onRefresh }) {
-  const [scoreA,    setScoreA]    = useState(m.status === 'finished' ? String(m.score_a) : '0')
-  const [scoreB,    setScoreB]    = useState(m.status === 'finished' ? String(m.score_b) : '0')
-  const [saving,    setSaving]    = useState(false)
-  const [saved,     setSaved]     = useState(m.status === 'finished')
-  const [saveError, setSaveError] = useState('')
+  const [scoreA,         setScoreA]         = useState(m.status === 'finished' ? String(m.score_a) : '0')
+  const [scoreB,         setScoreB]         = useState(m.status === 'finished' ? String(m.score_b) : '0')
+  const [shootoutWinner, setShootoutWinner] = useState(m.shootout_winner ?? null)
+  const [saving,         setSaving]         = useState(false)
+  const [saved,          setSaved]          = useState(m.status === 'finished')
+  const [saveError,      setSaveError]      = useState('')
 
-  // Keep inputs in sync when match data refreshes
   useEffect(() => {
     if (m.status === 'finished') {
       setScoreA(String(m.score_a)); setScoreB(String(m.score_b)); setSaved(true)
+      setShootoutWinner(m.shootout_winner ?? null)
     }
-  }, [m.score_a, m.score_b, m.status])
+  }, [m.score_a, m.score_b, m.status, m.shootout_winner])
 
   async function save() {
     if (scoreA === '' || scoreB === '') return
     setSaving(true); setSaveError('')
     try {
-      await setResult(m.id, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
+      const data = { score_a: parseInt(scoreA), score_b: parseInt(scoreB) }
+      if (m.match_type === 'ko') data.shootout_winner = shootoutWinner
+      await setResult(m.id, data)
       setSaved(true)
       await onRefresh()
     } catch (e) {
@@ -196,11 +223,12 @@ function ScoreRow({ m, teamMap, onRefresh }) {
     } finally { setSaving(false) }
   }
 
-  // Unfinished match: always saveable (0-0 is a valid result).
-  // Finished match: dirty when the displayed score differs from the saved score.
-  const dirty = m.status !== 'finished'
-             || scoreA !== String(m.score_a)
-             || scoreB !== String(m.score_b)
+  const isKo   = m.match_type === 'ko'
+  const tied   = scoreA !== '' && scoreB !== '' && parseInt(scoreA) === parseInt(scoreB)
+  const dirty  = m.status !== 'finished'
+              || scoreA !== String(m.score_a)
+              || scoreB !== String(m.score_b)
+              || (isKo && shootoutWinner !== (m.shootout_winner ?? null))
 
   const nameA = teamMap[m.team_a_id]?.name ?? '—'
   const nameB = teamMap[m.team_b_id]?.name ?? '—'
@@ -227,6 +255,21 @@ function ScoreRow({ m, teamMap, onRefresh }) {
           {saving ? '…' : saved && !dirty ? 'Opgeslagen' : 'Opslaan'}
         </button>
       </div>
+      {isKo && tied && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 10, fontSize: 12 }}>
+          <span style={{ color: 'var(--color-text-muted)' }}>PSO gewonnen door:</span>
+          {[['a', nameA], ['b', nameB]].map(([key, name]) => (
+            <button key={key} type="button"
+              onClick={() => { setShootoutWinner(prev => prev === key ? null : key); setSaved(false) }}
+              style={{ padding: '2px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
+                border: `1px solid ${shootoutWinner === key ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                background: shootoutWinner === key ? 'var(--color-primary)' : 'transparent',
+                color: shootoutWinner === key ? '#fff' : 'var(--color-text-muted)', fontWeight: shootoutWinner === key ? 600 : 400 }}>
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
       {saveError && <div style={{ fontSize: 11, color: 'var(--color-danger)', paddingLeft: 10 }}>{saveError}</div>}
     </div>
   )
@@ -236,7 +279,7 @@ function ScoreRow({ m, teamMap, onRefresh }) {
 export default function MatchesTab({ tid, tournament, pools, teams: teamsFromParent, stage }) {
   const active          = tournament
   const structureLocked = stage !== 'inregel'
-  const canScore        = stage === 'productie'
+  const canScore        = true  // admin kan altijd scores aanpassen (#87)
 
   const [matches,    setMatches]    = useState([])
   const [localTeams, setLocalTeams] = useState([])

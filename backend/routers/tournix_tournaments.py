@@ -127,6 +127,60 @@ def update_tournament(
     return t
 
 
+@router.post("/tournaments/{tid}/copy", status_code=201)
+def copy_tournament(
+    tid: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_admin),
+):
+    """Kopieer toernooistructuur (teams, poules, velden) zonder wedstrijden en scores."""
+    orig = get_or_404(session, Tournament, tid, "Toernooi")
+
+    new_t = Tournament(
+        name=f"{orig.name} (kopie)",
+        date=orig.date,
+        location=orig.location,
+        location_club_id=orig.location_club_id,
+        description=orig.description,
+        status="draft",
+        stage="inregel",
+        num_pools=orig.num_pools,
+        pool_type=orig.pool_type,
+        knockout_type=orig.knockout_type,
+        knockout_advance=orig.knockout_advance,
+        created_by=user.id,
+    )
+    session.add(new_t)
+    session.flush()
+
+    old_pools = session.exec(
+        select(TournixPool).where(TournixPool.tournament_id == tid).order_by(TournixPool.order)
+    ).all()
+    pool_id_map: dict[str, str] = {}
+    for p in old_pools:
+        new_p = TournixPool(tournament_id=new_t.id, name=p.name, order=p.order)
+        session.add(new_p)
+        session.flush()
+        pool_id_map[p.id] = new_p.id
+
+    for team in session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all():
+        session.add(TournixTeam(
+            tournament_id=new_t.id,
+            name=team.name,
+            short_name=team.short_name,
+            color=team.color,
+            pool_id=pool_id_map.get(team.pool_id) if team.pool_id else None,
+            club_id=team.club_id,
+        ))
+
+    for field in session.exec(select(TournixField).where(TournixField.tournament_id == tid)).all():
+        session.add(TournixField(tournament_id=new_t.id, name=field.name, club_id=field.club_id))
+
+    session.commit()
+    session.refresh(new_t)
+    return new_t
+
+
 @router.delete("/tournaments/{tid}", status_code=204)
 def delete_tournament(tid: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
     t = get_or_404(session, Tournament, tid, "Toernooi")

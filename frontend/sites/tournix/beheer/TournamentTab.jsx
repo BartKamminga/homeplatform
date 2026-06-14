@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { updateTournament, updateTournamentStage, updateTournamentKnockout } from '../api.js'
+import { updateTournament, updateTournamentStage, updateTournamentKnockout, copyTournament } from '../api.js'
 import { inputStyle, noTid } from './styles.js'
 
-export default function TournamentTab({ active, clubs, onRefresh }) {
+export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
   const [nameInput, setNameInput] = useState(active?.name ?? '')
   useEffect(() => { setNameInput(active?.name ?? '') }, [active?.id])
 
@@ -29,6 +29,13 @@ export default function TournamentTab({ active, clubs, onRefresh }) {
     if (!active) return
     await updateTournament(active.id, { location_club_id: clubId || null })
     await onRefresh()
+  }
+
+  async function handleCopy() {
+    if (!active) return
+    const newT = await copyTournament(active.id)
+    await onRefresh()
+    if (onSelect) onSelect(newT.id)
   }
 
   if (!active) return <p style={noTid}>Selecteer een toernooi via de keuzelijst bovenaan.</p>
@@ -152,6 +159,20 @@ export default function TournamentTab({ active, clubs, onRefresh }) {
             Afgelopen toernooien zijn niet zichtbaar op de overzichtspagina.
           </div>
         )}
+      </div>
+
+      {/* Kopieer */}
+      <div style={{ padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>KOPIEER</div>
+        <button onClick={handleCopy}
+          style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, fontFamily: 'inherit',
+            border: '1px solid var(--color-border)', background: 'transparent',
+            color: 'var(--color-text)', cursor: 'pointer' }}>
+          Kopieer toernooi
+        </button>
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>
+          Kopieert teams, poules en velden — zonder wedstrijden en scores.
+        </div>
       </div>
 
     </div>

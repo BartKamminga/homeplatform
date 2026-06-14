@@ -109,7 +109,7 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
         ))}
       </div>
 
-      {tab === 'Toernooi'    && <TournamentTab active={active} clubs={clubs} onRefresh={loadAll} />}
+      {tab === 'Toernooi'    && <TournamentTab active={active} clubs={clubs} onRefresh={loadAll} onSelect={setTid} />}
       {tab === 'Poules'      && <PoolsTab      tid={tid} active={active} pools={pools} teams={teams} stage={stage} loadPools={loadPools} loadTeams={loadTeams} onRefresh={loadAll} />}
       {tab === 'Teams'       && <TeamsTab      tid={tid} pools={pools} teams={teams} clubs={clubs} stage={stage} loadTeams={loadTeams} />}
       {tab === 'Velden'      && <FieldsTab     tid={tid} clubs={clubs} stage={stage} />}

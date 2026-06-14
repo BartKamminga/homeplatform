@@ -20,11 +20,12 @@ export default function ProgrammaPage({ stage, tournament }) {
   const [simInputB,   setSimInputB]   = useState('')
 
   // Real score editing state for productie mode
-  const [scoreEdit,   setScoreEdit]   = useState(null)
-  const [scoreA,      setScoreA]      = useState('')
-  const [scoreB,      setScoreB]      = useState('')
-  const [savingScore, setSavingScore] = useState(null)
-  const [saveError,   setSaveError]   = useState('')
+  const [scoreEdit,      setScoreEdit]      = useState(null)
+  const [scoreA,         setScoreA]         = useState('')
+  const [scoreB,         setScoreB]         = useState('')
+  const [shootoutWinner, setShootoutWinner] = useState(null)
+  const [savingScore,    setSavingScore]    = useState(null)
+  const [saveError,      setSaveError]      = useState('')
 
   const isTest = stage === 'test'
 
@@ -110,8 +111,12 @@ export default function ProgrammaPage({ stage, tournament }) {
     if (scoreA === '' || scoreB === '') return
     setSavingScore(mid)
     try {
-      await setResult(mid, { score_a: parseInt(scoreA), score_b: parseInt(scoreB) })
+      const match = matches.find(m => m.id === mid)
+      const data = { score_a: parseInt(scoreA), score_b: parseInt(scoreB) }
+      if (match?.match_type === 'ko') data.shootout_winner = shootoutWinner
+      await setResult(mid, data)
       setScoreEdit(null); setScoreA(''); setScoreB('')
+      setShootoutWinner(null)
       const updated = await getMatches(tournament.id)
       setMatches(updated)
     } catch (e) {
@@ -186,7 +191,10 @@ export default function ProgrammaPage({ stage, tournament }) {
                     </div>
                     <div style={{ minWidth: 60, textAlign: 'center' }}>
                       {showFinished
-                        ? <span style={{ fontSize: 16, fontWeight: 700 }}>{m.score_a} – {m.score_b}</span>
+                        ? <span style={{ fontSize: 16, fontWeight: 700 }}>
+                            {m.score_a} – {m.score_b}
+                            {m.shootout_winner && <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400, display: 'block' }}>PSO</span>}
+                          </span>
                         : showSim
                           ? <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-warning)' }}>{sim.a} – {sim.b}</span>
                           : <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>vs</span>
@@ -241,7 +249,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                   )}
 
                   {/* Productie mode: real score input */}
-                  {!isTest && stage === 'productie' && m.status !== 'finished' && isRealEditing && (
+                  {!isTest && stage === 'productie' && isRealEditing && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaveError('') }} style={{ ...scoreInput, width: 52 }} placeholder="0" autoFocus />
@@ -254,18 +262,38 @@ export default function ProgrammaPage({ stage, tournament }) {
                         >
                           {savingScore === m.id ? 'Opslaan…' : 'Opslaan'}
                         </button>
-                        <button onClick={() => { setScoreEdit(null); setSaveError('') }} style={ghostBtn}>Annuleer</button>
+                        <button onClick={() => { setScoreEdit(null); setShootoutWinner(null); setSaveError('') }} style={ghostBtn}>Annuleer</button>
                       </div>
+                      {m.match_type === 'ko' && scoreA !== '' && scoreB !== '' && parseInt(scoreA) === parseInt(scoreB) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                          <span style={{ color: 'var(--color-text-muted)' }}>Strafschoppen gewonnen door:</span>
+                          {[['a', teams[m.team_a_id]?.name], ['b', teams[m.team_b_id]?.name]].map(([key, name]) => (
+                            <button key={key} type="button" onClick={() => setShootoutWinner(prev => prev === key ? null : key)}
+                              style={{ padding: '4px 12px', fontSize: 12, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
+                                border: `1px solid ${shootoutWinner === key ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                background: shootoutWinner === key ? 'var(--color-primary)' : 'transparent',
+                                color: shootoutWinner === key ? '#fff' : 'var(--color-text-muted)', fontWeight: shootoutWinner === key ? 600 : 400 }}>
+                              {name ?? '—'}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {saveError && <div style={{ fontSize: 11, color: 'var(--color-danger)' }}>{saveError}</div>}
                     </div>
                   )}
-                  {!isTest && stage === 'productie' && m.status !== 'finished' && !isRealEditing && (
+                  {!isTest && stage === 'productie' && !isRealEditing && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
                       <button
-                        onClick={() => { setScoreEdit(m.id); setScoreA('0'); setScoreB('0'); setSaveError('') }}
+                        onClick={() => {
+                          setScoreEdit(m.id)
+                          setScoreA(m.status === 'finished' ? String(m.score_a) : '0')
+                          setScoreB(m.status === 'finished' ? String(m.score_b) : '0')
+                          setShootoutWinner(m.shootout_winner ?? null)
+                          setSaveError('')
+                        }}
                         style={{ ...ghostBtn, fontSize: 11, padding: '4px 10px' }}
                       >
-                        Uitslag invoeren
+                        {m.status === 'finished' ? 'Wijzig uitslag' : 'Uitslag invoeren'}
                       </button>
                     </div>
                   )}

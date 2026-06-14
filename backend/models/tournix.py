@@ -80,10 +80,11 @@ class TournixMatch(SQLModel, table=True):
     field_id:       Optional[str]     = Field(default=None, foreign_key="tournix_fields.id")
     round:          Optional[int]     = Field(default=None)
     scheduled_at:   Optional[datetime] = Field(default=None)
-    score_a:        Optional[int]     = Field(default=None)
-    score_b:        Optional[int]     = Field(default=None)
-    status:         str               = Field(default="scheduled")  # scheduled | playing | finished
-    match_type: str = Field(default="pool")           # pool | ko
+    score_a:         Optional[int]  = Field(default=None)
+    score_b:         Optional[int]  = Field(default=None)
+    shootout_winner: Optional[str]  = Field(default=None)  # "a" | "b" — only for tied KO matches
+    status:          str            = Field(default="scheduled")  # scheduled | playing | finished
+    match_type:      str            = Field(default="pool")       # pool | ko
     created_at:     datetime          = Field(default_factory=datetime.utcnow)
 
 

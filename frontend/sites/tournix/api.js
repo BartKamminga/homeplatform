@@ -55,3 +55,4 @@ export const updateClub  = (id, data)  => api.patch(`/api/tournix/clubs/${id}`, 
 export const deleteClub  = (id)        => api.delete(`/api/tournix/clubs/${id}`)
 
 export const importTournament = (data) => api.post('/api/tournix/import', data)
+export const copyTournament   = (tid)  => api.post(`/api/tournix/tournaments/${tid}/copy`)

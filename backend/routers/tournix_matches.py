@@ -40,6 +40,7 @@ class MatchUpdate(BaseModel):
 class MatchResult(BaseModel):
     score_a: int
     score_b: int
+    shootout_winner: Optional[str] = None  # "a" | "b" — only relevant for tied KO matches
 
 class PredictionIn(BaseModel):
     pred_a: int = Field(..., ge=0)
@@ -118,6 +119,7 @@ def set_result(
     match.score_a = body.score_a
     match.score_b = body.score_b
     match.status = "finished"
+    match.shootout_winner = body.shootout_winner if match.match_type == "ko" else None
     session.add(match)
     session.commit()
     session.refresh(match)
