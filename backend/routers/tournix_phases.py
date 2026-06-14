@@ -380,6 +380,151 @@ def phase_teams_from_standings(
     return {"ok": True, "added": added}
 
 
+# ── Placeholder-teams (pre-genereer schema) ───────────────────────────────────
+
+class PreAllocateBody(BaseModel):
+    positions: list[int]  # [1, 2] = plekken 1 en 2 per poule
+
+
+def _find_source_phase(phase: TournixPhase, session: Session) -> TournixPhase | None:
+    """Vind de meest recente pool-fase vóór deze fase (op order)."""
+    return session.exec(
+        select(TournixPhase)
+        .where(
+            TournixPhase.tournament_id == phase.tournament_id,
+            TournixPhase.phase_type == "pool",
+            TournixPhase.order < phase.order,
+        )
+        .order_by(TournixPhase.order.desc())
+    ).first()
+
+
+def _delete_placeholders_for_phase(pid: str, session: Session):
+    """Verwijder placeholder-teams en hun TournixPhaseTeam-rijen voor fase pid."""
+    pt_rows = session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)).all()
+    placeholder_ids = []
+    for pt in pt_rows:
+        t = session.get(TournixTeam, pt.team_id)
+        if t and t.is_placeholder:
+            placeholder_ids.append(t.id)
+            session.delete(pt)
+    for tid in placeholder_ids:
+        t = session.get(TournixTeam, tid)
+        if t:
+            session.delete(t)
+    session.flush()
+
+
+@router.post("/phases/{pid}/teams/pre-allocate")
+def pre_allocate_phase_teams(
+    pid: str,
+    body: PreAllocateBody,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Maak placeholder-teams aan voor een vervolg-fase (vóór de wedstrijden)."""
+    phase = get_or_404(session, TournixPhase, pid, "Fase")
+    source_phase = _find_source_phase(phase, session)
+    if not source_phase:
+        raise HTTPException(400, "Geen poule-fase gevonden vóór deze fase")
+
+    pools = session.exec(
+        select(TournixPool)
+        .where(TournixPool.phase_id == source_phase.id)
+        .order_by(TournixPool.order)
+    ).all()
+    if not pools:
+        raise HTTPException(400, "Geen sub-poules in de bronpoule-fase")
+
+    _delete_placeholders_for_phase(pid, session)
+
+    created = 0
+    for pool in pools:
+        for pos in sorted(body.positions):
+            placeholder = TournixTeam(
+                tournament_id=phase.tournament_id,
+                name=f"#{pos} {pool.name}",
+                is_placeholder=True,
+                placeholder_source_phase_id=source_phase.id,
+                placeholder_pool_name=pool.name,
+                placeholder_position=pos,
+            )
+            session.add(placeholder)
+            session.flush()
+            session.add(TournixPhaseTeam(phase_id=pid, team_id=placeholder.id))
+            created += 1
+
+    session.commit()
+    return {"created": created, "source_phase": source_phase.name}
+
+
+def resolve_placeholders(pid: str, session: Session) -> int:
+    """Vervang placeholder-teams door echte teams op basis van huidige standen. Geeft aantal opgelost terug."""
+    phase = session.get(TournixPhase, pid)
+    if not phase:
+        return 0
+
+    source_phase = _find_source_phase(phase, session)
+    if not source_phase:
+        return 0
+
+    from routers.tournix_utils import calc_standings
+    standings = calc_standings(phase.tournament_id, session, phase_id=source_phase.id)
+
+    by_pool: dict[str, list] = {}
+    for s in standings:
+        key = s.get("pool_name") or "Ongedeeld"
+        by_pool.setdefault(key, []).append(s)
+
+    pt_rows = session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)).all()
+    resolved = 0
+
+    for pt in pt_rows:
+        placeholder = session.get(TournixTeam, pt.team_id)
+        if not placeholder or not placeholder.is_placeholder:
+            continue
+
+        pool_name = placeholder.placeholder_pool_name or "Ongedeeld"
+        pos = placeholder.placeholder_position  # 1-indexed
+        pool_standings = by_pool.get(pool_name, [])
+        if not pos or pos > len(pool_standings):
+            continue
+
+        real_team_id = pool_standings[pos - 1]["id"]
+
+        for m in session.exec(
+            select(TournixMatch).where(TournixMatch.team_a_id == placeholder.id)
+        ).all():
+            m.team_a_id = real_team_id
+            session.add(m)
+        for m in session.exec(
+            select(TournixMatch).where(TournixMatch.team_b_id == placeholder.id)
+        ).all():
+            m.team_b_id = real_team_id
+            session.add(m)
+
+        pt.team_id = real_team_id
+        session.add(pt)
+        session.delete(placeholder)
+        resolved += 1
+
+    session.flush()
+    return resolved
+
+
+@router.post("/phases/{pid}/resolve-placeholders")
+def resolve_phase_placeholders(
+    pid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Vervang placeholder-teams door echte teams (handmatig of na afloop poule-fase)."""
+    get_or_404(session, TournixPhase, pid, "Fase")
+    n = resolve_placeholders(pid, session)
+    session.commit()
+    return {"resolved": n}
+
+
 # ── Schema genereren ──────────────────────────────────────────────────────────
 
 @router.post("/phases/{pid}/generate-schedule")

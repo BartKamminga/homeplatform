@@ -54,7 +54,7 @@ export default function TeamsTab({ tid, pools, teams, clubs, stage, loadTeams })
         </div>
       )}
 
-      {teams.map(t => (
+      {teams.filter(t => !t.is_placeholder).map(t => (
         <div key={t.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 12px' }}>
           {editId === t.id ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -18,7 +18,12 @@ def calc_standings(tid: str, session: Session, phase_id: str | None = None) -> l
         if first_phase:
             phase_id = first_phase.id
 
-    teams = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
+    teams = session.exec(
+        select(TournixTeam).where(
+            TournixTeam.tournament_id == tid,
+            TournixTeam.is_placeholder == False,  # noqa: E712
+        )
+    ).all()
 
     if phase_id:
         matches = session.exec(

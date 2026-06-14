@@ -15,6 +15,7 @@ from models.core import User
 from models.tournix import (
     Tournament, TournixPool, TournixTeam, TournixField,
     TournixMatch, TournixPrediction, TournixSnapshot,
+    TournixPhase, TournixPhaseTeam,
 )
 from routers.tournix_utils import calc_standings
 
@@ -121,9 +122,45 @@ def set_result(
     match.status = "finished"
     match.shootout_winner = body.shootout_winner if match.match_type == "ko" else None
     session.add(match)
+    session.flush()
+
+    # Auto-resolve placeholders als alle wedstrijden in deze fase klaar zijn
+    if match.phase_id:
+        _try_auto_resolve(match.phase_id, session)
+
     session.commit()
     session.refresh(match)
     return match
+
+
+def _try_auto_resolve(source_phase_id: str, session: Session):
+    """Als alle wedstrijden in source_phase klaar zijn, los placeholder-teams op in afhankelijke fases."""
+    phase_matches = session.exec(
+        select(TournixMatch).where(TournixMatch.phase_id == source_phase_id)
+    ).all()
+    if not phase_matches:
+        return
+    if not all(m.status == "finished" for m in phase_matches):
+        return
+
+    # Vind alle fases die placeholder-teams hebben die naar deze fase verwijzen
+    placeholders = session.exec(
+        select(TournixTeam).where(
+            TournixTeam.is_placeholder == True,  # noqa: E712
+            TournixTeam.placeholder_source_phase_id == source_phase_id,
+        )
+    ).all()
+
+    dependent_phase_ids: set[str] = set()
+    for ph in placeholders:
+        for pt in session.exec(
+            select(TournixPhaseTeam).where(TournixPhaseTeam.team_id == ph.id)
+        ).all():
+            dependent_phase_ids.add(pt.phase_id)
+
+    from routers.tournix_phases import resolve_placeholders
+    for dep_pid in dependent_phase_ids:
+        resolve_placeholders(dep_pid, session)
 
 
 @router.delete("/matches/{mid}", status_code=204)

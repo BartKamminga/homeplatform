@@ -60,6 +60,12 @@ class TournixTeam(SQLModel, table=True):
     pool_id:        Optional[str] = Field(default=None, foreign_key="tournix_pools.id")
     club_id:        Optional[str] = Field(default=None, foreign_key="tournix_clubs.id")
 
+    # Placeholder-velden (voor pre-gegenereerde vervolg-fase schema's)
+    is_placeholder:              bool          = Field(default=False)
+    placeholder_source_phase_id: Optional[str] = Field(default=None, foreign_key="tournix_phases.id")
+    placeholder_pool_name:       Optional[str] = Field(default=None)
+    placeholder_position:        Optional[int] = Field(default=None)
+
 
 class TournixField(SQLModel, table=True):
     __tablename__ = "tournix_fields"

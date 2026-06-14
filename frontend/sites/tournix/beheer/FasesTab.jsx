@@ -3,6 +3,7 @@ import {
   getPhases, createPhase, updatePhase, deletePhase,
   setPhaseTeams, phaseTeamsFromStandings, getPhaseStandings,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
+  preAllocatePhaseTeams, resolvePhaseplaceholders,
   assignTeamPool, getTeams,
 } from '../api.js'
 import { inputStyle, primaryBtn, ghostBtn, noTid } from './styles.js'
@@ -438,6 +439,8 @@ function PhaseCard({
           mainPhase={mainPhase}
           onConfirm={handleFromStandingsConfirm}
           onCancel={() => setShowStandingsUI(false)}
+          flash={flash}
+          onRefresh={onRefresh}
         />
       )}
 
@@ -453,98 +456,181 @@ function PhaseCard({
 
 // ── FromStandingsPanel ────────────────────────────────────────────────────────
 
-function FromStandingsPanel({ phase, mainPhase, onConfirm, onCancel }) {
-  const [standings, setStandings] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [perPool,   setPerPool]   = useState(2)
+function FromStandingsPanel({ phase, mainPhase, onConfirm, onCancel, flash, onRefresh }) {
+  const [standings,  setStandings]  = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [perPool,    setPerPool]    = useState(2)
+  const [saving,     setSaving]     = useState(false)
+
+  // true = echte standen beschikbaar (>=1 wedstrijd gespeeld)
+  const hasRealStandings = standings.some(s => (s.w ?? 0) + (s.d ?? 0) + (s.l ?? 0) > 0)
+
+  // Modus: 'pre' = placeholders aanmaken; 'real' = echte standen invullen
+  const [mode, setMode] = useState(null)  // null = laden
 
   useEffect(() => {
-    if (!mainPhase) { setLoading(false); return }
+    if (!mainPhase) { setLoading(false); setMode('pre'); return }
     getPhaseStandings(mainPhase.id)
-      .then(s => setStandings(s))
-      .catch(() => {})
+      .then(s => {
+        setStandings(s)
+        const hasMatches = s.some(st => (st.w ?? 0) + (st.d ?? 0) + (st.l ?? 0) > 0)
+        setMode(hasMatches ? 'real' : 'pre')
+      })
+      .catch(() => setMode('pre'))
       .finally(() => setLoading(false))
   }, [mainPhase?.id])
 
-  // Groepeer op pool_name, bewaar volgorde
-  const pools = []
+  // Pools voor pre-modus: uit mainPhase.pools
+  const sourcePools = mainPhase?.pools ?? []
+
+  // Pools voor real-modus: groepeer standings op pool_name
+  const standingsByPool = []
   const poolIndex = {}
   for (const s of standings) {
     const key = s.pool_name ?? 'Zonder poule'
     if (poolIndex[key] === undefined) {
-      poolIndex[key] = pools.length
-      pools.push({ name: key, teams: [] })
+      poolIndex[key] = standingsByPool.length
+      standingsByPool.push({ name: key, teams: [] })
     }
-    pools[poolIndex[key]].teams.push(s)
+    standingsByPool[poolIndex[key]].teams.push(s)
   }
 
-  const totalSelected = pools.reduce((acc, p) => acc + Math.min(perPool, p.teams.length), 0)
   const positions = Array.from({ length: perPool }, (_, i) => i + 1)
+  const totalPre  = sourcePools.reduce((acc, p) => acc + Math.min(perPool, p.team_count || perPool), 0)
+  const totalReal = standingsByPool.reduce((acc, p) => acc + Math.min(perPool, p.teams.length), 0)
+
+  async function handlePreAllocate() {
+    setSaving(true)
+    try {
+      const r = await preAllocatePhaseTeams(phase.id, positions)
+      flash(`${r.created} placeholder-teams aangemaakt vanuit "${r.source_phase}"`)
+      onCancel()
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+    finally { setSaving(false) }
+  }
+
+  async function handleRealStandings() {
+    setSaving(true)
+    try {
+      const r = await onConfirm(positions)
+      // onConfirm handles flash + refresh
+    } catch (e) { flash(e.message, true) }
+    finally { setSaving(false) }
+  }
+
+  const perPoolBtns = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+      <span style={{ fontSize: 13 }}>Aantal per poule:</span>
+      {[1, 2, 3, 4].map(n => (
+        <button key={n} onClick={() => setPerPool(n)} style={{
+          width: 34, height: 34, borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: 14,
+          cursor: 'pointer', border: 'none',
+          background: perPool === n ? 'var(--color-primary)' : 'var(--color-surface)',
+          color: perPool === n ? '#fff' : 'var(--color-text-muted)',
+          outline: perPool === n ? 'none' : '1px solid var(--color-border)',
+        }}>{n}</button>
+      ))}
+    </div>
+  )
 
   return (
     <div style={standingsPanel}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 10, textTransform: 'uppercase' }}>
-        Vul teams in vanuit standen
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', flex: 1 }}>
+          Teams toevoegen aan fase
+        </span>
+        {/* Tab-wissel als beide opties beschikbaar zijn */}
+        {hasRealStandings && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[['pre', 'Placeholders'], ['real', 'Echte standen']].map(([m, label]) => (
+              <button key={m} onClick={() => setMode(m)} style={{
+                padding: '3px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
+                border: `1px solid ${mode === m ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                background: mode === m ? 'var(--color-primary)' : 'transparent',
+                color: mode === m ? '#fff' : 'var(--color-text-muted)',
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Aantal per poule */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <span style={{ fontSize: 13, color: 'var(--color-text)' }}>Aantal per poule:</span>
-        {[1, 2, 3, 4].map(n => (
-          <button key={n} onClick={() => setPerPool(n)} style={{
-            width: 34, height: 34, borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: 14,
-            cursor: 'pointer', border: 'none',
-            background: perPool === n ? 'var(--color-primary)' : 'var(--color-surface)',
-            color: perPool === n ? '#fff' : 'var(--color-text-muted)',
-            outline: perPool === n ? 'none' : '1px solid var(--color-border)',
-          }}>{n}</button>
-        ))}
-      </div>
-
-      {/* Preview per poule */}
       {loading ? (
-        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>Standen laden…</div>
-      ) : pools.length === 0 ? (
-        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>
-          Geen poule-standen beschikbaar. Speel eerst wedstrijden in de poule-fase.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          {pools.map(pool => (
-            <div key={pool.name} style={{ flex: '1 1 160px', minWidth: 140, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: '5px 10px', background: 'var(--color-surface-2)', fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {pool.name}
-              </div>
-              <div style={{ padding: '6px 10px' }}>
-                {pool.teams.map((t, i) => {
-                  const selected = i < perPool
-                  return (
-                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, opacity: selected ? 1 : 0.35 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, minWidth: 16, color: selected ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
-                        {i + 1}.
-                      </span>
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: selected ? 600 : 400 }}>{t.name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.pts}p</span>
-                    </div>
-                  )
-                })}
-              </div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>Laden…</div>
+      ) : mode === 'pre' ? (
+        /* ── Pre-alloceer modus ── */
+        <>
+          {perPoolBtns}
+          {sourcePools.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--color-warning)', marginBottom: 12 }}>
+              Nog geen sub-poules aangemaakt in de poule-fase. Maak eerst poules aan via Auto-verdelen.
             </div>
-          ))}
-        </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {sourcePools.map(pool => (
+                  <div key={pool.id} style={previewPoolCard}>
+                    <div style={previewPoolHeader}>{pool.name}</div>
+                    <div style={{ padding: '6px 10px' }}>
+                      {Array.from({ length: perPool }, (_, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 3, alignItems: 'center' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', minWidth: 16 }}>#{i + 1}</span>
+                          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{pool.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+                Er worden {totalPre} placeholder-teams aangemaakt (bijv. "#1 Poule A"). Zodra alle wedstrijden in de poule-fase gespeeld zijn, verschijnen de echte namen automatisch.
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handlePreAllocate} disabled={saving || sourcePools.length === 0}
+              style={{ ...primaryBtn, opacity: (saving || sourcePools.length === 0) ? 0.5 : 1 }}>
+              {saving ? '…' : `Pre-alloceer (${totalPre} slots)`}
+            </button>
+            <button onClick={onCancel} style={ghostBtn}>Annuleren</button>
+          </div>
+        </>
+      ) : (
+        /* ── Echte standen modus ── */
+        <>
+          {perPoolBtns}
+          {standingsByPool.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>Geen standen beschikbaar.</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {standingsByPool.map(pool => (
+                <div key={pool.name} style={previewPoolCard}>
+                  <div style={previewPoolHeader}>{pool.name}</div>
+                  <div style={{ padding: '6px 10px' }}>
+                    {pool.teams.map((t, i) => {
+                      const sel = i < perPool
+                      return (
+                        <div key={t.id} style={{ display: 'flex', gap: 6, marginBottom: 3, opacity: sel ? 1 : 0.35 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, minWidth: 16, color: sel ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>{i + 1}.</span>
+                          <span style={{ flex: 1, fontSize: 12, fontWeight: sel ? 600 : 400 }}>{t.name}</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.pts}p</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => onConfirm(positions)} disabled={saving || standingsByPool.length === 0}
+              style={{ ...primaryBtn, opacity: (saving || standingsByPool.length === 0) ? 0.5 : 1 }}>
+              {saving ? '…' : `Bevestigen (${totalReal} teams)`}
+            </button>
+            <button onClick={onCancel} style={ghostBtn}>Annuleren</button>
+          </div>
+        </>
       )}
-
-      {/* Bevestig / Annuleer */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button
-          onClick={() => onConfirm(positions)}
-          disabled={pools.length === 0}
-          style={{ ...primaryBtn, opacity: pools.length === 0 ? 0.5 : 1 }}
-        >
-          Bevestigen ({totalSelected} teams)
-        </button>
-        <button onClick={onCancel} style={ghostBtn}>Annuleren</button>
-      </div>
     </div>
   )
 }
@@ -566,4 +652,6 @@ const teamPoolSelect = { fontSize: 11, padding: '2px 4px', border: '1px solid va
 const sectionLabel  = { fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6, textTransform: 'uppercase' }
 const teamChip      = { padding: '3px 10px', fontSize: 12, borderRadius: 99, background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }
 const actionRow     = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12, marginTop: 4 }
-const standingsPanel = { marginTop: 12, padding: '14px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-primary)', borderRadius: 10 }
+const standingsPanel    = { marginTop: 12, padding: '14px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-primary)', borderRadius: 10 }
+const previewPoolCard   = { flex: '1 1 140px', minWidth: 120, background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }
+const previewPoolHeader = { padding: '5px 10px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--color-border)' }

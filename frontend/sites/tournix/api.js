@@ -68,3 +68,5 @@ export const getPhaseStandings      = (pid)        => api.get(`/api/tournix/phas
 export const createPoolInPhase      = (pid, data)  => api.post(`/api/tournix/phases/${pid}/pools`, data)
 export const deletePoolInPhase      = (pid, poolId) => api.delete(`/api/tournix/phases/${pid}/pools/${poolId}`)
 export const autoPoolsInPhase       = (pid, data)  => api.post(`/api/tournix/phases/${pid}/auto-pools`, data)
+export const preAllocatePhaseTeams  = (pid, positions) => api.post(`/api/tournix/phases/${pid}/teams/pre-allocate`, { positions })
+export const resolvePhaseplaceholders = (pid)      => api.post(`/api/tournix/phases/${pid}/resolve-placeholders`)
