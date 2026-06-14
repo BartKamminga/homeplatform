@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react'
 import { getStandings, getSnapshots, getSnapshot, getMatches, getTeams, getPools, getClubs, getPhases, getPhaseStandings } from '../api.js'
 
+function resolveTeam(teamId, sourceId, takes, teamMap, matchMap) {
+  if (teamId) return teamMap[teamId] ?? null
+  if (!sourceId) return null
+  const src = matchMap?.[sourceId]
+  if (!src) return null
+  const label = takes === 'loser' ? 'Verl.' : 'Win.'
+  const tA = src.team_a_id ? (teamMap[src.team_a_id]?.name ?? '?') : '?'
+  const tB = src.team_b_id ? (teamMap[src.team_b_id]?.name ?? '?') : '?'
+  return { name: `${label} ${tA}–${tB}`, is_placeholder: true }
+}
+
 /* ── Poule card met live-voorspelling ── */
 function PoolCard({ poolName, rows, poolMatches, teamMap }) {
   const [preds, setPreds] = useState({})
@@ -286,13 +297,14 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
         const koMatches = matches.filter(m => m.match_type === 'ko' && !m.phase_id)
         if (!koMatches.length) return null
         const teamMap = Object.fromEntries(teams.map(t => [t.id, t]))
+        const matchMap = Object.fromEntries(matches.map(m => [m.id, m]))
         return (
           <div style={{ marginTop: 24 }}>
             <h2 style={sectionTitle}>Knock-out</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {koMatches.map(m => {
-                const ta = teamMap[m.team_a_id]
-                const tb = teamMap[m.team_b_id]
+                const ta = resolveTeam(m.team_a_id, m.source_match_a_id, m.source_a_takes, teamMap, matchMap)
+                const tb = resolveTeam(m.team_b_id, m.source_match_b_id, m.source_b_takes, teamMap, matchMap)
                 const done = m.status === 'finished'
                 const winA = done && m.score_a > m.score_b
                 const winB = done && m.score_b > m.score_a
@@ -321,6 +333,7 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
       {/* Vervolg-fases (hoofd-fase overgeslagen — staat al in "Stand" hierboven) */}
       {phases.filter(p => !p.is_main_phase).map(phase => {
         const teamMap = Object.fromEntries(teams.map(t => [t.id, t]))
+        const matchMap = Object.fromEntries(matches.map(m => [m.id, m]))
         const phaseMatches = matches.filter(m => m.phase_id === phase.id)
         const ps = phaseStandings[phase.id] || []
 
@@ -328,7 +341,6 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
         const koRounds = {}
         if (phase.phase_type === 'ko') {
           for (const m of phaseMatches) {
-            if (!m.team_a_id && !m.team_b_id) continue  // nog onbekend, overslaan
             const r = m.bracket_round ?? 0
             if (!koRounds[r]) koRounds[r] = []
             koRounds[r].push(m)
@@ -393,66 +405,68 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
               </div>
             )}
 
-            {/* KO-bracket per ronde */}
-            {phase.phase_type === 'ko' && Object.keys(koRounds).length > 0 && (
-              <div>
-                {Object.entries(koRounds)
-                  .sort(([a], [b]) => Number(a) - Number(b))
-                  .map(([r, rMatches]) => {
-                    const rNum = Number(r)
-                    const isFinalRound = rNum === maxKoRound
-                    const consolationMatches = rMatches.filter(m => m.source_a_takes === 'loser' || m.source_b_takes === 'loser')
-                    const mainMatches = rMatches.filter(m => m.source_a_takes !== 'loser' && m.source_b_takes !== 'loser')
-
-                    const renderKoMatch = (m, label) => {
-                      const ta = teamMap[m.team_a_id]
-                      const tb = teamMap[m.team_b_id]
-                      const done = m.status === 'finished' && (m.team_a_id || m.team_b_id)
-                      const winA = done && m.score_a > m.score_b
-                      const winB = done && m.score_b > m.score_a
-                      return (
-                        <div key={m.id} style={{ background: 'var(--color-surface)', border: `1px solid ${isFinalRound && !label?.includes('Troost') ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 12, padding: '12px 16px', marginBottom: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ flex: 1, fontWeight: winA ? 700 : 500, color: winB ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: ta?.is_placeholder ? 'italic' : 'normal' }}>{ta?.name ?? '—'}</span>
-                            <span style={{ fontSize: 16, fontWeight: 700, minWidth: 56, textAlign: 'center', color: done ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
-                              {done ? `${m.score_a}–${m.score_b}` : 'vs'}
-                            </span>
-                            <span style={{ flex: 1, textAlign: 'right', fontWeight: winB ? 700 : 500, color: winA ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: tb?.is_placeholder ? 'italic' : 'normal' }}>{tb?.name ?? '—'}</span>
-                          </div>
-                          {done && m.shootout_winner && (
-                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, textAlign: 'center' }}>
-                              PSO — {m.shootout_winner === 'a' ? ta?.name : tb?.name}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <div key={r} style={{ marginBottom: 16 }}>
-                        {/* Hoofdmatches label */}
-                        {mainMatches.length > 0 && (
-                          <>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                              {isFinalRound ? 'Finale' : koRoundLabel(rNum)}
-                            </div>
-                            {mainMatches.map(m => renderKoMatch(m, isFinalRound ? 'Finale' : koRoundLabel(rNum)))}
-                          </>
-                        )}
-                        {/* Troostfinale */}
-                        {consolationMatches.length > 0 && (
-                          <>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, marginTop: mainMatches.length ? 12 : 0 }}>
-                              Troostfinale
-                            </div>
-                            {consolationMatches.map(m => renderKoMatch(m, 'Troostfinale'))}
-                          </>
-                        )}
+            {/* KO-bracket — horizontale weergave */}
+            {phase.phase_type === 'ko' && Object.keys(koRounds).length > 0 && (() => {
+              const renderBracketMatch = (m, isFinal) => {
+                const ta = resolveTeam(m.team_a_id, m.source_match_a_id, m.source_a_takes, teamMap, matchMap)
+                const tb = resolveTeam(m.team_b_id, m.source_match_b_id, m.source_b_takes, teamMap, matchMap)
+                const done = m.status === 'finished' && (m.team_a_id || m.team_b_id)
+                const winA = done && m.score_a > m.score_b
+                const winB = done && m.score_b > m.score_a
+                return (
+                  <div key={m.id} style={{ background: 'var(--color-surface)', border: `1px solid ${isFinal ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 10, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 12, fontWeight: winA ? 700 : 500, color: winB ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: ta?.is_placeholder ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ta?.name ?? '—'}</div>
+                    <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: done ? 'var(--color-text)' : 'var(--color-text-muted)', padding: '3px 0' }}>
+                      {done ? `${m.score_a} – ${m.score_b}` : 'vs'}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: winB ? 700 : 500, color: winA ? 'var(--color-text-muted)' : 'var(--color-text)', fontStyle: tb?.is_placeholder ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tb?.name ?? '—'}</div>
+                    {done && m.shootout_winner && (
+                      <div style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 2 }}>
+                        PSO — {m.shootout_winner === 'a' ? ta?.name : tb?.name}
                       </div>
-                    )
-                  })}
-              </div>
-            )}
+                    )}
+                  </div>
+                )
+              }
+
+              const sorted = Object.entries(koRounds).sort(([a], [b]) => Number(a) - Number(b))
+              const mainRounds = sorted.map(([r, ms]) => [r, ms.filter(m => m.source_a_takes !== 'loser' && m.source_b_takes !== 'loser')]).filter(([, ms]) => ms.length > 0)
+              const consolations = sorted.flatMap(([, ms]) => ms.filter(m => m.source_a_takes === 'loser' || m.source_b_takes === 'loser'))
+              const firstCount = mainRounds[0]?.[1].length ?? 1
+              const bracketH = firstCount * 110
+
+              return (
+                <>
+                  <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+                      {mainRounds.map(([r, rMatches]) => {
+                        const rNum = Number(r)
+                        const isFinalRound = rNum === maxKoRound
+                        const label = isFinalRound ? 'Finale' : koRoundLabel(rNum)
+                        return (
+                          <div key={r} style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column', height: bracketH + 24 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, textAlign: 'center' }}>
+                              {label}
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-around', gap: 4 }}>
+                              {rMatches.map(m => renderBracketMatch(m, isFinalRound))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  {consolations.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                        Troostfinale
+                      </div>
+                      {consolations.map(m => renderBracketMatch(m, false))}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         )
       })}

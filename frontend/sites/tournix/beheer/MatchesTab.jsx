@@ -66,8 +66,19 @@ function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
   )
 }
 
+function resolveTeam(teamId, sourceId, takes, teamMap, matchMap) {
+  if (teamId) return teamMap[teamId] ?? null
+  if (!sourceId) return null
+  const src = matchMap?.[sourceId]
+  if (!src) return null
+  const label = takes === 'loser' ? 'Verl.' : 'Win.'
+  const tA = src.team_a_id ? (teamMap[src.team_a_id]?.name ?? '?') : '?'
+  const tB = src.team_b_id ? (teamMap[src.team_b_id]?.name ?? '?') : '?'
+  return { name: `${label} ${tA}–${tB}` }
+}
+
 /* ── Single match card ── */
-function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structureLocked }) {
+function MatchCard({ m, teamMap, fieldMap, matchMap, fields, canScore, onRefresh, structureLocked }) {
   const [scoreEdit,      setScoreEdit]      = useState(false)
   const [scoreA,         setScoreA]         = useState('')
   const [scoreB,         setScoreB]         = useState('')
@@ -114,13 +125,13 @@ function MatchCard({ m, teamMap, fieldMap, fields, canScore, onRefresh, structur
           <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
             background: 'var(--color-warning)', color: '#fff', marginRight: 4 }}>KO</span>
         )}
-        <span style={{ fontWeight: 600 }}>{teamMap[m.team_a_id]?.name ?? '—'}</span>
+        <span style={{ fontWeight: 600 }}>{resolveTeam(m.team_a_id, m.source_match_a_id, m.source_a_takes, teamMap, matchMap)?.name ?? '—'}</span>
         <span style={{ color: 'var(--color-text-muted)' }}>
           {m.status === 'finished'
             ? `${m.score_a}–${m.score_b}${m.shootout_winner ? ' (PSO)' : ''}`
             : 'vs'}
         </span>
-        <span style={{ fontWeight: 600 }}>{teamMap[m.team_b_id]?.name ?? '—'}</span>
+        <span style={{ fontWeight: 600 }}>{resolveTeam(m.team_b_id, m.source_match_b_id, m.source_b_takes, teamMap, matchMap)?.name ?? '—'}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
           {canScore && !scoreEdit && (
             <button onClick={openScoreEdit}
@@ -210,6 +221,11 @@ function ScoreRow({ m, teamMap, fields, tournamentDate, onRefresh }) {
       setShootoutWinner(m.shootout_winner ?? null)
     }
   }, [m.score_a, m.score_b, m.status, m.shootout_winner])
+
+  useEffect(() => {
+    setMatchTime(m.scheduled_at ? m.scheduled_at.slice(11, 16) : '')
+    setMatchField(m.field_id ?? '')
+  }, [m.scheduled_at, m.field_id])
 
   async function saveSchedule(time, fieldId) {
     const base = tournamentDate ? tournamentDate.split('T')[0] : new Date().toISOString().split('T')[0]
@@ -378,7 +394,8 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
     finally { setPlanLoading(null) }
   }
 
-  const cardProps = { teamMap, fieldMap, fields, canScore, onRefresh: load, structureLocked }
+  const matchMap  = Object.fromEntries(matches.map(m => [m.id, m]))
+  const cardProps = { teamMap, fieldMap, matchMap, fields, canScore, onRefresh: load, structureLocked }
 
   if (!tid) return <p style={noTid}>Selecteer eerst een toernooi.</p>
 

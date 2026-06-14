@@ -4,6 +4,17 @@ import { getMatches, getTeams, getFields, getPools, setResult, getPhases } from 
 const STATUS_LABEL = { scheduled: 'Gepland', playing: 'Bezig', finished: 'Klaar' }
 const STATUS_COLOR = { scheduled: 'var(--color-text-muted)', playing: '#f59e0b', finished: '#22c55e' }
 
+function resolveTeam(teamId, sourceId, takes, teamMap, matchMap) {
+  if (teamId) return teamMap[teamId] ?? null
+  if (!sourceId) return null
+  const src = matchMap?.[sourceId]
+  if (!src) return null
+  const label = takes === 'loser' ? 'Verl.' : 'Win.'
+  const tA = src.team_a_id ? (teamMap[src.team_a_id]?.name ?? '?') : '?'
+  const tB = src.team_b_id ? (teamMap[src.team_b_id]?.name ?? '?') : '?'
+  return { name: `${label} ${tA}–${tB}`, is_placeholder: true }
+}
+
 export default function ProgrammaPage({ stage, tournament }) {
   const [matches,  setMatches]  = useState([])
   const [teams,    setTeams]    = useState({})
@@ -54,6 +65,7 @@ export default function ProgrammaPage({ stage, tournament }) {
     }
   }, [isTest])
 
+  const matchMap = Object.fromEntries(matches.map(m => [m.id, m]))
   const nonPhaseMatches = matches.filter(m => !m.phase_id && m.status !== 'finished')
 
   const groupedByRonde = nonPhaseMatches.reduce((acc, m) => {
@@ -195,7 +207,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ flex: 1, textAlign: 'right', fontWeight: 600, fontSize: 14 }}>
-                      {teams[m.team_a_id]?.name ?? '—'}
+                      {resolveTeam(m.team_a_id, m.source_match_a_id, m.source_a_takes, teams, matchMap)?.name ?? '—'}
                     </div>
                     <div style={{ minWidth: 60, textAlign: 'center' }}>
                       {showFinished
@@ -209,7 +221,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                       }
                     </div>
                     <div style={{ flex: 1, textAlign: 'left', fontWeight: 600, fontSize: 14 }}>
-                      {teams[m.team_b_id]?.name ?? '—'}
+                      {resolveTeam(m.team_b_id, m.source_match_b_id, m.source_b_takes, teams, matchMap)?.name ?? '—'}
                     </div>
                   </div>
 
@@ -332,7 +344,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                 return (
                   <div key={m.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ flex: 1, textAlign: 'right', fontWeight: 600, fontSize: 14 }}>{teams[m.team_a_id]?.name ?? '—'}</div>
+                      <div style={{ flex: 1, textAlign: 'right', fontWeight: 600, fontSize: 14 }}>{resolveTeam(m.team_a_id, m.source_match_a_id, m.source_a_takes, teams, matchMap)?.name ?? '—'}</div>
                       <div style={{ minWidth: 60, textAlign: 'center' }}>
                         {showFinished
                           ? <span style={{ fontSize: 16, fontWeight: 700 }}>
@@ -342,7 +354,7 @@ export default function ProgrammaPage({ stage, tournament }) {
                           : <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>vs</span>
                         }
                       </div>
-                      <div style={{ flex: 1, textAlign: 'left', fontWeight: 600, fontSize: 14 }}>{teams[m.team_b_id]?.name ?? '—'}</div>
+                      <div style={{ flex: 1, textAlign: 'left', fontWeight: 600, fontSize: 14 }}>{resolveTeam(m.team_b_id, m.source_match_b_id, m.source_b_takes, teams, matchMap)?.name ?? '—'}</div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
                       {m.scheduled_at && <span>{new Date(m.scheduled_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>}

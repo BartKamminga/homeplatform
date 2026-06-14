@@ -568,12 +568,6 @@ function PhaseCard({
                   </button>
                 )
               })}
-              {selectedFids.size > 0 && !isReadonly && (
-                <button type="button" onClick={() => setSelectedFids(new Set())}
-                  style={{ fontSize: 11, background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', textDecoration: 'underline' }}>
-                  alles
-                </button>
-              )}
             </div>
           )}
         </div>
