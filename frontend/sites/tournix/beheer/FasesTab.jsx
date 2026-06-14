@@ -4,7 +4,7 @@ import {
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
   assignTeamPool, getTeams, getFields,
-  setPhaseFields, planPhaseSchedule,
+  setPhaseFields,
 } from '../api.js'
 import { inputStyle, primaryBtn, ghostBtn, noTid } from './styles.js'
 
@@ -142,7 +142,6 @@ function PhaseCard({
   const [duration,      setDuration]      = useState(phase.match_duration_min ?? 20)
   const [breakMin,      setBreakMin]      = useState(phase.break_min ?? 5)
   const [selectedFids,  setSelectedFids]  = useState(new Set(phase.field_ids ?? []))
-  const [planning,      setPlanning]      = useState(false)
 
   // Teams die in deze fase zitten (main = iedereen, anders: TournixPhaseTeam)
   const phaseTeamIds = new Set(
@@ -236,19 +235,6 @@ function PhaseCard({
       await setPhaseFields(phase.id, Array.from(selectedFids))
       flash('Inplanning instellingen opgeslagen')
     } catch (e) { flash(e.message, true) }
-  }
-
-  async function handlePlan() {
-    if (!window.confirm(`Schema inplannen voor "${phase.name}"? Bestaande tijden en velden worden overschreven.`)) return
-    setPlanning(true)
-    try {
-      await updatePhase(phase.id, { match_duration_min: duration, break_min: breakMin })
-      await setPhaseFields(phase.id, Array.from(selectedFids))
-      const r = await planPhaseSchedule(phase.id)
-      flash(`${r.updated} wedstrijden ingepland in ${r.slots} slots`)
-      await onRefresh()
-    } catch (e) { flash(e.message, true) }
-    finally { setPlanning(false) }
   }
 
   function toggleField(fid) {
@@ -592,36 +578,14 @@ function PhaseCard({
           )}
         </div>
 
-        {/* Acties */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-          {stage === 'productie' ? (
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-              In productie: alleen handmatig aanpassen via Wedstrijden-tab
-            </span>
-          ) : (
-            <>
-              {!isReadonly && (
-                <button onClick={handleSaveScheduleParams} style={{ ...ghostBtn, fontSize: 12 }}>
-                  Opslaan
-                </button>
-              )}
-              <button
-                onClick={handlePlan}
-                disabled={planning || phase.match_count === 0}
-                style={{
-                  ...primaryBtn, fontSize: 12,
-                  opacity: (planning || phase.match_count === 0) ? 0.5 : 1,
-                  cursor: (planning || phase.match_count === 0) ? 'default' : 'pointer',
-                }}
-              >
-                {planning ? '…' : '📅 Plan in'}
-              </button>
-              {phase.match_count === 0 && (
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Genereer eerst het schema</span>
-              )}
-            </>
-          )}
-        </div>
+        {/* Opslaan */}
+        {!isReadonly && (
+          <div style={{ marginTop: 10 }}>
+            <button onClick={handleSaveScheduleParams} style={{ ...ghostBtn, fontSize: 12 }}>
+              Opslaan
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Waarschuwing: teams maar geen schema */}

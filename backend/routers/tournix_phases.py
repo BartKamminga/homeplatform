@@ -685,7 +685,7 @@ def generate_phase_schedule(
 
 # ── Velden per fase ───────────────────────────────────────────────────────────
 
-@router.put("/phases/{pid}/fields")
+@router.post("/phases/{pid}/fields")
 def set_phase_fields(
     pid: str,
     body: SetPhaseFieldsBody,
