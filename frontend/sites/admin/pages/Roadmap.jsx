@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../AdminLayout.jsx";
 import { api } from "@core/api.js";
+import { useUiPref } from "@core/useUiPref.js";
 import RoadmapItemForm from "./RoadmapItemForm.jsx";
 import RoadmapItemRow from "./RoadmapItemRow.jsx";
 import { s, SITES, STATUSES, PRIORITIES, PRIORITY_LABEL, STATUS_CYCLE, STATUS_LABEL, STATUS_COLOR, STATUS_ORDER } from "./roadmapConstants.js";
@@ -10,9 +11,10 @@ export default function Roadmap() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [filterSite, setFilterSite] = useState("alle");
-  const [filterStatus, setFilterStatus] = useState("alle");
-  const [filterPriority, setFilterPriority] = useState("alle");
+  const [filterSite, setFilterSite] = useUiPref("rm_site", "alle");
+  const [filterStatus, setFilterStatus] = useUiPref("rm_status", "alle");
+  const [filterPriority, setFilterPriority] = useUiPref("rm_priority", "alle");
+  const [lastSite, setLastSite] = useUiPref("rm_last_site", "platform");
 
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -32,6 +34,7 @@ export default function Roadmap() {
     try {
       const created = await api.post("/api/roadmap", form);
       setItems((prev) => [created, ...prev]);
+      setLastSite(form.site);
       setShowNewForm(false);
     } catch (e) {
       setError(e.message);
@@ -139,7 +142,7 @@ export default function Roadmap() {
       </div>
 
       {showNewForm && (
-        <RoadmapItemForm onSave={handleCreate} onCancel={() => setShowNewForm(false)} saving={saving} />
+        <RoadmapItemForm initialSite={lastSite} onSave={handleCreate} onCancel={() => setShowNewForm(false)} saving={saving} />
       )}
 
       {loading && <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>Laden…</p>}

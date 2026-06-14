@@ -13,6 +13,7 @@ const DB_USER_ROWS = [
   { label: 'theme_id, language',                                   where: 'user_preferences',       note: 'Thema en taal' },
   { label: 'df_moment, df_repeat, df_history, df_photo_required',  where: 'user_preferences.extra', note: 'DontForget instellingen' },
   { label: 'mm_desktop_layout, mm_mobile_layout',                  where: 'user_preferences.extra', note: 'MixMusic layout' },
+  { label: 'rm_site, rm_status, rm_priority, rm_last_site',        where: 'user_preferences.extra', note: 'Roadmap filterinstellingen' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },
 ];
@@ -47,6 +48,7 @@ const LS_ROWS = [
   { label: 'nk_form / nk_played / nk_focus',     note: 'Weergave-instellingen',                          scope: 'NKHockey' },
   { label: 'nk_sim_count',                       note: 'Simulatieaantal',                                scope: 'NKHockey' },
   { label: 'nk_disclaimer_seen',                 note: 'Disclaimer gezien',                              scope: 'NKHockey' },
+  { label: 'rm_site / rm_status / rm_priority / rm_last_site', note: 'Roadmap filters — cache (via DB)', scope: 'Admin / Roadmap' },
 ];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */

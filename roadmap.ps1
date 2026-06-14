@@ -39,7 +39,10 @@ $Script  = Join-Path $PSScriptRoot "roadmap_nas.py"
 function NasRun([string[]]$ArgList) {
     $bytes  = [System.IO.File]::ReadAllBytes($Script)
     $b64    = [Convert]::ToBase64String($bytes)
-    $args_s = $ArgList -join " "
+    $quoted = $ArgList | ForEach-Object {
+        if ($_ -match ' ') { "'" + $_.Replace("'", "'\\''") + "'" } else { $_ }
+    }
+    $args_s = $quoted -join " "
     $result = ssh -i $NasKey -o StrictHostKeyChecking=no $NasHost "echo '$b64' | base64 -d | python3 - $args_s"
     return $result
 }
@@ -70,9 +73,9 @@ if ($Changelog) {
 if ($Add) {
     if (-not $Title) { Write-Host "Geef -Title op"; exit 1 }
     if (-not $Site)  { Write-Host "Geef -Site op";  exit 1 }
-    $a = @("add", "--title", "`"$Title`"", "--site", $Site)
+    $a = @("add", "--title", $Title, "--site", $Site)
     if ($Priority)    { $a += "--priority";    $a += $Priority }
-    if ($Description) { $a += "--description"; $a += "`"$Description`"" }
+    if ($Description) { $a += "--description"; $a += $Description }
     NasRun $a
     exit 0
 }
@@ -106,12 +109,12 @@ if ($Update) {
     $a = @("update", "--id", $Id)
     if ($Status)      { $a += "--status";      $a += $Status }
     if ($Priority)    { $a += "--priority";    $a += $Priority }
-    if ($Title)       { $a += "--title";       $a += "`"$Title`"" }
-    if ($Notes)       { $a += "--notes";       $a += "`"$Notes`"" }
+    if ($Title)       { $a += "--title";       $a += $Title }
+    if ($Notes)       { $a += "--notes";       $a += $Notes }
     if ($Version)     { $a += "--version";     $a += $Version }
     if ($Impact)      { $a += "--impact";      $a += $Impact }
     if ($Risk)        { $a += "--risk";        $a += $Risk }
-    if ($Scope)       { $a += "--scope";       $a += "`"$Scope`"" }
+    if ($Scope)       { $a += "--scope";       $a += $Scope }
     if ($Description) { $a += "--description"; $a += "`"$Description`"" }
     if ($a.Count -le 2) { Write-Host "Geef minimaal een veld op om bij te werken"; exit 1 }
     NasRun $a

@@ -32,8 +32,8 @@ function MeterField({ label, name, value, onChange }) {
   );
 }
 
-export default function RoadmapItemForm({ initial, onSave, onCancel, saving }) {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+export default function RoadmapItemForm({ initial, onSave, onCancel, saving, initialSite }) {
+  const [form, setForm] = useState(initial || (initialSite ? { ...EMPTY_FORM, site: initialSite } : EMPTY_FORM));
 
   function handleChange(e) {
     const { name, value } = e.target;
