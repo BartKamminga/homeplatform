@@ -74,7 +74,7 @@ export default function TodayPage({ onAdd, onEdit, refreshKey }) {
   }, [load])
 
   async function sendToRoadmap(task) {
-    await api.post('/api/roadmap', { title: task.title, site: 'dontforget', priority: 'midden', status: 'idee' })
+    await api.post('/api/roadmap', { title: task.title, site: 'dontforget', priority: 'medium', status: 'idea' })
   }
 
   async function toggle(task) {

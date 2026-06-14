@@ -87,7 +87,7 @@ function SelectRow({ icon, iconBg, iconColor, title, options, value, onChange })
   )
 }
 
-function ChangelogPopup({ onClose }) {
+function ChangelogPopup({ onClose, changelog }) {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -135,7 +135,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ paddingBottom: 16 }}>
-      {showChangelog && <ChangelogPopup onClose={() => setShowChangelog(false)} />}
+      {showChangelog && <ChangelogPopup onClose={() => setShowChangelog(false)} changelog={changelog} />}
 
       {/* Topbar */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--bg-card)' }}>
