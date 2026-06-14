@@ -424,7 +424,7 @@ function PhaseCard({
 
           {!isReadonly && !phase.is_main_phase && (
             <div style={actionRow}>
-              <button onClick={handleFromStandings} style={{ ...ghostBtn, fontSize: 12 }}>
+              <button onClick={() => setShowStandingsUI(true)} style={{ ...ghostBtn, fontSize: 12 }}>
                 Vul uit standen
               </button>
             </div>
