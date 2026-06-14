@@ -7,7 +7,7 @@ from core.database import get_session, persist
 from core.auth import require_admin, hash_password, GUEST_GROUP
 from core.crud import get_or_404
 from core.logging import log_action
-from models.core import User, UserGroup, Group
+from models.core import User, UserGroup, Group, UserPreference
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin - users"])
 
@@ -148,6 +148,40 @@ def add_user_to_group(
         log_action(session, "user.group.add", user_id=admin.id,
                    payload={"user": user.username, "group": group_slug})
     return {"message": f"{user.username} toegevoegd aan {group_slug}"}
+
+
+@router.delete("/{user_id}", status_code=204)
+def delete_user(
+    user_id: str,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Je kunt je eigen account niet verwijderen")
+    user = get_or_404(session, User, user_id, "Gebruiker")
+
+    # Blokkeer als dit de laatste admin is
+    admin_group = session.exec(select(Group).where(Group.slug == "admins")).first()
+    if admin_group:
+        is_admin = session.exec(
+            select(UserGroup).where(UserGroup.user_id == user_id, UserGroup.group_id == admin_group.id)
+        ).first()
+        if is_admin:
+            admin_count = len(session.exec(
+                select(UserGroup).where(UserGroup.group_id == admin_group.id)
+            ).all())
+            if admin_count <= 1:
+                raise HTTPException(status_code=400, detail="Kan de laatste beheerder niet verwijderen")
+
+    username = user.username
+    for row in session.exec(select(UserGroup).where(UserGroup.user_id == user_id)).all():
+        session.delete(row)
+    pref = session.exec(select(UserPreference).where(UserPreference.user_id == user_id)).first()
+    if pref:
+        session.delete(pref)
+    session.delete(user)
+    session.commit()
+    log_action(session, "user.delete", user_id=admin.id, payload={"deleted_user": username})
 
 
 @router.delete("/{user_id}/groups/{group_slug}")

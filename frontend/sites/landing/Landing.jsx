@@ -131,13 +131,13 @@ export default function Landing() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: "100%", maxWidth: "560px", padding: "48px 24px" }}>
+      <div className="landing-inner">
 
         <div style={{ marginBottom: "2rem" }}>
           <Logo size={36} showName nameStyle={{ fontSize: 20, color: 'var(--color-text)' }} />
         </div>
 
-        <h1 style={{ fontSize: "32px", fontWeight: 600, color: "var(--color-text)", marginBottom: "8px", letterSpacing: "-0.5px" }}>
+        <h1 className="landing-title" style={{ fontWeight: 600, color: "var(--color-text)", marginBottom: "8px", letterSpacing: "-0.5px" }}>
           {loggedIn && username ? `Welkom, ${username}` : "Welkom"}
         </h1>
 

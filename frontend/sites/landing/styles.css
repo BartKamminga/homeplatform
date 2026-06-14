@@ -21,6 +21,26 @@ html, body, #root {
   font-family: var(--font-base);
 }
 
+/* Main container */
+.landing-inner {
+  width: 100%;
+  max-width: 560px;
+  padding: 48px 24px;
+}
+
+.landing-title {
+  font-size: 32px;
+}
+
+@media (max-width: 479px) {
+  .landing-inner {
+    padding: 28px 16px;
+  }
+  .landing-title {
+    font-size: 24px;
+  }
+}
+
 /* Responsive app card grid */
 .app-grid {
   display: grid;

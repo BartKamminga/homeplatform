@@ -58,6 +58,14 @@ export default function Users() {
     load();
   }
 
+  async function deleteUser(user) {
+    if (!window.confirm(`Gebruiker "${user.username}" permanent verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return
+    try {
+      await api.delete(`/api/admin/users/${user.id}`)
+      load()
+    } catch(e) { setError(e.message) }
+  }
+
   async function toggleGroup(user, groupSlug, currently) {
     try {
       await toggleEndpoint(`/api/admin/users/${user.id}/groups/${groupSlug}`, currently);
@@ -98,6 +106,12 @@ export default function Users() {
           }}
         >
           {row.is_active ? 'Blokkeren' : 'Activeren'}
+        </button>
+        <button
+          onClick={() => deleteUser(row)}
+          style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger)', padding: '4px 10px', fontSize: '12px' }}
+        >
+          ✕ Verwijderen
         </button>
       </div>
     )},
