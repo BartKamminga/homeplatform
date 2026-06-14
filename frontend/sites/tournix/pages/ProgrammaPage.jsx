@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMatches, getTeams, getFields, getPools, setResult } from '../api.js'
+import { getMatches, getTeams, getFields, getPools, setResult, getPhases } from '../api.js'
 
 const STATUS_LABEL = { scheduled: 'Gepland', playing: 'Bezig', finished: 'Klaar' }
 const STATUS_COLOR = { scheduled: 'var(--color-text-muted)', playing: '#f59e0b', finished: '#22c55e' }
@@ -9,6 +9,7 @@ export default function ProgrammaPage({ stage, tournament }) {
   const [teams,    setTeams]    = useState({})
   const [fields,   setFields]   = useState({})
   const [pools,    setPools]    = useState([])
+  const [phases,   setPhases]   = useState([])
   const [viewMode, setViewMode] = useState('ronde')  // 'ronde' | 'poule'
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
@@ -30,15 +31,16 @@ export default function ProgrammaPage({ stage, tournament }) {
   const isTest = stage === 'test'
 
   useEffect(() => {
-    setMatches([]); setTeams({}); setFields({}); setPools([])
+    setMatches([]); setTeams({}); setFields({}); setPools([]); setPhases([])
     if (!tournament?.id) return
     setLoading(true)
-    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getFields(tournament.id), getPools(tournament.id)])
-      .then(([m, t, f, p]) => {
+    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getFields(tournament.id), getPools(tournament.id), getPhases(tournament.id)])
+      .then(([m, t, f, p, ph]) => {
         setMatches(m)
         setTeams(Object.fromEntries(t.map(x => [x.id, x])))
         setFields(Object.fromEntries(f.map(x => [x.id, x])))
         setPools(p)
+        setPhases(ph)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -52,7 +54,9 @@ export default function ProgrammaPage({ stage, tournament }) {
     }
   }, [isTest])
 
-  const groupedByRonde = matches.reduce((acc, m) => {
+  const nonPhaseMatches = matches.filter(m => !m.phase_id)
+
+  const groupedByRonde = nonPhaseMatches.reduce((acc, m) => {
     const key = m.match_type === 'ko'
       ? 'Knock-out'
       : m.round != null ? `Ronde ${m.round}` : 'Overig'
@@ -61,25 +65,24 @@ export default function ProgrammaPage({ stage, tournament }) {
     return acc
   }, {})
 
-  // Group pool matches by pool; KO matches in their own section
+  // Group pool matches by pool; KO matches in their own section (exclude phase matches)
   const groupedByPoule = (() => {
     const result = {}
     for (const p of pools) {
-      const poolMatches = matches.filter(m =>
+      const poolMatches = nonPhaseMatches.filter(m =>
         m.match_type !== 'ko' &&
         teams[m.team_a_id]?.pool_id === p.id &&
         teams[m.team_b_id]?.pool_id === p.id
       )
       if (poolMatches.length > 0) result[p.name] = poolMatches
     }
-    // Matches without a pool (or cross-pool)
-    const unassigned = matches.filter(m =>
+    const unassigned = nonPhaseMatches.filter(m =>
       m.match_type !== 'ko' &&
       pools.length > 0 &&
       !(teams[m.team_a_id]?.pool_id && teams[m.team_a_id]?.pool_id === teams[m.team_b_id]?.pool_id)
     )
     if (unassigned.length > 0) result['Overig'] = unassigned
-    const ko = matches.filter(m => m.match_type === 'ko')
+    const ko = nonPhaseMatches.filter(m => m.match_type === 'ko')
     if (ko.length > 0) result['Knock-out'] = ko
     return result
   })()
@@ -168,6 +171,7 @@ export default function ProgrammaPage({ stage, tournament }) {
       {Object.entries(grouped).map(([round, list]) => (
         <div key={round} style={{ marginBottom: 24 }}>
           <h2 style={sectionTitle}>{round}</h2>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {list.map(m => {
               const sim = simScores[m.id]
@@ -303,6 +307,87 @@ export default function ProgrammaPage({ stage, tournament }) {
           </div>
         </div>
       ))}
+
+      {/* Fase-wedstrijden */}
+      {phases.filter(p => p.match_count > 0).map(phase => {
+        const phaseMatches = matches.filter(m => m.phase_id === phase.id)
+        if (!phaseMatches.length) return null
+        const byRound = phaseMatches.reduce((acc, m) => {
+          const key = m.round != null ? `${phase.name} — Ronde ${m.round}` : phase.name
+          if (!acc[key]) acc[key] = []
+          acc[key].push(m)
+          return acc
+        }, {})
+        return Object.entries(byRound).map(([roundKey, roundList]) => (
+          <div key={roundKey} style={{ marginBottom: 24 }}>
+            <h2 style={sectionTitle}>{roundKey}</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {roundList.map(m => {
+                const isRealEditing = scoreEdit === m.id
+                const showFinished = m.status === 'finished' && !isTest
+                return (
+                  <div key={m.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ flex: 1, textAlign: 'right', fontWeight: 600, fontSize: 14 }}>{teams[m.team_a_id]?.name ?? '—'}</div>
+                      <div style={{ minWidth: 60, textAlign: 'center' }}>
+                        {showFinished
+                          ? <span style={{ fontSize: 16, fontWeight: 700 }}>
+                              {m.score_a} – {m.score_b}
+                              {m.shootout_winner && <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400, display: 'block' }}>PSO</span>}
+                            </span>
+                          : <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>vs</span>
+                        }
+                      </div>
+                      <div style={{ flex: 1, textAlign: 'left', fontWeight: 600, fontSize: 14 }}>{teams[m.team_b_id]?.name ?? '—'}</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      {m.scheduled_at && <span>{new Date(m.scheduled_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>}
+                      {m.field_id && fields[m.field_id] && <span>{fields[m.field_id].name}</span>}
+                      <span style={{ color: STATUS_COLOR[m.status] }}>{STATUS_LABEL[m.status]}</span>
+                    </div>
+                    {!isTest && stage === 'productie' && isRealEditing && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input type="number" min="0" value={scoreA} onChange={e => { setScoreA(e.target.value); setSaveError('') }} style={{ ...scoreInput, width: 52 }} placeholder="0" autoFocus />
+                          <span>–</span>
+                          <input type="number" min="0" value={scoreB} onChange={e => { setScoreB(e.target.value); setSaveError('') }} style={{ ...scoreInput, width: 52 }} placeholder="0" />
+                          <button onClick={() => saveRealResult(m.id)} disabled={savingScore === m.id || scoreA === '' || scoreB === ''} style={{ ...primaryBtn, opacity: (savingScore === m.id || scoreA === '' || scoreB === '') ? 0.5 : 1 }}>
+                            {savingScore === m.id ? 'Opslaan…' : 'Opslaan'}
+                          </button>
+                          <button onClick={() => { setScoreEdit(null); setShootoutWinner(null); setSaveError('') }} style={ghostBtn}>Annuleer</button>
+                        </div>
+                        {m.match_type === 'ko' && scoreA !== '' && scoreB !== '' && parseInt(scoreA) === parseInt(scoreB) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Strafschoppen gewonnen door:</span>
+                            {[['a', teams[m.team_a_id]?.name], ['b', teams[m.team_b_id]?.name]].map(([key, name]) => (
+                              <button key={key} type="button" onClick={() => setShootoutWinner(prev => prev === key ? null : key)}
+                                style={{ padding: '4px 12px', fontSize: 12, borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit',
+                                  border: `1px solid ${shootoutWinner === key ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                  background: shootoutWinner === key ? 'var(--color-primary)' : 'transparent',
+                                  color: shootoutWinner === key ? '#fff' : 'var(--color-text-muted)', fontWeight: shootoutWinner === key ? 600 : 400 }}>
+                                {name ?? '—'}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {saveError && <div style={{ fontSize: 11, color: 'var(--color-danger)' }}>{saveError}</div>}
+                      </div>
+                    )}
+                    {!isTest && stage === 'productie' && !isRealEditing && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                        <button onClick={() => { setScoreEdit(m.id); setScoreA(m.status === 'finished' ? String(m.score_a) : '0'); setScoreB(m.status === 'finished' ? String(m.score_b) : '0'); setShootoutWinner(m.shootout_winner ?? null); setSaveError('') }}
+                          style={{ ...ghostBtn, fontSize: 11, padding: '4px 10px' }}>
+                          {m.status === 'finished' ? 'Wijzig uitslag' : 'Uitslag invoeren'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))
+      })}
     </div>
   )
 }

@@ -56,3 +56,12 @@ export const deleteClub  = (id)        => api.delete(`/api/tournix/clubs/${id}`)
 
 export const importTournament = (data) => api.post('/api/tournix/import', data)
 export const copyTournament   = (tid)  => api.post(`/api/tournix/tournaments/${tid}/copy`)
+
+export const getPhases              = (tid)        => api.get(`/api/tournix/tournaments/${tid}/phases`)
+export const createPhase            = (tid, data)  => api.post(`/api/tournix/tournaments/${tid}/phases`, data)
+export const updatePhase            = (pid, data)  => api.patch(`/api/tournix/phases/${pid}`, data)
+export const deletePhase            = (pid)        => api.delete(`/api/tournix/phases/${pid}`)
+export const setPhaseTeams          = (pid, teams) => api.post(`/api/tournix/phases/${pid}/teams`, { teams })
+export const phaseTeamsFromStandings = (pid, positions) => api.post(`/api/tournix/phases/${pid}/teams/from-standings`, { positions })
+export const generatePhaseSchedule  = (pid)        => api.post(`/api/tournix/phases/${pid}/generate-schedule`)
+export const getPhaseStandings      = (pid)        => api.get(`/api/tournix/phases/${pid}/standings`)

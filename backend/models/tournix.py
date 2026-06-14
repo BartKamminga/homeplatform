@@ -70,6 +70,17 @@ class TournixField(SQLModel, table=True):
     club_id:        Optional[str] = Field(default=None, foreign_key="tournix_clubs.id")
 
 
+class TournixPhase(SQLModel, table=True):
+    __tablename__ = "tournix_phases"
+
+    id:            str      = Field(default_factory=new_uuid, primary_key=True)
+    tournament_id: str      = Field(foreign_key="tournix_tournaments.id", index=True)
+    name:          str
+    order:         int      = Field(default=0)
+    phase_type:    str      = Field(default="pool")  # "pool" | "ko"
+    created_at:    datetime = Field(default_factory=datetime.utcnow)
+
+
 class TournixMatch(SQLModel, table=True):
     __tablename__ = "tournix_matches"
 
@@ -78,6 +89,7 @@ class TournixMatch(SQLModel, table=True):
     team_a_id:      Optional[str]     = Field(default=None, foreign_key="tournix_teams.id")
     team_b_id:      Optional[str]     = Field(default=None, foreign_key="tournix_teams.id")
     field_id:       Optional[str]     = Field(default=None, foreign_key="tournix_fields.id")
+    phase_id:       Optional[str]     = Field(default=None, foreign_key="tournix_phases.id", index=True)
     round:          Optional[int]     = Field(default=None)
     scheduled_at:   Optional[datetime] = Field(default=None)
     score_a:         Optional[int]  = Field(default=None)
@@ -86,6 +98,15 @@ class TournixMatch(SQLModel, table=True):
     status:          str            = Field(default="scheduled")  # scheduled | playing | finished
     match_type:      str            = Field(default="pool")       # pool | ko
     created_at:     datetime          = Field(default_factory=datetime.utcnow)
+
+
+class TournixPhaseTeam(SQLModel, table=True):
+    __tablename__ = "tournix_phase_teams"
+
+    id:         str           = Field(default_factory=new_uuid, primary_key=True)
+    phase_id:   str           = Field(foreign_key="tournix_phases.id", index=True)
+    team_id:    str           = Field(foreign_key="tournix_teams.id")
+    group_name: Optional[str] = Field(default=None)
 
 
 class TournixPrediction(SQLModel, table=True):

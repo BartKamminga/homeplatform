@@ -15,6 +15,7 @@ from models.core import User
 from models.tournix import (
     Tournament, TournixClub, TournixPool, TournixTeam,
     TournixField, TournixMatch, TournixPrediction, TournixSnapshot,
+    TournixPhase, TournixPhaseTeam,
 )
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
@@ -184,7 +185,7 @@ def copy_tournament(
 @router.delete("/tournaments/{tid}", status_code=204)
 def delete_tournament(tid: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
     t = get_or_404(session, Tournament, tid, "Toernooi")
-    # Cascade: predictions → matches → snapshots → teams → fields → pools → tournament
+    # Cascade: predictions → matches → snapshots → phase_teams → phases → teams → fields → pools → tournament
     matches = session.exec(select(TournixMatch).where(TournixMatch.tournament_id == tid)).all()
     for m in matches:
         preds = session.exec(select(TournixPrediction).where(TournixPrediction.match_id == m.id)).all()
@@ -193,6 +194,10 @@ def delete_tournament(tid: str, session: Session = Depends(get_session), _: User
         session.delete(m)
     for snap in session.exec(select(TournixSnapshot).where(TournixSnapshot.tournament_id == tid)).all():
         session.delete(snap)
+    for phase in session.exec(select(TournixPhase).where(TournixPhase.tournament_id == tid)).all():
+        for pt in session.exec(select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == phase.id)).all():
+            session.delete(pt)
+        session.delete(phase)
     for team in session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all():
         session.delete(team)
     for field in session.exec(select(TournixField).where(TournixField.tournament_id == tid)).all():
