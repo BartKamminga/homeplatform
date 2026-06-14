@@ -227,7 +227,6 @@ function PhaseCard({
               ))}
               <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>per poule</span>
               <button onClick={handleApplySlots} style={{ ...ghostBtn, fontSize: 12 }}>↺ Hermaak</button>
-              <button onClick={handleResolveNow} style={{ ...ghostBtn, fontSize: 12 }}>✓ Resolveer nu</button>
             </div>
           )}
         </>
