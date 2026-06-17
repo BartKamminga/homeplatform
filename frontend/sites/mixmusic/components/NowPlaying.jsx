@@ -4,7 +4,7 @@ import { usePlayerContext } from '../context/PlayerContext.jsx'
 const s = {
   wrap: {
     background: 'var(--bg2)',
-    borderBottom: '1px solid var(--border)',
+    borderTop: '1px solid var(--border)',
     flexShrink: 0,
   },
   topRow: {
@@ -47,7 +47,7 @@ const s = {
   empty: {
     display: 'flex', alignItems: 'center', gap: 12,
     padding: '16px 20px', background: 'var(--bg2)',
-    borderBottom: '1px solid var(--border)',
+    borderTop: '1px solid var(--border)',
     color: 'var(--muted)', fontSize: 13,
   },
 }
