@@ -21,7 +21,7 @@ export function useUiPref(key, fallback, coerce) {
     loadUiPrefs().then(prefs => {
       const raw = prefs[key]
       if (raw !== undefined && raw !== null) {
-        setValue(coerce ? coerce(raw) : raw)
+        setValue(coerce ? coerce(String(raw)) : raw)
         localStorage.setItem(key, String(raw))
       }
     })
