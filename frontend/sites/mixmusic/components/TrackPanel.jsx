@@ -252,9 +252,6 @@ function HeartsTimeline({ hearts, pendingHearts = [], duration, progress, onAdd,
           )}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400, letterSpacing: 0, textTransform: 'none', color: 'var(--muted)', flexShrink: 0 }}>
-            {formatTime(progress)} / {formatTime(duration)}
-          </span>
           {duration > 0 && (
             <button
               onClick={() => onAdd(progress)}

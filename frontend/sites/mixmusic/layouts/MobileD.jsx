@@ -10,7 +10,7 @@ function fmtTime(sec) {
 
 export default function MobileD({ onOpenSettings }) {
   const {
-    currentTrack, playing, togglePlay, addHeart, progress, displayName,
+    currentTrack, playing, togglePlay, addHeart, progress, duration, displayName,
     muted, toggleMute, volume,
     castAvailable, castConnected, openCastPicker, stopCast,
   } = usePlayerContext()
@@ -128,7 +128,11 @@ export default function MobileD({ onOpenSettings }) {
             display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
             padding: '5px 10px', borderRadius: 20,
             border: `1.5px solid ${heartFlash ? '#e11d48' : '#e11d4866'}`,
-            background: heartFlash ? '#e11d4818' : '#e11d480d',
+            background: heartFlash
+              ? '#e11d4818'
+              : duration > 0
+                ? `linear-gradient(to right, #e11d4822 ${(progress / duration) * 100}%, #e11d480d ${(progress / duration) * 100}%)`
+                : '#e11d480d',
             cursor: currentTrack ? 'pointer' : 'default',
             transform: heartFlash ? 'scale(1.06)' : 'scale(1)',
             transition: 'transform 0.15s ease, border-color 0.15s ease, background 0.15s ease',
