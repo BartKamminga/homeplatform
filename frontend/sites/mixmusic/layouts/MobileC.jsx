@@ -4,7 +4,7 @@ import NowPlaying from '../components/NowPlaying.jsx'
 import TrackPanel from '../components/TrackPanel.jsx'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 
-export default function MobileC({ onOpenSettings }) {
+export default function MobileC({ onOpenSettings, onOpenDisplay }) {
   const { currentTrack } = usePlayerContext()
   const [view, setView] = useState('tracks')
 
@@ -15,7 +15,7 @@ export default function MobileC({ onOpenSettings }) {
   if (!currentTrack) {
     return (
       <div style={{ display: 'flex', height: '100dvh', flexDirection: 'column', overflow: 'hidden' }}>
-        <Sidebar onOpenSettings={onOpenSettings} />
+        <Sidebar onOpenSettings={onOpenSettings} onOpenDisplay={onOpenDisplay} />
       </div>
     )
   }
@@ -48,7 +48,7 @@ export default function MobileC({ onOpenSettings }) {
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {view === 'tracks'
-          ? <Sidebar onOpenSettings={onOpenSettings} hideHeader />
+          ? <Sidebar onOpenSettings={onOpenSettings} hideHeader onOpenDisplay={onOpenDisplay} />
           : <div style={{ flex: 1, overflowY: 'auto' }}><TrackPanel /></div>
         }
       </div>

@@ -8,7 +8,7 @@ function fmtTime(sec) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-export default function MobileD({ onOpenSettings }) {
+export default function MobileD({ onOpenSettings, onOpenDisplay }) {
   const {
     currentTrack, playing, togglePlay, addHeart, progress, duration, displayName,
     muted, toggleMute, volume,
@@ -120,7 +120,7 @@ export default function MobileD({ onOpenSettings }) {
       {/* ── Content ── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {view === 'tracks'
-          ? <Sidebar onOpenSettings={onOpenSettings} hideHeader focusSearch={searchFocus} searchVisible={searchActive} />
+          ? <Sidebar onOpenSettings={onOpenSettings} hideHeader focusSearch={searchFocus} searchVisible={searchActive} onOpenDisplay={onOpenDisplay} />
           : <div style={{ flex: 1, overflowY: 'auto' }}><TrackPanel /></div>
         }
       </div>

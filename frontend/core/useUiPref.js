@@ -27,10 +27,22 @@ export function useUiPref(key, fallback, coerce) {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    function onPrefChange(e) {
+      if (e.detail.key === key) {
+        const raw = String(e.detail.value)
+        setValue(coerce ? coerce(raw) : raw)
+      }
+    }
+    window.addEventListener('uipref-change', onPrefChange)
+    return () => window.removeEventListener('uipref-change', onPrefChange)
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function update(newValue) {
     setValue(newValue)
     localStorage.setItem(key, String(newValue))
     setUiPref(key, newValue)
+    window.dispatchEvent(new CustomEvent('uipref-change', { detail: { key, value: newValue } }))
   }
 
   return [value, update]

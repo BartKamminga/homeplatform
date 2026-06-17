@@ -69,6 +69,11 @@ const s = {
   },
 }
 
+const microLabel = {
+  fontSize: 8, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
+  color: 'var(--muted)', lineHeight: 1,
+}
+
 function MomentDots({ moments }) {
   if (!moments?.length) return null
   return (
@@ -80,7 +85,7 @@ function MomentDots({ moments }) {
   )
 }
 
-export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearch = 0, searchVisible = true }) {
+export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = false, focusSearch = 0, searchVisible = true }) {
   const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres } = usePlayerContext()
   const onSelect = (idx) => loadTrack(idx, true)
   const searchRef = useRef(null)
@@ -210,22 +215,34 @@ export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearc
       )}
 
       {/* Sort + Filter balk */}
-      <div style={{ padding: '0 14px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {/* Sortering */}
-        <div style={{ display: 'flex', gap: 3 }}>
-          {[['newest', 'Nieuw'], ['name', 'Naam'], ['rating', '★'], ['hearts', '♥'], ['plays', '▶']].map(([val, label]) => (
-            <button key={val} onClick={() => setSortBy(val)} style={{
-              flex: 1, padding: '4px 0', fontSize: '11px', border: 'none', borderRadius: 5, cursor: 'pointer',
-              fontFamily: 'var(--font-mono)',
-              background: sortBy === val ? 'var(--accent)' : 'var(--bg3)',
-              color: sortBy === val ? '#fff' : 'var(--muted)',
-            }}>
-              {label}
-            </button>
-          ))}
+      <div style={{ padding: '0 14px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* Sorteren */}
+        <div style={microLabel}>Sorteren</div>
+        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 3, flex: 1 }}>
+            {[['newest', 'Nieuw'], ['name', 'Naam'], ['rating', '★'], ['hearts', '♥'], ['plays', '▶']].map(([val, label]) => (
+              <button key={val} onClick={() => setSortBy(val)} style={{
+                flex: 1, padding: '4px 0', fontSize: '11px', border: 'none', borderRadius: 5, cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                background: sortBy === val ? 'var(--accent)' : 'var(--bg3)',
+                color: sortBy === val ? '#fff' : 'var(--muted)',
+              }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {onOpenDisplay && (
+            <button onClick={onOpenDisplay} title="Weergave tracklist" style={{
+              padding: '4px 7px', fontSize: '13px', border: '1px solid var(--border)',
+              borderRadius: 5, cursor: 'pointer', background: 'var(--bg3)',
+              color: 'var(--muted)', flexShrink: 0, lineHeight: 1,
+            }}>⊞</button>
+          )}
         </div>
 
-        {/* Genre chips */}
+        {/* Filteren */}
+        <div style={{ ...microLabel, marginTop: 4 }}>Filteren</div>
+
         {usedGenreNames.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
             {usedGenreNames.map(g => {
@@ -245,7 +262,6 @@ export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearc
           </div>
         )}
 
-        {/* Rating + Hartjes filter */}
         <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
           {[0, 5, 7, 9].map(r => (
             <button key={r} onClick={() => setFilterMinRating(r)} style={{
