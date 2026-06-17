@@ -7,6 +7,12 @@ function formatTime(s) {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 }
 
+function fmtPlayTime(s) {
+  if (s < 60)   return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  return `${Math.floor(s / 3600)}u${Math.floor((s % 3600) / 60)}m`
+}
+
 const MOMENTS = [
   { key: 'morning',   label: 'Ochtend', hours: '06–12', flex: 6, color: '#f59e0b' },
   { key: 'afternoon', label: 'Middag',  hours: '12–18', flex: 6, color: '#10b981' },
@@ -100,7 +106,9 @@ export default function TrackPanel() {
             : <span />
           }
           {meta.play_count > 0 && (
-            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>▶ {meta.play_count}×</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+              ▶ {meta.play_count}×{meta.play_seconds > 0 ? ` · ${fmtPlayTime(meta.play_seconds)}` : ''}
+            </span>
           )}
         </div>
       </div>

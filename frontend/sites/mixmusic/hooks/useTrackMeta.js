@@ -13,6 +13,11 @@ export function incrementPlay(filePath) {
   api.post(`${BASE}/play/${encPath(filePath)}`).catch(() => {})
 }
 
+export function addPlaySeconds(filePath, seconds) {
+  if (!filePath || seconds < 1) return
+  api.post(`${BASE}/playtime/${encPath(filePath)}`, { seconds: Math.floor(seconds) }).catch(() => {})
+}
+
 export function useTrackMeta(track) {
   const [meta, setMeta]       = useState(EMPTY_META)
   const [metaLoading, setMetaLoading] = useState(false)

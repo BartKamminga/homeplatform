@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useTracks }    from '../hooks/useTracks.js'
 import { usePlayer }    from '../hooks/usePlayer.js'
-import { useTrackMeta, useGenres, useMetas, useHearts, incrementPlay } from '../hooks/useTrackMeta.js'
+import { useTrackMeta, useGenres, useMetas, useHearts, incrementPlay, addPlaySeconds } from '../hooks/useTrackMeta.js'
 import { useCast }      from '../hooks/useCast.js'
 
 const PlayerContext = createContext(null)
@@ -28,6 +28,41 @@ export function PlayerProvider({ children }) {
     incrementPlay(currentTrack.file)
     setTimeout(reloadMetas, 400)
   }, [currentTrack?.file])
+
+  // Speelduur bijhouden — flush bij pauze/trackwissel en elke 30s
+  const playStartRef  = useRef(null)   // Date.now() van laatste play-start
+  const playFileRef   = useRef(null)   // track waarvoor we meten
+
+  function flushPlaySeconds() {
+    if (playStartRef.current && playFileRef.current) {
+      const elapsed = Math.floor((Date.now() - playStartRef.current) / 1000)
+      addPlaySeconds(playFileRef.current, elapsed)
+      playStartRef.current = Date.now()  // reset zodat volgende flush niet dubbel telt
+    }
+  }
+
+  useEffect(() => {
+    if (player.playing && currentTrack) {
+      if (!playStartRef.current) playStartRef.current = Date.now()
+      playFileRef.current = currentTrack.file
+    } else {
+      flushPlaySeconds()
+      playStartRef.current = null
+    }
+  }, [player.playing])
+
+  useEffect(() => {
+    // Bij trackwissel: flush vorige track, reset timer
+    flushPlaySeconds()
+    playStartRef.current = player.playing ? Date.now() : null
+    playFileRef.current  = currentTrack?.file ?? null
+  }, [currentTrack?.file])
+
+  useEffect(() => {
+    // Periodieke flush elke 30s tijdens afspelen
+    const id = setInterval(() => { if (player.playing) flushPlaySeconds() }, 30_000)
+    return () => clearInterval(id)
+  }, [player.playing, currentTrack?.file])
 
   // Auto-cast wanneer track wisselt terwijl Cast verbonden is
   useEffect(() => {

@@ -106,6 +106,7 @@ def get_all_metas(
             "moments": m.moments or [],
             "heart_count": heart_counts.get(m.file_path, 0),
             "play_count": m.play_count or 0,
+            "play_seconds": m.play_seconds or 0,
         }
         for m in metas
     }
@@ -114,6 +115,7 @@ def get_all_metas(
             result[fp] = {
                 "display_name": None, "rating": None,
                 "genres": [], "moments": [], "heart_count": cnt, "play_count": 0,
+                "play_seconds": 0,
             }
     return result
 
@@ -207,6 +209,27 @@ def increment_play_count(
         session.add(meta)
     else:
         meta.play_count = (meta.play_count or 0) + 1
+        meta.updated_at = datetime.utcnow()
+    session.commit()
+
+
+def add_play_seconds(
+    session: Session,
+    filepath: str,
+    seconds: int,
+    user_id: Optional[str],
+    group_id: Optional[str],
+) -> None:
+    if seconds <= 0:
+        return
+    meta = get_track_meta(session, filepath, user_id, group_id)
+    if not meta:
+        meta = TrackMeta(
+            file_path=filepath, user_id=user_id, group_id=group_id, play_seconds=seconds
+        )
+        session.add(meta)
+    else:
+        meta.play_seconds = (meta.play_seconds or 0) + seconds
         meta.updated_at = datetime.utcnow()
     session.commit()
 

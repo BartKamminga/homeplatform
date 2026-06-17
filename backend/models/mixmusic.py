@@ -37,4 +37,5 @@ class TrackMeta(SQLModel, table=True):
     genres: Optional[list] = Field(default=None, sa_column=Column(SAJSON))
     moments: Optional[list] = Field(default=None, sa_column=Column(SAJSON))
     play_count: int = Field(default=0)
+    play_seconds: int = Field(default=0)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

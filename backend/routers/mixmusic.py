@@ -72,6 +72,7 @@ class TrackMetaOut(BaseModel):
     genres: list[str] = []
     moments: list[str] = []
     play_count: int = 0
+    play_seconds: int = 0
 
 
 def _meta_to_out(meta) -> TrackMetaOut:
@@ -82,6 +83,7 @@ def _meta_to_out(meta) -> TrackMetaOut:
         genres=meta.genres or [],
         moments=meta.moments or [],
         play_count=meta.play_count or 0,
+        play_seconds=meta.play_seconds or 0,
     )
 
 
@@ -264,3 +266,19 @@ def record_play(
     fp = urllib.parse.unquote(filepath)
     uid, gid = _scope(user)
     svc.increment_play_count(session, fp, uid, gid)
+
+
+class PlaySecondsIn(BaseModel):
+    seconds: int
+
+
+@router.post("/playtime/{filepath:path}", status_code=204)
+def record_play_seconds(
+    filepath: str,
+    body: PlaySecondsIn,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    fp = urllib.parse.unquote(filepath)
+    uid, gid = _scope(user)
+    svc.add_play_seconds(session, fp, body.seconds, uid, gid)
