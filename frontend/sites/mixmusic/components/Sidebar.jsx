@@ -90,6 +90,12 @@ export default function Sidebar({ onOpenSettings, hideHeader = false }) {
   const [filterMinRating, setFilterMinRating] = useUiPref('mm_filter_rating', 0, Number)
   const [filterHasHearts, setFilterHasHearts] = useUiPref('mm_filter_hearts', false, v => v === 'true')
 
+  const [showPlayCount] = useUiPref('mm_show_play_count', true, v => v === 'true')
+  const [showHearts]    = useUiPref('mm_show_hearts',     true, v => v === 'true')
+  const [showRating]    = useUiPref('mm_show_rating',     true, v => v === 'true')
+  const [showMoments]   = useUiPref('mm_show_moments',    true, v => v === 'true')
+  const [showExt]       = useUiPref('mm_show_ext',        true, v => v === 'true')
+
   const q = search.toLowerCase()
   const searched = q
     ? tracks.filter(t => t.name.toLowerCase().includes(q) || t.folder.toLowerCase().includes(q))
@@ -146,23 +152,23 @@ export default function Sidebar({ onOpenSettings, hideHeader = false }) {
           {active ? '▶' : i + 1}
         </span>
         <span style={s.trackName(active)} title={label}>{label}</span>
-        {m?.moments?.length > 0 && <MomentDots moments={m.moments} />}
-        {m?.heart_count > 0 && (
+        {showMoments   && m?.moments?.length > 0 && <MomentDots moments={m.moments} />}
+        {showHearts    && m?.heart_count > 0 && (
           <span style={{ fontSize: '10px', color: '#e11d48', flexShrink: 0 }} title={`${m.heart_count} favoriete moment${m.heart_count !== 1 ? 'en' : ''}`}>
             {'♥'.repeat(Math.min(m.heart_count, 3))}{m.heart_count > 3 ? `+${m.heart_count - 3}` : ''}
           </span>
         )}
-        {m?.play_count > 0 && (
+        {showPlayCount && m?.play_count > 0 && (
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--muted)', flexShrink: 0 }} title={`${m.play_count}× afgespeeld`}>
             ▶{m.play_count}
           </span>
         )}
-        {color && (
+        {showRating    && color && (
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', padding: '2px 5px', borderRadius: '4px', background: color + '22', color, border: `1px solid ${color}55`, flexShrink: 0 }}>
             {m.rating}
           </span>
         )}
-        <span style={s.badge}>{t.ext}</span>
+        {showExt && <span style={s.badge}>{t.ext}</span>}
       </div>
     )
   }

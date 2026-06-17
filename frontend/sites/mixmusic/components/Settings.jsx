@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { clearToken } from '@core/api.js'
+import { useUiPref } from '@core/useUiPref.js'
 
 function toEntries(data) {
   return data.map(e => ({
@@ -25,11 +26,17 @@ const MOBILE_OPTIONS = [
   { key: 'B', label: 'Sheet', desc: 'Tracklist + schuifpaneel' },
 ]
 
-export default function Settings({ onClose, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout }) {
+export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout }) {
   const { genres, addGenre: onAddGenre, deleteGenre: onDeleteGenre } = usePlayerContext()
   const [newGenre,   setNewGenre]   = useState('')
   const [genreError, setGenreError] = useState(null)
   const [changelog,  setChangelog]  = useState([])
+
+  const [showPlayCount, setShowPlayCount] = useUiPref('mm_show_play_count', true, v => v === 'true')
+  const [showHearts,    setShowHearts]    = useUiPref('mm_show_hearts',     true, v => v === 'true')
+  const [showRating,    setShowRating]    = useUiPref('mm_show_rating',     true, v => v === 'true')
+  const [showMoments,   setShowMoments]   = useUiPref('mm_show_moments',    true, v => v === 'true')
+  const [showExt,       setShowExt]       = useUiPref('mm_show_ext',        true, v => v === 'true')
 
   useEffect(() => {
     fetch('/api/changelog?site=mixmusic')
@@ -135,6 +142,44 @@ export default function Settings({ onClose, desktopLayout, mobileLayout, onDeskt
                 </button>
               ))}
             </div>
+          </section>
+
+          {/* Weergaveopties */}
+          <section>
+            <div style={sectionLabel}>Weergave tracklist</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {[
+                ['Speeltijd badge (▶3×)',  showPlayCount, setShowPlayCount],
+                ['Hartjes (♥)',            showHearts,    setShowHearts],
+                ['Beoordeling (1–10)',     showRating,    setShowRating],
+                ['Momenten (gekleurde dots)', showMoments, setShowMoments],
+                ['Bestandsextensie',       showExt,       setShowExt],
+              ].map(([label, val, set]) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text)' }}>{label}</span>
+                  <button
+                    onClick={() => set(!val)}
+                    style={{
+                      width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative',
+                      background: val ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 2, left: val ? 18 : 2, width: 16, height: 16,
+                      borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                    }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Statistieken */}
+          <section>
+            <div style={sectionLabel}>Inzichten</div>
+            <button onClick={onOpenStats} style={{ ...dangerBtn, color: 'var(--text)' }}>
+              Statistieken →
+            </button>
           </section>
 
           {/* Account */}

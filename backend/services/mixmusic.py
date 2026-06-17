@@ -240,3 +240,46 @@ def delete_heart(session: Session, heart_id: int) -> None:
         raise AppError("Hart niet gevonden", status_code=404)
     session.delete(heart)
     session.commit()
+
+
+# ── Statistieken ─────────────────────────────────────────────────────────────
+
+def get_stats(
+    session: Session,
+    user_id: Optional[str],
+    group_id: Optional[str],
+) -> dict:
+    all_metas = session.exec(
+        select(TrackMeta).where(_meta_filter(user_id, group_id))
+    ).all()
+
+    top_time  = sorted(all_metas, key=lambda m: m.play_seconds or 0, reverse=True)[:10]
+    top_count = sorted(all_metas, key=lambda m: m.play_count  or 0, reverse=True)[:10]
+
+    heart_rows = session.exec(
+        select(TrackHeart.file_path, sqla_func.count(TrackHeart.id).label("cnt"))
+        .where(_heart_filter(user_id, group_id))
+        .group_by(TrackHeart.file_path)
+        .order_by(sqla_func.count(TrackHeart.id).desc())
+        .limit(10)
+    ).all()
+
+    genre_counts   = {}
+    moment_counts  = {}
+    for m in all_metas:
+        for g  in (m.genres  or []): genre_counts[g]  = genre_counts.get(g, 0)  + 1
+        for mo in (m.moments or []): moment_counts[mo] = moment_counts.get(mo, 0) + 1
+
+    def label(fp, display_name):
+        return display_name or fp.split("/")[-1].rsplit(".", 1)[0]
+
+    return {
+        "total_play_seconds": sum(m.play_seconds or 0 for m in all_metas),
+        "total_plays":        sum(m.play_count  or 0 for m in all_metas),
+        "tracked_tracks":     len([m for m in all_metas if (m.play_count or 0) > 0 or (m.play_seconds or 0) > 0]),
+        "top_by_time":  [{"file": m.file_path, "label": label(m.file_path, m.display_name), "seconds": m.play_seconds or 0} for m in top_time  if (m.play_seconds or 0) > 0],
+        "top_by_plays": [{"file": m.file_path, "label": label(m.file_path, m.display_name), "count":   m.play_count  or 0} for m in top_count if (m.play_count  or 0) > 0],
+        "top_by_hearts":[{"file": fp, "label": label(fp, None), "count": cnt} for fp, cnt in heart_rows if cnt > 0],
+        "genre_distribution":  dict(sorted(genre_counts.items(),  key=lambda x: x[1], reverse=True)),
+        "moment_distribution": dict(sorted(moment_counts.items(), key=lambda x: x[1], reverse=True)),
+    }

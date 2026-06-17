@@ -255,6 +255,17 @@ def delete_heart(heart_id: int, session: Session = Depends(get_session), user: U
     log_action(session, "heart.delete", site="mixmusic", user_id=user.id, payload={"heart_id": heart_id})
 
 
+# ── Statistieken ─────────────────────────────────────────────────────────────
+
+@router.get("/stats")
+def get_stats(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    uid, gid = _scope(user)
+    return svc.get_stats(session, uid, gid)
+
+
 # ── Play count ────────────────────────────────────────────────────────────────
 
 @router.post("/play/{filepath:path}", status_code=204)
