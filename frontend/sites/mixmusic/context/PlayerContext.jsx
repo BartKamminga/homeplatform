@@ -19,12 +19,66 @@ export function PlayerProvider({ children }) {
 
   const displayName = meta.display_name || null
 
-  // Speelteller ophogen bij trackwissel
+  // Track-resume: onthoud laatste track + positie
+  const LS_RESUME      = 'mm_resume'
+  const restoredRef       = useRef(false)
+  const pendingSeekRef    = useRef(null)     // {file, position} om te seeken zodra duration beschikbaar is
+  const resumeSaveRef     = useRef(null)     // {file, position} — altijd actueel voor event-handlers
+  const skipIncrementRef  = useRef(false)   // true tijdens restore → speelteller niet ophogen
+
+  useEffect(() => {
+    if (currentTrack) resumeSaveRef.current = { file: currentTrack.file, position: Math.floor(player.progress) }
+  }, [currentTrack?.file, player.progress])
+
+  // Seek uitvoeren zodra duration bekend is na restore (alleen voor de juiste track)
+  useEffect(() => {
+    const p = pendingSeekRef.current
+    if (p && player.duration > 0 && currentTrack?.file === p.file) {
+      player.seek(p.position / player.duration)
+      pendingSeekRef.current = null
+    }
+  }, [player.duration])
+
+  // Herstel laatste track bij opstarten (eenmalig, geen autoplay)
+  useEffect(() => {
+    if (restoredRef.current || !tracks.length || player.currentIdx >= 0) return
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_RESUME) || 'null')
+      if (!saved?.file || !(saved.position > 5)) return
+      const idx = tracks.findIndex(t => t.file === saved.file)
+      if (idx < 0) return
+      restoredRef.current      = true
+      pendingSeekRef.current   = { file: saved.file, position: saved.position }
+      skipIncrementRef.current = true
+      player.loadTrack(idx, false)
+    } catch {}
+  }, [tracks])
+
+  // Opslaan bij pauze
+  useEffect(() => {
+    if (!player.playing) {
+      const s = resumeSaveRef.current
+      if (s?.position > 5) localStorage.setItem(LS_RESUME, JSON.stringify(s))
+    }
+  }, [player.playing])
+
+  // Opslaan bij sluiten tab/venster
+  useEffect(() => {
+    function save() {
+      const s = resumeSaveRef.current
+      if (s?.position > 5) localStorage.setItem(LS_RESUME, JSON.stringify(s))
+    }
+    window.addEventListener('beforeunload', save)
+    return () => window.removeEventListener('beforeunload', save)
+  }, [])
+
+  // Speelteller ophogen bij trackwissel (niet bij restore)
   const prevTrackFile = useRef(null)
   useEffect(() => {
     if (!currentTrack) return
     if (currentTrack.file === prevTrackFile.current) return
     prevTrackFile.current = currentTrack.file
+    if (skipIncrementRef.current) { skipIncrementRef.current = false; return }
     incrementPlay(currentTrack.file)
     setTimeout(reloadMetas, 400)
   }, [currentTrack?.file])
