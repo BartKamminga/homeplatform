@@ -129,13 +129,13 @@ export default function MobileD({ onOpenSettings }) {
             padding: '5px 10px', borderRadius: 20,
             border: `1.5px solid ${heartFlash ? '#e11d48' : '#e11d4866'}`,
             background: heartFlash
-              ? '#e11d4818'
+              ? 'rgba(225,29,72,0.15)'
               : duration > 0
-                ? `linear-gradient(to right, #e11d4822 ${(progress / duration) * 100}%, #e11d480d ${(progress / duration) * 100}%)`
-                : '#e11d480d',
+                ? `linear-gradient(to right, rgba(225,29,72,0.22) ${(progress / duration) * 100}%, rgba(225,29,72,0.05) ${(progress / duration) * 100}%)`
+                : 'rgba(225,29,72,0.05)',
             cursor: currentTrack ? 'pointer' : 'default',
             transform: heartFlash ? 'scale(1.06)' : 'scale(1)',
-            transition: 'transform 0.15s ease, border-color 0.15s ease, background 0.15s ease',
+            transition: 'transform 0.15s ease, border-color 0.15s ease',
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24"
