@@ -80,7 +80,7 @@ function MomentDots({ moments }) {
   )
 }
 
-export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearch = 0 }) {
+export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearch = 0, searchVisible = true }) {
   const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres } = usePlayerContext()
   const onSelect = (idx) => loadTrack(idx, true)
   const searchRef = useRef(null)
@@ -196,16 +196,18 @@ export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearc
         </div>
       </div>}
 
-      <div style={s.searchWrap}>
-        <input
-          ref={searchRef}
-          style={s.searchInput}
-          type="text"
-          placeholder="Zoeken in tracks..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
+      {searchVisible && (
+        <div style={s.searchWrap}>
+          <input
+            ref={searchRef}
+            style={s.searchInput}
+            type="text"
+            placeholder="Zoeken in tracks..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      )}
 
       {/* Sort + Filter balk */}
       <div style={{ padding: '0 14px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>

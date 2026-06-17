@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlayerProvider } from './context/PlayerContext.jsx'
 import { useLayout } from './hooks/useLayout.js'
-import DesktopA from './layouts/DesktopA.jsx'
-import DesktopB from './layouts/DesktopB.jsx'
 import DesktopC from './layouts/DesktopC.jsx'
 import MobileA  from './layouts/MobileA.jsx'
 import MobileB  from './layouts/MobileB.jsx'
@@ -11,8 +9,7 @@ import MobileD  from './layouts/MobileD.jsx'
 import Settings  from './components/Settings.jsx'
 import StatsPage from './components/StatsPage.jsx'
 
-const DESKTOP_LAYOUTS = { A: DesktopA, B: DesktopB, C: DesktopC }
-const MOBILE_LAYOUTS  = { A: MobileA,  B: MobileB,  C: MobileC,  D: MobileD }
+const MOBILE_LAYOUTS = { A: MobileA, B: MobileB, C: MobileC, D: MobileD }
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -28,12 +25,12 @@ function useIsMobile() {
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [statsOpen,    setStatsOpen]    = useState(false)
-  const { desktopLayout, mobileLayout, setDesktopLayout, setMobileLayout } = useLayout()
+  const { mobileLayout, setMobileLayout } = useLayout()
   const isMobile = useIsMobile()
 
   const Layout = isMobile
     ? (MOBILE_LAYOUTS[mobileLayout] ?? MobileC)
-    : (DESKTOP_LAYOUTS[desktopLayout] ?? DesktopC)
+    : DesktopC
 
   return (
     <PlayerProvider>
@@ -41,9 +38,7 @@ export default function App() {
         <Settings
           onClose={() => setSettingsOpen(false)}
           onOpenStats={() => { setSettingsOpen(false); setStatsOpen(true) }}
-          desktopLayout={desktopLayout}
           mobileLayout={mobileLayout}
-          onDesktopLayout={setDesktopLayout}
           onMobileLayout={setMobileLayout}
           isMobile={isMobile}
         />

@@ -14,19 +14,29 @@ export default function MobileD({ onOpenSettings }) {
     muted, toggleMute, volume,
     castAvailable, castConnected, openCastPicker, stopCast,
   } = usePlayerContext()
-  const [view, setView]             = useState('tracks')
-  const [heartFlash, setHeartFlash] = useState(false)
+  const [view, setView]               = useState('tracks')
+  const [heartFlash, setHeartFlash]   = useState(false)
   const [searchFocus, setSearchFocus] = useState(0)
+  const [searchActive, setSearchActive] = useState(false)
 
   function handleOpenSearch() {
-    setView('tracks')
-    setSearchFocus(n => n + 1)
+    const nowActive = !searchActive
+    setSearchActive(nowActive)
+    if (nowActive) {
+      setView('tracks')
+      setSearchFocus(n => n + 1)
+    }
   }
 
   // Automatisch naar details als een track wordt gekozen
   useEffect(() => {
     if (currentTrack) setView('details')
   }, [currentTrack?.file])
+
+  // Sluit search als gebruiker naar details gaat
+  useEffect(() => {
+    if (view === 'details') setSearchActive(false)
+  }, [view])
 
   function handleHeart() {
     if (!currentTrack) return
@@ -110,7 +120,7 @@ export default function MobileD({ onOpenSettings }) {
       {/* ── Content ── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {view === 'tracks'
-          ? <Sidebar onOpenSettings={onOpenSettings} hideHeader focusSearch={searchFocus} />
+          ? <Sidebar onOpenSettings={onOpenSettings} hideHeader focusSearch={searchFocus} searchVisible={searchActive} />
           : <div style={{ flex: 1, overflowY: 'auto' }}><TrackPanel /></div>
         }
       </div>

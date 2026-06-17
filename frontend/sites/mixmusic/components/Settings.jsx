@@ -14,11 +14,6 @@ import AppGroupSwitcher from '@components/AppGroupSwitcher.jsx'
 import ChangelogSection from '@components/ChangelogSection.jsx'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 
-const DESKTOP_OPTIONS = [
-  { key: 'C', label: 'Standaard', desc: 'Zijbalk + afspeler rechtsboven' },
-  { key: 'A', label: 'Breed', desc: 'Metadatavenster rechts' },
-  { key: 'B', label: 'Horizontaal', desc: 'Huidige track in de header' },
-]
 const MOBILE_OPTIONS = [
   { key: 'D', label: 'Minimal', desc: 'Top bar + transportbalk + tracks/details toggle' },
   { key: 'C', label: 'Gestapeld', desc: 'Afspeler boven, details eronder' },
@@ -26,7 +21,7 @@ const MOBILE_OPTIONS = [
   { key: 'B', label: 'Sheet', desc: 'Tracklist + schuifpaneel' },
 ]
 
-export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout, isMobile }) {
+export default function Settings({ onClose, onOpenStats, mobileLayout, onMobileLayout, isMobile }) {
   const { genres, addGenre: onAddGenre, deleteGenre: onDeleteGenre } = usePlayerContext()
   const [newGenre,   setNewGenre]   = useState('')
   const [genreError, setGenreError] = useState(null)
@@ -93,31 +88,6 @@ export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLa
             <div style={sectionLabel}>Thema</div>
             <ThemeSwitcher />
           </section>
-
-          {/* Layout desktop — alleen op desktop */}
-          {!isMobile && <section>
-            <div style={sectionLabel}>Layout — desktop</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {DESKTOP_OPTIONS.map(o => (
-                <button
-                  key={o.key}
-                  onClick={() => onDesktopLayout?.(o.key)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                    borderRadius: 8, border: `1px solid ${desktopLayout === o.key ? 'var(--accent)' : 'var(--border)'}`,
-                    background: desktopLayout === o.key ? 'var(--accent)22' : 'var(--bg2)',
-                    cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)',
-                  }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: desktopLayout === o.key ? 'var(--accent)' : 'var(--text)', minWidth: 20 }}>{o.key}</span>
-                  <div>
-                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: desktopLayout === o.key ? 600 : 400 }}>{o.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>}
 
           {/* Layout mobiel — alleen op mobile */}
           {isMobile && <section>
