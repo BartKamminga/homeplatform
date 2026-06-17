@@ -79,14 +79,16 @@ export function useGenres() {
 }
 
 export function useHearts(track) {
-  const [hearts, setHearts] = useState([])
+  const [hearts, setHearts]           = useState([])
+  const [pendingHearts, setPendingHearts] = useState([])
 
   function load() {
-    if (!track) { setHearts([]); return }
+    if (!track) { setHearts([]); setPendingHearts([]); return }
     api.get(`${BASE}/hearts/${encPath(track.file)}`).then(setHearts).catch(() => {})
   }
 
   useEffect(() => {
+    setPendingHearts([])
     load()
     window.addEventListener('groupchange', load)
     return () => window.removeEventListener('groupchange', load)
@@ -94,8 +96,14 @@ export function useHearts(track) {
 
   async function addHeart(position) {
     if (!track) return
-    await api.post(`${BASE}/hearts/${encPath(track.file)}`, { position })
-    load()
+    const tempId = `p_${Date.now()}`
+    setPendingHearts(prev => [...prev, { id: tempId, position }])
+    try {
+      await api.post(`${BASE}/hearts/${encPath(track.file)}`, { position })
+      load()
+    } finally {
+      setPendingHearts(prev => prev.filter(h => h.id !== tempId))
+    }
   }
 
   async function removeHeart(id) {
@@ -103,7 +111,7 @@ export function useHearts(track) {
     load()
   }
 
-  return { hearts, addHeart, removeHeart }
+  return { hearts, pendingHearts, addHeart, removeHeart }
 }
 
 export function useMetas() {

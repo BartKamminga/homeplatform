@@ -22,7 +22,7 @@ function ratingColor(r) {
 }
 
 export default function TrackPanel() {
-  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, addHeart: onAddHeart, removeHeart: onRemoveHeart, seek: onSeek, duration, progress } = usePlayerContext()
+  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, pendingHearts, addHeart: onAddHeart, removeHeart: onRemoveHeart, seek: onSeek, duration, progress } = usePlayerContext()
   const [displayName, setDisplayName] = useState('')
   const nameTimer = useRef(null)
 
@@ -165,7 +165,7 @@ export default function TrackPanel() {
       </div>
 
       {/* Favoriete momenten tijdlijn */}
-      <HeartsTimeline hearts={hearts} duration={duration} progress={progress} onAdd={onAddHeart} onRemove={onRemoveHeart} onSeek={onSeek} />
+      <HeartsTimeline hearts={hearts} pendingHearts={pendingHearts} duration={duration} progress={progress} onAdd={onAddHeart} onRemove={onRemoveHeart} onSeek={onSeek} />
 
       {/* Wanneer klinkt het goed? */}
       <div>
@@ -208,7 +208,7 @@ const labelStyle = {
   color: 'var(--muted)', marginBottom: 8,
 }
 
-function HeartsTimeline({ hearts, duration, progress, onAdd, onRemove, onSeek }) {
+function HeartsTimeline({ hearts, pendingHearts = [], duration, progress, onAdd, onRemove, onSeek }) {
   const [hovered, setHovered] = useState(null)
   const [showHint, setShowHint] = useState(true)
   const timerRef = useRef(null)
@@ -330,6 +330,26 @@ function HeartsTimeline({ hearts, duration, progress, onAdd, onRemove, onSeek })
                 </div>
               )}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="#e11d48" stroke="#e11d48" strokeWidth="1">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </div>
+          )
+        })}
+
+        {/* Pending hearts — open hartje, wacht op backend */}
+        {pendingHearts.map(h => {
+          const hp = (h.position / duration) * 100
+          return (
+            <div
+              key={h.id}
+              style={{
+                position: 'absolute', left: `${hp}%`, top: '50%',
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none', zIndex: 4,
+                animation: 'heartPending 0.8s ease-in-out infinite alternate',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
             </div>

@@ -80,7 +80,7 @@ function MomentDots({ moments }) {
   )
 }
 
-export default function Sidebar({ onOpenSettings }) {
+export default function Sidebar({ onOpenSettings, hideHeader = false }) {
   const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres } = usePlayerContext()
   const onSelect = (idx) => loadTrack(idx, true)
   const [search, setSearch]               = useState('')
@@ -169,7 +169,7 @@ export default function Sidebar({ onOpenSettings }) {
 
   return (
     <div style={s.sidebar}>
-      <div style={s.header}>
+      {!hideHeader && <div style={s.header}>
         <span style={s.logo}>♫ Mix</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
@@ -183,7 +183,7 @@ export default function Sidebar({ onOpenSettings }) {
             </svg>
           </button>
         </div>
-      </div>
+      </div>}
 
       <div style={s.searchWrap}>
         <input

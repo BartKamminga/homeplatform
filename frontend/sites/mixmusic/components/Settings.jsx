@@ -19,6 +19,7 @@ const DESKTOP_OPTIONS = [
   { key: 'B', label: 'Horizontaal', desc: 'Huidige track in de header' },
 ]
 const MOBILE_OPTIONS = [
+  { key: 'D', label: 'Nieuw', desc: 'Top bar + transportbalk + tracks/details toggle' },
   { key: 'C', label: 'Gestapeld', desc: 'Afspeler boven, details eronder' },
   { key: 'A', label: 'Tabs', desc: 'Drie tabbladen onderaan' },
   { key: 'B', label: 'Sheet', desc: 'Tracklist + schuifpaneel' },

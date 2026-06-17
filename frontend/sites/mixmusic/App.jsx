@@ -7,10 +7,11 @@ import DesktopC from './layouts/DesktopC.jsx'
 import MobileA  from './layouts/MobileA.jsx'
 import MobileB  from './layouts/MobileB.jsx'
 import MobileC  from './layouts/MobileC.jsx'
+import MobileD  from './layouts/MobileD.jsx'
 import Settings from './components/Settings.jsx'
 
 const DESKTOP_LAYOUTS = { A: DesktopA, B: DesktopB, C: DesktopC }
-const MOBILE_LAYOUTS  = { A: MobileA,  B: MobileB,  C: MobileC  }
+const MOBILE_LAYOUTS  = { A: MobileA,  B: MobileB,  C: MobileC,  D: MobileD }
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)

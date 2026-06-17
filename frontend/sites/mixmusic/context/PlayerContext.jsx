@@ -14,7 +14,7 @@ export function PlayerProvider({ children }) {
   const { meta, metaLoading, updateMeta } = useTrackMeta(currentTrack)
   const { genres, addGenre, deleteGenre } = useGenres()
   const { metas, reloadMetas }            = useMetas()
-  const { hearts, addHeart, removeHeart } = useHearts(currentTrack)
+  const { hearts, pendingHearts, addHeart, removeHeart } = useHearts(currentTrack)
   const { castAvailable, castConnected, castTrack, openPicker: openCastPicker, stopCast } = useCast()
 
   const displayName = meta.display_name || null
@@ -69,7 +69,7 @@ export function PlayerProvider({ children }) {
       // genres
       genres, addGenre, deleteGenre,
       // hearts
-      hearts,
+      hearts, pendingHearts,
       addHeart: async (position) => { await addHeart(position); setTimeout(reloadMetas, 300) },
       removeHeart: async (id) => { await removeHeart(id); setTimeout(reloadMetas, 300) },
       // bulk metas (for sidebar ratings)
