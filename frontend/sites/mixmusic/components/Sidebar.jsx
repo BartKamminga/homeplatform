@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePlayerContext } from '../context/PlayerContext.jsx'
 import { SkeletonLine } from '@components/Skeleton.jsx'
 import { useUiPref } from '@core/useUiPref.js'
@@ -80,10 +80,15 @@ function MomentDots({ moments }) {
   )
 }
 
-export default function Sidebar({ onOpenSettings, hideHeader = false }) {
+export default function Sidebar({ onOpenSettings, hideHeader = false, focusSearch = 0 }) {
   const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres } = usePlayerContext()
   const onSelect = (idx) => loadTrack(idx, true)
+  const searchRef = useRef(null)
   const [search, setSearch]               = useState('')
+
+  useEffect(() => {
+    if (focusSearch > 0) searchRef.current?.focus()
+  }, [focusSearch])
   const [collapsed, setCollapsed]         = useState(new Set())
   const [sortBy, setSortBy]               = useUiPref('mm_sort', 'newest')
   const [filterGenre, setFilterGenre]     = useUiPref('mm_filter_genre', null, v => v === 'null' ? null : v)
@@ -193,6 +198,7 @@ export default function Sidebar({ onOpenSettings, hideHeader = false }) {
 
       <div style={s.searchWrap}>
         <input
+          ref={searchRef}
           style={s.searchInput}
           type="text"
           placeholder="Zoeken in tracks..."

@@ -26,7 +26,7 @@ const MOBILE_OPTIONS = [
   { key: 'B', label: 'Sheet', desc: 'Tracklist + schuifpaneel' },
 ]
 
-export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout }) {
+export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLayout, onDesktopLayout, onMobileLayout, isMobile }) {
   const { genres, addGenre: onAddGenre, deleteGenre: onDeleteGenre } = usePlayerContext()
   const [newGenre,   setNewGenre]   = useState('')
   const [genreError, setGenreError] = useState(null)
@@ -94,8 +94,8 @@ export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLa
             <ThemeSwitcher />
           </section>
 
-          {/* Layout desktop */}
-          <section>
+          {/* Layout desktop — alleen op desktop */}
+          {!isMobile && <section>
             <div style={sectionLabel}>Layout — desktop</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {DESKTOP_OPTIONS.map(o => (
@@ -117,10 +117,10 @@ export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLa
                 </button>
               ))}
             </div>
-          </section>
+          </section>}
 
-          {/* Layout mobiel */}
-          <section>
+          {/* Layout mobiel — alleen op mobile */}
+          {isMobile && <section>
             <div style={sectionLabel}>Layout — mobiel</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {MOBILE_OPTIONS.map(o => (
@@ -142,7 +142,7 @@ export default function Settings({ onClose, onOpenStats, desktopLayout, mobileLa
                 </button>
               ))}
             </div>
-          </section>
+          </section>}
 
           {/* Weergaveopties */}
           <section>

@@ -45,6 +45,7 @@ export default function App() {
           mobileLayout={mobileLayout}
           onDesktopLayout={setDesktopLayout}
           onMobileLayout={setMobileLayout}
+          isMobile={isMobile}
         />
       )}
       {statsOpen && <StatsPage onClose={() => setStatsOpen(false)} />}
