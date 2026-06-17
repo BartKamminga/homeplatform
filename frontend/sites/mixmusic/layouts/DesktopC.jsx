@@ -1,6 +1,6 @@
-import Sidebar    from '../components/Sidebar.jsx'
-import NowPlaying from '../components/NowPlaying.jsx'
-import TrackPanel from '../components/TrackPanel.jsx'
+import Sidebar             from '../components/Sidebar.jsx'
+import TrackPanel          from '../components/TrackPanel.jsx'
+import DesktopTransportBar from '../components/DesktopTransportBar.jsx'
 
 export default function DesktopC({ onOpenSettings, onOpenDisplay }) {
   return (
@@ -11,7 +11,7 @@ export default function DesktopC({ onOpenSettings, onOpenDisplay }) {
           <TrackPanel />
         </div>
       </div>
-      <NowPlaying />
+      <DesktopTransportBar />
     </div>
   )
 }
