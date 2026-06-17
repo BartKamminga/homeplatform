@@ -24,9 +24,9 @@ export default function MobileC({ onOpenSettings, onOpenDisplay }) {
     <div style={{ display: 'flex', height: '100dvh', flexDirection: 'column', overflow: 'hidden' }}>
       <NowPlaying />
 
-      {/* Toggle — zelfde stijl als MobileD */}
+      {/* Toggle */}
       <div style={{
-        display: 'flex', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)',
         background: 'var(--bg2)', flexShrink: 0,
       }}>
         {[['tracks', '♫ Tracks'], ['details', '✎ Details']].map(([v, label]) => (
@@ -44,6 +44,20 @@ export default function MobileC({ onOpenSettings, onOpenDisplay }) {
             {label}
           </button>
         ))}
+        <button
+          onClick={onOpenSettings}
+          title="Instellingen"
+          style={{
+            background: 'none', border: 'none', borderBottom: '2px solid transparent',
+            color: 'var(--muted)', cursor: 'pointer', padding: '8px 12px',
+            display: 'flex', alignItems: 'center',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

@@ -4,13 +4,18 @@ import NowPlaying from '../components/NowPlaying.jsx'
 import TrackPanel from '../components/TrackPanel.jsx'
 
 const TABS = [
-  { key: 'tracks',  label: 'Tracks',  icon: '♫' },
-  { key: 'playing', label: 'Speelt',  icon: '▶' },
-  { key: 'details', label: 'Details', icon: '✎' },
+  { key: 'tracks',   label: 'Tracks',      icon: '♫' },
+  { key: 'playing',  label: 'Speelt',       icon: '▶' },
+  { key: 'settings', label: 'Instellingen', icon: '⚙' },
 ]
 
 export default function MobileA({ onOpenSettings }) {
   const [tab, setTab] = useState('tracks')
+
+  function handleTab(key) {
+    if (key === 'settings') { onOpenSettings(); return }
+    setTab(key)
+  }
 
   return (
     <div style={{ display: 'flex', height: '100dvh', flexDirection: 'column', overflow: 'hidden' }}>
@@ -22,9 +27,6 @@ export default function MobileA({ onOpenSettings }) {
             <TrackPanel />
           </div>
         )}
-        {tab === 'details' && (
-          <div style={{ flex: 1, overflowY: 'auto' }}><TrackPanel /></div>
-        )}
       </div>
 
       <div style={{
@@ -34,7 +36,7 @@ export default function MobileA({ onOpenSettings }) {
         {TABS.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => handleTab(t.key)}
             style={{
               flex: 1, padding: '10px 0', background: 'none', border: 'none',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
