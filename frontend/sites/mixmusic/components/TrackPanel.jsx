@@ -28,7 +28,7 @@ function ratingColor(r) {
 }
 
 export default function TrackPanel() {
-  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, pendingHearts, addHeart: onAddHeart, removeHeart: onRemoveHeart, seek: onSeek, duration, progress } = usePlayerContext()
+  const { currentTrack: track, meta, metaLoading, handleMetaChange: onMetaChange, genres, hearts, pendingHearts, addHeart: onAddHeart, removeHeart: onRemoveHeart, seek: onSeek, duration, progress, isAdmin, toggleExcluded } = usePlayerContext()
   const [displayName, setDisplayName] = useState('')
   const nameTimer = useRef(null)
 
@@ -205,6 +205,31 @@ export default function TrackPanel() {
           ))}
         </div>
       </div>
+
+      {/* Admin: uitsluiten van tracklist */}
+      {isAdmin && (
+        <div>
+          <label style={labelStyle}>Beheer</label>
+          <button
+            onClick={() => toggleExcluded(track.file, !meta.excluded)}
+            style={{
+              padding: '7px 14px', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+              fontFamily: 'var(--font-body)', border: '1px solid var(--border)',
+              background: meta.excluded ? '#ef444415' : 'var(--bg2)',
+              color: meta.excluded ? '#ef4444' : 'var(--muted)',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span>{meta.excluded ? '⊘' : '○'}</span>
+            {meta.excluded ? 'Uitgesloten van tracklist' : 'Uitsluiten van tracklist'}
+          </button>
+          {meta.excluded && (
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, marginBottom: 0 }}>
+              Andere gebruikers zien dit nummer niet. Jij ziet het gemarkeerd.
+            </p>
+          )}
+        </div>
+      )}
 
     </div>
   )

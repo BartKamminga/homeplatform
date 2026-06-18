@@ -6,13 +6,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user
 from core.exceptions import AppError
 from core.logging import log_action
-from models.core import User
+from models.core import User, UserGroup, Group
+from models.mixmusic import TrackExcluded
 import services.mixmusic as svc
 
 router = APIRouter(prefix="/api/mixmusic", tags=["mixmusic"])
@@ -73,6 +74,11 @@ class TrackMetaOut(BaseModel):
     moments: list[str] = []
     play_count: int = 0
     play_seconds: int = 0
+    excluded: bool = False
+
+
+class ExcludeIn(BaseModel):
+    excluded: bool
 
 
 def _meta_to_out(meta) -> TrackMetaOut:
@@ -87,6 +93,22 @@ def _meta_to_out(meta) -> TrackMetaOut:
     )
 
 
+def _is_admin(session: Session, user_id: str) -> bool:
+    return session.exec(
+        select(UserGroup).join(Group, Group.id == UserGroup.group_id)
+        .where(UserGroup.user_id == user_id)
+        .where(Group.slug == "admins")
+    ).first() is not None
+
+
+def _excluded_set(session: Session, group_id: Optional[str]) -> set:
+    if not group_id:
+        return set()
+    return set(session.exec(
+        select(TrackExcluded.file_path).where(TrackExcluded.group_id == group_id)
+    ).all())
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/health")
@@ -98,9 +120,16 @@ def health():
 def get_tracks(
     offset: int = Query(default=0, ge=0),
     limit: Optional[int] = Query(default=None, ge=1),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
-    return svc.scan_tracks(offset=offset, limit=limit)
+    tracks = svc.scan_tracks(offset=offset, limit=limit)
+    if not _is_admin(session, user.id):
+        _, gid = _scope(user)
+        excl = _excluded_set(session, gid)
+        if excl:
+            tracks = [t for t in tracks if t["file"] not in excl]
+    return tracks
 
 
 @router.get("/stream/{filepath:path}")
@@ -192,7 +221,17 @@ def get_all_metas(
     user: User = Depends(get_current_user),
 ):
     uid, gid = _scope(user)
-    return svc.get_all_metas(session, uid, gid)
+    result = svc.get_all_metas(session, uid, gid)
+    excl = _excluded_set(session, gid)
+    for fp in excl:
+        if fp in result:
+            result[fp]["excluded"] = True
+        else:
+            result[fp] = {
+                "display_name": None, "rating": None, "genres": [], "moments": [],
+                "heart_count": 0, "play_count": 0, "play_seconds": 0, "excluded": True,
+            }
+    return result
 
 
 @router.get("/meta/{filepath:path}", response_model=TrackMetaOut)
@@ -204,9 +243,38 @@ def get_track_meta(
     filepath = urllib.parse.unquote(filepath)
     uid, gid = _scope(user)
     meta = svc.get_track_meta(session, filepath, uid, gid)
+    excluded = filepath in _excluded_set(session, gid)
     if not meta:
-        return TrackMetaOut(file_path=filepath)
-    return _meta_to_out(meta)
+        return TrackMetaOut(file_path=filepath, excluded=excluded)
+    out = _meta_to_out(meta)
+    out.excluded = excluded
+    return out
+
+
+@router.patch("/excluded/{filepath:path}", status_code=204)
+def set_excluded(
+    filepath: str,
+    body: ExcludeIn,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    if not _is_admin(session, user.id):
+        raise AppError("Geen toegang", status_code=403)
+    _, gid = _scope(user)
+    if not gid:
+        raise AppError("Geen groep geselecteerd", status_code=400)
+    filepath = urllib.parse.unquote(filepath)
+    existing = session.exec(
+        select(TrackExcluded)
+        .where(TrackExcluded.file_path == filepath)
+        .where(TrackExcluded.group_id == gid)
+    ).first()
+    if body.excluded and not existing:
+        session.add(TrackExcluded(file_path=filepath, group_id=gid))
+        session.commit()
+    elif not body.excluded and existing:
+        session.delete(existing)
+        session.commit()
 
 
 @router.patch("/meta/{filepath:path}", response_model=TrackMetaOut)

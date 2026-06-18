@@ -86,7 +86,7 @@ function MomentDots({ moments }) {
 }
 
 export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = false, focusSearch = 0, searchVisible = true }) {
-  const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres } = usePlayerContext()
+  const { tracks, tracksLoading, currentIdx, loadTrack, reload: onReload, metas, genres, isAdmin } = usePlayerContext()
   const onSelect = (idx) => loadTrack(idx, true)
   const searchRef = useRef(null)
   const [search, setSearch]               = useState('')
@@ -150,10 +150,11 @@ export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = fa
     const m = metas[t.file]
     const color = m?.rating ? ratingColor(m.rating) : null
     const label = m?.display_name || t.name
+    const excluded = isAdmin && m?.excluded
     return (
       <div
         key={t.file}
-        style={s.trackItem(active)}
+        style={{ ...s.trackItem(active), opacity: excluded ? 0.45 : 1 }}
         onClick={() => onSelect(idx)}
         onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg3)' }}
         onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
@@ -162,6 +163,7 @@ export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = fa
           {active ? '▶' : i + 1}
         </span>
         <span style={s.trackName(active)} title={label}>{label}</span>
+        {excluded && <span style={{ fontSize: '10px', color: '#ef4444', flexShrink: 0 }} title="Uitgesloten">⊘</span>}
         {showMoments   && m?.moments?.length > 0 && <MomentDots moments={m.moments} />}
         {showHearts    && m?.heart_count > 0 && (
           <span style={{ fontSize: '10px', color: '#e11d48', flexShrink: 0 }} title={`${m.heart_count} favoriete moment${m.heart_count !== 1 ? 'en' : ''}`}>
@@ -201,19 +203,6 @@ export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = fa
         </div>
       </div>}
 
-      {searchVisible && (
-        <div style={s.searchWrap}>
-          <input
-            ref={searchRef}
-            style={s.searchInput}
-            type="text"
-            placeholder="Zoeken in tracks..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-      )}
-
       {/* Sort + Filter balk */}
       <div style={{ padding: '0 14px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {/* Sorteren */}
@@ -242,6 +231,16 @@ export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = fa
 
         {/* Filteren */}
         <div style={{ ...microLabel, marginTop: 4 }}>Filteren</div>
+        {searchVisible && (
+          <input
+            ref={searchRef}
+            style={s.searchInput}
+            type="text"
+            placeholder="Zoeken in tracks..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        )}
 
         {usedGenreNames.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>

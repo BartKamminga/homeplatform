@@ -39,3 +39,15 @@ class TrackMeta(SQLModel, table=True):
     play_count: int = Field(default=0)
     play_seconds: int = Field(default=0)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TrackExcluded(SQLModel, table=True):
+    __tablename__ = "mixmusic_excluded_tracks"
+    __table_args__ = (
+        UniqueConstraint("file_path", "group_id", name="uq_excluded_file_group"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    file_path: str = Field(index=True)
+    group_id: str = Field(index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)

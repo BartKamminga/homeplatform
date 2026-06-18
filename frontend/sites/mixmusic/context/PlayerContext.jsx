@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useTracks }    from '../hooks/useTracks.js'
 import { usePlayer }    from '../hooks/usePlayer.js'
-import { useTrackMeta, useGenres, useMetas, useHearts, incrementPlay, addPlaySeconds } from '../hooks/useTrackMeta.js'
+import { useTrackMeta, useGenres, useMetas, useHearts, incrementPlay, addPlaySeconds, setExcluded as apiSetExcluded } from '../hooks/useTrackMeta.js'
 import { useCast }      from '../hooks/useCast.js'
 import { loadUiPrefs, setUiPref } from '@core/uiPrefs.js'
+import { api } from '@core/api.js'
 
 const PlayerContext = createContext(null)
 
@@ -11,6 +12,11 @@ export function PlayerProvider({ children }) {
   const { tracks, loading: tracksLoading, error, reload } = useTracks()
   const player                            = usePlayer(tracks)
   const currentTrack                      = player.currentIdx >= 0 ? tracks[player.currentIdx] : null
+
+  const [isAdmin, setIsAdmin] = useState(false)
+  useEffect(() => {
+    api.get('/api/auth/me').then(me => setIsAdmin(!!me?.is_admin)).catch(() => {})
+  }, [])
 
   const { meta, metaLoading, updateMeta } = useTrackMeta(currentTrack)
   const { genres, addGenre, deleteGenre } = useGenres()
@@ -163,6 +169,11 @@ export function PlayerProvider({ children }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [player])
 
+  async function toggleExcluded(filePath, excluded) {
+    await apiSetExcluded(filePath, excluded)
+    setTimeout(reloadMetas, 200)
+  }
+
   return (
     <PlayerContext.Provider value={{
       // tracks
@@ -184,6 +195,8 @@ export function PlayerProvider({ children }) {
       metas, reloadMetas,
       // cast
       castAvailable, castConnected, openCastPicker, stopCast,
+      // admin
+      isAdmin, toggleExcluded,
     }}>
       {children}
     </PlayerContext.Provider>
