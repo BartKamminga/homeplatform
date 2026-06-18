@@ -93,6 +93,11 @@ def _meta_to_out(meta) -> TrackMetaOut:
     )
 
 
+def _admin_group_id(session: Session) -> Optional[str]:
+    row = session.exec(select(Group.id).where(Group.slug == "admins")).first()
+    return row
+
+
 def _is_admin(session: Session, user_id: str) -> bool:
     return session.exec(
         select(UserGroup).join(Group, Group.id == UserGroup.group_id)
@@ -124,8 +129,9 @@ def get_tracks(
     session: Session = Depends(get_session),
 ):
     tracks = svc.scan_tracks(offset=offset, limit=limit)
-    if user.pref_group_mixmusic != 'admins':
-        excl = _excluded_set(session, 'admins')
+    admin_gid = _admin_group_id(session)
+    if admin_gid and user.pref_group_mixmusic != admin_gid:
+        excl = _excluded_set(session, admin_gid)
         if excl:
             tracks = [t for t in tracks if t["file"] not in excl]
     return tracks
