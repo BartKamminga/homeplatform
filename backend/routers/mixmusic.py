@@ -124,9 +124,8 @@ def get_tracks(
     session: Session = Depends(get_session),
 ):
     tracks = svc.scan_tracks(offset=offset, limit=limit)
-    if not _is_admin(session, user.id):
-        _, gid = _scope(user)
-        excl = _excluded_set(session, gid)
+    if user.pref_group_mixmusic != 'admins':
+        excl = _excluded_set(session, 'admins')
         if excl:
             tracks = [t for t in tracks if t["file"] not in excl]
     return tracks
