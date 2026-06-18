@@ -134,6 +134,13 @@ export default function Sidebar({ onOpenSettings, onOpenDisplay, hideHeader = fa
   const usedGenreNames = [...new Set(Object.values(metas).flatMap(m => m.genres || []))]
     .filter(g => genres.some(x => x.name === g))
 
+  // Reset genre-filter als het opgeslagen genre niet bestaat in de nieuwe groep
+  useEffect(() => {
+    if (usedGenreNames.length > 0 && filterGenre && !usedGenreNames.includes(filterGenre)) {
+      setFilterGenre(null)
+    }
+  }, [usedGenreNames.join(',')])
+
   const folders = [...new Set(filtered.map(t => t.folder).filter(Boolean))].sort()
 
   function toggleFolder(f) {
