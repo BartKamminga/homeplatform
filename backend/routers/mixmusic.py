@@ -94,8 +94,8 @@ def _meta_to_out(meta) -> TrackMetaOut:
 
 
 def _admin_group_id(session: Session) -> Optional[str]:
-    row = session.exec(select(Group.id).where(Group.slug == "admins")).first()
-    return row
+    group = session.exec(select(Group).where(Group.slug == "admins")).first()
+    return group.id if group else None
 
 
 def _is_admin(session: Session, user_id: str) -> bool:
