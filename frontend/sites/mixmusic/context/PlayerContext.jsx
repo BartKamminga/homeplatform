@@ -15,7 +15,7 @@ export function PlayerProvider({ children }) {
 
   const [isAdmin, setIsAdmin] = useState(false)
   useEffect(() => {
-    api.get('/api/auth/me').then(me => setIsAdmin(!!me?.is_admin)).catch(() => {})
+    api.get('/api/auth/me').then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
   }, [])
 
   const { meta, metaLoading, updateMeta } = useTrackMeta(currentTrack)
