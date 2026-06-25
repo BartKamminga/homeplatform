@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f0f11"/>
+  <!-- WebHeaven wolk (onder) -->
+  <g transform="translate(112, 205) scale(9)" fill="white">
+    <circle cx="9"  cy="19" r="7"/>
+    <circle cx="16" cy="14" r="9"/>
+    <circle cx="23" cy="19" r="7"/>
+    <rect   x="2"  y="18" width="28" height="10" rx="2"/>
+    <text x="16" y="25" text-anchor="middle" fill="#0f0f11"
+          font-family="monospace,Consolas,sans-serif"
+          font-size="10" font-weight="900" letter-spacing="-0.5">&lt;/&gt;</text>
+  </g>
+  <!-- Fiets: twee wielen + frame (boven) -->
+  <circle cx="172" cy="348" r="86" stroke="#16a34a" stroke-width="30" fill="none"/>
+  <circle cx="340" cy="348" r="86" stroke="#16a34a" stroke-width="30" fill="none"/>
+  <!-- Frame (omgekeerde V + kettingstreng) -->
+  <polyline points="172,348 256,194 340,348"
+    stroke="#16a34a" stroke-width="26" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+  <line x1="172" y1="348" x2="256" y2="300"
+    stroke="#16a34a" stroke-width="22" stroke-linecap="round"/>
+  <!-- Stuur -->
+  <line x1="256" y1="194" x2="288" y2="166"
+    stroke="#16a34a" stroke-width="20" stroke-linecap="round"/>
+  <!-- Naven -->
+  <circle cx="172" cy="348" r="14" fill="#16a34a"/>
+  <circle cx="340" cy="348" r="14" fill="#16a34a"/>
+</svg>

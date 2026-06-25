@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f0f11"/>
+  <!-- WebHeaven wolk (onder) -->
+  <g transform="translate(112, 205) scale(9)" fill="white">
+    <circle cx="9"  cy="19" r="7"/>
+    <circle cx="16" cy="14" r="9"/>
+    <circle cx="23" cy="19" r="7"/>
+    <rect   x="2"  y="18" width="28" height="10" rx="2"/>
+    <text x="16" y="25" text-anchor="middle" fill="#0f0f11"
+          font-family="monospace,Consolas,sans-serif"
+          font-size="10" font-weight="900" letter-spacing="-0.5">&lt;/&gt;</text>
+  </g>
+  <!-- Vinkje (boven) -->
+  <polyline points="108,294 210,408 400,172"
+    stroke="#185FA5" stroke-width="64" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

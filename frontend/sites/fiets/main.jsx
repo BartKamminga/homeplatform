@@ -10,6 +10,12 @@ initSentry()
 trackEvent('fiets', 'page.view', { path: window.location.pathname })
 loadTheme()
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/fiets/sw.js', { scope: '/fiets/' })
+  })
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary label="FietsPrognose">

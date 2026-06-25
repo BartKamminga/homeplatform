@@ -11,6 +11,12 @@ initSentry();
 trackEvent("nkhockey", "page.view", { path: window.location.pathname });
 loadTheme();
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/nkhockey/sw.js', { scope: '/nkhockey/' })
+  })
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <ErrorBoundary label="NK Hockey">
     <App />

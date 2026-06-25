@@ -1,0 +1,19 @@
+{
+  "name": "DontForget",
+  "short_name": "DontForget",
+  "description": "Persoonlijke herinneringen en notities",
+  "start_url": "/dontforget/",
+  "scope": "/dontforget/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f11",
+  "theme_color": "#185FA5",
+  "icons": [
+    {
+      "src": "/dontforget/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

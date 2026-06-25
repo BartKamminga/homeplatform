@@ -12,6 +12,12 @@ initSentry();
 trackEvent("dontforget", "page.view", { path: window.location.pathname });
 loadTheme();
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/dontforget/sw.js', { scope: '/dontforget/' })
+  })
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ErrorBoundary label="DontForget">

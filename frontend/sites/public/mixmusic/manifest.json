@@ -10,7 +10,7 @@
   "theme_color": "#0f0f11",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/mixmusic/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
