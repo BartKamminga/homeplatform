@@ -1,0 +1,19 @@
+{
+  "name": "Mix Music",
+  "short_name": "Mix Music",
+  "description": "Persoonlijke muziekspeler",
+  "start_url": "/mixmusic/",
+  "scope": "/mixmusic/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f11",
+  "theme_color": "#0f0f11",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

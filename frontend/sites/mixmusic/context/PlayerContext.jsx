@@ -169,6 +169,58 @@ export function PlayerProvider({ children }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [player])
 
+  // Media Session — lockscreen metadata + controls
+  const msProgressRef = useRef(0)
+  const msDurationRef = useRef(0)
+  useEffect(() => { msProgressRef.current = player.progress }, [player.progress])
+  useEffect(() => { msDurationRef.current = player.duration }, [player.duration])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: displayName || currentTrack.name,
+      artist: currentTrack.folder || 'Mix Music',
+      album: 'Mix Music',
+      artwork: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }],
+    })
+  }, [currentTrack?.file, displayName])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.playbackState = player.playing ? 'playing' : 'paused'
+  }, [player.playing])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.setActionHandler('play', () => player.togglePlay())
+    navigator.mediaSession.setActionHandler('pause', () => player.togglePlay())
+    navigator.mediaSession.setActionHandler('previoustrack', () => player.prev())
+    navigator.mediaSession.setActionHandler('nexttrack', () => player.next())
+    navigator.mediaSession.setActionHandler('seekbackward', (e) => {
+      const off = e.seekOffset ?? 10
+      player.seek(Math.max(0, msProgressRef.current - off) / Math.max(msDurationRef.current, 1))
+    })
+    navigator.mediaSession.setActionHandler('seekforward', (e) => {
+      const off = e.seekOffset ?? 10
+      player.seek(Math.min(msDurationRef.current, msProgressRef.current + off) / Math.max(msDurationRef.current, 1))
+    })
+    return () => {
+      ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward']
+        .forEach(a => navigator.mediaSession.setActionHandler(a, null))
+    }
+  }, [player.togglePlay, player.prev, player.next, player.seek])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || player.duration <= 0) return
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: player.duration,
+        playbackRate: 1,
+        position: Math.min(player.progress, player.duration),
+      })
+    } catch {}
+  }, [player.progress, player.duration])
+
   async function toggleExcluded(filePath, excluded) {
     await apiSetExcluded(filePath, excluded)
     setTimeout(reloadMetas, 200)
