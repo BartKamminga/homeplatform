@@ -24,6 +24,8 @@ def scan_tracks(offset: int = 0, limit: int | None = None) -> list[dict]:
                 parts = rel.parts
                 if any(p.lower().startswith("@eadir") for p in parts):
                     continue
+                if any(p.lower() == "org" for p in parts):
+                    continue
                 stat = f.stat()
                 tracks.append({
                     "name": f.stem,
