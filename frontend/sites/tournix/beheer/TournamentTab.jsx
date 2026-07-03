@@ -4,12 +4,20 @@ import { inputStyle, noTid } from './styles.js'
 
 export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
   const [nameInput, setNameInput] = useState(active?.name ?? '')
-  useEffect(() => { setNameInput(active?.name ?? '') }, [active?.id])
+  const [seasonInput, setSeasonInput] = useState(active?.season ?? '')
+  useEffect(() => { setNameInput(active?.name ?? ''); setSeasonInput(active?.season ?? '') }, [active?.id])
 
   async function handleRename(e) {
     e.preventDefault()
     if (!active || !nameInput.trim() || nameInput === active.name) return
     await updateTournament(active.id, { name: nameInput })
+    await onRefresh()
+  }
+
+  async function handleSeason(e) {
+    e.preventDefault()
+    if (!active || seasonInput === (active.season ?? '')) return
+    await updateTournament(active.id, { season: seasonInput || null })
     await onRefresh()
   }
 
@@ -54,6 +62,29 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
               background: 'var(--color-primary)', color: '#fff', border: 'none',
               cursor: nameInput.trim() && nameInput !== active.name ? 'pointer' : 'default',
               opacity: nameInput.trim() && nameInput !== active.name ? 1 : 0.5 }}
+          >
+            Opslaan
+          </button>
+        </form>
+      </div>
+
+      {/* Seizoen */}
+      <div style={{ padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>SEIZOEN</div>
+        <form onSubmit={handleSeason} style={{ display: 'flex', gap: 8 }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            value={seasonInput}
+            onChange={e => setSeasonInput(e.target.value)}
+            placeholder="bijv. 2026-2027"
+          />
+          <button
+            type="submit"
+            disabled={seasonInput === (active.season ?? '')}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 6, fontFamily: 'inherit',
+              background: 'var(--color-primary)', color: '#fff', border: 'none',
+              cursor: seasonInput !== (active.season ?? '') ? 'pointer' : 'default',
+              opacity: seasonInput !== (active.season ?? '') ? 1 : 0.5 }}
           >
             Opslaan
           </button>

@@ -34,6 +34,7 @@ class ClubCreate(BaseModel):
     city:                    Optional[str] = None
     color:                   Optional[str] = None
     federation_reference_id: Optional[str] = None
+    logo_url:                Optional[str] = None
 
 class ClubUpdate(BaseModel):
     name:                    Optional[str] = None
@@ -41,6 +42,7 @@ class ClubUpdate(BaseModel):
     city:                    Optional[str] = None
     color:                   Optional[str] = None
     federation_reference_id: Optional[str] = None
+    logo_url:                Optional[str] = None
 
 
 # ── Teams ─────────────────────────────────────────────────────────────────────

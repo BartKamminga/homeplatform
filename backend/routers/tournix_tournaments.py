@@ -30,6 +30,7 @@ class TournamentCreate(BaseModel):
     location_club_id: Optional[str]      = None
     description:      Optional[str]      = None
     group_id:         Optional[str]      = None
+    season:           Optional[str]      = None
 
 class TournamentUpdate(BaseModel):
     name:             Optional[str]      = None
@@ -43,6 +44,7 @@ class TournamentUpdate(BaseModel):
     pool_type:        Optional[str]      = None
     knockout_type:    Optional[str]      = None
     knockout_advance: Optional[int]      = None
+    season:           Optional[str]      = None
 
 class ImportPoolTeam(BaseModel):
     name:  str
@@ -149,6 +151,7 @@ def copy_tournament(
         pool_type=orig.pool_type,
         knockout_type=orig.knockout_type,
         knockout_advance=orig.knockout_advance,
+        season=orig.season,
         created_by=user.id,
     )
     session.add(new_t)

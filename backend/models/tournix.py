@@ -17,6 +17,7 @@ class TournixClub(SQLModel, table=True):
     city:                     Optional[str] = Field(default=None)
     color:                    Optional[str] = Field(default=None)
     federation_reference_id:  Optional[str] = Field(default=None)
+    logo_url:                 Optional[str] = Field(default=None)
 
 
 class Tournament(SQLModel, table=True):
@@ -37,6 +38,7 @@ class Tournament(SQLModel, table=True):
     pool_type:        str               = Field(default="half")   # "half" | "vol"
     knockout_type:    str               = Field(default="none")   # none | seeded
     knockout_advance: int               = Field(default=2)        # teams per pool advancing to KO
+    season:           Optional[str]     = Field(default=None)     # e.g. "2026-2027"
 
 
 class TournixPool(SQLModel, table=True):
