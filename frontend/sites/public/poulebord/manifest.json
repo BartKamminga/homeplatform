@@ -1,0 +1,19 @@
+{
+  "name": "Poulebord",
+  "short_name": "Poulebord",
+  "description": "KNHB Jeugdcompetitie poule-indeling en uitslagen",
+  "start_url": "/poulebord/",
+  "scope": "/poulebord/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b3427",
+  "theme_color": "#0b3427",
+  "icons": [
+    {
+      "src": "/poulebord/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

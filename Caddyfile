@@ -57,6 +57,12 @@
         file_server
     }
 
+    handle /poulebord/* {
+        root * /srv/www
+        try_files {path} /poulebord/index.html
+        file_server
+    }
+
     handle / {
         root * /srv/www
         try_files {path} /landing/index.html

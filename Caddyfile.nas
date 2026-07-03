@@ -58,6 +58,12 @@
         file_server
     }
 
+    handle /poulebord/* {
+        root * /srv/www
+        try_files {path} /poulebord/index.html
+        file_server
+    }
+
     handle /assets/* {
         root * /srv/www
         file_server
