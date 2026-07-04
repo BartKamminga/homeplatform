@@ -231,6 +231,265 @@ def seed_poulebord_2026(session: Session):
         print(f"  {total} teams aangemaakt voor seizoen {SEASON}")
 
 
+def seed_poulebord_hermindeling_2026(session: Session):
+    """Maakt Hermindeling (fase 2) aan voor alle 2026-2027 toernooien (idempotent).
+
+    Placeholders verwijzen naar poulefase-posities; de exacte KNHB-verdeling
+    wordt ingevuld zodra KNHB de hermindeling publiceert na de poulefase.
+    """
+    import uuid as _uuid
+    from datetime import datetime as _dt
+
+    SEASON = "2026-2027"
+    POOL_LETTERS = "ABCDEFGHIJ"
+
+    # (num_lente_pools, positions_advancing)
+    # O18: alle 4 posities → 4 niveaus van 8 teams (niveau 1 = Hoofdklasse)
+    # O16/JO14: top 3 → 4 Lente-poules van 6 teams
+    # O14: top 3 → 5 Lente-poules van 6 teams
+    CONFIG = {
+        "MO18": (4, [1, 2, 3, 4]),
+        "JO18": (4, [1, 2, 3, 4]),
+        "MO16": (4, [1, 2, 3]),
+        "JO16": (4, [1, 2, 3]),
+        "MO14": (5, [1, 2, 3]),
+        "JO14": (4, [1, 2, 3]),
+    }
+
+    for cat, (num_lente, positions) in CONFIG.items():
+        t = session.exec(
+            select(Tournament).where(Tournament.name == cat, Tournament.season == SEASON)
+        ).first()
+        if not t:
+            print(f"  {cat}: toernooi niet gevonden")
+            continue
+
+        fase1 = session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id, TournixPhase.order == 0
+            )
+        ).first()
+        if not fase1:
+            print(f"  {cat}: geen poulefase gevonden")
+            continue
+
+        if session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id, TournixPhase.order == 1
+            )
+        ).first():
+            print(f"  {cat}: hermindeling bestaat al")
+            continue
+
+        fase1_pools = session.exec(
+            select(TournixPool).where(TournixPool.phase_id == fase1.id).order_by(TournixPool.order)
+        ).all()
+
+        fase2 = TournixPhase(
+            id=str(_uuid.uuid4()), tournament_id=t.id,
+            name="Hermindeling", phase_type="pool", pool_type="half",
+            order=1, created_at=_dt.utcnow(),
+        )
+        session.add(fase2)
+        session.flush()
+
+        lente_pools = []
+        for i in range(num_lente):
+            lp = TournixPool(
+                id=str(_uuid.uuid4()), tournament_id=t.id,
+                phase_id=fase2.id, name=POOL_LETTERS[i], order=i,
+            )
+            session.add(lp)
+            lente_pools.append(lp)
+        session.flush()
+
+        if cat in ("MO18", "JO18"):
+            # Alle teams op dezelfde positie → één niveau-poule
+            for pos_idx, pos in enumerate(positions):
+                lp = lente_pools[pos_idx]
+                for hf_pool in fase1_pools:
+                    session.add(TournixTeam(
+                        id=str(_uuid.uuid4()), tournament_id=t.id,
+                        name=f"{pos}e poule {hf_pool.name}",
+                        pool_id=lp.id,
+                        is_placeholder=True,
+                        placeholder_source_phase_id=fase1.id,
+                        placeholder_pool_name=hf_pool.name,
+                        placeholder_position=pos,
+                        created_at=_dt.utcnow(),
+                    ))
+        else:
+            # Cyclische verdeling met shift per wave → elke Lente-poule
+            # krijgt teams uit meerdere Herfst-poules op elk niveau
+            for pos_idx, pos in enumerate(positions):
+                for hf_idx, hf_pool in enumerate(fase1_pools):
+                    lp = lente_pools[(hf_idx + pos_idx) % num_lente]
+                    session.add(TournixTeam(
+                        id=str(_uuid.uuid4()), tournament_id=t.id,
+                        name=f"{pos}e poule {hf_pool.name}",
+                        pool_id=lp.id,
+                        is_placeholder=True,
+                        placeholder_source_phase_id=fase1.id,
+                        placeholder_pool_name=hf_pool.name,
+                        placeholder_position=pos,
+                        created_at=_dt.utcnow(),
+                    ))
+
+        session.commit()
+        teams_count = len(positions) * len(fase1_pools)
+        print(f"  {cat}: hermindeling aangemaakt ({num_lente} poules, {teams_count} placeholders)")
+
+
+def seed_poulebord_nkveld_2026(session: Session):
+    """Maakt NK Veld (fase 3, en fase 4 voor O14) aan voor 2026-2027 (idempotent).
+
+    O14: NK Dag 1 als pool-fase (2 poules × 5, NK14_SLOTS patroon) + NK Finale (KO).
+    O16/O18: NK Veld als KO-fase met 8 placeholder-seeds uit de hermindeling.
+    """
+    import uuid as _uuid
+    from datetime import datetime as _dt
+
+    SEASON = "2026-2027"
+
+    # O14: NK Dag 1 poulefase seeding (NK14_SLOTS patroon, MO14 heeft 5 Lente-poules)
+    # NK Pool A: 1e Lente A, 2e Lente B, 1e Lente C, 2e Lente D, 1e Lente E
+    # NK Pool B: 2e Lente A, 1e Lente B, 2e Lente C, 1e Lente D, 2e Lente E
+    MO14_SLOTS = {
+        "A": [("A", 1), ("B", 2), ("C", 1), ("D", 2), ("E", 1)],
+        "B": [("A", 2), ("B", 1), ("C", 2), ("D", 1), ("E", 2)],
+    }
+
+    for cat in ["MO18", "JO18", "MO16", "JO16", "MO14", "JO14"]:
+        t = session.exec(
+            select(Tournament).where(Tournament.name == cat, Tournament.season == SEASON)
+        ).first()
+        if not t:
+            continue
+
+        fase2 = session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id, TournixPhase.order == 1
+            )
+        ).first()
+        if not fase2:
+            print(f"  {cat}: geen hermindeling gevonden, NK Veld overgeslagen")
+            continue
+
+        if session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id, TournixPhase.order == 2
+            )
+        ).first():
+            print(f"  {cat}: NK Veld bestaat al")
+            continue
+
+        hermindeling_pools = session.exec(
+            select(TournixPool).where(TournixPool.phase_id == fase2.id).order_by(TournixPool.order)
+        ).all()
+        lente_by_name = {p.name: p for p in hermindeling_pools}
+
+        if cat == "MO14":
+            # NK Dag 1: pool-fase met 2 NK-poules van 5 teams (NK14_SLOTS)
+            fase3 = TournixPhase(
+                id=str(_uuid.uuid4()), tournament_id=t.id,
+                name="NK Dag 1", phase_type="pool", pool_type="vol",
+                order=2, created_at=_dt.utcnow(),
+            )
+            session.add(fase3)
+            session.flush()
+
+            for nk_letter, slots in MO14_SLOTS.items():
+                nk_pool = TournixPool(
+                    id=str(_uuid.uuid4()), tournament_id=t.id,
+                    phase_id=fase3.id, name=nk_letter, order=ord(nk_letter) - ord("A"),
+                )
+                session.add(nk_pool)
+                session.flush()
+                for lente_letter, pos in slots:
+                    session.add(TournixTeam(
+                        id=str(_uuid.uuid4()), tournament_id=t.id,
+                        name=f"{pos}e Lente {lente_letter}",
+                        pool_id=nk_pool.id,
+                        is_placeholder=True,
+                        placeholder_source_phase_id=fase2.id,
+                        placeholder_pool_name=lente_letter,
+                        placeholder_position=pos,
+                        created_at=_dt.utcnow(),
+                    ))
+
+            # NK Finale: KO-fase (4 teams: top 2 uit elke NK Dag 1 poule)
+            fase4 = TournixPhase(
+                id=str(_uuid.uuid4()), tournament_id=t.id,
+                name="NK Finale", phase_type="ko", ko_type="single",
+                order=3, created_at=_dt.utcnow(),
+            )
+            session.add(fase4)
+            session.flush()
+            for pos in [1, 2]:
+                for nk_letter in ["A", "B"]:
+                    session.add(TournixTeam(
+                        id=str(_uuid.uuid4()), tournament_id=t.id,
+                        name=f"{pos}e NK poule {nk_letter}",
+                        pool_id=None,
+                        is_placeholder=True,
+                        placeholder_source_phase_id=fase3.id,
+                        placeholder_pool_name=nk_letter,
+                        placeholder_position=pos,
+                        created_at=_dt.utcnow(),
+                    ))
+
+            session.commit()
+            print(f"  {cat}: NK Dag 1 (2 poules x 5) + NK Finale (KO 4 teams)")
+
+        elif cat in ("MO16", "JO16", "JO14"):
+            # NK Veld: KO van 8 teams (top 2 uit elke Lente-poule)
+            fase3 = TournixPhase(
+                id=str(_uuid.uuid4()), tournament_id=t.id,
+                name="NK Veld", phase_type="ko", ko_type="single",
+                order=2, created_at=_dt.utcnow(),
+            )
+            session.add(fase3)
+            session.flush()
+            for lp in hermindeling_pools:
+                for pos in [1, 2]:
+                    session.add(TournixTeam(
+                        id=str(_uuid.uuid4()), tournament_id=t.id,
+                        name=f"{pos}e Lente {lp.name}",
+                        pool_id=None,
+                        is_placeholder=True,
+                        placeholder_source_phase_id=fase2.id,
+                        placeholder_pool_name=lp.name,
+                        placeholder_position=pos,
+                        created_at=_dt.utcnow(),
+                    ))
+            session.commit()
+            print(f"  {cat}: NK Veld (KO 8 teams)")
+
+        elif cat in ("MO18", "JO18"):
+            # NK Veld: KO van 8 teams (top 8 uit hermindeling Hoofdklasse = Poule A)
+            fase3 = TournixPhase(
+                id=str(_uuid.uuid4()), tournament_id=t.id,
+                name="NK Veld", phase_type="ko", ko_type="single",
+                order=2, created_at=_dt.utcnow(),
+            )
+            session.add(fase3)
+            session.flush()
+            hoofdklasse = hermindeling_pools[0]  # Poule A = Hoofdklasse
+            for pos in range(1, 9):
+                session.add(TournixTeam(
+                    id=str(_uuid.uuid4()), tournament_id=t.id,
+                    name=f"{pos}e Hoofdklasse",
+                    pool_id=None,
+                    is_placeholder=True,
+                    placeholder_source_phase_id=fase2.id,
+                    placeholder_pool_name=hoofdklasse.name,
+                    placeholder_position=pos,
+                    created_at=_dt.utcnow(),
+                ))
+            session.commit()
+            print(f"  {cat}: NK Veld (KO 8 teams uit Hoofdklasse)")
+
+
 def seed(username: str, password: str, email: str):
     create_db_and_tables()
 
@@ -246,6 +505,12 @@ def seed(username: str, password: str, email: str):
 
         print("\n>> Poulebord toernooien 2026-2027...")
         seed_poulebord_2026(session)
+
+        print("\n>> Hermindeling 2026-2027...")
+        seed_poulebord_hermindeling_2026(session)
+
+        print("\n>> NK Veld 2026-2027...")
+        seed_poulebord_nkveld_2026(session)
 
         print("\n✓ Seed klaar")
         print(f"  Login: {username} / {password}")
