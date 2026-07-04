@@ -113,7 +113,9 @@ function TournamentCard({ tournament }) {
       .catch(() => setPhases([]))
   }, [tournament.id])
 
-  const poolPhases = phases?.filter(p => p.phase_type === 'pool') ?? []
+  const poolPhases = phases?.filter(p =>
+    p.phase_type === 'pool' && (p.is_main_phase || p.match_count > 0)
+  ) ?? []
 
   return (
     <div style={{ background: C.card, borderRadius: 12, overflow: 'hidden', marginBottom: 10,
