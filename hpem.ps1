@@ -201,6 +201,7 @@ if ($CaddyReset) {
 if ($ImportTournix) {
     Step "Tournix 2026-2027 data importeren"
     NasRun "cd $NasPath && git pull origin main" "Laatste script ophalen van GitHub..."
+    NasRun "sudo /usr/local/bin/docker cp $NasPath/backend/import_tournix_2026.py homeplatform_backend:/app/" "Script naar container kopiëren..."
     NasRun "sudo /usr/local/bin/docker exec homeplatform_backend python import_tournix_2026.py" "Import uitvoeren..."
     Ok "Tournix 2026-2027 data geimporteerd"
     exit 0
