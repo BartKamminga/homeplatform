@@ -17,6 +17,7 @@
 #   .\hpem.ps1 -DbHistory                            # toon migratie geschiedenis
 #   .\hpem.ps1 -Help                                 # deze help tonen
 #   .\hpem.ps1 -CaddyReset                          # caddy cache wissen en herstarten
+#   .\hpem.ps1 -ImportTournix                        # tournix 2026-2027 data importeren (geen rebuild)
 #
 # BUILD OPTIES:
 #   all    Frontend bouwen + backend [standaard]
@@ -54,8 +55,9 @@ param(
     [string]$DbDowngrade = "",
     [switch]$DbHistory   = $false,
     [switch]$Help        = $false,
-    [switch]$CaddyRestart = $false,
-    [switch]$CaddyReset   = $false
+    [switch]$CaddyRestart   = $false,
+    [switch]$CaddyReset     = $false,
+    [switch]$ImportTournix  = $false
 )
 
 # Zichzelf unblocking zodat updates direct werken
@@ -190,6 +192,17 @@ if ($CaddyReset) {
     NasRun "sudo /usr/local/bin/docker volume rm homeplatform_caddy_config" "Caddy config cache verwijderen..."
     NasRun "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml up -d" "Alles opstarten..."
     Ok "Caddy reset klaar"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Tournix data import (geen backend rebuild nodig)
+# ---------------------------------------------------------------------------
+if ($ImportTournix) {
+    Step "Tournix 2026-2027 data importeren"
+    NasRun "cd $NasPath && git pull origin main" "Laatste script ophalen van GitHub..."
+    NasRun "sudo /usr/local/bin/docker exec homeplatform_backend python import_tournix_2026.py" "Import uitvoeren..."
+    Ok "Tournix 2026-2027 data geimporteerd"
     exit 0
 }
 

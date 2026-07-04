@@ -114,7 +114,8 @@ function TournamentCard({ tournament }) {
   }, [tournament.id])
 
   const poolPhases = phases?.filter(p =>
-    p.phase_type === 'pool' && (p.is_main_phase || p.match_count > 0)
+    p.phase_type === 'pool' &&
+    (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
   ) ?? []
 
   return (
