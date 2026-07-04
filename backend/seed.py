@@ -183,17 +183,23 @@ def seed_poulebord_2026(session: Session):
             select(Tournament).where(Tournament.name == cat, Tournament.season == SEASON)
         ).first()
         if existing:
-            print(f"  Toernooi {cat} {SEASON} bestaat al")
-            continue
-
-        t = Tournament(
-            id=str(_uuid.uuid4()), name=cat, season=SEASON,
-            num_pools=len(pools), pool_type="half",
-            status="active", stage="productie",
-            created_at=_dt.utcnow(),
-        )
-        session.add(t)
-        session.flush()
+            existing_phase = session.exec(
+                select(TournixPhase).where(TournixPhase.tournament_id == existing.id)
+            ).first()
+            if existing_phase:
+                print(f"  Toernooi {cat} {SEASON} bestaat al (incl. fases)")
+                continue
+            t = existing
+            print(f"  Toernooi {cat}: fases ontbreken, aanmaken...")
+        else:
+            t = Tournament(
+                id=str(_uuid.uuid4()), name=cat, season=SEASON,
+                num_pools=len(pools), pool_type="half",
+                status="active", stage="productie",
+                created_at=_dt.utcnow(),
+            )
+            session.add(t)
+            session.flush()
 
         phase = TournixPhase(
             id=str(_uuid.uuid4()), tournament_id=t.id,
@@ -219,7 +225,7 @@ def seed_poulebord_2026(session: Session):
                 total += 1
 
         session.commit()
-        print(f"  Toernooi {cat} aangemaakt ({len(pools)} poules)")
+        print(f"  Toernooi {cat}: {len(pools)} poules aangemaakt")
 
     if total:
         print(f"  {total} teams aangemaakt voor seizoen {SEASON}")
