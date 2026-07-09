@@ -22,6 +22,7 @@ Bron fase-1 indeling: KNHB definitieve poule-indelingen 2026-2027
 """
 
 import os
+import re
 import sys
 import uuid
 from datetime import datetime
@@ -30,7 +31,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from sqlmodel import Session, select
 from core.database import engine, create_db_and_tables
-from models.tournix import Tournament, TournixPhase, TournixPool, TournixTeam
+from models.tournix import Tournament, TournixPhase, TournixPool, TournixTeam, TournixClub
 
 SEASON = "2026-2027"
 
@@ -555,6 +556,29 @@ def run():
         print(f"    {total_fase1_t} fase-1 toernooien, {total_teams} echte teams")
         print(f"    {len(FASE2)} toernooien met fase-2 hermindeling (Topklasse LC-pad)")
         print(f"    {len(SUPER)} super-toernooien (Super O18 / Super O16)")
+
+        print(f"\n>> Clubs synchroniseren...")
+        _sync_clubs(session)
+
+
+def _sync_clubs(session):
+    """Extraheer unieke clubnamen uit FASE1 en sla op in tournix_clubs (idempotent)."""
+    names = set()
+    for pools in FASE1.values():
+        for teams in pools.values():
+            for naam in teams:
+                club = re.sub(r'\s+(M|J)O\d+.*$', '', naam, flags=re.IGNORECASE).strip()
+                if club:
+                    names.add(club)
+
+    existing = {c.name for c in session.exec(select(TournixClub)).all()}
+    added = 0
+    for name in sorted(names):
+        if name not in existing:
+            session.add(TournixClub(id=str(uuid.uuid4()), name=name))
+            added += 1
+    session.flush()
+    print(f"  {added} nieuw, {len(names) - added} al aanwezig ({len(names)} totaal)")
 
 
 if __name__ == "__main__":

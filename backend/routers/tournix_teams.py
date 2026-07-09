@@ -113,6 +113,11 @@ def delete_team(team_id: str, session: Session = Depends(get_session), _: User =
 
 # ── Clubs ─────────────────────────────────────────────────────────────────────
 
+@router.get("/public/clubs")
+def list_clubs_public(session: Session = Depends(get_session)):
+    return [c.name for c in session.exec(select(TournixClub).order_by(TournixClub.name)).all()]
+
+
 @router.get("/clubs")
 def list_clubs(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     return session.exec(select(TournixClub).order_by(TournixClub.name)).all()

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTournaments, getPhases, getPhaseStandings } from './api.js'
+import { getTournaments, getPhases, getPhaseStandings, getClubs } from './api.js'
 
 const SEASON = '2026-2027'
 const CATEGORIES = ['MO14', 'JO14', 'MO16', 'JO16', 'MO18', 'JO18']
@@ -264,8 +264,11 @@ export default function App() {
   const [club, setClub]         = useState(() => localStorage.getItem(CLUB_KEY) || '')
   const [clubEdit, setClubEdit] = useState(false)
   const [clubInput, setClubInput] = useState('')
+  const [clubs, setClubs]       = useState([])
   const [infoOpen, setInfoOpen] = useState(false)
   const [error, setError]       = useState(null)
+
+  useEffect(() => { getClubs().then(setClubs).catch(() => {}) }, [])
 
   useEffect(() => {
     getTournaments()
@@ -330,10 +333,14 @@ export default function App() {
               onChange={e => setClubInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && saveClub()}
               placeholder="Clubnaam (bijv. Kampong)"
+              list="pb-clubs-list"
               autoFocus
               style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6,
                 color: C.chalk, fontSize: 12, padding: '5px 10px', fontFamily: 'inherit', outline: 'none' }}
             />
+            <datalist id="pb-clubs-list">
+              {clubs.map(c => <option key={c} value={c} />)}
+            </datalist>
             <button onClick={saveClub} style={{
               background: C.gold, color: C.deep, border: 'none', borderRadius: 6,
               padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
