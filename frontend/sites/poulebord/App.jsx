@@ -314,78 +314,92 @@ function PhaseCard({ phase, club, poolPins, onPoolPin }) {
   )
 }
 
-// ── Pinned pool card (board) ───────────────────────────────────────────────────
+// ── Pinned pool group card (board) ────────────────────────────────────────────
 
-function PinnedPoolCard({ pin, club, onUnpin }) {
-  const [standings, setStandings] = useState(null)
+function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
+  const [standingsMap, setStandingsMap] = useState({})
+  const phaseKey = pins.map(p => p.phaseId).join(',')
+
   useEffect(() => {
-    getPhaseStandings(pin.phaseId).then(setStandings).catch(() => setStandings([]))
-  }, [pin.phaseId])
+    const phaseIds = [...new Set(pins.map(p => p.phaseId))]
+    phaseIds.forEach(phaseId => {
+      getPhaseStandings(phaseId)
+        .then(rows => setStandingsMap(prev => ({ ...prev, [phaseId]: rows })))
+        .catch(() => setStandingsMap(prev => ({ ...prev, [phaseId]: [] })))
+    })
+  }, [phaseKey])
 
-  const poolRows = standings ? standings.filter(r => r.pool_name === pin.poolName) : null
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
 
   return (
     <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
       marginBottom: 8, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center',
-        borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ flex: 1, padding: '9px 14px' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
-            color: C.gold }}>POULE {pin.poolName}</div>
-          <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{pin.tournamentName}</div>
-        </div>
-        <button onClick={onUnpin} style={{
-          background: 'transparent', border: 'none',
-          borderLeft: `1px solid ${C.border}`,
-          padding: '0 14px', minHeight: 44,
-          fontSize: 12, color: C.muted, cursor: 'pointer',
-        }}>✕</button>
+      <div style={{ padding: '5px 8px 5px 10px', borderBottom: `1px solid ${C.border}`,
+        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, color: C.chalk, flex: 1,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {tournamentName}
+        </span>
+        {pins.map(p => (
+          <span key={`${p.phaseId}::${p.poolName}`} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            background: 'rgba(207,159,63,0.1)', border: `1px solid ${C.gold}`,
+            borderRadius: 4, padding: '1px 4px', fontSize: 10, color: C.gold,
+          }}>
+            Poule {p.poolName}
+            <button onClick={() => onUnpin(p.phaseId, p.poolName)} style={{
+              background: 'none', border: 'none', padding: 0,
+              cursor: 'pointer', color: C.muted, fontSize: 9, lineHeight: 1,
+            }}>✕</button>
+          </span>
+        ))}
       </div>
-      {poolRows === null ? (
-        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
-      ) : poolRows.length === 0 ? (
-        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10, fontStyle: 'italic' }}>
-          Nog geen wedstrijden gespeeld
-        </div>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ color: C.muted, fontSize: 10 }}>
-              <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
-              <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
-              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
-              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
-              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
-              <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
-            </tr>
-          </thead>
-          <tbody>
-            {poolRows.map((r, i) => {
-              const my = isMyClub(r.name)
-              return (
-                <tr key={r.id} style={{
-                  borderTop: `1px solid ${C.border}`,
-                  background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
-                }}>
-                  <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
-                  <td style={{ padding: '5px 3px', color: my ? C.goldBr : C.chalk,
-                    fontWeight: my || i === 0 ? 600 : 400,
-                    maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
-                    {r.name}
-                  </td>
-                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
-                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
-                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
-                  <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
-                    color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+        {pins.map((p, idx) => {
+          const rows = standingsMap[p.phaseId]
+          const poolRows = rows?.filter(r => r.pool_name === p.poolName) ?? null
+          return (
+            <div key={`${p.phaseId}::${p.poolName}`} style={{
+              flex: '1 1 180px',
+              borderLeft: idx > 0 ? `1px solid ${C.border}` : 'none',
+            }}>
+              <div style={{ padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
+                POULE {p.poolName}
+              </div>
+              {poolRows === null ? (
+                <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
+              ) : poolRows.length === 0 ? (
+                <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center', fontStyle: 'italic' }}>Nog geen wedstrijden</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <tbody>
+                    {poolRows.map((r, i) => {
+                      const my = isMyClub(r.name)
+                      return (
+                        <tr key={r.id} style={{
+                          borderTop: `1px solid ${C.border}`,
+                          background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
+                        }}>
+                          <td style={{ padding: '4px 3px 4px 8px', color: C.muted, fontSize: 10, width: 16 }}>{i + 1}</td>
+                          <td style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
+                            fontWeight: my || i === 0 ? 600 : 400,
+                            maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {my && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
+                            {r.name}
+                          </td>
+                          <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
+                            color: C.goldBr, fontWeight: 700, fontSize: 12, width: 26 }}>{r.pts}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -587,13 +601,24 @@ function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin 
               Poules
             </div>
           )}
-          {pinnedPools.map(p => (
-            <PinnedPoolCard
-              key={`${p.phaseId}::${p.poolName}`}
-              pin={p} club={club}
-              onUnpin={() => onPoolUnpin(p.phaseId, p.poolName)}
-            />
-          ))}
+          {(() => {
+            const grouped = {}
+            for (const p of pinnedPools) {
+              if (!grouped[p.tournamentName]) grouped[p.tournamentName] = []
+              grouped[p.tournamentName].push(p)
+            }
+            return Object.entries(grouped)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([tn, gPins]) => (
+                <PinnedPoolGroupCard
+                  key={tn}
+                  tournamentName={tn}
+                  pins={gPins.sort((a, b) => a.poolName.localeCompare(b.poolName, undefined, { numeric: true }))}
+                  club={club}
+                  onUnpin={onPoolUnpin}
+                />
+              ))
+          })()}
         </BoardSection>
       )}
     </div>
