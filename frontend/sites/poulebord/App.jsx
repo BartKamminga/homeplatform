@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard } from './api.js'
 
-const SEASON = '2026-2027'
+const SEASON    = '2026-2027'
 const CATEGORIES = ['MO14', 'JO14', 'MO16', 'JO16', 'MO18', 'JO18']
-const CLUB_KEY  = 'pb_club'
-const BOARD_KEY = 'pb_board_on'
-const PINS_KEY  = 'pb_pins'
+const CLUB_KEY       = 'pb_club'
+const BOARD_KEY      = 'pb_board_on'
+const PINS_KEY       = 'pb_pins'
+const POOL_PINS_KEY  = 'pb_pool_pins'
 
 const C = {
   bg:     '#0b3427',
@@ -40,32 +41,25 @@ const SEIZOEN_INFO = {
       niveaus: ['Topklasse — 8 poules × 6', 'Subtopklasse — 8 poules × 6', '1e Klasse — per district'] },
     { nr: 2, label: 'Reguliere competitie', periode: 'Na herfstvakantie',
       niveaus: ['Landelijke Competitie — 4 poules × 6', 'Super O16 — 4 poules × 6', 'Subtopklasse', '1e Klasse — per district'] },
-    { nr: 3, label: 'NK', periode: 'Voorjaar',
-      niveaus: ['LC play-offs', 'Super O16 finaledag'] },
+    { nr: 3, label: 'NK', periode: 'Voorjaar', niveaus: ['LC play-offs', 'Super O16 finaledag'] },
   ],
   JO16: [
     { nr: 1, label: 'Voorcompetitie', periode: 'Najaar · 5 wedstrijden',
       niveaus: ['Topklasse — 8 poules × 6', 'Subtopklasse — 8 poules × 6', '1e Klasse — per district'] },
     { nr: 2, label: 'Reguliere competitie', periode: 'Na herfstvakantie',
       niveaus: ['Landelijke Competitie — 4 poules × 6', 'Super O16 — 4 poules × 6', 'Subtopklasse', '1e Klasse — per district'] },
-    { nr: 3, label: 'NK', periode: 'Voorjaar',
-      niveaus: ['LC play-offs', 'Super O16 finaledag'] },
+    { nr: 3, label: 'NK', periode: 'Voorjaar', niveaus: ['LC play-offs', 'Super O16 finaledag'] },
   ],
   MO14: [
-    { nr: 1, label: 'Voorcompetitie', periode: 'Najaar · 5 wedstrijden',
-      niveaus: ['10 poules × 6 (60 teams)'] },
+    { nr: 1, label: 'Voorcompetitie', periode: 'Najaar · 5 wedstrijden', niveaus: ['10 poules × 6 (60 teams)'] },
     { nr: 2, label: 'Herindeling', periode: 'Na herfstvakantie',
       niveaus: ['Super O14 — 5 poules × 6 (nr. 1-3)', 'IDC O14 — nr. 4+5', 'Subtopklasse — nr. 6'] },
-    { nr: 3, label: 'NK O14', periode: 'Voorjaar',
-      niveaus: ['Super O14: nr. 1+2 per poule → finaledag'] },
+    { nr: 3, label: 'NK O14', periode: 'Voorjaar', niveaus: ['Super O14: nr. 1+2 per poule → finaledag'] },
   ],
   JO14: [
-    { nr: 1, label: 'Voorcompetitie', periode: 'Najaar · 5 wedstrijden',
-      niveaus: ['8 poules × 6 (48 teams)'] },
-    { nr: 2, label: 'Hermindeling', periode: 'Na herfstvakantie',
-      niveaus: ['4 poules × 6 (nr. 1-3 per poule)'] },
-    { nr: 3, label: 'NK O14', periode: 'Voorjaar',
-      niveaus: ['Play-offs vanuit hermindeling'] },
+    { nr: 1, label: 'Voorcompetitie', periode: 'Najaar · 5 wedstrijden', niveaus: ['8 poules × 6 (48 teams)'] },
+    { nr: 2, label: 'Hermindeling', periode: 'Na herfstvakantie', niveaus: ['4 poules × 6 (nr. 1-3 per poule)'] },
+    { nr: 3, label: 'NK O14', periode: 'Voorjaar', niveaus: ['Play-offs vanuit hermindeling'] },
   ],
 }
 
@@ -78,7 +72,7 @@ function sublabelOf(name = '', cat = '') {
   return name.replace(new RegExp(cat, 'i'), '').trim()
 }
 
-// ── Empty board state ──────────────────────────────────────────────────────────
+// ── Empty board ────────────────────────────────────────────────────────────────
 
 function EmptyBoard() {
   return (
@@ -87,14 +81,14 @@ function EmptyBoard() {
       <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22,
         letterSpacing: '0.06em', marginBottom: 10, color: C.chalk }}>JE BOARD IS LEEG</div>
       <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.7 }}>
-        Stel je club in via ⭐ om automatisch<br />alle NK-poules van jouw club te zien.<br /><br />
-        Of pin toernooien tijdens het bladeren.
+        Stel je club in via ⭐ om automatisch alle NK-poules te zien.<br /><br />
+        Of pin een competitie of poule tijdens het bladeren.
       </div>
     </div>
   )
 }
 
-// ── Season info panel ──────────────────────────────────────────────────────────
+// ── Season info ────────────────────────────────────────────────────────────────
 
 function SeizoenInfo({ cat, open, onToggle }) {
   const info = SEIZOEN_INFO[cat]
@@ -106,8 +100,7 @@ function SeizoenInfo({ cat, open, onToggle }) {
         color: C.muted, fontSize: 11, padding: '4px 10px', cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
       }}>
-        <span>ℹ</span>
-        <span>Seizoensstructuur {cat}</span>
+        <span>ℹ</span><span>Seizoensstructuur {cat}</span>
         <span style={{ fontSize: 9 }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -118,9 +111,7 @@ function SeizoenInfo({ cat, open, onToggle }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
                 <div style={{ background: C.gold, color: C.deep, borderRadius: '50%', width: 18, height: 18,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                  {fase.nr}
-                </div>
+                  fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{fase.nr}</div>
                 <div>
                   <div style={{ color: C.chalk, fontWeight: 700, fontSize: 11 }}>{fase.label}</div>
                   <div style={{ color: C.muted, fontSize: 9 }}>{fase.periode}</div>
@@ -128,9 +119,7 @@ function SeizoenInfo({ cat, open, onToggle }) {
               </div>
               {fase.niveaus.map((n, i) => (
                 <div key={i} style={{ fontSize: 10, color: C.muted, paddingLeft: 10, paddingBottom: 2,
-                  borderLeft: `2px solid ${C.border}`, marginLeft: 8 }}>
-                  {n}
-                </div>
+                  borderLeft: `2px solid ${C.border}`, marginLeft: 8 }}>{n}</div>
               ))}
             </div>
           ))}
@@ -142,7 +131,7 @@ function SeizoenInfo({ cat, open, onToggle }) {
 
 // ── Standings table ────────────────────────────────────────────────────────────
 
-function StandingsTable({ rows, club }) {
+function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin }) {
   const byPool = {}
   for (const r of rows) {
     const key = r.pool_name ?? '—'
@@ -156,89 +145,139 @@ function StandingsTable({ rows, club }) {
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {Object.entries(byPool)
         .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-        .map(([pname, prows]) => (
-          <div key={pname} style={{ flex: '1 1 240px', background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700,
-              letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
-              POULE {pname}
+        .map(([pname, prows]) => {
+          const pinKey = `${phaseId}::${pname}`
+          const isPinned = poolPins?.has(pinKey)
+          return (
+            <div key={pname} style={{ flex: '1 1 240px', background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>POULE {pname}</span>
+                {onPoolPin && (
+                  <button
+                    onClick={() => onPoolPin(phaseId, pname)}
+                    title={isPinned ? 'Verwijder poule van board' : 'Pin deze poule op je board'}
+                    style={{
+                      background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+                      border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
+                      borderRadius: 4, padding: '1px 5px', fontSize: 10,
+                      color: isPinned ? C.gold : C.muted, cursor: 'pointer',
+                      lineHeight: 1.4, flexShrink: 0,
+                    }}>📌</button>
+                )}
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ color: C.muted, fontSize: 10 }}>
+                    <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
+                    <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+                    <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
+                    <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
+                    <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
+                    <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prows.map((r, i) => {
+                    const my = isMyClub(r.name)
+                    return (
+                      <tr key={r.id} style={{
+                        borderTop: `1px solid ${C.border}`,
+                        background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
+                      }}>
+                        <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                        <td style={{ padding: '5px 3px', color: my ? C.goldBr : C.chalk,
+                          fontWeight: my || i === 0 ? 600 : 400,
+                          maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
+                          {r.name}
+                        </td>
+                        <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
+                        <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
+                        <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
+                        <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
+                          color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ color: C.muted, fontSize: 10 }}>
-                  <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
-                  <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
-                  <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
-                  <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
-                  <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
-                  <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prows.map((r, i) => {
-                  const my = isMyClub(r.name)
-                  return (
-                    <tr key={r.id} style={{
-                      borderTop: `1px solid ${C.border}`,
-                      background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
-                    }}>
-                      <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
-                      <td style={{ padding: '5px 3px', color: my ? C.goldBr : C.chalk,
-                        fontWeight: my || i === 0 ? 600 : 400,
-                        maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
-                        {r.name}
-                      </td>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
-                      <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
-                        color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ))}
+          )
+        })}
     </div>
   )
 }
 
-// ── Compact club card (board mode) ─────────────────────────────────────────────
+// ── Club pool card (board) ────────────────────────────────────────────────────
 
-function CompactClubCard({ entry, club }) {
+function ClubPoolCard({ entry, club }) {
   const [standings, setStandings] = useState(null)
   useEffect(() => {
     getPhaseStandings(entry.phase_id).then(setStandings).catch(() => setStandings([]))
   }, [entry.phase_id])
 
   const poolRows = standings ? standings.filter(r => r.pool_name === entry.pool_name) : null
-  const rankIdx  = poolRows ? poolRows.findIndex(r => r.name.toLowerCase().startsWith(club.toLowerCase())) : -1
-  const rank  = rankIdx >= 0 ? rankIdx + 1 : null
-  const total = poolRows?.length ?? null
+  const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
 
   return (
-    <div style={{ background: C.card, borderRadius: 8, border: `1px solid ${C.border}`,
-      padding: '9px 12px', marginBottom: 6,
-      display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.chalk,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {entry.team_name}
-        </div>
-        <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-          {entry.tournament_name} · Poule {entry.pool_name}
-        </div>
+    <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
+      marginBottom: 8, overflow: 'hidden' }}>
+      <div style={{ padding: '5px 10px', fontSize: 10, color: C.muted,
+        borderBottom: `1px solid ${C.border}`,
+        display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ color: C.gold, fontWeight: 700, letterSpacing: '0.06em', fontSize: 11 }}>
+          POULE {entry.pool_name}
+        </span>
+        <span style={{ opacity: 0.4 }}>·</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {entry.tournament_name}
+        </span>
       </div>
-      {standings === null ? (
-        <div style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>…</div>
-      ) : (
-        <div style={{ background: C.deep, borderRadius: 6, padding: '4px 10px',
-          textAlign: 'center', flexShrink: 0, minWidth: 36 }}>
-          <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1,
-            color: rank ? C.goldBr : C.muted }}>{rank ?? '—'}</div>
-          {total && <div style={{ fontSize: 8, color: C.muted }}>v {total}</div>}
+      {poolRows === null ? (
+        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
+      ) : poolRows.length === 0 ? (
+        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10, fontStyle: 'italic' }}>
+          Nog geen wedstrijden gespeeld
         </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ color: C.muted, fontSize: 10 }}>
+              <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
+              <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
+              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
+              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
+              <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {poolRows.map((r, i) => {
+              const my = isMyClub(r.name)
+              return (
+                <tr key={r.id} style={{
+                  borderTop: `1px solid ${C.border}`,
+                  background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
+                }}>
+                  <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                  <td style={{ padding: '5px 3px', color: my ? C.goldBr : C.chalk,
+                    fontWeight: my || i === 0 ? 600 : 400,
+                    maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
+                    {r.name}
+                  </td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
+                  <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
+                    color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   )
@@ -246,7 +285,7 @@ function CompactClubCard({ entry, club }) {
 
 // ── Phase card ────────────────────────────────────────────────────────────────
 
-function PhaseCard({ phase, club }) {
+function PhaseCard({ phase, club, poolPins, onPoolPin }) {
   const [standings, setStandings] = useState(null)
 
   useEffect(() => {
@@ -260,9 +299,7 @@ function PhaseCard({ phase, club }) {
     <div style={{ marginBottom: 4 }}>
       {phase.name && (
         <div style={{ fontSize: 11, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase',
-          padding: '8px 0 6px', fontWeight: 600 }}>
-          {phase.name}
-        </div>
+          padding: '8px 0 6px', fontWeight: 600 }}>{phase.name}</div>
       )}
       {standings === null
         ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
@@ -270,13 +307,90 @@ function PhaseCard({ phase, club }) {
           ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center', fontStyle: 'italic' }}>
               Nog geen wedstrijden gespeeld
             </div>
-          : <StandingsTable rows={standings} club={club} />
+          : <StandingsTable rows={standings} club={club}
+              phaseId={phase.id} poolPins={poolPins} onPoolPin={onPoolPin} />
       }
     </div>
   )
 }
 
-// ── Compact pinned card (board mode) ──────────────────────────────────────────
+// ── Pinned pool card (board) ───────────────────────────────────────────────────
+
+function PinnedPoolCard({ pin, club, onUnpin }) {
+  const [standings, setStandings] = useState(null)
+  useEffect(() => {
+    getPhaseStandings(pin.phaseId).then(setStandings).catch(() => setStandings([]))
+  }, [pin.phaseId])
+
+  const poolRows = standings ? standings.filter(r => r.pool_name === pin.poolName) : null
+  const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
+
+  return (
+    <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
+      marginBottom: 8, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center',
+        borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ flex: 1, padding: '9px 14px' }}>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.08em',
+            color: C.gold }}>POULE {pin.poolName}</div>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{pin.tournamentName}</div>
+        </div>
+        <button onClick={onUnpin} style={{
+          background: 'transparent', border: 'none',
+          borderLeft: `1px solid ${C.border}`,
+          padding: '0 14px', minHeight: 44,
+          fontSize: 12, color: C.muted, cursor: 'pointer',
+        }}>✕</button>
+      </div>
+      {poolRows === null ? (
+        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
+      ) : poolRows.length === 0 ? (
+        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10, fontStyle: 'italic' }}>
+          Nog geen wedstrijden gespeeld
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ color: C.muted, fontSize: 10 }}>
+              <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
+              <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
+              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
+              <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
+              <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {poolRows.map((r, i) => {
+              const my = isMyClub(r.name)
+              return (
+                <tr key={r.id} style={{
+                  borderTop: `1px solid ${C.border}`,
+                  background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
+                }}>
+                  <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                  <td style={{ padding: '5px 3px', color: my ? C.goldBr : C.chalk,
+                    fontWeight: my || i === 0 ? 600 : 400,
+                    maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
+                    {r.name}
+                  </td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
+                  <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
+                    color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+// ── Pinned tournament card (board) ────────────────────────────────────────────
 
 function CompactPinnedCard({ tournament, club, onUnpin }) {
   const [phases, setPhases] = useState(null)
@@ -293,22 +407,22 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
   return (
     <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
       marginBottom: 10, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
         <button onClick={() => setOpen(o => !o)} style={{
           flex: 1, padding: '12px 16px', background: 'transparent', border: 'none',
           cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-          color: C.chalk, fontWeight: 700, fontSize: 15,
-          fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span style={{ flex: 1 }}>{tournament.name}</span>
-          <span style={{ color: C.muted, fontSize: 10, fontFamily: 'inherit' }}>{open ? '▲' : '▼'}</span>
+          <span style={{ flex: 1, color: C.chalk, fontWeight: 700, fontSize: 15,
+            fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
+            {tournament.name}
+          </span>
+          <span style={{ color: C.muted, fontSize: 10 }}>{open ? '▲' : '▼'}</span>
         </button>
         <button onClick={onUnpin} style={{
           background: 'transparent', border: 'none',
           borderLeft: `1px solid ${C.border}`,
-          padding: '0 14px', height: '100%', minHeight: 44,
-          fontSize: 12, color: C.muted, cursor: 'pointer',
+          padding: '0 14px', fontSize: 12, color: C.muted, cursor: 'pointer', flexShrink: 0,
         }}>✕</button>
       </div>
       {open && (
@@ -327,19 +441,16 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
 
 // ── Tournament card (browse mode) ─────────────────────────────────────────────
 
-function TournamentCard({ tournament, club, pinned, onPin }) {
+function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }) {
   const [phases, setPhases] = useState(null)
   const [open, setOpen] = useState(true)
 
   useEffect(() => {
-    getPhases(tournament.id)
-      .then(data => setPhases(data))
-      .catch(() => setPhases([]))
+    getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
   }, [tournament.id])
 
   const poolPhases = phases?.filter(p =>
-    p.phase_type === 'pool' &&
-    (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
+    p.phase_type === 'pool' && (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
   ) ?? []
 
   return (
@@ -356,14 +467,11 @@ function TournamentCard({ tournament, club, pinned, onPin }) {
           </span>
           <span style={{ color: C.muted, fontSize: 11 }}>{open ? '▲' : '▼'}</span>
         </button>
-        <button onClick={onPin} title={pinned ? 'Verwijder uit board' : 'Voeg toe aan board'} style={{
+        <button onClick={onPin} title={pinned ? 'Verwijder competitie van board' : 'Pin competitie op board'} style={{
           background: pinned ? 'rgba(207,159,63,0.12)' : 'transparent',
-          border: 'none',
-          borderLeft: `1px solid ${C.border}`,
-          padding: '0 14px',
-          fontSize: 14, color: pinned ? C.gold : C.muted,
-          cursor: 'pointer', flexShrink: 0,
-          transition: 'color 0.15s',
+          border: 'none', borderLeft: `1px solid ${C.border}`,
+          padding: '0 14px', fontSize: 14,
+          color: pinned ? C.gold : C.muted, cursor: 'pointer', flexShrink: 0,
         }}>📌</button>
       </div>
 
@@ -375,7 +483,10 @@ function TournamentCard({ tournament, club, pinned, onPin }) {
               ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center', fontStyle: 'italic' }}>
                   Geen poulefases gevonden
                 </div>
-              : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} />)
+              : poolPhases.map(p => (
+                  <PhaseCard key={p.id} phase={p} club={club}
+                    poolPins={poolPins} onPoolPin={onPoolPin} />
+                ))
           }
         </div>
       )}
@@ -385,22 +496,44 @@ function TournamentCard({ tournament, club, pinned, onPin }) {
 
 // ── Board view ────────────────────────────────────────────────────────────────
 
-function BoardView({ club, pins, allTournaments, onUnpin }) {
+function BoardSection({ label, children }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: C.muted,
+        padding: '4px 2px 8px', borderTop: `1px solid ${C.border}` }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin }) {
   const [boardData, setBoardData] = useState(null)
 
   useEffect(() => {
     if (!club) { setBoardData([]); return }
-    getBoard(club, 'productie')
-      .then(setBoardData)
-      .catch(() => setBoardData([]))
+    getBoard(club, 'productie').then(setBoardData).catch(() => setBoardData([]))
   }, [club])
 
-  const clubTournamentIds = new Set((boardData || []).map(e => e.tournament_id))
-  const pinnedExtras = [...pins]
+  const clubTournamentIds  = new Set((boardData || []).map(e => e.tournament_id))
+  const clubPhasePoolKeys  = new Set((boardData || []).map(e => `${e.phase_id}::${e.pool_name}`))
+
+  const pinnedTournaments = [...pins]
     .map(id => allTournaments?.find(t => t.id === id))
     .filter(t => t && !clubTournamentIds.has(t.id))
 
-  if (!club && pins.size === 0) return <EmptyBoard />
+  const pinnedPools = [...poolPins.values()]
+    .filter(p => !clubPhasePoolKeys.has(`${p.phaseId}::${p.poolName}`))
+
+  const hasClub     = club && boardData !== null && boardData.length > 0
+  const hasT        = pinnedTournaments.length > 0
+  const hasP        = pinnedPools.length > 0
+  const hasPinned   = hasT || hasP
+  const showSubLabels = hasT && hasP
+
+  if (!club && !hasPinned) return <EmptyBoard />
 
   const byCategory = {}
   for (const entry of (boardData || [])) {
@@ -408,8 +541,6 @@ function BoardView({ club, pins, allTournaments, onUnpin }) {
     if (!byCategory[cat]) byCategory[cat] = []
     byCategory[cat].push(entry)
   }
-
-  const hasClubData = club && boardData !== null && boardData.length > 0
 
   return (
     <div style={{ padding: '12px 10px' }}>
@@ -432,30 +563,37 @@ function BoardView({ club, pins, allTournaments, onUnpin }) {
             {cat}
           </div>
           {byCategory[cat].map(entry => (
-            <CompactClubCard key={`${entry.phase_id}-${entry.pool_name}`} entry={entry} club={club} />
+            <ClubPoolCard key={`${entry.phase_id}-${entry.pool_name}`} entry={entry} club={club} />
           ))}
         </div>
       ))}
 
-      {pinnedExtras.length > 0 && (
-        <div style={{ marginTop: hasClubData ? 14 : 0 }}>
-          {hasClubData && (
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: C.muted,
-              padding: '4px 2px 10px', borderTop: `1px solid ${C.border}` }}>
-              Gepind
+      {hasPinned && (
+        <BoardSection label={hasClub ? 'Gepind' : undefined}>
+          {showSubLabels && hasT && (
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+              textTransform: 'uppercase', color: C.muted, padding: '0 2px 6px' }}>
+              Competities
             </div>
           )}
-          {pinnedExtras.map(t => (
+          {pinnedTournaments.map(t => (
             <CompactPinnedCard key={t.id} tournament={t} club={club} onUnpin={() => onUnpin(t.id)} />
           ))}
-        </div>
-      )}
 
-      {!club && pins.size > 0 && pinnedExtras.length === 0 && (
-        <div style={{ color: C.muted, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
-          Gepinde toernooien nog niet geladen…
-        </div>
+          {showSubLabels && hasP && (
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+              textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
+              Poules
+            </div>
+          )}
+          {pinnedPools.map(p => (
+            <PinnedPoolCard
+              key={`${p.phaseId}::${p.poolName}`}
+              pin={p} club={club}
+              onUnpin={() => onPoolUnpin(p.phaseId, p.poolName)}
+            />
+          ))}
+        </BoardSection>
       )}
     </div>
   )
@@ -478,6 +616,12 @@ export default function App() {
     try { return new Set(JSON.parse(localStorage.getItem(PINS_KEY) || '[]')) }
     catch { return new Set() }
   })
+  const [poolPins, setPoolPins]   = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(POOL_PINS_KEY) || '[]')
+      return new Map(raw.map(p => [`${p.phaseId}::${p.poolName}`, p]))
+    } catch { return new Map() }
+  })
 
   useEffect(() => { getClubs().then(setClubs).catch(() => {}) }, [])
 
@@ -492,11 +636,7 @@ export default function App() {
       .catch(() => setError('Kon toernooien niet laden'))
   }, [])
 
-  function handleCatChange(c) {
-    setCat(c)
-    setSubFilter(null)
-    setInfoOpen(false)
-  }
+  function handleCatChange(c) { setCat(c); setSubFilter(null); setInfoOpen(false) }
 
   function saveClub() {
     const val = clubInput.trim()
@@ -523,10 +663,22 @@ export default function App() {
     })
   }
 
-  const available      = all ? CATEGORIES.filter(c => all.some(t => categoryOf(t.name) === c)) : []
+  function togglePoolPin(phaseId, poolName, tournamentName) {
+    const key = `${phaseId}::${poolName}`
+    setPoolPins(prev => {
+      const next = new Map(prev)
+      if (next.has(key)) next.delete(key)
+      else next.set(key, { phaseId, poolName, tournamentName })
+      localStorage.setItem(POOL_PINS_KEY, JSON.stringify([...next.values()]))
+      return next
+    })
+  }
+
+  const totalPins    = pins.size + poolPins.size
+  const available    = all ? CATEGORIES.filter(c => all.some(t => categoryOf(t.name) === c)) : []
   const catTournaments = all ? all.filter(t => categoryOf(t.name) === cat) : []
-  const subOptions     = [...new Set(catTournaments.map(t => sublabelOf(t.name, cat)).filter(Boolean))]
-  const visible        = subFilter
+  const subOptions   = [...new Set(catTournaments.map(t => sublabelOf(t.name, cat)).filter(Boolean))]
+  const visible      = subFilter
     ? catTournaments.filter(t => t.name.toLowerCase().includes(subFilter.toLowerCase()))
     : catTournaments
 
@@ -552,13 +704,13 @@ export default function App() {
             {club ? `⭐ ${club}` : '⭐ Mijn club'}
           </button>
           <button onClick={toggleBoard} title={boardOn ? 'Terug naar browse' : 'Mijn board'} style={{
-            background: boardOn ? C.gold : (pins.size > 0 ? 'rgba(207,159,63,0.1)' : 'transparent'),
-            border: `1px solid ${boardOn ? C.gold : (pins.size > 0 ? C.gold : C.border)}`,
+            background: boardOn ? C.gold : (totalPins > 0 ? 'rgba(207,159,63,0.1)' : 'transparent'),
+            border: `1px solid ${boardOn ? C.gold : (totalPins > 0 ? C.gold : C.border)}`,
             borderRadius: 16, padding: '4px 10px', cursor: 'pointer',
-            color: boardOn ? C.deep : (pins.size > 0 ? C.gold : C.muted),
+            color: boardOn ? C.deep : (totalPins > 0 ? C.gold : C.muted),
             fontSize: 10, whiteSpace: 'nowrap', fontFamily: 'inherit', fontWeight: boardOn ? 700 : 400,
           }}>
-            📌{!boardOn && pins.size > 0 ? ` ${pins.size}` : ''}
+            📌{!boardOn && totalPins > 0 ? ` ${totalPins}` : ''}
           </button>
         </div>
 
@@ -608,7 +760,12 @@ export default function App() {
 
       {/* Body */}
       {boardOn ? (
-        <BoardView club={club} pins={pins} allTournaments={all} onUnpin={togglePin} />
+        <BoardView
+          club={club} pins={pins} poolPins={poolPins}
+          allTournaments={all}
+          onUnpin={togglePin}
+          onPoolUnpin={(phaseId, poolName) => togglePoolPin(phaseId, poolName)}
+        />
       ) : (
         <div style={{ padding: '12px 10px' }}>
           {error && (
@@ -617,11 +774,9 @@ export default function App() {
               {error}
             </div>
           )}
-
           {all === null && !error && (
             <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
           )}
-
           {all !== null && available.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 24px' }}>
               <div style={{ fontSize: 40, marginBottom: 16 }}>🏒</div>
@@ -633,7 +788,6 @@ export default function App() {
               </div>
             </div>
           )}
-
           {cat && all !== null && (
             <>
               {subOptions.length > 1 && (
@@ -656,16 +810,13 @@ export default function App() {
                   ))}
                 </div>
               )}
-
               <SeizoenInfo cat={cat} open={infoOpen} onToggle={() => setInfoOpen(o => !o)} />
-
               {visible.map(t => (
                 <TournamentCard
-                  key={t.id}
-                  tournament={t}
-                  club={club}
-                  pinned={pins.has(t.id)}
-                  onPin={() => togglePin(t.id)}
+                  key={t.id} tournament={t} club={club}
+                  pinned={pins.has(t.id)} onPin={() => togglePin(t.id)}
+                  poolPins={poolPins}
+                  onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, t.name)}
                 />
               ))}
             </>
