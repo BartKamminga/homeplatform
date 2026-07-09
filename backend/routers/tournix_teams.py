@@ -9,7 +9,8 @@ from sqlmodel import Session, select
 from core.database import get_session
 from core.auth import get_current_user, require_admin
 from models.core import User
-from models.tournix import TournixTeam, TournixClub
+from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
+from models.tournix import Tournament
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -116,6 +117,54 @@ def delete_team(team_id: str, session: Session = Depends(get_session), _: User =
 @router.get("/public/clubs")
 def list_clubs_public(session: Session = Depends(get_session)):
     return [c.name for c in session.exec(select(TournixClub).order_by(TournixClub.name)).all()]
+
+
+@router.get("/public/board")
+def get_board(
+    club: str,
+    stage: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    club_lower = club.strip().lower()
+    if not club_lower:
+        return []
+
+    all_teams = session.exec(
+        select(TournixTeam).where(TournixTeam.pool_id.isnot(None))
+    ).all()
+    club_teams = [t for t in all_teams if not t.is_placeholder and t.name.lower().startswith(club_lower)]
+
+    CATS = ["MO18", "JO18", "MO16", "JO16", "MO14", "JO14"]
+    result, seen = [], set()
+
+    for team in club_teams:
+        pool = session.get(TournixPool, team.pool_id)
+        if not pool or not pool.phase_id:
+            continue
+        phase = session.get(TournixPhase, pool.phase_id)
+        if not phase or phase.phase_type != "pool":
+            continue
+        tournament = session.get(Tournament, phase.tournament_id)
+        if not tournament:
+            continue
+        if stage and tournament.stage != stage:
+            continue
+        key = (phase.id, pool.name)
+        if key in seen:
+            continue
+        seen.add(key)
+        name_up = tournament.name.upper()
+        cat = next((c for c in CATS if c in name_up), None)
+        result.append({
+            "tournament_id": tournament.id,
+            "tournament_name": tournament.name,
+            "category": cat,
+            "phase_id": phase.id,
+            "pool_name": pool.name,
+            "team_name": team.name,
+        })
+
+    return sorted(result, key=lambda x: (x["category"] or "ZZ", x["tournament_name"]))
 
 
 @router.get("/clubs")
