@@ -123,6 +123,7 @@ class TournixMatch(SQLModel, table=True):
     source_match_b_id: Optional[str]      = Field(default=None)
     source_a_takes:    Optional[str]      = Field(default="winner")  # "winner" | "loser"
     source_b_takes:    Optional[str]      = Field(default="winner")
+    external_id:       Optional[str]      = Field(default=None, index=True)  # hockey.nl match ID
     created_at:        datetime           = Field(default_factory=datetime.utcnow)
 
 
@@ -156,6 +157,21 @@ class TournixPrediction(SQLModel, table=True):
     pred_b:     int
     points:     Optional[int] = Field(default=None)
     created_at: datetime      = Field(default_factory=datetime.utcnow)
+
+
+class TournixImportLog(SQLModel, table=True):
+    __tablename__ = "tournix_import_log"
+
+    id:               str           = Field(default_factory=new_uuid, primary_key=True)
+    source:           str                                                    # "hockey.nl"
+    label:            str                                                    # "MO16 Landelijk"
+    tournament_id:    Optional[str] = Field(default=None, foreign_key="tournix_tournaments.id")
+    action:           str                                                    # "created" | "updated"
+    pools_count:      int           = Field(default=0)
+    teams_count:      int           = Field(default=0)
+    matches_created:  int           = Field(default=0)
+    matches_updated:  int           = Field(default=0)
+    created_at:       datetime      = Field(default_factory=datetime.utcnow)
 
 
 class TournixSnapshot(SQLModel, table=True):

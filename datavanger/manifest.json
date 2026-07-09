@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Hockey Data Vanger",
+  "version": "7.0",
+  "description": "Vangt hockey.nl API data op en pusht naar HomePlatform",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.hockey.nl/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.hockey.nl/*"],
+      "js": ["interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -13,7 +13,7 @@ from core.database import get_session
 from core.auth import get_current_user, require_admin
 from models.core import User
 from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
-from models.tournix import Tournament, PoulebordBoard
+from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, PoulebordBoard
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -225,6 +225,122 @@ def get_board_by_code(code: str, session: Session = Depends(get_session)):
         "pins":      json.loads(board.pins),
         "pool_pins": json.loads(board.pool_pins),
     }
+
+
+# ── Poulebord publieke fase- en standings-endpoints ───────────────────────────
+
+@router.get("/public/tournaments/{tid}/phases")
+def list_phases_public(tid: str, session: Session = Depends(get_session)):
+    """Publieke faselijst voor Poulebord — geen auth vereist."""
+    phases = session.exec(
+        select(TournixPhase)
+        .where(TournixPhase.tournament_id == tid)
+        .order_by(TournixPhase.order, TournixPhase.created_at)
+    ).all()
+    if not phases:
+        return []
+    phase_ids = [p.id for p in phases]
+    all_pools = session.exec(
+        select(TournixPool)
+        .where(TournixPool.phase_id.in_(phase_ids))
+        .order_by(TournixPool.order)
+    ).all()
+    pool_ids = [p.id for p in all_pools]
+    all_teams = session.exec(
+        select(TournixTeam).where(TournixTeam.pool_id.in_(pool_ids))
+    ).all() if pool_ids else []
+    pools_by_phase: dict = {}
+    for p in all_pools:
+        pools_by_phase.setdefault(p.phase_id, []).append(p)
+    team_count_by_pool: dict = {}
+    for t in all_teams:
+        team_count_by_pool[t.pool_id] = team_count_by_pool.get(t.pool_id, 0) + 1
+    first_pool_phase_id = next((p.id for p in phases if p.phase_type == "pool"), None)
+    return [
+        {
+            "id": phase.id,
+            "name": phase.name,
+            "order": phase.order,
+            "phase_type": phase.phase_type,
+            "is_main_phase": phase.id == first_pool_phase_id,
+            "pools": [
+                {"id": p.id, "name": p.name, "order": p.order, "team_count": team_count_by_pool.get(p.id, 0)}
+                for p in pools_by_phase.get(phase.id, [])
+            ],
+        }
+        for phase in phases
+    ]
+
+
+@router.get("/public/phases/{pid}/standings")
+def get_phase_standings_public(pid: str, session: Session = Depends(get_session)):
+    """Publieke standings per poulefase — geen auth vereist."""
+    phase = session.get(TournixPhase, pid)
+    if not phase:
+        raise HTTPException(404, "Fase niet gevonden")
+    phase_matches = session.exec(
+        select(TournixMatch).where(
+            TournixMatch.phase_id == pid,
+            TournixMatch.status == "finished",
+        )
+    ).all()
+    pools = session.exec(
+        select(TournixPool).where(TournixPool.phase_id == pid).order_by(TournixPool.order)
+    ).all()
+    if pools:
+        pools_by_id = {p.id: p.name for p in pools}
+        all_pool_teams = session.exec(
+            select(TournixTeam).where(TournixTeam.pool_id.in_([p.id for p in pools]))
+        ).all()
+        stats = {}
+        for t in all_pool_teams:
+            stats[t.id] = {
+                "id": t.id, "name": t.name,
+                "pts": 0, "gf": 0, "ga": 0, "w": 0, "d": 0, "l": 0,
+                "pool_id": t.pool_id,
+                "pool_name": pools_by_id.get(t.pool_id),
+            }
+        for m in phase_matches:
+            a = stats.get(m.team_a_id)
+            b = stats.get(m.team_b_id)
+            if not a or not b or m.score_a is None or m.score_b is None:
+                continue
+            a["gf"] += m.score_a; a["ga"] += m.score_b
+            b["gf"] += m.score_b; b["ga"] += m.score_a
+            if m.score_a > m.score_b:
+                a["w"] += 1; a["pts"] += 3; b["l"] += 1
+            elif m.score_a == m.score_b:
+                a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
+            else:
+                b["w"] += 1; b["pts"] += 3; a["l"] += 1
+        return sorted(stats.values(), key=lambda s: (s.get("pool_id", ""), -s["pts"], -(s["gf"] - s["ga"])))
+    # Fallback: geen pools
+    phase_team_rows = session.exec(
+        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
+    ).all()
+    team_ids = {pt.team_id for pt in phase_team_rows}
+    teams = session.exec(select(TournixTeam).where(TournixTeam.id.in_(list(team_ids)))).all()
+    team_map = {t.id: t for t in teams}
+    stats2 = {
+        tid: {"id": tid, "name": team_map[tid].name, "pts": 0, "gf": 0, "ga": 0, "w": 0, "d": 0, "l": 0}
+        for tid in team_ids if tid in team_map
+    }
+    for m in phase_matches:
+        if m.score_a is None or m.score_b is None:
+            continue
+        a = stats2.get(m.team_a_id)
+        b = stats2.get(m.team_b_id)
+        if not a or not b:
+            continue
+        a["gf"] += m.score_a; a["ga"] += m.score_b
+        b["gf"] += m.score_b; b["ga"] += m.score_a
+        if m.score_a > m.score_b:
+            a["w"] += 1; a["pts"] += 3; b["l"] += 1
+        elif m.score_a == m.score_b:
+            a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
+        else:
+            b["w"] += 1; b["pts"] += 3; a["l"] += 1
+    return sorted(stats2.values(), key=lambda s: (-s["pts"], -(s["gf"] - s["ga"]), -s["gf"]))
 
 
 @router.get("/clubs")

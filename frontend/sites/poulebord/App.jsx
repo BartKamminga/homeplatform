@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode } from './api.js'
 
+const _standingsCache = {}
+function useStandings(phaseId) {
+  const [data, setData] = useState(_standingsCache[phaseId] ?? null)
+  useEffect(() => {
+    if (!phaseId) return
+    if (_standingsCache[phaseId]) { setData(_standingsCache[phaseId]); return }
+    getPhaseStandings(phaseId)
+      .then(rows => { _standingsCache[phaseId] = rows; setData(rows) })
+      .catch(() => setData([]))
+  }, [phaseId])
+  return data
+}
+
 const SEASON    = '2026-2027'
 const CATEGORIES = ['MO14', 'JO14', 'MO16', 'JO16', 'MO18', 'JO18']
 const CLUB_KEY       = 'pb_club'
@@ -214,10 +227,7 @@ function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin }) {
 // ── Club pool card (board) ────────────────────────────────────────────────────
 
 function ClubPoolCard({ entry, club }) {
-  const [standings, setStandings] = useState(null)
-  useEffect(() => {
-    getPhaseStandings(entry.phase_id).then(setStandings).catch(() => setStandings([]))
-  }, [entry.phase_id])
+  const standings = useStandings(entry.phase_id)
 
   const poolRows = standings ? standings.filter(r => r.pool_name === entry.pool_name) : null
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
@@ -287,12 +297,7 @@ function ClubPoolCard({ entry, club }) {
 // ── Phase card ────────────────────────────────────────────────────────────────
 
 function PhaseCard({ phase, club, poolPins, onPoolPin }) {
-  const [standings, setStandings] = useState(null)
-
-  useEffect(() => {
-    if (phase.phase_type !== 'pool') return
-    getPhaseStandings(phase.id).then(setStandings).catch(() => setStandings([]))
-  }, [phase.id])
+  const standings = useStandings(phase.phase_type === 'pool' ? phase.id : null)
 
   if (phase.phase_type !== 'pool') return null
 
@@ -317,21 +322,50 @@ function PhaseCard({ phase, club, poolPins, onPoolPin }) {
 
 // ── Pinned pool group card (board) ────────────────────────────────────────────
 
+function PinnedPoolSlot({ pin, isMyClub, onUnpin, idx }) {
+  const standings = useStandings(pin.phaseId)
+  const poolRows = standings ? standings.filter(r => r.pool_name === pin.poolName) : null
+  return (
+    <div style={{ flex: '1 1 180px', borderLeft: idx > 0 ? `1px solid ${C.border}` : 'none' }}>
+      <div style={{ padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
+        letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
+        POULE {pin.poolName}
+      </div>
+      {poolRows === null ? (
+        <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
+      ) : poolRows.length === 0 ? (
+        <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center', fontStyle: 'italic' }}>Nog geen wedstrijden</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <tbody>
+            {poolRows.map((r, i) => {
+              const my = isMyClub(r.name)
+              return (
+                <tr key={r.id} style={{
+                  borderTop: `1px solid ${C.border}`,
+                  background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
+                }}>
+                  <td style={{ padding: '4px 3px 4px 8px', color: C.muted, fontSize: 10, width: 16 }}>{i + 1}</td>
+                  <td style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
+                    fontWeight: my || i === 0 ? 600 : 400,
+                    maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {my && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
+                    {r.name}
+                  </td>
+                  <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
+                    color: C.goldBr, fontWeight: 700, fontSize: 12, width: 26 }}>{r.pts}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
-  const [standingsMap, setStandingsMap] = useState({})
-  const phaseKey = pins.map(p => p.phaseId).join(',')
-
-  useEffect(() => {
-    const phaseIds = [...new Set(pins.map(p => p.phaseId))]
-    phaseIds.forEach(phaseId => {
-      getPhaseStandings(phaseId)
-        .then(rows => setStandingsMap(prev => ({ ...prev, [phaseId]: rows })))
-        .catch(() => setStandingsMap(prev => ({ ...prev, [phaseId]: [] })))
-    })
-  }, [phaseKey])
-
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
-
   return (
     <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
       marginBottom: 8, overflow: 'hidden' }}>
@@ -356,50 +390,10 @@ function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
         ))}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-        {pins.map((p, idx) => {
-          const rows = standingsMap[p.phaseId]
-          const poolRows = rows?.filter(r => r.pool_name === p.poolName) ?? null
-          return (
-            <div key={`${p.phaseId}::${p.poolName}`} style={{
-              flex: '1 1 180px',
-              borderLeft: idx > 0 ? `1px solid ${C.border}` : 'none',
-            }}>
-              <div style={{ padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
-                POULE {p.poolName}
-              </div>
-              {poolRows === null ? (
-                <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
-              ) : poolRows.length === 0 ? (
-                <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center', fontStyle: 'italic' }}>Nog geen wedstrijden</div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <tbody>
-                    {poolRows.map((r, i) => {
-                      const my = isMyClub(r.name)
-                      return (
-                        <tr key={r.id} style={{
-                          borderTop: `1px solid ${C.border}`,
-                          background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
-                        }}>
-                          <td style={{ padding: '4px 3px 4px 8px', color: C.muted, fontSize: 10, width: 16 }}>{i + 1}</td>
-                          <td style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
-                            fontWeight: my || i === 0 ? 600 : 400,
-                            maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {my && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
-                            {r.name}
-                          </td>
-                          <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
-                            color: C.goldBr, fontWeight: 700, fontSize: 12, width: 26 }}>{r.pts}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )
-        })}
+        {pins.map((p, idx) => (
+          <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
+            pin={p} isMyClub={isMyClub} onUnpin={onUnpin} idx={idx} />
+        ))}
       </div>
     </div>
   )
