@@ -126,6 +126,17 @@ class TournixMatch(SQLModel, table=True):
     created_at:        datetime           = Field(default_factory=datetime.utcnow)
 
 
+class PoulebordBoard(SQLModel, table=True):
+    __tablename__ = "poulebord_boards"
+
+    id:         str      = Field(primary_key=True)   # 6-char short code
+    name:       str
+    club:       str      = Field(default="")
+    pins:       str      = Field(default="[]")       # JSON: tournament IDs
+    pool_pins:  str      = Field(default="[]")       # JSON: [{phaseId, poolName, tournamentName}]
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class TournixPhaseTeam(SQLModel, table=True):
     __tablename__ = "tournix_phase_teams"
 

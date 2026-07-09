@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard } from './api.js'
+import { useState, useEffect, useRef } from 'react'
+import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode } from './api.js'
 
 const SEASON    = '2026-2027'
 const CATEGORIES = ['MO14', 'JO14', 'MO16', 'JO16', 'MO18', 'JO18']
@@ -7,6 +7,7 @@ const CLUB_KEY       = 'pb_club'
 const BOARD_KEY      = 'pb_board_on'
 const PINS_KEY       = 'pb_pins'
 const POOL_PINS_KEY  = 'pb_pool_pins'
+const MY_BOARDS_KEY  = 'pb_my_boards'
 
 const C = {
   bg:     '#0b3427',
@@ -648,6 +649,31 @@ export default function App() {
       return new Map(raw.map(p => [`${p.phaseId}::${p.poolName}`, p]))
     } catch { return new Map() }
   })
+  const [myBoards, setMyBoards]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem(MY_BOARDS_KEY) || '[]') }
+    catch { return [] }
+  })
+  const [myBoardsView, setMyBoardsView] = useState(false)
+  const [sharedBoard, setSharedBoard]   = useState(null)  // {id, name} when loaded via ?b=
+  const [saveDialog, setSaveDialog]     = useState(false)
+  const [saveName, setSaveName]         = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [savedCode, setSavedCode]       = useState(null)
+  const [copied, setCopied]             = useState(false)
+  const saveNameRef = useRef(null)
+
+  // Load shared board from URL ?b=code
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('b')
+    if (!code) return
+    getBoardByCode(code).then(b => {
+      setClub(b.club)
+      setPins(new Set(b.pins))
+      setPoolPins(new Map(b.pool_pins.map(p => [`${p.phaseId}::${p.poolName}`, p])))
+      setBoardOn(true)
+      setSharedBoard({ id: b.id, name: b.name })
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => { getClubs().then(setClubs).catch(() => {}) }, [])
 
@@ -675,6 +701,7 @@ export default function App() {
   function toggleBoard() {
     const next = !boardOn
     setBoardOn(next)
+    setMyBoardsView(false)
     if (next) localStorage.setItem(BOARD_KEY, '1')
     else localStorage.removeItem(BOARD_KEY)
   }
@@ -700,6 +727,53 @@ export default function App() {
     })
   }
 
+  function openMyBoard(b) {
+    setClub(b.club)
+    setPins(new Set(b.pins || []))
+    setPoolPins(new Map((b.pool_pins || []).map(p => [`${p.phaseId}::${p.poolName}`, p])))
+    setBoardOn(true)
+    setSharedBoard(null)
+    setMyBoardsView(false)
+    if (b.club) localStorage.setItem(CLUB_KEY, b.club)
+    localStorage.setItem(PINS_KEY, JSON.stringify(b.pins || []))
+    localStorage.setItem(POOL_PINS_KEY, JSON.stringify(b.pool_pins || []))
+    localStorage.setItem(BOARD_KEY, '1')
+  }
+
+  async function doSaveBoard() {
+    if (!saveName.trim()) return
+    setSaving(true)
+    try {
+      const b = await saveBoard({
+        name: saveName.trim(),
+        club,
+        pins: [...pins],
+        pool_pins: [...poolPins.values()],
+      })
+      const entry = { code: b.id, name: b.name, club: b.club,
+        pins: b.pins, pool_pins: b.pool_pins, savedAt: new Date().toISOString() }
+      const next = [entry, ...myBoards.filter(x => x.code !== b.id)]
+      setMyBoards(next)
+      localStorage.setItem(MY_BOARDS_KEY, JSON.stringify(next))
+      setSavedCode(b.id)
+    } catch (e) {
+      alert('Opslaan mislukt')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function boardShareUrl(code) {
+    return `${window.location.origin}${window.location.pathname}?b=${code}`
+  }
+
+  function copyUrl(code) {
+    navigator.clipboard.writeText(boardShareUrl(code)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   const totalPins    = pins.size + poolPins.size
   const available    = all ? CATEGORIES.filter(c => all.some(t => categoryOf(t.name) === c)) : []
   const catTournaments = all ? all.filter(t => categoryOf(t.name) === cat) : []
@@ -714,25 +788,38 @@ export default function App() {
       {/* Sticky header */}
       <div style={{ background: C.deep, position: 'sticky', top: 0, zIndex: 10,
         borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 8px' }}>
-          <span style={{ fontSize: 20 }}>🏒</span>
-          <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 12px 8px' }}>
+          <button onClick={() => { setMyBoardsView(false); setBoardOn(false) }} style={{
+            background: 'transparent', border: 'none', padding: '0 4px 0 0', cursor: 'pointer',
+          }}>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: '0.06em',
+              color: C.chalk, lineHeight: 1 }}>🏒</div>
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: '0.06em',
               color: C.chalk, lineHeight: 1 }}>POULEBORD</div>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.05em' }}>SEIZOEN {SEASON}</div>
+            <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.05em' }}>SEIZOEN {SEASON}</div>
           </div>
+          {myBoards.length > 0 && (
+            <button onClick={() => { setMyBoardsView(v => !v); setBoardOn(false) }} style={{
+              background: myBoardsView ? 'rgba(207,159,63,0.15)' : 'transparent',
+              border: `1px solid ${myBoardsView ? C.gold : C.border}`,
+              borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
+              color: myBoardsView ? C.gold : C.muted, fontSize: 10, whiteSpace: 'nowrap', fontFamily: 'inherit',
+            }}>⊞ {myBoards.length}</button>
+          )}
           <button onClick={() => { setClubInput(club); setClubEdit(e => !e) }} style={{
             background: club ? 'rgba(207,159,63,0.15)' : 'transparent',
             border: `1px solid ${club ? C.gold : C.border}`,
-            borderRadius: 16, padding: '4px 10px', cursor: 'pointer',
+            borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
             color: club ? C.gold : C.muted, fontSize: 10, whiteSpace: 'nowrap', fontFamily: 'inherit',
           }}>
-            {club ? `⭐ ${club}` : '⭐ Mijn club'}
+            {club ? `⭐ ${club}` : '⭐ Club'}
           </button>
           <button onClick={toggleBoard} title={boardOn ? 'Terug naar browse' : 'Mijn board'} style={{
             background: boardOn ? C.gold : (totalPins > 0 ? 'rgba(207,159,63,0.1)' : 'transparent'),
             border: `1px solid ${boardOn ? C.gold : (totalPins > 0 ? C.gold : C.border)}`,
-            borderRadius: 16, padding: '4px 10px', cursor: 'pointer',
+            borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
             color: boardOn ? C.deep : (totalPins > 0 ? C.gold : C.muted),
             fontSize: 10, whiteSpace: 'nowrap', fontFamily: 'inherit', fontWeight: boardOn ? 700 : 400,
           }}>
@@ -741,7 +828,7 @@ export default function App() {
         </div>
 
         {clubEdit && (
-          <div style={{ padding: '8px 16px', display: 'flex', gap: 6, alignItems: 'center',
+          <div style={{ padding: '8px 12px', display: 'flex', gap: 6, alignItems: 'center',
             borderTop: `1px solid ${C.border}` }}>
             <input
               value={clubInput}
@@ -769,7 +856,7 @@ export default function App() {
           </div>
         )}
 
-        {!boardOn && available.length > 0 && (
+        {!boardOn && !myBoardsView && available.length > 0 && (
           <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 8px' }}>
             {available.map(c => (
               <button key={c} onClick={() => handleCatChange(c)} style={{
@@ -784,14 +871,166 @@ export default function App() {
         )}
       </div>
 
+      {/* Save dialog */}
+      {saveDialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 16 }} onClick={() => { setSaveDialog(false); setSavedCode(null); setSaveName('') }}>
+          <div style={{ background: C.card, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360,
+            border: `1px solid ${C.border}` }} onClick={e => e.stopPropagation()}>
+            {!savedCode ? (
+              <>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20,
+                  letterSpacing: '0.06em', marginBottom: 16 }}>Board opslaan</div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>
+                  {club && <span style={{ color: C.gold }}>⭐ {club} · </span>}
+                  {pins.size} competitie{pins.size !== 1 ? 's' : ''} · {poolPins.size} poule{poolPins.size !== 1 ? 's' : ''}
+                </div>
+                <input
+                  ref={saveNameRef}
+                  value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && doSaveBoard()}
+                  placeholder="Geef dit board een naam…"
+                  autoFocus
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.bg,
+                    border: `1px solid ${C.border}`, borderRadius: 8, color: C.chalk,
+                    fontSize: 14, padding: '10px 12px', fontFamily: 'inherit', outline: 'none',
+                    marginBottom: 14 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={doSaveBoard} disabled={saving || !saveName.trim()} style={{
+                    flex: 1, background: C.gold, color: C.deep, border: 'none', borderRadius: 8,
+                    padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                    opacity: saving || !saveName.trim() ? 0.5 : 1,
+                  }}>{saving ? 'Opslaan…' : 'Opslaan'}</button>
+                  <button onClick={() => { setSaveDialog(false); setSaveName('') }} style={{
+                    background: 'transparent', color: C.muted, border: `1px solid ${C.border}`,
+                    borderRadius: 8, padding: '10px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>Annuleer</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20,
+                  letterSpacing: '0.06em', marginBottom: 6 }}>Opgeslagen!</div>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+                  Deel de link met iedereen die dit board wil zien.
+                </div>
+                <div style={{ background: C.bg, borderRadius: 8, padding: '8px 12px', fontSize: 11,
+                  color: C.muted, marginBottom: 12, wordBreak: 'break-all', border: `1px solid ${C.border}` }}>
+                  {boardShareUrl(savedCode)}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => copyUrl(savedCode)} style={{
+                    flex: 1, background: copied ? C.gold : C.card, color: copied ? C.deep : C.chalk,
+                    border: `1px solid ${copied ? C.gold : C.border}`, borderRadius: 8,
+                    padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>{copied ? 'Gekopieerd!' : '🔗 Kopieer link'}</button>
+                  <button onClick={() => { setSaveDialog(false); setSavedCode(null); setSaveName('') }} style={{
+                    background: 'transparent', color: C.muted, border: `1px solid ${C.border}`,
+                    borderRadius: 8, padding: '10px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>Sluiten</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Body */}
-      {boardOn ? (
-        <BoardView
-          club={club} pins={pins} poolPins={poolPins}
-          allTournaments={all}
-          onUnpin={togglePin}
-          onPoolUnpin={(phaseId, poolName) => togglePoolPin(phaseId, poolName)}
-        />
+      {myBoardsView ? (
+        <div style={{ padding: '16px 12px' }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: '0.06em',
+            marginBottom: 14, color: C.chalk }}>MIJN BOARDS</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {myBoards.map(b => (
+              <div key={b.code} style={{ flex: '1 1 240px', background: C.card, borderRadius: 12,
+                border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 14px 10px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: C.chalk, marginBottom: 6,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {b.club && (
+                      <span style={{ fontSize: 10, color: C.gold, background: 'rgba(207,159,63,0.1)',
+                        border: `1px solid ${C.gold}`, borderRadius: 4, padding: '1px 6px' }}>
+                        ⭐ {b.club}
+                      </span>
+                    )}
+                    {(b.pins || []).length > 0 && (
+                      <span style={{ fontSize: 10, color: C.muted, background: C.deep,
+                        border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 6px' }}>
+                        📌 {b.pins.length} comp.
+                      </span>
+                    )}
+                    {(b.pool_pins || []).length > 0 && (
+                      <span style={{ fontSize: 10, color: C.muted, background: C.deep,
+                        border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 6px' }}>
+                        📌 {b.pool_pins.length} poule{b.pool_pins.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
+                  <button onClick={() => openMyBoard(b)} style={{
+                    flex: 1, padding: '9px', background: 'transparent', border: 'none',
+                    color: C.gold, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>Openen</button>
+                  <button onClick={() => copyUrl(b.code)} style={{
+                    padding: '9px 12px', background: 'transparent', border: 'none',
+                    borderLeft: `1px solid ${C.border}`,
+                    color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>🔗</button>
+                  <button onClick={() => {
+                    const next = myBoards.filter(x => x.code !== b.code)
+                    setMyBoards(next)
+                    localStorage.setItem(MY_BOARDS_KEY, JSON.stringify(next))
+                  }} style={{
+                    padding: '9px 10px', background: 'transparent', border: 'none',
+                    borderLeft: `1px solid ${C.border}`,
+                    color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => { setMyBoardsView(false); setBoardOn(false) }} style={{
+            marginTop: 16, background: 'transparent', border: `1px solid ${C.border}`,
+            borderRadius: 8, padding: '8px 16px', color: C.muted, fontSize: 12,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>+ Nieuw board (leeg beginnen)</button>
+        </div>
+      ) : boardOn ? (
+        <>
+          {sharedBoard && (
+            <div style={{ background: 'rgba(207,159,63,0.08)', borderBottom: `1px solid ${C.border}`,
+              padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: C.gold, flex: 1 }}>
+                📌 Gedeeld board: <strong>{sharedBoard.name}</strong>
+              </span>
+              <button onClick={() => {
+                setSaveName(sharedBoard.name)
+                setSaveDialog(true)
+              }} style={{
+                background: 'transparent', border: `1px solid ${C.gold}`, borderRadius: 6,
+                padding: '3px 10px', fontSize: 10, color: C.gold, cursor: 'pointer', fontFamily: 'inherit',
+              }}>Opslaan als mijn board</button>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px 0' }}>
+            <button onClick={() => { setSaveName(''); setSavedCode(null); setSaveDialog(true) }} style={{
+              background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 16,
+              padding: '4px 12px', fontSize: 10, color: C.muted, cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>💾 Opslaan &amp; delen</button>
+          </div>
+          <BoardView
+            club={club} pins={pins} poolPins={poolPins}
+            allTournaments={all}
+            onUnpin={togglePin}
+            onPoolUnpin={(phaseId, poolName) => togglePoolPin(phaseId, poolName)}
+          />
+        </>
       ) : (
         <div style={{ padding: '12px 10px' }}>
           {error && (

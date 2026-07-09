@@ -1,5 +1,8 @@
 """Tournix — teams and clubs."""
 
+import json
+import random
+import string
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,7 +13,7 @@ from core.database import get_session
 from core.auth import get_current_user, require_admin
 from models.core import User
 from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
-from models.tournix import Tournament
+from models.tournix import Tournament, PoulebordBoard
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -165,6 +168,63 @@ def get_board(
         })
 
     return sorted(result, key=lambda x: (x["category"] or "ZZ", x["tournament_name"]))
+
+
+# ── Poulebord boards ──────────────────────────────────────────────────────────
+
+BOARD_CODE_CHARS = string.ascii_lowercase + string.digits
+
+def _new_board_code(session: Session) -> str:
+    for _ in range(20):
+        code = "".join(random.choices(BOARD_CODE_CHARS, k=6))
+        if not session.get(PoulebordBoard, code):
+            return code
+    raise RuntimeError("Geen unieke code gevonden")
+
+
+class BoardCreate(BaseModel):
+    name:      str
+    club:      str       = ""
+    pins:      list      = []
+    pool_pins: list      = []
+
+
+@router.post("/public/boards", status_code=201)
+def create_board(body: BoardCreate, session: Session = Depends(get_session)):
+    if not body.name.strip():
+        raise HTTPException(400, "Naam is verplicht")
+    code = _new_board_code(session)
+    board = PoulebordBoard(
+        id=code,
+        name=body.name.strip(),
+        club=body.club,
+        pins=json.dumps(body.pins),
+        pool_pins=json.dumps(body.pool_pins),
+    )
+    session.add(board)
+    session.commit()
+    session.refresh(board)
+    return {
+        "id":        board.id,
+        "name":      board.name,
+        "club":      board.club,
+        "pins":      json.loads(board.pins),
+        "pool_pins": json.loads(board.pool_pins),
+    }
+
+
+@router.get("/public/boards/{code}")
+def get_board_by_code(code: str, session: Session = Depends(get_session)):
+    board = session.get(PoulebordBoard, code)
+    if not board:
+        raise HTTPException(404, "Board niet gevonden")
+    return {
+        "id":        board.id,
+        "name":      board.name,
+        "club":      board.club,
+        "pins":      json.loads(board.pins),
+        "pool_pins": json.loads(board.pool_pins),
+    }
 
 
 @router.get("/clubs")
