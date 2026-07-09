@@ -85,10 +85,14 @@ class ImportPayload(BaseModel):
 
 @router.get("/tournaments")
 def list_tournaments(
+    stage: Optional[str] = None,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    return session.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
+    q = select(Tournament).order_by(Tournament.created_at.desc())
+    if stage:
+        q = q.where(Tournament.stage == stage)
+    return session.exec(q).all()
 
 
 @router.get("/tournaments/{tid}")

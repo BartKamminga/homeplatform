@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poulebord — Jeugdcompetitie 2026-2027</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0b3427;
+    --bg-deep: #082a20;
+    --card: #10402f;
+    --card-hover: #14503b;
+    --tile: #0e3a2a;
+    --chalk: #f3efe3;
+    --muted: #8fab9d;
+    --gold: #cf9f3f;
+    --gold-bright: #e8bf68;
+    --line: rgba(243,239,227,0.14);
+    --red-card: #b5482f;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      repeating-linear-gradient(90deg, transparent, transparent 119px, var(--line) 119px, var(--line) 120px),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    color:var(--chalk);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding-bottom:80px;
+  }
+  .wrap{ max-width:1100px; margin:0 auto; padding:32px 20px 0; }
+
+  /* ---- Header ---- */
+  header{ text-align:center; margin-bottom:28px; position:relative; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:0.35em;
+    font-size:11px;
+    color:var(--gold-bright);
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:clamp(40px, 8vw, 76px);
+    letter-spacing:0.03em;
+    margin:0;
+    line-height:0.95;
+    color:var(--chalk);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.25);
+  }
+  .sub{
+    color:var(--muted);
+    font-size:14px;
+    margin-top:10px;
+    font-weight:500;
+  }
+  .center-circle{
+    width:14px; height:14px; border-radius:50%;
+    background:var(--gold);
+    margin:18px auto 0;
+    box-shadow: 0 0 0 6px rgba(207,159,63,0.15);
+  }
+
+  /* ---- Search ---- */
+  .search-box{
+    position:relative;
+    max-width:520px;
+    margin:32px auto 8px;
+  }
+  .search-box input{
+    width:100%;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 44px 14px 18px;
+    color:var(--chalk);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px;
+    outline:none;
+    transition:border-color .2s, background .2s;
+  }
+  .search-box input::placeholder{ color:var(--muted); }
+  .search-box input:focus{ border-color:var(--gold); background:var(--card-hover); }
+  .search-box svg{
+    position:absolute; right:16px; top:50%; transform:translateY(-50%);
+    width:16px; height:16px; stroke:var(--muted); pointer-events:none;
+  }
+  .search-results{
+    max-width:520px;
+    margin:10px auto 0;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .search-hit{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 14px;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    align-items:center;
+    gap:4px 10px;
+    cursor:pointer;
+    transition:background .15s, transform .15s;
+  }
+  .search-hit:hover{ background:var(--card-hover); transform:translateX(2px); }
+  .search-hit .name{ font-weight:600; font-size:14px; }
+  .search-hit .meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--gold-bright);
+    letter-spacing:0.04em;
+  }
+  .search-empty{
+    text-align:center; color:var(--muted); font-size:13px; padding:8px; display:none;
+  }
+
+  /* ---- Tabs ---- */
+  .tabs{
+    display:flex;
+    justify-content:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin:34px 0 14px;
+  }
+  #genderTabs{ margin:34px 0 10px; }
+  #genderTabs .tab-btn{
+    font-size:15px;
+    padding:6px 20px 5px;
+    color:var(--gold-bright);
+    border-color:var(--gold-bright);
+    background:transparent;
+  }
+  #genderTabs .tab-btn.active{
+    background:var(--gold-bright);
+    border-color:var(--gold-bright);
+    color:var(--bg-deep);
+  }
+  #ageTabs{ margin:6px 0 14px; }
+  .tab-btn{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:20px;
+    letter-spacing:0.05em;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--muted);
+    padding:8px 22px 6px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:all .18s;
+  }
+  .tab-btn:hover{ color:var(--chalk); border-color:var(--gold); }
+  .tab-btn.active{
+    background:var(--gold);
+    border-color:var(--gold);
+    color:var(--bg-deep);
+  }
+  .subtabs{
+    display:flex; justify-content:center; gap:6px; margin-bottom:8px;
+  }
+  .subtab-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    padding:6px 14px;
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    transition:all .15s;
+  }
+  .subtab-btn:hover{ color:var(--chalk); }
+  .subtab-btn.active{ color:var(--gold-bright); border-bottom-color:var(--gold-bright); }
+
+  .count-line{
+    text-align:center;
+    color:var(--muted);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    margin-bottom:22px;
+    letter-spacing:0.05em;
+  }
+
+  /* ---- Poule grid ---- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
+    gap:16px;
+  }
+  .poule{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+  }
+  .poule-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 14px;
+    border-bottom:1px solid var(--line);
+    background:rgba(0,0,0,0.12);
+  }
+  .poule-letter{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:22px;
+    color:var(--gold-bright);
+    background:rgba(207,159,63,0.14);
+    width:30px; height:30px;
+    border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .poule-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .team-list{ padding:6px 0; }
+  .flap-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    row-gap:4px;
+    gap:10px;
+    padding:8px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13.5px;
+    color:var(--chalk);
+    border-bottom:1px solid rgba(243,239,227,0.06);
+    opacity:0;
+    transform:perspective(300px) rotateX(-90deg);
+    transform-origin:top;
+    animation:flapIn .5s ease forwards;
+  }
+  .flap-row:last-child{ border-bottom:none; }
+  .flap-row .num{ color:var(--muted); font-size:11px; width:14px; flex-shrink:0; }
+  .flap-row .name{ flex:1 1 auto; min-width:0; overflow-wrap:break-word; }
+  .flap-row .badge{ flex-shrink:0; }
+  .flap-row.highlight{ background:rgba(207,159,63,0.16); }
+  @keyframes flapIn{
+    0%{ opacity:0; transform:perspective(300px) rotateX(-90deg); }
+    60%{ opacity:1; }
+    100%{ opacity:1; transform:perspective(300px) rotateX(0deg); }
+  }
+
+  .badge{
+    font-family:'Inter', sans-serif;
+    font-size:9.5px;
+    font-weight:600;
+    letter-spacing:0.03em;
+    padding:3px 8px;
+    border-radius:5px;
+    white-space:nowrap;
+    text-transform:uppercase;
+  }
+  .badge-top{ background:rgba(232,191,104,0.18); color:var(--gold-bright); }
+  .badge-mid{ background:rgba(78,168,145,0.18); color:#7fcdb4; }
+  .badge-stay{ background:rgba(143,171,157,0.12); color:var(--muted); }
+  .badge-down{ background:rgba(181,72,47,0.18); color:#e08267; }
+
+  .legend{
+    max-width:760px;
+    margin:0 auto 26px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    justify-content:center;
+    font-family:'Inter', sans-serif;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend .dot{ width:9px; height:9px; border-radius:3px; display:inline-block; }
+  .legend-note{
+    text-align:center;
+    max-width:640px;
+    margin:0 auto 30px;
+    font-size:12.5px;
+    color:var(--muted);
+    line-height:1.6;
+  }
+
+  .view-switch{
+    display:flex;
+    justify-content:center;
+    gap:0;
+    margin:36px auto 0;
+    max-width:340px;
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:3px;
+  }
+  .view-switch button{
+    flex:1;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    font-family:'Inter', sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    padding:8px 12px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:all .18s;
+  }
+  .view-switch button.active{
+    background:var(--gold);
+    color:var(--bg-deep);
+  }
+  .view-switch button:hover:not(.active){ color:var(--chalk); }
+
+  .timeline{
+    position:relative;
+    max-width:720px;
+    margin:30px auto 0;
+    padding-left:46px;
+  }
+  .timeline::before{
+    content:'';
+    position:absolute;
+    left:15px;
+    top:6px;
+    bottom:6px;
+    width:2px;
+    background:var(--line);
+  }
+  .fase-card{
+    position:relative;
+    margin-bottom:28px;
+  }
+  .fase-marker{
+    position:absolute;
+    left:-46px;
+    top:0;
+    width:32px; height:32px;
+    border-radius:50%;
+    background:var(--gold);
+    color:var(--bg-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Bebas Neue', sans-serif;
+    font-size:17px;
+  }
+  .fase-box{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+  }
+  .fase-title{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:22px;
+    letter-spacing:0.02em;
+    color:var(--chalk);
+    margin-bottom:2px;
+  }
+  .fase-periode{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--gold-bright);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    margin-bottom:12px;
+  }
+  .klasse-row{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    align-items:center;
+    gap:4px 10px;
+    padding:8px 0;
+    border-top:1px solid rgba(243,239,227,0.08);
+    font-size:13.5px;
+  }
+  .fase-box .klasse-row:first-of-type{ border-top:none; }
+  .klasse-naam{ font-weight:600; color:var(--chalk); flex:1 1 auto; min-width:0; }
+  .klasse-info{ font-size:11.5px; color:var(--muted); text-align:right; flex-shrink:0; }
+  .fase-toelichting{
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.6;
+    margin-bottom:14px;
+    padding-bottom:14px;
+    border-bottom:1px solid rgba(243,239,227,0.08);
+  }
+
+  .single-fase-wrap{
+    max-width:560px;
+    margin:10px auto 0;
+  }
+
+  .projection-wrap{
+    max-width:1100px;
+    margin:34px auto 0;
+  }
+  .projection-header{
+    text-align:center;
+    margin-bottom:6px;
+  }
+  .projection-header h3{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:26px;
+    letter-spacing:0.02em;
+    color:var(--gold-bright);
+    margin:0;
+  }
+  .projection-disclaimer{
+    max-width:640px;
+    margin:8px auto 24px;
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.6;
+    border:1px dashed var(--line);
+    border-radius:10px;
+    padding:10px 16px;
+  }
+  .tier-block{ margin-bottom:32px; }
+  .tier-heading{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:baseline;
+    gap:6px 10px;
+    margin-bottom:12px;
+    padding-left:2px;
+  }
+  .tier-heading .badge{ font-size:10.5px; padding:4px 10px; }
+  .tier-heading .tier-note{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+  .origin-tag{
+    display:block;
+    font-size:9.5px;
+    color:var(--muted);
+    margin-top:1px;
+  }
+
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+    margin-top:50px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  footer .flag{ color:var(--gold-bright); }
+
+  @media (prefers-reduced-motion: reduce){
+    .flap-row{ animation:none; opacity:1; transform:none; }
+  }
+
+  .seizoen-btn{
+    display:inline-block;
+    margin-top:20px;
+    background:transparent;
+    border:1px solid var(--gold-bright);
+    color:var(--gold-bright);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    font-weight:600;
+    padding:9px 20px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:all .18s;
+  }
+  .seizoen-btn:hover{ background:var(--gold-bright); color:var(--bg-deep); }
+
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(5,20,15,0.72);
+    backdrop-filter:blur(3px);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:50px 16px;
+    z-index:100;
+    overflow-y:auto;
+  }
+  .modal-box{
+    position:relative;
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:16px;
+    max-width:760px;
+    width:100%;
+    padding:32px 28px 36px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-title{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:40px;
+    letter-spacing:0.02em;
+    margin:2px 0 18px;
+    color:var(--chalk);
+    text-align:left;
+  }
+  .modal-close{
+    position:absolute;
+    top:18px; right:18px;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--muted);
+    width:32px; height:32px;
+    border-radius:50%;
+    cursor:pointer;
+    font-size:14px;
+    transition:all .15s;
+  }
+  .modal-close:hover{ color:var(--chalk); border-color:var(--gold-bright); }
+  #modalAgeTabs{ justify-content:flex-start; margin:0 0 4px; }
+
+  /* ---- Mobiel ---- */
+  @media (max-width: 600px){
+    .wrap{ padding:22px 14px 0; }
+    header{ margin-bottom:20px; }
+    .eyebrow{ letter-spacing:0.22em; font-size:10px; }
+    .sub{ font-size:12.5px; padding:0 8px; }
+    .seizoen-btn{ width:100%; margin-top:16px; }
+
+    .search-box{ margin:22px auto 8px; max-width:100%; }
+    .search-box input{ font-size:14px; padding:12px 40px 12px 14px; }
+
+    .tabs{ gap:6px; margin:22px 0 10px; }
+    #genderTabs{ margin:22px 0 8px; }
+    .tab-btn{ font-size:16px; padding:6px 14px 5px; }
+    #genderTabs .tab-btn{ font-size:13px; padding:5px 14px 4px; }
+    .subtab-btn{ font-size:11px; padding:5px 10px; }
+
+    .view-switch{ max-width:100%; }
+    .view-switch button{ font-size:11.5px; padding:8px 6px; }
+
+    .grid{ grid-template-columns:1fr; gap:12px; }
+    .poule-letter{ width:26px; height:26px; font-size:19px; }
+    .flap-row{ padding:9px 12px; font-size:13px; }
+    .badge{ font-size:9px; padding:3px 7px; }
+
+    .legend{ gap:8px 12px; font-size:11px; }
+    .legend-note{ font-size:11.5px; padding:0 6px; }
+
+    .fase-box{ padding:14px; }
+    .fase-title{ font-size:19px; }
+    .single-fase-wrap{ max-width:100%; }
+
+    .timeline{ max-width:100%; padding-left:34px; }
+    .fase-marker{ left:-34px; width:26px; height:26px; font-size:14px; }
+
+    .projection-header h3{ font-size:21px; }
+    .projection-disclaimer{ font-size:11px; padding:9px 12px; }
+
+    .modal-overlay{ padding:18px 10px; }
+    .modal-box{ padding:22px 16px 26px; border-radius:12px; }
+    .modal-title{ font-size:30px; }
+    .modal-close{ top:12px; right:12px; width:28px; height:28px; }
+
+    .search-results{ max-width:100%; }
+    .search-hit .name{ font-size:13px; }
+    .search-hit .meta{ font-size:10px; }
+
+    footer{ font-size:11px; padding:0 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">KNHB Jeugdcompetitie · Seizoen 2026 – 2027</div>
+    <h1>POULEBORD</h1>
+    <div class="sub">O18 · O16 · O14 — Jongens &amp; Meisjes, Topklasse &amp; Subtopklasse</div>
+    <div class="center-circle"></div>
+    <button class="seizoen-btn" id="openSeizoen">Bekijk seizoensverloop →</button>
+  </header>
+
+  <div class="search-box">
+    <input id="search" type="text" placeholder="Zoek een team, bv. Kampong, HDM, Fletiomare…" autocomplete="off">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+  <div class="search-empty" id="searchEmpty">Geen team gevonden onder die naam.</div>
+
+  <div id="appContent">
+    <div class="view-switch" id="faseSwitch"></div>
+
+    <div class="tabs" id="genderTabs"></div>
+    <div class="tabs" id="ageTabs"></div>
+    <div class="subtabs" id="levelTabs"></div>
+    <div class="count-line" id="countLine"></div>
+    <div class="legend" id="legend"></div>
+    <div class="legend-note" id="legendNote"></div>
+    <div class="grid" id="grid"></div>
+    <div class="single-fase-wrap" id="phaseBoxWrap" style="display:none;"></div>
+    <div id="projectionSection" style="display:none;"></div>
+  </div>
+
+  <footer>Gebaseerd op de definitieve poule-indeling · <span class="flag">wedstrijdprogramma &amp; uitslagen volgen later</span></footer>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" style="display:none;">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose" aria-label="Sluiten">✕</button>
+    <div class="eyebrow" style="text-align:left;">Van voorcompetitie tot NK</div>
+    <h2 class="modal-title">Seizoensverloop</h2>
+    <div class="tabs" id="modalAgeTabs"></div>
+    <div class="timeline" id="modalTimeline"></div>
+  </div>
+</div>
+
+<script>
+const DATA = {
+Meisjes: {
+  MO18: {
+    Topklasse: {
+      A: ["Craeyenhout MO18-1","Fletiomare MO18-1","Hurley MO18-1","Nijmegen MO18-1"],
+      B: ["Gooische MO18-1","HDM MO18-1","Naarden MO18-1","Phoenix MO18-1"],
+      C: ["Bloemendaal MO18-1","Groningen MO18-1","Kampong MO18-1","Pinoké MO18-1"],
+      D: ["Den Bosch MO18-1","Leonidas MO18-1","Spandersbosch MO18-1","Tilburg MO18-1"],
+      E: ["Alliance MO18-1","HGC MO18-1","Oranje-Rood MO18-1","Schiedam MO18-1"],
+      F: ["Klein Zwitserland MO18-1","Laren MO18-1","Rood-Wit MO18-1","Victoria MO18-1"],
+      G: ["Noordwijk MO18-1","Push MO18-1","Schaerweijde MO18-1","SCHC MO18-1"],
+      H: ["Amsterdam MO18-1","Apeldoorn MO18-1","Rotterdam MO18-1","Zwolle MO18-1"]
+    },
+    Subtopklasse: {
+      A: ["Hurley MO18-2","Rosmalen MO18-1","Rotterdam MO18-2","VVV HC MO18-1"],
+      B: ["GHBS MO18-1","Hilversum MO18-1","Loenen MO18-1","Union MO18-1"],
+      C: ["HUDITO MO18-1","IJburg MO18-1","Qui Vive MO18-1","Voordaan MO18-1"],
+      D: ["Almere MO18-1","HDM MO18-2","Shinty MO18-1","Zoetermeer MO18-1"],
+      E: ["Cartouche MO18-1","Myra MO18-1","Rijnvliet MO18-1","Ring Pass MO18-1"],
+      F: ["Amersfoort MO18-1","EHV MO18-1","HVA (Assen) MO18-1","Maarssen MO18-1"],
+      G: ["AthenA MO18-1","Gouda MO18-1","IJsseloever MO18-1","Westland MO18-1"],
+      H: ["Bemmel MO18-1","Helmond MO18-1","Weert MO18-1","Were Di MO18-1"],
+      I: ["Alphen MO18-1","Barendrecht MO18-1","Bennebroek MO18-1","Kampong MO18-2"],
+      J: ["Eemvallei MO18-1","HBS MO18-1","HDS MO18-1","Xenios MO18-1"],
+      K: ["Delta Venlo MO18-1","Oranje-Rood MO18-2","Oss MO18-1","SCHC MO18-2"],
+      L: ["AMVJ MO18-1","Breda MO18-1","DES MO18-1","Upward MO18-1"],
+      M: ["Bully MO18-1","Leusden MO18-1","Nijmegen MO18-2","Uden MO18-1"],
+      N: ["Den Bosch MO18-2","Fletiomare MO18-2","Goirle MO18-1","Wageningen MO18-1"],
+      O: ["Berkel-Rodenrijs MO18-1","Haarlem MO18-1","Houten MO18-1","Leiden MO18-1"],
+      P: ["Maastricht MO18-1","MEP MO18-1","MOP MO18-1","Zwart-Wit MO18-1"]
+    }
+  },
+  MO16: {
+    Topklasse: {
+      A: ["EHV MO16-1","Gooische MO16-1","Groningen MO16-1","Phoenix MO16-1","Victoria MO16-1","Zwolle MO16-1"],
+      B: ["Amersfoort MO16-1","GHBS MO16-1","Rood-Wit MO16-1","Rotterdam MO16-1","SCHC MO16-1","Voordaan MO16-1"],
+      C: ["Amsterdam MO16-1","Craeyenhout MO16-1","Hurley MO16-1","MOP MO16-1","VVV HC MO16-1","Xenios MO16-1"],
+      D: ["Bloemendaal MO16-1","Cartouche MO16-1","HDM MO16-1","Myra MO16-1","Push MO16-1","Schaerweijde MO16-1"],
+      E: ["Breda MO16-1","HBS MO16-1","Huizen MO16-1","Klein Zwitserland MO16-1","Nijmegen MO16-1","Noordwijk MO16-1"],
+      F: ["Apeldoorn MO16-1","Barendrecht MO16-1","Bennebroek MO16-1","Fletiomare MO16-1","Naarden MO16-1","Tilburg MO16-1"],
+      G: ["AthenA MO16-1","Delta Venlo MO16-1","Helmond MO16-1","Kampong MO16-1","Pinoké MO16-1","Spandersbosch MO16-1"],
+      H: ["Den Bosch MO16-1","HDS MO16-1","Leiden MO16-1","Leonidas MO16-1","Oranje-Rood MO16-1","Zoetermeer MO16-1"]
+    },
+    Subtopklasse: {
+      A: ["Fletiomare MO16-2","Houten MO16-1","Leeuwarden MO16-1","Mezen MO16-1","Phoenix MO16-2","SCHC MO16-2"],
+      B: ["Alkmaar MO16-1","Alliance MO16-1","Alphen MO16-1","Haarlem MO16-1","Pinoké MO16-2","Rood-Wit MO16-2"],
+      C: ["Bloemendaal MO16-2","Gooische MO16-2","HDM MO16-2","Hilversum MO16-1","IJburg MO16-1","Weesp MO16-1"],
+      D: ["Arnhem MO16-1","Bemmel MO16-1","DES MO16-1","Deventer MO16-1","Laren MO16-1","Wageningen MO16-1"],
+      E: ["MEP MO16-1","Qui Vive MO16-1","Rotterdam MO16-2","Victoria MO16-2","Were Di MO16-1","Woerden MO16-1"],
+      F: ["Almere MO16-1","Den Bosch MO16-2","Nijmegen MO16-2","Rijnvliet MO16-1","Union MO16-1","Upward MO16-1"],
+      G: ["Berkel-Rodenrijs MO16-1","Klein Zwitserland MO16-2","Pelikaan MO16-1","Schiedam MO16-1","Westland MO16-1","Zoetermeer MO16-2"],
+      H: ["Berkel-Enschot MO16-1","IJsseloever MO16-1","Kampong MO16-2","Maastricht MO16-1","Oranje-Rood MO16-2","Rosmalen MO16-1"]
+    }
+  },
+  MO14: {
+    Topklasse: {
+      A: ["Bully MO14-1","GHBS MO14-1","Groningen MO14-1","Leeuwarden MO14-1","Twente MO14-1","Zwolle MO14-1"],
+      B: ["Alkmaar MO14-1","Alliance MO14-1","Bloemendaal MO14-1","HBS MO14-1","Hurley MO14-1","Rood-Wit MO14-1"],
+      C: ["Amsterdam MO14-1","AthenA MO14-1","Diemen MO14-1","Pinoké MO14-1","VVV HC MO14-1","Weesp MO14-1"],
+      D: ["Almere MO14-1","Gooische MO14-1","Huizen MO14-1","Laren MO14-1","Naarden MO14-1","Spandersbosch MO14-1"],
+      E: ["Craeyenhout MO14-1","HDM MO14-1","HDS MO14-1","Klein Zwitserland MO14-1","Leiden MO14-1","Noordwijk MO14-1"],
+      F: ["Alphen MO14-1","Berkel-Rodenrijs MO14-1","Cartouche MO14-1","Derby MO14-1","Rotterdam MO14-1","Victoria MO14-1"],
+      G: ["Fletiomare MO14-1","Hilversum MO14-1","Houten MO14-1","Kampong MO14-1","SCHC MO14-1","Voordaan MO14-1"],
+      H: ["Apeldoorn MO14-1","Nijmegen MO14-1","Phoenix MO14-1","Schaerweijde MO14-1","Upward MO14-1","Wageningen MO14-1"],
+      I: ["Breda MO14-1","Pelikaan MO14-1","Push MO14-1","Rosmalen MO14-1","Tilburg MO14-1","Zwart-Wit MO14-1"],
+      J: ["Delta Venlo MO14-1","Den Bosch MO14-1","Maastricht MO14-1","MOP MO14-1","Oranje-Rood MO14-1","Were Di MO14-1"]
+    }
+  }
+}, // einde Meisjes
+Jongens: {
+  JO18: {
+    Topklasse: {
+      A: ["Fletiomare JO18-1","Groningen JO18-1","Kampong JO18-1","Nijmegen JO18-1"],
+      B: ["Gooische JO18-1","Klein Zwitserland JO18-1","Leiden JO18-1","Roomburg JO18-1"],
+      C: ["Cartouche JO18-1","HDM JO18-1","Hilversum JO18-1","Laren JO18-1"],
+      D: ["Amsterdam JO18-1","Bloemendaal JO18-1","MEP JO18-1","Naarden JO18-1"],
+      E: ["Deventer JO18-1","Rood-Wit JO18-1","Rotterdam JO18-1","Victoria JO18-1"],
+      F: ["Den Bosch JO18-1","Maarssen JO18-1","Schaerweijde JO18-1","Zwolle JO18-1"],
+      G: ["Oranje-Rood JO18-1","SCHC JO18-1","Voordaan JO18-1","Xenios JO18-1"],
+      H: ["Hurley JO18-1","Pinoké JO18-1","Push JO18-1","Tilburg JO18-1"]
+    },
+    Subtopklasse: {
+      A: ["Amsterdam JO18-2","Ede JO18-1","GHBS JO18-1","Naarden JO18-2"],
+      B: ["Alkmaar JO18-1","Cartouche JO18-2","HBS JO18-1","HDS JO18-1"],
+      C: ["Baarn JO18-1","FIT JO18-1","Ring Pass JO18-1","Rotterdam JO18-2"],
+      D: ["Alliance JO18-1","Hurley JO18-2","Klein Zwitserland JO18-2","Weesp JO18-1"],
+      E: ["Alphen JO18-1","Bennebroek JO18-1","Berkel-Rodenrijs JO18-1","Voordaan JO18-2"],
+      F: ["Barneveld JO18-1","Den Bosch JO18-2","Dommel JO18-1","Gooische JO18-2"],
+      G: ["Amersfoort JO18-1","Phoenix JO18-1","Schaerweijde JO18-3","Victoria JO18-2"],
+      H: ["Kampong JO18-2","Leusden JO18-1","Oosterbeek JO18-1","Upward JO18-1"],
+      I: ["Forescate JO18-1","Leiden JO18-2","Leonidas JO18-1","Shinty JO18-1"],
+      J: ["AMVJ JO18-1","AthenA JO18-1","Roomburg JO18-2","Zoetermeer JO18-1"],
+      K: ["Barendrecht JO18-1","HDM JO18-2","Myra JO18-1","Rijswijk JO18-1"],
+      L: ["Houten JO18-1","HvB JO18-1","Ommoord JO18-1","Schiedam JO18-1"],
+      M: ["Breda JO18-1","HUDITO JO18-1","Kromhouters JO18-1","Rosmalen JO18-1"],
+      N: ["Concordia JO18-1","Delta Venlo JO18-1","Warande JO18-1","Zwart-Wit JO18-1"],
+      O: ["Maastricht JO18-1","Nijmegen JO18-2","Union JO18-1","Zwaluwen JO18-1"],
+      P: ["Apeldoorn JO18-1","Eemvallei JO18-1","MOP JO18-1","Oranje-Rood JO18-2"]
+    }
+  },
+  JO16: {
+    Topklasse: {
+      A: ["Bloemendaal JO16-1","Deventer JO16-1","Fletiomare JO16-1","Forescate JO16-1","Klein Zwitserland JO16-1","Voordaan JO16-1"],
+      B: ["Cartouche JO16-1","HBS JO16-1","Leiden JO16-1","Pinoké JO16-1","Shinty JO16-1","Upward JO16-1"],
+      C: ["Amsterdam JO16-1","Gooische JO16-1","Groningen JO16-1","Maarssen JO16-1","Naarden JO16-1","Zwolle JO16-1"],
+      D: ["Alliance JO16-1","AthenA JO16-1","Laren JO16-1","SCHC JO16-1","Spandersbosch JO16-1","Tilburg JO16-1"],
+      E: ["Hilversum JO16-1","MOP JO16-1","Nijmegen JO16-1","Phoenix JO16-1","Roomburg JO16-1","Schaerweijde JO16-1"],
+      F: ["Bennebroek JO16-1","Berkel-Rodenrijs JO16-1","Kampong JO16-1","MEP JO16-1","Rotterdam JO16-1","Schiedam JO16-1"],
+      G: ["Breda JO16-1","HDM JO16-1","Hurley JO16-1","Rood-Wit JO16-1","Victoria JO16-1","Warande JO16-1"],
+      H: ["Delta Venlo JO16-1","Den Bosch JO16-1","Houten JO16-1","Oranje-Rood JO16-1","Push JO16-1","Zwaluwen JO16-1"]
+    },
+    Subtopklasse: {
+      A: ["AMVJ JO16-1","Bloemendaal JO16-2","Cartouche JO16-2","Naarden JO16-2","Pinoké JO16-2","Rood-Wit JO16-2"],
+      B: ["Apeldoorn JO16-1","GHBS JO16-1","Schaerweijde JO16-2","Weesp JO16-1","Wijchen JO16-1","Zutphen JO16-1"],
+      C: ["Gooische JO16-2","HUDITO JO16-1","Klein Zwitserland JO16-2","Loenen JO16-1","Myra JO16-1","Westerpark JO16-1"],
+      D: ["Alphen JO16-1","Bemmel JO16-1","Huizen JO16-1","HvB JO16-1","IJburg JO16-1","SCHC JO16-2"],
+      E: ["HDM JO16-2","Leiden JO16-2","Leonidas JO16-1","Rijnvliet JO16-1","Rijswijk JO16-1","Victoria JO16-2"],
+      F: ["Alecto JO16-1","Amersfoort JO16-1","Den Bosch JO16-2","Haarlem JO16-1","Kieviten JO16-1","Nijmegen JO16-2"],
+      G: ["Eemvallei JO16-1","Kampong JO16-2","Maastricht JO16-1","Oranje-Rood JO16-2","Push JO16-2","Rosmalen JO16-1"],
+      H: ["Amsterdam JO16-2","Breda JO16-2","IJssel JO16-1","Ring Pass JO16-1","Rotterdam JO16-2","Zoetermeer JO16-1"]
+    }
+  },
+  JO14: {
+    Topklasse: {
+      A: ["Apeldoorn JO14-1","Groningen JO14-1","Nijmegen JO14-1","Oosterbeek JO14-1","Upward JO14-1","Zwolle JO14-1"],
+      B: ["Amsterdam JO14-1","AthenA JO14-1","Bloemendaal JO14-1","Hurley JO14-1","Myra JO14-1","Pinoké JO14-1"],
+      C: ["Alliance JO14-1","Forescate JO14-1","HBS JO14-1","Leiden JO14-1","Rood-Wit JO14-1","Roomburg JO14-1"],
+      D: ["Gooische JO14-1","Laren JO14-1","Naarden JO14-1","SCHC JO14-1","Voordaan JO14-1","Weesp JO14-1"],
+      E: ["Cartouche JO14-1","HDM JO14-1","HGC JO14-1","Klein Zwitserland JO14-1","Ring Pass JO14-1","Rotterdam JO14-1"],
+      F: ["Berkel-Rodenrijs JO14-1","Breda JO14-1","Leonidas JO14-1","Push JO14-1","Tilburg JO14-1","Victoria JO14-1"],
+      G: ["Fletiomare JO14-1","Houten JO14-1","Kampong JO14-1","Phoenix JO14-1","Schaerweijde JO14-1","Spandersbosch JO14-1"],
+      H: ["Delta Venlo JO14-1","Den Bosch JO14-1","Helmond JO14-1","MOP JO14-1","Oranje-Rood JO14-1","Rosmalen JO14-1"]
+    }
+  }
+} // einde Jongens
+};
+
+let currentGender = "Meisjes";
+let currentAge = "MO18";
+let currentLevel = "Topklasse";
+let currentFase = 1;
+
+const genderTabsEl = document.getElementById('genderTabs');
+const ageTabsEl = document.getElementById('ageTabs');
+const levelTabsEl = document.getElementById('levelTabs');
+const gridEl = document.getElementById('grid');
+const countLineEl = document.getElementById('countLine');
+const legendEl = document.getElementById('legend');
+const searchInput = document.getElementById('search');
+const searchResultsEl = document.getElementById('searchResults');
+const searchEmptyEl = document.getElementById('searchEmpty');
+const faseSwitchEl = document.getElementById('faseSwitch');
+const legendNoteEl = document.getElementById('legendNote');
+const phaseBoxWrapEl = document.getElementById('phaseBoxWrap');
+const appContentEl = document.getElementById('appContent');
+const modalOverlayEl = document.getElementById('modalOverlay');
+const modalAgeTabsEl = document.getElementById('modalAgeTabs');
+const modalTimelineEl = document.getElementById('modalTimeline');
+const openSeizoenBtn = document.getElementById('openSeizoen');
+const modalCloseBtn = document.getElementById('modalClose');
+const projectionSectionEl = document.getElementById('projectionSection');
+
+function renderGenderTabs(){
+  genderTabsEl.innerHTML = '';
+  Object.keys(DATA).forEach(gender => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (gender === currentGender ? ' active' : '');
+    btn.textContent = gender;
+    btn.onclick = () => {
+      currentGender = gender;
+      const ages = Object.keys(DATA[gender]);
+      if(!ages.includes(currentAge)) currentAge = ages[0];
+      const levels = Object.keys(DATA[gender][currentAge]);
+      if(!levels.includes(currentLevel)) currentLevel = levels[0];
+      renderAll();
+    };
+    genderTabsEl.appendChild(btn);
+  });
+}
+
+function renderAgeTabs(){
+  ageTabsEl.innerHTML = '';
+  Object.keys(DATA[currentGender]).forEach(age => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (age === currentAge ? ' active' : '');
+    btn.textContent = age.replace(/^(M|J)O/, 'O');
+    btn.onclick = () => {
+      currentAge = age;
+      const levels = Object.keys(DATA[currentGender][age]);
+      if(!levels.includes(currentLevel)) currentLevel = levels[0];
+      renderAll();
+    };
+    ageTabsEl.appendChild(btn);
+  });
+}
+
+// ---- Promotie/degradatie-uitkomsten (KNHB Herindelingsregeling Jeugd, meest recent gepubliceerd: 2025-2026) ----
+const OUTCOMES = {
+  O18: {
+    Topklasse:    {1:"Landelijke Competitie", 2:"Landelijke Competitie", 3:"Super O18", 4:"Super O18"},
+    Subtopklasse: {1:"Super O18", 2:"Subtopklasse", 3:"Subtopklasse", 4:"1e Klasse"}
+  },
+  O16: {
+    Topklasse:    {1:"Landelijke Competitie", 2:"Landelijke Competitie", 3:"Landelijke Competitie", 4:"Super O16", 5:"Super O16", 6:"Subtopklasse"},
+    Subtopklasse: {1:"Super O16", 2:"Subtopklasse", 3:"Subtopklasse", 4:"Subtopklasse", 5:"Subtopklasse", 6:"1e Klasse"}
+  },
+  O14: {
+    Topklasse:    {1:"Super O14", 2:"Super O14", 3:"Super O14", 4:"IDC O14", 5:"IDC O14", 6:"Subtopklasse"}
+  }
+};
+
+function ageBase(age){ return age.replace(/^(M|J)O/, 'O'); }
+
+function outcomeFor(age, level, position){
+  const table = OUTCOMES[ageBase(age)] && OUTCOMES[ageBase(age)][level];
+  return table ? table[position] : null;
+}
+
+function badgeClass(text){
+  if(!text) return 'badge-stay';
+  if(text.startsWith('Landelijke') || text === 'Super O14') return 'badge-top';
+  if(text.startsWith('Super') || text.startsWith('IDC')) return 'badge-mid';
+  if(text === '1e Klasse') return 'badge-down';
+  return 'badge-stay';
+}
+
+// ---- Illustratieve projectie: hoe fase 2 er (mogelijk) uit kan zien ----
+const TIER_POULE_SIZE = {
+  O18: {"Landelijke Competitie":8, "Super O18":8, "Subtopklasse":8},
+  O16: {"Landelijke Competitie":6, "Super O16":6, "Subtopklasse":6},
+  O14: {"Super O14":6, "IDC O14":6}
+};
+const TIER_ORDER = {
+  O18: ["Landelijke Competitie","Super O18","Subtopklasse"],
+  O16: ["Landelijke Competitie","Super O16","Subtopklasse"],
+  O14: ["Super O14","IDC O14"]
+};
+
+function buildProjection(gender, age){
+  const base = ageBase(age);
+  const levels = DATA[gender][age];
+  const buckets = {};
+  Object.entries(levels).forEach(([level, poules]) => {
+    Object.entries(poules).forEach(([letter, teams]) => {
+      teams.forEach((team, idx) => {
+        const pos = idx + 1;
+        const outcome = outcomeFor(age, level, pos);
+        if(outcome && outcome !== '1e Klasse'){
+          if(!buckets[outcome]) buckets[outcome] = [];
+          buckets[outcome].push({ team, level, letter, pos });
+        }
+      });
+    });
+  });
+  return buckets;
+}
+
+function snakeDistribute(items, numGroups){
+  const groups = Array.from({length: numGroups}, () => []);
+  let dir = 1, g = 0;
+  items.forEach(item => {
+    groups[g].push(item);
+    if(numGroups > 1){
+      if(dir === 1){ if(g === numGroups - 1) dir = -1; else g++; }
+      else { if(g === 0) dir = 1; else g--; }
+    }
+  });
+  return groups;
+}
+
+function letterFor(i){ return String.fromCharCode(65 + i); }
+
+function renderProjection(){
+  const base = ageBase(currentAge);
+  const sizes = TIER_POULE_SIZE[base];
+  const order = TIER_ORDER[base];
+  if(!sizes){ projectionSectionEl.innerHTML = ''; return; }
+
+  const buckets = buildProjection(currentGender, currentAge);
+
+  const tiersHtml = order.filter(t => buckets[t] && buckets[t].length).map(tierName => {
+    const items = buckets[tierName];
+    const size = sizes[tierName];
+    const numGroups = Math.max(1, Math.round(items.length / size));
+    const groups = snakeDistribute(items, numGroups);
+    const groupsHtml = groups.map((grp, gi) => `
+      <div class="poule">
+        <div class="poule-head">
+          <div class="poule-letter">${letterFor(gi)}</div>
+          <div class="poule-title">Poule ${letterFor(gi)}</div>
+        </div>
+        <div class="team-list">
+          ${grp.map((it, i) => `
+            <div class="flap-row" style="animation-delay:${i*50}ms">
+              <span class="num">${i+1}</span>
+              <span class="name">${it.team}<span class="origin-tag">uit ${it.level} ${it.letter} · nr. ${it.pos}</span></span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+    return `
+      <div class="tier-block">
+        <div class="tier-heading">
+          <span class="badge ${badgeClass(tierName)}">${tierName}</span>
+          <span class="tier-note">${groups.length} poule${groups.length > 1 ? 's' : ''} × ~${size} · ${items.length} teams uit fase 1</span>
+        </div>
+        <div class="grid">${groupsHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  projectionSectionEl.innerHTML = `
+    <div class="projection-wrap">
+      <div class="projection-header"><h3>Mogelijke indeling na Fase 1</h3></div>
+      <div class="projection-disclaimer">Illustratief — gebaseerd op de aanname dat de huidige volgorde in elke poule ook de eindstand wordt. De KNHB deelt na de voorcompetitie opnieuw in op basis van <strong>rating</strong>, niet alleen op eindpositie, dus de echte indeling kan (en zal) afwijken. Ook ontbreken hier de instromers vanuit de 1e Klasse.</div>
+      ${tiersHtml}
+    </div>
+  `;
+}
+
+const LEGEND_ITEMS = [
+  {cls:'badge-top', label:'Hoogste vervolgniveau'},
+  {cls:'badge-mid', label:'Middenniveau (Super/IDC)'},
+  {cls:'badge-stay', label:'Blijft in dezelfde klasse'},
+  {cls:'badge-down', label:'Degradatie naar 1e Klasse'}
+];
+function renderLegend(){
+  legendEl.innerHTML = LEGEND_ITEMS.map(it =>
+    `<span><span class="badge ${it.cls}" style="padding:3px 6px;">&nbsp;</span>${it.label}</span>`
+  ).join('');
+}
+
+function renderLevelTabs(){
+  levelTabsEl.innerHTML = '';
+  Object.keys(DATA[currentGender][currentAge]).forEach(level => {
+    const btn = document.createElement('button');
+    btn.className = 'subtab-btn' + (level === currentLevel ? ' active' : '');
+    btn.textContent = level;
+    btn.onclick = () => { currentLevel = level; renderAll(); };
+    levelTabsEl.appendChild(btn);
+  });
+}
+
+function renderGrid(){
+  const poules = DATA[currentGender][currentAge][currentLevel];
+  const letters = Object.keys(poules);
+  countLineEl.textContent = `${letters.length} poules · ${letters.reduce((n,l)=>n+poules[l].length,0)} teams`;
+  gridEl.innerHTML = '';
+  letters.forEach(letter => {
+    const teams = poules[letter];
+    const card = document.createElement('div');
+    card.className = 'poule';
+    card.innerHTML = `
+      <div class="poule-head">
+        <div class="poule-letter">${letter}</div>
+        <div class="poule-title">Poule ${letter}</div>
+      </div>
+      <div class="team-list">
+        ${teams.map((t,i)=>{
+          const pos = i+1;
+          const outcome = outcomeFor(currentAge, currentLevel, pos);
+          const badge = outcome ? `<span class="badge ${badgeClass(outcome)}">${outcome}</span>` : '';
+          return `<div class="flap-row" style="animation-delay:${i*60}ms"><span class="num">${pos}</span><span class="name">${t}</span>${badge}</div>`;
+        }).join('')}
+      </div>
+    `;
+    gridEl.appendChild(card);
+  });
+}
+
+const PHASES = {
+  O18: [
+    {
+      naam: "Fase 1 · Voorcompetitie",
+      periode: "Najaar · 6 wedstrijden",
+      toelichting: "Indeling vooraf op basis van rating van de deelnemende teams, met waar mogelijk spreiding over regio's om reisafstanden te beperken.",
+      klassen: [
+        {naam:"Topklasse", info:"8 poules × 4 (32 teams)", cls:"badge-top"},
+        {naam:"Subtopklasse", info:"16 poules × 4 (64 teams)", cls:"badge-mid"},
+        {naam:"1e Klasse", info:"per district ingedeeld", cls:"badge-stay"}
+      ]
+    },
+    {
+      naam: "Fase 2 · Reguliere competitie",
+      periode: "Start na herfstvakantie · 14 wedstrijden",
+      toelichting: "De eindpositie in de Fase 1-poule bepaalt naar welk niveau een team doorstroomt (zie de badges bij Fase 1). Binnen dat niveau worden de nieuwe poules opnieuw samengesteld op basis van rating en de behaalde resultaten in de voorcompetitie.",
+      klassen: [
+        {naam:"Landelijke Competitie", info:"2 poules × 8 (16 teams)", cls:"badge-top"},
+        {naam:"Super O18", info:"4 poules × 8 (32 teams)", cls:"badge-mid"},
+        {naam:"Subtopklasse", info:"6 poules × 8 teams", cls:"badge-stay"},
+        {naam:"1e Klasse", info:"per district", cls:"badge-stay"}
+      ]
+    },
+    {
+      naam: "Fase 3 · Play-offs & NK",
+      periode: "13, 20 en 27 juni",
+      toelichting: "De eindrangschikking van de reguliere competitie bepaalt het play-off schema: de nummer 1 van de ene poule speelt tegen de nummer 2 van de andere poule (en omgekeerd). Elke ronde wordt in twee wedstrijden gespeeld; bij gelijke stand na wedstrijdpunten, doelsaldo en doelpunten volgt een shoot-outserie.",
+      klassen: [
+        {naam:"Landelijke Competitie play-offs", info:"nr. 1+2 → halve finales, finale 27 juni", cls:"badge-top"},
+        {naam:"Super O18 finaledag", info:"nr. 1+2 per poule → finaledag 20 juni", cls:"badge-mid"}
+      ]
+    }
+  ],
+  O16: [
+    {
+      naam: "Fase 1 · Voorcompetitie",
+      periode: "Najaar · 10 wedstrijden (1e Klasse: 2×5)",
+      toelichting: "Indeling vooraf op basis van rating; bij grote reisafstanden wordt dit waar mogelijk gecorrigeerd in de indeling.",
+      klassen: [
+        {naam:"Topklasse", info:"8 poules × 6 (48 teams)", cls:"badge-top"},
+        {naam:"Subtopklasse", info:"8 poules × 6 (48 teams)", cls:"badge-mid"},
+        {naam:"1e Klasse", info:"per district ingedeeld", cls:"badge-stay"}
+      ]
+    },
+    {
+      naam: "Fase 2 · Reguliere competitie",
+      periode: "Start na winterstop · 10 wedstrijden",
+      toelichting: "De eindpositie in de Fase 1-poule bepaalt het vervolgniveau (zie de badges bij Fase 1). De landelijke poules worden vervolgens ingedeeld via een 'slangverdeling': het sterkste team naar poule 1, het op-een-na-sterkste naar poule 2, enzovoort, zodat de poules qua niveau gelijkwaardig zijn.",
+      klassen: [
+        {naam:"Landelijke Competitie", info:"4 poules × 6 (24 teams)", cls:"badge-top"},
+        {naam:"Super O16", info:"4 poules × 6 (24 teams)", cls:"badge-mid"},
+        {naam:"Subtopklasse", info:"10 poules × 6 teams", cls:"badge-stay"},
+        {naam:"1e Klasse", info:"per district", cls:"badge-stay"}
+      ]
+    },
+    {
+      naam: "Fase 3 · Play-offs & NK",
+      periode: "13 en 20 juni (finale 27 juni)",
+      toelichting: "De ranking van de reguliere competitie bepaalt het schema: beste nr. 1 tegen de zwakst geplaatste nr. 2, enzovoort. Kwart- en halve finales zijn één wedstrijd; bij gelijke stand volgen shoot-outs. De hoogst geplaatste ploeg speelt steeds thuis.",
+      klassen: [
+        {naam:"Landelijke Competitie play-offs", info:"kwart-/halve finales → finale 27 juni", cls:"badge-top"},
+        {naam:"Super O16 finaledag", info:"nr. 1+2 per poule → finaledag 20 juni", cls:"badge-mid"}
+      ]
+    }
+  ],
+  O14: [
+    {
+      naam: "Fase 1 · Voorcompetitie",
+      periode: "Najaar",
+      toelichting: "Topklasse en Subtopklasse worden vooraf ingedeeld op basis van rating en regio.",
+      klassen: [
+        {naam:"Topklasse", info:"poules × 6 teams", cls:"badge-top"},
+        {naam:"Subtopklasse", info:"poules × 6 teams", cls:"badge-mid"},
+        {naam:"1e Klasse", info:"per district ingedeeld", cls:"badge-stay"}
+      ]
+    },
+    {
+      naam: "Fase 2 · Na de winterstop",
+      periode: "Lente · 10 wedstrijden",
+      toelichting: "De eindstand van de voorcompetitie bepaalt de plaatsing: nr. 1 t/m 3 van de Topklasse naar Super O14, nr. 4 en 5 naar IDC O14, nr. 6 blijft in de Subtopklasse. Daarnaast plaatsen de sterkste nummers 4 uit alle Topklasse-poules samen zich ook nog voor Super O14, tot een totaal van 30 teams.",
+      klassen: [
+        {naam:"Super O14", info:"5 poules × 6 (30 teams)", cls:"badge-top"},
+        {naam:"IDC O14", info:"6 poules × 6 (36 teams)", cls:"badge-mid"},
+        {naam:"Subtopklasse", info:"regionaal vervolg", cls:"badge-stay"}
+      ]
+    },
+    {
+      naam: "Fase 3 · Nederlands Kampioenschap",
+      periode: "20 juni",
+      toelichting: "Nr. 1 en 2 van elke Super O14-poule (10 teams) plaatsen zich voor de NK-poulefase, verdeeld over twee locaties met elk een jongens- en een meisjespoule van vijf teams. Nr. 1 en 2 van die poules gaan door naar de kruisfinales.",
+      klassen: [
+        {naam:"NK-poulefase", info:"nr. 1+2 per Super O14-poule (10 teams) → 2 poules van 5, kruisfinales + finales", cls:"badge-top"}
+      ]
+    }
+  ]
+};
+
+let modalAge = 'O18';
+
+function renderModalAgeTabs(){
+  modalAgeTabsEl.innerHTML = '';
+  Object.keys(PHASES).forEach(age => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (age === modalAge ? ' active' : '');
+    btn.textContent = age;
+    btn.onclick = () => { modalAge = age; renderModalTimeline(); renderModalAgeTabs(); };
+    modalAgeTabsEl.appendChild(btn);
+  });
+}
+
+function renderModalTimeline(){
+  const fases = PHASES[modalAge];
+  modalTimelineEl.innerHTML = fases.map((f, i) => `
+    <div class="fase-card">
+      <div class="fase-marker">${i+1}</div>
+      <div class="fase-box">
+        <div class="fase-title">${f.naam}</div>
+        <div class="fase-periode">${f.periode}</div>
+        ${f.toelichting ? `<div class="fase-toelichting">${f.toelichting}</div>` : ''}
+        ${f.klassen.map(k => `
+          <div class="klasse-row">
+            <span class="klasse-naam"><span class="badge ${k.cls}" style="margin-right:8px;">&nbsp;</span>${k.naam}</span>
+            <span class="klasse-info">${k.info}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openModal(){
+  renderModalAgeTabs();
+  renderModalTimeline();
+  modalOverlayEl.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(){
+  modalOverlayEl.style.display = 'none';
+  document.body.style.overflow = '';
+}
+openSeizoenBtn.addEventListener('click', openModal);
+modalCloseBtn.addEventListener('click', closeModal);
+modalOverlayEl.addEventListener('click', (e) => { if(e.target === modalOverlayEl) closeModal(); });
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeModal(); });
+
+function renderFaseSwitch(){
+  faseSwitchEl.innerHTML = '';
+  [[1,'Fase 1'],[2,'Fase 2'],[3,'Fase 3']].forEach(([num,label]) => {
+    const btn = document.createElement('button');
+    btn.className = currentFase === num ? 'active' : '';
+    btn.textContent = label;
+    btn.onclick = () => { currentFase = num; renderAll(); };
+    faseSwitchEl.appendChild(btn);
+  });
+}
+
+function renderPhaseBox(){
+  const base = ageBase(currentAge);
+  const fase = PHASES[base][currentFase - 1];
+  phaseBoxWrapEl.innerHTML = `
+    <div class="fase-box">
+      <div class="fase-title">${fase.naam}</div>
+      <div class="fase-periode">${fase.periode}</div>
+      ${fase.toelichting ? `<div class="fase-toelichting">${fase.toelichting}</div>` : ''}
+      ${fase.klassen.map(k => `
+        <div class="klasse-row">
+          <span class="klasse-naam"><span class="badge ${k.cls}" style="margin-right:8px;">&nbsp;</span>${k.naam}</span>
+          <span class="klasse-info">${k.info}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function updateVisibility(){
+  const isFase1 = currentFase === 1;
+  const isFase2 = currentFase === 2;
+  levelTabsEl.style.display = isFase1 ? '' : 'none';
+  countLineEl.style.display = isFase1 ? '' : 'none';
+  legendEl.style.display = isFase1 ? '' : 'none';
+  gridEl.style.display = isFase1 ? '' : 'none';
+  phaseBoxWrapEl.style.display = isFase1 ? 'none' : '';
+  projectionSectionEl.style.display = isFase2 ? '' : 'none';
+  legendNoteEl.textContent = isFase1
+    ? "Op basis van de KNHB-herindelingsregeling: na de voorcompetitie bepaalt de eindpositie in de poule (o.b.v. rating) naar welk vervolgniveau een team doorstroomt. Bron: KNHB, meest recent gepubliceerde regeling (2025-2026) — de versie voor 2026-2027 verschijnt later dit seizoen."
+    : "De poule-indeling van deze fase wordt pas na afloop van de voorgaande fase samengesteld op basis van rating en resultaten. Hieronder staat alvast de structuur — zodra de KNHB de daadwerkelijke indeling publiceert, vul ik die hier aan.";
+}
+
+function renderAll(){
+  renderFaseSwitch();
+  renderGenderTabs();
+  renderAgeTabs();
+  renderLevelTabs();
+  renderLegend();
+  updateVisibility();
+  if(currentFase === 1){
+    renderGrid();
+  } else {
+    renderPhaseBox();
+    if(currentFase === 2) renderProjection();
+  }
+}
+
+// ---- Search across everything ----
+function buildIndex(){
+  const idx = [];
+  Object.entries(DATA).forEach(([gender, ages]) => {
+    Object.entries(ages).forEach(([age, levels]) => {
+      Object.entries(levels).forEach(([level, poules]) => {
+        Object.entries(poules).forEach(([letter, teams]) => {
+          teams.forEach(team => {
+            idx.push({ team, gender, age, level, letter });
+          });
+        });
+      });
+    });
+  });
+  return idx;
+}
+const INDEX = buildIndex();
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  searchResultsEl.innerHTML = '';
+  searchEmptyEl.style.display = 'none';
+  if(q.length === 0){
+    appContentEl.style.display = '';
+    return;
+  }
+  appContentEl.style.display = 'none';
+  const hits = INDEX.filter(h => h.team.toLowerCase().includes(q));
+  if(hits.length === 0){
+    searchEmptyEl.style.display = 'block';
+    return;
+  }
+  hits.slice(0, 30).forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'search-hit';
+    row.innerHTML = `<span class="name">${h.team}</span><span class="meta">${h.gender} · ${h.age.replace(/^(M|J)O/, 'O')} · ${h.level} · Poule ${h.letter}</span>`;
+    row.onclick = () => {
+      searchInput.value = '';
+      searchResultsEl.innerHTML = '';
+      appContentEl.style.display = '';
+      currentFase = 1;
+      currentGender = h.gender;
+      currentAge = h.age;
+      currentLevel = h.level;
+      renderAll();
+      setTimeout(() => {
+        document.querySelectorAll('.poule-title').forEach(pt => {
+          if(pt.textContent === `Poule ${h.letter}`){
+            const card = pt.closest('.poule');
+            card.scrollIntoView({behavior:'smooth', block:'center'});
+            card.style.transition = 'box-shadow .3s';
+            card.style.boxShadow = '0 0 0 2px #cf9f3f';
+            setTimeout(()=> card.style.boxShadow = '', 1400);
+          }
+        });
+      }, 60);
+    };
+    searchResultsEl.appendChild(row);
+  });
+});
+
+renderAll();
+</script>
+</body>
+</html>

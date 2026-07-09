@@ -29,22 +29,22 @@ function StandingsTable({ rows }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {Object.entries(byPool).map(([pname, prows]) => (
-        <div key={pname} style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ padding: '7px 12px', fontSize: 11, fontWeight: 700,
+        <div key={pname} style={{ flex: '1 1 240px', background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700,
             letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
             POULE {pname}
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ color: C.muted, fontSize: 11 }}>
-                <th style={{ padding: '5px 4px 5px 12px', textAlign: 'left', fontWeight: 500, width: 22 }}>#</th>
-                <th style={{ padding: '5px 4px', textAlign: 'left', fontWeight: 500 }}>Team</th>
-                <th style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 500, width: 28 }}>W</th>
-                <th style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 500, width: 28 }}>G</th>
-                <th style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 500, width: 28 }}>V</th>
-                <th style={{ padding: '5px 12px 5px 4px', textAlign: 'center', fontWeight: 600, width: 36, color: C.chalk }}>Pt</th>
+              <tr style={{ color: C.muted, fontSize: 10 }}>
+                <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
+                <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+                <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
+                <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
+                <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
+                <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
               </tr>
             </thead>
             <tbody>
@@ -53,16 +53,16 @@ function StandingsTable({ rows }) {
                   borderTop: `1px solid ${C.border}`,
                   background: i === 0 ? 'rgba(207,159,63,0.07)' : 'transparent',
                 }}>
-                  <td style={{ padding: '9px 4px 9px 12px', color: C.muted, fontSize: 12 }}>{i + 1}</td>
-                  <td style={{ padding: '9px 4px', color: C.chalk, fontWeight: i === 0 ? 600 : 400,
+                  <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                  <td style={{ padding: '5px 3px', color: C.chalk, fontWeight: i === 0 ? 600 : 400,
                     maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {r.name}
                   </td>
-                  <td style={{ padding: '9px 8px', textAlign: 'center', color: C.muted }}>{r.w}</td>
-                  <td style={{ padding: '9px 8px', textAlign: 'center', color: C.muted }}>{r.d}</td>
-                  <td style={{ padding: '9px 8px', textAlign: 'center', color: C.muted }}>{r.l}</td>
-                  <td style={{ padding: '9px 12px 9px 4px', textAlign: 'center',
-                    color: C.goldBr, fontWeight: 700, fontSize: 14 }}>{r.pts}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
+                  <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
+                  <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
+                    color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
                 </tr>
               ))}
             </tbody>
