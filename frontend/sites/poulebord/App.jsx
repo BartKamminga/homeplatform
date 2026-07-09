@@ -456,7 +456,7 @@ function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }
   return (
     <div style={{ background: C.card, borderRadius: 12, overflow: 'hidden', marginBottom: 10,
       border: `1px solid ${C.border}` }}>
-      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
         <button onClick={() => setOpen(o => !o)} style={{
           flex: 1, padding: '13px 16px', background: 'transparent', border: 'none',
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
@@ -468,10 +468,11 @@ function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }
           <span style={{ color: C.muted, fontSize: 11 }}>{open ? '▲' : '▼'}</span>
         </button>
         <button onClick={onPin} title={pinned ? 'Verwijder competitie van board' : 'Pin competitie op board'} style={{
-          background: pinned ? 'rgba(207,159,63,0.12)' : 'transparent',
-          border: 'none', borderLeft: `1px solid ${C.border}`,
-          padding: '0 14px', fontSize: 14,
-          color: pinned ? C.gold : C.muted, cursor: 'pointer', flexShrink: 0,
+          background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+          border: `1px solid ${pinned ? C.gold : 'transparent'}`,
+          borderRadius: 4, padding: '1px 5px', fontSize: 10,
+          color: pinned ? C.gold : C.muted, cursor: 'pointer',
+          lineHeight: 1.4, flexShrink: 0, marginRight: 12,
         }}>📌</button>
       </div>
 
