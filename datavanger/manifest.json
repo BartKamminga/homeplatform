@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hockey Data Vanger",
-  "version": "7.0",
+  "version": "8.0",
   "description": "Vangt hockey.nl API data op en pusht naar HomePlatform",
   "permissions": [
     "activeTab",
@@ -9,7 +9,8 @@
     "storage"
   ],
   "host_permissions": [
-    "https://www.hockey.nl/*"
+    "https://www.hockey.nl/*",
+    "*://*/*"
   ],
   "content_scripts": [
     {
