@@ -654,6 +654,9 @@ export default function App() {
     catch { return [] }
   })
   const [myBoardsView, setMyBoardsView] = useState(false)
+  const [searchMode, setSearchMode]     = useState(false)
+  const [searchQ, setSearchQ]           = useState('')
+  const searchRef = useRef(null)
   const [sharedBoard, setSharedBoard]   = useState(null)  // {id, name} when loaded via ?b=
   const [saveDialog, setSaveDialog]     = useState(false)
   const [saveName, setSaveName]         = useState('')
@@ -702,8 +705,22 @@ export default function App() {
     const next = !boardOn
     setBoardOn(next)
     setMyBoardsView(false)
+    setSearchMode(false)
     if (next) localStorage.setItem(BOARD_KEY, '1')
     else localStorage.removeItem(BOARD_KEY)
+  }
+
+  function openSearch() {
+    setSearchMode(true)
+    setSearchQ('')
+    setBoardOn(false)
+    setMyBoardsView(false)
+    setTimeout(() => searchRef.current?.focus(), 50)
+  }
+
+  function closeSearch() {
+    setSearchMode(false)
+    setSearchQ('')
   }
 
   function togglePin(tid) {
@@ -778,9 +795,11 @@ export default function App() {
   const available    = all ? CATEGORIES.filter(c => all.some(t => categoryOf(t.name) === c)) : []
   const catTournaments = all ? all.filter(t => categoryOf(t.name) === cat) : []
   const subOptions   = [...new Set(catTournaments.map(t => sublabelOf(t.name, cat)).filter(Boolean))]
-  const visible      = subFilter
-    ? catTournaments.filter(t => t.name.toLowerCase().includes(subFilter.toLowerCase()))
-    : catTournaments
+  const visible      = searchMode
+    ? (all || []).filter(t => t.name.toLowerCase().includes(searchQ.toLowerCase()))
+    : subFilter
+      ? catTournaments.filter(t => sublabelOf(t.name, cat) === subFilter)
+      : catTournaments
 
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, fontFamily: "'Inter', sans-serif", color: C.chalk }}>
@@ -800,8 +819,14 @@ export default function App() {
               color: C.chalk, lineHeight: 1 }}>POULEBORD</div>
             <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.05em' }}>SEIZOEN {SEASON}</div>
           </div>
+          <button onClick={searchMode ? closeSearch : openSearch} style={{
+            background: searchMode ? 'rgba(207,159,63,0.15)' : 'transparent',
+            border: `1px solid ${searchMode ? C.gold : C.border}`,
+            borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
+            color: searchMode ? C.gold : C.muted, fontSize: 11, whiteSpace: 'nowrap', fontFamily: 'inherit',
+          }}>🔍</button>
           {myBoards.length > 0 && (
-            <button onClick={() => { setMyBoardsView(v => !v); setBoardOn(false) }} style={{
+            <button onClick={() => { setMyBoardsView(v => !v); setBoardOn(false); setSearchMode(false) }} style={{
               background: myBoardsView ? 'rgba(207,159,63,0.15)' : 'transparent',
               border: `1px solid ${myBoardsView ? C.gold : C.border}`,
               borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
@@ -856,7 +881,22 @@ export default function App() {
           </div>
         )}
 
-        {!boardOn && !myBoardsView && available.length > 0 && (
+        {searchMode && (
+          <div style={{ padding: '6px 12px', borderTop: `1px solid ${C.border}` }}>
+            <input
+              ref={searchRef}
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              onKeyDown={e => e.key === 'Escape' && closeSearch()}
+              placeholder="Zoek toernooi of categorie…"
+              style={{ width: '100%', boxSizing: 'border-box', background: C.bg,
+                border: `1px solid ${C.border}`, borderRadius: 8, color: C.chalk,
+                fontSize: 13, padding: '7px 12px', fontFamily: 'inherit', outline: 'none' }}
+            />
+          </div>
+        )}
+
+        {!boardOn && !myBoardsView && !searchMode && available.length > 0 && (
           <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 8px' }}>
             {available.map(c => (
               <button key={c} onClick={() => handleCatChange(c)} style={{
@@ -999,6 +1039,32 @@ export default function App() {
             borderRadius: 8, padding: '8px 16px', color: C.muted, fontSize: 12,
             cursor: 'pointer', fontFamily: 'inherit',
           }}>+ Nieuw board (leeg beginnen)</button>
+        </div>
+      ) : searchMode ? (
+        <div style={{ padding: '10px 10px' }}>
+          {searchQ.length < 2 ? (
+            <div style={{ textAlign: 'center', color: C.muted, padding: '32px 0', fontSize: 13 }}>
+              Typ minimaal 2 tekens om te zoeken…
+            </div>
+          ) : visible.length === 0 ? (
+            <div style={{ textAlign: 'center', color: C.muted, padding: '32px 0', fontSize: 13 }}>
+              Geen toernooien gevonden voor <strong style={{ color: C.chalk }}>{searchQ}</strong>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8, letterSpacing: '0.05em' }}>
+                {visible.length} resultaat{visible.length !== 1 ? 'en' : ''}
+              </div>
+              {visible.map(t => (
+                <TournamentCard
+                  key={t.id} tournament={t} club={club}
+                  pinned={pins.has(t.id)} onPin={() => togglePin(t.id)}
+                  poolPins={poolPins}
+                  onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, t.name)}
+                />
+              ))}
+            </>
+          )}
         </div>
       ) : boardOn ? (
         <>
