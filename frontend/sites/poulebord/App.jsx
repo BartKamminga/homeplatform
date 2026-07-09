@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode } from './api.js'
+import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode, searchPools, getPoolMatches } from './api.js'
 
 const _standingsCache = {}
 function useStandings(phaseId) {
@@ -143,9 +143,153 @@ function SeizoenInfo({ cat, open, onToggle }) {
   )
 }
 
+// ── Pool detail modal (bottom sheet) ─────────────────────────────────────────
+
+function PoolDetailModal({ phaseId, poolName, tournamentName, rows, onClose }) {
+  const [matches, setMatches] = useState(null)
+
+  useEffect(() => {
+    getPoolMatches(phaseId, poolName)
+      .then(setMatches)
+      .catch(() => setMatches({ finished: [], scheduled: [] }))
+  }, [phaseId, poolName])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'flex-end' }}
+      onClick={onClose}>
+      <div style={{ background: C.deep, borderRadius: '16px 16px 0 0', width: '100%',
+        maxHeight: '82dvh', overflowY: 'auto',
+        border: `1px solid ${C.border}`, borderBottom: 'none' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ position: 'sticky', top: 0, background: C.deep,
+          padding: '14px 16px 10px', borderBottom: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24,
+              letterSpacing: '0.06em', color: C.gold, lineHeight: 1 }}>
+              POULE {poolName}
+            </div>
+            {tournamentName && (
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{tournamentName}</div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent',
+            border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: '6px 12px', color: C.muted, fontSize: 13,
+            cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '14px 14px 32px' }}>
+          {/* Standings */}
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+            textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Stand</div>
+          <div style={{ background: C.card, borderRadius: 10, overflow: 'hidden', marginBottom: 18 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: C.muted, fontSize: 10 }}>
+                  <th style={{ padding: '5px 3px 5px 12px', textAlign: 'left', fontWeight: 500, width: 20 }}>#</th>
+                  <th style={{ padding: '5px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 26 }}>W</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 26 }}>G</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 26 }}>V</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 44, whiteSpace: 'nowrap' }}>GV–GT</th>
+                  <th style={{ padding: '5px 12px 5px 3px', textAlign: 'center', fontWeight: 600,
+                    width: 32, color: C.chalk }}>Pt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id} style={{ borderTop: `1px solid ${C.border}`,
+                    background: i === 0 ? 'rgba(207,159,63,0.07)' : 'transparent' }}>
+                    <td style={{ padding: '6px 3px 6px 12px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ padding: '6px 3px', color: C.chalk, fontWeight: i === 0 ? 600 : 400,
+                      maxWidth: 0, width: '100%', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted }}>{r.w}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted }}>{r.d}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted }}>{r.l}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted, fontSize: 11 }}>
+                      {r.gf ?? 0}–{r.ga ?? 0}
+                    </td>
+                    <td style={{ padding: '6px 12px 6px 3px', textAlign: 'center',
+                      color: C.goldBr, fontWeight: 700, fontSize: 14 }}>{r.pts}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Matches */}
+          {matches === null ? (
+            <div style={{ textAlign: 'center', color: C.muted, padding: '12px 0', fontSize: 13 }}>Laden…</div>
+          ) : (
+            <>
+              {matches.finished.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Gespeeld</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 18 }}>
+                    {matches.finished.map(m => (
+                      <div key={m.id} style={{ background: C.card, borderRadius: 8,
+                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.team_a}</span>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: C.gold,
+                          letterSpacing: '0.04em', flexShrink: 0, minWidth: 44, textAlign: 'center' }}>
+                          {m.score_a}–{m.score_b}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.team_b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {matches.scheduled.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Nog te spelen</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {matches.scheduled.map(m => (
+                      <div key={m.id} style={{ background: C.card, borderRadius: 8,
+                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.team_a}</span>
+                        <span style={{ fontSize: 12, color: C.muted, flexShrink: 0,
+                          minWidth: 44, textAlign: 'center' }}>vs</span>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.team_b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {matches.finished.length === 0 && matches.scheduled.length === 0 && (
+                <div style={{ textAlign: 'center', color: C.muted, fontSize: 12,
+                  fontStyle: 'italic', padding: '8px 0' }}>Geen wedstrijden gevonden</div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Standings table ────────────────────────────────────────────────────────────
 
-function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin }) {
+function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin, tournamentName }) {
+  const [detailPool, setDetailPool] = useState(null) // { poolName, rows }
+
   const byPool = {}
   for (const r of rows) {
     const key = r.pool_name ?? '—'
@@ -156,31 +300,46 @@ function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin }) {
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {Object.entries(byPool)
-        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-        .map(([pname, prows]) => {
-          const pinKey = `${phaseId}::${pname}`
-          const isPinned = poolPins?.has(pinKey)
-          return (
-            <div key={pname} style={{ flex: '1 1 240px', background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
-                letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>POULE {pname}</span>
-                {onPoolPin && (
-                  <button
-                    onClick={() => onPoolPin(phaseId, pname)}
-                    title={isPinned ? 'Verwijder poule van board' : 'Pin deze poule op je board'}
-                    style={{
-                      background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-                      border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
-                      borderRadius: 4, padding: '1px 5px', fontSize: 10,
-                      color: isPinned ? C.gold : C.muted, cursor: 'pointer',
-                      lineHeight: 1.4, flexShrink: 0,
-                    }}>📌</button>
-                )}
-              </div>
+    <>
+      {detailPool && (
+        <PoolDetailModal
+          phaseId={phaseId}
+          poolName={detailPool.poolName}
+          tournamentName={tournamentName || ''}
+          rows={detailPool.rows}
+          onClose={() => setDetailPool(null)}
+        />
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {Object.entries(byPool)
+          .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+          .map(([pname, prows]) => {
+            const pinKey = `${phaseId}::${pname}`
+            const isPinned = poolPins?.has(pinKey)
+            return (
+              <div key={pname} style={{ flex: '1 1 240px', background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button onClick={() => setDetailPool({ poolName: pname, rows: prows })}
+                    style={{ background: 'transparent', border: 'none', padding: 0,
+                      cursor: 'pointer', color: C.gold, fontWeight: 700, fontSize: 11,
+                      letterSpacing: '0.08em', fontFamily: 'inherit', textAlign: 'left' }}>
+                    POULE {pname} ›
+                  </button>
+                  {onPoolPin && (
+                    <button
+                      onClick={() => onPoolPin(phaseId, pname)}
+                      title={isPinned ? 'Verwijder poule van board' : 'Pin deze poule op je board'}
+                      style={{
+                        background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+                        border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
+                        borderRadius: 4, padding: '1px 5px', fontSize: 10,
+                        color: isPinned ? C.gold : C.muted, cursor: 'pointer',
+                        lineHeight: 1.4, flexShrink: 0,
+                      }}>📌</button>
+                  )}
+                </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ color: C.muted, fontSize: 10 }}>
@@ -220,7 +379,8 @@ function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin }) {
             </div>
           )
         })}
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -228,6 +388,7 @@ function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin }) {
 
 function ClubPoolCard({ entry, club }) {
   const standings = useStandings(entry.phase_id)
+  const [showDetail, setShowDetail] = useState(false)
 
   const poolRows = standings ? standings.filter(r => r.pool_name === entry.pool_name) : null
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
@@ -235,12 +396,25 @@ function ClubPoolCard({ entry, club }) {
   return (
     <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
       marginBottom: 8, overflow: 'hidden' }}>
+      {showDetail && poolRows && (
+        <PoolDetailModal
+          phaseId={entry.phase_id}
+          poolName={entry.pool_name}
+          tournamentName={entry.tournament_name}
+          rows={poolRows}
+          onClose={() => setShowDetail(false)}
+        />
+      )}
       <div style={{ padding: '5px 10px', fontSize: 10, color: C.muted,
         borderBottom: `1px solid ${C.border}`,
         display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ color: C.gold, fontWeight: 700, letterSpacing: '0.06em', fontSize: 11 }}>
-          POULE {entry.pool_name}
-        </span>
+        <button onClick={() => poolRows?.length > 0 && setShowDetail(true)}
+          style={{ background: 'transparent', border: 'none', padding: 0,
+            cursor: poolRows?.length > 0 ? 'pointer' : 'default',
+            color: C.gold, fontWeight: 700, letterSpacing: '0.06em', fontSize: 11,
+            fontFamily: 'inherit', flexShrink: 0 }}>
+          POULE {entry.pool_name}{poolRows?.length > 0 ? ' ›' : ''}
+        </button>
         <span style={{ opacity: 0.4 }}>·</span>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {entry.tournament_name}
@@ -296,7 +470,7 @@ function ClubPoolCard({ entry, club }) {
 
 // ── Phase card ────────────────────────────────────────────────────────────────
 
-function PhaseCard({ phase, club, poolPins, onPoolPin }) {
+function PhaseCard({ phase, club, poolPins, onPoolPin, tournamentName }) {
   const standings = useStandings(phase.phase_type === 'pool' ? phase.id : null)
 
   if (phase.phase_type !== 'pool') return null
@@ -314,7 +488,8 @@ function PhaseCard({ phase, club, poolPins, onPoolPin }) {
               Nog geen wedstrijden gespeeld
             </div>
           : <StandingsTable rows={standings} club={club}
-              phaseId={phase.id} poolPins={poolPins} onPoolPin={onPoolPin} />
+              phaseId={phase.id} poolPins={poolPins} onPoolPin={onPoolPin}
+              tournamentName={tournamentName} />
       }
     </div>
   )
@@ -440,7 +615,7 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
             ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
             : poolPhases.length === 0
               ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8, fontStyle: 'italic' }}>Geen poulefases</div>
-              : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} />)
+              : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} tournamentName={tournament.name} />)
           }
         </div>
       )}
@@ -495,7 +670,8 @@ function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }
                 </div>
               : poolPhases.map(p => (
                   <PhaseCard key={p.id} phase={p} club={club}
-                    poolPins={poolPins} onPoolPin={onPoolPin} />
+                    poolPins={poolPins} onPoolPin={onPoolPin}
+                    tournamentName={tournament.name} />
                 ))
           }
         </div>
@@ -620,6 +796,37 @@ function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin 
   )
 }
 
+// ── Pool search result card ───────────────────────────────────────────────────
+
+function PoolSearchCard({ result, poolPins, onPoolPin }) {
+  const key = `${result.phase_id}::${result.pool_name}`
+  const isPinned = poolPins?.has(key)
+  return (
+    <div style={{ background: C.card, borderRadius: 10,
+      border: `1px solid ${isPinned ? C.gold : C.border}`,
+      marginBottom: 6, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+      <div style={{ flex: 1, padding: '8px 12px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, letterSpacing: '0.06em' }}>
+          POULE {result.pool_name}
+        </div>
+        <div style={{ fontSize: 11, color: C.chalk, marginTop: 2 }}>{result.tournament_name}</div>
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{result.matched_team}</div>
+      </div>
+      <button
+        onClick={() => onPoolPin(result.phase_id, result.pool_name, result.tournament_name)}
+        title={isPinned ? 'Verwijder van board' : 'Pin deze poule op je board'}
+        style={{
+          background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+          border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
+          borderRadius: 4, padding: '4px 8px', fontSize: 12,
+          color: isPinned ? C.gold : C.muted, cursor: 'pointer',
+          margin: '0 12px', flexShrink: 0,
+        }}
+      >📌</button>
+    </div>
+  )
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -651,6 +858,8 @@ export default function App() {
   const [searchMode, setSearchMode]     = useState(false)
   const [searchQ, setSearchQ]           = useState('')
   const searchRef = useRef(null)
+  const [searchResults, setSearchResults] = useState(null)
+  const searchTimerRef = useRef(null)
   const [sharedBoard, setSharedBoard]   = useState(null)  // {id, name} when loaded via ?b=
   const [saveDialog, setSaveDialog]     = useState(false)
   const [saveName, setSaveName]         = useState('')
@@ -685,6 +894,15 @@ export default function App() {
       .catch(() => setError('Kon toernooien niet laden'))
   }, [])
 
+  useEffect(() => {
+    if (!searchMode || searchQ.length < 2) { setSearchResults(null); return }
+    clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      searchPools(searchQ, SEASON).then(setSearchResults).catch(() => setSearchResults([]))
+    }, 300)
+    return () => clearTimeout(searchTimerRef.current)
+  }, [searchQ, searchMode])
+
   function handleCatChange(c) { setCat(c); setSubFilter(null); setInfoOpen(false) }
 
   function saveClub() {
@@ -715,6 +933,7 @@ export default function App() {
   function closeSearch() {
     setSearchMode(false)
     setSearchQ('')
+    setSearchResults(null)
   }
 
   function togglePin(tid) {
@@ -882,7 +1101,7 @@ export default function App() {
               value={searchQ}
               onChange={e => setSearchQ(e.target.value)}
               onKeyDown={e => e.key === 'Escape' && closeSearch()}
-              placeholder="Zoek toernooi of categorie…"
+              placeholder="Zoek team, poule of competitie…"
               style={{ width: '100%', boxSizing: 'border-box', background: C.bg,
                 border: `1px solid ${C.border}`, borderRadius: 8, color: C.chalk,
                 fontSize: 13, padding: '7px 12px', fontFamily: 'inherit', outline: 'none' }}
@@ -1040,23 +1259,45 @@ export default function App() {
             <div style={{ textAlign: 'center', color: C.muted, padding: '32px 0', fontSize: 13 }}>
               Typ minimaal 2 tekens om te zoeken…
             </div>
-          ) : visible.length === 0 ? (
-            <div style={{ textAlign: 'center', color: C.muted, padding: '32px 0', fontSize: 13 }}>
-              Geen toernooien gevonden voor <strong style={{ color: C.chalk }}>{searchQ}</strong>
-            </div>
           ) : (
             <>
-              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8, letterSpacing: '0.05em' }}>
-                {visible.length} resultaat{visible.length !== 1 ? 'en' : ''}
-              </div>
-              {visible.map(t => (
-                <TournamentCard
-                  key={t.id} tournament={t} club={club}
-                  pinned={pins.has(t.id)} onPin={() => togglePin(t.id)}
-                  poolPins={poolPins}
-                  onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, t.name)}
-                />
-              ))}
+              {visible.length === 0 && (searchResults === null || searchResults.length === 0) && (
+                <div style={{ textAlign: 'center', color: C.muted, padding: '32px 0', fontSize: 13 }}>
+                  Niets gevonden voor <strong style={{ color: C.chalk }}>{searchQ}</strong>
+                </div>
+              )}
+              {visible.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, color: C.muted, marginBottom: 8, letterSpacing: '0.05em' }}>
+                    Competities ({visible.length})
+                  </div>
+                  {visible.map(t => (
+                    <TournamentCard
+                      key={t.id} tournament={t} club={club}
+                      pinned={pins.has(t.id)} onPin={() => togglePin(t.id)}
+                      poolPins={poolPins}
+                      onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, t.name)}
+                    />
+                  ))}
+                </>
+              )}
+              {searchResults !== null && searchResults.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, color: C.muted,
+                    margin: visible.length > 0 ? '14px 0 8px' : '0 0 8px',
+                    letterSpacing: '0.05em' }}>
+                    Teams &amp; poules ({searchResults.length})
+                  </div>
+                  {searchResults.map(r => (
+                    <PoolSearchCard
+                      key={`${r.phase_id}::${r.pool_name}`}
+                      result={r}
+                      poolPins={poolPins}
+                      onPoolPin={(phaseId, poolName, tn) => togglePoolPin(phaseId, poolName, tn)}
+                    />
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>

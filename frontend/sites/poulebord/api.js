@@ -8,3 +8,7 @@ export const getBoard          = (club, stage = 'productie') =>
   api.get(`/api/tournix/public/board?club=${encodeURIComponent(club)}&stage=${stage}`)
 export const saveBoard         = (body) => api.post('/api/tournix/public/boards', body)
 export const getBoardByCode    = (code) => api.get(`/api/tournix/public/boards/${code}`)
+export const getPoolMatches    = (phaseId, poolName) =>
+  api.get(`/api/tournix/public/phases/${phaseId}/pool-matches?pool=${encodeURIComponent(poolName)}`)
+export const searchPools       = (q, season = '2026-2027') =>
+  api.get(`/api/tournix/public/search?q=${encodeURIComponent(q)}&season=${encodeURIComponent(season)}`)

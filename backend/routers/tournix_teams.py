@@ -229,6 +229,92 @@ def get_board_by_code(code: str, session: Session = Depends(get_session)):
 
 # ── Poulebord publieke fase- en standings-endpoints ───────────────────────────
 
+@router.get("/public/phases/{pid}/pool-matches")
+def get_pool_matches_public(pid: str, pool: str = "", session: Session = Depends(get_session)):
+    """Wedstrijden voor één poule binnen een fase — publiek, geen auth vereist."""
+    phase = session.get(TournixPhase, pid)
+    if not phase:
+        raise HTTPException(404, "Fase niet gevonden")
+
+    pool_obj = session.exec(
+        select(TournixPool).where(TournixPool.phase_id == pid, TournixPool.name == pool)
+    ).first()
+    if not pool_obj:
+        return {"finished": [], "scheduled": []}
+
+    pool_teams = session.exec(
+        select(TournixTeam).where(TournixTeam.pool_id == pool_obj.id)
+    ).all()
+    team_ids = {t.id for t in pool_teams}
+    team_names = {t.id: t.name for t in pool_teams}
+
+    all_matches = session.exec(
+        select(TournixMatch).where(TournixMatch.phase_id == pid)
+    ).all()
+    pool_matches = [m for m in all_matches if m.team_a_id in team_ids and m.team_b_id in team_ids]
+
+    def fmt(m):
+        return {
+            "id":           m.id,
+            "round":        m.round,
+            "team_a":       team_names.get(m.team_a_id, "?"),
+            "team_b":       team_names.get(m.team_b_id, "?"),
+            "score_a":      m.score_a,
+            "score_b":      m.score_b,
+            "status":       m.status,
+            "scheduled_at": m.scheduled_at.isoformat() if m.scheduled_at else None,
+        }
+
+    finished  = sorted([fmt(m) for m in pool_matches if m.status == "finished"],
+                       key=lambda x: -(x["round"] or 0))
+    scheduled = sorted([fmt(m) for m in pool_matches if m.status != "finished"],
+                       key=lambda x: (x["scheduled_at"] or "9999", x["round"] or 0))
+    return {"finished": finished, "scheduled": scheduled}
+
+
+@router.get("/public/search")
+def search_teams_pools(
+    q: str,
+    season: str = "2026-2027",
+    session: Session = Depends(get_session),
+):
+    """Zoek teams (en hun poule) op naam — publiek, geen auth vereist."""
+    q_norm = q.strip().lower()
+    if len(q_norm) < 2:
+        return []
+
+    teams = session.exec(
+        select(TournixTeam).where(TournixTeam.pool_id.isnot(None))
+    ).all()
+
+    results, seen = [], set()
+    for team in teams:
+        if team.is_placeholder or q_norm not in team.name.lower():
+            continue
+        pool = session.get(TournixPool, team.pool_id)
+        if not pool or not pool.phase_id:
+            continue
+        phase = session.get(TournixPhase, pool.phase_id)
+        if not phase or phase.phase_type != "pool":
+            continue
+        tournament = session.get(Tournament, team.tournament_id)
+        if not tournament or tournament.season != season:
+            continue
+        key = f"{pool.phase_id}::{pool.name}"
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append({
+            "phase_id":        pool.phase_id,
+            "pool_name":       pool.name,
+            "tournament_name": tournament.name,
+            "tournament_id":   tournament.id,
+            "matched_team":    team.name,
+        })
+
+    return sorted(results, key=lambda x: (x["tournament_name"], x["pool_name"]))
+
+
 @router.get("/public/tournaments/{tid}/phases")
 def list_phases_public(tid: str, session: Session = Depends(get_session)):
     """Publieke faselijst voor Poulebord — geen auth vereist."""
