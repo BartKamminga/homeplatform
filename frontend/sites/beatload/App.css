@@ -35,9 +35,63 @@
 
 /* ── Form ────────────────────────────────────────────────────────────────── */
 
+.bl-form-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .bl-form {
   display: flex;
   gap: var(--bl-gap);
+}
+
+.bl-format-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bl-format-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bl-muted);
+}
+
+.bl-format-seg {
+  display: flex;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bl-format-btn {
+  padding: 4px 14px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border, #d1d5db);
+  color: var(--bl-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.bl-format-btn:last-child {
+  border-right: none;
+}
+
+.bl-format-btn:hover {
+  background: color-mix(in srgb, var(--bl-accent) 8%, transparent);
+  color: var(--bl-accent);
+}
+
+.bl-format-btn.active {
+  background: var(--bl-accent);
+  color: #fff;
 }
 
 .bl-input {
@@ -228,6 +282,7 @@
 .bl-badge--downloading { background: color-mix(in srgb, var(--bl-accent)  15%, transparent); color: var(--bl-accent); }
 .bl-badge--done        { background: color-mix(in srgb, var(--bl-success) 15%, transparent); color: var(--bl-success); }
 .bl-badge--error       { background: color-mix(in srgb, var(--bl-error)   15%, transparent); color: var(--bl-error); }
+.bl-badge--format      { background: color-mix(in srgb, var(--bl-muted)   10%, transparent); color: var(--bl-muted); font-size: 0.68rem; }
 
 .bl-source {
   font-size: 1rem;

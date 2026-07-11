@@ -16,8 +16,11 @@ function trimUrl(url, max = 60) {
   }
 }
 
+const FORMATS = ['flac', 'mp3', 'wav']
+
 export default function App() {
   const [url, setUrl]           = useState('')
+  const [format, setFormat]     = useState(() => localStorage.getItem('bl_format') || 'flac')
   const [submitting, setSubmitting] = useState(false)
   const [jobs, setJobs]         = useState([])
   const [submitError, setSubmitError] = useState('')
@@ -37,6 +40,11 @@ export default function App() {
     return () => clearInterval(timerRef.current)
   }, [jobs])
 
+  const pickFormat = (f) => {
+    setFormat(f)
+    localStorage.setItem('bl_format', f)
+  }
+
   const submit = async (e) => {
     e.preventDefault()
     const trimmed = url.trim()
@@ -44,7 +52,7 @@ export default function App() {
     setSubmitting(true)
     setSubmitError('')
     try {
-      await submitDownload({ url: trimmed })
+      await submitDownload({ url: trimmed, format })
       setUrl('')
       await load()
     } catch (err) {
@@ -73,20 +81,37 @@ export default function App() {
         <p>Download tracks van Beatport, YouTube en meer als FLAC</p>
       </header>
 
-      <form className="bl-form" onSubmit={submit}>
-        <input
-          className="bl-input"
-          type="text"
-          placeholder="Beatport-URL, YouTube-link of andere bron…"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          disabled={submitting}
-          autoFocus
-        />
-        <button className="bl-btn" type="submit" disabled={submitting || !url.trim()}>
-          {submitting ? '…' : 'Download'}
-        </button>
-      </form>
+      <div className="bl-form-wrap">
+        <form className="bl-form" onSubmit={submit}>
+          <input
+            className="bl-input"
+            type="text"
+            placeholder="Beatport-URL, YouTube-link of andere bron…"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            disabled={submitting}
+            autoFocus
+          />
+          <button className="bl-btn" type="submit" disabled={submitting || !url.trim()}>
+            {submitting ? '…' : 'Download'}
+          </button>
+        </form>
+        <div className="bl-format-row">
+          <span className="bl-format-label">Formaat</span>
+          <div className="bl-format-seg">
+            {FORMATS.map(f => (
+              <button
+                key={f}
+                type="button"
+                className={`bl-format-btn${format === f ? ' active' : ''}`}
+                onClick={() => pickFormat(f)}
+              >
+                {f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {submitError && <div className="bl-error-msg">{submitError}</div>}
 
@@ -167,6 +192,7 @@ function JobRow({ job, onDelete }) {
 
       <div className="bl-job-meta">
         <span className={`bl-badge bl-badge--${job.status}`}>{STATUS_LABEL[job.status]}</span>
+        <span className="bl-badge bl-badge--format">{job.format?.toUpperCase()}</span>
         <span className="bl-source">{SOURCE_ICON[job.source] || '🌐'}</span>
         {canDelete && (
           <button className="bl-del" title="Verwijderen" onClick={() => onDelete(job.id)}>✕</button>
