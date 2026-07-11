@@ -143,7 +143,11 @@ async def _run_download(job_id: str):
         ]
 
     try:
-        proc_kwargs = {"stdout": asyncio.subprocess.PIPE, "stderr": asyncio.subprocess.STDOUT}
+        proc_kwargs = {
+            "stdout": asyncio.subprocess.PIPE,
+            "stderr": asyncio.subprocess.STDOUT,
+            "stdin": asyncio.subprocess.DEVNULL,  # voorkomt interactieve modus in beatportdl
+        }
         if work_dir:
             proc_kwargs["cwd"] = work_dir
         proc = await asyncio.create_subprocess_exec(*cmd, **proc_kwargs)
@@ -186,12 +190,16 @@ async def _run_download(job_id: str):
             if os.path.exists(creds_new):
                 shutil.copy2(creds_new, os.path.join(settings.BEATPORTDL_CONFIG_DIR, "beatportdl-credentials.json"))
 
-        if proc.returncode == 0:
+        # beatportdl eindigt altijd met exit 1 door EOF in interactieve modus.
+        # Beschouw het als succes als er geen echte fouten zijn (alleen EOF-melding).
+        real_errors = [h for h in error_hints if "error reading input string" not in h.lower()]
+        succeeded = proc.returncode == 0 or (work_dir and not real_errors)
+        if succeeded:
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar: %s → %s", job_id, output_path)
         else:
-            if error_hints:
-                error = "\n".join(error_hints[-10:])
+            if real_errors:
+                error = "\n".join(real_errors[-10:])
             else:
                 error = "\n".join(lines[-10:])
             error = f"[exit {proc.returncode}]\n{error}".strip()
