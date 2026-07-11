@@ -6,16 +6,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# beatportdl — verplicht voor BeatCrades downloads
+# beatportdl — zoek de juiste download URL via de GitHub API
 RUN ARCH=$(dpkg --print-architecture) && echo "Architectuur: $ARCH" && \
-    if [ "$ARCH" = "amd64" ]; then BIN="beatportdl_Linux_x86_64.tar.gz"; \
-    elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then BIN="beatportdl_Linux_arm64.tar.gz"; \
+    if [ "$ARCH" = "amd64" ]; then GOARCH="x86_64"; \
+    elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then GOARCH="arm64"; \
     else echo "Onbekende architectuur: $ARCH" && exit 1; fi && \
-    echo "Downloading $BIN ..." && \
-    curl -fsSL "https://github.com/unspok3n/beatportdl/releases/latest/download/${BIN}" \
-      | tar -xz -C /usr/local/bin beatportdl && \
+    API=$(curl -fsSL "https://api.github.com/repos/unspok3n/beatportdl/releases/latest") && \
+    URL=$(echo "$API" | grep '"browser_download_url"' | grep -i linux | grep -i "$GOARCH" | grep -v '\.sha' | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/') && \
+    echo "Download URL: $URL" && \
+    curl -fsSL "$URL" -o /tmp/beatportdl_pkg && \
+    (tar -xz -C /usr/local/bin beatportdl < /tmp/beatportdl_pkg \
+     || (cp /tmp/beatportdl_pkg /usr/local/bin/beatportdl)) && \
+    rm /tmp/beatportdl_pkg && \
     chmod +x /usr/local/bin/beatportdl && \
-    echo "beatportdl versie: $(beatportdl --version 2>&1 || true)"
+    echo "beatportdl geïnstalleerd: $(beatportdl --version 2>&1 || true)"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
