@@ -14,23 +14,31 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "download_jobs",
-        sa.Column("id",          sa.String(),  primary_key=True),
-        sa.Column("url",         sa.String(),  nullable=False),
-        sa.Column("source",      sa.String(),  nullable=False, server_default="auto"),
-        sa.Column("title",       sa.String(),  nullable=True),
-        sa.Column("artist",      sa.String(),  nullable=True),
-        sa.Column("status",      sa.String(),  nullable=False, server_default="queued"),
-        sa.Column("error",       sa.String(),  nullable=True),
-        sa.Column("output_path", sa.String(),  nullable=True),
-        sa.Column("format",      sa.String(),  nullable=False, server_default="flac"),
-        sa.Column("created_at",  sa.DateTime(), nullable=False),
-        sa.Column("updated_at",  sa.DateTime(), nullable=False),
-        sa.Column("created_by",  sa.String(),  sa.ForeignKey("users.id"), nullable=True),
-    )
-    op.create_index("ix_download_jobs_status", "download_jobs", ["status"])
-    op.create_index("ix_download_jobs_created_at", "download_jobs", ["created_at"])
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "download_jobs" not in inspector.get_table_names():
+        op.create_table(
+            "download_jobs",
+            sa.Column("id",          sa.String(),   primary_key=True),
+            sa.Column("url",         sa.String(),   nullable=False),
+            sa.Column("source",      sa.String(),   nullable=False, server_default="auto"),
+            sa.Column("title",       sa.String(),   nullable=True),
+            sa.Column("artist",      sa.String(),   nullable=True),
+            sa.Column("status",      sa.String(),   nullable=False, server_default="queued"),
+            sa.Column("error",       sa.String(),   nullable=True),
+            sa.Column("output_path", sa.String(),   nullable=True),
+            sa.Column("format",      sa.String(),   nullable=False, server_default="flac"),
+            sa.Column("created_at",  sa.DateTime(), nullable=False),
+            sa.Column("updated_at",  sa.DateTime(), nullable=False),
+            sa.Column("created_by",  sa.String(),   sa.ForeignKey("users.id"), nullable=True),
+        )
+
+    existing_indexes = {i["name"] for i in inspector.get_indexes("download_jobs")} if "download_jobs" in inspector.get_table_names() else set()
+    if "ix_download_jobs_status" not in existing_indexes:
+        op.create_index("ix_download_jobs_status", "download_jobs", ["status"])
+    if "ix_download_jobs_created_at" not in existing_indexes:
+        op.create_index("ix_download_jobs_created_at", "download_jobs", ["created_at"])
 
 
 def downgrade():
