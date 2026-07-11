@@ -622,10 +622,11 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
 // ── SyncModal ────────────────────────────────────────────────────────────────
 
 const SYNC_TYPE_META = {
-  create_dir:    { label: 'Aanmaken op disk',      icon: '📁', cls: 'add' },
-  clear_output:  { label: 'DB bijwerken',           icon: '🔗', cls: 'upd' },
-  mark_missing:  { label: 'Ontbrekend markeren',   icon: '⚠️', cls: 'del' },
-  add_from_disk: { label: 'Nieuw vanuit disk',     icon: '📥', cls: 'new' },
+  create_dir:     { label: 'Aanmaken op disk',      icon: '📁', cls: 'add' },
+  reorganize_dir: { label: 'Structuur aanpassen',   icon: '🗂️', cls: 'upd' },
+  clear_output:   { label: 'DB bijwerken',           icon: '🔗', cls: 'upd' },
+  mark_missing:   { label: 'Ontbrekend markeren',   icon: '⚠️', cls: 'del' },
+  add_from_disk:  { label: 'Nieuw vanuit disk',     icon: '📥', cls: 'new' },
 }
 
 function SyncModal({ onClose, onDone }) {

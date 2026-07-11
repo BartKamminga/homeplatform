@@ -34,6 +34,24 @@ def _safe_name(name: str) -> str:
     return safe or "crade"
 
 
+def _build_subdir(crade_name: str, rack=None, section=None) -> str:
+    """Bouw hiërarchisch subdir-pad op basis van DB-positie."""
+    parts = []
+    if section:
+        parts.append(_safe_name(section.name))
+    if rack:
+        parts.append(_safe_name(rack.name))
+    parts.append(_safe_name(crade_name))
+    return "/".join(parts)
+
+
+def _expected_subdir(crade: DownloadCrade, session: Session) -> str:
+    """Bereken het verwachte subdir-pad voor een bestaande crade."""
+    rack = session.get(DownloadCradeGroup, crade.group_id) if crade.group_id else None
+    section = session.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
+    return _build_subdir(crade.name, rack=rack, section=section)
+
+
 def _slug_from_beatport_url(url: str) -> Optional[str]:
     """Haal een leesbare naam op uit de Beatport URL-slug."""
     try:
@@ -438,12 +456,15 @@ async def create_crade(
         raise AppError("URL mag niet leeg zijn", 400)
 
     name = body.name.strip() or _today_name()
-    subdir = _safe_name(name)
+    rack    = session.get(DownloadCradeGroup, body.group_id) if body.group_id else None
+    section = session.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
     existing = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
-    base = subdir
-    counter = 1
+    base_subdir = _build_subdir(name, rack=rack, section=section)
+    subdir, counter = base_subdir, 1
     while subdir in existing:
-        subdir = f"{base}_{counter}"
+        # alleen het laatste deel uniek maken
+        parts = base_subdir.rsplit("/", 1)
+        subdir = "/".join(parts[:-1] + [f"{parts[-1]}_{counter}"]) if len(parts) > 1 else f"{base_subdir}_{counter}"
         counter += 1
 
     crade = DownloadCrade(
@@ -705,6 +726,18 @@ def _build_sync_actions(session: Session, download_root: str) -> List[SyncAction
                     path=op_full, rel_path=f"{rel}/{job.output_path}", selected=True,
                 ))
 
+        # Controleer of het pad overeenkomt met de DB-hiërarchie
+        expected_rel = _expected_subdir(crade, session)
+        if exists and expected_rel != rel:
+            expected_full = os.path.join(download_root, expected_rel)
+            if not os.path.isdir(expected_full):
+                actions.append(SyncAction(
+                    id=f"reorg_{crade.id}", type="reorganize_dir",
+                    crade_id=crade.id, crade_name=crade.name,
+                    description=f"Huidige map: {rel} → verwacht: {expected_rel}",
+                    path=expected_full, rel_path=expected_rel, selected=False,
+                ))
+
     if os.path.isdir(download_root):
         for u in _scan_unknown_dirs(download_root, known):
             aid = "disk_" + u["rel_path"].replace("/", "_").replace(" ", "_")
@@ -780,6 +813,35 @@ def sync_execute(
                 )
                 session.add(new_crade)
                 results.append({"id": a.id, "ok": True, "message": f"Crade aangemaakt: '{a.crade_name}'"})
+
+            elif a.type == "reorganize_dir":
+                crade = session.get(DownloadCrade, a.crade_id)
+                if not crade:
+                    results.append({"id": a.id, "ok": False, "message": "Crade niet meer gevonden"})
+                    continue
+                old_rel  = crade.subdir.replace("\\", "/").strip("/")
+                new_rel  = _expected_subdir(crade, session)
+                old_full = os.path.join(settings.DOWNLOAD_DIR, old_rel)
+                new_full = os.path.join(settings.DOWNLOAD_DIR, new_rel)
+                if not os.path.isdir(old_full):
+                    results.append({"id": a.id, "ok": False, "message": f"Bronmap bestaat niet: {old_rel}"})
+                    continue
+                if os.path.exists(new_full):
+                    results.append({"id": a.id, "ok": False, "message": f"Doelmap bestaat al: {new_rel}"})
+                    continue
+                os.makedirs(os.path.dirname(new_full), exist_ok=True)
+                shutil.move(old_full, new_full)
+                # Verwijder lege bovenliggende mappen
+                old_parent = os.path.dirname(old_full)
+                if old_parent != settings.DOWNLOAD_DIR and os.path.isdir(old_parent):
+                    try:
+                        os.rmdir(old_parent)
+                    except OSError:
+                        pass  # niet leeg, laten staan
+                crade.subdir = new_rel
+                crade.updated_at = datetime.utcnow()
+                session.add(crade)
+                results.append({"id": a.id, "ok": True, "message": f"'{a.crade_name}' verplaatst → {new_rel}"})
 
         except Exception as e:
             results.append({"id": a.id, "ok": False, "message": str(e)})
