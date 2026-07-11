@@ -7,11 +7,49 @@ const FORMATS = ['flac', 'mp3', 'wav']
 const SRC_ICON = { beatport: '🎵', youtube: '▶️', soundcloud: '☁️', auto: '🌐' }
 
 const ST = {
-  no_job:      { icon: '📁', label: 'Leeg',    cls: 'empty' },
-  queued:      { icon: '🕐', label: 'Wacht',   cls: 'queued' },
-  downloading: { icon: '⏳', label: 'Bezig',   cls: 'active' },
-  done:        { icon: '✅', label: 'Klaar',   cls: 'done' },
-  error:       { icon: '❌', label: 'Fout',    cls: 'error' },
+  no_job:      { label: 'Leeg',    cls: 'empty' },
+  queued:      { label: 'Wacht',   cls: 'queued' },
+  downloading: { label: 'Bezig',   cls: 'active' },
+  done:        { label: 'Klaar',   cls: 'done' },
+  error:       { label: 'Fout',    cls: 'error' },
+}
+
+function CradeIcon({ size = 18, open = false }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+      style={{ flexShrink: 0, verticalAlign: 'middle' }}>
+      <rect x="2" y="10" width="20" height="12" rx="1.5"/>
+      <rect x="1" y="8" width="22" height="3" rx="1"/>
+      <line x1="7" y1="11" x2="7" y2="22"/>
+      <line x1="12" y1="11" x2="12" y2="22"/>
+      <line x1="17" y1="11" x2="17" y2="22"/>
+      {open && <>
+        <path d="M2.5 10 Q4.5 5.5 7 10"/>
+        <path d="M7 10 Q9.5 4.5 12 10"/>
+        <path d="M12 10 Q14.5 6 17 10"/>
+        <path d="M17 10 Q19.5 7 21.5 10"/>
+      </>}
+    </svg>
+  )
+}
+
+function KratIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+      style={{ flexShrink: 0, verticalAlign: 'middle' }}>
+      <rect x="2" y="11" width="20" height="11" rx="1.5"/>
+      <rect x="1" y="9" width="22" height="3" rx="1"/>
+      <line x1="7" y1="12" x2="7" y2="22"/>
+      <line x1="12" y1="12" x2="12" y2="22"/>
+      <line x1="17" y1="12" x2="17" y2="22"/>
+      <path d="M2 10 Q4 5 7 10"/>
+      <path d="M7 10 Q9.5 3.5 12 10"/>
+      <path d="M12 10 Q14.5 5.5 17 10"/>
+      <path d="M17 10 Q20 7 22 10"/>
+    </svg>
+  )
 }
 
 function detectSrc(url) {
@@ -98,7 +136,7 @@ export default function App() {
   }
 
   const addGroup = async () => {
-    const name = prompt('Naam van de nieuwe groep:')
+    const name = prompt('Naam van de nieuwe krat:')
     if (!name?.trim()) return
     await createGroup({ name: name.trim() })
     await load()
@@ -112,7 +150,7 @@ export default function App() {
   }
 
   const removeGroup = async (id) => {
-    if (!confirm('Groep verwijderen? Crades worden losgemaakt van de groep.')) return
+    if (!confirm('Krat verwijderen? Crades worden losgemaakt.')) return
     await deleteGroup(id)
     await load()
   }
@@ -153,11 +191,11 @@ export default function App() {
     <div className="bc-wrap">
       <header className="bc-hdr">
         <div>
-          <h1 className="bc-title">🎵 BeatCrades</h1>
+          <h1 className="bc-title">BeatCrades</h1>
           <p className="bc-subtitle">Download crates — Beatport · YouTube · SoundCloud</p>
         </div>
         <div className="bc-hdr-btns">
-          <button className="bc-btn bc-btn-sec" onClick={addGroup}>＋ Groep</button>
+          <button className="bc-btn bc-btn-sec" onClick={addGroup}>＋ Krat</button>
           <button className="bc-btn bc-btn-pri" onClick={openNew}>＋ Crade</button>
         </div>
       </header>
@@ -177,9 +215,9 @@ export default function App() {
                   placeholder="Beatport-, YouTube- of SoundCloud-URL…" required />
               </div>
               <div className="bc-field">
-                <label>Groep</label>
+                <label>Krat</label>
                 <select className="bc-inp" value={newGroup} onChange={e => setNewGroup(e.target.value)}>
-                  <option value="">— geen groep —</option>
+                  <option value="">— geen krat —</option>
                   {tree.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
               </div>
@@ -214,12 +252,12 @@ export default function App() {
 
             <div className="bc-group-head">
               <span className="bc-chev" onClick={() => toggleGroup(g.id)}>{isGroupOpen(g.id)?'▾':'▸'}</span>
-              <span className="bc-group-icon">🗂️</span>
+              <span className="bc-group-icon"><KratIcon size={18} /></span>
               <span className="bc-group-name" onClick={() => renameGroup(g.id, g.name)} title="Klik om te hernoemen">
                 {g.name}
               </span>
               <span className="bc-group-count">{inGroup(g.id).length} crades</span>
-              <button className="bc-del-btn" onClick={() => removeGroup(g.id)} title="Groep verwijderen">✕</button>
+              <button className="bc-del-btn" onClick={() => removeGroup(g.id)} title="Krat verwijderen">✕</button>
             </div>
 
             {isGroupOpen(g.id) && (
@@ -233,7 +271,7 @@ export default function App() {
                     onDragEnd={onDragEnd} />
                 ))}
                 {inGroup(g.id).length === 0 && (
-                  <div className="bc-group-empty">Sleep een crade hierheen…</div>
+                  <div className="bc-group-empty">Sleep een crade in deze krat…</div>
                 )}
               </div>
             )}
@@ -262,7 +300,7 @@ export default function App() {
 
         {isEmpty && !newOpen && (
           <div className="bc-empty">
-            <p>Nog geen crades. Klik <strong>＋ Crade</strong> om een download te starten.</p>
+            <p>Nog geen crades. Maak een <strong>＋ Krat</strong> aan of voeg direct een <strong>＋ Crade</strong> toe.</p>
           </div>
         )}
       </div>
@@ -293,7 +331,7 @@ function CradeRow({ crade, open, onToggle, onDelete, inGroup, dragging, onDragSt
       <div className="bc-crade-head" onClick={onToggle}>
         <span className="bc-drag" onClick={e => e.stopPropagation()} title="Slepen">⠿</span>
         <span className="bc-chev">{open?'▾':'▸'}</span>
-        <span className="bc-crade-icon">{open?'📂':'📁'}</span>
+        <span className="bc-crade-icon"><CradeIcon size={18} open={open} /></span>
         <span className="bc-crade-name">{crade.name}</span>
         <div className="bc-badges">
           <span className="bc-badge bc-badge-src">{SRC_ICON[src]}</span>
@@ -302,7 +340,7 @@ function CradeRow({ crade, open, onToggle, onDelete, inGroup, dragging, onDragSt
           ) : done > 0 ? (
             <span className="bc-badge bc-badge-cnt">{done} track{done!==1?'s':''}</span>
           ) : null}
-          <span className={`bc-badge bc-badge-st bc-badge-st--${st.cls}`}>{st.icon} {st.label}</span>
+          <span className={`bc-badge bc-badge-st bc-badge-st--${st.cls}`}>{st.label}</span>
           <span className="bc-badge bc-badge-fmt">{crade.format.toUpperCase()}</span>
         </div>
         <button className="bc-del-btn" onClick={e => { e.stopPropagation(); onDelete() }} title="Verwijderen">✕</button>
@@ -314,7 +352,7 @@ function CradeRow({ crade, open, onToggle, onDelete, inGroup, dragging, onDragSt
             <div className="bc-src-url">{crade.source_url}</div>
           )}
           {crade.subdir && (
-            <div className="bc-subdir">📁 downloads/{crade.subdir}/</div>
+            <div className="bc-subdir"><CradeIcon size={13} /> downloads/{crade.subdir}/</div>
           )}
 
           {/* Progress bar */}
