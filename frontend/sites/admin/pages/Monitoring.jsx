@@ -121,6 +121,13 @@ export default function Monitoring() {
             href="/admin/data-storage"
             internal
           />
+          <LinkCard
+            icon="🎵"
+            title="Beatload"
+            description="Download tracks van Beatport, YouTube en SoundCloud als FLAC via yt-dlp en beatportdl."
+            href="/beatload/"
+            internal
+          />
         </div>
       </Section>
 
@@ -131,12 +138,16 @@ export default function Monitoring() {
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'grid', gap: '8px',
           }}>
-            <EnvRow label="Environment"    value={overview.environment} />
-            <EnvRow label="Backend versie" value={overview.backend_version} />
-            <EnvRow label="DB revisie"     value={overview.db_revision} mono />
-            <EnvRow label="Database"       value={overview.database_file} mono />
-            <EnvRow label="Extern"         value={links.external_url || '—'} />
-            <EnvRow label="GlitchTip"      value={overview.sentry_enabled ? `actief (${overview.sentry_min_level}+)` : 'uitgeschakeld'} />
+            <EnvRow label="Environment"           value={overview.environment} />
+            <EnvRow label="Backend versie"        value={overview.backend_version} />
+            <EnvRow label="DB revisie"            value={overview.db_revision} mono />
+            <EnvRow label="Database"              value={overview.database_file} mono />
+            <EnvRow label="Extern"                value={links.external_url || '—'} />
+            <EnvRow label="GlitchTip"             value={overview.sentry_enabled ? `actief (${overview.sentry_min_level}+)` : 'uitgeschakeld'} />
+            <EnvRow label="Download map"          value={overview.download_dir || '—'} mono />
+            {overview.beatportdl_config_dir && (
+              <EnvRow label="beatportdl config"   value={overview.beatportdl_config_dir} mono />
+            )}
           </div>
         </Section>
       )}

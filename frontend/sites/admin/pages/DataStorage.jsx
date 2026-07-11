@@ -33,10 +33,11 @@ const DB_GROUP_ROWS = [
 ];
 
 const DB_GLOBAL_ROWS = [
-  { label: 'site, version, title, description',  where: 'changelog',      note: 'Platform changelog' },
-  { label: 'title, status, priority, notes',     where: 'roadmap_items',  note: 'Roadmap backlog' },
-  { label: 'name, abbreviation, city, color',    where: 'tournix_clubs',  note: 'Tournix clubreferentie' },
-  { label: 'name',                               where: 'mixmusic_genres', note: 'MixMusic genres' },
+  { label: 'site, version, title, description',            where: 'changelog',      note: 'Platform changelog' },
+  { label: 'title, status, priority, notes',               where: 'roadmap_items',  note: 'Roadmap backlog' },
+  { label: 'name, abbreviation, city, color',              where: 'tournix_clubs',  note: 'Tournix clubreferentie' },
+  { label: 'name',                                         where: 'mixmusic_genres', note: 'MixMusic genres' },
+  { label: 'url, title, status, progress_log, output_path', where: 'download_jobs', note: 'Beatload — download queue' },
 ];
 
 const LS_ROWS = [
@@ -103,10 +104,17 @@ function ColHeader() {
 
 export default function DataStorage() {
   const [tables, setTables] = useState({});
+  const [paths, setPaths] = useState({});
 
   useEffect(() => {
     api.get('/api/admin/system/overview')
-      .then(d => setTables(d.tables ?? {}))
+      .then(d => {
+        setTables(d.tables ?? {});
+        setPaths({
+          download_dir: d.download_dir ?? null,
+          beatportdl_config_dir: d.beatportdl_config_dir ?? null,
+        });
+      })
       .catch(() => {});
   }, []);
 
@@ -151,6 +159,10 @@ export default function DataStorage() {
         <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '10px' }}>
           localStorage is apparaatgebonden — niet gesynchroniseerd tussen browsers of gebruikers.
         </p>
+
+        <SubHeader label="Paden — server" />
+        <DataRow col1="DOWNLOAD_DIR" col2={paths.download_dir ?? '—'} col3="Bestemmingsmap voor Beatload-downloads (binnen Docker-container)" count={null} />
+        <DataRow col1="BEATPORTDL_CONFIG_DIR" col2={paths.beatportdl_config_dir ?? '—'} col3="Optionele config-map voor beatportdl (leeg = niet ingesteld)" count={null} />
       </div>
     </AdminLayout>
   );

@@ -176,6 +176,8 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
             }
             for e in recent_log
         ],
+        "download_dir": settings.DOWNLOAD_DIR,
+        "beatportdl_config_dir": settings.BEATPORTDL_CONFIG_DIR or None,
         "links": _build_links(),
     }
 
