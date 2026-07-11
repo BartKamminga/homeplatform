@@ -104,12 +104,25 @@ async def _run_download(job_id: str):
             return
         try:
             work_dir = tempfile.mkdtemp(prefix=f"bdl_{job_id}_")
-            with open(base_config, "r") as f:
-                lines = f.readlines()
-            lines = [l for l in lines if not l.strip().startswith("downloads_directory:")]
-            lines.append(f"downloads_directory: {download_dir}\n")
-            with open(os.path.join(work_dir, "beatportdl-config.yml"), "w") as f:
-                f.writelines(lines)
+            # Lees basis-config als key:value paren (negeert comments/lege regels).
+            # Schrijf schone YAML zonder comments om encoding-problemen te vermijden.
+            cfg: dict[str, str] = {}
+            with open(base_config, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#"):
+                        continue
+                    if ":" in stripped:
+                        key, _, val = stripped.partition(":")
+                        cfg[key.strip()] = val.strip()
+            cfg["downloads_directory"] = download_dir
+            with open(os.path.join(work_dir, "beatportdl-config.yml"), "w", encoding="utf-8") as f:
+                for key, val in cfg.items():
+                    # Quoted als de waarde YAML-special chars bevat
+                    if any(c in val for c in ':#{}[]|>&*!,"\''):
+                        f.write(f'{key}: "{val.replace(chr(34), chr(92)+chr(34))}"\n')
+                    else:
+                        f.write(f"{key}: {val}\n")
             creds_src = os.path.join(config_dir, "beatportdl-credentials.json")
             if os.path.exists(creds_src):
                 shutil.copy2(creds_src, os.path.join(work_dir, "beatportdl-credentials.json"))
