@@ -16,9 +16,10 @@ class DownloadJob(SQLModel, table=True):
     source:      str           = Field(default="auto")   # beatport | youtube | soundcloud | auto
     title:       Optional[str] = Field(default=None)
     artist:      Optional[str] = Field(default=None)
-    status:      str           = Field(default="queued")  # queued | downloading | done | error
-    error:       Optional[str] = Field(default=None)
-    output_path: Optional[str] = Field(default=None)
+    status:       str           = Field(default="queued")  # queued | downloading | done | error
+    error:        Optional[str] = Field(default=None)
+    output_path:  Optional[str] = Field(default=None)
+    progress_log: Optional[str] = Field(default=None)
     format:      str           = Field(default="flac")
     created_at:  datetime      = Field(default_factory=datetime.utcnow)
     updated_at:  datetime      = Field(default_factory=datetime.utcnow)

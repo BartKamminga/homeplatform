@@ -37,6 +37,7 @@ class JobOut(BaseModel):
     status: str
     error: Optional[str]
     output_path: Optional[str]
+    progress_log: Optional[str]
     format: str
     created_at: datetime
     updated_at: datetime
@@ -69,8 +70,11 @@ def _update_job(job_id: str, **kwargs):
 
 # ── Background worker ─────────────────────────────────────────────────────────
 
+_PERCENT_RE = re.compile(r"^\[download\]\s+\d")
+
+
 async def _run_download(job_id: str):
-    _update_job(job_id, status="downloading")
+    _update_job(job_id, status="downloading", progress_log="")
 
     with Session(engine) as s:
         job = s.get(DownloadJob, job_id)
@@ -88,13 +92,11 @@ async def _run_download(job_id: str):
         return
 
     if source == "beatport":
-        # beatportdl flags: -d <dir>  (check je versie via `beatportdl --help`)
         cmd = ["beatportdl", "-d", download_dir]
         if settings.BEATPORTDL_CONFIG_DIR:
             cmd += ["-c", settings.BEATPORTDL_CONFIG_DIR]
         cmd.append(url)
     else:
-        # yt-dlp: -x = extract audio, --audio-format = target format
         cmd = [
             "yt-dlp",
             "-x",
@@ -109,24 +111,45 @@ async def _run_download(job_id: str):
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
-        stdout, stderr = await proc.communicate()
-        out_text = stdout.decode(errors="replace")
-        err_text = stderr.decode(errors="replace")
 
-        if proc.returncode == 0:
-            output_path = None
-            # yt-dlp meldt het bestand bij [ExtractAudio] of [Merger]
-            m = re.search(r"Destination: (.+\.(?:flac|mp3|m4a|ogg|opus|wav))", out_text, re.IGNORECASE)
+        lines: list = []
+        flush_count = 0
+        output_path = None
+
+        async for raw in proc.stdout:
+            line = raw.decode(errors="replace").rstrip()
+            if not line:
+                continue
+
+            m = re.search(r"Destination: (.+\.(?:flac|mp3|m4a|ogg|opus|wav))", line, re.IGNORECASE)
             if m:
                 output_path = os.path.basename(m.group(1).strip())
+
+            is_percent = bool(_PERCENT_RE.match(line))
+            if is_percent and lines and _PERCENT_RE.match(lines[-1]):
+                lines[-1] = line  # overwrite vorige % regel
+            else:
+                lines.append(line)
+                if len(lines) > 40:
+                    lines.pop(0)
+                flush_count += 1
+                if flush_count >= 5:
+                    _update_job(job_id, progress_log="\n".join(lines))
+                    flush_count = 0
+
+        await proc.wait()
+        _update_job(job_id, progress_log="\n".join(lines))
+
+        if proc.returncode == 0:
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar: %s → %s", job_id, output_path)
         else:
-            error = (err_text or out_text)[:1000].strip()
-            _update_job(job_id, status="error", error=error)
-            logger.warning("Download mislukt: %s — %s", job_id, error[:200])
+            error_lines = [l for l in lines if "error" in l.lower()]
+            error = "\n".join(error_lines[-5:]) if error_lines else "\n".join(lines[-5:])
+            _update_job(job_id, status="error", error=error[:1000].strip())
+            logger.warning("Download mislukt: %s", job_id)
 
     except FileNotFoundError as e:
         tool = e.filename or cmd[0]

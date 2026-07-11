@@ -164,6 +164,32 @@
   white-space: nowrap;
 }
 
+.bl-job-progress-hint {
+  font-size: 0.75rem;
+  color: var(--bl-accent);
+  font-family: monospace;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.bl-job-progress-log {
+  font-size: 0.72rem;
+  font-family: monospace;
+  color: var(--color-text, #111);
+  background: color-mix(in srgb, var(--bl-accent) 6%, transparent);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 180px;
+  overflow-y: auto;
+  opacity: 0.85;
+}
+
 .bl-job-err-hint {
   font-size: 0.78rem;
   color: var(--bl-error);

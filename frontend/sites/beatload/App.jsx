@@ -31,7 +31,8 @@ export default function App() {
     clearInterval(timerRef.current)
     const hasActive = jobs.some(j => j.status === 'queued' || j.status === 'downloading')
     if (hasActive) {
-      timerRef.current = setInterval(load, 3000)
+      const interval = jobs.some(j => j.status === 'downloading') ? 2000 : 3000
+      timerRef.current = setInterval(load, interval)
     }
     return () => clearInterval(timerRef.current)
   }, [jobs])
@@ -128,7 +129,17 @@ export default function App() {
 
 function JobRow({ job, onDelete }) {
   const [expanded, setExpanded] = useState(false)
+  const logRef = useRef(null)
   const canDelete = job.status === 'done' || job.status === 'error'
+
+  const progressLines = job.progress_log ? job.progress_log.split('\n').filter(Boolean) : []
+  const lastLine = progressLines.at(-1) || ''
+
+  useEffect(() => {
+    if (expanded && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight
+    }
+  }, [expanded, job.progress_log])
 
   return (
     <div className={`bl-job bl-job--${job.status}`}>
@@ -137,6 +148,17 @@ function JobRow({ job, onDelete }) {
       <div className="bl-job-body" onClick={() => setExpanded(e => !e)} role="button" tabIndex={0}>
         <div className="bl-job-url">{trimUrl(job.url)}</div>
         {job.output_path && <div className="bl-job-file">{job.output_path}</div>}
+
+        {/* Collapsed: last progress line */}
+        {!expanded && job.status === 'downloading' && lastLine && (
+          <div className="bl-job-progress-hint">{lastLine}</div>
+        )}
+
+        {/* Expanded: full log */}
+        {expanded && progressLines.length > 0 && (
+          <pre className="bl-job-progress-log" ref={logRef}>{progressLines.join('\n')}</pre>
+        )}
+
         {expanded && job.error && <pre className="bl-job-err">{job.error}</pre>}
         {!expanded && job.error && (
           <div className="bl-job-err-hint">⚠ {job.error.slice(0, 120)}{job.error.length > 120 ? '…' : ''}</div>
