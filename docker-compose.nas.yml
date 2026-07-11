@@ -28,7 +28,7 @@ services:
       - /volume1/homeplatform/uploads:/app/uploads
       - /volume1/homeplatform/nas-files:/app/nas-files
       - /volume1/Music/music/Mixes:/app/music:ro
-      - /volume1/music/downloads:/app/downloads
+      - /volume1/Music/downloads:/app/downloads
       - /volume1/homeplatform/beatportdl-config:/app/beatportdl-config
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
