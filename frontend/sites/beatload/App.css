@@ -250,24 +250,15 @@
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
+/* Basis-componenten gebruiken al var(--color-surface/text/border) van het platform.
+   Alleen de done/error border-opacity verschilt licht vs donker. */
 
 @media (prefers-color-scheme: dark) {
-  .bl-input  { background: #1e1e2e; color: #e2e8f0; border-color: #374151; }
-  .bl-job    { background: #1e1e2e; border-color: #374151; }
   .bl-job--done  { border-color: color-mix(in srgb, var(--bl-success) 30%, transparent); }
   .bl-job--error { border-color: color-mix(in srgb, var(--bl-error)   30%, transparent); }
-  .bl-job-url    { color: #e2e8f0; }
 }
 
 :root[data-theme="dark"] {
-  .bl-input  { background: #1e1e2e; color: #e2e8f0; border-color: #374151; }
-  .bl-job    { background: #1e1e2e; border-color: #374151; }
   .bl-job--done  { border-color: color-mix(in srgb, var(--bl-success) 30%, transparent); }
   .bl-job--error { border-color: color-mix(in srgb, var(--bl-error)   30%, transparent); }
-  .bl-job-url    { color: #e2e8f0; }
-}
-
-:root[data-theme="light"] {
-  .bl-input  { background: #fff; color: #111; border-color: #d1d5db; }
-  .bl-job    { background: #fff; border-color: #e5e7eb; }
 }
