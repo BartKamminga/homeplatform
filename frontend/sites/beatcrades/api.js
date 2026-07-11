@@ -10,3 +10,4 @@ export const deleteRack      = (id)      => api.delete(`/api/beatcrades/racks/${
 export const createCrade     = (body)    => api.post('/api/beatcrades/crades', body)
 export const updateCrade     = (id, b)   => api.patch(`/api/beatcrades/crades/${id}`, b)
 export const deleteCrade     = (id)      => api.delete(`/api/beatcrades/crades/${id}`)
+export const restartCrade    = (id)      => api.post(`/api/beatcrades/crades/${id}/restart`, {})

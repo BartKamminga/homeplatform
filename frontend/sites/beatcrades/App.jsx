@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade } from './api.js'
+import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade } from './api.js'
 import './App.css'
 
 const FORMATS = ['flac', 'mp3', 'wav']
@@ -199,6 +199,11 @@ export default function App() {
     }))
   }
 
+  const onRestartCrade = async id => {
+    await restartCrade(id).catch(() => {})
+    await load()
+  }
+
   // Crade drag-drop (crade → rack)
   const onCradeDragStart = (e, id) => { setDraggingCrade(id); e.dataTransfer.effectAllowed = 'move' }
   const onCradeDragEnd   = ()      => { setDraggingCrade(null); setDragOver(null) }
@@ -266,7 +271,7 @@ export default function App() {
     onCradeDragStart, onCradeDragEnd,
     onRackDragOver, onRackDrop,
     onRackDragStart, onRackDragEnd,
-    renameRack, removeRack, removeCrade,
+    renameRack, removeRack, removeCrade, onRestartCrade,
   }
 
   return (
@@ -375,6 +380,7 @@ export default function App() {
             open={isCradeOpen(crade.id)}
             onToggle={() => toggleCrade(crade.id)}
             onDelete={() => removeCrade(crade.id)}
+            onRestart={() => onRestartCrade(crade.id)}
             dragging={draggingCrade === crade.id}
             onDragStart={e => onCradeDragStart(e, crade.id)}
             onDragEnd={onCradeDragEnd} />
@@ -418,7 +424,7 @@ function RackBlock({ rack,
   onCradeDragStart, onCradeDragEnd,
   onRackDragOver, onRackDrop,
   onRackDragStart, onRackDragEnd,
-  renameRack, removeRack, removeCrade,
+  renameRack, removeRack, removeCrade, onRestartCrade,
 }) {
   const isOpen = rack.id in openRacks ? openRacks[rack.id] : true
   const isDragOver = dragOver?.kind === 'rack' && dragOver.id === rack.id
@@ -451,6 +457,7 @@ function RackBlock({ rack,
               open={isCradeOpen(openCrades, crade.id)}
               onToggle={() => toggleCrade(crade.id)}
               onDelete={() => removeCrade(crade.id)}
+              onRestart={() => onRestartCrade(crade.id)}
               inRack
               dragging={draggingCrade === crade.id}
               onDragStart={e => onCradeDragStart(e, crade.id)}
@@ -469,7 +476,9 @@ function isCradeOpen(openCrades, id) { return !!openCrades[id] }
 
 // ── CradeRow ──────────────────────────────────────────────────────────────────
 
-function CradeRow({ crade, open, onToggle, onDelete, inRack, dragging, onDragStart, onDragEnd }) {
+const STALL_MS = 5 * 60 * 1000  // 5 minuten zonder voortgang = vastgelopen
+
+function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging, onDragStart, onDragEnd }) {
   const [logExpanded, setLogExpanded] = useState(false)
   const logRef = useRef(null)
 
@@ -478,6 +487,11 @@ function CradeRow({ crade, open, onToggle, onDelete, inRack, dragging, onDragSta
   const { done, total } = parseProgress(crade.progress_log)
   const pct = total ? Math.round(done / total * 100) : 0
   const isActive = crade.status === 'downloading' || crade.status === 'queued'
+
+  const isStalled = crade.status === 'downloading' && crade.last_progress_at &&
+    (Date.now() - new Date(crade.last_progress_at).getTime()) > STALL_MS
+
+  const canRestart = crade.status === 'error' || crade.status === 'done' || isStalled
 
   useEffect(() => {
     if (logExpanded && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -499,9 +513,15 @@ function CradeRow({ crade, open, onToggle, onDelete, inRack, dragging, onDragSta
           ) : done > 0 ? (
             <span className="bc-badge bc-badge-cnt">{done} track{done !== 1 ? 's' : ''}</span>
           ) : null}
-          <span className={`bc-badge bc-badge-st bc-badge-st--${st.cls}`}>{st.label}</span>
+          {isStalled
+            ? <span className="bc-badge bc-badge-st bc-badge-st--stalled">Vastgelopen</span>
+            : <span className={`bc-badge bc-badge-st bc-badge-st--${st.cls}`}>{st.label}</span>
+          }
           <span className="bc-badge bc-badge-fmt">{crade.format.toUpperCase()}</span>
         </div>
+        {canRestart && (
+          <button className="bc-restart-btn" onClick={e => { e.stopPropagation(); onRestart() }} title="Opnieuw starten">↺</button>
+        )}
         <button className="bc-del-btn" onClick={e => { e.stopPropagation(); onDelete() }} title="Verwijderen">✕</button>
       </div>
 

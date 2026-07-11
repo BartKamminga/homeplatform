@@ -108,8 +108,10 @@ async def _run_download(job_id: str):
         )
 
         lines: list = []
+        error_hints: list = []  # alle regels met fout-keywords, onbeperkt
         flush_count = 0
         output_path = None
+        _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
 
         async for raw in proc.stdout:
             line = raw.decode(errors="replace").rstrip()
@@ -120,16 +122,19 @@ async def _run_download(job_id: str):
             if m:
                 output_path = os.path.basename(m.group(1).strip())
 
+            if any(kw in line.lower() for kw in _ERR_KW):
+                error_hints.append(line)
+
             is_percent = bool(_PERCENT_RE.match(line))
             if is_percent and lines and _PERCENT_RE.match(lines[-1]):
                 lines[-1] = line
             else:
                 lines.append(line)
-                if len(lines) > 40:
+                if len(lines) > 60:
                     lines.pop(0)
                 flush_count += 1
                 if flush_count >= 5:
-                    _update_job(job_id, progress_log="\n".join(lines))
+                    _update_job(job_id, progress_log="\n".join(lines), last_progress_at=datetime.utcnow())
                     flush_count = 0
 
         await proc.wait()
@@ -139,10 +144,13 @@ async def _run_download(job_id: str):
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar: %s → %s", job_id, output_path)
         else:
-            error_lines = [l for l in lines if "error" in l.lower()]
-            error = "\n".join(error_lines[-5:]) if error_lines else "\n".join(lines[-5:])
-            _update_job(job_id, status="error", error=error[:1000].strip())
-            logger.warning("Download mislukt: %s", job_id)
+            if error_hints:
+                error = "\n".join(error_hints[-10:])
+            else:
+                error = "\n".join(lines[-10:])
+            error = f"[exit {proc.returncode}]\n{error}".strip()
+            _update_job(job_id, status="error", error=error[:1500])
+            logger.error("Download mislukt [%s] exit=%d: %s", job_id, proc.returncode, error[:300])
 
     except FileNotFoundError as e:
         tool = e.filename or cmd[0]
@@ -188,6 +196,7 @@ class CradeOut(BaseModel):
     created_at: datetime
     status: str
     progress_log: Optional[str]
+    last_progress_at: Optional[datetime]
     error: Optional[str]
     output_path: Optional[str]
     job_id: Optional[str]
@@ -328,6 +337,7 @@ def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
         format=c.format, created_at=c.created_at,
         status=job.status if job else "no_job",
         progress_log=job.progress_log if job else None,
+        last_progress_at=job.last_progress_at if job else None,
         error=job.error if job else None,
         output_path=job.output_path if job else None,
         job_id=job.id if job else None,
@@ -411,6 +421,43 @@ def delete_crade(
     session.delete(c)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/crades/{crade_id}/restart", response_model=CradeOut)
+async def restart_crade(
+    crade_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    c = session.get(DownloadCrade, crade_id)
+    if not c:
+        raise AppError(404, "Crade niet gevonden")
+
+    job = session.exec(
+        select(DownloadJob)
+        .where(DownloadJob.crade_id == crade_id)
+        .order_by(DownloadJob.created_at.desc())
+        .limit(1)
+    ).first()
+
+    if not job:
+        raise AppError(404, "Geen job gevonden voor deze crade")
+    if job.status == "downloading":
+        raise AppError(409, "Download is al actief")
+
+    job.status = "queued"
+    job.error = None
+    job.progress_log = None
+    job.last_progress_at = None
+    job.updated_at = datetime.utcnow()
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    background_tasks.add_task(_run_download, job.id)
+    logger.info("Crade herstart: %s (job %s)", crade_id, job.id)
+    return _crade_out(c, job)
 
 
 # ── Tree ──────────────────────────────────────────────────────────────────────

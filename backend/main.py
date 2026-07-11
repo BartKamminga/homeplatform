@@ -114,7 +114,9 @@ async def app_error_handler(request: Request, exc: AppError):
 
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError):
-    logger.warning("IntegrityError op %s: %s", request.url.path, exc)
+    logger.error("IntegrityError op %s: %s", request.url.path, exc)
+    if settings.SENTRY_DSN:
+        sentry_sdk.capture_exception(exc)
     return JSONResponse(status_code=409, content={"detail": "Dubbele waarde of database-conflict"})
 
 

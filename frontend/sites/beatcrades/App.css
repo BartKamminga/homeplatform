@@ -71,18 +71,20 @@
 .bc-btn-sec { background: var(--color-surface-2, #f3f4f6); color: var(--color-text, #111); border: 1px solid var(--color-border, #e5e7eb); }
 .bc-btn-xs  { padding: 4px 9px; font-size: 11px; }
 
-.bc-del-btn {
+.bc-del-btn, .bc-restart-btn {
   background: none;
   border: none;
-  color: var(--bc-muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px;
   padding: 3px 6px;
   border-radius: 4px;
   transition: color .12s, background .12s;
   flex-shrink: 0;
 }
-.bc-del-btn:hover { color: var(--bc-err); background: color-mix(in srgb, var(--bc-err) 10%, transparent); }
+.bc-del-btn     { color: var(--bc-muted); font-size: 11px; }
+.bc-del-btn:hover     { color: var(--bc-err); background: color-mix(in srgb, var(--bc-err) 10%, transparent); }
+.bc-restart-btn { color: var(--bc-warn); }
+.bc-restart-btn:hover { color: var(--bc-ok); background: color-mix(in srgb, var(--bc-ok) 10%, transparent); }
 
 /* ── New crade form ── */
 
@@ -388,12 +390,13 @@
 .bc-badge-cnt { background: var(--bc-acc-dim); color: var(--bc-acc); border: 1px solid rgba(110,96,240,.2); }
 .bc-badge-fmt { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); font-size: 10px; }
 
-.bc-badge-st         { border: 1px solid transparent; }
-.bc-badge-st--empty  { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
-.bc-badge-st--queued { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
-.bc-badge-st--active { background: rgba(110,96,240,.12); color: var(--bc-acc); animation: bc-pulse 2s ease-in-out infinite; }
-.bc-badge-st--done   { background: color-mix(in srgb, var(--bc-ok) 12%, transparent); color: var(--bc-ok); }
-.bc-badge-st--error  { background: color-mix(in srgb, var(--bc-err) 12%, transparent); color: var(--bc-err); }
+.bc-badge-st           { border: 1px solid transparent; }
+.bc-badge-st--empty    { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
+.bc-badge-st--queued   { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
+.bc-badge-st--active   { background: rgba(110,96,240,.12); color: var(--bc-acc); animation: bc-pulse 2s ease-in-out infinite; }
+.bc-badge-st--done     { background: color-mix(in srgb, var(--bc-ok) 12%, transparent); color: var(--bc-ok); }
+.bc-badge-st--error    { background: color-mix(in srgb, var(--bc-err) 12%, transparent); color: var(--bc-err); }
+.bc-badge-st--stalled  { background: color-mix(in srgb, var(--bc-warn) 15%, transparent); color: var(--bc-warn); border-color: color-mix(in srgb, var(--bc-warn) 30%, transparent); }
 
 @keyframes bc-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
 

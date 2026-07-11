@@ -37,7 +37,7 @@ services:
       - MUSIC_DIR=/app/music
       - DOWNLOAD_DIR=/app/downloads
       - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
-      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_DSN=${SENTRY_DSN:-http://38ed1bf38b384dfa86532768e326c417@glitchtip:8080/1}
       - NAS_URL=${NAS_URL:-}
       - EXTERNAL_URL=${EXTERNAL_URL:-}
     restart: unless-stopped
