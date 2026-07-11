@@ -319,16 +319,23 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <div className="bc-field">
-                <label>Formaat</label>
-                <div className="bc-fmt-seg">
-                  {FORMATS.map(f => (
-                    <button key={f} type="button" className={`bc-fmt-btn${newFmt===f?' active':''}`} onClick={() => pickFmt(f)}>
-                      {f.toUpperCase()}
-                    </button>
-                  ))}
+              {detectSrc(newUrl) === 'beatport' ? (
+                <div className="bc-field">
+                  <label>Formaat</label>
+                  <span className="bc-fmt-locked">🎵 Via beatportdl config</span>
                 </div>
-              </div>
+              ) : (
+                <div className="bc-field">
+                  <label>Formaat</label>
+                  <div className="bc-fmt-seg">
+                    {FORMATS.map(f => (
+                      <button key={f} type="button" className={`bc-fmt-btn${newFmt===f?' active':''}`} onClick={() => pickFmt(f)}>
+                        {f.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {err && <div className="bc-err-msg">{err}</div>}
               <div className="bc-new-acts">
                 <button type="button" className="bc-btn bc-btn-sec" onClick={() => setNewOpen(false)}>Annuleren</button>
@@ -571,6 +578,9 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
           )}
           {crade.subdir && (
             <div className="bc-subdir"><CradeIcon size={13} /> downloads/{crade.subdir}/</div>
+          )}
+          {src === 'beatport' && crade.output_path && (
+            <div className="bc-detected-name">📁 {crade.output_path}</div>
           )}
 
           {isActive && total > 0 && (

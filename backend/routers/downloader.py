@@ -90,7 +90,8 @@ async def _run_download(job_id: str):
     # beatportdl leest altijd 'beatportdl-config.yml' vanuit de werkdirectory.
     # downloads_directory is verplicht in de config. Geen -c of -d flags.
     # We schrijven per job een temp config met de juiste downloads_directory.
-    work_dir = None
+    work_dir   = None
+    before_dirs: set = set()
 
     if source == "beatport":
         config_dir = settings.BEATPORTDL_CONFIG_DIR
@@ -131,6 +132,10 @@ async def _run_download(job_id: str):
             if work_dir:
                 shutil.rmtree(work_dir, ignore_errors=True)
             return
+        # Snapshot bestaande subdirs zodat we na afloop de nieuwe kunnen detecteren
+        if os.path.exists(download_dir):
+            before_dirs = {e for e in os.listdir(download_dir)
+                           if os.path.isdir(os.path.join(download_dir, e))}
         cmd = ["beatportdl", url]
     else:
         cmd = [
@@ -194,6 +199,13 @@ async def _run_download(job_id: str):
         # Beschouw het als succes als er geen echte fouten zijn (alleen EOF-melding).
         real_errors = [h for h in error_hints if "error reading input string" not in h.lower()]
         succeeded = proc.returncode == 0 or (work_dir and not real_errors)
+        if succeeded and work_dir and os.path.exists(download_dir):
+            # Detecteer nieuw aangemaakte submap = playlist/release naam
+            after_dirs = {e for e in os.listdir(download_dir)
+                          if os.path.isdir(os.path.join(download_dir, e))}
+            new_dirs = sorted(after_dirs - before_dirs)
+            if new_dirs:
+                output_path = new_dirs[0]
         if succeeded:
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar: %s → %s", job_id, output_path)
