@@ -88,7 +88,8 @@ async def _run_download(job_id: str):
     if source == "beatport":
         cmd = ["beatportdl", "-d", download_dir]
         if settings.BEATPORTDL_CONFIG_DIR:
-            cmd += ["-c", settings.BEATPORTDL_CONFIG_DIR]
+            config_file = settings.BEATPORTDL_CONFIG_DIR.rstrip("/") + "/config.yaml"
+            cmd += ["-c", config_file]
         cmd.append(url)
     else:
         cmd = [
@@ -244,7 +245,7 @@ def update_section(
 ):
     s = session.get(DownloadSection, section_id)
     if not s:
-        raise AppError(404, "Section niet gevonden")
+        raise AppError("Section niet gevonden", 404)
     s.name = body.name.strip()
     s.updated_at = datetime.utcnow()
     session.add(s)
@@ -260,7 +261,7 @@ def delete_section(
 ):
     s = session.get(DownloadSection, section_id)
     if not s:
-        raise AppError(404, "Section niet gevonden")
+        raise AppError("Section niet gevonden", 404)
     for r in session.exec(select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == section_id)).all():
         r.section_id = None
         r.updated_at = datetime.utcnow()
@@ -294,7 +295,7 @@ def update_rack(
 ):
     r = session.get(DownloadCradeGroup, rack_id)
     if not r:
-        raise AppError(404, "Rack niet gevonden")
+        raise AppError("Rack niet gevonden", 404)
     if body.name is not None:
         r.name = body.name.strip()
     if "section_id" in body.model_fields_set:
@@ -313,7 +314,7 @@ def delete_rack(
 ):
     r = session.get(DownloadCradeGroup, rack_id)
     if not r:
-        raise AppError(404, "Rack niet gevonden")
+        raise AppError("Rack niet gevonden", 404)
     for c in session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack_id)).all():
         c.group_id = None
         c.updated_at = datetime.utcnow()
@@ -353,7 +354,7 @@ async def create_crade(
 ):
     url = body.source_url.strip()
     if not url:
-        raise AppError(400, "URL mag niet leeg zijn")
+        raise AppError("URL mag niet leeg zijn", 400)
 
     name = body.name.strip() or _today_name()
     subdir = _safe_name(name)
@@ -396,7 +397,7 @@ def update_crade(
 ):
     c = session.get(DownloadCrade, crade_id)
     if not c:
-        raise AppError(404, "Crade niet gevonden")
+        raise AppError("Crade niet gevonden", 404)
     if body.name is not None:
         c.name = body.name.strip()
     if "group_id" in body.model_fields_set:
@@ -415,7 +416,7 @@ def delete_crade(
 ):
     c = session.get(DownloadCrade, crade_id)
     if not c:
-        raise AppError(404, "Crade niet gevonden")
+        raise AppError("Crade niet gevonden", 404)
     for job in session.exec(select(DownloadJob).where(DownloadJob.crade_id == crade_id)).all():
         session.delete(job)
     session.delete(c)
@@ -432,7 +433,7 @@ async def restart_crade(
 ):
     c = session.get(DownloadCrade, crade_id)
     if not c:
-        raise AppError(404, "Crade niet gevonden")
+        raise AppError("Crade niet gevonden", 404)
 
     job = session.exec(
         select(DownloadJob)
@@ -442,9 +443,9 @@ async def restart_crade(
     ).first()
 
     if not job:
-        raise AppError(404, "Geen job gevonden voor deze crade")
+        raise AppError("Geen job gevonden voor deze crade", 404)
     if job.status == "downloading":
-        raise AppError(409, "Download is al actief")
+        raise AppError("Download is al actief", 409)
 
     job.status = "queued"
     job.error = None
