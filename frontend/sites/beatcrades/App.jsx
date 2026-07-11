@@ -622,10 +622,10 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
 // ── SyncModal ────────────────────────────────────────────────────────────────
 
 const SYNC_TYPE_META = {
-  create_dir:    { label: 'Map aanmaken',           icon: '📁', color: 'var(--bc-ok)' },
-  clear_output:  { label: 'output_path wissen',     icon: '🔗', color: 'var(--bc-warn)' },
-  mark_missing:  { label: 'Markeer als verwijderd', icon: '⚠️', color: 'var(--bc-err)' },
-  add_from_disk: { label: 'Toevoegen vanuit disk',  icon: '📥', color: 'var(--bc-acc)' },
+  create_dir:    { label: 'Aanmaken op disk',      icon: '📁', cls: 'add' },
+  clear_output:  { label: 'DB bijwerken',           icon: '🔗', cls: 'upd' },
+  mark_missing:  { label: 'Ontbrekend markeren',   icon: '⚠️', cls: 'del' },
+  add_from_disk: { label: 'Nieuw vanuit disk',     icon: '📥', cls: 'new' },
 }
 
 function SyncModal({ onClose, onDone }) {
@@ -683,62 +683,98 @@ function SyncModal({ onClose, onDone }) {
   return (
     <div className="bc-dlg-overlay" onClick={onClose}>
       <div className="bc-sync-modal" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="bc-sync-hdr">
-          <span>🔄 Disk-Sync</span>
+          <div>
+            <div className="bc-sync-hdr-eyebrow">BeatCrades · Disk-Sync</div>
+            <div className="bc-sync-hdr-title">Vergelijking database ↔ schijf</div>
+          </div>
           <button className="bc-del-btn" onClick={onClose}>✕</button>
         </div>
 
         {loading ? (
           <div className="bc-sync-empty">Scannen…</div>
+
         ) : results ? (
           <>
-            <div className="bc-sync-results">
+            <div className="bc-sync-body">
               {results.map(r => (
-                <div key={r.id} className={`bc-sync-result${r.ok ? ' ok' : ' fail'}`}>
-                  <span>{r.ok ? '✓' : '✕'}</span>
+                <div key={r.id} className={`bc-sync-result-card${r.ok ? ' ok' : ' fail'}`}>
+                  <span className="bc-sync-result-icon">{r.ok ? '✓' : '✕'}</span>
                   <span>{r.message}</span>
                 </div>
               ))}
             </div>
             <div className="bc-sync-footer">
-              <span className="bc-sync-sel" />
+              <span />
               <button className="bc-btn bc-btn-pri" onClick={onClose}>Sluiten</button>
             </div>
           </>
+
         ) : groups.length === 0 ? (
           <>
             <div className="bc-sync-empty">✓ Alles is al gesynchroniseerd.</div>
             <div className="bc-sync-footer">
-              <span className="bc-sync-sel" />
+              <span />
               <button className="bc-btn bc-btn-sec" onClick={onClose}>Sluiten</button>
             </div>
           </>
+
         ) : (
           <>
-            <div className="bc-sync-root">{dlRoot}</div>
+            {/* Meta bar */}
+            <div className="bc-sync-meta">
+              <span className="bc-sync-meta-chip">🗂 {dlRoot}</span>
+              <span className="bc-sync-meta-chip">📦 {actions.length} item{actions.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {/* Legend */}
+            <div className="bc-sync-legend">
+              {Object.entries(SYNC_TYPE_META).map(([type, m]) => (
+                <span key={type} className={`bc-sync-leg bc-sync-leg--${m.cls}`}>
+                  <span className="bc-sync-leg-dot" />
+                  {m.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Action groups */}
             <div className="bc-sync-body">
               {groups.map(({ type, meta, items }) => (
-                <div key={type} className="bc-sync-group">
-                  <div className="bc-sync-group-hdr" style={{ '--type-color': meta.color }}
-                    onClick={() => toggleGroup(type)}>
-                    <span>{meta.icon} {meta.label}</span>
-                    <span className="bc-sync-count">
-                      {items.filter(a => selected[a.id]).length}/{items.length}
+                <div key={type} className="bc-sync-action-group">
+                  <div className="bc-sync-group-sep" onClick={() => toggleGroup(type)}>
+                    <span className={`bc-sync-sep-label bc-sync-sep--${meta.cls}`}>
+                      {meta.icon} {meta.label}
+                    </span>
+                    <span className="bc-sync-sep-count">
+                      {items.filter(a => selected[a.id]).length}/{items.length} geselecteerd
                     </span>
                   </div>
-                  {items.map(a => (
-                    <label key={a.id} className="bc-sync-row">
-                      <input type="checkbox" checked={!!selected[a.id]} onChange={() => toggle(a.id)} />
-                      <div className="bc-sync-row-info">
-                        <span className="bc-sync-name">{a.crade_name}</span>
-                        <span className="bc-sync-desc">{a.description}</span>
-                        <code className="bc-sync-path">{a.rel_path}</code>
-                      </div>
-                    </label>
-                  ))}
+                  <div className="bc-sync-cards">
+                    {items.map(a => (
+                      <label key={a.id} className={`bc-sync-card bc-sync-card--${meta.cls}${selected[a.id] ? ' checked' : ''}`}>
+                        <input
+                          type="checkbox"
+                          className="bc-sync-cb"
+                          checked={!!selected[a.id]}
+                          onChange={() => toggle(a.id)}
+                        />
+                        <span className={`bc-sync-card-icon bc-sync-card-icon--${meta.cls}`}>{meta.icon}</span>
+                        <div className="bc-sync-card-body">
+                          <span className="bc-sync-card-name">{a.crade_name}</span>
+                          <span className="bc-sync-card-desc">{a.description}</span>
+                          <code className="bc-sync-card-path">{a.rel_path}</code>
+                        </div>
+                        <span className={`bc-sync-badge bc-sync-badge--${meta.cls}`}>{meta.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
+
+            {/* Footer */}
             <div className="bc-sync-footer">
               <span className="bc-sync-sel">{selCount} actie{selCount !== 1 ? 's' : ''} geselecteerd</span>
               <button className="bc-btn bc-btn-sec" onClick={onClose}>Annuleren</button>
