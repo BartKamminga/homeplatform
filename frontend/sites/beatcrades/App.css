@@ -688,6 +688,7 @@
 }
 .bc-sync-row:hover { background: var(--color-surface-2, #f9fafb); }
 .bc-sync-row input[type="checkbox"] {
+  width: auto;
   margin-top: 2px;
   flex-shrink: 0;
   accent-color: var(--bc-acc);
