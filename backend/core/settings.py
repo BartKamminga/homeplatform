@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     NAS_URL: str = ""
     EXTERNAL_URL: str = ""
     UPLOAD_ROOT: str = "/app/uploads"
+    DOWNLOAD_DIR: str = "/app/downloads"
+    BEATPORTDL_CONFIG_DIR: str = ""  # pad naar beatportdl config-map (optioneel)
     CORS_ORIGINS: str = ""  # kommagescheiden; leeg = automatisch op basis van omgeving
 
     @property

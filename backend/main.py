@@ -44,6 +44,7 @@ from routers import tournix, fiets, backup  # noqa: E402
 from routers import tournix_import  # noqa: E402
 from routers.backup import backup_router  # noqa: E402
 from routers import roadmap  # noqa: E402
+from routers import downloader  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
 
@@ -53,6 +54,7 @@ async def lifespan(_app: FastAPI):
     create_db_and_tables()
     if not settings.is_dev and settings.SECRET_KEY == "dev-secret-change-me":
         logger.warning("SECRET_KEY is still the default dev value — change it in production!")
+    downloader.reset_stale_jobs()
     yield
 
 
@@ -134,6 +136,7 @@ app.include_router(fiets.router)
 app.include_router(backup.router)
 app.include_router(backup_router)
 app.include_router(roadmap.router)
+app.include_router(downloader.router)
 
 
 @app.get("/")

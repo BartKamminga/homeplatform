@@ -64,6 +64,12 @@
         file_server
     }
 
+    handle /beatload/* {
+        root * /srv/www
+        try_files {path} /beatload/index.html
+        file_server
+    }
+
     handle /assets/* {
         root * /srv/www
         file_server

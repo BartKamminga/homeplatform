@@ -63,6 +63,7 @@ def seed_sites(session: Session):
         ("Mix Music", "mixmusic", "mixmusic", "♫"),
         ("DontForget", "dontforget", "dontforget", "📋"),
         ("Poulebord", "poulebord", "poulebord", "🏒"),
+        ("Beatload", "beatload", "beatload", "🎵"),
     ]
 
     for name, slug, module, icon in sites:

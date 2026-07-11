@@ -28,11 +28,15 @@ services:
       - /volume1/homeplatform/uploads:/app/uploads
       - /volume1/homeplatform/nas-files:/app/nas-files
       - /volume1/Music/music/Mixes:/app/music:ro
+      - /volume1/music/downloads:/app/downloads
+      - /volume1/homeplatform/beatportdl-config:/app/beatportdl-config
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=production
       - MUSIC_DIR=/app/music
+      - DOWNLOAD_DIR=/app/downloads
+      - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
       - SENTRY_DSN=${SENTRY_DSN:-}
       - NAS_URL=${NAS_URL:-}
       - EXTERNAL_URL=${EXTERNAL_URL:-}
