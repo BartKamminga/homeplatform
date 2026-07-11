@@ -1,4 +1,4 @@
-"""BeatCrades — download queue met crades en groepen (beatportdl + yt-dlp)."""
+"""BeatCrades — download queue: Section → Rack → Crade (beatportdl + yt-dlp)."""
 
 import asyncio
 import logging
@@ -16,7 +16,7 @@ from core.auth import get_current_user
 from core.database import engine, get_session
 from core.exceptions import AppError
 from core.settings import settings
-from models.downloader import DownloadCrade, DownloadCradeGroup, DownloadJob
+from models.downloader import DownloadCrade, DownloadCradeGroup, DownloadJob, DownloadSection
 
 router = APIRouter(prefix="/api/beatcrades", tags=["beatcrades"])
 logger = logging.getLogger("homeplatform.beatcrades")
@@ -25,7 +25,6 @@ logger = logging.getLogger("homeplatform.beatcrades")
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _safe_name(name: str) -> str:
-    """Zet een crade-naam om naar een veilige mapnaam."""
     nfkd = unicodedata.normalize("NFKD", name)
     ascii_str = nfkd.encode("ascii", "ignore").decode()
     safe = re.sub(r"[^\w\-.]", "_", ascii_str).strip("_.")
@@ -72,7 +71,6 @@ async def _run_download(job_id: str):
         fmt = job.format
         crade_id = job.crade_id
 
-        # Bepaal download-map (crade subdir of root)
         subdir = ""
         if crade_id:
             crade = s.get(DownloadCrade, crade_id)
@@ -94,8 +92,7 @@ async def _run_download(job_id: str):
         cmd.append(url)
     else:
         cmd = [
-            "yt-dlp",
-            "-x",
+            "yt-dlp", "-x",
             "--audio-format", fmt,
             "--audio-quality", "0",
             "-P", download_dir,
@@ -157,19 +154,19 @@ async def _run_download(job_id: str):
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
-class GroupCreate(BaseModel):
+class SectionCreate(BaseModel):
     name: str
 
-
-class GroupUpdate(BaseModel):
+class SectionUpdate(BaseModel):
     name: str
 
-
-class GroupOut(BaseModel):
-    id: str
+class RackCreate(BaseModel):
     name: str
-    created_at: datetime
+    section_id: Optional[str] = None
 
+class RackUpdate(BaseModel):
+    name: Optional[str] = None
+    section_id: Optional[str] = None
 
 class CradeCreate(BaseModel):
     name: str = ""
@@ -177,11 +174,9 @@ class CradeCreate(BaseModel):
     format: str = "flac"
     group_id: Optional[str] = None
 
-
 class CradeUpdate(BaseModel):
     name: Optional[str] = None
     group_id: Optional[str] = None
-
 
 class CradeOut(BaseModel):
     id: str
@@ -191,66 +186,130 @@ class CradeOut(BaseModel):
     source_url: Optional[str]
     format: str
     created_at: datetime
-    # Afgeleid van laatste job:
     status: str
     progress_log: Optional[str]
     error: Optional[str]
     output_path: Optional[str]
     job_id: Optional[str]
 
+class RackOut(BaseModel):
+    id: str
+    name: str
+    section_id: Optional[str]
+    created_at: datetime
+    crades: List[CradeOut] = []
+
+class SectionOut(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+    racks: List[RackOut] = []
 
 class TreeOut(BaseModel):
-    groups: List[GroupOut]
+    sections: List[SectionOut]
+    racks: List[RackOut]
     crades: List[CradeOut]
 
 
-# ── Groups ────────────────────────────────────────────────────────────────────
+# ── Sections ──────────────────────────────────────────────────────────────────
 
-@router.post("/groups", response_model=GroupOut)
-def create_group(
-    body: GroupCreate,
+@router.post("/sections")
+def create_section(
+    body: SectionCreate,
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    g = DownloadCradeGroup(name=body.name.strip(), created_by=user.id)
-    session.add(g)
+    s = DownloadSection(name=body.name.strip(), created_by=user.id)
+    session.add(s)
     session.commit()
-    session.refresh(g)
-    return g
+    session.refresh(s)
+    return {"id": s.id, "name": s.name, "created_at": s.created_at, "racks": []}
 
 
-@router.patch("/groups/{group_id}")
-def update_group(
-    group_id: str,
-    body: GroupUpdate,
+@router.patch("/sections/{section_id}")
+def update_section(
+    section_id: str,
+    body: SectionUpdate,
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    g = session.get(DownloadCradeGroup, group_id)
-    if not g:
-        raise AppError(404, "Groep niet gevonden")
-    g.name = body.name.strip()
-    g.updated_at = datetime.utcnow()
-    session.add(g)
+    s = session.get(DownloadSection, section_id)
+    if not s:
+        raise AppError(404, "Section niet gevonden")
+    s.name = body.name.strip()
+    s.updated_at = datetime.utcnow()
+    session.add(s)
     session.commit()
     return {"ok": True}
 
 
-@router.delete("/groups/{group_id}")
-def delete_group(
-    group_id: str,
+@router.delete("/sections/{section_id}")
+def delete_section(
+    section_id: str,
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    g = session.get(DownloadCradeGroup, group_id)
-    if not g:
-        raise AppError(404, "Groep niet gevonden")
-    # Crades loskoppelen (niet verwijderen)
-    for c in session.exec(select(DownloadCrade).where(DownloadCrade.group_id == group_id)).all():
+    s = session.get(DownloadSection, section_id)
+    if not s:
+        raise AppError(404, "Section niet gevonden")
+    for r in session.exec(select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == section_id)).all():
+        r.section_id = None
+        r.updated_at = datetime.utcnow()
+        session.add(r)
+    session.delete(s)
+    session.commit()
+    return {"ok": True}
+
+
+# ── Racks ─────────────────────────────────────────────────────────────────────
+
+@router.post("/racks")
+def create_rack(
+    body: RackCreate,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    r = DownloadCradeGroup(name=body.name.strip(), section_id=body.section_id or None, created_by=user.id)
+    session.add(r)
+    session.commit()
+    session.refresh(r)
+    return {"id": r.id, "name": r.name, "section_id": r.section_id, "created_at": r.created_at, "crades": []}
+
+
+@router.patch("/racks/{rack_id}")
+def update_rack(
+    rack_id: str,
+    body: RackUpdate,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    r = session.get(DownloadCradeGroup, rack_id)
+    if not r:
+        raise AppError(404, "Rack niet gevonden")
+    if body.name is not None:
+        r.name = body.name.strip()
+    if "section_id" in body.model_fields_set:
+        r.section_id = body.section_id or None
+    r.updated_at = datetime.utcnow()
+    session.add(r)
+    session.commit()
+    return {"ok": True}
+
+
+@router.delete("/racks/{rack_id}")
+def delete_rack(
+    rack_id: str,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    r = session.get(DownloadCradeGroup, rack_id)
+    if not r:
+        raise AppError(404, "Rack niet gevonden")
+    for c in session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack_id)).all():
         c.group_id = None
         c.updated_at = datetime.utcnow()
         session.add(c)
-    session.delete(g)
+    session.delete(r)
     session.commit()
     return {"ok": True}
 
@@ -262,6 +321,19 @@ def _today_name() -> str:
     return f"{d.day:02d}-{d.month:02d}-{d.year}"
 
 
+def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
+    return CradeOut(
+        id=c.id, name=c.name, subdir=c.subdir,
+        group_id=c.group_id, source_url=c.source_url,
+        format=c.format, created_at=c.created_at,
+        status=job.status if job else "no_job",
+        progress_log=job.progress_log if job else None,
+        error=job.error if job else None,
+        output_path=job.output_path if job else None,
+        job_id=job.id if job else None,
+    )
+
+
 @router.post("/crades", response_model=CradeOut)
 async def create_crade(
     body: CradeCreate,
@@ -269,42 +341,32 @@ async def create_crade(
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    url = body.url.strip() if hasattr(body, 'url') else body.source_url.strip()
     url = body.source_url.strip()
     if not url:
         raise AppError(400, "URL mag niet leeg zijn")
 
     name = body.name.strip() or _today_name()
     subdir = _safe_name(name)
-
-    # Maak subdir uniek als die al bestaat voor een andere crade
-    existing_subdirs = {
-        c.subdir for c in session.exec(select(DownloadCrade)).all()
-    }
+    existing = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
     base = subdir
     counter = 1
-    while subdir in existing_subdirs:
+    while subdir in existing:
         subdir = f"{base}_{counter}"
         counter += 1
 
     crade = DownloadCrade(
-        name=name,
-        subdir=subdir,
+        name=name, subdir=subdir,
         group_id=body.group_id or None,
-        source_url=url,
-        format=body.format,
+        source_url=url, format=body.format,
         created_by=user.id,
     )
     session.add(crade)
     session.commit()
     session.refresh(crade)
 
-    source = _detect_source(url)
     job = DownloadJob(
-        url=url,
-        source=source,
-        format=body.format,
-        crade_id=crade.id,
+        url=url, source=_detect_source(url),
+        format=body.format, crade_id=crade.id,
         created_by=user.id,
     )
     session.add(job)
@@ -312,14 +374,7 @@ async def create_crade(
     session.refresh(job)
 
     background_tasks.add_task(_run_download, job.id)
-
-    return CradeOut(
-        id=crade.id, name=crade.name, subdir=crade.subdir,
-        group_id=crade.group_id, source_url=crade.source_url,
-        format=crade.format, created_at=crade.created_at,
-        status=job.status, progress_log=job.progress_log,
-        error=job.error, output_path=job.output_path, job_id=job.id,
-    )
+    return _crade_out(crade, job)
 
 
 @router.patch("/crades/{crade_id}")
@@ -365,15 +420,11 @@ def get_tree(
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    groups = session.exec(
-        select(DownloadCradeGroup).order_by(DownloadCradeGroup.created_at)
-    ).all()
+    sections = session.exec(select(DownloadSection).order_by(DownloadSection.created_at)).all()
+    racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.created_at)).all()
+    crades   = session.exec(select(DownloadCrade).order_by(DownloadCrade.created_at.desc())).all()
 
-    crades = session.exec(
-        select(DownloadCrade).order_by(DownloadCrade.created_at.desc())
-    ).all()
-
-    crade_outs = []
+    crade_map = {}
     for c in crades:
         job = session.exec(
             select(DownloadJob)
@@ -381,24 +432,28 @@ def get_tree(
             .order_by(DownloadJob.created_at.desc())
             .limit(1)
         ).first()
-        crade_outs.append(CradeOut(
-            id=c.id, name=c.name, subdir=c.subdir,
-            group_id=c.group_id, source_url=c.source_url,
-            format=c.format, created_at=c.created_at,
-            status=job.status if job else "no_job",
-            progress_log=job.progress_log if job else None,
-            error=job.error if job else None,
-            output_path=job.output_path if job else None,
-            job_id=job.id if job else None,
-        ))
+        crade_map[c.id] = _crade_out(c, job)
 
-    return TreeOut(
-        groups=[GroupOut(id=g.id, name=g.name, created_at=g.created_at) for g in groups],
-        crades=crade_outs,
-    )
+    rack_map = {}
+    for r in racks:
+        rack_crades = [crade_map[c.id] for c in crades if c.group_id == r.id]
+        rack_map[r.id] = RackOut(
+            id=r.id, name=r.name, section_id=r.section_id,
+            created_at=r.created_at, crades=rack_crades,
+        )
+
+    section_outs = []
+    for s in sections:
+        section_racks = [rack_map[r.id] for r in racks if r.section_id == s.id]
+        section_outs.append(SectionOut(id=s.id, name=s.name, created_at=s.created_at, racks=section_racks))
+
+    free_racks  = [rack_map[r.id] for r in racks if not r.section_id]
+    free_crades = [crade_map[c.id] for c in crades if not c.group_id]
+
+    return TreeOut(sections=section_outs, racks=free_racks, crades=free_crades)
 
 
-# ── Legacy job-list (admin / backward compat) ─────────────────────────────────
+# ── Legacy job-list ───────────────────────────────────────────────────────────
 
 class JobOut(BaseModel):
     id: str
@@ -426,7 +481,7 @@ def list_jobs(
     ).all()
 
 
-# ── Stale-job reset (aangeroepen bij herstart) ────────────────────────────────
+# ── Stale-job reset ───────────────────────────────────────────────────────────
 
 def reset_stale_jobs():
     with Session(engine) as s:
