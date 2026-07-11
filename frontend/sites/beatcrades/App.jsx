@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade } from './api.js'
+import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade, syncPreview, syncExecute } from './api.js'
 import './App.css'
 
 const FORMATS = ['flac', 'mp3', 'wav']
@@ -121,6 +121,7 @@ export default function App() {
   const [draggingRack,  setDraggingRack]  = useState(null)
   const [dragOver,     setDragOver]     = useState(null)
   const [dlg,          setDlg]          = useState(null)
+  const [syncOpen,     setSyncOpen]     = useState(false)
   const timerRef = useRef(null)
   const urlRef   = useRef(null)
 
@@ -287,6 +288,7 @@ export default function App() {
           <p className="bc-subtitle">Download crates — Beatport · YouTube · SoundCloud</p>
         </div>
         <div className="bc-hdr-btns">
+          <button className="bc-btn bc-btn-sec" onClick={() => setSyncOpen(true)}>🔄 Sync</button>
           <button className="bc-btn bc-btn-sec" onClick={addSection}>＋ Section</button>
           <button className="bc-btn bc-btn-sec" onClick={() => addRack(null)}>＋ Rack</button>
           <button className="bc-btn bc-btn-pri" onClick={openNew}>＋ Crade</button>
@@ -458,6 +460,10 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {syncOpen && (
+        <SyncModal onClose={() => setSyncOpen(false)} onDone={load} />
+      )}
     </div>
   )
 }
@@ -609,6 +615,140 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── SyncModal ────────────────────────────────────────────────────────────────
+
+const SYNC_TYPE_META = {
+  create_dir:    { label: 'Map aanmaken',           icon: '📁', color: 'var(--bc-ok)' },
+  clear_output:  { label: 'output_path wissen',     icon: '🔗', color: 'var(--bc-warn)' },
+  mark_missing:  { label: 'Markeer als verwijderd', icon: '⚠️', color: 'var(--bc-err)' },
+  add_from_disk: { label: 'Toevoegen vanuit disk',  icon: '📥', color: 'var(--bc-acc)' },
+}
+
+function SyncModal({ onClose, onDone }) {
+  const [loading,   setLoading]   = useState(true)
+  const [actions,   setActions]   = useState([])
+  const [dlRoot,    setDlRoot]    = useState('')
+  const [selected,  setSelected]  = useState({})
+  const [executing, setExecuting] = useState(false)
+  const [results,   setResults]   = useState(null)
+
+  useEffect(() => {
+    syncPreview()
+      .then(data => {
+        setActions(data.actions)
+        setDlRoot(data.download_root)
+        const sel = {}
+        data.actions.forEach(a => { sel[a.id] = a.selected })
+        setSelected(sel)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const toggle = id => setSelected(s => ({ ...s, [id]: !s[id] }))
+
+  const toggleGroup = type => {
+    const ofType = actions.filter(a => a.type === type)
+    const allOn  = ofType.every(a => selected[a.id])
+    setSelected(s => {
+      const n = { ...s }
+      ofType.forEach(a => { n[a.id] = !allOn })
+      return n
+    })
+  }
+
+  const execute = async () => {
+    const ids = Object.entries(selected).filter(([, v]) => v).map(([k]) => k)
+    if (!ids.length) return
+    setExecuting(true)
+    try {
+      const res = await syncExecute(ids)
+      setResults(res.results)
+      onDone?.()
+    } catch (e) {
+      setResults([{ id: '_err', ok: false, message: e.message || 'Onbekende fout' }])
+    }
+    setExecuting(false)
+  }
+
+  const selCount = Object.values(selected).filter(Boolean).length
+  const groups   = Object.entries(SYNC_TYPE_META)
+    .map(([type, meta]) => ({ type, meta, items: actions.filter(a => a.type === type) }))
+    .filter(g => g.items.length > 0)
+
+  return (
+    <div className="bc-dlg-overlay" onClick={onClose}>
+      <div className="bc-sync-modal" onClick={e => e.stopPropagation()}>
+        <div className="bc-sync-hdr">
+          <span>🔄 Disk-Sync</span>
+          <button className="bc-del-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {loading ? (
+          <div className="bc-sync-empty">Scannen…</div>
+        ) : results ? (
+          <>
+            <div className="bc-sync-results">
+              {results.map(r => (
+                <div key={r.id} className={`bc-sync-result${r.ok ? ' ok' : ' fail'}`}>
+                  <span>{r.ok ? '✓' : '✕'}</span>
+                  <span>{r.message}</span>
+                </div>
+              ))}
+            </div>
+            <div className="bc-sync-footer">
+              <span className="bc-sync-sel" />
+              <button className="bc-btn bc-btn-pri" onClick={onClose}>Sluiten</button>
+            </div>
+          </>
+        ) : groups.length === 0 ? (
+          <>
+            <div className="bc-sync-empty">✓ Alles is al gesynchroniseerd.</div>
+            <div className="bc-sync-footer">
+              <span className="bc-sync-sel" />
+              <button className="bc-btn bc-btn-sec" onClick={onClose}>Sluiten</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bc-sync-root">{dlRoot}</div>
+            <div className="bc-sync-body">
+              {groups.map(({ type, meta, items }) => (
+                <div key={type} className="bc-sync-group">
+                  <div className="bc-sync-group-hdr" style={{ '--type-color': meta.color }}
+                    onClick={() => toggleGroup(type)}>
+                    <span>{meta.icon} {meta.label}</span>
+                    <span className="bc-sync-count">
+                      {items.filter(a => selected[a.id]).length}/{items.length}
+                    </span>
+                  </div>
+                  {items.map(a => (
+                    <label key={a.id} className="bc-sync-row">
+                      <input type="checkbox" checked={!!selected[a.id]} onChange={() => toggle(a.id)} />
+                      <div className="bc-sync-row-info">
+                        <span className="bc-sync-name">{a.crade_name}</span>
+                        <span className="bc-sync-desc">{a.description}</span>
+                        <code className="bc-sync-path">{a.rel_path}</code>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="bc-sync-footer">
+              <span className="bc-sync-sel">{selCount} actie{selCount !== 1 ? 's' : ''} geselecteerd</span>
+              <button className="bc-btn bc-btn-sec" onClick={onClose}>Annuleren</button>
+              <button className="bc-btn bc-btn-pri" disabled={!selCount || executing} onClick={execute}>
+                {executing ? 'Bezig…' : 'Sync uitvoeren'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

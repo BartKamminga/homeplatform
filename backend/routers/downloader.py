@@ -597,6 +597,182 @@ def list_jobs(
     ).all()
 
 
+# ── Disk-sync ─────────────────────────────────────────────────────────────────
+
+class SyncAction(BaseModel):
+    id: str
+    type: str   # create_dir | clear_output | mark_missing | add_from_disk
+    crade_id: Optional[str] = None
+    crade_name: str
+    description: str
+    path: str
+    rel_path: str
+    selected: bool = True
+
+
+class SyncPreviewOut(BaseModel):
+    actions: List[SyncAction]
+    download_root: str
+
+
+class SyncExecuteIn(BaseModel):
+    action_ids: List[str]
+
+
+class SyncExecuteOut(BaseModel):
+    results: List[dict]
+
+
+def _scan_unknown_dirs(download_root: str, known_normalized: set) -> list:
+    results = []
+
+    def _walk(abs_path: str, rel: str, depth: int):
+        if depth > 5:
+            return
+        try:
+            entries = [e for e in os.scandir(abs_path) if e.is_dir(follow_symlinks=False)]
+        except (PermissionError, FileNotFoundError):
+            return
+        for entry in entries:
+            child_rel = (rel + "/" + entry.name).lstrip("/")
+            if child_rel in known_normalized:
+                continue
+            if any(k.startswith(child_rel + "/") for k in known_normalized):
+                _walk(entry.path, child_rel, depth + 1)
+                continue
+            results.append({"rel_path": child_rel, "abs_path": entry.path, "name": entry.name})
+
+    _walk(download_root, "", 0)
+    return results
+
+
+def _build_sync_actions(session: Session, download_root: str) -> List[SyncAction]:
+    crades = session.exec(select(DownloadCrade)).all()
+    known = {c.subdir.replace("\\", "/").strip("/") for c in crades if c.subdir}
+    actions: List[SyncAction] = []
+
+    for crade in crades:
+        if not crade.subdir:
+            continue
+        rel = crade.subdir.replace("\\", "/").strip("/")
+        full = os.path.join(download_root, rel)
+        exists = os.path.isdir(full)
+
+        job = session.exec(
+            select(DownloadJob)
+            .where(DownloadJob.crade_id == crade.id)
+            .order_by(DownloadJob.created_at.desc())
+            .limit(1)
+        ).first()
+
+        if not exists:
+            if job and job.status == "done":
+                actions.append(SyncAction(
+                    id=f"missing_{crade.id}", type="mark_missing",
+                    crade_id=crade.id, crade_name=crade.name,
+                    description="Download was klaar maar map is verwijderd van disk.",
+                    path=full, rel_path=rel, selected=False,
+                ))
+            else:
+                actions.append(SyncAction(
+                    id=f"mkdir_{crade.id}", type="create_dir",
+                    crade_id=crade.id, crade_name=crade.name,
+                    description="Crade staat in DB maar de downloadmap bestaat nog niet op disk.",
+                    path=full, rel_path=rel, selected=True,
+                ))
+        elif job and job.output_path:
+            op_full = os.path.join(full, job.output_path)
+            if not os.path.isdir(op_full) and not os.path.isfile(op_full):
+                actions.append(SyncAction(
+                    id=f"clearop_{crade.id}", type="clear_output",
+                    crade_id=crade.id, crade_name=crade.name,
+                    description=f"output_path '{job.output_path}' bestaat niet meer op disk.",
+                    path=op_full, rel_path=f"{rel}/{job.output_path}", selected=True,
+                ))
+
+    if os.path.isdir(download_root):
+        for u in _scan_unknown_dirs(download_root, known):
+            aid = "disk_" + u["rel_path"].replace("/", "_").replace(" ", "_")
+            actions.append(SyncAction(
+                id=aid, type="add_from_disk",
+                crade_id=None, crade_name=u["name"],
+                description="Map gevonden op disk zonder bijbehorende crade in DB.",
+                path=u["abs_path"], rel_path=u["rel_path"], selected=False,
+            ))
+
+    return actions
+
+
+@router.get("/sync/preview", response_model=SyncPreviewOut)
+def sync_preview(
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    actions = _build_sync_actions(session, settings.DOWNLOAD_DIR)
+    return SyncPreviewOut(actions=actions, download_root=settings.DOWNLOAD_DIR)
+
+
+@router.post("/sync/execute", response_model=SyncExecuteOut)
+def sync_execute(
+    body: SyncExecuteIn,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    wanted = set(body.action_ids)
+    actions = _build_sync_actions(session, settings.DOWNLOAD_DIR)
+    results = []
+
+    for a in actions:
+        if a.id not in wanted:
+            continue
+        try:
+            if a.type == "create_dir":
+                os.makedirs(a.path, exist_ok=True)
+                results.append({"id": a.id, "ok": True, "message": f"Map aangemaakt: {a.rel_path}"})
+
+            elif a.type == "mark_missing":
+                job = session.exec(
+                    select(DownloadJob)
+                    .where(DownloadJob.crade_id == a.crade_id)
+                    .order_by(DownloadJob.created_at.desc())
+                    .limit(1)
+                ).first()
+                if job:
+                    job.status = "error"
+                    job.error = "Map verwijderd van disk (gedetecteerd via sync)"
+                    job.updated_at = datetime.utcnow()
+                    session.add(job)
+                results.append({"id": a.id, "ok": True, "message": f"'{a.crade_name}' gemarkeerd als fout"})
+
+            elif a.type == "clear_output":
+                job = session.exec(
+                    select(DownloadJob)
+                    .where(DownloadJob.crade_id == a.crade_id)
+                    .order_by(DownloadJob.created_at.desc())
+                    .limit(1)
+                ).first()
+                if job:
+                    job.output_path = None
+                    job.updated_at = datetime.utcnow()
+                    session.add(job)
+                results.append({"id": a.id, "ok": True, "message": f"output_path gewist voor '{a.crade_name}'"})
+
+            elif a.type == "add_from_disk":
+                new_crade = DownloadCrade(
+                    name=a.crade_name,
+                    subdir=a.rel_path,
+                    created_by=user.id,
+                )
+                session.add(new_crade)
+                results.append({"id": a.id, "ok": True, "message": f"Crade aangemaakt: '{a.crade_name}'"})
+
+        except Exception as e:
+            results.append({"id": a.id, "ok": False, "message": str(e)})
+
+    session.commit()
+    return SyncExecuteOut(results=results)
+
+
 # ── Stale-job reset ───────────────────────────────────────────────────────────
 
 def reset_stale_jobs():
