@@ -46,7 +46,7 @@ def upgrade():
     if "crade_id" not in existing_cols:
         op.add_column(
             "download_jobs",
-            sa.Column("crade_id", sa.String(), sa.ForeignKey("download_crades.id"), nullable=True),
+            sa.Column("crade_id", sa.String(), nullable=True),
         )
 
 
