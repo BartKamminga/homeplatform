@@ -120,8 +120,13 @@ export default function App() {
   const [draggingCrade, setDraggingCrade] = useState(null)
   const [draggingRack,  setDraggingRack]  = useState(null)
   const [dragOver,     setDragOver]     = useState(null)
+  const [dlg,          setDlg]          = useState(null)
   const timerRef = useRef(null)
   const urlRef   = useRef(null)
+
+  const openPrompt  = (title, initial = '') => new Promise(res => setDlg({ type: 'prompt',  title, value: initial, resolve: res }))
+  const openConfirm = (msg)                 => new Promise(res => setDlg({ type: 'confirm', msg,                   resolve: res }))
+  const closeDlg    = val => { dlg?.resolve(val); setDlg(null) }
 
   const load = () => getTree().then(setTree).catch(() => {})
   useEffect(() => { load() }, [])
@@ -157,39 +162,39 @@ export default function App() {
 
   // Section actions
   const addSection = async () => {
-    const name = prompt('Naam van de nieuwe Section:')
+    const name = await openPrompt('Naam van de nieuwe Section:')
     if (!name?.trim()) return
     await createSection({ name: name.trim() }); await load()
   }
   const renameSection = async (id, cur) => {
-    const name = prompt('Nieuwe naam:', cur)
+    const name = await openPrompt('Nieuwe naam:', cur)
     if (!name?.trim() || name === cur) return
     await updateSection(id, { name: name.trim() }); await load()
   }
   const removeSection = async id => {
-    if (!confirm('Section verwijderen? Racks worden losgemaakt.')) return
+    if (!await openConfirm('Section verwijderen? Racks worden losgemaakt.')) return
     await deleteSection(id); await load()
   }
 
   // Rack actions
   const addRack = async (sectionId = null) => {
-    const name = prompt('Naam van de nieuwe Rack:')
+    const name = await openPrompt('Naam van de nieuwe Rack:')
     if (!name?.trim()) return
     await createRack({ name: name.trim(), section_id: sectionId }); await load()
   }
   const renameRack = async (id, cur) => {
-    const name = prompt('Nieuwe naam:', cur)
+    const name = await openPrompt('Nieuwe naam:', cur)
     if (!name?.trim() || name === cur) return
     await updateRack(id, { name: name.trim() }); await load()
   }
   const removeRack = async id => {
-    if (!confirm('Rack verwijderen? Crades worden losgemaakt.')) return
+    if (!await openConfirm('Rack verwijderen? Crades worden losgemaakt.')) return
     await deleteRack(id); await load()
   }
 
   // Crade actions
   const removeCrade = async id => {
-    if (!confirm('Crade verwijderen inclusief alle downloads?')) return
+    if (!await openConfirm('Crade verwijderen inclusief alle downloads?')) return
     await deleteCrade(id)
     setTree(t => ({
       ...t,
@@ -412,6 +417,40 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {dlg && (
+        <div className="bc-dlg-overlay" onClick={() => closeDlg(dlg.type === 'confirm' ? false : null)}>
+          <div className="bc-dlg" onClick={e => e.stopPropagation()}>
+            <div className="bc-dlg-title">{dlg.type === 'confirm' ? 'Bevestig' : dlg.title}</div>
+            {dlg.type === 'confirm' && <p className="bc-dlg-msg">{dlg.msg}</p>}
+            {dlg.type === 'prompt' && (
+              <input
+                className="bc-inp bc-dlg-inp"
+                value={dlg.value}
+                autoFocus
+                onChange={e => setDlg(d => ({ ...d, value: e.target.value }))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') closeDlg(dlg.value)
+                  if (e.key === 'Escape') closeDlg(null)
+                }}
+              />
+            )}
+            <div className="bc-dlg-acts">
+              <button className="bc-btn bc-btn-sec" onClick={() => closeDlg(dlg.type === 'confirm' ? false : null)}>
+                Annuleren
+              </button>
+              <button
+                className={`bc-btn ${dlg.type === 'confirm' ? 'bc-btn-danger' : 'bc-btn-pri'}`}
+                autoFocus={dlg.type === 'confirm'}
+                onClick={() => closeDlg(dlg.type === 'confirm' ? true : dlg.value)}
+                onKeyDown={e => { if (e.key === 'Escape') closeDlg(dlg.type === 'confirm' ? false : null) }}
+              >
+                {dlg.type === 'confirm' ? 'Verwijderen' : 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

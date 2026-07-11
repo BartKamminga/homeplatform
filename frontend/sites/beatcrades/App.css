@@ -522,3 +522,58 @@
   color: var(--bc-muted);
   font-size: 0.92rem;
 }
+
+/* ── Dialog ── */
+
+.bc-dlg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.bc-dlg {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-md, 0 8px 32px rgba(0,0,0,.18));
+  padding: 20px 22px 16px;
+  min-width: 320px;
+  max-width: 440px;
+  width: 90%;
+}
+
+.bc-dlg-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--color-text, #111);
+}
+
+.bc-dlg-msg {
+  font-size: 13px;
+  color: var(--color-text-muted, #6b7280);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.bc-dlg-inp {
+  width: 100%;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+}
+
+.bc-dlg-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.bc-btn-danger {
+  background: var(--color-danger, #dc2626);
+  color: #fff;
+}
