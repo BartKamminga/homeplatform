@@ -7,6 +7,7 @@ import re
 import shutil
 import tempfile
 import unicodedata
+from urllib.parse import urlparse
 from datetime import datetime
 from typing import List, Optional
 
@@ -31,6 +32,18 @@ def _safe_name(name: str) -> str:
     ascii_str = nfkd.encode("ascii", "ignore").decode()
     safe = re.sub(r"[^\w\-.]", "_", ascii_str).strip("_.")
     return safe or "crade"
+
+
+def _slug_from_beatport_url(url: str) -> Optional[str]:
+    """Haal een leesbare naam op uit de Beatport URL-slug."""
+    try:
+        parts = [p for p in urlparse(url).path.split("/") if p]
+        # bijv. ['playlist', 'house-vibes-2024', '12345678']
+        if len(parts) >= 2:
+            return parts[1].replace("-", " ").title()
+    except Exception:
+        pass
+    return None
 
 
 def _detect_source(url: str) -> str:
@@ -443,9 +456,11 @@ async def create_crade(
     session.commit()
     session.refresh(crade)
 
+    source = _detect_source(url)
     job = DownloadJob(
-        url=url, source=_detect_source(url),
+        url=url, source=source,
         format=body.format, crade_id=crade.id,
+        output_path=_slug_from_beatport_url(url) if source == "beatport" else None,
         created_by=user.id,
     )
     session.add(job)
