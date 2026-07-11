@@ -123,9 +123,9 @@ export default function Monitoring() {
           />
           <LinkCard
             icon="🎵"
-            title="Beatload"
-            description="Download tracks van Beatport, YouTube en SoundCloud als FLAC via yt-dlp en beatportdl."
-            href="/beatload/"
+            title="BeatCrades"
+            description="Download crates voor Beatport, YouTube en SoundCloud via yt-dlp en beatportdl."
+            href="/beatcrades/"
             internal
           />
         </div>

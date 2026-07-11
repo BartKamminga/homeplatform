@@ -1,0 +1,431 @@
+/* BeatCrades — treeview stijlen */
+
+:root {
+  --bc-acc:     #6e60f0;
+  --bc-acc-dim: rgba(110,96,240,0.12);
+  --bc-ok:      #22c55e;
+  --bc-warn:    #f59e0b;
+  --bc-err:     #ef4444;
+  --bc-muted:   var(--color-text-muted, #6b7280);
+  --bc-r:       10px;
+  --bc-gap:     8px;
+}
+
+/* ── Layout ── */
+
+.bc-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 0 80px;
+}
+
+.bc-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  margin-bottom: 16px;
+}
+
+.bc-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 3px;
+}
+
+.bc-subtitle {
+  font-size: 0.82rem;
+  color: var(--bc-muted);
+  margin: 0;
+}
+
+.bc-hdr-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.bc-main {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bc-gap);
+}
+
+/* ── Buttons ── */
+
+.bc-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity .15s;
+}
+.bc-btn:hover { opacity: .82; }
+.bc-btn-pri { background: var(--bc-acc); color: #fff; }
+.bc-btn-sec { background: var(--color-surface-2, #f3f4f6); color: var(--color-text, #111); border: 1px solid var(--color-border, #e5e7eb); }
+
+.bc-del-btn {
+  background: none;
+  border: none;
+  color: var(--bc-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: color .12s, background .12s;
+  flex-shrink: 0;
+}
+.bc-del-btn:hover { color: var(--bc-err); background: color-mix(in srgb, var(--bc-err) 10%, transparent); }
+
+/* ── New crade form ── */
+
+.bc-new-card {
+  background: var(--color-surface, #fff);
+  border: 1px dashed var(--bc-acc);
+  border-radius: var(--bc-r);
+  padding: 16px;
+}
+
+.bc-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bc-field label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--bc-muted);
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.bc-inp {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #d1d5db);
+  background: var(--color-surface-2, #f9fafb);
+  color: var(--color-text, #111);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .15s;
+}
+.bc-inp:focus { border-color: var(--bc-acc); }
+
+.bc-fmt-seg {
+  display: flex;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bc-fmt-btn {
+  padding: 5px 14px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border, #d1d5db);
+  color: var(--bc-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.bc-fmt-btn:last-child { border-right: none; }
+.bc-fmt-btn:hover { background: var(--bc-acc-dim); color: var(--bc-acc); }
+.bc-fmt-btn.active { background: var(--bc-acc); color: #fff; }
+
+.bc-err-msg {
+  font-size: 13px;
+  color: var(--bc-err);
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bc-err) 8%, transparent);
+  border-radius: 6px;
+}
+
+.bc-new-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Groups ── */
+
+.bc-group {
+  border: 1px solid rgba(110,96,240,.3);
+  border-radius: var(--bc-r);
+  overflow: hidden;
+  background: var(--color-surface, #fff);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.bc-group.dz-over {
+  border-color: var(--bc-acc);
+  box-shadow: 0 0 0 2px rgba(110,96,240,.2);
+}
+
+.bc-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bc-acc-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.bc-group-icon { font-size: 15px; flex-shrink: 0; }
+
+.bc-group-name {
+  flex: 1;
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bc-group-name:hover { text-decoration: underline; }
+
+.bc-group-count {
+  font-size: 11px;
+  color: var(--bc-muted);
+  flex-shrink: 0;
+}
+
+.bc-group-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+.bc-group-empty {
+  text-align: center;
+  padding: 14px;
+  font-size: 12px;
+  color: var(--bc-muted);
+  opacity: .5;
+}
+
+/* ── Crades ── */
+
+.bc-crade {
+  background: var(--color-surface-2, #f9fafb);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+
+.bc-crade.in-group { background: var(--color-surface, #fff); }
+.bc-crade.dragging { opacity: .4; }
+.bc-crade.bc-crade--active { border-color: rgba(110,96,240,.4); }
+.bc-crade.bc-crade--done   { border-color: color-mix(in srgb, var(--bc-ok) 35%, transparent); }
+.bc-crade.bc-crade--error  { border-color: color-mix(in srgb, var(--bc-err) 35%, transparent); }
+
+.bc-crade-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px 10px 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .1s;
+}
+.bc-crade-head:hover { background: color-mix(in srgb, var(--color-border, #e5e7eb) 40%, transparent); }
+
+.bc-drag {
+  font-size: 12px;
+  color: var(--bc-muted);
+  opacity: 0;
+  cursor: grab;
+  flex-shrink: 0;
+  padding: 2px 3px;
+  transition: opacity .15s;
+  line-height: 1;
+}
+.bc-crade-head:hover .bc-drag { opacity: .45; }
+.bc-drag:hover { opacity: 1 !important; }
+.bc-drag:active { cursor: grabbing; }
+
+.bc-chev {
+  font-size: 10px;
+  color: var(--bc-muted);
+  flex-shrink: 0;
+  width: 12px;
+  display: inline-block;
+}
+
+.bc-crade-icon { font-size: 15px; flex-shrink: 0; }
+
+.bc-crade-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bc-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bc-badge-src { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); }
+.bc-badge-cnt { background: var(--bc-acc-dim); color: var(--bc-acc); border: 1px solid rgba(110,96,240,.2); }
+.bc-badge-fmt { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); font-size: 10px; }
+
+.bc-badge-st         { border: 1px solid transparent; }
+.bc-badge-st--empty  { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
+.bc-badge-st--queued { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
+.bc-badge-st--active { background: rgba(110,96,240,.12); color: var(--bc-acc); animation: bc-pulse 2s ease-in-out infinite; }
+.bc-badge-st--done   { background: color-mix(in srgb, var(--bc-ok) 12%, transparent); color: var(--bc-ok); }
+.bc-badge-st--error  { background: color-mix(in srgb, var(--bc-err) 12%, transparent); color: var(--bc-err); }
+
+@keyframes bc-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+/* Crade body */
+
+.bc-crade-body {
+  border-top: 1px solid var(--color-border, #e5e7eb);
+  padding: 0;
+}
+
+.bc-src-url {
+  padding: 6px 12px 6px 36px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--bc-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.bc-subdir {
+  padding: 4px 12px 4px 36px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--bc-acc);
+  opacity: .7;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.bc-prog {
+  padding: 10px 12px 10px 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.bc-prog-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--color-border, #e5e7eb);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bc-prog-fill {
+  height: 100%;
+  background: var(--bc-acc);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+
+.bc-prog-lbl { font-size: 11px; color: var(--bc-muted); flex-shrink: 0; }
+
+.bc-log { border-bottom: 1px solid var(--color-border, #e5e7eb); }
+
+.bc-log-hint {
+  padding: 6px 12px 6px 36px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--bc-acc);
+  opacity: .7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bc-log-hint:hover { opacity: 1; }
+
+.bc-log-full {
+  display: block;
+  padding: 8px 12px 8px 36px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--color-text, #111);
+  background: color-mix(in srgb, var(--bc-acc) 4%, transparent);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+  cursor: pointer;
+  margin: 0;
+}
+
+.bc-crade-err {
+  padding: 8px 12px 8px 36px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--bc-err);
+  background: color-mix(in srgb, var(--bc-err) 6%, transparent);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Ungroup drop zone ── */
+
+.bc-ungroup-zone {
+  border: 2px dashed var(--color-border, #d1d5db);
+  border-radius: var(--bc-r);
+  padding: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--bc-muted);
+  opacity: .6;
+  transition: all .15s;
+}
+
+.bc-ungroup-zone.active {
+  border-color: var(--bc-ok);
+  color: var(--bc-ok);
+  opacity: 1;
+  background: color-mix(in srgb, var(--bc-ok) 6%, transparent);
+}
+
+/* ── Empty state ── */
+
+.bc-empty {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--bc-muted);
+  font-size: 0.92rem;
+}

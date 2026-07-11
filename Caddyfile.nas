@@ -64,9 +64,9 @@
         file_server
     }
 
-    handle /beatload/* {
+    handle /beatcrades/* {
         root * /srv/www
-        try_files {path} /beatload/index.html
+        try_files {path} /beatcrades/index.html
         file_server
     }
 

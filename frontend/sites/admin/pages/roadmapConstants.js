@@ -1,6 +1,6 @@
 import { adminStyles } from "../adminStyles.js";
 
-export const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets", "poulebord", "beatload"];
+export const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets", "poulebord", "beatcrades"];
 export const STATUSES = ["alle", "idea", "analyzed", "pick_up", "in_progress", "ready", "deploying", "done"];
 export const PRIORITIES = ["alle", "high", "medium", "low"];
 export const SCOPES = ["frontend", "backend", "beide", "infra", "database", "platform"];
