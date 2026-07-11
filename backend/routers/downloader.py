@@ -4,6 +4,8 @@ import asyncio
 import logging
 import os
 import re
+import shutil
+import tempfile
 import unicodedata
 from datetime import datetime
 from typing import List, Optional
@@ -85,12 +87,38 @@ async def _run_download(job_id: str):
         _update_job(job_id, status="error", error=f"Kan download-map niet aanmaken: {e}")
         return
 
+    # beatportdl leest altijd 'beatportdl-config.yml' vanuit de werkdirectory.
+    # downloads_directory is verplicht in de config. Geen -c of -d flags.
+    # We schrijven per job een temp config met de juiste downloads_directory.
+    work_dir = None
+
     if source == "beatport":
-        cmd = ["beatportdl", "-d", download_dir]
-        if settings.BEATPORTDL_CONFIG_DIR:
-            config_file = settings.BEATPORTDL_CONFIG_DIR.rstrip("/") + "/config.yaml"
-            cmd += ["-c", config_file]
-        cmd.append(url)
+        config_dir = settings.BEATPORTDL_CONFIG_DIR
+        if not config_dir:
+            _update_job(job_id, status="error", error="BEATPORTDL_CONFIG_DIR niet geconfigureerd.")
+            return
+        base_config = os.path.join(config_dir, "beatportdl-config.yml")
+        if not os.path.exists(base_config):
+            _update_job(job_id, status="error",
+                        error=f"Hernoem je config naar 'beatportdl-config.yml' in {config_dir}")
+            return
+        try:
+            work_dir = tempfile.mkdtemp(prefix=f"bdl_{job_id}_")
+            with open(base_config, "r") as f:
+                lines = f.readlines()
+            lines = [l for l in lines if not l.strip().startswith("downloads_directory:")]
+            lines.append(f"downloads_directory: {download_dir}\n")
+            with open(os.path.join(work_dir, "beatportdl-config.yml"), "w") as f:
+                f.writelines(lines)
+            creds_src = os.path.join(config_dir, "beatportdl-credentials.json")
+            if os.path.exists(creds_src):
+                shutil.copy2(creds_src, os.path.join(work_dir, "beatportdl-credentials.json"))
+        except Exception as e:
+            _update_job(job_id, status="error", error=f"Kan beatportdl config niet laden: {e}")
+            if work_dir:
+                shutil.rmtree(work_dir, ignore_errors=True)
+            return
+        cmd = ["beatportdl", url]
     else:
         cmd = [
             "yt-dlp", "-x",
@@ -102,11 +130,10 @@ async def _run_download(job_id: str):
         ]
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
+        proc_kwargs = {"stdout": asyncio.subprocess.PIPE, "stderr": asyncio.subprocess.STDOUT}
+        if work_dir:
+            proc_kwargs["cwd"] = work_dir
+        proc = await asyncio.create_subprocess_exec(*cmd, **proc_kwargs)
 
         lines: list = []
         error_hints: list = []  # alle regels met fout-keywords, onbeperkt
@@ -141,6 +168,11 @@ async def _run_download(job_id: str):
         await proc.wait()
         _update_job(job_id, progress_log="\n".join(lines))
 
+        if work_dir:
+            creds_new = os.path.join(work_dir, "beatportdl-credentials.json")
+            if os.path.exists(creds_new):
+                shutil.copy2(creds_new, os.path.join(settings.BEATPORTDL_CONFIG_DIR, "beatportdl-credentials.json"))
+
         if proc.returncode == 0:
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar: %s → %s", job_id, output_path)
@@ -159,6 +191,9 @@ async def _run_download(job_id: str):
                     error=f"'{tool}' niet gevonden. Zorg dat het geïnstalleerd is in de Docker-container.")
     except Exception as e:
         _update_job(job_id, status="error", error=str(e)[:500])
+    finally:
+        if work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
