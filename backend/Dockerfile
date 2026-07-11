@@ -6,15 +6,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# beatportdl — optioneel; build gaat door als download mislukt
-# Controleer https://github.com/unspok3n/beatportdl/releases voor de juiste versie/bestandsnaam
-RUN ARCH=$(dpkg --print-architecture); \
+# beatportdl — verplicht voor BeatCrades downloads
+RUN ARCH=$(dpkg --print-architecture) && echo "Architectuur: $ARCH" && \
     if [ "$ARCH" = "amd64" ]; then BIN="beatportdl_Linux_x86_64.tar.gz"; \
-    else BIN="beatportdl_Linux_arm64.tar.gz"; fi; \
+    elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then BIN="beatportdl_Linux_arm64.tar.gz"; \
+    else echo "Onbekende architectuur: $ARCH" && exit 1; fi && \
+    echo "Downloading $BIN ..." && \
     curl -fsSL "https://github.com/unspok3n/beatportdl/releases/latest/download/${BIN}" \
-      | tar -xz -C /usr/local/bin beatportdl 2>/dev/null \
-      && chmod +x /usr/local/bin/beatportdl \
-      || echo "beatportdl niet gedownload — plaats binary handmatig op /usr/local/bin/beatportdl"
+      | tar -xz -C /usr/local/bin beatportdl && \
+    chmod +x /usr/local/bin/beatportdl && \
+    echo "beatportdl versie: $(beatportdl --version 2>&1 || true)"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
