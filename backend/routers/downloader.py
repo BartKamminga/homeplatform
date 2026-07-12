@@ -116,6 +116,7 @@ def _detect_source(url: str) -> str:
 
 
 _GO_PANIC_RE = re.compile(r"^goroutine \d+", re.MULTILINE)
+_PLAYLIST_NAME_RE = re.compile(r'^\[download\] Downloading playlist:\s*(.+)', re.IGNORECASE)
 
 
 def _extract_go_panic_reason(lines: list) -> str:
@@ -268,9 +269,10 @@ async def _run_download_inner(job_id: str):
         _active_procs[job_id] = proc
 
         lines: list = []
-        error_hints: list = []  # alle regels met fout-keywords, onbeperkt
+        error_hints: list = []
         flush_count = 0
         output_path = None
+        detected_playlist_name: Optional[str] = None
         _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
 
         timed_out = False
@@ -305,6 +307,10 @@ async def _run_download_inner(job_id: str):
             m = re.search(r"Destination: (.+\.(?:flac|mp3|m4a|ogg|opus|wav))", line, re.IGNORECASE)
             if m:
                 output_path = os.path.basename(m.group(1).strip())
+
+            pm = _PLAYLIST_NAME_RE.match(line)
+            if pm:
+                detected_playlist_name = pm.group(1).strip()
 
             if any(kw in line.lower() for kw in _ERR_KW):
                 error_hints.append(line)
@@ -356,6 +362,20 @@ async def _run_download_inner(job_id: str):
         if succeeded:
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar [%s] crade=%r source=%s → %s", job_id, crade_name, source, output_path)
+            if detected_playlist_name and crade_id:
+                try:
+                    with Session(engine) as s:
+                        c = s.get(DownloadCrade, crade_id)
+                        if c:
+                            rack = s.get(DownloadCradeGroup, c.group_id) if c.group_id else None
+                            section = s.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
+                            new_rel = _build_subdir(detected_playlist_name, rack=rack, section=section)
+                            _move_crade_dir(c, new_rel, s)
+                            c.name = detected_playlist_name
+                            s.commit()
+                            logger.info("Crade hernoemd naar '%s' na playlist-detectie", detected_playlist_name)
+                except Exception as exc:
+                    logger.warning("Kan crade-naam niet bijwerken na playlist-detectie: %s", exc)
             try:
                 info_path = os.path.join(download_dir, "BeatCrades.info")
                 with open(info_path, "w", encoding="utf-8") as f:

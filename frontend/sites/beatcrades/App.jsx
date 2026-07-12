@@ -122,6 +122,27 @@ function lastLine(log) {
   return log.split('\n').filter(Boolean).at(-1) || ''
 }
 
+function parseCurrentTrack(log) {
+  if (!log) return null
+  let name = null
+  for (const line of log.split('\n')) {
+    // yt-dlp: Destination: /path/to/Artist - Track.ext  of  [ExtractAudio] Destination: ...
+    let m = line.match(/Destination:\s*(.+\.(?:flac|mp3|m4a|opus|ogg|wav|webm|mkv))\s*$/i)
+    if (m) { name = m[1].split(/[/\\]/).pop().replace(/\.[^.]+$/, ''); continue }
+    // yt-dlp: [Metadata] Adding metadata to "Artist - Track.flac"
+    // yt-dlp: [Merger] Merging formats into "Artist - Track.mkv"
+    m = line.match(/\[(?:Metadata|Merger|ExtractAudio)\][^"]*"(.+?)"/i)
+    if (m) { name = m[1].replace(/\.[^.]+$/, ''); continue }
+  }
+  return name
+}
+
+// Behandel server-timestamp als UTC (backend stuurt zonder 'Z')
+function utcDate(ts) {
+  if (!ts) return null
+  return new Date(ts.endsWith('Z') ? ts : ts + 'Z')
+}
+
 function todayName() {
   const d = new Date()
   return `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`
@@ -624,7 +645,7 @@ function isCradeOpen(openCrades, id) { return !!openCrades[id] }
 
 // ── CradeRow ──────────────────────────────────────────────────────────────────
 
-const STALL_MS = 3 * 60 * 1000
+const STALL_MS = { beatport: 3 * 60 * 1000, youtube: 8 * 60 * 1000, soundcloud: 8 * 60 * 1000, auto: 8 * 60 * 1000 }
 
 function CradeRow({ crade, open, onToggle, onRename, onDelete, onRestart, onCancel, inRack, dragging, onDragStart, onDragEnd }) {
   const [logExpanded, setLogExpanded] = useState(false)
@@ -635,9 +656,11 @@ function CradeRow({ crade, open, onToggle, onRename, onDelete, onRestart, onCanc
   const { done, total } = parseProgress(crade.progress_log)
   const pct = total ? Math.round(done / total * 100) : 0
   const isActive = crade.status === 'downloading' || crade.status === 'queued'
+  const currentTrack = parseCurrentTrack(crade.progress_log)
 
-  const isStalled = crade.status === 'downloading' && crade.last_progress_at &&
-    (Date.now() - new Date(crade.last_progress_at).getTime()) > STALL_MS
+  const lpAt = utcDate(crade.last_progress_at)
+  const stallMs = STALL_MS[src] ?? STALL_MS.auto
+  const isStalled = crade.status === 'downloading' && lpAt && (Date.now() - lpAt.getTime()) > stallMs
 
   const canCancel  = crade.status === 'downloading'
   const canRestart = crade.status === 'error' || crade.status === 'done' || isStalled
@@ -661,9 +684,12 @@ function CradeRow({ crade, open, onToggle, onRename, onDelete, onRestart, onCanc
             {crade.name}
           </span>
           {crade.status === 'downloading' && (
-            <span className="bc-crade-progress-line">
-              {crade.progress_log ? lastLine(crade.progress_log) : 'Downloaden gestart…'}
-            </span>
+            <div className="bc-crade-progress-wrap">
+              {currentTrack && <span className="bc-crade-current-track">♪ {currentTrack}</span>}
+              <span className="bc-crade-progress-line">
+                {crade.progress_log ? lastLine(crade.progress_log) : 'Downloaden gestart…'}
+              </span>
+            </div>
           )}
         </div>
         <div className="bc-badges">
