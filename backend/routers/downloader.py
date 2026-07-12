@@ -1,13 +1,16 @@
-"""BeatCrades — download queue: Section → Rack → Crade (beatportdl + yt-dlp)."""
+"""BeatCrades — router en API endpoints.
 
-import asyncio
+Architectuur:
+  downloader.py          ← dit bestand: router + schemas + endpoints
+  downloader_helpers.py  ← gedeelde helpers: naamgeving, subdir, DB-schrijven
+  downloader_worker.py   ← achtergrond-worker: semaphore, lees-loop, dispatch
+  downloader_beatport.py ← beatportdl: config, voorbereiding, resultaatverwerking
+  downloader_ytdlp.py    ← yt-dlp: commando, resultaatverwerking
+"""
+
 import logging
 import os
-import re
 import shutil
-import tempfile
-import unicodedata
-from urllib.parse import urlparse
 from datetime import datetime
 from typing import List, Optional
 
@@ -16,462 +19,18 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from core.auth import get_current_user
-from core.database import engine, get_session
+from core.database import get_session
 from core.exceptions import AppError
 from core.settings import settings
 from models.downloader import DownloadCrade, DownloadCradeGroup, DownloadJob, DownloadSection
+from routers.downloader_helpers import (
+    build_subdir, detect_source, expected_subdir,
+    move_crade_dir, slug_from_beatport_url, today_name,
+)
+from routers.downloader_worker import active_procs, run_download
 
 router = APIRouter(prefix="/api/beatcrades", tags=["beatcrades"])
 logger = logging.getLogger("homeplatform.beatcrades")
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _safe_name(name: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", name)
-    ascii_str = nfkd.encode("ascii", "ignore").decode()
-    safe = re.sub(r"[^\w\-.]", "_", ascii_str).strip("_.")
-    return safe or "crade"
-
-
-def _build_subdir(crade_name: str, rack=None, section=None) -> str:
-    """Bouw hiërarchisch subdir-pad op basis van DB-positie."""
-    parts = []
-    if section:
-        parts.append(_safe_name(section.name))
-    if rack:
-        parts.append(_safe_name(rack.name))
-    parts.append(_safe_name(crade_name))
-    return "/".join(parts)
-
-
-def _expected_subdir(crade: DownloadCrade, session: Session) -> str:
-    """Bereken het verwachte subdir-pad voor een bestaande crade."""
-    rack = session.get(DownloadCradeGroup, crade.group_id) if crade.group_id else None
-    section = session.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
-    return _build_subdir(crade.name, rack=rack, section=section)
-
-
-def _move_crade_dir(crade: DownloadCrade, new_rel: str, session: Session) -> None:
-    """Verplaats de disk-map van crade naar new_rel en update crade.subdir in de sessie."""
-    old_rel = (crade.subdir or "").replace("\\", "/").strip("/")
-    if not old_rel or old_rel == new_rel:
-        crade.subdir = new_rel
-        crade.updated_at = datetime.utcnow()
-        session.add(crade)
-        return
-    old_full = os.path.join(settings.DOWNLOAD_DIR, old_rel)
-    new_full = os.path.join(settings.DOWNLOAD_DIR, new_rel)
-    if os.path.isdir(old_full) and not os.path.exists(new_full):
-        try:
-            os.makedirs(os.path.dirname(new_full), exist_ok=True)
-            shutil.move(old_full, new_full)
-            old_parent = os.path.dirname(old_full)
-            if old_parent != settings.DOWNLOAD_DIR and os.path.isdir(old_parent):
-                try:
-                    os.rmdir(old_parent)
-                except OSError:
-                    pass
-        except Exception as exc:
-            logger.warning("Kan mapnaam niet bijwerken van %s naar %s: %s", old_rel, new_rel, exc)
-    crade.subdir = new_rel
-    crade.updated_at = datetime.utcnow()
-    session.add(crade)
-
-
-_BP_TYPES = frozenset([
-    "playlist", "playlists", "release", "releases",
-    "track", "tracks", "artist", "artists",
-    "chart", "charts", "label", "labels", "mix", "mixes",
-])
-
-
-def _slug_from_beatport_url(url: str) -> Optional[str]:
-    """Haal een leesbare naam op uit de Beatport URL-slug.
-
-    Beatport URLs kunnen een taalprefix hebben (/en/, /nl/ …).
-    We zoeken het content-type segment en pakken de slug erna.
-    """
-    try:
-        parts = [p for p in urlparse(url).path.split("/") if p]
-        for i, p in enumerate(parts):
-            if p.lower() in _BP_TYPES and i + 1 < len(parts):
-                slug = parts[i + 1]
-                if not slug.isdigit():
-                    return slug.replace("-", " ").title()
-    except Exception:
-        pass
-    return None
-
-
-def _detect_source(url: str) -> str:
-    u = url.lower()
-    if "beatport.com" in u or "beatsource.com" in u:
-        return "beatport"
-    if "youtu.be" in u or "youtube.com" in u:
-        return "youtube"
-    if "soundcloud.com" in u:
-        return "soundcloud"
-    return "auto"
-
-
-_GO_PANIC_RE = re.compile(r"^goroutine \d+", re.MULTILINE)
-_PLAYLIST_NAME_RES = [
-    re.compile(r'^\[download\] Downloading playlist:\s*(.+)', re.IGNORECASE),  # yt-dlp
-    re.compile(r'^Downloading (?:Playlist|Release|Chart|Mix|Label|Artist)s?:\s*(.+)', re.IGNORECASE),  # beatportdl (enkel- of meervoud)
-]
-# beatportdl organiseert downloads in type-mappen: downloads_dir/Playlists/<naam>/ of downloads_dir/Releases/<naam>/
-# Zet bevat de top-level map-namen die een type zijn en niet de echte playlist-naam.
-_BEATPORT_TYPE_DIRS = frozenset([
-    "playlists", "releases", "tracks", "charts", "mixes", "labels", "artists",
-])
-
-
-def _find_beatport_content_name(download_dir: str, new_dirs: list) -> Optional[str]:
-    """Zoek de echte playlist/release-naam binnen de beatportdl directorystructuur.
-
-    beatportdl maakt: downloads_dir/Playlists/<naam>/ of downloads_dir/Releases/<naam>/.
-    Als new_dirs[0] een type-map is (Playlists, Releases…), zoek één niveau dieper.
-    """
-    for d in new_dirs:
-        if d.lower() in _BEATPORT_TYPE_DIRS:
-            type_path = os.path.join(download_dir, d)
-            try:
-                subs = sorted(
-                    e for e in os.listdir(type_path)
-                    if os.path.isdir(os.path.join(type_path, e))
-                )
-                if subs:
-                    return subs[0]
-            except OSError:
-                pass
-        else:
-            return d
-    return None
-
-
-def _extract_go_panic_reason(lines: list) -> str:
-    """Haal een leesbare oorzaak op uit een Go-panic dump."""
-    for line in lines:
-        if "panic:" in line.lower():
-            return line.strip()
-    for line in lines:
-        ll = line.lower()
-        if any(k in ll for k in ("tls", "connection reset", "eof", "timeout", "deadline exceeded", "i/o timeout")):
-            return line.strip()
-    return "Onverwachte crash (beatportdl panic)"
-
-
-def _is_go_panic(lines: list) -> bool:
-    return any(_GO_PANIC_RE.match(l) for l in lines)
-
-
-def _update_job(job_id: str, **kwargs):
-    with Session(engine) as s:
-        job = s.get(DownloadJob, job_id)
-        if not job:
-            return
-        for k, v in kwargs.items():
-            setattr(job, k, v)
-        job.updated_at = datetime.utcnow()
-        s.add(job)
-        s.commit()
-
-
-# ── Background worker ─────────────────────────────────────────────────────────
-
-_PERCENT_RE = re.compile(r"^\[download\]\s+\d")
-_NO_OUTPUT_TIMEOUT = 1800  # seconden: kill als er 30 min geen output is
-_READLINE_TIMEOUT = 12     # seconden per readline-poging; zorgt voor periodieke DB-pings
-
-# Bijhouden van actieve processen per job_id zodat /cancel ze kan stoppen
-_active_procs: dict[str, asyncio.subprocess.Process] = {}
-
-# Max 2 gelijktijdige downloads (beatportdl/yt-dlp); overige jobs blijven 'queued'
-_DOWNLOAD_SEM = asyncio.Semaphore(2)
-
-# Regels die beatportdl uitvoert in interactieve modus — niet tonen aan de gebruiker
-_BEATPORT_NOISE = ("enter url or search query", "error reading input string")
-
-
-async def _run_download(job_id: str):
-    async with _DOWNLOAD_SEM:
-        await _run_download_inner(job_id)
-
-
-async def _run_download_inner(job_id: str):
-    _update_job(job_id, status="downloading", progress_log="")
-
-    with Session(engine) as s:
-        job = s.get(DownloadJob, job_id)
-        if not job:
-            return
-        url = job.url
-        source = job.source
-        fmt = job.format
-        crade_id = job.crade_id
-
-        subdir = ""
-        crade_name = None
-        if crade_id:
-            crade = s.get(DownloadCrade, crade_id)
-            if crade:
-                crade_name = crade.name
-                if crade.subdir:
-                    subdir = crade.subdir
-
-    download_dir = os.path.join(settings.DOWNLOAD_DIR, subdir) if subdir else settings.DOWNLOAD_DIR
-
-    try:
-        os.makedirs(download_dir, exist_ok=True)
-    except Exception as e:
-        _update_job(job_id, status="error", error=f"Kan download-map niet aanmaken: {e}")
-        return
-
-    # beatportdl leest altijd 'beatportdl-config.yml' vanuit de werkdirectory.
-    # downloads_directory is verplicht in de config. Geen -c of -d flags.
-    # We schrijven per job een temp config met de juiste downloads_directory.
-    work_dir   = None
-    before_dirs: set = set()
-
-    if source == "beatport":
-        config_dir = settings.BEATPORTDL_CONFIG_DIR
-        if not config_dir:
-            _update_job(job_id, status="error", error="BEATPORTDL_CONFIG_DIR niet geconfigureerd.")
-            return
-        base_config = os.path.join(config_dir, "beatportdl-config.yml")
-        if not os.path.exists(base_config):
-            _update_job(job_id, status="error",
-                        error=f"Hernoem je config naar 'beatportdl-config.yml' in {config_dir}")
-            return
-        try:
-            work_dir = tempfile.mkdtemp(prefix=f"bdl_{job_id}_")
-            # Lees basis-config als key:value paren (negeert comments/lege regels).
-            # Schrijf schone YAML zonder comments om encoding-problemen te vermijden.
-            cfg: dict[str, str] = {}
-            with open(base_config, "r", encoding="utf-8") as f:
-                for line in f:
-                    stripped = line.strip()
-                    if not stripped or stripped.startswith("#"):
-                        continue
-                    if ":" in stripped:
-                        key, _, val = stripped.partition(":")
-                        cfg[key.strip()] = val.strip()
-            cfg["downloads_directory"] = download_dir
-            with open(os.path.join(work_dir, "beatportdl-config.yml"), "w", encoding="utf-8") as f:
-                for key, val in cfg.items():
-                    # Quoted als de waarde YAML-special chars bevat
-                    if any(c in val for c in ':#{}[]|>&*!,"\''):
-                        f.write(f'{key}: "{val.replace(chr(34), chr(92)+chr(34))}"\n')
-                    else:
-                        f.write(f"{key}: {val}\n")
-            creds_src = os.path.join(config_dir, "beatportdl-credentials.json")
-            if os.path.exists(creds_src):
-                shutil.copy2(creds_src, os.path.join(work_dir, "beatportdl-credentials.json"))
-        except Exception as e:
-            _update_job(job_id, status="error", error=f"Kan beatportdl config niet laden: {e}")
-            if work_dir:
-                shutil.rmtree(work_dir, ignore_errors=True)
-            return
-        # Snapshot bestaande subdirs zodat we na afloop de nieuwe kunnen detecteren
-        if os.path.exists(download_dir):
-            before_dirs = {e for e in os.listdir(download_dir)
-                           if os.path.isdir(os.path.join(download_dir, e))}
-        cmd = ["beatportdl", url]
-    else:
-        cmd = [
-            "yt-dlp", "-x",
-            "--audio-format", fmt,
-            "--audio-quality", "0",
-            "-P", download_dir,
-            "-o", "%(artist,uploader)s - %(title)s.%(ext)s",
-            url,
-        ]
-
-    try:
-        proc_kwargs = {
-            "stdout": asyncio.subprocess.PIPE,
-            "stderr": asyncio.subprocess.STDOUT,
-            "stdin": asyncio.subprocess.DEVNULL,  # voorkomt interactieve modus in beatportdl
-        }
-        if work_dir:
-            proc_kwargs["cwd"] = work_dir
-        proc = await asyncio.create_subprocess_exec(*cmd, **proc_kwargs)
-        _active_procs[job_id] = proc
-
-        lines: list = []
-        error_hints: list = []
-        flush_count = 0
-        output_path = None
-        detected_playlist_name: Optional[str] = None
-        new_dirs: list = []
-        _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
-
-        timed_out = False
-        last_output = datetime.utcnow()   # bijhouden wanneer we voor het laast een regel kregen
-        last_ping   = datetime.utcnow()   # bijhouden wanneer we voor het laast de DB pinged
-        while True:
-            try:
-                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=_READLINE_TIMEOUT)
-            except asyncio.TimeoutError:
-                now = datetime.utcnow()
-                # Geen output voor _NO_OUTPUT_TIMEOUT seconden → proces killen
-                if (now - last_output).total_seconds() >= _NO_OUTPUT_TIMEOUT:
-                    proc.kill()
-                    timed_out = True
-                    break
-                # Periodieke ping zodat de UI weet dat het nog bezig is
-                prog = "\n".join(lines) if lines else "Beatportdl gestart, wachten op eerste output…"
-                _update_job(job_id, progress_log=prog, last_progress_at=now)
-                last_ping = now
-                continue
-            if not raw:
-                break
-
-            last_output = datetime.utcnow()
-            line = raw.decode(errors="replace").rstrip()
-            if not line:
-                continue
-            # Sla interactieve-modus ruis van beatportdl over
-            if any(kw in line.lower() for kw in _BEATPORT_NOISE):
-                continue
-
-            m = re.search(r"Destination: (.+\.(?:flac|mp3|m4a|ogg|opus|wav))", line, re.IGNORECASE)
-            if m:
-                output_path = os.path.basename(m.group(1).strip())
-
-            for _pat in _PLAYLIST_NAME_RES:
-                _pm = _pat.match(line)
-                if _pm:
-                    # Strip eventueel trailing ID "(123456)" van beatportdl
-                    raw_name = _pm.group(1).strip()
-                    detected_playlist_name = re.sub(r"\s*\(\d+\)\s*$", "", raw_name).strip()
-                    break
-
-            if any(kw in line.lower() for kw in _ERR_KW):
-                error_hints.append(line)
-
-            is_percent = bool(_PERCENT_RE.match(line))
-            now = datetime.utcnow()
-            if is_percent and lines and _PERCENT_RE.match(lines[-1]):
-                lines[-1] = line
-            else:
-                lines.append(line)
-                if len(lines) > 60:
-                    lines.pop(0)
-                flush_count += 1
-
-            # Update log elke 5 regels; ping last_progress_at elke 30 seconden
-            do_ping = (now - last_ping).total_seconds() >= 30
-            if flush_count >= 5 or do_ping:
-                _update_job(job_id, progress_log="\n".join(lines), last_progress_at=now)
-                flush_count = 0
-                last_ping = now
-
-        if timed_out:
-            _update_job(
-                job_id, status="error",
-                error=f"Download gestopt: geen output in {_NO_OUTPUT_TIMEOUT // 60} minuten. "
-                      "Klik op 'Herstarten' om opnieuw te proberen.",
-            )
-            return
-
-        await proc.wait()
-        _update_job(job_id, progress_log="\n".join(lines))
-        logger.debug(
-            "beatportdl klaar [%s] exit=%s regels=%d detected_name=%r",
-            job_id, proc.returncode, len(lines), detected_playlist_name,
-        )
-
-        if work_dir:
-            creds_new = os.path.join(work_dir, "beatportdl-credentials.json")
-            if os.path.exists(creds_new):
-                shutil.copy2(creds_new, os.path.join(settings.BEATPORTDL_CONFIG_DIR, "beatportdl-credentials.json"))
-
-        # beatportdl eindigt altijd met exit 1 door EOF in interactieve modus.
-        # Beschouw het als succes als er geen echte fouten zijn (alleen EOF-melding).
-        real_errors = [h for h in error_hints if "error reading input string" not in h.lower()]
-        succeeded = proc.returncode == 0 or (work_dir and not real_errors)
-        if succeeded and work_dir and os.path.exists(download_dir):
-            # Detecteer nieuw aangemaakte map(pen) — beatportdl maakt Playlists/<naam>/ of Releases/<naam>/
-            after_dirs = {e for e in os.listdir(download_dir)
-                          if os.path.isdir(os.path.join(download_dir, e))}
-            new_dirs = sorted(after_dirs - before_dirs)
-            if new_dirs:
-                output_path = new_dirs[0]
-        if succeeded:
-            _update_job(job_id, status="done", output_path=output_path)
-            logger.info("Download klaar [%s] crade=%r source=%s → %s", job_id, crade_name, source, output_path)
-
-            # Bepaal nieuwe crade-naam:
-            # 1. Uit output-header (regex in read-loop)
-            # 2. Beatportdl directory-naam: kijk BINNEN type-map (Playlists/, Releases/…) voor echte naam
-            new_name = detected_playlist_name
-            if not new_name and source == "beatport" and new_dirs:
-                raw = _find_beatport_content_name(download_dir, new_dirs)
-                if raw:
-                    new_name = raw.replace("_", " ").strip()
-            if new_name:
-                logger.info("Playlist-naam gedetecteerd: %r (regex=%r, dirs=%r)", new_name, detected_playlist_name, new_dirs)
-
-            if new_name and crade_id:
-                try:
-                    with Session(engine) as s:
-                        c = s.get(DownloadCrade, crade_id)
-                        if c and c.name != new_name:
-                            if detected_playlist_name:
-                                # yt-dlp: verplaats ook de map naar de nieuwe naam
-                                rack = s.get(DownloadCradeGroup, c.group_id) if c.group_id else None
-                                section = s.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
-                                _move_crade_dir(c, _build_subdir(new_name, rack=rack, section=section), s)
-                            else:
-                                # beatportdl organiseert zijn eigen mappen; alleen naam bijwerken
-                                c.updated_at = datetime.utcnow()
-                                s.add(c)
-                            c.name = new_name
-                            s.commit()
-                            logger.info("Crade hernoemd naar '%s'", new_name)
-                except Exception as exc:
-                    logger.warning("Kan crade-naam niet bijwerken: %s", exc)
-            try:
-                info_path = os.path.join(download_dir, "BeatCrades.info")
-                with open(info_path, "w", encoding="utf-8") as f:
-                    f.write(f"name: {crade_name or 'onbekend'}\n")
-                    f.write(f"url: {url}\n")
-                    f.write(f"format: {fmt}\n")
-                    f.write(f"downloaded: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
-            except Exception as exc:
-                logger.warning("Kan BeatCrades.info niet schrijven: %s", exc)
-        else:
-            if _is_go_panic(lines):
-                reason = _extract_go_panic_reason(lines)
-                error = (
-                    f"Beatportdl is gecrasht (panic): {reason}\n"
-                    "Controleer je Beatport-sessie en klik op ↺ om opnieuw te starten."
-                )
-            elif real_errors:
-                error = f"[exit {proc.returncode}]\n" + "\n".join(real_errors[-10:])
-                error = error.strip()
-            else:
-                error = f"[exit {proc.returncode}]\n" + "\n".join(lines[-10:])
-                error = error.strip()
-            _update_job(job_id, status="error", error=error[:1500])
-            logger.error("Download mislukt [%s] exit=%d: %s", job_id, proc.returncode, error[:300])
-
-    except asyncio.CancelledError:
-        proc.kill() if 'proc' in dir() else None
-        _update_job(job_id, status="error", error="Download gestopt door gebruiker.")
-        raise
-    except FileNotFoundError as e:
-        tool = e.filename or cmd[0]
-        _update_job(job_id, status="error",
-                    error=f"'{tool}' niet gevonden. Zorg dat het geïnstalleerd is in de Docker-container.")
-    except Exception as e:
-        _update_job(job_id, status="error", error=str(e)[:500])
-    finally:
-        _active_procs.pop(job_id, None)
-        if work_dir:
-            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -534,6 +93,22 @@ class TreeOut(BaseModel):
     crades: List[CradeOut]
 
 
+# ── DB-presentatie ────────────────────────────────────────────────────────────
+
+def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
+    return CradeOut(
+        id=c.id, name=c.name, subdir=c.subdir,
+        group_id=c.group_id, source_url=c.source_url,
+        format=c.format, created_at=c.created_at,
+        status=job.status if job else "no_job",
+        progress_log=job.progress_log if job else None,
+        last_progress_at=job.last_progress_at if job else None,
+        error=job.error if job else None,
+        output_path=job.output_path if job else None,
+        job_id=job.id if job else None,
+    )
+
+
 # ── Sections ──────────────────────────────────────────────────────────────────
 
 @router.post("/sections")
@@ -564,12 +139,10 @@ def update_section(
     s.updated_at = datetime.utcnow()
     session.add(s)
     if renamed:
-        # Herbereken subdir voor alle craDes in racks van deze section
         racks = session.exec(select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == section_id)).all()
         for rack in racks:
-            craders = session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack.id)).all()
-            for crade in craders:
-                _move_crade_dir(crade, _expected_subdir(crade, session), session)
+            for crade in session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack.id)).all():
+                move_crade_dir(crade, expected_subdir(crade, session), session)
     session.commit()
     return {"ok": True}
 
@@ -630,10 +203,8 @@ def update_rack(
     r.updated_at = datetime.utcnow()
     session.add(r)
     if renamed_or_moved:
-        # Herbereken subdir voor alle craDes in dit rack
-        craders = session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack_id)).all()
-        for crade in craders:
-            _move_crade_dir(crade, _expected_subdir(crade, session), session)
+        for crade in session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack_id)).all():
+            move_crade_dir(crade, expected_subdir(crade, session), session)
     session.commit()
     return {"ok": True}
 
@@ -658,25 +229,6 @@ def delete_rack(
 
 # ── Crades ────────────────────────────────────────────────────────────────────
 
-def _today_name() -> str:
-    d = datetime.utcnow()
-    return f"{d.day:02d}-{d.month:02d}-{d.year}"
-
-
-def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
-    return CradeOut(
-        id=c.id, name=c.name, subdir=c.subdir,
-        group_id=c.group_id, source_url=c.source_url,
-        format=c.format, created_at=c.created_at,
-        status=job.status if job else "no_job",
-        progress_log=job.progress_log if job else None,
-        last_progress_at=job.last_progress_at if job else None,
-        error=job.error if job else None,
-        output_path=job.output_path if job else None,
-        job_id=job.id if job else None,
-    )
-
-
 @router.post("/crades", response_model=CradeOut)
 async def create_crade(
     body: CradeCreate,
@@ -688,15 +240,16 @@ async def create_crade(
     if not url:
         raise AppError("URL mag niet leeg zijn", 400)
 
-    name = body.name.strip() or _today_name()
+    name    = body.name.strip() or today_name()
     rack    = session.get(DownloadCradeGroup, body.group_id) if body.group_id else None
     section = session.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
-    existing = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
-    base_subdir = _build_subdir(name, rack=rack, section=section)
+
+    # Zorg voor uniek subdir-pad
+    existing   = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
+    base_subdir = build_subdir(name, rack=rack, section=section)
     subdir, counter = base_subdir, 1
     while subdir in existing:
-        # alleen het laatste deel uniek maken
-        parts = base_subdir.rsplit("/", 1)
+        parts  = base_subdir.rsplit("/", 1)
         subdir = "/".join(parts[:-1] + [f"{parts[-1]}_{counter}"]) if len(parts) > 1 else f"{base_subdir}_{counter}"
         counter += 1
 
@@ -710,18 +263,18 @@ async def create_crade(
     session.commit()
     session.refresh(crade)
 
-    source = _detect_source(url)
+    source = detect_source(url)
     job = DownloadJob(
         url=url, source=source,
         format=body.format, crade_id=crade.id,
-        output_path=_slug_from_beatport_url(url) if source == "beatport" else None,
+        output_path=slug_from_beatport_url(url) if source == "beatport" else None,
         created_by=user.id,
     )
     session.add(job)
     session.commit()
     session.refresh(job)
 
-    background_tasks.add_task(_run_download, job.id)
+    background_tasks.add_task(run_download, job.id)
     return _crade_out(crade, job)
 
 
@@ -746,7 +299,7 @@ def update_crade(
             renamed_or_moved = True
         c.group_id = body.group_id or None
     if renamed_or_moved:
-        _move_crade_dir(c, _expected_subdir(c, session), session)
+        move_crade_dir(c, expected_subdir(c, session), session)
     else:
         c.updated_at = datetime.utcnow()
         session.add(c)
@@ -787,7 +340,6 @@ async def restart_crade(
         .order_by(DownloadJob.created_at.desc())
         .limit(1)
     ).first()
-
     if not job:
         raise AppError("Geen job gevonden voor deze crade", 404)
     if job.status == "downloading":
@@ -802,7 +354,7 @@ async def restart_crade(
     session.commit()
     session.refresh(job)
 
-    background_tasks.add_task(_run_download, job.id)
+    background_tasks.add_task(run_download, job.id)
     logger.info("Crade herstart: %s (job %s)", crade_id, job.id)
     return _crade_out(c, job)
 
@@ -823,7 +375,7 @@ async def cancel_crade(
     ).first()
     if not job:
         raise AppError("Geen actieve download om te stoppen", 409)
-    proc = _active_procs.get(job.id)
+    proc = active_procs.get(job.id)
     if proc:
         try:
             proc.kill()
@@ -850,9 +402,9 @@ def get_tree(
     racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.created_at)).all()
     crades   = session.exec(select(DownloadCrade).order_by(DownloadCrade.created_at.desc())).all()
 
-    # Haal alle jobs in één query op; bouw daarna een dict met de meest recente per crade
+    # Alle jobs in één query — meest recente per crade via dict
     crade_ids = [c.id for c in crades]
-    all_jobs = session.exec(
+    all_jobs  = session.exec(
         select(DownloadJob)
         .where(DownloadJob.crade_id.in_(crade_ids))
         .order_by(DownloadJob.created_at.desc())
@@ -877,10 +429,11 @@ def get_tree(
         section_racks = [rack_map[r.id] for r in racks if r.section_id == s.id]
         section_outs.append(SectionOut(id=s.id, name=s.name, created_at=s.created_at, racks=section_racks))
 
-    free_racks  = [rack_map[r.id] for r in racks if not r.section_id]
-    free_crades = [crade_map[c.id] for c in crades if not c.group_id]
-
-    return TreeOut(sections=section_outs, racks=free_racks, crades=free_crades)
+    return TreeOut(
+        sections=section_outs,
+        racks=[rack_map[r.id] for r in racks if not r.section_id],
+        crades=[crade_map[c.id] for c in crades if not c.group_id],
+    )
 
 
 # ── Legacy job-list ───────────────────────────────────────────────────────────
@@ -915,7 +468,7 @@ def list_jobs(
 
 class SyncAction(BaseModel):
     id: str
-    type: str   # create_dir | clear_output | mark_missing | add_from_disk
+    type: str
     crade_id: Optional[str] = None
     crade_name: str
     description: str
@@ -962,13 +515,13 @@ def _scan_unknown_dirs(download_root: str, known_normalized: set) -> list:
 
 def _build_sync_actions(session: Session, download_root: str) -> List[SyncAction]:
     crades = session.exec(select(DownloadCrade)).all()
-    known = {c.subdir.replace("\\", "/").strip("/") for c in crades if c.subdir}
+    known  = {c.subdir.replace("\\", "/").strip("/") for c in crades if c.subdir}
     actions: List[SyncAction] = []
 
     for crade in crades:
         if not crade.subdir:
             continue
-        rel = crade.subdir.replace("\\", "/").strip("/")
+        rel  = crade.subdir.replace("\\", "/").strip("/")
         full = os.path.join(download_root, rel)
         exists = os.path.isdir(full)
 
@@ -1004,8 +557,7 @@ def _build_sync_actions(session: Session, download_root: str) -> List[SyncAction
                     path=op_full, rel_path=f"{rel}/{job.output_path}", selected=True,
                 ))
 
-        # Controleer of het pad overeenkomt met de DB-hiërarchie
-        expected_rel = _expected_subdir(crade, session)
+        expected_rel = expected_subdir(crade, session)
         if exists and expected_rel != rel:
             expected_full = os.path.join(download_root, expected_rel)
             if not os.path.isdir(expected_full):
@@ -1044,7 +596,7 @@ def sync_execute(
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    wanted = set(body.action_ids)
+    wanted  = set(body.action_ids)
     actions = _build_sync_actions(session, settings.DOWNLOAD_DIR)
     results = []
 
@@ -1058,37 +610,29 @@ def sync_execute(
 
             elif a.type == "mark_missing":
                 job = session.exec(
-                    select(DownloadJob)
-                    .where(DownloadJob.crade_id == a.crade_id)
-                    .order_by(DownloadJob.created_at.desc())
-                    .limit(1)
+                    select(DownloadJob).where(DownloadJob.crade_id == a.crade_id)
+                    .order_by(DownloadJob.created_at.desc()).limit(1)
                 ).first()
                 if job:
                     job.status = "error"
-                    job.error = "Map verwijderd van disk (gedetecteerd via sync)"
+                    job.error  = "Map verwijderd van disk (gedetecteerd via sync)"
                     job.updated_at = datetime.utcnow()
                     session.add(job)
                 results.append({"id": a.id, "ok": True, "message": f"'{a.crade_name}' gemarkeerd als fout"})
 
             elif a.type == "clear_output":
                 job = session.exec(
-                    select(DownloadJob)
-                    .where(DownloadJob.crade_id == a.crade_id)
-                    .order_by(DownloadJob.created_at.desc())
-                    .limit(1)
+                    select(DownloadJob).where(DownloadJob.crade_id == a.crade_id)
+                    .order_by(DownloadJob.created_at.desc()).limit(1)
                 ).first()
                 if job:
                     job.output_path = None
-                    job.updated_at = datetime.utcnow()
+                    job.updated_at  = datetime.utcnow()
                     session.add(job)
                 results.append({"id": a.id, "ok": True, "message": f"output_path gewist voor '{a.crade_name}'"})
 
             elif a.type == "add_from_disk":
-                new_crade = DownloadCrade(
-                    name=a.crade_name,
-                    subdir=a.rel_path,
-                    created_by=user.id,
-                )
+                new_crade = DownloadCrade(name=a.crade_name, subdir=a.rel_path, created_by=user.id)
                 session.add(new_crade)
                 results.append({"id": a.id, "ok": True, "message": f"Crade aangemaakt: '{a.crade_name}'"})
 
@@ -1098,7 +642,7 @@ def sync_execute(
                     results.append({"id": a.id, "ok": False, "message": "Crade niet meer gevonden"})
                     continue
                 old_rel  = crade.subdir.replace("\\", "/").strip("/")
-                new_rel  = _expected_subdir(crade, session)
+                new_rel  = expected_subdir(crade, session)
                 old_full = os.path.join(settings.DOWNLOAD_DIR, old_rel)
                 new_full = os.path.join(settings.DOWNLOAD_DIR, new_rel)
                 if not os.path.isdir(old_full):
@@ -1109,13 +653,12 @@ def sync_execute(
                     continue
                 os.makedirs(os.path.dirname(new_full), exist_ok=True)
                 shutil.move(old_full, new_full)
-                # Verwijder lege bovenliggende mappen
                 old_parent = os.path.dirname(old_full)
                 if old_parent != settings.DOWNLOAD_DIR and os.path.isdir(old_parent):
                     try:
                         os.rmdir(old_parent)
                     except OSError:
-                        pass  # niet leeg, laten staan
+                        pass
                 crade.subdir = new_rel
                 crade.updated_at = datetime.utcnow()
                 session.add(crade)
@@ -1126,20 +669,3 @@ def sync_execute(
 
     session.commit()
     return SyncExecuteOut(results=results)
-
-
-# ── Stale-job reset ───────────────────────────────────────────────────────────
-
-def reset_stale_jobs():
-    with Session(engine) as s:
-        stale = s.exec(
-            select(DownloadJob).where(DownloadJob.status.in_(["downloading", "queued"]))
-        ).all()
-        for job in stale:
-            job.status = "error"
-            job.error = "Server herstart tijdens download. Klik op 'Herstarten' om opnieuw te proberen."
-            job.updated_at = datetime.utcnow()
-            s.add(job)
-        if stale:
-            s.commit()
-            logger.info("%d download-job(s) gereset naar 'error' na herstart", len(stale))
