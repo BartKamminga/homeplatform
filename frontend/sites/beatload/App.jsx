@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { submitDownload, listJobs, deleteJob } from './api.js'
+import { submitDownload, listJobs, deleteJob, getProvider, setProvider } from './api.js'
 import './App.css'
 
 const SOURCE_ICON  = { beatport: '🎵', youtube: '▶️', soundcloud: '☁️', auto: '🌐' }
@@ -17,6 +17,50 @@ function trimUrl(url, max = 60) {
 }
 
 const FORMATS = ['flac', 'mp3', 'wav']
+
+function ProviderPanel() {
+  const [providerData, setProviderData] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getProvider().then(setProviderData).catch(() => {})
+  }, [])
+
+  if (!providerData) return null
+
+  const pick = async (p) => {
+    if (p === providerData.provider) return
+    setSaving(true)
+    try {
+      const updated = await setProvider(p)
+      setProviderData(d => ({ ...d, provider: updated.provider, from_env: updated.from_env }))
+    } catch {}
+    setSaving(false)
+  }
+
+  return (
+    <div className="bl-format-row" style={{ marginTop: '2px' }}>
+      <span className="bl-format-label">Beatport provider</span>
+      <div className="bl-format-seg">
+        {providerData.options.map(p => (
+          <button
+            key={p}
+            type="button"
+            className={`bl-format-btn${providerData.provider === p ? ' active' : ''}`}
+            onClick={() => pick(p)}
+            disabled={saving}
+            title={p === 'native' ? 'Fase 2 — nog niet geïmplementeerd' : ''}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+      {providerData.from_env && (
+        <span className="bl-format-label" style={{ fontSize: '0.68rem' }}>via env</span>
+      )}
+    </div>
+  )
+}
 
 export default function App() {
   const [url, setUrl]           = useState('')
@@ -111,6 +155,7 @@ export default function App() {
             ))}
           </div>
         </div>
+        <ProviderPanel />
       </div>
 
       {submitError && <div className="bl-error-msg">{submitError}</div>}

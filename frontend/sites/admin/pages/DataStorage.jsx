@@ -100,16 +100,80 @@ function ColHeader() {
   );
 }
 
+/* ── Architecture + deploy components ───────────────────────────────────── */
+
+function SectionCard({ title, subtitle, children }) {
+  return (
+    <div style={{
+      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginTop: '16px',
+    }}>
+      <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: subtitle ? '4px' : '16px' }}>{title}</div>
+      {subtitle && <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>{subtitle}</p>}
+      {children}
+    </div>
+  );
+}
+
+function ArchBox({ label, sublabel, color = 'var(--color-text)', dashed = false, small = false, active = false }) {
+  return (
+    <div style={{
+      border: `${active ? '2px' : '1.5px'} ${dashed ? 'dashed' : 'solid'} ${color}`,
+      borderRadius: '8px',
+      padding: small ? '5px 12px' : '8px 16px',
+      textAlign: 'center',
+      color,
+      fontSize: small ? '11px' : '12px',
+      fontFamily: 'var(--font-mono)',
+      lineHeight: 1.4,
+      width: '100%',
+      background: active ? `${color}18` : 'transparent',
+    }}>
+      {label}
+      {active && !small && (
+        <span style={{ fontSize: '9px', fontFamily: 'sans-serif', marginLeft: '6px', opacity: 0.8 }}>● actief</span>
+      )}
+      {sublabel && (
+        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontFamily: 'sans-serif', marginTop: '2px' }}>
+          {sublabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConnArrow({ label }) {
+  return (
+    <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '11px', margin: '3px 0', fontFamily: 'var(--font-mono)' }}>
+      ↓{label ? ` ${label}` : ''}
+    </div>
+  );
+}
+
+function EnvRow({ label, note }) {
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px',
+      padding: '5px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'baseline',
+    }}>
+      <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--color-text)' }}>{label}</span>
+      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{note}</span>
+    </div>
+  );
+}
+
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export default function DataStorage() {
   const [tables, setTables] = useState({});
   const [paths, setPaths] = useState({});
+  const [beatportProvider, setBeatportProvider] = useState(null);
 
   useEffect(() => {
     api.get('/api/admin/system/overview')
       .then(d => {
         setTables(d.tables ?? {});
+        setBeatportProvider(d.beatport_provider ?? 'binary');
         setPaths({
           download_dir:         d.download_dir ?? null,
           beatportdl_config_dir: d.beatportdl_config_dir ?? null,
@@ -172,6 +236,111 @@ export default function DataStorage() {
         <DataRow col1="NAS_PATH" col2={paths.nas_path ?? '—'} col3="Bestandspad op de NAS waar het project staat" count={null} />
         <DataRow col1="NAS_URL"  col2={paths.nas_url  ?? '—'} col3="Web-URL van de NAS-interface" count={null} />
       </div>
+
+      {/* ── Download provider architectuur ─────────────────────────────── */}
+      <SectionCard
+        title="Architectuur — download providers"
+        subtitle="De worker praat uitsluitend met de DownloadProvider-interface. Achter die interface zitten drie implementaties — de worker weet niets van binaries, processen of API-calls."
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: '220px' }}>
+            <ArchBox label="downloader_worker.py" />
+          </div>
+          <ConnArrow label="get_provider(source)" />
+          <div style={{ width: '220px' }}>
+            <ArchBox label="DownloadProvider — ABC" />
+          </div>
+          <ConnArrow />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', width: '100%', maxWidth: '700px', marginTop: '4px' }}>
+            {[
+              { label: 'BinaryBeatportProvider', implLabel: 'beatportdl subprocess', implSub: '+ directory watcher', color: '#c8961a', header: 'SOURCE=beatport/beatsource\nPROVIDER=binary',  providerKey: 'binary' },
+              { label: 'NativeBeatportProvider', implLabel: 'auth → API v4 → dl',   implSub: '+ mutagen tags (fase 2)',  color: '#16a085', header: 'SOURCE=beatport/beatsource\nPROVIDER=native', providerKey: 'native' },
+              { label: 'YtdlpProvider',          implLabel: 'yt-dlp subprocess',     implSub: 'real-time output',        color: '#8e44ad', header: 'SOURCE=youtube/\nsoundcloud / auto',           providerKey: null },
+            ].map((p) => {
+              const isActive = p.providerKey === null
+                ? true
+                : beatportProvider === p.providerKey;
+              return (
+                <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', opacity: (!isActive && p.providerKey !== null) ? 0.45 : 1 }}>
+                  <div style={{ fontSize: '9px', color: 'var(--color-text-light)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'pre-line', marginBottom: '2px' }}>
+                    {p.header}
+                  </div>
+                  <ArchBox label={p.label} color={p.color} active={isActive} />
+                  <ConnArrow />
+                  <ArchBox label={p.implLabel} sublabel={p.implSub} color={p.color} small active={isActive} />
+                </div>
+              );
+            })}
+          </div>
+
+          <ConnArrow label="update_job()" />
+          <div style={{ width: '180px' }}>
+            <ArchBox label="SQLite DB → UI" color="var(--color-text-muted)" dashed />
+          </div>
+        </div>
+
+        <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '14px', textAlign: 'center' }}>
+          Actieve Beatport-provider: <strong style={{ fontFamily: 'var(--font-mono)' }}>{beatportProvider ?? '…'}</strong>
+          {' '}— instelbaar via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in docker-compose.nas.yml
+        </p>
+      </SectionCard>
+
+      {/* ── Deploy-omgevingen ───────────────────────────────────────────── */}
+      <SectionCard
+        title="Deploy-omgevingen"
+        subtitle="Lokale ontwikkeling (Windows) en productie op de NAS (Docker op Synology)."
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
+              Lokaal — ontwikkeling
+            </div>
+            <EnvRow label="Vite dev server"  note="Frontend MPA — elke site eigen port" />
+            <EnvRow label="FastAPI uvicorn"  note="Backend op :8000 — F5 launch config in .venv" />
+            <EnvRow label="SQLite"           note="C:\Projects\homeplatform\db\homeplatform.sqlite" />
+            <EnvRow label="Alembic"          note="Migraties lokaal via absolute DATABASE_URL" />
+            <EnvRow label="hpem.ps1"         note="Build + upload naar NAS" />
+          </div>
+
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
+              NAS — productie (192.168.30.193)
+            </div>
+            <EnvRow label="Caddy"            note="Reverse proxy + static files (poort 8080 / 8443)" />
+            <EnvRow label="Backend (Docker)" note="FastAPI container — Dockerfile in /backend" />
+            <EnvRow label="SQLite"           note="/volume1/homeplatform/db/homeplatform.sqlite" />
+            <EnvRow label="Downloads"        note="/volume1/Music/downloads — beatportdl + yt-dlp output" />
+            <EnvRow label="GlitchTip"        note="Fout-tracking, Sentry-compatibel (poort 8090)" />
+            <EnvRow label="Gitea"            note="Git server (poort 3000)" />
+            <EnvRow label="Cloudflare Tunnel" note="Externe toegang via cloudflared" />
+          </div>
+        </div>
+
+        <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--color-border)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-light)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+            Deploy-flow — hpem.ps1
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '8px' }}>
+            {[
+              { flag: 'fe',    desc: 'Vite build → dist upload → Caddy reload' },
+              { flag: 'be',    desc: 'Docker rebuild (geen migraties)' },
+              { flag: 'be_db', desc: 'Docker rebuild + Alembic migraties + seed' },
+              { flag: 'all',   desc: 'fe + be_db — volledige deploy (standaard)' },
+            ].map((item) => (
+              <div key={item.flag} style={{
+                background: 'var(--color-background)', border: '1px solid var(--color-border)',
+                borderRadius: '6px', padding: '8px 10px',
+              }}>
+                <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-text)' }}>
+                  -Build {item.flag}
+                </span>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{item.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </SectionCard>
     </AdminLayout>
   );
 }

@@ -178,11 +178,17 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         ],
         "download_dir": settings.DOWNLOAD_DIR,
         "beatportdl_config_dir": settings.BEATPORTDL_CONFIG_DIR or None,
+        "beatport_provider": _active_beatport_provider(),
         "nas_host": settings.NAS_IP or None,
         "nas_path": settings.NAS_PATH or None,
         "nas_url":  settings.NAS_URL  or None,
         "links": _build_links(),
     }
+
+
+def _active_beatport_provider() -> str:
+    from routers.providers.factory import get_active_beatport_provider
+    return get_active_beatport_provider()
 
 
 def _build_links() -> dict:
@@ -204,6 +210,33 @@ def _build_links() -> dict:
         "cloudflare_analytics": f"https://dash.cloudflare.com" if external else None,
         "github": "https://github.com/BartKamminga/homeplatform",
     }
+
+
+# ── Admin: Beatport provider ──────────────────────────────────────────────────
+
+from fastapi import HTTPException
+from pydantic import BaseModel
+
+class ProviderBody(BaseModel):
+    provider: str
+
+@router.get("/admin/beatport-provider")
+def get_beatport_provider(_: User = Depends(require_admin)):
+    from routers.providers.factory import get_active_beatport_provider, _provider_override
+    active = get_active_beatport_provider()
+    return {
+        "provider": active,
+        "from_env": _provider_override is None,
+        "options": ["binary", "native"],
+    }
+
+@router.put("/admin/beatport-provider")
+def put_beatport_provider(body: ProviderBody, _: User = Depends(require_admin)):
+    from routers.providers.factory import set_beatport_provider
+    if body.provider not in ("binary", "native"):
+        raise HTTPException(status_code=422, detail="Ongeldige provider — kies 'binary' of 'native'")
+    set_beatport_provider(body.provider)
+    return {"provider": body.provider, "from_env": False}
 
 
 # ── Admin: API call stats ─────────────────────────────────────────────────────

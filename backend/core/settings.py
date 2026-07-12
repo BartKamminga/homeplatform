@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     UPLOAD_ROOT: str = "/app/uploads"
     DOWNLOAD_DIR: str = "/app/downloads"
     BEATPORTDL_CONFIG_DIR: str = ""  # pad naar beatportdl config-map (optioneel)
+    BEATPORT_PROVIDER: str = "binary"  # "binary" (beatportdl) of "native" (Python)
     CORS_ORIGINS: str = ""  # kommagescheiden; leeg = automatisch op basis van omgeving
 
     @property

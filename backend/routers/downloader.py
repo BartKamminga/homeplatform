@@ -27,7 +27,7 @@ from routers.downloader_helpers import (
     build_subdir, detect_source, expected_subdir,
     move_crade_dir, slug_from_beatport_url, today_name,
 )
-from routers.downloader_worker import active_procs, run_download
+from routers.downloader_worker import active_downloads, run_download
 
 router = APIRouter(prefix="/api/beatcrades", tags=["beatcrades"])
 
@@ -396,12 +396,9 @@ async def cancel_crade(
     ).first()
     if not job:
         raise AppError("Geen actieve download om te stoppen", 409)
-    proc = active_procs.get(job.id)
-    if proc:
-        try:
-            proc.kill()
-        except Exception:
-            pass
+    provider = active_downloads.get(job.id)
+    if provider:
+        asyncio.create_task(provider.cancel())
     job.status = "error"
     job.error = "Download gestopt door gebruiker. Klik op ↺ om opnieuw te starten."
     job.updated_at = datetime.utcnow()
