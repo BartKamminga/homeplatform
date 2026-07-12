@@ -365,9 +365,9 @@ export default function App() {
 
   // ── Open state ──
   const isSectionOpen = id => id in openSections ? openSections[id] : true
-  const isRackOpen    = id => id in openRacks    ? openRacks[id]    : true
+  const isRackOpen    = id => id in openRacks    ? openRacks[id]    : false
   const toggleSection = id => setOpenSections(s => ({ ...s, [id]: !(id in s ? s[id] : true) }))
-  const toggleRack    = id => setOpenRacks(r    => ({ ...r, [id]: !(id in r ? r[id] : true) }))
+  const toggleRack    = id => setOpenRacks(r    => ({ ...r, [id]: !(id in r ? r[id] : false) }))
   const toggleCrade   = id => setOpenCrades(c   => ({ ...c, [id]: !c[id] }))
 
   const allRacks = [
@@ -595,7 +595,7 @@ function RackBlock({ rack,
   renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
   renameCrade, addCradeInRack,
 }) {
-  const isOpen = rack.id in openRacks ? openRacks[rack.id] : true
+  const isOpen = rack.id in openRacks ? openRacks[rack.id] : false
   const isDragOver = dragOver?.kind === 'rack' && dragOver.id === rack.id
   const isDragging = draggingRack === rack.id
 
