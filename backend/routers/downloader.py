@@ -30,6 +30,27 @@ from routers.downloader_helpers import (
 from routers.downloader_worker import active_procs, run_download
 
 router = APIRouter(prefix="/api/beatcrades", tags=["beatcrades"])
+
+
+# ── Startup-hulp ──────────────────────────────────────────────────────────────
+
+def reset_stale_jobs() -> None:
+    """Reset jobs die bij een vorige server-run als 'downloading'/'queued' achterbleven."""
+    from sqlmodel import Session as _S
+    from core.database import engine as _engine
+    stale_statuses = ("downloading", "queued")
+    with _S(_engine) as s:
+        jobs = s.exec(
+            select(DownloadJob).where(DownloadJob.status.in_(stale_statuses))
+        ).all()
+        for job in jobs:
+            job.status = "error"
+            job.error  = "Download onderbroken door herstart van de server. Klik op ↺ om opnieuw te starten."
+            job.updated_at = datetime.utcnow()
+            s.add(job)
+        if jobs:
+            s.commit()
+            logger.info("reset_stale_jobs: %d jobs gereset", len(jobs))
 logger = logging.getLogger("homeplatform.beatcrades")
 
 
