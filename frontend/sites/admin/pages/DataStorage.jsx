@@ -111,8 +111,11 @@ export default function DataStorage() {
       .then(d => {
         setTables(d.tables ?? {});
         setPaths({
-          download_dir: d.download_dir ?? null,
+          download_dir:         d.download_dir ?? null,
           beatportdl_config_dir: d.beatportdl_config_dir ?? null,
+          nas_host:             d.nas_host ?? null,
+          nas_path:             d.nas_path ?? null,
+          nas_url:              d.nas_url  ?? null,
         });
       })
       .catch(() => {});
@@ -163,6 +166,11 @@ export default function DataStorage() {
         <SubHeader label="Paden — server" />
         <DataRow col1="DOWNLOAD_DIR" col2={paths.download_dir ?? '—'} col3="Bestemmingsmap voor Beatload-downloads (binnen Docker-container)" count={null} />
         <DataRow col1="BEATPORTDL_CONFIG_DIR" col2={paths.beatportdl_config_dir ?? '—'} col3="Optionele config-map voor beatportdl (leeg = niet ingesteld)" count={null} />
+
+        <SubHeader label="Paden — NAS" />
+        <DataRow col1="NAS_HOST" col2={paths.nas_host ?? '—'} col3="IP-adres of hostnaam van de NAS" count={null} />
+        <DataRow col1="NAS_PATH" col2={paths.nas_path ?? '—'} col3="Bestandspad op de NAS waar het project staat" count={null} />
+        <DataRow col1="NAS_URL"  col2={paths.nas_url  ?? '—'} col3="Web-URL van de NAS-interface" count={null} />
       </div>
     </AdminLayout>
   );

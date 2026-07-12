@@ -52,6 +52,33 @@ def _expected_subdir(crade: DownloadCrade, session: Session) -> str:
     return _build_subdir(crade.name, rack=rack, section=section)
 
 
+def _move_crade_dir(crade: DownloadCrade, new_rel: str, session: Session) -> None:
+    """Verplaats de disk-map van crade naar new_rel en update crade.subdir in de sessie."""
+    old_rel = (crade.subdir or "").replace("\\", "/").strip("/")
+    if not old_rel or old_rel == new_rel:
+        crade.subdir = new_rel
+        crade.updated_at = datetime.utcnow()
+        session.add(crade)
+        return
+    old_full = os.path.join(settings.DOWNLOAD_DIR, old_rel)
+    new_full = os.path.join(settings.DOWNLOAD_DIR, new_rel)
+    if os.path.isdir(old_full) and not os.path.exists(new_full):
+        try:
+            os.makedirs(os.path.dirname(new_full), exist_ok=True)
+            shutil.move(old_full, new_full)
+            old_parent = os.path.dirname(old_full)
+            if old_parent != settings.DOWNLOAD_DIR and os.path.isdir(old_parent):
+                try:
+                    os.rmdir(old_parent)
+                except OSError:
+                    pass
+        except Exception as exc:
+            logger.warning("Kan mapnaam niet bijwerken van %s naar %s: %s", old_rel, new_rel, exc)
+    crade.subdir = new_rel
+    crade.updated_at = datetime.utcnow()
+    session.add(crade)
+
+
 def _slug_from_beatport_url(url: str) -> Optional[str]:
     """Haal een leesbare naam op uit de Beatport URL-slug."""
     try:
@@ -90,6 +117,9 @@ def _update_job(job_id: str, **kwargs):
 # ── Background worker ─────────────────────────────────────────────────────────
 
 _PERCENT_RE = re.compile(r"^\[download\]\s+\d")
+
+
+_NO_OUTPUT_TIMEOUT = 1800  # seconden: kill als er 30 min geen output is
 
 
 async def _run_download(job_id: str):
@@ -194,7 +224,17 @@ async def _run_download(job_id: str):
         output_path = None
         _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
 
-        async for raw in proc.stdout:
+        timed_out = False
+        while True:
+            try:
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=_NO_OUTPUT_TIMEOUT)
+            except asyncio.TimeoutError:
+                proc.kill()
+                timed_out = True
+                break
+            if not raw:
+                break
+
             line = raw.decode(errors="replace").rstrip()
             if not line:
                 continue
@@ -217,6 +257,14 @@ async def _run_download(job_id: str):
                 if flush_count >= 5:
                     _update_job(job_id, progress_log="\n".join(lines), last_progress_at=datetime.utcnow())
                     flush_count = 0
+
+        if timed_out:
+            _update_job(
+                job_id, status="error",
+                error=f"Download gestopt: geen output in {_NO_OUTPUT_TIMEOUT // 60} minuten. "
+                      "Klik op 'Herstarten' om opnieuw te proberen.",
+            )
+            return
 
         await proc.wait()
         _update_job(job_id, progress_log="\n".join(lines))
@@ -345,9 +393,17 @@ def update_section(
     s = session.get(DownloadSection, section_id)
     if not s:
         raise AppError("Section niet gevonden", 404)
+    renamed = body.name.strip() != s.name
     s.name = body.name.strip()
     s.updated_at = datetime.utcnow()
     session.add(s)
+    if renamed:
+        # Herbereken subdir voor alle craDes in racks van deze section
+        racks = session.exec(select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == section_id)).all()
+        for rack in racks:
+            craders = session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack.id)).all()
+            for crade in craders:
+                _move_crade_dir(crade, _expected_subdir(crade, session), session)
     session.commit()
     return {"ok": True}
 
@@ -395,12 +451,23 @@ def update_rack(
     r = session.get(DownloadCradeGroup, rack_id)
     if not r:
         raise AppError("Rack niet gevonden", 404)
-    if body.name is not None:
+    renamed_or_moved = False
+    if body.name is not None and body.name.strip() != r.name:
+        r.name = body.name.strip()
+        renamed_or_moved = True
+    elif body.name is not None:
         r.name = body.name.strip()
     if "section_id" in body.model_fields_set:
+        if (body.section_id or None) != r.section_id:
+            renamed_or_moved = True
         r.section_id = body.section_id or None
     r.updated_at = datetime.utcnow()
     session.add(r)
+    if renamed_or_moved:
+        # Herbereken subdir voor alle craDes in dit rack
+        craders = session.exec(select(DownloadCrade).where(DownloadCrade.group_id == rack_id)).all()
+        for crade in craders:
+            _move_crade_dir(crade, _expected_subdir(crade, session), session)
     session.commit()
     return {"ok": True}
 
@@ -502,12 +569,21 @@ def update_crade(
     c = session.get(DownloadCrade, crade_id)
     if not c:
         raise AppError("Crade niet gevonden", 404)
-    if body.name is not None:
+    renamed_or_moved = False
+    if body.name is not None and body.name.strip() != c.name:
+        c.name = body.name.strip()
+        renamed_or_moved = True
+    elif body.name is not None:
         c.name = body.name.strip()
     if "group_id" in body.model_fields_set:
+        if (body.group_id or None) != c.group_id:
+            renamed_or_moved = True
         c.group_id = body.group_id or None
-    c.updated_at = datetime.utcnow()
-    session.add(c)
+    if renamed_or_moved:
+        _move_crade_dir(c, _expected_subdir(c, session), session)
+    else:
+        c.updated_at = datetime.utcnow()
+        session.add(c)
     session.commit()
     return {"ok": True}
 
@@ -854,11 +930,14 @@ def sync_execute(
 
 def reset_stale_jobs():
     with Session(engine) as s:
-        stale = s.exec(select(DownloadJob).where(DownloadJob.status == "downloading")).all()
+        stale = s.exec(
+            select(DownloadJob).where(DownloadJob.status.in_(["downloading", "queued"]))
+        ).all()
         for job in stale:
-            job.status = "queued"
+            job.status = "error"
+            job.error = "Server herstart tijdens download. Klik op 'Herstarten' om opnieuw te proberen."
             job.updated_at = datetime.utcnow()
             s.add(job)
         if stale:
             s.commit()
-            logger.info("%d download-job(s) gereset naar 'queued' na herstart", len(stale))
+            logger.info("%d download-job(s) gereset naar 'error' na herstart", len(stale))

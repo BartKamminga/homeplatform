@@ -74,6 +74,18 @@ function detectSrc(url) {
   return 'auto'
 }
 
+function slugFromBeatportUrl(url) {
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean)
+    // /playlist/house-vibes/12345 → parts[1] = 'house-vibes'
+    // /release/album-name/12345  → parts[1] = 'album-name'
+    if (parts.length >= 2 && !/^\d+$/.test(parts[1])) {
+      return parts[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    }
+  } catch {}
+  return null
+}
+
 function parseProgress(log) {
   if (!log) return { done: 0, total: null }
   let done = 0, total = null
@@ -307,7 +319,15 @@ export default function App() {
               </div>
               <div className="bc-field">
                 <label>URL</label>
-                <input className="bc-inp" ref={urlRef} value={newUrl} onChange={e => setNewUrl(e.target.value)}
+                <input className="bc-inp" ref={urlRef} value={newUrl}
+                  onChange={e => {
+                    const url = e.target.value
+                    setNewUrl(url)
+                    if (detectSrc(url) === 'beatport' && newName === todayName()) {
+                      const slug = slugFromBeatportUrl(url)
+                      if (slug) setNewName(slug)
+                    }
+                  }}
                   placeholder="Beatport-, YouTube- of SoundCloud-URL…" required />
               </div>
               <div className="bc-field">

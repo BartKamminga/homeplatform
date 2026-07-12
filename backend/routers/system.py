@@ -178,6 +178,9 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         ],
         "download_dir": settings.DOWNLOAD_DIR,
         "beatportdl_config_dir": settings.BEATPORTDL_CONFIG_DIR or None,
+        "nas_host": settings.NAS_IP or None,
+        "nas_path": settings.NAS_PATH or None,
+        "nas_url":  settings.NAS_URL  or None,
         "links": _build_links(),
     }
 

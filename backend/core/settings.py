@@ -7,13 +7,15 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-change-me"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
-    APP_VERSION: str = "0.8"
+    APP_VERSION: str = "0.9"
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite:///./db/homeplatform.sqlite"
     SENTRY_DSN: str = ""
     SENTRY_MIN_LEVEL: str = "warning"
     MUSIC_DIR: str = "/app/music"
-    NAS_URL: str = ""
+    NAS_URL:  str = ""
+    NAS_IP:   str = ""   # IP of hostnaam van de NAS (bijv. 192.168.30.193)
+    NAS_PATH: str = ""   # bestandspad op de NAS (bijv. /volume1/homeplatform)
     EXTERNAL_URL: str = ""
     UPLOAD_ROOT: str = "/app/uploads"
     DOWNLOAD_DIR: str = "/app/downloads"

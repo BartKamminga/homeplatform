@@ -121,13 +121,6 @@ export default function Monitoring() {
             href="/admin/data-storage"
             internal
           />
-          <LinkCard
-            icon="🎵"
-            title="BeatCrades"
-            description="Download crates voor Beatport, YouTube en SoundCloud via yt-dlp en beatportdl."
-            href="/beatcrades/"
-            internal
-          />
         </div>
       </Section>
 
