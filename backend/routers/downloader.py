@@ -117,9 +117,37 @@ def _detect_source(url: str) -> str:
 
 _GO_PANIC_RE = re.compile(r"^goroutine \d+", re.MULTILINE)
 _PLAYLIST_NAME_RES = [
-    re.compile(r'^\[download\] Downloading playlist:\s*(.+)', re.IGNORECASE),       # yt-dlp
-    re.compile(r'^Downloading (?:Playlist|Release|Chart|Mix|Label):\s*(.+)', re.IGNORECASE),  # beatportdl
+    re.compile(r'^\[download\] Downloading playlist:\s*(.+)', re.IGNORECASE),  # yt-dlp
+    re.compile(r'^Downloading (?:Playlist|Release|Chart|Mix|Label|Artist)s?:\s*(.+)', re.IGNORECASE),  # beatportdl (enkel- of meervoud)
 ]
+# beatportdl organiseert downloads in type-mappen: downloads_dir/Playlists/<naam>/ of downloads_dir/Releases/<naam>/
+# Zet bevat de top-level map-namen die een type zijn en niet de echte playlist-naam.
+_BEATPORT_TYPE_DIRS = frozenset([
+    "playlists", "releases", "tracks", "charts", "mixes", "labels", "artists",
+])
+
+
+def _find_beatport_content_name(download_dir: str, new_dirs: list) -> Optional[str]:
+    """Zoek de echte playlist/release-naam binnen de beatportdl directorystructuur.
+
+    beatportdl maakt: downloads_dir/Playlists/<naam>/ of downloads_dir/Releases/<naam>/.
+    Als new_dirs[0] een type-map is (Playlists, Releases…), zoek één niveau dieper.
+    """
+    for d in new_dirs:
+        if d.lower() in _BEATPORT_TYPE_DIRS:
+            type_path = os.path.join(download_dir, d)
+            try:
+                subs = sorted(
+                    e for e in os.listdir(type_path)
+                    if os.path.isdir(os.path.join(type_path, e))
+                )
+                if subs:
+                    return subs[0]
+            except OSError:
+                pass
+        else:
+            return d
+    return None
 
 
 def _extract_go_panic_reason(lines: list) -> str:
@@ -276,6 +304,7 @@ async def _run_download_inner(job_id: str):
         flush_count = 0
         output_path = None
         detected_playlist_name: Optional[str] = None
+        new_dirs: list = []
         _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
 
         timed_out = False
@@ -314,7 +343,9 @@ async def _run_download_inner(job_id: str):
             for _pat in _PLAYLIST_NAME_RES:
                 _pm = _pat.match(line)
                 if _pm:
-                    detected_playlist_name = _pm.group(1).strip()
+                    # Strip eventueel trailing ID "(123456)" van beatportdl
+                    raw_name = _pm.group(1).strip()
+                    detected_playlist_name = re.sub(r"\s*\(\d+\)\s*$", "", raw_name).strip()
                     break
 
             if any(kw in line.lower() for kw in _ERR_KW):
@@ -347,6 +378,10 @@ async def _run_download_inner(job_id: str):
 
         await proc.wait()
         _update_job(job_id, progress_log="\n".join(lines))
+        logger.debug(
+            "beatportdl klaar [%s] exit=%s regels=%d detected_name=%r",
+            job_id, proc.returncode, len(lines), detected_playlist_name,
+        )
 
         if work_dir:
             creds_new = os.path.join(work_dir, "beatportdl-credentials.json")
@@ -358,7 +393,7 @@ async def _run_download_inner(job_id: str):
         real_errors = [h for h in error_hints if "error reading input string" not in h.lower()]
         succeeded = proc.returncode == 0 or (work_dir and not real_errors)
         if succeeded and work_dir and os.path.exists(download_dir):
-            # Detecteer nieuw aangemaakte submap = playlist/release naam
+            # Detecteer nieuw aangemaakte map(pen) — beatportdl maakt Playlists/<naam>/ of Releases/<naam>/
             after_dirs = {e for e in os.listdir(download_dir)
                           if os.path.isdir(os.path.join(download_dir, e))}
             new_dirs = sorted(after_dirs - before_dirs)
@@ -368,10 +403,16 @@ async def _run_download_inner(job_id: str):
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar [%s] crade=%r source=%s → %s", job_id, crade_name, source, output_path)
 
-            # Bepaal nieuwe crade-naam: output-header > beatportdl directory-naam (fallback)
+            # Bepaal nieuwe crade-naam:
+            # 1. Uit output-header (regex in read-loop)
+            # 2. Beatportdl directory-naam: kijk BINNEN type-map (Playlists/, Releases/…) voor echte naam
             new_name = detected_playlist_name
             if not new_name and source == "beatport" and new_dirs:
-                new_name = new_dirs[0].replace("_", " ").strip()
+                raw = _find_beatport_content_name(download_dir, new_dirs)
+                if raw:
+                    new_name = raw.replace("_", " ").strip()
+            if new_name:
+                logger.info("Playlist-naam gedetecteerd: %r (regex=%r, dirs=%r)", new_name, detected_playlist_name, new_dirs)
 
             if new_name and crade_id:
                 try:
