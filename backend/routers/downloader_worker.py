@@ -232,9 +232,14 @@ async def _read_loop(proc, job_id: str, source: str) -> _ReadResult:
                 proc.kill()
                 result.timed_out = True
                 return result
-            # Heartbeat: laat de UI weten dat het proces nog actief is
-            prog = "\n".join(result.lines) if result.lines else _waiting_msg(source)
-            update_job(job_id, progress_log=prog, last_progress_at=now)
+            # Heartbeat: laat de UI weten dat het proces nog actief is.
+            # Voor beatport beheert watch_progress de progress_log; hier alleen
+            # last_progress_at refreshen zodat stall-detectie niet afvuurt.
+            if source == "beatport":
+                update_job(job_id, last_progress_at=now)
+            else:
+                prog = "\n".join(result.lines) if result.lines else _waiting_msg(source)
+                update_job(job_id, progress_log=prog, last_progress_at=now)
             last_ping = now
             continue
 

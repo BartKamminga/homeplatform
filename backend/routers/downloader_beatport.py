@@ -148,19 +148,30 @@ def handle_result(
             os.path.join(settings.BEATPORTDL_CONFIG_DIR, "beatportdl-credentials.json"),
         )
 
-    # beatportdl eindigt altijd met exit 1 door EOF — succes als er geen echte fouten zijn
+    # beatportdl eindigt altijd met exit 1 door EOF.
+    # Primair succescriterium: zijn er bestanden gedownload op disk?
+    output_path = _first_new_dir(download_dir, before_dirs)
+    new_name    = _content_name(download_dir, before_dirs)
+    has_content = bool(output_path or new_name)
+
+    # real_errors filtert de bekende EOF-melding; overige error-achtige regels
+    # kunnen false positives zijn (bijv. "invalid quality" in beatportdl info-logs).
     real_errors = [h for h in error_hints if "error reading input string" not in h.lower()]
-    succeeded = proc.returncode == 0 or not real_errors
+
+    # Succes als er bestanden zijn (has_content), of als er geen echte fouten zijn.
+    succeeded = has_content or not real_errors
+
+    logger.info(
+        "Resultaat [%s] has_content=%s new_name=%r output_path=%r real_errors=%d",
+        job_id, has_content, new_name, output_path, len(real_errors),
+    )
 
     if succeeded:
-        output_path = _first_new_dir(download_dir, before_dirs)
-        new_name    = detected_name or _content_name(download_dir, before_dirs)
-
         update_job(job_id, status="done", output_path=output_path)
         logger.info("Download klaar [%s] crade=%r → %s", job_id, crade_name, output_path)
 
         if new_name:
-            logger.info("Playlist-naam: %r (uit output: %r)", new_name, detected_name)
+            logger.info("Playlist-naam gevonden: %r", new_name)
             if crade_id:
                 # beatportdl organiseert zijn eigen mappen; alleen de DB-naam bijwerken
                 rename_crade(crade_id, new_name, move_dir=False)
