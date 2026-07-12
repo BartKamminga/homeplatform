@@ -86,11 +86,18 @@ function detectSrc(url) {
   return 'auto'
 }
 
+const _BP_TYPES = new Set(['playlist','playlists','release','releases','track','tracks','artist','artists','chart','charts','label','labels','mix','mixes'])
+
 function slugFromBeatportUrl(url) {
   try {
     const parts = new URL(url).pathname.split('/').filter(Boolean)
-    if (parts.length >= 2 && !/^\d+$/.test(parts[1])) {
-      return parts[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    // Zoek het content-type segment (bijv. 'playlists') en pak de slug erna.
+    // Beatport URLs kunnen een taalprefix hebben: /en/playlists/<slug>/<id>
+    const typeIdx = parts.findIndex(p => _BP_TYPES.has(p.toLowerCase()))
+    if (typeIdx !== -1 && typeIdx + 1 < parts.length) {
+      const slug = parts[typeIdx + 1]
+      if (!/^\d+$/.test(slug))
+        return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     }
   } catch {}
   return null

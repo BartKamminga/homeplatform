@@ -79,13 +79,26 @@ def _move_crade_dir(crade: DownloadCrade, new_rel: str, session: Session) -> Non
     session.add(crade)
 
 
+_BP_TYPES = frozenset([
+    "playlist", "playlists", "release", "releases",
+    "track", "tracks", "artist", "artists",
+    "chart", "charts", "label", "labels", "mix", "mixes",
+])
+
+
 def _slug_from_beatport_url(url: str) -> Optional[str]:
-    """Haal een leesbare naam op uit de Beatport URL-slug."""
+    """Haal een leesbare naam op uit de Beatport URL-slug.
+
+    Beatport URLs kunnen een taalprefix hebben (/en/, /nl/ …).
+    We zoeken het content-type segment en pakken de slug erna.
+    """
     try:
         parts = [p for p in urlparse(url).path.split("/") if p]
-        # bijv. ['playlist', 'house-vibes-2024', '12345678']
-        if len(parts) >= 2:
-            return parts[1].replace("-", " ").title()
+        for i, p in enumerate(parts):
+            if p.lower() in _BP_TYPES and i + 1 < len(parts):
+                slug = parts[i + 1]
+                if not slug.isdigit():
+                    return slug.replace("-", " ").title()
     except Exception:
         pass
     return None
