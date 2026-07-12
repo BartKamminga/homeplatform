@@ -225,6 +225,7 @@ async def _run_download(job_id: str):
         _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
 
         timed_out = False
+        last_ping = datetime.utcnow()
         while True:
             try:
                 raw = await asyncio.wait_for(proc.stdout.readline(), timeout=_NO_OUTPUT_TIMEOUT)
@@ -247,6 +248,7 @@ async def _run_download(job_id: str):
                 error_hints.append(line)
 
             is_percent = bool(_PERCENT_RE.match(line))
+            now = datetime.utcnow()
             if is_percent and lines and _PERCENT_RE.match(lines[-1]):
                 lines[-1] = line
             else:
@@ -254,9 +256,13 @@ async def _run_download(job_id: str):
                 if len(lines) > 60:
                     lines.pop(0)
                 flush_count += 1
-                if flush_count >= 5:
-                    _update_job(job_id, progress_log="\n".join(lines), last_progress_at=datetime.utcnow())
-                    flush_count = 0
+
+            # Update log elke 5 regels; ping last_progress_at elke 30 seconden
+            do_ping = (now - last_ping).total_seconds() >= 30
+            if flush_count >= 5 or do_ping:
+                _update_job(job_id, progress_log="\n".join(lines), last_progress_at=now)
+                flush_count = 0
+                last_ping = now
 
         if timed_out:
             _update_job(

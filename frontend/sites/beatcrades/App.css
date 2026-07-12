@@ -373,13 +373,29 @@
 .bc-crade--done   .bc-crade-icon { color: var(--bc-ok); }
 .bc-crade--error  .bc-crade-icon { color: var(--bc-err); }
 
-.bc-crade-name {
+.bc-crade-name-wrap {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.bc-crade-name {
   font-weight: 600;
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bc-crade-progress-line {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
 }
 
 .bc-badges {

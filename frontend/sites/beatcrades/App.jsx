@@ -90,7 +90,11 @@ function parseProgress(log) {
   if (!log) return { done: 0, total: null }
   let done = 0, total = null
   for (const line of log.split('\n')) {
-    const m = line.match(/Downloading item (\d+) of (\d+)/i)
+    // beatportdl: "Downloading item 3 of 15" / "Downloading track 3/15" / "[3/15]"
+    let m = line.match(/Downloading item (\d+) of (\d+)/i)
+           || line.match(/Downloading track (\d+)[/ ](\d+)/i)
+           || line.match(/\[(\d+)\/(\d+)\]/)
+           || line.match(/item\s+(\d+)\s+of\s+(\d+)/i)
     if (m) { done = parseInt(m[1]); total = parseInt(m[2]) }
   }
   if (!total) done = (log.match(/Destination:/g) || []).length
@@ -548,7 +552,7 @@ function isCradeOpen(openCrades, id) { return !!openCrades[id] }
 
 // ── CradeRow ──────────────────────────────────────────────────────────────────
 
-const STALL_MS = 5 * 60 * 1000  // 5 minuten zonder voortgang = vastgelopen
+const STALL_MS = 20 * 60 * 1000  // 20 minuten zonder voortgang = vastgelopen (backend timeout is 30 min)
 
 function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging, onDragStart, onDragEnd }) {
   const [logExpanded, setLogExpanded] = useState(false)
@@ -577,7 +581,12 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
         <span className="bc-drag" onClick={e => e.stopPropagation()} title="Crade slepen naar Rack">⠿</span>
         <span className="bc-chev">{open ? '▾' : '▸'}</span>
         <span className="bc-crade-icon"><CradeIcon size={18} open={open} /></span>
-        <span className="bc-crade-name">{crade.name}</span>
+        <div className="bc-crade-name-wrap">
+          <span className="bc-crade-name">{crade.name}</span>
+          {crade.status === 'downloading' && crade.progress_log && (
+            <span className="bc-crade-progress-line">{lastLine(crade.progress_log)}</span>
+          )}
+        </div>
         <div className="bc-badges">
           <span className="bc-badge bc-badge-src">{SRC_ICON[src]}</span>
           {total ? (
