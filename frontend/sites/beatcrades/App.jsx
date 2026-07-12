@@ -660,8 +660,10 @@ function CradeRow({ crade, open, onToggle, onRename, onDelete, onRestart, onCanc
             title="Klik om te hernoemen">
             {crade.name}
           </span>
-          {crade.status === 'downloading' && crade.progress_log && (
-            <span className="bc-crade-progress-line">{lastLine(crade.progress_log)}</span>
+          {crade.status === 'downloading' && (
+            <span className="bc-crade-progress-line">
+              {crade.progress_log ? lastLine(crade.progress_log) : 'Downloaden gestart…'}
+            </span>
           )}
         </div>
         <div className="bc-badges">

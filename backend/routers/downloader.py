@@ -115,6 +115,25 @@ def _detect_source(url: str) -> str:
     return "auto"
 
 
+_GO_PANIC_RE = re.compile(r"^goroutine \d+", re.MULTILINE)
+
+
+def _extract_go_panic_reason(lines: list) -> str:
+    """Haal een leesbare oorzaak op uit een Go-panic dump."""
+    for line in lines:
+        if "panic:" in line.lower():
+            return line.strip()
+    for line in lines:
+        ll = line.lower()
+        if any(k in ll for k in ("tls", "connection reset", "eof", "timeout", "deadline exceeded", "i/o timeout")):
+            return line.strip()
+    return "Onverwachte crash (beatportdl panic)"
+
+
+def _is_go_panic(lines: list) -> bool:
+    return any(_GO_PANIC_RE.match(l) for l in lines)
+
+
 def _update_job(job_id: str, **kwargs):
     with Session(engine) as s:
         job = s.get(DownloadJob, job_id)
@@ -131,6 +150,7 @@ def _update_job(job_id: str, **kwargs):
 
 _PERCENT_RE = re.compile(r"^\[download\]\s+\d")
 _NO_OUTPUT_TIMEOUT = 1800  # seconden: kill als er 30 min geen output is
+_READLINE_TIMEOUT = 12     # seconden per readline-poging; zorgt voor periodieke DB-pings
 
 # Bijhouden van actieve processen per job_id zodat /cancel ze kan stoppen
 _active_procs: dict[str, asyncio.subprocess.Process] = {}
@@ -243,17 +263,27 @@ async def _run_download(job_id: str):
         _ERR_KW = ("error", "fail", "fatal", "exception", "unauthorized", "invalid", "denied")
 
         timed_out = False
-        last_ping = datetime.utcnow()
+        last_output = datetime.utcnow()   # bijhouden wanneer we voor het laast een regel kregen
+        last_ping   = datetime.utcnow()   # bijhouden wanneer we voor het laast de DB pinged
         while True:
             try:
-                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=_NO_OUTPUT_TIMEOUT)
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=_READLINE_TIMEOUT)
             except asyncio.TimeoutError:
-                proc.kill()
-                timed_out = True
-                break
+                now = datetime.utcnow()
+                # Geen output voor _NO_OUTPUT_TIMEOUT seconden → proces killen
+                if (now - last_output).total_seconds() >= _NO_OUTPUT_TIMEOUT:
+                    proc.kill()
+                    timed_out = True
+                    break
+                # Periodieke ping zodat de UI weet dat het nog bezig is
+                prog = "\n".join(lines) if lines else "Beatportdl gestart, wachten op eerste output…"
+                _update_job(job_id, progress_log=prog, last_progress_at=now)
+                last_ping = now
+                continue
             if not raw:
                 break
 
+            last_output = datetime.utcnow()
             line = raw.decode(errors="replace").rstrip()
             if not line:
                 continue
@@ -322,11 +352,18 @@ async def _run_download(job_id: str):
             except Exception as exc:
                 logger.warning("Kan BeatCrades.info niet schrijven: %s", exc)
         else:
-            if real_errors:
-                error = "\n".join(real_errors[-10:])
+            if _is_go_panic(lines):
+                reason = _extract_go_panic_reason(lines)
+                error = (
+                    f"Beatportdl is gecrasht (panic): {reason}\n"
+                    "Controleer je Beatport-sessie en klik op ↺ om opnieuw te starten."
+                )
+            elif real_errors:
+                error = f"[exit {proc.returncode}]\n" + "\n".join(real_errors[-10:])
+                error = error.strip()
             else:
-                error = "\n".join(lines[-10:])
-            error = f"[exit {proc.returncode}]\n{error}".strip()
+                error = f"[exit {proc.returncode}]\n" + "\n".join(lines[-10:])
+                error = error.strip()
             _update_job(job_id, status="error", error=error[:1500])
             logger.error("Download mislukt [%s] exit=%d: %s", job_id, proc.returncode, error[:300])
 
