@@ -37,7 +37,7 @@ const DB_GLOBAL_ROWS = [
   { label: 'title, status, priority, notes',               where: 'roadmap_items',  note: 'Roadmap backlog' },
   { label: 'name, abbreviation, city, color',              where: 'tournix_clubs',  note: 'Tournix clubreferentie' },
   { label: 'name',                                         where: 'mixmusic_genres', note: 'MixMusic genres' },
-  { label: 'url, title, status, progress_log, output_path', where: 'download_jobs', note: 'Beatload — download queue' },
+  { label: 'url, title, status, progress_log, output_path', where: 'download_jobs', note: 'BeatCrades — download queue' },
 ];
 
 const LS_ROWS = [
@@ -228,7 +228,7 @@ export default function DataStorage() {
         </p>
 
         <SubHeader label="Paden — server" />
-        <DataRow col1="DOWNLOAD_DIR" col2={paths.download_dir ?? '—'} col3="Bestemmingsmap voor Beatload-downloads (binnen Docker-container)" count={null} />
+        <DataRow col1="DOWNLOAD_DIR" col2={paths.download_dir ?? '—'} col3="Bestemmingsmap voor BeatCrades-downloads (binnen Docker-container)" count={null} />
         <DataRow col1="BEATPORTDL_CONFIG_DIR" col2={paths.beatportdl_config_dir ?? '—'} col3="Optionele config-map voor beatportdl (leeg = niet ingesteld)" count={null} />
 
         <SubHeader label="Paden — NAS" />
