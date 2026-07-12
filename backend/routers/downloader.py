@@ -155,8 +155,19 @@ _READLINE_TIMEOUT = 12     # seconden per readline-poging; zorgt voor periodieke
 # Bijhouden van actieve processen per job_id zodat /cancel ze kan stoppen
 _active_procs: dict[str, asyncio.subprocess.Process] = {}
 
+# Max 2 gelijktijdige downloads (beatportdl/yt-dlp); overige jobs blijven 'queued'
+_DOWNLOAD_SEM = asyncio.Semaphore(2)
+
+# Regels die beatportdl uitvoert in interactieve modus — niet tonen aan de gebruiker
+_BEATPORT_NOISE = ("enter url or search query", "error reading input string")
+
 
 async def _run_download(job_id: str):
+    async with _DOWNLOAD_SEM:
+        await _run_download_inner(job_id)
+
+
+async def _run_download_inner(job_id: str):
     _update_job(job_id, status="downloading", progress_log="")
 
     with Session(engine) as s:
@@ -287,6 +298,9 @@ async def _run_download(job_id: str):
             line = raw.decode(errors="replace").rstrip()
             if not line:
                 continue
+            # Sla interactieve-modus ruis van beatportdl over
+            if any(kw in line.lower() for kw in _BEATPORT_NOISE):
+                continue
 
             m = re.search(r"Destination: (.+\.(?:flac|mp3|m4a|ogg|opus|wav))", line, re.IGNORECASE)
             if m:
@@ -341,7 +355,7 @@ async def _run_download(job_id: str):
                 output_path = new_dirs[0]
         if succeeded:
             _update_job(job_id, status="done", output_path=output_path)
-            logger.info("Download klaar: %s → %s", job_id, output_path)
+            logger.info("Download klaar [%s] crade=%r source=%s → %s", job_id, crade_name, source, output_path)
             try:
                 info_path = os.path.join(download_dir, "BeatCrades.info")
                 with open(info_path, "w", encoding="utf-8") as f:
@@ -759,15 +773,19 @@ def get_tree(
     racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.created_at)).all()
     crades   = session.exec(select(DownloadCrade).order_by(DownloadCrade.created_at.desc())).all()
 
-    crade_map = {}
-    for c in crades:
-        job = session.exec(
-            select(DownloadJob)
-            .where(DownloadJob.crade_id == c.id)
-            .order_by(DownloadJob.created_at.desc())
-            .limit(1)
-        ).first()
-        crade_map[c.id] = _crade_out(c, job)
+    # Haal alle jobs in één query op; bouw daarna een dict met de meest recente per crade
+    crade_ids = [c.id for c in crades]
+    all_jobs = session.exec(
+        select(DownloadJob)
+        .where(DownloadJob.crade_id.in_(crade_ids))
+        .order_by(DownloadJob.created_at.desc())
+    ).all()
+    job_map: dict[str, DownloadJob] = {}
+    for j in all_jobs:
+        if j.crade_id not in job_map:
+            job_map[j.crade_id] = j
+
+    crade_map = {c.id: _crade_out(c, job_map.get(c.id)) for c in crades}
 
     rack_map = {}
     for r in racks:

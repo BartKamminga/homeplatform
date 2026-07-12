@@ -624,7 +624,7 @@ function isCradeOpen(openCrades, id) { return !!openCrades[id] }
 
 // ── CradeRow ──────────────────────────────────────────────────────────────────
 
-const STALL_MS = 20 * 60 * 1000
+const STALL_MS = 3 * 60 * 1000
 
 function CradeRow({ crade, open, onToggle, onRename, onDelete, onRestart, onCancel, inRack, dragging, onDragStart, onDragEnd }) {
   const [logExpanded, setLogExpanded] = useState(false)
