@@ -14,3 +14,6 @@ export const restartCrade    = (id)      => api.post(`/api/beatcrades/crades/${i
 export const cancelCrade     = (id)      => api.post(`/api/beatcrades/crades/${id}/cancel`,  {})
 export const syncPreview     = ()        => api.get('/api/beatcrades/sync/preview')
 export const syncExecute     = (ids)     => api.post('/api/beatcrades/sync/execute', { action_ids: ids })
+
+export const getProvider     = ()        => api.get('/api/admin/beatport-provider')
+export const setProvider     = (provider) => api.put('/api/admin/beatport-provider', { provider })

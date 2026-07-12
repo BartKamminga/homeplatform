@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade } from './api.js'
+import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade, getProvider, setProvider } from './api.js'
 import { FORMATS, detectSrc, slugFromBeatportUrl, todayName, allCradesFrom } from './helpers.js'
 import { SectionIcon } from './components/Icons.jsx'
 import { CradeRow } from './components/CradeRow.jsx'
@@ -7,6 +7,65 @@ import { RackBlock } from './components/RackBlock.jsx'
 import { PlaceholderRow } from './components/PlaceholderRow.jsx'
 import { SyncModal } from './components/SyncModal.jsx'
 import './App.css'
+
+function ProviderBadge() {
+  const [data, setData]     = useState(null)
+  const [open, setOpen]     = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { getProvider().then(setData).catch(() => {}) }, [])
+  if (!data) return null
+
+  const pick = async (p) => {
+    if (p === data.provider || saving) return
+    setSaving(true)
+    try { const r = await setProvider(p); setData(d => ({ ...d, provider: r.provider, from_env: r.from_env })) }
+    catch {}
+    setSaving(false); setOpen(false)
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        className="bc-btn bc-btn-sec"
+        style={{ fontSize: '0.75rem', opacity: 0.8 }}
+        onClick={() => setOpen(o => !o)}
+        title="Beatport provider (admin)"
+      >
+        ⚙ {data.provider}{data.from_env ? ' (env)' : ''}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 100,
+          background: 'var(--bc-surface, var(--color-surface, #fff))',
+          border: '1px solid var(--color-border, #d1d5db)',
+          borderRadius: '8px', padding: '8px', minWidth: '160px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted, #6b7280)', marginBottom: '6px' }}>
+            Beatport provider
+          </div>
+          {data.options.map(p => (
+            <button key={p} onClick={() => pick(p)} disabled={saving} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '5px 8px', borderRadius: '5px', border: 'none',
+              background: data.provider === p ? 'var(--color-primary, #6366f1)' : 'transparent',
+              color: data.provider === p ? '#fff' : 'inherit',
+              cursor: 'pointer', fontSize: '0.85rem', marginBottom: '2px',
+            }}>
+              {p}{data.provider === p && !data.from_env ? ' ✓' : ''}
+            </button>
+          ))}
+          {data.from_env && (
+            <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted, #6b7280)', marginTop: '6px', borderTop: '1px solid var(--color-border, #e5e7eb)', paddingTop: '6px' }}>
+              Standaard via BEATPORT_PROVIDER env var. Reset na herstart.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function App() {
   const [tree,          setTree]         = useState({ sections: [], racks: [], crades: [] })
@@ -194,6 +253,7 @@ export default function App() {
           <p className="bc-subtitle">Download crates — Beatport · YouTube · SoundCloud</p>
         </div>
         <div className="bc-hdr-btns">
+          <ProviderBadge />
           <button className="bc-btn bc-btn-sec" onClick={() => setSyncOpen(true)}>🔄 Sync</button>
           <button className="bc-btn bc-btn-sec" onClick={() => addRack(null)}>＋ Rack</button>
           <button className="bc-btn bc-btn-pri" onClick={openNew}>＋ Crade</button>
