@@ -113,7 +113,9 @@ async def _run_inner(job_id: str) -> None:
 
     # ── Proces starten ────────────────────────────────────────────────────────
 
-    proc = None
+    proc            = None
+    _stop_watcher   = None
+    _watcher        = None
     try:
         proc_kwargs = {
             "stdout": asyncio.subprocess.PIPE,
@@ -127,8 +129,24 @@ async def _run_inner(job_id: str) -> None:
         active_procs[job_id] = proc
 
         # ── Lees-loop met heartbeat ───────────────────────────────────────────
+        # Voor beatport: scan tegelijkertijd de downloadmap voor real-time voortgang.
+        # beatportdl buffert alles → de read-loop geeft niets tot het klaar is.
+
+        if source == "beatport":
+            _stop_watcher = asyncio.Event()
+            _watcher = asyncio.create_task(
+                beatport.watch_progress(download_dir, job_id, _stop_watcher, before_dirs)
+            )
 
         result = await _read_loop(proc, job_id, source)
+
+        if source == "beatport" and _stop_watcher and _watcher:
+            _stop_watcher.set()
+            try:
+                await asyncio.wait_for(_watcher, timeout=5)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                _watcher.cancel()
+            _watcher = None
 
         if result.timed_out:
             update_job(
@@ -177,6 +195,11 @@ async def _run_inner(job_id: str) -> None:
     except Exception as e:
         update_job(job_id, status="error", error=str(e)[:500])
     finally:
+        # Watcher opruimen als die nog draait (bijv. na exception)
+        if _watcher and not _watcher.done():
+            if _stop_watcher:
+                _stop_watcher.set()
+            _watcher.cancel()
         active_procs.pop(job_id, None)
         if work_dir:
             import shutil
@@ -196,7 +219,9 @@ async def _read_loop(proc, job_id: str, source: str) -> _ReadResult:
     flush_count = 0
     last_output = datetime.utcnow()
     last_ping   = datetime.utcnow()
-    name_patterns = [beatport.PLAYLIST_NAME_RE, ytdlp.PLAYLIST_NAME_RE]
+    # beatportdl heeft geen playlist-header; naam-detectie verloopt via mapstructuur.
+    # yt-dlp geeft wel een playlist-naam regel.
+    name_patterns = [ytdlp.PLAYLIST_NAME_RE]
 
     while True:
         try:

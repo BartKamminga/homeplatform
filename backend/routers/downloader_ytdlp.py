@@ -17,9 +17,10 @@ logger = logging.getLogger("homeplatform.beatcrades.ytdlp")
 
 # ── Constanten ────────────────────────────────────────────────────────────────
 
-# Playlist-naam herkenning uit yt-dlp output
+# Playlist-naam herkenning uit yt-dlp output.
+# Werkelijk formaat: "[youtube:tab] Playlist My Title: Downloading 58 items of 58"
 PLAYLIST_NAME_RE = re.compile(
-    r"^\[download\] Downloading playlist:\s*(.+)",
+    r"^\[[\w:]+\] Playlist (.+?): Downloading \d+ items",
     re.IGNORECASE,
 )
 

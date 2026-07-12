@@ -6,6 +6,7 @@ beatportdl is een Go-binary die:
 - downloads organiseert in type-mappen: downloads_dir/Playlists/<naam>/ of Releases/<naam>/
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -31,14 +32,13 @@ TYPE_DIRS = frozenset([
     "playlists", "releases", "tracks", "charts", "mixes", "labels", "artists",
 ])
 
+_AUDIO_EXTS = frozenset([".flac", ".mp3", ".wav", ".m4a", ".ogg", ".opus", ".webm"])
+
 # Go-panic herkenning
 _GO_PANIC_RE = re.compile(r"^goroutine \d+", re.MULTILINE)
 
-# Playlist/release-naam uit beatportdl output (enkel- én meervoud ondersteund)
-PLAYLIST_NAME_RE = re.compile(
-    r"^Downloading (?:Playlist|Release|Chart|Mix|Label|Artist)s?:\s*(.+)",
-    re.IGNORECASE,
-)
+# beatportdl heeft GEEN playlist-niveau header (alleen per-track regels);
+# naam-detectie gebeurt via de mapstructuur (_content_name).
 
 
 # ── Voorbereiding ─────────────────────────────────────────────────────────────
@@ -84,6 +84,9 @@ def prepare(url: str, download_dir: str, job_id: str) -> Optional[BeatportContex
 
         # Overschrijf downloads_directory met onze job-specifieke map
         cfg["downloads_directory"] = download_dir
+        # show_progress vereist een TTY; via pipe komen alleen garbled ANSI-codes door.
+        # Forceer false zodat beatportdl leesbare tekst-output geeft.
+        cfg["show_progress"] = "false"
 
         with open(os.path.join(work_dir, "beatportdl-config.yml"), "w", encoding="utf-8") as f:
             for key, val in cfg.items():
@@ -171,6 +174,50 @@ def handle_result(
 
 # ── Interne hulpfuncties ──────────────────────────────────────────────────────
 
+async def watch_progress(download_dir: str, job_id: str, stop: asyncio.Event, before_dirs: set) -> None:
+    """Scan de downloadmap elke 10 s en rapporteer voortgang aan de UI.
+
+    beatportdl buffert alles → geen real-time output. In plaats daarvan tellen
+    we audio-bestanden op disk zodat de gebruiker toch voortgang ziet.
+    """
+    while not stop.is_set():
+        await asyncio.sleep(10)
+        if stop.is_set():
+            break
+        try:
+            count = 0
+            detected_name = None
+
+            for root, _dirs, files in os.walk(download_dir):
+                for f in files:
+                    if os.path.splitext(f)[1].lower() in _AUDIO_EXTS:
+                        count += 1
+
+                # Detecteer naam uit mapstructuur: downloads_dir/Playlists/Naam/
+                try:
+                    rel   = os.path.relpath(root, download_dir).replace("\\", "/")
+                    parts = [p for p in rel.split("/") if p and p != "."]
+                    if len(parts) >= 2 and parts[0].lower() in TYPE_DIRS:
+                        detected_name = parts[1].replace("_", " ")
+                    elif len(parts) == 1 and parts[0].lower() not in TYPE_DIRS:
+                        detected_name = parts[0].replace("_", " ")
+                except Exception:
+                    pass
+
+            msg_parts = []
+            if detected_name:
+                msg_parts.append(f"📀 {detected_name}")
+            if count > 0:
+                num = "nummer" if count == 1 else "nummers"
+                msg_parts.append(f"♬ {count} {num} gedownload")
+            elif not msg_parts:
+                msg_parts.append("Beatportdl gestart, wachten op eerste output…")
+
+            update_job(job_id, progress_log="\n".join(msg_parts), last_progress_at=datetime.utcnow())
+        except Exception:
+            pass
+
+
 def _first_new_dir(download_dir: str, before_dirs: set) -> Optional[str]:
     """Geeft de eerste nieuw aangemaakte top-level map terug (voor output_path)."""
     try:
@@ -182,16 +229,21 @@ def _first_new_dir(download_dir: str, before_dirs: set) -> Optional[str]:
 
 
 def _content_name(download_dir: str, before_dirs: set) -> Optional[str]:
-    """Zoek de echte playlist/release-naam; kijk BINNEN type-mappen (Playlists/, Releases/…)."""
+    """Zoek de echte playlist/release-naam; kijk BINNEN type-mappen (Playlists/, Releases/…).
+
+    Werkt ook bij restarts waarbij de type-map al bestond: zoekt dan naar de
+    meest recentelijk gewijzigde submap binnen bestaande type-mappen.
+    """
     try:
         after = {e for e in os.listdir(download_dir) if os.path.isdir(os.path.join(download_dir, e))}
-        new = sorted(after - before_dirs)
     except OSError:
         return None
 
+    new = sorted(after - before_dirs)
+
+    # Stap 1: nieuwe type-mappen (eerste download)
     for d in new:
         if d.lower() in TYPE_DIRS:
-            # beatportdl-structuur: downloads_dir/Playlists/<naam>/
             type_path = os.path.join(download_dir, d)
             try:
                 subs = sorted(e for e in os.listdir(type_path)
@@ -202,6 +254,24 @@ def _content_name(download_dir: str, before_dirs: set) -> Optional[str]:
                 pass
         else:
             return d.replace("_", " ").strip()
+
+    # Stap 2: bestaande type-mappen (restart) — pak de meest recent gewijzigde submap
+    for d in sorted(before_dirs):
+        if d.lower() not in TYPE_DIRS:
+            continue
+        type_path = os.path.join(download_dir, d)
+        try:
+            subs = [
+                (e, os.path.getmtime(os.path.join(type_path, e)))
+                for e in os.listdir(type_path)
+                if os.path.isdir(os.path.join(type_path, e))
+            ]
+            if subs:
+                newest = max(subs, key=lambda x: x[1])[0]
+                return newest.replace("_", " ").strip()
+        except OSError:
+            pass
+
     return None
 
 

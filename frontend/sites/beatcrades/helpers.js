@@ -50,13 +50,19 @@ export function parseProgress(log) {
   if (!log) return { done: 0, total: null }
   let done = 0, total = null
   for (const line of log.split('\n')) {
+    // yt-dlp: "[download] Downloading item 5 of 20"
     const m = line.match(/Downloading item (\d+) of (\d+)/i)
            || line.match(/Downloading track (\d+)[/ ](\d+)/i)
            || line.match(/\[(\d+)\/(\d+)\]/)
            || line.match(/item\s+(\d+)\s+of\s+(\d+)/i)
     if (m) { done = parseInt(m[1]); total = parseInt(m[2]) }
   }
-  if (!total) done = (log.match(/Destination:/g) || []).length
+  if (!total) {
+    // yt-dlp: tel Destination:-regels (per track)
+    // beatportdl: tel "Finished downloading"-regels (per track)
+    done = (log.match(/Destination:/g) || []).length
+        || (log.match(/^Finished downloading /gm) || []).length
+  }
   return { done, total }
 }
 
@@ -69,10 +75,15 @@ export function parseCurrentTrack(log) {
   if (!log) return null
   let name = null
   for (const line of log.split('\n')) {
+    // yt-dlp: "Destination: /path/Track Name.flac"
     let m = line.match(/Destination:\s*(.+\.(?:flac|mp3|m4a|opus|ogg|wav|webm|mkv))\s*$/i)
     if (m) { name = m[1].split(/[/\\]/).pop().replace(/\.[^.]+$/, ''); continue }
+    // yt-dlp: [ExtractAudio] Destination: "Track Name"
     m = line.match(/\[(?:Metadata|Merger|ExtractAudio)\][^"]*"(.+?)"/i)
     if (m) { name = m[1].replace(/\.[^.]+$/, ''); continue }
+    // beatportdl: "Downloading Track Name (Mix Name) [FLAC]"
+    m = line.match(/^(?:Downloading|Finished downloading)\s+(.+?)\s+\([^)]*\)\s+\[(?:FLAC|AAC|MP3)/i)
+    if (m) { name = m[1]; continue }
   }
   return name
 }
