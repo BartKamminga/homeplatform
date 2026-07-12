@@ -387,7 +387,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
+.bc-crade-name:hover { text-decoration: underline; }
 
 .bc-crade-progress-line {
   font-size: 10px;
@@ -527,6 +529,89 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ── Stop button ── */
+
+.bc-stop-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: color .12s, background .12s;
+  flex-shrink: 0;
+  color: var(--bc-err);
+}
+.bc-stop-btn:hover { background: color-mix(in srgb, var(--bc-err) 10%, transparent); }
+
+/* ── Inline placeholder rows ── */
+
+.bc-ph {
+  display: flex;
+  align-items: center;
+  border: 1px dashed var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color .15s;
+  background: transparent;
+}
+.bc-ph:focus-within { border-style: solid; }
+.bc-ph--section { border-radius: var(--bc-r); }
+.bc-ph--section:focus-within { border-color: var(--bc-ok); }
+.bc-ph--rack:focus-within    { border-color: var(--bc-acc); }
+.bc-ph--crade:focus-within   { border-color: var(--bc-warn); }
+
+.bc-ph-ico {
+  width: 40px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-border, #e5e7eb);
+  color: var(--bc-muted);
+  transition: color .15s;
+}
+.bc-ph--section .bc-ph-ico { height: 40px; }
+.bc-ph--section:focus-within .bc-ph-ico { color: var(--bc-ok); }
+.bc-ph--rack:focus-within    .bc-ph-ico { color: var(--bc-acc); }
+.bc-ph--crade:focus-within   .bc-ph-ico { color: var(--bc-warn); }
+
+.bc-ph-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--color-text, #111);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  height: 36px;
+}
+.bc-ph--section .bc-ph-input { height: 40px; font-size: 13px; }
+.bc-ph-input::placeholder { color: var(--bc-muted); font-style: italic; }
+
+.bc-ph-btn {
+  height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-left: 1px solid var(--color-border, #e5e7eb);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--bc-muted);
+  transition: color .15s, background .15s;
+}
+.bc-ph--section .bc-ph-btn { height: 40px; font-size: 12px; }
+.bc-ph-btn:disabled { opacity: .35; cursor: default; }
+.bc-ph-btn:not(:disabled):hover { background: var(--color-surface-2, #f3f4f6); }
+.bc-ph--section .bc-ph-btn:not(:disabled) { color: var(--bc-ok); }
+.bc-ph--rack    .bc-ph-btn:not(:disabled) { color: var(--bc-acc); }
+.bc-ph--crade   .bc-ph-btn:not(:disabled) { color: var(--bc-warn); }
 
 /* ── Drop zones ── */
 

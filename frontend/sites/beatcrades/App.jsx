@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade, syncPreview, syncExecute } from './api.js'
+import { getTree, createSection, updateSection, deleteSection, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade, syncPreview, syncExecute } from './api.js'
 import './App.css'
 
 const FORMATS = ['flac', 'mp3', 'wav']
@@ -16,50 +16,62 @@ const ST = {
 
 function SectionIcon({ size = 16 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none"
       stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
       style={{ flexShrink: 0, verticalAlign: 'middle' }}>
-      <rect x="2" y="9" width="20" height="13" rx="1.5"/>
-      <path d="M2 9 L2 7 L9 7 L11 9"/>
-      <line x1="2" y1="14" x2="22" y2="14"/>
+      {/* dak */}
+      <path d="M2.5 9.5 L10 2.5 L17.5 9.5"/>
+      {/* muren */}
+      <path d="M4.5 8.5 L4.5 17.5 L15.5 17.5 L15.5 8.5"/>
+      {/* deur */}
+      <path d="M8 17.5 L8 13 Q10 11.8 12 13 L12 17.5" strokeWidth="1.2"/>
+      {/* raam */}
+      <rect x="5.5" y="10" width="2.5" height="2.5" rx="0.4" strokeWidth="1"/>
+      {/* schoorsteen */}
+      <rect x="12.5" y="3.5" width="2" height="3" rx="0.3" strokeWidth="1.1"/>
     </svg>
   )
 }
 
 function RackIcon({ size = 18 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none"
       stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
       style={{ flexShrink: 0, verticalAlign: 'middle' }}>
-      <rect x="2" y="11" width="20" height="11" rx="1.5"/>
-      <rect x="1" y="9" width="22" height="3" rx="1"/>
-      <line x1="7" y1="12" x2="7" y2="22"/>
-      <line x1="12" y1="12" x2="12" y2="22"/>
-      <line x1="17" y1="12" x2="17" y2="22"/>
-      <path d="M2 10 Q4 5 7 10"/>
-      <path d="M7 10 Q9.5 3.5 12 10"/>
-      <path d="M12 10 Q14.5 5.5 17 10"/>
-      <path d="M17 10 Q20 7 22 10"/>
+      {/* kastframe */}
+      <rect x="2" y="1.5" width="16" height="17" rx="1.2"/>
+      {/* rackrails */}
+      <line x1="4.5" y1="1.5" x2="4.5" y2="18.5" strokeWidth="1"/>
+      <line x1="15.5" y1="1.5" x2="15.5" y2="18.5" strokeWidth="1"/>
+      {/* rack-units */}
+      <rect x="5" y="3.5" width="10" height="3" rx="0.6" strokeWidth="1.1"/>
+      <rect x="5" y="8" width="10" height="3" rx="0.6" strokeWidth="1.1"/>
+      <rect x="5" y="12.5" width="10" height="3" rx="0.6" strokeWidth="1.1"/>
+      {/* schroefgaatjes */}
+      <circle cx="3.7" cy="5"    r="0.5" fill="currentColor" stroke="none"/>
+      <circle cx="3.7" cy="9.5"  r="0.5" fill="currentColor" stroke="none"/>
+      <circle cx="3.7" cy="14"   r="0.5" fill="currentColor" stroke="none"/>
+      <circle cx="16.3" cy="5"   r="0.5" fill="currentColor" stroke="none"/>
+      <circle cx="16.3" cy="9.5" r="0.5" fill="currentColor" stroke="none"/>
+      <circle cx="16.3" cy="14"  r="0.5" fill="currentColor" stroke="none"/>
     </svg>
   )
 }
 
-function CradeIcon({ size = 18, open = false }) {
+function CradeIcon({ size = 18 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none"
       stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
       style={{ flexShrink: 0, verticalAlign: 'middle' }}>
-      <rect x="2" y="10" width="20" height="12" rx="1.5"/>
-      <rect x="1" y="8" width="22" height="3" rx="1"/>
-      <line x1="7" y1="11" x2="7" y2="22"/>
-      <line x1="12" y1="11" x2="12" y2="22"/>
-      <line x1="17" y1="11" x2="17" y2="22"/>
-      {open && <>
-        <path d="M2.5 10 Q4.5 5.5 7 10"/>
-        <path d="M7 10 Q9.5 4.5 12 10"/>
-        <path d="M12 10 Q14.5 6 17 10"/>
-        <path d="M17 10 Q19.5 7 21.5 10"/>
-      </>}
+      {/* krat buitenrand */}
+      <rect x="1.5" y="5" width="17" height="13" rx="1.2"/>
+      {/* verticale latten */}
+      <line x1="7"  y1="5" x2="7"  y2="18"/>
+      <line x1="13" y1="5" x2="13" y2="18"/>
+      {/* horizontale lat */}
+      <line x1="1.5" y1="11" x2="18.5" y2="11"/>
+      {/* handvat */}
+      <path d="M7.5 5 L7.5 3 Q10 1.5 12.5 3 L12.5 5" strokeWidth="1.3"/>
     </svg>
   )
 }
@@ -77,8 +89,6 @@ function detectSrc(url) {
 function slugFromBeatportUrl(url) {
   try {
     const parts = new URL(url).pathname.split('/').filter(Boolean)
-    // /playlist/house-vibes/12345 → parts[1] = 'house-vibes'
-    // /release/album-name/12345  → parts[1] = 'album-name'
     if (parts.length >= 2 && !/^\d+$/.test(parts[1])) {
       return parts[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     }
@@ -90,7 +100,6 @@ function parseProgress(log) {
   if (!log) return { done: 0, total: null }
   let done = 0, total = null
   for (const line of log.split('\n')) {
-    // beatportdl: "Downloading item 3 of 15" / "Downloading track 3/15" / "[3/15]"
     let m = line.match(/Downloading item (\d+) of (\d+)/i)
            || line.match(/Downloading track (\d+)[/ ](\d+)/i)
            || line.match(/\[(\d+)\/(\d+)\]/)
@@ -117,6 +126,47 @@ function allCradesFrom(tree) {
     ...tree.racks.flatMap(r => r.crades),
     ...tree.sections.flatMap(s => s.racks.flatMap(r => r.crades)),
   ]
+}
+
+// ── PlaceholderRow ─────────────────────────────────────────────────────────────
+
+const PH_CFG = {
+  section: { ph: 'Naam nieuwe Section…',                        btn: 'Aanmaken' },
+  rack:    { ph: 'Naam nieuw Rack…',                            btn: 'Aanmaken' },
+  crade:   { ph: 'URL — Beatport, YouTube of SoundCloud…',      btn: '↓ Starten' },
+}
+
+function PlaceholderRow({ type, onSubmit }) {
+  const [val, setVal] = useState('')
+  const [busy, setBusy] = useState(false)
+  const cfg = PH_CFG[type]
+
+  const handleSubmit = async () => {
+    if (!val.trim() || busy) return
+    setBusy(true)
+    try { await onSubmit(val.trim()); setVal('') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className={`bc-ph bc-ph--${type}`}>
+      <div className="bc-ph-ico">
+        {type === 'section' && <SectionIcon size={18}/>}
+        {type === 'rack'    && <RackIcon size={16}/>}
+        {type === 'crade'   && <CradeIcon size={15}/>}
+      </div>
+      <input
+        className="bc-ph-input"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        placeholder={cfg.ph}
+        onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
+      />
+      <button className="bc-ph-btn" disabled={!val.trim() || busy} onClick={handleSubmit}>
+        {busy ? '…' : cfg.btn}
+      </button>
+    </div>
+  )
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -177,12 +227,14 @@ export default function App() {
     } finally { setSubmitting(false) }
   }
 
-  // Section actions
+  // ── Section actions ──
   const addSection = async () => {
     const name = await openPrompt('Naam van de nieuwe Section:')
     if (!name?.trim()) return
     await createSection({ name: name.trim() }); await load()
   }
+  const addSectionInline = async name => { await createSection({ name }); await load() }
+
   const renameSection = async (id, cur) => {
     const name = await openPrompt('Nieuwe naam:', cur)
     if (!name?.trim() || name === cur) return
@@ -193,11 +245,14 @@ export default function App() {
     await deleteSection(id); await load()
   }
 
-  // Rack actions
+  // ── Rack actions ──
   const addRack = async (sectionId = null) => {
     const name = await openPrompt('Naam van de nieuwe Rack:')
     if (!name?.trim()) return
     await createRack({ name: name.trim(), section_id: sectionId }); await load()
+  }
+  const addRackInSection = async (sectionId, name) => {
+    await createRack({ name, section_id: sectionId }); await load()
   }
   const renameRack = async (id, cur) => {
     const name = await openPrompt('Nieuwe naam:', cur)
@@ -209,7 +264,18 @@ export default function App() {
     await deleteRack(id); await load()
   }
 
-  // Crade actions
+  // ── Crade actions ──
+  const addCradeInRack = async (rackId, url) => {
+    const slug = detectSrc(url) === 'beatport' ? slugFromBeatportUrl(url) : null
+    const fmt = localStorage.getItem('bc_fmt') || 'flac'
+    await createCrade({ name: slug || todayName(), source_url: url, format: fmt, group_id: rackId })
+    await load()
+  }
+  const renameCrade = async (id, cur) => {
+    const name = await openPrompt('Nieuwe naam:', cur)
+    if (!name?.trim() || name === cur) return
+    await updateCrade(id, { name: name.trim() }); await load()
+  }
   const removeCrade = async id => {
     if (!await openConfirm('Crade verwijderen inclusief alle downloads?')) return
     await deleteCrade(id)
@@ -220,13 +286,10 @@ export default function App() {
       sections: t.sections.map(s => ({ ...s, racks: s.racks.map(r => ({ ...r, crades: r.crades.filter(c => c.id !== id) })) })),
     }))
   }
+  const onRestartCrade = async id => { await restartCrade(id).catch(() => {}); await load() }
+  const onCancelCrade  = async id => { await cancelCrade(id).catch(() => {});  await load() }
 
-  const onRestartCrade = async id => {
-    await restartCrade(id).catch(() => {})
-    await load()
-  }
-
-  // Crade drag-drop (crade → rack)
+  // ── Crade drag-drop ──
   const onCradeDragStart = (e, id) => { setDraggingCrade(id); e.dataTransfer.effectAllowed = 'move' }
   const onCradeDragEnd   = ()      => { setDraggingCrade(null); setDragOver(null) }
 
@@ -249,7 +312,7 @@ export default function App() {
     setDraggingCrade(null); setDragOver(null)
   }
 
-  // Rack drag-drop (rack → section)
+  // ── Rack drag-drop ──
   const onRackDragStart = (e, id) => { setDraggingRack(id); e.dataTransfer.effectAllowed = 'move' }
   const onRackDragEnd   = ()      => { setDraggingRack(null); setDragOver(null) }
 
@@ -272,14 +335,13 @@ export default function App() {
     setDraggingRack(null); setDragOver(null)
   }
 
-  // Open state helpers
+  // ── Open state ──
   const isSectionOpen = id => id in openSections ? openSections[id] : true
   const isRackOpen    = id => id in openRacks    ? openRacks[id]    : true
   const toggleSection = id => setOpenSections(s => ({ ...s, [id]: !(id in s ? s[id] : true) }))
   const toggleRack    = id => setOpenRacks(r    => ({ ...r, [id]: !(id in r ? r[id] : true) }))
   const toggleCrade   = id => setOpenCrades(c   => ({ ...c, [id]: !c[id] }))
 
-  // All racks flat (for new-crade form selector)
   const allRacks = [
     ...tree.sections.flatMap(s => s.racks.map(r => ({ ...r, sectionName: s.name }))),
     ...tree.racks.map(r => ({ ...r, sectionName: null })),
@@ -293,7 +355,8 @@ export default function App() {
     onCradeDragStart, onCradeDragEnd,
     onRackDragOver, onRackDrop,
     onRackDragStart, onRackDragEnd,
-    renameRack, removeRack, removeCrade, onRestartCrade,
+    renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
+    renameCrade, addCradeInRack,
   }
 
   return (
@@ -305,7 +368,6 @@ export default function App() {
         </div>
         <div className="bc-hdr-btns">
           <button className="bc-btn bc-btn-sec" onClick={() => setSyncOpen(true)}>🔄 Sync</button>
-          <button className="bc-btn bc-btn-sec" onClick={addSection}>＋ Section</button>
           <button className="bc-btn bc-btn-sec" onClick={() => addRack(null)}>＋ Rack</button>
           <button className="bc-btn bc-btn-pri" onClick={openNew}>＋ Crade</button>
         </div>
@@ -390,7 +452,6 @@ export default function App() {
               <span className="bc-section-meta">
                 {section.racks.length} {section.racks.length === 1 ? 'rack' : 'racks'} · {section.racks.reduce((n, r) => n + r.crades.length, 0)} crades
               </span>
-              <button className="bc-btn bc-btn-sec bc-btn-xs" onClick={() => addRack(section.id)}>＋ Rack</button>
               <button className="bc-del-btn" onClick={() => removeSection(section.id)} title="Section verwijderen">✕</button>
             </div>
 
@@ -399,9 +460,7 @@ export default function App() {
                 {section.racks.map(rack => (
                   <RackBlock key={rack.id} rack={rack} {...rackCallbacks} />
                 ))}
-                {section.racks.length === 0 && (
-                  <div className="bc-section-empty">Sleep een Rack hierheen of klik ＋ Rack</div>
-                )}
+                <PlaceholderRow type="rack" onSubmit={name => addRackInSection(section.id, name)} />
               </div>
             )}
           </div>
@@ -415,10 +474,12 @@ export default function App() {
         {/* Free crades (no rack) */}
         {tree.crades.map(crade => (
           <CradeRow key={crade.id} crade={crade}
-            open={isCradeOpen(crade.id)}
+            open={isCradeOpen(openCrades, crade.id)}
             onToggle={() => toggleCrade(crade.id)}
+            onRename={() => renameCrade(crade.id, crade.name)}
             onDelete={() => removeCrade(crade.id)}
             onRestart={() => onRestartCrade(crade.id)}
+            onCancel={() => onCancelCrade(crade.id)}
             dragging={draggingCrade === crade.id}
             onDragStart={e => onCradeDragStart(e, crade.id)}
             onDragEnd={onCradeDragEnd} />
@@ -444,9 +505,12 @@ export default function App() {
           </div>
         )}
 
+        {/* Section placeholder — altijd onderaan */}
+        <PlaceholderRow type="section" onSubmit={addSectionInline} />
+
         {isEmpty && !newOpen && (
           <div className="bc-empty">
-            <p>Nog geen crades. Maak een <strong>＋ Section</strong>, een <strong>＋ Rack</strong> of voeg direct een <strong>＋ Crade</strong> toe.</p>
+            <p>Nog geen crades. Maak een <strong>Section</strong> aan, voeg een <strong>＋ Rack</strong> toe of start direct met <strong>＋ Crade</strong>.</p>
           </div>
         )}
       </div>
@@ -500,7 +564,8 @@ function RackBlock({ rack,
   onCradeDragStart, onCradeDragEnd,
   onRackDragOver, onRackDrop,
   onRackDragStart, onRackDragEnd,
-  renameRack, removeRack, removeCrade, onRestartCrade,
+  renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
+  renameCrade, addCradeInRack,
 }) {
   const isOpen = rack.id in openRacks ? openRacks[rack.id] : true
   const isDragOver = dragOver?.kind === 'rack' && dragOver.id === rack.id
@@ -532,16 +597,16 @@ function RackBlock({ rack,
             <CradeRow key={crade.id} crade={crade}
               open={isCradeOpen(openCrades, crade.id)}
               onToggle={() => toggleCrade(crade.id)}
+              onRename={() => renameCrade(crade.id, crade.name)}
               onDelete={() => removeCrade(crade.id)}
               onRestart={() => onRestartCrade(crade.id)}
+              onCancel={() => onCancelCrade(crade.id)}
               inRack
               dragging={draggingCrade === crade.id}
               onDragStart={e => onCradeDragStart(e, crade.id)}
               onDragEnd={onCradeDragEnd} />
           ))}
-          {rack.crades.length === 0 && (
-            <div className="bc-rack-empty">Sleep een crade in dit rack…</div>
-          )}
+          <PlaceholderRow type="crade" onSubmit={url => addCradeInRack(rack.id, url)} />
         </div>
       )}
     </div>
@@ -552,9 +617,9 @@ function isCradeOpen(openCrades, id) { return !!openCrades[id] }
 
 // ── CradeRow ──────────────────────────────────────────────────────────────────
 
-const STALL_MS = 20 * 60 * 1000  // 20 minuten zonder voortgang = vastgelopen (backend timeout is 30 min)
+const STALL_MS = 20 * 60 * 1000
 
-function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging, onDragStart, onDragEnd }) {
+function CradeRow({ crade, open, onToggle, onRename, onDelete, onRestart, onCancel, inRack, dragging, onDragStart, onDragEnd }) {
   const [logExpanded, setLogExpanded] = useState(false)
   const logRef = useRef(null)
 
@@ -567,6 +632,7 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
   const isStalled = crade.status === 'downloading' && crade.last_progress_at &&
     (Date.now() - new Date(crade.last_progress_at).getTime()) > STALL_MS
 
+  const canCancel  = crade.status === 'downloading'
   const canRestart = crade.status === 'error' || crade.status === 'done' || isStalled
 
   useEffect(() => {
@@ -580,9 +646,13 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
       <div className="bc-crade-head" onClick={onToggle}>
         <span className="bc-drag" onClick={e => e.stopPropagation()} title="Crade slepen naar Rack">⠿</span>
         <span className="bc-chev">{open ? '▾' : '▸'}</span>
-        <span className="bc-crade-icon"><CradeIcon size={18} open={open} /></span>
+        <span className="bc-crade-icon"><CradeIcon size={16} /></span>
         <div className="bc-crade-name-wrap">
-          <span className="bc-crade-name">{crade.name}</span>
+          <span className="bc-crade-name"
+            onClick={e => { e.stopPropagation(); onRename() }}
+            title="Klik om te hernoemen">
+            {crade.name}
+          </span>
           {crade.status === 'downloading' && crade.progress_log && (
             <span className="bc-crade-progress-line">{lastLine(crade.progress_log)}</span>
           )}
@@ -600,6 +670,9 @@ function CradeRow({ crade, open, onToggle, onDelete, onRestart, inRack, dragging
           }
           <span className="bc-badge bc-badge-fmt">{crade.format.toUpperCase()}</span>
         </div>
+        {canCancel && (
+          <button className="bc-stop-btn" onClick={e => { e.stopPropagation(); onCancel() }} title="Download stoppen">⏹</button>
+        )}
         {canRestart && (
           <button className="bc-restart-btn" onClick={e => { e.stopPropagation(); onRestart() }} title="Opnieuw starten">↺</button>
         )}
@@ -714,7 +787,6 @@ function SyncModal({ onClose, onDone }) {
     <div className="bc-dlg-overlay" onClick={onClose}>
       <div className="bc-sync-modal" onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="bc-sync-hdr">
           <div>
             <div className="bc-sync-hdr-eyebrow">BeatCrades · Disk-Sync</div>
@@ -753,13 +825,11 @@ function SyncModal({ onClose, onDone }) {
 
         ) : (
           <>
-            {/* Meta bar */}
             <div className="bc-sync-meta">
               <span className="bc-sync-meta-chip">🗂 {dlRoot}</span>
               <span className="bc-sync-meta-chip">📦 {actions.length} item{actions.length !== 1 ? 's' : ''}</span>
             </div>
 
-            {/* Legend */}
             <div className="bc-sync-legend">
               {Object.entries(SYNC_TYPE_META).map(([type, m]) => (
                 <span key={type} className={`bc-sync-leg bc-sync-leg--${m.cls}`}>
@@ -769,7 +839,6 @@ function SyncModal({ onClose, onDone }) {
               ))}
             </div>
 
-            {/* Action groups */}
             <div className="bc-sync-body">
               {groups.map(({ type, meta, items }) => (
                 <div key={type} className="bc-sync-action-group">
@@ -804,7 +873,6 @@ function SyncModal({ onClose, onDone }) {
               ))}
             </div>
 
-            {/* Footer */}
             <div className="bc-sync-footer">
               <span className="bc-sync-sel">{selCount} actie{selCount !== 1 ? 's' : ''} geselecteerd</span>
               <button className="bc-btn bc-btn-sec" onClick={onClose}>Annuleren</button>

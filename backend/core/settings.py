@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-change-me"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
-    APP_VERSION: str = "0.9"
+    APP_VERSION: str = "1.0"
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite:///./db/homeplatform.sqlite"
     SENTRY_DSN: str = ""

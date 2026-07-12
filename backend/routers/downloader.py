@@ -117,9 +117,10 @@ def _update_job(job_id: str, **kwargs):
 # ── Background worker ─────────────────────────────────────────────────────────
 
 _PERCENT_RE = re.compile(r"^\[download\]\s+\d")
-
-
 _NO_OUTPUT_TIMEOUT = 1800  # seconden: kill als er 30 min geen output is
+
+# Bijhouden van actieve processen per job_id zodat /cancel ze kan stoppen
+_active_procs: dict[str, asyncio.subprocess.Process] = {}
 
 
 async def _run_download(job_id: str):
@@ -135,10 +136,13 @@ async def _run_download(job_id: str):
         crade_id = job.crade_id
 
         subdir = ""
+        crade_name = None
         if crade_id:
             crade = s.get(DownloadCrade, crade_id)
-            if crade and crade.subdir:
-                subdir = crade.subdir
+            if crade:
+                crade_name = crade.name
+                if crade.subdir:
+                    subdir = crade.subdir
 
     download_dir = os.path.join(settings.DOWNLOAD_DIR, subdir) if subdir else settings.DOWNLOAD_DIR
 
@@ -204,7 +208,7 @@ async def _run_download(job_id: str):
             "--audio-format", fmt,
             "--audio-quality", "0",
             "-P", download_dir,
-            "-o", "%(uploader)s - %(title)s.%(ext)s",
+            "-o", "%(artist,uploader)s - %(title)s.%(ext)s",
             url,
         ]
 
@@ -217,6 +221,7 @@ async def _run_download(job_id: str):
         if work_dir:
             proc_kwargs["cwd"] = work_dir
         proc = await asyncio.create_subprocess_exec(*cmd, **proc_kwargs)
+        _active_procs[job_id] = proc
 
         lines: list = []
         error_hints: list = []  # alle regels met fout-keywords, onbeperkt
@@ -294,6 +299,15 @@ async def _run_download(job_id: str):
         if succeeded:
             _update_job(job_id, status="done", output_path=output_path)
             logger.info("Download klaar: %s → %s", job_id, output_path)
+            try:
+                info_path = os.path.join(download_dir, "BeatCrades.info")
+                with open(info_path, "w", encoding="utf-8") as f:
+                    f.write(f"name: {crade_name or 'onbekend'}\n")
+                    f.write(f"url: {url}\n")
+                    f.write(f"format: {fmt}\n")
+                    f.write(f"downloaded: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
+            except Exception as exc:
+                logger.warning("Kan BeatCrades.info niet schrijven: %s", exc)
         else:
             if real_errors:
                 error = "\n".join(real_errors[-10:])
@@ -303,6 +317,10 @@ async def _run_download(job_id: str):
             _update_job(job_id, status="error", error=error[:1500])
             logger.error("Download mislukt [%s] exit=%d: %s", job_id, proc.returncode, error[:300])
 
+    except asyncio.CancelledError:
+        proc.kill() if 'proc' in dir() else None
+        _update_job(job_id, status="error", error="Download gestopt door gebruiker.")
+        raise
     except FileNotFoundError as e:
         tool = e.filename or cmd[0]
         _update_job(job_id, status="error",
@@ -310,6 +328,7 @@ async def _run_download(job_id: str):
     except Exception as e:
         _update_job(job_id, status="error", error=str(e)[:500])
     finally:
+        _active_procs.pop(job_id, None)
         if work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
 
@@ -644,6 +663,38 @@ async def restart_crade(
 
     background_tasks.add_task(_run_download, job.id)
     logger.info("Crade herstart: %s (job %s)", crade_id, job.id)
+    return _crade_out(c, job)
+
+
+@router.post("/crades/{crade_id}/cancel")
+async def cancel_crade(
+    crade_id: str,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    c = session.get(DownloadCrade, crade_id)
+    if not c:
+        raise AppError("Crade niet gevonden", 404)
+    job = session.exec(
+        select(DownloadJob)
+        .where(DownloadJob.crade_id == crade_id)
+        .where(DownloadJob.status == "downloading")
+    ).first()
+    if not job:
+        raise AppError("Geen actieve download om te stoppen", 409)
+    proc = _active_procs.get(job.id)
+    if proc:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    job.status = "error"
+    job.error = "Download gestopt door gebruiker. Klik op ↺ om opnieuw te starten."
+    job.updated_at = datetime.utcnow()
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    logger.info("Crade gestopt door gebruiker: %s (job %s)", crade_id, job.id)
     return _crade_out(c, job)
 
 
