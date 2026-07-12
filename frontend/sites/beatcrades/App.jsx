@@ -20,7 +20,7 @@ function ProviderBadge() {
     if (p === data.provider || saving) return
     setSaving(true)
     try { const r = await setProvider(p); setData(d => ({ ...d, provider: r.provider, from_env: r.from_env })) }
-    catch {}
+    catch (e) { console.error('Provider switch mislukt:', e) }
     setSaving(false); setOpen(false)
   }
 
