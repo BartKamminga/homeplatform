@@ -135,6 +135,49 @@ def today_name() -> str:
     return f"{d.day:02d}-{d.month:02d}-{d.year}"
 
 
+def write_info_file(
+    download_dir: str,
+    *,
+    name: Optional[str] = None,
+    url: str = "",
+    provider: str = "",
+    fmt: str = "",
+    track_count: int = 0,
+    output_path: Optional[str] = None,
+) -> None:
+    """Schrijf BeatCrades.info naar de download-map met uitgebreide metadata."""
+    try:
+        audio_exts = {".flac", ".mp3", ".wav", ".aiff", ".m4a", ".ogg", ".aac"}
+        files: list[str] = []
+        for root, _, fnames in os.walk(download_dir):
+            for fn in sorted(fnames):
+                if os.path.splitext(fn)[1].lower() in audio_exts:
+                    rel = os.path.relpath(os.path.join(root, fn), download_dir)
+                    files.append(rel.replace("\\", "/"))
+        files.sort()
+
+        lines = [
+            f"name:       {name or 'onbekend'}",
+            f"url:        {url}",
+            f"provider:   {provider}",
+            f"format:     {fmt}",
+            f"downloaded: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
+        ]
+        if track_count:
+            lines.append(f"tracks:     {track_count}")
+        if output_path:
+            lines.append(f"output:     {output_path}")
+        if files:
+            lines.append(f"files ({len(files)}):")
+            for f in files:
+                lines.append(f"  {f}")
+
+        with open(os.path.join(download_dir, "BeatCrades.info"), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except Exception as exc:
+        logger.warning("Kan BeatCrades.info niet schrijven: %s", exc)
+
+
 # ── DB-schrijven ──────────────────────────────────────────────────────────────
 
 def update_job(job_id: str, **kwargs) -> None:

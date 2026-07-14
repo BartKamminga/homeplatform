@@ -114,7 +114,6 @@ class BinaryBeatportProvider(DownloadProvider):
             )
 
             if succeeded:
-                _write_info_file(download_dir, crade_name, url, fmt)
                 return DownloadResult(
                     success=True,
                     playlist_name=playlist_name,
@@ -313,16 +312,6 @@ def _copy_credentials_back(work_dir: str) -> None:
         except Exception as exc:
             logger.warning("Kan credentials niet terugkopieren: %s", exc)
 
-
-def _write_info_file(download_dir: str, crade_name: Optional[str], url: str, fmt: str) -> None:
-    try:
-        with open(os.path.join(download_dir, "BeatCrades.info"), "w", encoding="utf-8") as f:
-            f.write(f"name: {crade_name or 'onbekend'}\n")
-            f.write(f"url: {url}\n")
-            f.write(f"format: {fmt}\n")
-            f.write(f"downloaded: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
-    except Exception as exc:
-        logger.warning("Kan BeatCrades.info niet schrijven: %s", exc)
 
 
 def _build_error(proc, lines: list[str], real_errors: list[str]) -> str:

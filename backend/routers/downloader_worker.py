@@ -15,7 +15,7 @@ from sqlmodel import Session
 from core.database import engine
 from core.settings import settings
 from models.downloader import DownloadCrade, DownloadCradeGroup, DownloadJob, DownloadSection
-from routers.downloader_helpers import rename_crade, update_job
+from routers.downloader_helpers import rename_crade, update_job, write_info_file
 from routers.providers.factory import get_provider
 from routers.providers.base import DownloadProvider
 
@@ -100,6 +100,15 @@ async def _run_inner(job_id: str) -> None:
         update_job(job_id, status="done", output_path=result.output_path)
         if result.playlist_name and crade_id:
             rename_crade(crade_id, result.playlist_name, move_dir=result.move_dir)
+        write_info_file(
+            download_dir,
+            name=crade_name,
+            url=url,
+            provider=provider.name,
+            fmt=fmt,
+            track_count=result.track_count,
+            output_path=result.output_path,
+        )
         logger.info(
             "Download klaar [%s] source=%s provider=%s tracks=%d",
             job_id, source, provider.name, result.track_count,

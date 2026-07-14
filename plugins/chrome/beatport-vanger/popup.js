@@ -186,15 +186,7 @@ function readCurrentPage(cb) {
           || text('h1')
           || document.title;
 
-        // Genres: alle genre-links op de pagina (dedupliceren)
-        var genreEls = document.querySelectorAll('a[href*="/genre/"]');
-        var genres = [];
-        for (var gi = 0; gi < genreEls.length; gi++) {
-          var gt = genreEls[gi].textContent.trim();
-          if (gt && genres.indexOf(gt) === -1) genres.push(gt);
-        }
-
-        // JSON-LD structured data (betrouwbaarst)
+        // JSON-LD structured data — primaire bron (specifiek voor dit item)
         var jsonld = {};
         try {
           var lds = document.querySelectorAll('script[type="application/ld+json"]');
@@ -208,10 +200,31 @@ function readCurrentPage(cb) {
           }
         } catch(e) {}
 
-        // Genres uit JSON-LD als DOM-poging niets opleverde
-        if (genres.length === 0 && jsonld.genre) {
+        // Genres: JSON-LD heeft prioriteit (bevat alleen genres van dit item)
+        var genres = [];
+        if (jsonld.genre) {
           var jg = jsonld.genre;
-          genres = Array.isArray(jg) ? jg.map(String) : [String(jg)];
+          var rawG = Array.isArray(jg) ? jg.map(String) : String(jg).split(',');
+          for (var ri = 0; ri < rawG.length; ri++) {
+            var gt = rawG[ri].trim();
+            if (gt && genres.indexOf(gt) === -1) genres.push(gt);
+          }
+        }
+
+        // DOM-fallback: alleen als JSON-LD geen genres bevat
+        if (genres.length === 0) {
+          var genreEls = document.querySelectorAll('a[href*="/genre/"]');
+          for (var gi = 0; gi < genreEls.length; gi++) {
+            // Pak alleen de eerste directe tekst/child om dubbele tekst (nested spans) te vermijden
+            var gt = '';
+            var nodes = genreEls[gi].childNodes;
+            for (var ni = 0; ni < nodes.length; ni++) {
+              var t = nodes[ni].textContent.trim();
+              if (t) { gt = t; break; }
+            }
+            if (!gt) gt = genreEls[gi].textContent.trim();
+            if (gt && genres.indexOf(gt) === -1) genres.push(gt);
+          }
         }
 
         // Track count
