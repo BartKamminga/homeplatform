@@ -260,6 +260,61 @@ function readCurrentPage(cb) {
 
 // ── Naar BeatCrades pushen ──────────────────────────────────────────────────
 
+function pushAllByGenre() {
+  if (!HP.url || !HP.key) {
+    toast('❌ HomePlatform niet geconfigureerd (zie ⚙️)');
+    return;
+  }
+  if (QUEUE.length === 0) {
+    toast('❌ Lijst is leeg');
+    return;
+  }
+
+  var now = new Date();
+  var dd   = String(now.getDate()).padStart(2, '0');
+  var mm   = String(now.getMonth() + 1).padStart(2, '0');
+  var yyyy = now.getFullYear();
+  var hh   = String(now.getHours()).padStart(2, '0');
+  var min  = String(now.getMinutes()).padStart(2, '0');
+  var sectionName = 'Beatport Vanger — ' + dd + '-' + mm + '-' + yyyy + ' ' + hh + ':' + min;
+
+  var items = QUEUE.map(function(q) {
+    return {
+      url:         q.url,
+      name:        q.name || '',
+      genre:       q.genre || 'Overig',
+      track_count: q.trackCount || null,
+      artist:      q.artist || '',
+      format:      'flac',
+    };
+  });
+
+  var btn = $('btnPushAll');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Bezig…'; }
+
+  fetch(HP.url + '/api/beatcrades/from-vanger', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + HP.key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ section_name: sectionName, items: items }),
+  })
+    .then(function(r) {
+      return r.ok ? r.json() : r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.slice(0, 100)); });
+    })
+    .then(function(data) {
+      toast('✅ ' + data.crade_count + ' items in ' + data.rack_count + ' genres aangemaakt in BeatCrades');
+      QUEUE = [];
+      saveQueue();
+      renderSavedList();
+    })
+    .catch(function(e) {
+      toast('❌ ' + e.message.slice(0, 80));
+      if (btn) { btn.disabled = false; btn.textContent = '📋 Per genre naar BeatCrades'; }
+    });
+}
+
 function pushToBeatCrades(item, onDone) {
   if (!HP.url || !HP.key) {
     toast('❌ HomePlatform niet geconfigureerd (zie ⚙️)');
@@ -378,7 +433,7 @@ function renderSavedList() {
   var anyPushing = Object.values(PUSHING).some(Boolean);
   html +=
     '<div class="list-footer">' +
-      '<button class="btn-push-all" id="btnPushAll"' + (anyPushing || !HP.url ? ' disabled' : '') + '>📤 Alles naar BeatCrades</button>' +
+      '<button class="btn-push-all" id="btnPushAll"' + (anyPushing || !HP.url ? ' disabled' : '') + '>📋 Per genre naar BeatCrades</button>' +
       '<button class="btn-clear-all" id="btnClearAll">Wis lijst</button>' +
     '</div>';
 
@@ -410,29 +465,7 @@ function renderSavedList() {
 
   var pushAll = $('btnPushAll');
   if (pushAll) {
-    pushAll.addEventListener('click', function() {
-      var items = QUEUE.slice(); // snapshot
-      pushAll.disabled = true;
-      var done = 0;
-      items.forEach(function(item, i) {
-        PUSHING[i] = true;
-      });
-      renderSavedList();
-      function next(i) {
-        if (i >= items.length) { PUSHING = {}; loadQueue(renderSavedList); return; }
-        pushToBeatCrades(items[i], function(ok) {
-          if (ok) {
-            // Verwijder uit QUEUE op basis van URL
-            var qi = QUEUE.findIndex(function(q) { return q.url === items[i].url; });
-            if (qi !== -1) { QUEUE.splice(qi, 1); saveQueue(); }
-          }
-          delete PUSHING[i];
-          renderSavedList();
-          setTimeout(function() { next(i + 1); }, 300);
-        });
-      }
-      next(0);
-    });
+    pushAll.addEventListener('click', pushAllByGenre);
   }
 
   var clearAll = $('btnClearAll');

@@ -24,7 +24,7 @@ export function CradeRow({
   const isStalled = crade.status === 'downloading' && lpAt && (Date.now() - lpAt.getTime()) > stallMs
 
   const canCancel  = crade.status === 'downloading'
-  const canRestart = crade.status === 'error' || crade.status === 'done' || isStalled
+  const canRestart = crade.status === 'error' || crade.status === 'done' || isStalled || crade.status === 'no_job'
 
   useEffect(() => {
     if (logExpanded && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -70,7 +70,10 @@ export function CradeRow({
           <button className="bc-stop-btn" onClick={e => { e.stopPropagation(); onCancel() }} title="Download stoppen">⏹</button>
         )}
         {canRestart && (
-          <button className="bc-restart-btn" onClick={e => { e.stopPropagation(); onRestart() }} title="Opnieuw starten">↺</button>
+          <button className="bc-restart-btn" onClick={e => { e.stopPropagation(); onRestart() }}
+            title={crade.status === 'no_job' ? 'Download starten' : 'Opnieuw starten'}>
+            {crade.status === 'no_job' ? '▶' : '↺'}
+          </button>
         )}
         <button className="bc-del-btn" onClick={e => { e.stopPropagation(); onDelete() }} title="Verwijderen">✕</button>
       </div>

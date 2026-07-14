@@ -80,6 +80,23 @@ class CradeUpdate(BaseModel):
     name: Optional[str] = None
     group_id: Optional[str] = None
 
+class VangerItem(BaseModel):
+    url: str
+    name: str = ""
+    genre: str = "Overig"
+    track_count: Optional[int] = None
+    artist: str = ""
+    format: str = "flac"
+
+class VangerPushIn(BaseModel):
+    section_name: str
+    items: List[VangerItem]
+
+class VangerPushOut(BaseModel):
+    section_id: str
+    rack_count: int
+    crade_count: int
+
 class CradeOut(BaseModel):
     id: str
     name: str
@@ -361,8 +378,25 @@ async def restart_crade(
         .order_by(DownloadJob.created_at.desc())
         .limit(1)
     ).first()
+
     if not job:
-        raise AppError("Geen job gevonden voor deze crade", 404)
+        # Eerste keer starten (from-vanger flow: crade zonder job)
+        if not c.source_url:
+            raise AppError("Crade heeft geen source URL", 400)
+        source = detect_source(c.source_url)
+        job = DownloadJob(
+            url=c.source_url, source=source,
+            format=c.format, crade_id=c.id,
+            output_path=slug_from_beatport_url(c.source_url) if source == "beatport" else None,
+            created_by=user.id,
+        )
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        background_tasks.add_task(run_download, job.id)
+        logger.info("Crade gestart (nieuw): %s (job %s)", crade_id, job.id)
+        return _crade_out(c, job)
+
     if job.status == "downloading":
         raise AppError("Download is al actief", 409)
 
@@ -452,6 +486,58 @@ def get_tree(
         racks=[rack_map[r.id] for r in racks if not r.section_id],
         crades=[crade_map[c.id] for c in crades if not c.group_id],
     )
+
+
+# ── From Vanger ───────────────────────────────────────────────────────────────
+
+@router.post("/from-vanger", response_model=VangerPushOut)
+def push_from_vanger(
+    body: VangerPushIn,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    if not body.items:
+        raise AppError("Geen items om te pushen", 400)
+
+    section = DownloadSection(name=body.section_name.strip(), created_by=user.id)
+    session.add(section)
+    session.flush()
+
+    by_genre: dict = {}
+    for item in body.items:
+        genre = (item.genre or "Overig").strip() or "Overig"
+        by_genre.setdefault(genre, []).append(item)
+
+    existing = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
+
+    crade_count = 0
+    for genre, items in by_genre.items():
+        rack = DownloadCradeGroup(name=genre, section_id=section.id, created_by=user.id)
+        session.add(rack)
+        session.flush()
+
+        for item in items:
+            name = item.name.strip() or today_name()
+            base_subdir = build_subdir(name, rack=rack, section=section)
+            subdir, counter = base_subdir, 1
+            while subdir in existing:
+                parts = base_subdir.rsplit("/", 1)
+                subdir = "/".join(parts[:-1] + [f"{parts[-1]}_{counter}"]) if len(parts) > 1 else f"{base_subdir}_{counter}"
+                counter += 1
+            existing.add(subdir)
+
+            crade = DownloadCrade(
+                name=name, subdir=subdir,
+                group_id=rack.id,
+                source_url=item.url.strip(),
+                format=item.format,
+                created_by=user.id,
+            )
+            session.add(crade)
+            crade_count += 1
+
+    session.commit()
+    return VangerPushOut(section_id=section.id, rack_count=len(by_genre), crade_count=crade_count)
 
 
 # ── Legacy job-list ───────────────────────────────────────────────────────────
