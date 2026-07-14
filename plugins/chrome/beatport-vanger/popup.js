@@ -304,6 +304,7 @@ function pushAllByGenre() {
       genre:       q.genre || 'Overig',
       track_count: q.trackCount || null,
       artist:      q.artist || '',
+      item_type:   TYPE_LABELS[q.type] || q.type || '',
       format:      'flac',
     };
   });

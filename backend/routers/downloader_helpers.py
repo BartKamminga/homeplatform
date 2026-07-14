@@ -144,6 +144,8 @@ def write_info_file(
     fmt: str = "",
     track_count: int = 0,
     output_path: Optional[str] = None,
+    artist: Optional[str] = None,
+    item_type: Optional[str] = None,
 ) -> None:
     """Schrijf BeatCrades.info naar de download-map met uitgebreide metadata."""
     try:
@@ -163,6 +165,10 @@ def write_info_file(
             f"format:     {fmt}",
             f"downloaded: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
         ]
+        if item_type:
+            lines.append(f"type:       {item_type}")
+        if artist:
+            lines.append(f"artist:     {artist}")
         if track_count:
             lines.append(f"tracks:     {track_count}")
         if output_path:

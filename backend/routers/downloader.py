@@ -86,6 +86,7 @@ class VangerItem(BaseModel):
     genre: str = "Overig"
     track_count: Optional[int] = None
     artist: str = ""
+    item_type: str = ""
     format: str = "flac"
 
 class VangerPushIn(BaseModel):
@@ -531,6 +532,8 @@ def push_from_vanger(
                 group_id=rack.id,
                 source_url=item.url.strip(),
                 format=item.format,
+                artist=item.artist or None,
+                item_type=item.item_type or None,
                 created_by=user.id,
             )
             session.add(crade)

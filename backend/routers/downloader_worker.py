@@ -53,13 +53,17 @@ async def _run_inner(job_id: str) -> None:
         source     = job.source
         fmt        = job.format
         crade_id   = job.crade_id
-        crade_name: Optional[str] = None
+        crade_name:      Optional[str] = None
+        crade_artist:    Optional[str] = None
+        crade_item_type: Optional[str] = None
         subdir = ""
         if crade_id:
             crade = s.get(DownloadCrade, crade_id)
             if crade:
-                crade_name = crade.name
-                subdir     = crade.subdir or ""
+                crade_name      = crade.name
+                crade_artist    = crade.artist
+                crade_item_type = crade.item_type
+                subdir          = crade.subdir or ""
 
     download_dir = os.path.join(settings.DOWNLOAD_DIR, subdir) if subdir else settings.DOWNLOAD_DIR
 
@@ -108,6 +112,8 @@ async def _run_inner(job_id: str) -> None:
             fmt=fmt,
             track_count=result.track_count,
             output_path=result.output_path,
+            artist=crade_artist,
+            item_type=crade_item_type,
         )
         logger.info(
             "Download klaar [%s] source=%s provider=%s tracks=%d",

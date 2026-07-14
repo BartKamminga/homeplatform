@@ -38,6 +38,8 @@ class DownloadCrade(SQLModel, table=True):
     group_id:   Optional[str] = Field(default=None, foreign_key="download_crade_groups.id")
     source_url: Optional[str] = Field(default=None)
     format:     str           = Field(default="flac")
+    artist:     Optional[str] = Field(default=None)
+    item_type:  Optional[str] = Field(default=None)
     created_at: datetime      = Field(default_factory=datetime.utcnow)
     updated_at: datetime      = Field(default_factory=datetime.utcnow)
     created_by: Optional[str] = Field(default=None, foreign_key="users.id")
