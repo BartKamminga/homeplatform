@@ -2,8 +2,9 @@
 // Slaat Beatport playlist/chart/release URLs op en pusht naar BeatCrades.
 
 var HP = { url: '', key: '' };
-var QUEUE = [];   // [{ url, name, type, savedAt }]
-var PUSHING = {}; // itemIdx → true/false
+var QUEUE = [];        // [{ url, name, type, genre, genres, trackCount, artist, savedAt }]
+var PUSHING = {};      // itemIdx → true/false
+var CURRENT_PAGE = null; // actieve pageInfo incl. geselecteerd genre
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -88,7 +89,7 @@ function saveSettings() {
 
 function testConnection() {
   if (!HP.url || !HP.key) { toast('❌ Vul eerst URL en key in'); return; }
-  fetch(HP.url + '/api/system/health', {
+  fetch(HP.url + '/api/health', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   })
     .then(function(r) {
@@ -105,7 +106,7 @@ function renderSettings() {
   pane.innerHTML =
     '<div class="settings-group">' +
       '<div class="settings-label">Backend URL</div>' +
-      '<input class="settings-input" id="hpUrl" value="' + esc(HP.url) + '" placeholder="http://192.168.30.193:8080"/>' +
+      '<input class="settings-input" id="hpUrl" value="' + esc(HP.url) + '" placeholder="https://webheaven.nl"/>' +
       '<div class="settings-hint">HomePlatform adres, zonder trailing slash</div>' +
     '</div>' +
     '<div class="settings-group">' +
@@ -185,10 +186,13 @@ function readCurrentPage(cb) {
           || text('h1')
           || document.title;
 
-        // Genre: probeer meerdere patronen
-        // Beatport toont genres als links met /genre/ in het pad
-        var genreEl = document.querySelector('a[href*="/genre/"]');
-        var genre = genreEl ? genreEl.textContent.trim() : '';
+        // Genres: alle genre-links op de pagina (dedupliceren)
+        var genreEls = document.querySelectorAll('a[href*="/genre/"]');
+        var genres = [];
+        for (var gi = 0; gi < genreEls.length; gi++) {
+          var gt = genreEls[gi].textContent.trim();
+          if (gt && genres.indexOf(gt) === -1) genres.push(gt);
+        }
 
         // JSON-LD structured data (betrouwbaarst)
         var jsonld = {};
@@ -196,7 +200,6 @@ function readCurrentPage(cb) {
           var lds = document.querySelectorAll('script[type="application/ld+json"]');
           for (var i = 0; i < lds.length; i++) {
             var parsed = JSON.parse(lds[i].textContent);
-            // Kan een array zijn
             var obj = Array.isArray(parsed) ? parsed[0] : parsed;
             if (obj && (obj.name || obj.genre || obj.numberOfTracks)) {
               jsonld = obj;
@@ -205,9 +208,10 @@ function readCurrentPage(cb) {
           }
         } catch(e) {}
 
-        // Genre uit JSON-LD als DOM-poging faalde
-        if (!genre && jsonld.genre) {
-          genre = Array.isArray(jsonld.genre) ? jsonld.genre[0] : jsonld.genre;
+        // Genres uit JSON-LD als DOM-poging niets opleverde
+        if (genres.length === 0 && jsonld.genre) {
+          var jg = jsonld.genre;
+          genres = Array.isArray(jg) ? jg.map(String) : [String(jg)];
         }
 
         // Track count
@@ -240,15 +244,17 @@ function readCurrentPage(cb) {
         // Coverafbeelding
         var image = meta('property', 'og:image') || (jsonld.image && (jsonld.image.url || jsonld.image)) || '';
 
-        return { name: name, genre: genre, trackCount: trackCount, description: description, artist: artist, image: image };
+        return { name: name, genres: genres, trackCount: trackCount, description: description, artist: artist, image: image };
       }
     }, function(results) {
       var data = (results && results[0] && results[0].result) || {};
+      var allGenres = data.genres || [];
       cb({
         url: url,
         type: type,
         name: cleanTitle(data.name || tab.title || ''),
-        genre: data.genre || '',
+        genres: allGenres,
+        genre: allGenres[0] || '',
         trackCount: data.trackCount || null,
         description: data.description || '',
         artist: data.artist || '',
@@ -344,7 +350,14 @@ function pushToBeatCrades(item, onDone) {
 
 // ── Render huidige pagina card ──────────────────────────────────────────────
 
+function selectGenre(genre) {
+  if (!CURRENT_PAGE) return;
+  CURRENT_PAGE.genre = genre;
+  renderCurrentPage(CURRENT_PAGE);
+}
+
 function renderCurrentPage(pageInfo) {
+  CURRENT_PAGE = pageInfo;
   var el = $('current-page');
   if (!pageInfo) {
     el.innerHTML = '<div class="not-beatport">Ga naar een Beatport playlist, chart of release</div>';
@@ -357,9 +370,21 @@ function renderCurrentPage(pageInfo) {
 
   var alreadySaved = QUEUE.some(function(q) { return q.url === pageInfo.url; });
   var typeLabel = TYPE_LABELS[pageInfo.type] || pageInfo.type;
+  var allGenres = pageInfo.genres || (pageInfo.genre ? [pageInfo.genre] : []);
+
+  // Genres: meerdere → kiesbare chips; één → gewone chip in meta
+  var genreHtml = '';
+  if (allGenres.length > 1) {
+    genreHtml = '<div class="genre-picker">';
+    for (var gi = 0; gi < allGenres.length; gi++) {
+      var isSelected = allGenres[gi] === pageInfo.genre;
+      genreHtml += '<span class="meta-chip genre-sel' + (isSelected ? ' genre-active' : '') + '" data-genre="' + esc(allGenres[gi]) + '">' + esc(allGenres[gi]) + '</span>';
+    }
+    genreHtml += '</div>';
+  }
 
   var meta = '';
-  if (pageInfo.genre)      meta += '<span class="meta-chip">' + esc(pageInfo.genre) + '</span>';
+  if (pageInfo.genre && allGenres.length <= 1) meta += '<span class="meta-chip">' + esc(pageInfo.genre) + '</span>';
   if (pageInfo.trackCount) meta += '<span class="meta-chip">' + pageInfo.trackCount + ' tracks</span>';
   if (pageInfo.artist)     meta += '<span class="meta-chip">' + esc(pageInfo.artist) + '</span>';
 
@@ -368,6 +393,7 @@ function renderCurrentPage(pageInfo) {
       '<div class="page-type">' + typeLabel + '</div>' +
       '<div class="page-name">' + esc(pageInfo.name || '(onbekende naam)') + '</div>' +
       (meta ? '<div class="meta-chips">' + meta + '</div>' : '') +
+      genreHtml +
       '<div class="page-url">' + esc(pageInfo.url) + '</div>' +
       (alreadySaved
         ? '<div class="saved-badge">✓ Al in lijst</div>'
@@ -375,8 +401,15 @@ function renderCurrentPage(pageInfo) {
       ) +
     '</div>';
 
-  if (!alreadySaved) {
-    setTimeout(function() {
+  setTimeout(function() {
+    // Genre-chips klikbaar maken
+    el.querySelectorAll('.genre-sel').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        selectGenre(chip.getAttribute('data-genre'));
+      });
+    });
+
+    if (!alreadySaved) {
       var btn = $('btnSaveThis');
       if (btn) btn.addEventListener('click', function() {
         var added = queueAdd({
@@ -384,6 +417,7 @@ function renderCurrentPage(pageInfo) {
           name: pageInfo.name || '',
           type: pageInfo.type,
           genre: pageInfo.genre || '',
+          genres: pageInfo.genres || [],
           trackCount: pageInfo.trackCount || null,
           artist: pageInfo.artist || '',
           savedAt: new Date().toISOString(),
@@ -394,8 +428,17 @@ function renderCurrentPage(pageInfo) {
           renderSavedList();
         }
       });
-    }, 0);
-  }
+    }
+  }, 0);
+}
+
+function cycleGenre(idx) {
+  var item = QUEUE[idx];
+  if (!item || !item.genres || item.genres.length <= 1) return;
+  var cur = item.genres.indexOf(item.genre);
+  item.genre = item.genres[(cur + 1) % item.genres.length];
+  saveQueue();
+  renderSavedList();
 }
 
 // ── Render opgeslagen lijst ─────────────────────────────────────────────────
@@ -412,7 +455,12 @@ function renderSavedList() {
     var typeLabel = TYPE_LABELS[item.type] || (item.type || '');
     var pushing = !!PUSHING[idx];
     var chips = '';
-    if (item.genre)      chips += '<span class="meta-chip">' + esc(item.genre) + '</span>';
+    if (item.genre) {
+      var hasMulti = item.genres && item.genres.length > 1;
+      chips += '<span class="meta-chip' + (hasMulti ? ' genre-multi' : '') + '"' +
+        (hasMulti ? ' data-idx="' + idx + '" title="Klik om genre te wisselen"' : '') + '>' +
+        esc(item.genre) + (hasMulti ? ' ▾' : '') + '</span>';
+    }
     if (item.trackCount) chips += '<span class="meta-chip">' + item.trackCount + ' tracks</span>';
     html +=
       '<div class="saved-item" id="si-' + idx + '">' +
@@ -440,6 +488,13 @@ function renderSavedList() {
   el.innerHTML = html;
 
   // Events
+  el.querySelectorAll('.genre-multi').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      cycleGenre(parseInt(chip.getAttribute('data-idx')));
+    });
+  });
+
   el.querySelectorAll('.btn-push').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var idx = parseInt(btn.getAttribute('data-idx'));

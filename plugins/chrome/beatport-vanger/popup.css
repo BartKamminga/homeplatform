@@ -80,6 +80,36 @@ body {
   white-space: nowrap;
 }
 
+.genre-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.meta-chip.genre-sel {
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.meta-chip.genre-sel:hover {
+  background: #1a3a5e;
+  color: #90bde0;
+  border-color: #2a5080;
+}
+.meta-chip.genre-active {
+  background: #1a4a80;
+  color: #a8d0ff;
+  border-color: #3080c0;
+  font-weight: 600;
+}
+.meta-chip.genre-multi {
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.meta-chip.genre-multi:hover {
+  background: #1a3a5e;
+  color: #90bde0;
+}
+
 .current-card .page-url {
   font-size: 10px;
   color: #5a6480;
