@@ -105,6 +105,8 @@ class CradeOut(BaseModel):
     group_id: Optional[str]
     source_url: Optional[str]
     format: str
+    artist: Optional[str]
+    item_type: Optional[str]
     created_at: datetime
     status: str
     progress_log: Optional[str]
@@ -138,7 +140,8 @@ def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
     return CradeOut(
         id=c.id, name=c.name, subdir=c.subdir,
         group_id=c.group_id, source_url=c.source_url,
-        format=c.format, created_at=c.created_at,
+        format=c.format, artist=c.artist, item_type=c.item_type,
+        created_at=c.created_at,
         status=job.status if job else "no_job",
         progress_log=job.progress_log if job else None,
         last_progress_at=job.last_progress_at if job else None,

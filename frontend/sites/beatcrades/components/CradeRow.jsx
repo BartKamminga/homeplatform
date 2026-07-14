@@ -44,6 +44,9 @@ export function CradeRow({
             title="Klik om te hernoemen">
             {crade.name}
           </span>
+          {crade.artist && (
+            <span className="bc-crade-artist">{crade.artist}</span>
+          )}
           {crade.status === 'downloading' && (
             <div className="bc-crade-progress-wrap">
               {currentTrack && <span className="bc-crade-current-track">♪ {currentTrack}</span>}
@@ -54,6 +57,7 @@ export function CradeRow({
           )}
         </div>
         <div className="bc-badges">
+          {crade.item_type && <span className="bc-badge bc-badge-type">{crade.item_type}</span>}
           <span className="bc-badge bc-badge-src">{SRC_ICON[src]}</span>
           {total ? (
             <span className="bc-badge bc-badge-cnt">{done}/{total} tracks</span>

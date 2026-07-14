@@ -391,6 +391,14 @@
 }
 .bc-crade-name:hover { text-decoration: underline; }
 
+.bc-crade-artist {
+  font-size: 11px;
+  color: var(--bc-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .bc-crade-progress-wrap {
   display: flex;
   flex-direction: column;
@@ -431,9 +439,10 @@
   white-space: nowrap;
 }
 
-.bc-badge-src { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); }
-.bc-badge-cnt { background: var(--bc-acc-dim); color: var(--bc-acc); border: 1px solid rgba(110,96,240,.2); }
-.bc-badge-fmt { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); font-size: 10px; }
+.bc-badge-src  { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); }
+.bc-badge-cnt  { background: var(--bc-acc-dim); color: var(--bc-acc); border: 1px solid rgba(110,96,240,.2); }
+.bc-badge-fmt  { background: var(--color-surface-2, #f3f4f6); color: var(--bc-muted); border: 1px solid var(--color-border); font-size: 10px; }
+.bc-badge-type { background: var(--bc-acc-dim); color: var(--bc-acc); border: 1px solid rgba(110,96,240,.15); font-size: 10px; }
 
 .bc-badge-st           { border: 1px solid transparent; }
 .bc-badge-st--empty    { background: color-mix(in srgb, var(--bc-muted) 10%, transparent); color: var(--bc-muted); }
