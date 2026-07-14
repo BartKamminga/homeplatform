@@ -30,7 +30,9 @@ _BP_TYPES = frozenset([
 def safe_name(name: str) -> str:
     nfkd = unicodedata.normalize("NFKD", name)
     ascii_str = nfkd.encode("ascii", "ignore").decode()
-    safe = re.sub(r"[^\w\-.]", "_", ascii_str).strip("_.")
+    ascii_str = re.sub(r"\s+", "-", ascii_str)
+    safe = re.sub(r"[^\w\-]", "", ascii_str)
+    safe = re.sub(r"-+", "-", safe).strip("-")
     return safe or "crade"
 
 
