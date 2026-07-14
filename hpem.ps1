@@ -397,7 +397,7 @@ if ($Deploy -eq "nas") {
         Warn "Geen git pull (Push=no)"
     }
 
-    $dcCmd       = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build -d backend"
+    $dcCmd       = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build --force-recreate -d backend"
     $dcCaddy     = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml restart caddy"
     $dcGlitchtip = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml up -d glitchtip-db glitchtip-redis glitchtip glitchtip-worker"
     $docker      = "sudo /usr/local/bin/docker"
