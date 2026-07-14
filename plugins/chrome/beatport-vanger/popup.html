@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Beatport Vanger</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <span class="logo">🎵 Beatport Vanger</span>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="queue">Lijst</button>
+        <button class="tab-btn" data-tab="settings">⚙️</button>
+      </div>
+    </header>
+
+    <div id="pane-queue" class="pane">
+      <div id="current-page"></div>
+      <div id="saved-list"></div>
+    </div>
+
+    <div id="pane-settings" class="pane hidden">
+      <div id="settings-content"></div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

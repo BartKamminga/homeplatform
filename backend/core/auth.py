@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
@@ -8,7 +9,7 @@ from sqlmodel import Session, select
 
 from core.settings import settings
 from core.database import get_session
-from models.core import User, UserGroup, Group
+from models.core import User, UserGroup, Group, UserApiKey
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -46,15 +47,39 @@ def decode_token(token: str) -> dict:
         ) from exc
 
 
+def hash_api_key(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),
 ) -> User:
+    # API key pad: tokens beginnen met "hp_"
+    if token.startswith("hp_"):
+        key_hash = hash_api_key(token)
+        api_key = session.exec(
+            select(UserApiKey)
+            .where(UserApiKey.key_hash == key_hash)
+            .where(UserApiKey.revoked_at.is_(None))
+        ).first()
+        if not api_key:
+            raise HTTPException(status_code=401, detail="Ongeldige API key",
+                                headers={"WWW-Authenticate": "Bearer"})
+        user = session.get(User, api_key.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Gebruiker niet gevonden of inactief")
+        # last_used_at bijhouden (best-effort)
+        api_key.last_used_at = datetime.utcnow()
+        session.add(api_key)
+        session.commit()
+        return user
+
+    # JWT pad
     payload = decode_token(token)
     user_id: str = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Ongeldige token")
-
     user = session.get(User, user_id)
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Gebruiker niet gevonden of inactief")

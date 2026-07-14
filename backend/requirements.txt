@@ -11,3 +11,5 @@ pydantic-settings==2.14.1
 sentry-sdk[fastapi]
 slowapi==0.1.9
 yt-dlp
+httpx==0.28.1
+mutagen==1.47.0

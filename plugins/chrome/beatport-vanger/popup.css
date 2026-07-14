@@ -1,0 +1,279 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  width: 100%;
+  min-width: 280px;
+  min-height: 100vh;
+  background: #0f1117;
+  color: #e8eaf0;
+  font-size: 13px;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #1e2535;
+  background: #12151e;
+}
+.logo { font-weight: 700; font-size: 13px; color: #7daaff; letter-spacing: .3px; }
+
+.tabs { display: flex; gap: 4px; }
+.tab-btn {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #1e2535;
+  background: transparent;
+  color: #8892a4;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.tab-btn.active { background: #1a2640; color: #7daaff; border-color: #2a3f6f; }
+.tab-btn:hover:not(.active) { background: #181c27; }
+
+/* ── Panes ───────────────────────────────────────────── */
+.pane { padding: 10px 12px; }
+.hidden { display: none; }
+
+/* ── Huidige pagina card ──────────────────────────────── */
+.current-card {
+  background: #151b2e;
+  border: 1px solid #1e2d4a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.current-card .page-type {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  background: #1e3a5f;
+  color: #7daaff;
+}
+.current-card .page-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #dce4f0;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meta-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.meta-chip {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #0d2030;
+  color: #5a90c8;
+  border: 1px solid #1a3050;
+  white-space: nowrap;
+}
+
+.current-card .page-url {
+  font-size: 10px;
+  color: #5a6480;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 8px;
+}
+.current-card .btn-save {
+  width: 100%;
+  padding: 7px;
+  border-radius: 6px;
+  border: none;
+  background: #1a3a6e;
+  color: #7daaff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.current-card .btn-save:hover { background: #1f4490; }
+.current-card .btn-save:disabled { opacity: .5; cursor: default; }
+.current-card .saved-badge {
+  font-size: 11px;
+  color: #4caf88;
+  text-align: center;
+  padding-top: 2px;
+}
+
+.not-beatport {
+  color: #5a6480;
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 0 8px;
+}
+
+/* ── Opgeslagen lijst ──────────────────────────────────── */
+.list-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: #4a5570;
+  margin-bottom: 6px;
+}
+.saved-item {
+  background: #12151e;
+  border: 1px solid #1a1f2e;
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.saved-item-info { flex: 1; min-width: 0; }
+.saved-item-type {
+  font-size: 10px;
+  color: #4a5570;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.saved-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #c8d0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 1px 0;
+}
+.saved-item-url {
+  font-size: 10px;
+  color: #3a4255;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.btn-push {
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: none;
+  background: #1a3a6e;
+  color: #7daaff;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.btn-push:hover { background: #1f4490; }
+.btn-push:disabled { opacity: .4; cursor: default; }
+.btn-del {
+  padding: 4px 6px;
+  border-radius: 5px;
+  border: none;
+  background: #1e1a22;
+  color: #5a4460;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.btn-del:hover { background: #2e1f36; color: #c06080; }
+
+.list-footer {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.btn-push-all {
+  flex: 1;
+  padding: 7px;
+  border-radius: 6px;
+  border: none;
+  background: #1a3a6e;
+  color: #7daaff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.btn-push-all:hover { background: #1f4490; }
+.btn-push-all:disabled { opacity: .4; cursor: default; }
+.btn-clear-all {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid #1e2535;
+  background: transparent;
+  color: #5a4460;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.btn-clear-all:hover { background: #1e1a22; color: #c06080; }
+
+.empty-list {
+  color: #3a4255;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* ── Settings ─────────────────────────────────────────── */
+.settings-group { margin-bottom: 12px; }
+.settings-label { font-size: 11px; color: #7daaff; font-weight: 600; margin-bottom: 4px; }
+.settings-input {
+  width: 100%;
+  padding: 7px 9px;
+  background: #12151e;
+  border: 1px solid #1e2535;
+  border-radius: 6px;
+  color: #dce4f0;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.settings-input:focus { border-color: #2a3f6f; }
+.settings-hint { font-size: 10px; color: #3a4255; margin-top: 3px; }
+.settings-save {
+  width: 100%;
+  padding: 7px;
+  border-radius: 6px;
+  border: none;
+  background: #1a3a6e;
+  color: #7daaff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 6px;
+}
+.settings-save:hover { background: #1f4490; }
+.settings-status { font-size: 11px; margin-top: 6px; padding: 5px 8px; border-radius: 5px; }
+.settings-ok { background: #0d2a1a; color: #4caf88; }
+.settings-err { background: #2a1a1a; color: #c06060; }
+
+/* ── Toast ────────────────────────────────────────────── */
+.toast {
+  display: none;
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a2640;
+  color: #dce4f0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  border: 1px solid #2a3f6f;
+  white-space: nowrap;
+  z-index: 999;
+}

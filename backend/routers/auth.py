@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -12,7 +13,7 @@ from core.database import get_session
 from core.auth import verify_password, create_access_token, get_current_user, hash_password
 from core.limiter import limiter
 from core.logging import log_action
-from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken, UserPreference
+from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken, UserPreference, UserApiKey
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -369,3 +370,73 @@ def accept_invite(token: str, body: AcceptInviteIn, session: Session = Depends(g
     access_token = create_access_token({"sub": user.id})
     return TokenResponse(access_token=access_token, token_type="bearer",
                          user_id=user.id, username=user.username)
+
+
+# ── API Keys ──────────────────────────────────────────────────────────────────
+
+class ApiKeyCreate(BaseModel):
+    name: str
+
+
+class ApiKeyOut(BaseModel):
+    id: str
+    name: str
+    key_hint: str
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+
+
+class ApiKeyCreated(ApiKeyOut):
+    key: str   # alleen bij aanmaken getoond
+
+
+@router.get("/api-keys", response_model=list[ApiKeyOut])
+def list_api_keys(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    keys = session.exec(
+        select(UserApiKey)
+        .where(UserApiKey.user_id == current_user.id)
+        .where(UserApiKey.revoked_at.is_(None))
+    ).all()
+    return [ApiKeyOut(id=k.id, name=k.name, key_hint=k.key_hint,
+                      created_at=k.created_at, last_used_at=k.last_used_at) for k in keys]
+
+
+@router.post("/api-keys", response_model=ApiKeyCreated)
+def create_api_key(
+    body: ApiKeyCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    if not body.name.strip():
+        raise HTTPException(status_code=422, detail="Naam is verplicht")
+    raw_key = "hp_" + secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_hint = raw_key[3:11]   # 8 tekens na "hp_"
+    api_key = UserApiKey(
+        user_id=current_user.id,
+        name=body.name.strip(),
+        key_hash=key_hash,
+        key_hint=key_hint,
+    )
+    session.add(api_key)
+    session.commit()
+    session.refresh(api_key)
+    return ApiKeyCreated(id=api_key.id, name=api_key.name, key_hint=key_hint,
+                         created_at=api_key.created_at, key=raw_key)
+
+
+@router.delete("/api-keys/{key_id}", status_code=204)
+def revoke_api_key(
+    key_id: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    api_key = session.get(UserApiKey, key_id)
+    if not api_key or api_key.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="API key niet gevonden")
+    api_key.revoked_at = datetime.utcnow()
+    session.add(api_key)
+    session.commit()

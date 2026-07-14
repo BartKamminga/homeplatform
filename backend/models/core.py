@@ -118,6 +118,19 @@ class InviteToken(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class UserApiKey(SQLModel, table=True):
+    __tablename__ = "user_api_keys"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    name: str
+    key_hash: str = Field(index=True, unique=True)
+    key_hint: str                          # eerste 8 tekens na "hp_", voor weergave
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_used_at: Optional[datetime] = Field(default=None)
+    revoked_at: Optional[datetime] = Field(default=None)
+
+
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
 
