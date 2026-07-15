@@ -34,6 +34,7 @@ class DownloadProvider(ABC):
         job_id: str,
         crade_id: Optional[str],
         crade_name: Optional[str],
+        filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
         """Start de download. Schrijft voortgang naar DB via update_job().
         Retourneert DownloadResult na afsluiting."""

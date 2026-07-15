@@ -53,8 +53,9 @@ class YtdlpProvider(DownloadProvider):
         job_id: str,
         crade_id: Optional[str],
         crade_name: Optional[str],
+        filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
-        cmd = _build_cmd(url, fmt, download_dir)
+        cmd = _build_cmd(url, fmt, download_dir, filename_template)
         self._proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -149,13 +150,34 @@ class YtdlpProvider(DownloadProvider):
 
 # ── Hulpfuncties ───────────────────────────────────────────────────────────────
 
-def _build_cmd(url: str, fmt: str, download_dir: str) -> list[str]:
+_YT_TOKEN_MAP = {
+    "{title}":        "%(title)s",
+    "{artist}":       "%(artist,uploader)s",
+    "{artists}":      "%(artist,uploader)s",
+    "{release}":      "%(album)s",
+    "{genre}":        "%(genre)s",
+    "{year}":         "%(release_year,upload_date>%Y)s",
+    "{track_number}": "%(playlist_index)02d",
+    "{bpm}":          "%(bpm)s",
+    "{key}":          "%(initial_key)s",
+    "{label}":        "%(publisher)s",
+}
+
+
+def _tpl_to_ytdlp(tpl: str) -> str:
+    result = tpl
+    for token, ytvar in _YT_TOKEN_MAP.items():
+        result = result.replace(token, ytvar)
+    return result + ".%(ext)s"
+
+
+def _build_cmd(url: str, fmt: str, download_dir: str, filename_template: str = "{title} - {artist}") -> list[str]:
     return [
         "yt-dlp", "-x",
         "--audio-format", fmt,
         "--audio-quality", "0",
         "-P", download_dir,
-        "-o", "%(artist,uploader)s - %(title)s.%(ext)s",
+        "-o", _tpl_to_ytdlp(filename_template),
         url,
     ]
 

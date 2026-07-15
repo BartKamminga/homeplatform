@@ -200,9 +200,33 @@ function readCurrentPage(cb) {
           }
         } catch(e) {}
 
-        // Genres: JSON-LD heeft prioriteit (bevat alleen genres van dit item)
+        // Genres: __NEXT_DATA__ > JSON-LD > DOM (nav uitgesloten)
         var genres = [];
-        if (jsonld.genre) {
+
+        // 1. __NEXT_DATA__ (Next.js pagina-props — meest betrouwbaar, bevat alleen genres van dit item)
+        try {
+          var nd = window.__NEXT_DATA__;
+          if (nd && nd.props && nd.props.pageProps) {
+            var pp = nd.props.pageProps;
+            var genreData =
+              (pp.chart    && (pp.chart.genres    || (pp.chart.genre    ? [pp.chart.genre]    : null))) ||
+              (pp.playlist && (pp.playlist.genres || (pp.playlist.genre ? [pp.playlist.genre] : null))) ||
+              (pp.release  && (pp.release.genres  || (pp.release.genre  ? [pp.release.genre]  : null))) ||
+              (pp.track    && (pp.track.genres    || (pp.track.genre    ? [pp.track.genre]    : null))) ||
+              null;
+            if (Array.isArray(genreData)) {
+              for (var ndi = 0; ndi < genreData.length; ndi++) {
+                var g = genreData[ndi];
+                var gname = (typeof g === 'string') ? g : (g && (g.name || g.slug || ''));
+                gname = (gname || '').trim();
+                if (gname && genres.indexOf(gname) === -1) genres.push(gname);
+              }
+            }
+          }
+        } catch(e) {}
+
+        // 2. JSON-LD fallback
+        if (genres.length === 0 && jsonld.genre) {
           var jg = jsonld.genre;
           var rawG = Array.isArray(jg) ? jg.map(String) : String(jg).split(',');
           for (var ri = 0; ri < rawG.length; ri++) {
@@ -211,18 +235,33 @@ function readCurrentPage(cb) {
           }
         }
 
-        // DOM-fallback: alleen als JSON-LD geen genres bevat
+        // 3. DOM-fallback: alleen als beide bovenstaande niets geven
+        // Nav/header/aside links worden overgeslagen om Beatport-navigatiegenres te vermijden
         if (genres.length === 0) {
           var genreEls = document.querySelectorAll('a[href*="/genre/"]');
           for (var gi = 0; gi < genreEls.length; gi++) {
-            // Pak alleen de eerste directe tekst/child om dubbele tekst (nested spans) te vermijden
+            var gEl = genreEls[gi];
+            var inNav = false;
+            var p = gEl.parentElement;
+            while (p) {
+              var tag = p.tagName || '';
+              if (tag === 'HEADER' || tag === 'NAV' || tag === 'ASIDE') { inNav = true; break; }
+              var cls = (typeof p.className === 'string') ? p.className : '';
+              if (cls.indexOf('navigation') !== -1 || cls.indexOf('Navigation') !== -1 ||
+                  cls.indexOf('NavBar') !== -1 || cls.indexOf('navbar') !== -1 ||
+                  cls.indexOf('Sidebar') !== -1 || cls.indexOf('sidebar') !== -1) {
+                inNav = true; break;
+              }
+              p = p.parentElement;
+            }
+            if (inNav) continue;
             var gt = '';
-            var nodes = genreEls[gi].childNodes;
+            var nodes = gEl.childNodes;
             for (var ni = 0; ni < nodes.length; ni++) {
               var t = nodes[ni].textContent.trim();
               if (t) { gt = t; break; }
             }
-            if (!gt) gt = genreEls[gi].textContent.trim();
+            if (!gt) gt = gEl.textContent.trim();
             if (gt && genres.indexOf(gt) === -1) genres.push(gt);
           }
         }

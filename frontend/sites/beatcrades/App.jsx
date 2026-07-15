@@ -6,6 +6,7 @@ import { CradeRow } from './components/CradeRow.jsx'
 import { RackBlock } from './components/RackBlock.jsx'
 import { PlaceholderRow } from './components/PlaceholderRow.jsx'
 import { SyncModal } from './components/SyncModal.jsx'
+import { SettingsModal } from './components/SettingsModal.jsx'
 import './App.css'
 
 function ProviderBadge() {
@@ -84,6 +85,7 @@ export default function App() {
   const [dragOver,      setDragOver]     = useState(null)
   const [dlg,           setDlg]          = useState(null)
   const [syncOpen,      setSyncOpen]     = useState(false)
+  const [settingsOpen,  setSettingsOpen] = useState(false)
   const timerRef = useRef(null)
   const urlRef   = useRef(null)
 
@@ -254,6 +256,7 @@ export default function App() {
         </div>
         <div className="bc-hdr-btns">
           <ProviderBadge />
+          <button className="bc-btn bc-btn-sec" onClick={() => setSettingsOpen(true)}>⚙ Instellingen</button>
           <button className="bc-btn bc-btn-sec" onClick={() => setSyncOpen(true)}>🔄 Sync</button>
           <button className="bc-btn bc-btn-sec" onClick={() => addRack(null)}>＋ Rack</button>
           <button className="bc-btn bc-btn-pri" onClick={openNew}>＋ Crade</button>
@@ -334,9 +337,16 @@ export default function App() {
               <span className="bc-section-name" onClick={() => renameSection(section.id, section.name)} title="Klik om te hernoemen">
                 {section.name}
               </span>
-              <span className="bc-section-meta">
-                {section.racks.length} {section.racks.length === 1 ? 'rack' : 'racks'} · {section.racks.reduce((n, r) => n + r.crades.length, 0)} crades
-              </span>
+              {(() => {
+                const secTotal = section.racks.reduce((n, r) => n + r.crades.length, 0)
+                const secDone  = section.racks.reduce((n, r) => n + r.crades.filter(c => c.status === 'done').length, 0)
+                const secAllDone = secTotal > 0 && secDone === secTotal
+                return (
+                  <span className={`bc-section-meta${secAllDone ? ' bc-section-meta--done' : ''}`}>
+                    {section.racks.length} {section.racks.length === 1 ? 'rack' : 'racks'} · {secDone}/{secTotal} klaar
+                  </span>
+                )
+              })()}
               <button className="bc-del-btn" onClick={() => removeSection(section.id)} title="Section verwijderen">✕</button>
             </div>
 
@@ -431,6 +441,10 @@ export default function App() {
 
       {syncOpen && (
         <SyncModal onClose={() => setSyncOpen(false)} onDone={load} />
+      )}
+
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   )

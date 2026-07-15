@@ -45,6 +45,7 @@ from routers import tournix_import  # noqa: E402
 from routers.backup import backup_router  # noqa: E402
 from routers import roadmap  # noqa: E402
 from routers import downloader  # noqa: E402
+from routers import app_settings  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
 
@@ -139,6 +140,7 @@ app.include_router(backup.router)
 app.include_router(backup_router)
 app.include_router(roadmap.router)
 app.include_router(downloader.router)
+app.include_router(app_settings.router)
 
 
 @app.get("/")

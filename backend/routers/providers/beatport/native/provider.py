@@ -39,6 +39,7 @@ class NativeBeatportProvider(DownloadProvider):
         job_id: str,
         crade_id: Optional[str],
         crade_name: Optional[str],
+        filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
         self._cancelled.clear()
 

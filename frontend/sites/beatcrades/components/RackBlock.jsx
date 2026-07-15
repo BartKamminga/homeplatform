@@ -14,6 +14,9 @@ export function RackBlock({ rack,
   const isOpen    = rack.id in openRacks ? openRacks[rack.id] : false
   const isDragOver = dragOver?.kind === 'rack' && dragOver.id === rack.id
   const isDragging = draggingRack === rack.id
+  const total  = rack.crades.length
+  const done   = rack.crades.filter(c => c.status === 'done').length
+  const allDone = total > 0 && done === total
 
   return (
     <div className={`bc-rack${isOpen ? ' open' : ''}${isDragOver ? ' dz-over' : ''}${isDragging ? ' dragging' : ''}`}
@@ -31,7 +34,9 @@ export function RackBlock({ rack,
         <span className="bc-rack-name" onClick={e => { e.stopPropagation(); renameRack(rack.id, rack.name) }} title="Klik om te hernoemen">
           {rack.name}
         </span>
-        <span className="bc-rack-count">{rack.crades.length} crades</span>
+        <span className={`bc-rack-count${allDone ? ' bc-rack-count--done' : ''}`}>
+          {done}/{total} klaar
+        </span>
         <button className="bc-del-btn" onClick={e => { e.stopPropagation(); removeRack(rack.id) }} title="Rack verwijderen">✕</button>
       </div>
 

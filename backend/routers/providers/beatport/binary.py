@@ -73,6 +73,7 @@ class BinaryBeatportProvider(DownloadProvider):
         job_id: str,
         crade_id: Optional[str],
         crade_name: Optional[str],
+        filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
         ctx = self._prepare(url, download_dir, job_id)
         if ctx is None:

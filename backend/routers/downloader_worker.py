@@ -15,7 +15,7 @@ from sqlmodel import Session
 from core.database import engine
 from core.settings import settings
 from models.downloader import DownloadCrade, DownloadCradeGroup, DownloadJob, DownloadSection
-from routers.downloader_helpers import rename_crade, update_job, write_info_file
+from routers.downloader_helpers import get_app_setting, rename_crade, update_job, write_info_file
 from routers.providers.factory import get_provider
 from routers.providers.base import DownloadProvider
 
@@ -73,6 +73,7 @@ async def _run_inner(job_id: str) -> None:
         update_job(job_id, status="error", error=f"Kan download-map niet aanmaken: {e}")
         return
 
+    filename_tpl = get_app_setting("beatcrades.filename_template", "{title} - {artist}")
     provider = get_provider(source)
     active_downloads[job_id] = provider
 
@@ -84,6 +85,7 @@ async def _run_inner(job_id: str) -> None:
             job_id=job_id,
             crade_id=crade_id,
             crade_name=crade_name,
+            filename_template=filename_tpl,
         )
     except asyncio.CancelledError:
         await provider.cancel()

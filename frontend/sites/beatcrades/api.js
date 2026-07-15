@@ -17,3 +17,6 @@ export const syncExecute     = (ids)     => api.post('/api/beatcrades/sync/execu
 
 export const getProvider     = ()        => api.get('/api/admin/beatport-provider')
 export const setProvider     = (provider) => api.put('/api/admin/beatport-provider', { provider })
+
+export const getSettings     = ()        => api.get('/api/beatcrades/settings')
+export const putSettings     = (body)    => api.put('/api/beatcrades/settings', body)

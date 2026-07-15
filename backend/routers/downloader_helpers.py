@@ -30,21 +30,43 @@ _BP_TYPES = frozenset([
 def safe_name(name: str) -> str:
     nfkd = unicodedata.normalize("NFKD", name)
     ascii_str = nfkd.encode("ascii", "ignore").decode()
-    ascii_str = re.sub(r"\s+", "-", ascii_str)
-    safe = re.sub(r"[^\w\-]", "", ascii_str)
-    safe = re.sub(r"-+", "-", safe).strip("-")
+    safe = re.sub(r'[\\/:*?"<>|]', "", ascii_str)
+    safe = re.sub(r"\s+", " ", safe).strip()
     return safe or "crade"
 
 
-def build_subdir(crade_name: str, rack=None, section=None) -> str:
-    """Bouw hiërarchisch subdir-pad op: [section/][rack/]crade."""
+def get_app_setting(key: str, default: str = "") -> str:
+    """Lees een instelling uit de DB; geeft default terug als de key ontbreekt."""
+    try:
+        from models.settings import AppSetting
+        with Session(engine) as s:
+            row = s.get(AppSetting, key)
+            return row.value if row else default
+    except Exception:
+        return default
+
+
+def build_subdir(
+    crade_name: str,
+    rack=None,
+    section=None,
+    dir_template: str = "{section}/{rack}/{crade}",
+) -> str:
+    """Bouw hiërarchisch subdir-pad op via een instelbaar template."""
+    data = {
+        "crade": crade_name,
+        "rack": rack.name if rack else "",
+        "section": section.name if section else "",
+    }
     parts = []
-    if section:
-        parts.append(safe_name(section.name))
-    if rack:
-        parts.append(safe_name(rack.name))
-    parts.append(safe_name(crade_name))
-    return "/".join(parts)
+    for seg in dir_template.split("/"):
+        resolved = seg
+        for k, v in data.items():
+            resolved = resolved.replace(f"{{{k}}}", v)
+        resolved = resolved.strip()
+        if resolved:
+            parts.append(safe_name(resolved))
+    return "/".join(filter(None, parts))
 
 
 def expected_subdir(crade: DownloadCrade, session: Session) -> str:

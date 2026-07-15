@@ -24,7 +24,7 @@ from core.exceptions import AppError
 from core.settings import settings
 from models.downloader import DownloadCrade, DownloadCradeGroup, DownloadJob, DownloadSection
 from routers.downloader_helpers import (
-    build_subdir, detect_source, expected_subdir,
+    build_subdir, detect_source, expected_subdir, get_app_setting,
     move_crade_dir, slug_from_beatport_url, today_name,
 )
 from routers.downloader_worker import active_downloads, run_download
@@ -287,8 +287,9 @@ async def create_crade(
     section = session.get(DownloadSection, rack.section_id) if rack and rack.section_id else None
 
     # Zorg voor uniek subdir-pad
-    existing   = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
-    base_subdir = build_subdir(name, rack=rack, section=section)
+    dir_tpl     = get_app_setting("beatcrades.dir_template", "{section}/{rack}/{crade}")
+    existing    = {c.subdir for c in session.exec(select(DownloadCrade)).all()}
+    base_subdir = build_subdir(name, rack=rack, section=section, dir_template=dir_tpl)
     subdir, counter = base_subdir, 1
     while subdir in existing:
         parts  = base_subdir.rsplit("/", 1)
@@ -503,6 +504,7 @@ def push_from_vanger(
     if not body.items:
         raise AppError("Geen items om te pushen", 400)
 
+    dir_tpl = get_app_setting("beatcrades.dir_template", "{section}/{rack}/{crade}")
     section = DownloadSection(name=body.section_name.strip(), created_by=user.id)
     session.add(section)
     session.flush()
@@ -522,7 +524,7 @@ def push_from_vanger(
 
         for item in items:
             name = item.name.strip() or today_name()
-            base_subdir = build_subdir(name, rack=rack, section=section)
+            base_subdir = build_subdir(name, rack=rack, section=section, dir_template=dir_tpl)
             subdir, counter = base_subdir, 1
             while subdir in existing:
                 parts = base_subdir.rsplit("/", 1)
