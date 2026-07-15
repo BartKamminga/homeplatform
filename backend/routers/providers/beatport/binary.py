@@ -27,6 +27,26 @@ logger = logging.getLogger("homeplatform.beatcrades.beatport.binary")
 
 NOISE_LINES = ("enter url or search query", "error reading input string")
 
+_BDL_TOKEN_MAP = {
+    "{title}":        "{name}",
+    "{artist}":       "{artists}",
+    "{artists}":      "{artists}",
+    "{release}":      "{release_name}",
+    "{genre}":        "{genre}",
+    "{year}":         "{release_year}",
+    "{bpm}":          "{bpm}",
+    "{key}":          "{key}",
+    "{label}":        "{label_name}",
+    "{track_number}": "{number}",
+}
+
+
+def _tpl_to_beatportdl(tpl: str) -> str:
+    result = tpl
+    for token, bdlvar in _BDL_TOKEN_MAP.items():
+        result = result.replace(token, bdlvar)
+    return result
+
 TYPE_DIRS = frozenset([
     "playlists", "releases", "tracks", "charts", "mixes", "labels", "artists",
 ])
@@ -75,7 +95,7 @@ class BinaryBeatportProvider(DownloadProvider):
         crade_name: Optional[str],
         filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
-        ctx = self._prepare(url, download_dir, job_id)
+        ctx = self._prepare(url, download_dir, job_id, filename_template)
         if ctx is None:
             return DownloadResult(success=False, error="Config voorbereiding mislukt.")
 
@@ -143,7 +163,7 @@ class BinaryBeatportProvider(DownloadProvider):
 
     # ── Interne methoden ───────────────────────────────────────────────────────
 
-    def _prepare(self, url: str, download_dir: str, job_id: str) -> Optional[_PrepContext]:
+    def _prepare(self, url: str, download_dir: str, job_id: str, filename_template: str = "{title} - {artist}") -> Optional[_PrepContext]:
         config_dir = settings.BEATPORTDL_CONFIG_DIR
         if not config_dir:
             update_job(job_id, status="error", error="BEATPORTDL_CONFIG_DIR niet geconfigureerd.")
@@ -171,6 +191,7 @@ class BinaryBeatportProvider(DownloadProvider):
 
             cfg["downloads_directory"] = download_dir
             cfg["show_progress"] = "false"
+            cfg["track_file_template"] = _tpl_to_beatportdl(filename_template)
 
             with open(os.path.join(work_dir, "beatportdl-config.yml"), "w", encoding="utf-8") as f:
                 for key, val in cfg.items():
