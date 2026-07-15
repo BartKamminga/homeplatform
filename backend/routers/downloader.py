@@ -66,6 +66,10 @@ class SectionMerge(BaseModel):
     source_id: str
     target_id: str
 
+class RackMerge(BaseModel):
+    source_id: str
+    target_id: str
+
 class RackCreate(BaseModel):
     name: str
     section_id: Optional[str] = None
@@ -303,6 +307,35 @@ def delete_rack(
     session.delete(r)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/racks/merge")
+def merge_racks(
+    body: RackMerge,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    source = session.get(DownloadCradeGroup, body.source_id)
+    target = session.get(DownloadCradeGroup, body.target_id)
+    if not source:
+        raise AppError("Bronrack niet gevonden", 404)
+    if not target:
+        raise AppError("Doelrack niet gevonden", 404)
+    if body.source_id == body.target_id:
+        raise AppError("Bron en doel mogen niet dezelfde rack zijn", 400)
+
+    crades = session.exec(
+        select(DownloadCrade).where(DownloadCrade.group_id == body.source_id)
+    ).all()
+    for crade in crades:
+        crade.group_id = body.target_id
+        crade.updated_at = datetime.utcnow()
+        session.add(crade)
+        move_crade_dir(crade, expected_subdir(crade, session), session)
+
+    session.delete(source)
+    session.commit()
+    return {"ok": True, "moved_crades": len(crades)}
 
 
 # ── Crades ────────────────────────────────────────────────────────────────────

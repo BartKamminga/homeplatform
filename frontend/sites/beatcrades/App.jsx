@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTree, createSection, updateSection, deleteSection, mergeSections, createRack, updateRack, deleteRack, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade, getProvider, setProvider } from './api.js'
+import { getTree, createSection, updateSection, deleteSection, mergeSections, createRack, updateRack, deleteRack, mergeRacks, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade, getProvider, setProvider } from './api.js'
 import { FORMATS, detectSrc, slugFromBeatportUrl, todayName, allCradesFrom } from './helpers.js'
 import { SectionIcon } from './components/Icons.jsx'
 import { CradeRow } from './components/CradeRow.jsx'
@@ -141,8 +141,20 @@ export default function App() {
     const src = tree.sections.find(s => s.id === sourceId)
     const tgt = tree.sections.find(s => s.id === targetId)
     if (!src || !tgt) return
-    if (!await openConfirm(`"${src.name}" samenvoegen met "${tgt.name}"? De racks van "${src.name}" worden verplaatst naar "${tgt.name}" en "${src.name}" wordt verwijderd.`)) return
+    if (!await openConfirm(`Sectie "${src.name}" samenvoegen met "${tgt.name}"? Alle racks schuiven over naar "${tgt.name}" en "${src.name}" verdwijnt.`)) return
     await mergeSections(String(sourceId), String(targetId))
+    await load()
+  }
+  const mergeRack = async (sourceId, targetId) => {
+    const allRacksList = [
+      ...tree.sections.flatMap(s => s.racks),
+      ...tree.racks,
+    ]
+    const src = allRacksList.find(r => r.id === sourceId)
+    const tgt = allRacksList.find(r => r.id === targetId)
+    if (!src || !tgt) return
+    if (!await openConfirm(`Rack "${src.name}" samenvoegen met "${tgt.name}"? Alle crades schuiven over naar "${tgt.name}" en "${src.name}" verdwijnt.`)) return
+    await mergeRacks(String(sourceId), String(targetId))
     await load()
   }
 
@@ -234,6 +246,19 @@ export default function App() {
     setDraggingRack(null); setDragOver(null)
   }
 
+  // ── Rack drag-drop (merge) ──
+  const onRackMergeDragOver = (e, rackId) => {
+    if (!draggingRack || draggingRack === rackId) return
+    e.preventDefault(); e.stopPropagation()
+    setDragOver({ kind: 'rack-merge', id: rackId })
+  }
+  const onRackMergeDrop = async (e, targetId) => {
+    if (!draggingRack || draggingRack === targetId) return
+    e.preventDefault(); e.stopPropagation()
+    await mergeRack(draggingRack, targetId)
+    setDraggingRack(null); setDragOver(null)
+  }
+
   // ── Section drag-drop (merge) ──
   const onSectionDragStart = (e, id) => { setDraggingSection(id); e.dataTransfer.effectAllowed = 'move' }
   const onSectionDragEnd   = ()      => { setDraggingSection(null); setDragOver(null) }
@@ -267,6 +292,7 @@ export default function App() {
     onCradeDragStart, onCradeDragEnd,
     onRackDragOver, onRackDrop,
     onRackDragStart, onRackDragEnd,
+    onRackMergeDragOver, onRackMergeDrop,
     renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
     renameCrade, addCradeInRack,
   }
@@ -355,12 +381,12 @@ export default function App() {
             onDrop={e => { onSectionDrop(e, section.id); onSectionMergeDrop(e, section.id) }}
             onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null) }}>
 
-            <div className={`bc-section-head${dragOver?.kind === 'section-merge' && dragOver.id === section.id ? ' bc-section-head--merge-over' : ''}`}
-              draggable
-              onDragStart={e => { e.stopPropagation(); onSectionDragStart(e, section.id) }}
-              onDragEnd={onSectionDragEnd}>
-              <span className="bc-drag" title="Section slepen om samen te voegen">⠿</span>
-              <span className="bc-chev" onClick={e => { e.stopPropagation(); toggleSection(section.id) }}>{isSectionOpen(section.id) ? '▾' : '▸'}</span>
+            <div className={`bc-section-head${dragOver?.kind === 'section-merge' && dragOver.id === section.id ? ' bc-section-head--merge-over' : ''}`}>
+              <span className="bc-drag" title="Section slepen om samen te voegen"
+                draggable
+                onDragStart={e => { e.stopPropagation(); onSectionDragStart(e, section.id) }}
+                onDragEnd={onSectionDragEnd}>⠿</span>
+              <span className="bc-chev" onClick={() => toggleSection(section.id)}>{isSectionOpen(section.id) ? '▾' : '▸'}</span>
               <span className="bc-section-icon"><SectionIcon size={16} /></span>
               <span className="bc-section-name" onClick={e => { e.stopPropagation(); renameSection(section.id, section.name) }} title="Klik om te hernoemen">
                 {section.name}

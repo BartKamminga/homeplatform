@@ -197,7 +197,6 @@
   padding: 10px 12px;
   background: color-mix(in srgb, var(--bc-acc) 8%, transparent);
   user-select: none;
-  cursor: grab;
 }
 .bc-section-head--merge-over {
   background: color-mix(in srgb, var(--bc-acc) 22%, transparent);
@@ -275,6 +274,11 @@
   background: var(--bc-acc-dim);
   cursor: pointer;
   user-select: none;
+}
+.bc-rack-head--merge-over {
+  background: color-mix(in srgb, var(--bc-acc) 22%, transparent);
+  outline: 2px dashed var(--bc-acc);
+  outline-offset: -2px;
 }
 
 .bc-rack-icon {

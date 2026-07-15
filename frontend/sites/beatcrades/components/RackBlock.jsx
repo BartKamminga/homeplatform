@@ -8,12 +8,14 @@ export function RackBlock({ rack,
   onCradeDragStart, onCradeDragEnd,
   onRackDragOver, onRackDrop,
   onRackDragStart, onRackDragEnd,
+  onRackMergeDragOver, onRackMergeDrop,
   renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
   renameCrade, addCradeInRack,
 }) {
-  const isOpen    = rack.id in openRacks ? openRacks[rack.id] : false
-  const isDragOver = dragOver?.kind === 'rack' && dragOver.id === rack.id
-  const isDragging = draggingRack === rack.id
+  const isOpen      = rack.id in openRacks ? openRacks[rack.id] : false
+  const isDragOver  = dragOver?.kind === 'rack' && dragOver.id === rack.id
+  const isMergeOver = dragOver?.kind === 'rack-merge' && dragOver.id === rack.id
+  const isDragging  = draggingRack === rack.id
   const total  = rack.crades.length
   const done   = rack.crades.filter(c => c.status === 'done').length
   const allDone = total > 0 && done === total
@@ -24,11 +26,13 @@ export function RackBlock({ rack,
       onDrop={e => onRackDrop(e, rack.id)}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null) }}>
 
-      <div className="bc-rack-head"
+      <div className={`bc-rack-head${isMergeOver ? ' bc-rack-head--merge-over' : ''}`}
         draggable
         onDragStart={e => { e.stopPropagation(); onRackDragStart(e, rack.id) }}
-        onDragEnd={onRackDragEnd}>
-        <span className="bc-drag" title="Rack slepen naar Section">⠿</span>
+        onDragEnd={onRackDragEnd}
+        onDragOver={e => onRackMergeDragOver(e, rack.id)}
+        onDrop={e => onRackMergeDrop(e, rack.id)}>
+        <span className="bc-drag" title="Rack slepen naar Section of andere Rack">⠿</span>
         <span className="bc-chev" onClick={e => { e.stopPropagation(); toggleRack(rack.id) }}>{isOpen ? '▾' : '▸'}</span>
         <span className="bc-rack-icon"><RackIcon size={17} /></span>
         <span className="bc-rack-name" onClick={e => { e.stopPropagation(); renameRack(rack.id, rack.name) }} title="Klik om te hernoemen">
