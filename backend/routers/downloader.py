@@ -62,6 +62,10 @@ class SectionCreate(BaseModel):
 class SectionUpdate(BaseModel):
     name: str
 
+class SectionMerge(BaseModel):
+    source_id: str
+    target_id: str
+
 class RackCreate(BaseModel):
     name: str
     section_id: Optional[str] = None
@@ -205,6 +209,38 @@ def delete_section(
     session.delete(s)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/sections/merge")
+def merge_sections(
+    body: SectionMerge,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    source = session.get(DownloadSection, body.source_id)
+    target = session.get(DownloadSection, body.target_id)
+    if not source:
+        raise AppError("Bronsectie niet gevonden", 404)
+    if not target:
+        raise AppError("Doelsectie niet gevonden", 404)
+    if body.source_id == body.target_id:
+        raise AppError("Bron en doel mogen niet dezelfde section zijn", 400)
+
+    racks = session.exec(
+        select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == body.source_id)
+    ).all()
+    for rack in racks:
+        rack.section_id = body.target_id
+        rack.updated_at = datetime.utcnow()
+        session.add(rack)
+        for crade in session.exec(
+            select(DownloadCrade).where(DownloadCrade.group_id == rack.id)
+        ).all():
+            move_crade_dir(crade, expected_subdir(crade, session), session)
+
+    session.delete(source)
+    session.commit()
+    return {"ok": True, "moved_racks": len(racks)}
 
 
 # ── Racks ─────────────────────────────────────────────────────────────────────

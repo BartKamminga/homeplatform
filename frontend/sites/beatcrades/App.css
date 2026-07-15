@@ -197,6 +197,12 @@
   padding: 10px 12px;
   background: color-mix(in srgb, var(--bc-acc) 8%, transparent);
   user-select: none;
+  cursor: grab;
+}
+.bc-section-head--merge-over {
+  background: color-mix(in srgb, var(--bc-acc) 22%, transparent);
+  outline: 2px dashed var(--bc-acc);
+  outline-offset: -2px;
 }
 
 .bc-section-icon {
@@ -358,7 +364,8 @@
   line-height: 1;
 }
 .bc-crade-head:hover .bc-drag,
-.bc-rack-head:hover .bc-drag { opacity: .45; }
+.bc-rack-head:hover .bc-drag,
+.bc-section-head:hover .bc-drag { opacity: .45; }
 .bc-drag:hover { opacity: 1 !important; }
 .bc-drag:active { cursor: grabbing; }
 
