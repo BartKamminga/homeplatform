@@ -1150,18 +1150,17 @@
 .bc-settings-chip:hover  { opacity: .8; transform: translateY(-1px); }
 .bc-settings-chip:active { transform: translateY(0); cursor: grabbing; }
 .bc-settings-chip--track {
-  background: rgba(245,158,11,.12);
-  color: #b45309;
-  border-color: rgba(245,158,11,.25);
+  background: var(--bc-acc-dim);
+  color: var(--bc-acc);
+  border-color: color-mix(in srgb, var(--bc-acc) 25%, transparent);
 }
 .bc-settings-chip--dir {
-  background: rgba(6,182,212,.10);
-  color: #0369a1;
-  border-color: rgba(6,182,212,.25);
+  background: color-mix(in srgb, var(--bc-ok) 10%, transparent);
+  color: color-mix(in srgb, var(--bc-ok) 80%, var(--color-text, #111));
+  border-color: color-mix(in srgb, var(--bc-ok) 25%, transparent);
 }
 @media (prefers-color-scheme: dark) {
-  .bc-settings-chip--track { color: #f4a942; border-color: rgba(244,169,66,.25); }
-  .bc-settings-chip--dir   { color: #22d3ee; border-color: rgba(34,211,238,.25); }
+  .bc-settings-chip--dir { color: var(--bc-ok); }
 }
 
 .bc-settings-info {
@@ -1208,14 +1207,10 @@
   line-height: 1.7;
 }
 .bc-settings-fp-root { color: var(--bc-muted); }
-.bc-settings-fp-dir  { color: #0369a1; font-weight: 600; }
+.bc-settings-fp-dir  { color: var(--bc-acc); font-weight: 600; }
 .bc-settings-fp-sep  { color: var(--bc-muted); }
-.bc-settings-fp-file { color: #16a34a; font-weight: 600; }
+.bc-settings-fp-file { color: var(--bc-ok); font-weight: 600; }
 .bc-settings-fp-ext  { color: var(--bc-muted); font-weight: 400; }
-@media (prefers-color-scheme: dark) {
-  .bc-settings-fp-dir  { color: #22d3ee; }
-  .bc-settings-fp-file { color: #52d980; }
-}
 
 /* ── Folder tree ── */
 .bc-settings-tree {
@@ -1262,13 +1257,9 @@
 }
 .bc-stree-ico  { font-size: 12px; flex-shrink: 0; }
 .bc-stree-name { font-size: 11.5px; font-family: var(--font-mono, monospace); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bc-stree-item--dir   .bc-stree-name { color: #0369a1; font-weight: 600; }
+.bc-stree-item--dir   .bc-stree-name { color: var(--bc-acc); font-weight: 600; }
 .bc-stree-item--file  .bc-stree-name { color: var(--color-text, #111); }
-.bc-stree-item--focus .bc-stree-name { color: #16a34a; font-weight: 700; }
-@media (prefers-color-scheme: dark) {
-  .bc-stree-item--dir   .bc-stree-name { color: #22d3ee; }
-  .bc-stree-item--focus .bc-stree-name { color: #52d980; }
-}
+.bc-stree-item--focus .bc-stree-name { color: var(--bc-ok); font-weight: 700; }
 
 /* ── Track list ── */
 .bc-settings-tracklist-label {
