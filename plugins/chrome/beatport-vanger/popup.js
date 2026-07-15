@@ -39,8 +39,10 @@ function detectBeatportType(url) {
 }
 
 function cleanTitle(raw) {
-  // "Chart Name | Beatport" of "Playlist Name - Beatport"
+  // "Chart Name | Beatport", "Playlist Name - Beatport"
+  // "Chart Name Chart by Dj Sniper on Beatport"
   return (raw || '')
+    .replace(/\s+(?:chart|playlist|release|mix|label)\s+by\s+.+?\s+on\s+beatport\s*$/i, '')
     .replace(/\s*[|\-–—]\s*beatport\s*$/i, '')
     .replace(/\s*\|\s*.*$/, '')
     .trim();
@@ -209,7 +211,7 @@ function readCurrentPage(cb) {
           if (nd && nd.props && nd.props.pageProps) {
             var pp = nd.props.pageProps;
             var genreData =
-              (pp.chart    && (pp.chart.genres    || (pp.chart.genre    ? [pp.chart.genre]    : null))) ||
+              (pp.chart    && ((pp.chart.genre    ? [pp.chart.genre]    : null) || pp.chart.genres))    ||
               (pp.playlist && (pp.playlist.genres || (pp.playlist.genre ? [pp.playlist.genre] : null))) ||
               (pp.release  && (pp.release.genres  || (pp.release.genre  ? [pp.release.genre]  : null))) ||
               (pp.track    && (pp.track.genres    || (pp.track.genre    ? [pp.track.genre]    : null))) ||
@@ -301,10 +303,20 @@ function readCurrentPage(cb) {
     }, function(results) {
       var data = (results && results[0] && results[0].result) || {};
       var allGenres = data.genres || [];
+      // Charts/playlists kunnen lange genre-lijsten retourneren; cap op 3
+      if ((type === 'charts' || type === 'playlists') && allGenres.length > 3) {
+        allGenres = allGenres.slice(0, 3);
+      }
+      var baseName = cleanTitle(data.name || tab.title || '');
+      var artist   = data.artist || '';
+      // Voor charts/playlists: curator/artiest toevoegen als suffix
+      var displayName = (artist && (type === 'charts' || type === 'playlists'))
+        ? baseName + ' - ' + artist
+        : baseName;
       cb({
         url: url,
         type: type,
-        name: cleanTitle(data.name || tab.title || ''),
+        name: displayName,
         genres: allGenres,
         genre: allGenres[0] || '',
         trackCount: data.trackCount || null,
