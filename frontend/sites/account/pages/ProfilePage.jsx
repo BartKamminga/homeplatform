@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AccountLayout from '../AccountLayout.jsx';
 import { api } from '@core/api.js';
+import ThemeSwitcher from '@components/ThemeSwitcher.jsx';
 
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
@@ -180,6 +181,12 @@ export default function ProfilePage() {
         <Row label="E-mail" style={{ marginBottom: 0 }}>
           <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>{me?.email ?? '…'}</span>
         </Row>
+      </div>
+
+      {/* Thema */}
+      <div style={card}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Thema</div>
+        <ThemeSwitcher />
       </div>
 
       <ApiKeysSection />
