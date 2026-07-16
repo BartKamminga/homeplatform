@@ -63,12 +63,20 @@ export function CradeRow({
             <span className="bc-badge bc-badge-cnt">{done}/{total} tracks</span>
           ) : done > 0 ? (
             <span className="bc-badge bc-badge-cnt">{done} track{done !== 1 ? 's' : ''}</span>
+          ) : crade.track_count ? (
+            <span className="bc-badge bc-badge-cnt">{crade.track_count} tracks</span>
           ) : null}
           {isStalled
             ? <span className="bc-badge bc-badge-st bc-badge-st--stalled">Vastgelopen</span>
             : <span className={`bc-badge bc-badge-st bc-badge-st--${st.cls}`}>{st.label}</span>
           }
-          <span className="bc-badge bc-badge-fmt">{crade.format.toUpperCase()}</span>
+          {crade.actual_format && crade.actual_format !== crade.format ? (
+            <span className="bc-badge bc-badge-fmt bc-badge-fmt--mismatch" title={`Aangevraagd: ${crade.format.toUpperCase()}`}>
+              {crade.actual_format.toUpperCase()} ⚠
+            </span>
+          ) : (
+            <span className="bc-badge bc-badge-fmt">{crade.format.toUpperCase()}</span>
+          )}
         </div>
         {canCancel && (
           <button className="bc-stop-btn" onClick={e => { e.stopPropagation(); onCancel() }} title="Download stoppen">⏹</button>

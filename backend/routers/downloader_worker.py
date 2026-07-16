@@ -21,6 +21,24 @@ from routers.providers.base import DownloadProvider
 
 logger = logging.getLogger("homeplatform.beatcrades.worker")
 
+_AUDIO_EXTS = frozenset([".flac", ".mp3", ".wav", ".m4a", ".aac", ".ogg", ".opus", ".webm"])
+
+
+def _detect_format(directory: str) -> str | None:
+    """Scant de downloadmap recursief voor audiobestanden; geeft meest voorkomende extensie terug."""
+    counts: dict[str, int] = {}
+    try:
+        for root, _, files in os.walk(directory):
+            for fn in files:
+                ext = os.path.splitext(fn)[1].lower()
+                if ext in _AUDIO_EXTS:
+                    counts[ext] = counts.get(ext, 0) + 1
+    except OSError:
+        pass
+    if not counts:
+        return None
+    return max(counts, key=lambda k: counts[k]).lstrip(".")
+
 
 # ── Download-wachtrij ─────────────────────────────────────────────────────────
 
@@ -103,7 +121,9 @@ async def _run_inner(job_id: str) -> None:
         active_downloads.pop(job_id, None)
 
     if result.success:
-        update_job(job_id, status="done", output_path=result.output_path)
+        actual_fmt = _detect_format(download_dir)
+        update_job(job_id, status="done", output_path=result.output_path,
+                   actual_format=actual_fmt if actual_fmt != fmt else None)
         if result.playlist_name and crade_id:
             rename_crade(crade_id, result.playlist_name, move_dir=result.move_dir)
         write_info_file(

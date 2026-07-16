@@ -113,8 +113,10 @@ class CradeOut(BaseModel):
     group_id: Optional[str]
     source_url: Optional[str]
     format: str
+    actual_format: Optional[str]
     artist: Optional[str]
     item_type: Optional[str]
+    track_count: Optional[int]
     created_at: datetime
     status: str
     progress_log: Optional[str]
@@ -148,7 +150,8 @@ def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
     return CradeOut(
         id=c.id, name=c.name, subdir=c.subdir,
         group_id=c.group_id, source_url=c.source_url,
-        format=c.format, artist=c.artist, item_type=c.item_type,
+        format=c.format, actual_format=job.actual_format if job else None,
+        artist=c.artist, item_type=c.item_type, track_count=c.track_count,
         created_at=c.created_at,
         status=job.status if job else "no_job",
         progress_log=job.progress_log if job else None,
@@ -230,21 +233,43 @@ def merge_sections(
     if body.source_id == body.target_id:
         raise AppError("Bron en doel mogen niet dezelfde section zijn", 400)
 
-    racks = session.exec(
+    source_racks = session.exec(
         select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == body.source_id)
     ).all()
-    for rack in racks:
-        rack.section_id = body.target_id
-        rack.updated_at = datetime.utcnow()
-        session.add(rack)
-        for crade in session.exec(
-            select(DownloadCrade).where(DownloadCrade.group_id == rack.id)
-        ).all():
-            move_crade_dir(crade, expected_subdir(crade, session), session)
+    target_racks = session.exec(
+        select(DownloadCradeGroup).where(DownloadCradeGroup.section_id == body.target_id)
+    ).all()
+    # Index target-racks op genormaliseerde naam voor naam-collision detectie
+    target_by_name = {r.name.strip().lower(): r for r in target_racks}
+
+    merged_racks = 0
+    moved_racks = 0
+    for rack in source_racks:
+        existing = target_by_name.get(rack.name.strip().lower())
+        if existing:
+            # Zelfde naam → crades verplaatsen naar bestaande rack, bron rack verwijderen
+            for crade in session.exec(
+                select(DownloadCrade).where(DownloadCrade.group_id == rack.id)
+            ).all():
+                crade.group_id = existing.id
+                crade.updated_at = datetime.utcnow()
+                session.add(crade)
+                move_crade_dir(crade, expected_subdir(crade, session), session)
+            session.delete(rack)
+            merged_racks += 1
+        else:
+            rack.section_id = body.target_id
+            rack.updated_at = datetime.utcnow()
+            session.add(rack)
+            for crade in session.exec(
+                select(DownloadCrade).where(DownloadCrade.group_id == rack.id)
+            ).all():
+                move_crade_dir(crade, expected_subdir(crade, session), session)
+            moved_racks += 1
 
     session.delete(source)
     session.commit()
-    return {"ok": True, "moved_racks": len(racks)}
+    return {"ok": True, "moved_racks": moved_racks, "merged_racks": merged_racks}
 
 
 # ── Racks ─────────────────────────────────────────────────────────────────────
@@ -525,7 +550,7 @@ def get_tree(
     user=Depends(get_current_user),
 ):
     sections = session.exec(select(DownloadSection).order_by(DownloadSection.created_at)).all()
-    racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.created_at)).all()
+    racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.name)).all()
     crades   = session.exec(select(DownloadCrade).order_by(DownloadCrade.created_at.desc())).all()
 
     # Alle jobs in één query — meest recente per crade via dict
@@ -608,6 +633,7 @@ def push_from_vanger(
                 format=item.format,
                 artist=item.artist or None,
                 item_type=item.item_type or None,
+                track_count=item.track_count or None,
                 created_by=user.id,
             )
             session.add(crade)

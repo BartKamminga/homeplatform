@@ -16,9 +16,10 @@ export function RackBlock({ rack,
   const isDragOver  = dragOver?.kind === 'rack' && dragOver.id === rack.id
   const isMergeOver = dragOver?.kind === 'rack-merge' && dragOver.id === rack.id
   const isDragging  = draggingRack === rack.id
-  const total  = rack.crades.length
-  const done   = rack.crades.filter(c => c.status === 'done').length
-  const allDone = total > 0 && done === total
+  const total      = rack.crades.length
+  const done       = rack.crades.filter(c => c.status === 'done').length
+  const allDone    = total > 0 && done === total
+  const trackTotal = rack.crades.reduce((n, c) => n + (c.track_count || 0), 0)
 
   return (
     <div className={`bc-rack${isOpen ? ' open' : ''}${isDragOver ? ' dz-over' : ''}${isDragging ? ' dragging' : ''}`}
@@ -39,7 +40,7 @@ export function RackBlock({ rack,
           {rack.name}
         </span>
         <span className={`bc-rack-count${allDone ? ' bc-rack-count--done' : ''}`}>
-          {done}/{total} klaar
+          {done}/{total} klaar{trackTotal > 0 ? ` · ${trackTotal} tracks` : ''}
         </span>
         <button className="bc-del-btn" onClick={e => { e.stopPropagation(); removeRack(rack.id) }} title="Rack verwijderen">✕</button>
       </div>

@@ -392,12 +392,13 @@ export default function App() {
                 {section.name}
               </span>
               {(() => {
-                const secTotal = section.racks.reduce((n, r) => n + r.crades.length, 0)
-                const secDone  = section.racks.reduce((n, r) => n + r.crades.filter(c => c.status === 'done').length, 0)
-                const secAllDone = secTotal > 0 && secDone === secTotal
+                const secTotal      = section.racks.reduce((n, r) => n + r.crades.length, 0)
+                const secDone       = section.racks.reduce((n, r) => n + r.crades.filter(c => c.status === 'done').length, 0)
+                const secAllDone    = secTotal > 0 && secDone === secTotal
+                const secTrackTotal = section.racks.reduce((n, r) => n + r.crades.reduce((m, c) => m + (c.track_count || 0), 0), 0)
                 return (
                   <span className={`bc-section-meta${secAllDone ? ' bc-section-meta--done' : ''}`}>
-                    {section.racks.length} {section.racks.length === 1 ? 'rack' : 'racks'} · {secDone}/{secTotal} klaar
+                    {section.racks.length} {section.racks.length === 1 ? 'rack' : 'racks'} · {secDone}/{secTotal} klaar{secTrackTotal > 0 ? ` · ${secTrackTotal} tracks` : ''}
                   </span>
                 )
               })()}
