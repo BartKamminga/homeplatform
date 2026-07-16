@@ -1202,7 +1202,7 @@
 /* Full path */
 .bc-settings-fullpath {
   padding: 9px 11px;
-  background: var(--color-surface-alt, #f9fafb);
+  background: var(--bc-acc-dim);
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 5px;
   margin-bottom: 14px;
@@ -1289,7 +1289,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  background: var(--color-surface-alt, #f9fafb);
+  background: var(--bc-acc-dim);
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 4px;
   min-width: 0;
