@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { getSettings, putSettings, syncPreview, syncExecute, getProvider, setProvider } from '../api.js'
-import { FORMATS } from '../helpers.js'
+import { getSettings, putSettings, syncPreview, syncExecute, getProvider, setProvider, getToolVersions } from '../api.js'
+import { FORMATS, FMT_LABEL } from '../helpers.js'
 
 // ── Tabs definitie ────────────────────────────────────────────────────────────
 
@@ -275,6 +275,8 @@ function DownloadTab() {
   const [maxConcurrent, setMaxConcurrent] = useState(2)
   const [defaultFmt,    setDefaultFmt]    = useState(() => localStorage.getItem('bc_fmt') || 'flac')
   const [saved,         setSaved]         = useState(false)
+  const [checking,      setChecking]      = useState(false)
+  const [versions,      setVersions]      = useState(null)
 
   useEffect(() => {
     getSettings()
@@ -294,6 +296,13 @@ function DownloadTab() {
     setSaving(false)
   }
 
+  const checkVersions = async () => {
+    setChecking(true); setVersions(null)
+    try { setVersions(await getToolVersions()) }
+    catch (e) { setVersions({ error: e.message || 'Fout bij ophalen' }) }
+    setChecking(false)
+  }
+
   if (loading) return <div className="bc-sync-empty">Laden…</div>
 
   return (
@@ -308,7 +317,7 @@ function DownloadTab() {
           <div className="bc-fmt-seg">
             {FORMATS.map(f => (
               <button key={f} type="button" className={`bc-fmt-btn${defaultFmt === f ? ' active' : ''}`} onClick={() => pickFmt(f)}>
-                {f.toUpperCase()}
+                {FMT_LABEL[f] || f.toUpperCase()}
               </button>
             ))}
           </div>
@@ -332,10 +341,52 @@ function DownloadTab() {
         </div>
       </div>
 
+      <div className="bc-settings-card">
+        <div className="bc-settings-card-hdr">
+          <span className="bc-settings-card-ico">🔍</span>
+          <span className="bc-settings-card-title">Download-tools</span>
+          <button className="bc-btn bc-btn-sec bc-btn-xs" onClick={checkVersions} disabled={checking}>
+            {checking ? '…' : 'Controleer updates'}
+          </button>
+        </div>
+        <div className="bc-settings-card-body">
+          {!versions && !checking && (
+            <div className="bc-settings-info">Klik om te controleren of beatportdl en yt-dlp up-to-date zijn.</div>
+          )}
+          {checking && <div className="bc-settings-info">GitHub raadplegen…</div>}
+          {versions?.error && <div className="bc-settings-info" style={{ color: 'var(--bc-err)' }}>{versions.error}</div>}
+          {versions && !versions.error && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <VersionRow name="beatportdl" data={versions.beatportdl} />
+              <VersionRow name="yt-dlp"     data={versions.ytdlp} />
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="bc-sync-footer">
         <span className={`bc-settings-saved${saved ? ' visible' : ''}`}>✓ Opgeslagen</span>
         <button className="bc-btn bc-btn-pri" onClick={save} disabled={saving}>{saving ? 'Opslaan…' : 'Opslaan'}</button>
       </div>
+    </div>
+  )
+}
+
+function VersionRow({ name, data }) {
+  const ok = data.up_to_date
+  const missing = data.installed === 'niet gevonden'
+  return (
+    <div className={`bc-ver-row${ok ? ' ok' : missing ? ' missing' : ' outdated'}`}>
+      <span className="bc-ver-name">{name}</span>
+      <span className="bc-ver-installed">{data.installed}</span>
+      <span className="bc-ver-arrow">→</span>
+      {data.release_url
+        ? <a className="bc-ver-latest" href={data.release_url} target="_blank" rel="noreferrer">{data.latest || '?'}</a>
+        : <span className="bc-ver-latest">{data.latest || (data.error ? '?' : '—')}</span>
+      }
+      <span className={`bc-ver-badge${ok ? ' ok' : missing ? ' miss' : ' new'}`}>
+        {ok ? '✓ Up-to-date' : missing ? 'Niet gevonden' : 'Update beschikbaar'}
+      </span>
     </div>
   )
 }

@@ -8,9 +8,14 @@ Architectuur:
   downloader_ytdlp.py    ← yt-dlp: commando, resultaatverwerking
 """
 
+import asyncio as _asyncio
 import logging
 import os
 import shutil
+import subprocess
+import urllib.request
+import urllib.error
+import json as _json
 from datetime import datetime
 from typing import List, Optional
 
@@ -884,3 +889,72 @@ def sync_execute(
 
     session.commit()
     return SyncExecuteOut(results=results)
+
+
+# ── Tool versie-check ─────────────────────────────────────────────────────────
+
+_GH_REPOS = {
+    "beatportdl": "unspok3n/beatportdl",
+    "ytdlp":      "yt-dlp/yt-dlp",
+}
+
+
+def _local_version(cmd: str) -> str:
+    """Roept `<cmd> --version` aan en geeft de eerste regel terug."""
+    try:
+        result = subprocess.run(
+            [cmd, "--version"],
+            capture_output=True, text=True, timeout=8,
+        )
+        line = (result.stdout or result.stderr or "").strip().splitlines()[0]
+        return line or "onbekend"
+    except FileNotFoundError:
+        return "niet gevonden"
+    except Exception as exc:
+        return f"fout: {exc}"
+
+
+def _gh_latest(repo: str) -> dict:
+    """Haalt de nieuwste GitHub release op voor `repo`."""
+    url = f"https://api.github.com/repos/{repo}/releases/latest"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "homeplatform/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = _json.loads(resp.read().decode())
+        return {"tag": data.get("tag_name", ""), "url": data.get("html_url", "")}
+    except urllib.error.HTTPError as e:
+        return {"tag": "", "url": "", "error": f"HTTP {e.code}"}
+    except Exception as exc:
+        return {"tag": "", "url": "", "error": str(exc)}
+
+
+@router.get("/tool-versions")
+def tool_versions(user=Depends(get_current_user)):
+    bdl_local = _local_version("beatportdl")
+    ydl_local = _local_version("yt-dlp")
+    bdl_gh    = _gh_latest(_GH_REPOS["beatportdl"])
+    ydl_gh    = _gh_latest(_GH_REPOS["ytdlp"])
+
+    def _up_to_date(local: str, gh_tag: str) -> bool:
+        if not gh_tag or local in ("niet gevonden", "onbekend") or local.startswith("fout"):
+            return False
+        tag = gh_tag.lstrip("v")
+        loc = local.lstrip("v").split()[0]
+        return loc == tag
+
+    return {
+        "beatportdl": {
+            "installed": bdl_local,
+            "latest":    bdl_gh.get("tag", ""),
+            "up_to_date": _up_to_date(bdl_local, bdl_gh.get("tag", "")),
+            "release_url": bdl_gh.get("url", ""),
+            "error": bdl_gh.get("error"),
+        },
+        "ytdlp": {
+            "installed":  ydl_local,
+            "latest":     ydl_gh.get("tag", ""),
+            "up_to_date": _up_to_date(ydl_local, ydl_gh.get("tag", "")),
+            "release_url": ydl_gh.get("url", ""),
+            "error": ydl_gh.get("error"),
+        },
+    }

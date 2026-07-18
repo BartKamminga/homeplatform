@@ -1,6 +1,9 @@
 // Gedeelde constanten en pure hulpfuncties voor BeatCrades
 
-export const FORMATS = ['flac', 'mp3', 'wav']
+export const FORMATS = ['flac', 'aac', 'mp3', 'wav']
+
+// Display-label per formaat (intern 'aac' → gebruiker ziet 'M4A')
+export const FMT_LABEL = { flac: 'FLAC', aac: 'M4A', mp3: 'MP3', wav: 'WAV' }
 
 export const ST = {
   no_job:      { label: 'Leeg',  cls: 'empty' },

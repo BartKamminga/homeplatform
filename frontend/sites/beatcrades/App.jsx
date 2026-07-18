@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getTree, createSection, updateSection, deleteSection, mergeSections, createRack, updateRack, deleteRack, mergeRacks, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade } from './api.js'
-import { FORMATS, detectSrc, slugFromBeatportUrl, todayName, allCradesFrom } from './helpers.js'
+import { FORMATS, FMT_LABEL, detectSrc, slugFromBeatportUrl, todayName, allCradesFrom } from './helpers.js'
 import { SectionIcon } from './components/Icons.jsx'
 import { CradeRow } from './components/CradeRow.jsx'
 import { RackBlock } from './components/RackBlock.jsx'
@@ -353,7 +353,7 @@ export default function App() {
                 <div className="bc-fmt-seg">
                   {FORMATS.map(f => (
                     <button key={f} type="button" className={`bc-fmt-btn${newFmt===f?' active':''}`} onClick={() => pickFmt(f)}>
-                      {f.toUpperCase()}
+                      {FMT_LABEL[f] || f.toUpperCase()}
                     </button>
                   ))}
                 </div>
