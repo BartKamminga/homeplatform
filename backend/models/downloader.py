@@ -38,6 +38,7 @@ class DownloadCrade(SQLModel, table=True):
     group_id:   Optional[str] = Field(default=None, foreign_key="download_crade_groups.id")
     source_url: Optional[str] = Field(default=None)
     format:      str           = Field(default="flac")
+    notes:       Optional[str] = Field(default=None)
     artist:      Optional[str] = Field(default=None)
     item_type:   Optional[str] = Field(default=None)
     track_count: Optional[int] = Field(default=None)

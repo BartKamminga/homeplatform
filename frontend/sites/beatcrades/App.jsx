@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { getTree, createSection, updateSection, deleteSection, mergeSections, createRack, updateRack, deleteRack, mergeRacks, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade } from './api.js'
 import { FORMATS, detectSrc, slugFromBeatportUrl, todayName, allCradesFrom } from './helpers.js'
 import { SectionIcon } from './components/Icons.jsx'
@@ -30,7 +30,9 @@ export default function App() {
   const [dragOver,        setDragOver]        = useState(null)
   const [dlg,           setDlg]          = useState(null)
   const [panelOpen,     setPanelOpen]    = useState(false)
-  const timerRef = useRef(null)
+  const [newMenuOpen,   setNewMenuOpen]  = useState(false)
+  const timerRef   = useRef(null)
+  const newMenuRef = useRef(null)
   const urlRef   = useRef(null)
 
   const openPrompt  = (title, initial = '')              => new Promise(res => setDlg({ type: 'prompt',  title, value: initial, resolve: res }))
@@ -39,6 +41,12 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('bc_open_sections', JSON.stringify(openSections)) }, [openSections])
   useEffect(() => { localStorage.setItem('bc_open_racks',    JSON.stringify(openRacks))    }, [openRacks])
+  useEffect(() => {
+    if (!newMenuOpen) return
+    const h = e => { if (newMenuRef.current && !newMenuRef.current.contains(e.target)) setNewMenuOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [newMenuOpen])
 
   const load = () => getTree().then(setTree).catch(() => {})
   useEffect(() => { load() }, [])
@@ -151,6 +159,7 @@ export default function App() {
   }
   const onRestartCrade = async id => { await restartCrade(id).catch(() => {}); await load() }
   const onCancelCrade  = async id => { await cancelCrade(id).catch(() => {});  await load() }
+  const onMoveCrade    = async (id, rackId) => { await updateCrade(id, { group_id: rackId || null }); await load() }
 
   // ── Crade drag-drop ──
   const onCradeDragStart = (e, id) => { setDraggingCrade(id); e.dataTransfer.effectAllowed = 'move' }
@@ -245,6 +254,12 @@ export default function App() {
   ]
   const isEmpty = tree.sections.length === 0 && tree.racks.length === 0 && tree.crades.length === 0
 
+  // Item 295: duplicate URL detection
+  const urlTrimmed = newUrl.trim()
+  const dupCrade = urlTrimmed
+    ? allCradesFrom(tree).find(c => c.source_url?.trim() === urlTrimmed)
+    : null
+
   const rackCallbacks = {
     openRacks, openCrades, toggleRack, toggleCrade,
     draggingCrade, draggingRack, dragOver, setDragOver,
@@ -254,6 +269,7 @@ export default function App() {
     onRackMergeDragOver, onRackMergeDrop,
     renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
     renameCrade, addCradeInRack,
+    allRacks, onMoveCrade,
   }
 
   return (
@@ -267,8 +283,28 @@ export default function App() {
           <button className="bc-btn bc-btn-sec" onClick={collapseAll} title="Alles inklappen">⊖</button>
           <button className="bc-btn bc-btn-sec" onClick={expandAll} title="Alles uitklappen">⊕</button>
           <button className="bc-btn bc-btn-sec" onClick={() => setPanelOpen(true)}>⚙ Instellingen</button>
-          <button className="bc-btn bc-btn-sec" onClick={() => addRack(null)}>＋ Rack</button>
-          <button className="bc-btn bc-btn-pri" onClick={openNew}>＋ Crade</button>
+          <div className="bc-new-wrap" ref={newMenuRef}>
+            <button className="bc-btn bc-btn-pri" onClick={() => setNewMenuOpen(o => !o)}>＋ Nieuw ▾</button>
+            {newMenuOpen && (
+              <div className="bc-new-menu">
+                <button className="bc-new-menu-item" onClick={() => { setNewMenuOpen(false); openNew() }}>
+                  <span className="bc-new-menu-ico">🎵</span>
+                  <span>Crade</span>
+                  <span className="bc-new-menu-hint">URL → download</span>
+                </button>
+                <button className="bc-new-menu-item" onClick={() => { setNewMenuOpen(false); addRack(null) }}>
+                  <span className="bc-new-menu-ico">📦</span>
+                  <span>Rack</span>
+                  <span className="bc-new-menu-hint">Groepeer crades</span>
+                </button>
+                <button className="bc-new-menu-item" onClick={() => { setNewMenuOpen(false); openPrompt('Naam nieuwe Section:').then(n => n?.trim() && addSectionInline(n.trim())) }}>
+                  <span className="bc-new-menu-ico">🗂</span>
+                  <span>Section</span>
+                  <span className="bc-new-menu-hint">Groepeer racks</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -283,16 +319,23 @@ export default function App() {
               </div>
               <div className="bc-field">
                 <label>URL</label>
-                <input className="bc-inp" ref={urlRef} value={newUrl}
-                  onChange={e => {
-                    const url = e.target.value
-                    setNewUrl(url)
-                    if (detectSrc(url) === 'beatport' && newName === todayName()) {
-                      const slug = slugFromBeatportUrl(url)
-                      if (slug) setNewName(slug)
-                    }
-                  }}
-                  placeholder="Beatport-, YouTube- of SoundCloud-URL…" required />
+                <div style={{ flex: 1 }}>
+                  <input className="bc-inp" style={{ width: '100%' }} ref={urlRef} value={newUrl}
+                    onChange={e => {
+                      const url = e.target.value
+                      setNewUrl(url)
+                      if (detectSrc(url) === 'beatport' && newName === todayName()) {
+                        const slug = slugFromBeatportUrl(url)
+                        if (slug) setNewName(slug)
+                      }
+                    }}
+                    placeholder="Beatport-, YouTube- of SoundCloud-URL…" required />
+                  {dupCrade && (
+                    <div className="bc-dup-warn">
+                      ⚠ Deze URL bestaat al: <strong>{dupCrade.name}</strong>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="bc-field">
                 <label>Rack</label>
@@ -385,7 +428,9 @@ export default function App() {
             onCancel={() => onCancelCrade(crade.id)}
             dragging={draggingCrade === crade.id}
             onDragStart={e => onCradeDragStart(e, crade.id)}
-            onDragEnd={onCradeDragEnd} />
+            onDragEnd={onCradeDragEnd}
+            allRacks={allRacks}
+            onMove={onMoveCrade} />
         ))}
 
         {draggingCrade && (

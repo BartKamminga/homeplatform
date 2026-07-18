@@ -90,6 +90,7 @@ class CradeCreate(BaseModel):
 class CradeUpdate(BaseModel):
     name: Optional[str] = None
     group_id: Optional[str] = None
+    notes: Optional[str] = None
 
 class VangerItem(BaseModel):
     url: str
@@ -117,6 +118,7 @@ class CradeOut(BaseModel):
     source_url: Optional[str]
     format: str
     actual_format: Optional[str]
+    notes: Optional[str]
     artist: Optional[str]
     item_type: Optional[str]
     track_count: Optional[int]
@@ -154,6 +156,7 @@ def _crade_out(c: DownloadCrade, job: Optional[DownloadJob]) -> CradeOut:
         id=c.id, name=c.name, subdir=c.subdir,
         group_id=c.group_id, source_url=c.source_url,
         format=c.format, actual_format=job.actual_format if job else None,
+        notes=c.notes,
         artist=c.artist, item_type=c.item_type, track_count=c.track_count,
         created_at=c.created_at,
         status=job.status if job else "no_job",
@@ -438,6 +441,8 @@ def update_crade(
         if (body.group_id or None) != c.group_id:
             renamed_or_moved = True
         c.group_id = body.group_id or None
+    if "notes" in body.model_fields_set:
+        c.notes = body.notes
     if renamed_or_moved:
         move_crade_dir(c, expected_subdir(c, session), session)
     else:

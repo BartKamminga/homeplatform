@@ -1413,6 +1413,147 @@
 .bc-provider-opt-name { flex: 1; text-align: left; }
 .bc-provider-opt-check { font-size: 11px; font-weight: 700; color: var(--bc-ok); }
 
+/* ── Combined "+ Nieuw" dropdown (item 310) ── */
+
+.bc-new-wrap {
+  position: relative;
+}
+
+.bc-new-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 5px;
+  min-width: 200px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.14);
+}
+
+.bc-new-menu-item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #111);
+  transition: background .1s;
+}
+.bc-new-menu-item:hover { background: var(--bc-acc-dim); color: var(--bc-acc); }
+.bc-new-menu-ico { font-size: 14px; text-align: center; }
+.bc-new-menu-hint { font-size: 11px; color: var(--bc-muted); font-weight: 400; }
+
+/* ── Duplicate URL warning (item 295) ── */
+
+.bc-dup-warn {
+  margin-top: 5px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--bc-warn) 10%, transparent);
+  color: var(--bc-warn);
+  border: 1px solid color-mix(in srgb, var(--bc-warn) 30%, transparent);
+}
+
+/* ── Move-crade popover (item 309) ── */
+
+.bc-move-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.bc-move-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--bc-muted);
+  transition: color .12s, background .12s;
+  opacity: 0;
+}
+.bc-crade-head:hover .bc-move-btn { opacity: 1; }
+.bc-move-btn:hover { color: var(--bc-acc); background: var(--bc-acc-dim); }
+
+.bc-move-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 200;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  padding: 5px;
+  min-width: 180px;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14);
+}
+
+.bc-move-pop-hdr {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--bc-muted);
+  padding: 4px 8px 6px;
+}
+
+.bc-move-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 9px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--color-text, #111);
+  cursor: pointer;
+  transition: background .1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bc-move-opt:hover  { background: var(--bc-acc-dim); color: var(--bc-acc); }
+.bc-move-opt.active { color: var(--bc-acc); font-weight: 700; }
+
+/* ── Notes textarea (item 306) ── */
+
+.bc-notes-row {
+  padding: 8px 12px 8px 36px;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+.bc-notes-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface-2, #f9fafb);
+  color: var(--color-text, #111);
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s;
+  min-height: 50px;
+}
+.bc-notes-input:focus { border-color: var(--bc-acc); }
+.bc-notes-input::placeholder { color: var(--bc-muted); font-style: italic; }
+
 /* ── Saved feedback ── */
 .bc-settings-saved {
   flex: 1;
