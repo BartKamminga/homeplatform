@@ -77,8 +77,12 @@ export default function App() {
   const [newRack,       setNewRack]      = useState('')
   const [submitting,    setSubmitting]   = useState(false)
   const [err,           setErr]          = useState('')
-  const [openSections,  setOpenSections] = useState({})
-  const [openRacks,     setOpenRacks]    = useState({})
+  const [openSections,  setOpenSections] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bc_open_sections') || '{}') } catch { return {} }
+  })
+  const [openRacks,     setOpenRacks]    = useState(() => {
+    try { return JSON.parse(localStorage.getItem('bc_open_racks') || '{}') } catch { return {} }
+  })
   const [openCrades,    setOpenCrades]   = useState({})
   const [draggingCrade,   setDraggingCrade]   = useState(null)
   const [draggingRack,    setDraggingRack]    = useState(null)
@@ -90,9 +94,12 @@ export default function App() {
   const timerRef = useRef(null)
   const urlRef   = useRef(null)
 
-  const openPrompt  = (title, initial = '') => new Promise(res => setDlg({ type: 'prompt',  title, value: initial, resolve: res }))
-  const openConfirm = (msg)                 => new Promise(res => setDlg({ type: 'confirm', msg,                   resolve: res }))
+  const openPrompt  = (title, initial = '')              => new Promise(res => setDlg({ type: 'prompt',  title, value: initial, resolve: res }))
+  const openConfirm = (msg, confirmLabel = 'Verwijderen') => new Promise(res => setDlg({ type: 'confirm', msg, confirmLabel,          resolve: res }))
   const closeDlg    = val => { dlg?.resolve(val); setDlg(null) }
+
+  useEffect(() => { localStorage.setItem('bc_open_sections', JSON.stringify(openSections)) }, [openSections])
+  useEffect(() => { localStorage.setItem('bc_open_racks',    JSON.stringify(openRacks))    }, [openRacks])
 
   const load = () => getTree().then(setTree).catch(() => {})
   useEffect(() => { load() }, [])
@@ -141,7 +148,7 @@ export default function App() {
     const src = tree.sections.find(s => s.id === sourceId)
     const tgt = tree.sections.find(s => s.id === targetId)
     if (!src || !tgt) return
-    if (!await openConfirm(`Sectie "${src.name}" samenvoegen met "${tgt.name}"? Alle racks schuiven over naar "${tgt.name}" en "${src.name}" verdwijnt.`)) return
+    if (!await openConfirm(`Sectie "${src.name}" samenvoegen met "${tgt.name}"? Alle racks schuiven over naar "${tgt.name}" en "${src.name}" verdwijnt.`, 'Samenvoegen')) return
     await mergeSections(String(sourceId), String(targetId))
     await load()
   }
@@ -153,7 +160,7 @@ export default function App() {
     const src = allRacksList.find(r => r.id === sourceId)
     const tgt = allRacksList.find(r => r.id === targetId)
     if (!src || !tgt) return
-    if (!await openConfirm(`Rack "${src.name}" samenvoegen met "${tgt.name}"? Alle crades schuiven over naar "${tgt.name}" en "${src.name}" verdwijnt.`)) return
+    if (!await openConfirm(`Rack "${src.name}" samenvoegen met "${tgt.name}"? Alle crades schuiven over naar "${tgt.name}" en "${src.name}" verdwijnt.`, 'Samenvoegen')) return
     await mergeRacks(String(sourceId), String(targetId))
     await load()
   }
@@ -162,10 +169,14 @@ export default function App() {
   const addRack = async (sectionId = null) => {
     const name = await openPrompt('Naam van de nieuwe Rack:')
     if (!name?.trim()) return
-    await createRack({ name: name.trim(), section_id: sectionId }); await load()
+    const rack = await createRack({ name: name.trim(), section_id: sectionId })
+    setOpenRacks(r => ({ ...r, [rack.id]: true }))
+    await load()
   }
   const addRackInSection = async (sectionId, name) => {
-    await createRack({ name, section_id: sectionId }); await load()
+    const rack = await createRack({ name, section_id: sectionId })
+    setOpenRacks(r => ({ ...r, [rack.id]: true }))
+    await load()
   }
   const renameRack = async (id, cur) => {
     const name = await openPrompt('Nieuwe naam:', cur)
@@ -280,6 +291,15 @@ export default function App() {
   const toggleRack    = id => setOpenRacks(r    => ({ ...r, [id]: !(id in r ? r[id] : false) }))
   const toggleCrade   = id => setOpenCrades(c   => ({ ...c, [id]: !c[id] }))
 
+  const expandAll = () => {
+    setOpenSections(Object.fromEntries(tree.sections.map(s => [s.id, true])))
+    setOpenRacks(Object.fromEntries([...tree.sections.flatMap(s => s.racks), ...tree.racks].map(r => [r.id, true])))
+  }
+  const collapseAll = () => {
+    setOpenSections(Object.fromEntries(tree.sections.map(s => [s.id, false])))
+    setOpenRacks(Object.fromEntries([...tree.sections.flatMap(s => s.racks), ...tree.racks].map(r => [r.id, false])))
+  }
+
   const allRacks = [
     ...tree.sections.flatMap(s => s.racks.map(r => ({ ...r, sectionName: s.name }))),
     ...tree.racks.map(r => ({ ...r, sectionName: null })),
@@ -306,6 +326,8 @@ export default function App() {
         </div>
         <div className="bc-hdr-btns">
           <ProviderBadge />
+          <button className="bc-btn bc-btn-sec" onClick={collapseAll} title="Alles inklappen">⊖</button>
+          <button className="bc-btn bc-btn-sec" onClick={expandAll} title="Alles uitklappen">⊕</button>
           <button className="bc-btn bc-btn-sec" onClick={() => setSettingsOpen(true)}>⚙ Instellingen</button>
           <button className="bc-btn bc-btn-sec" onClick={() => setSyncOpen(true)}>🔄 Sync</button>
           <button className="bc-btn bc-btn-sec" onClick={() => addRack(null)}>＋ Rack</button>
@@ -487,7 +509,7 @@ export default function App() {
                 onClick={() => closeDlg(dlg.type === 'confirm' ? true : dlg.value)}
                 onKeyDown={e => { if (e.key === 'Escape') closeDlg(dlg.type === 'confirm' ? false : null) }}
               >
-                {dlg.type === 'confirm' ? 'Verwijderen' : 'OK'}
+                {dlg.type === 'confirm' ? (dlg.confirmLabel ?? 'Verwijderen') : 'OK'}
               </button>
             </div>
           </div>
