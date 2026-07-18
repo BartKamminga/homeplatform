@@ -9,15 +9,12 @@ import {
 export function CradeRow({
   crade, open, onToggle, onRename, onDelete, onRestart, onCancel,
   inRack, dragging, onDragStart, onDragEnd,
-  allRacks, onMove,
 }) {
   const [logExpanded, setLogExpanded] = useState(false)
   const [notes,       setNotes]       = useState(crade.notes || '')
-  const [moveOpen,    setMoveOpen]    = useState(false)
   const [diskInfo,    setDiskInfo]    = useState(null)
   const [diskLoading, setDiskLoading] = useState(false)
-  const logRef  = useRef(null)
-  const moveRef = useRef(null)
+  const logRef    = useRef(null)
   const saveTimer = useRef(null)
 
   const st  = ST[crade.status] || ST.no_job
@@ -38,10 +35,8 @@ export function CradeRow({
     if (logExpanded && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [logExpanded, crade.progress_log])
 
-  // Sync notes when crade prop updates externally
   useEffect(() => { setNotes(crade.notes || '') }, [crade.notes])
 
-  // Load disk info when done crade is expanded
   useEffect(() => {
     if (open && crade.status === 'done') {
       setDiskLoading(true)
@@ -49,15 +44,6 @@ export function CradeRow({
     }
   }, [open, crade.id, crade.status])
 
-  // Close move popover on outside click
-  useEffect(() => {
-    if (!moveOpen) return
-    const handler = e => { if (moveRef.current && !moveRef.current.contains(e.target)) setMoveOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [moveOpen])
-
-  // Debounced notes save
   const handleNotesChange = useCallback(e => {
     const val = e.target.value
     setNotes(val)
@@ -66,11 +52,6 @@ export function CradeRow({
       updateCrade(crade.id, { notes: val }).catch(() => {})
     }, 800)
   }, [crade.id])
-
-  const handleMove = rackId => {
-    setMoveOpen(false)
-    onMove?.(crade.id, rackId)
-  }
 
   return (
     <div className={`bc-crade bc-crade--${st.cls}${open ? ' open' : ''}${inRack ? ' in-rack' : ''}${dragging ? ' dragging' : ''}`}
@@ -120,24 +101,6 @@ export function CradeRow({
             <span className="bc-badge bc-badge-fmt">{crade.format.toUpperCase()}</span>
           )}
         </div>
-        {allRacks && (
-          <div className="bc-move-wrap" ref={moveRef} onClick={e => e.stopPropagation()}>
-            <button className="bc-move-btn" onClick={() => setMoveOpen(o => !o)} title="Verplaatsen naar rack">↗</button>
-            {moveOpen && (
-              <div className="bc-move-pop">
-                <div className="bc-move-pop-hdr">Verplaatsen naar</div>
-                <button className={`bc-move-opt${!crade.group_id ? ' active' : ''}`} onClick={() => handleMove(null)}>
-                  — geen rack —
-                </button>
-                {allRacks.map(r => (
-                  <button key={r.id} className={`bc-move-opt${crade.group_id === r.id ? ' active' : ''}`} onClick={() => handleMove(r.id)}>
-                    {r.sectionName ? `${r.sectionName} / ${r.name}` : r.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
         {canCancel && (
           <button className="bc-stop-btn" onClick={e => { e.stopPropagation(); onCancel() }} title="Download stoppen">⏹</button>
         )}

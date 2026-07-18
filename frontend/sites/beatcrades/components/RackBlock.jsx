@@ -14,7 +14,7 @@ export function RackBlock({ rack,
   onRackMergeDragOver, onRackMergeDrop,
   renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
   renameCrade, addCradeInRack,
-  allRacks, onMoveCrade, onLoad,
+  onLoad,
 }) {
   const [fmtOpen, setFmtOpen] = useState(false)
   const fmtRef = useRef(null)
@@ -102,8 +102,7 @@ export function RackBlock({ rack,
               dragging={draggingCrade === crade.id}
               onDragStart={e => onCradeDragStart(e, crade.id)}
               onDragEnd={onCradeDragEnd}
-              allRacks={allRacks}
-              onMove={onMoveCrade} />
+              />
           ))}
           <PlaceholderRow type="crade" onSubmit={url => addCradeInRack(rack.id, url)} />
         </div>

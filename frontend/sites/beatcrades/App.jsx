@@ -164,7 +164,6 @@ export default function App() {
   }
   const onRestartCrade = async id => { await restartCrade(id).catch(() => {}); await load() }
   const onCancelCrade  = async id => { await cancelCrade(id).catch(() => {});  await load() }
-  const onMoveCrade    = async (id, rackId) => { await updateCrade(id, { group_id: rackId || null }); await load() }
 
   // ── Crade drag-drop ──
   const onCradeDragStart = (e, id) => { setDraggingCrade(id); e.dataTransfer.effectAllowed = 'move' }
@@ -302,7 +301,7 @@ export default function App() {
     onRackMergeDragOver, onRackMergeDrop,
     renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
     renameCrade, addCradeInRack,
-    allRacks, onMoveCrade, onLoad: load,
+    onLoad: load,
   }
 
   return (
@@ -462,9 +461,7 @@ export default function App() {
             onCancel={() => onCancelCrade(crade.id)}
             dragging={draggingCrade === crade.id}
             onDragStart={e => onCradeDragStart(e, crade.id)}
-            onDragEnd={onCradeDragEnd}
-            allRacks={allRacks}
-            onMove={onMoveCrade} />
+            onDragEnd={onCradeDragEnd} />
         ))}
 
         {draggingCrade && (
