@@ -752,11 +752,14 @@
 /* ── Sync modal ── */
 
 /* Color aliases per action type (add/upd/del/new) */
-.bc-sync-modal {
+:root {
   --sy-add: var(--bc-ok);        --sy-add-dim: rgba(34,197,94,.12);
   --sy-upd: var(--bc-warn);      --sy-upd-dim: rgba(245,158,11,.12);
   --sy-del: var(--bc-err);       --sy-del-dim: rgba(239,68,68,.12);
   --sy-new: var(--bc-acc);       --sy-new-dim: var(--bc-acc-dim);
+}
+
+.bc-sync-modal {
 
   background: var(--color-surface, #fff);
   color: var(--color-text, #111);
@@ -1304,6 +1307,111 @@
 .bc-settings-tracknum  { font-size: 10px; color: var(--bc-muted); width: 20px; flex-shrink: 0; text-align: right; font-family: var(--font-mono, monospace); }
 .bc-settings-trackname { flex: 1; font-size: 11.5px; font-family: var(--font-mono, monospace); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bc-settings-trackfmt  { font-size: 10px; padding: 1px 5px; background: var(--bc-acc-dim); color: var(--bc-acc); border-radius: 3px; flex-shrink: 0; }
+
+/* ── Combined settings panel ── */
+
+.bc-panel {
+  background: var(--color-surface, #fff);
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  box-shadow: 0 12px 48px rgba(0,0,0,.25);
+  width: min(96vw, 1040px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bc-panel-hdr {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 18px 0;
+  flex-shrink: 0;
+}
+
+.bc-panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 12px 18px 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.bc-panel-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--bc-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+}
+.bc-panel-tab:hover { background: var(--bc-acc-dim); color: var(--bc-acc); }
+.bc-panel-tab.active {
+  color: var(--bc-acc);
+  border-bottom-color: var(--bc-acc);
+  background: var(--bc-acc-dim);
+}
+.bc-panel-tab-ico { font-size: 14px; }
+.bc-panel-tab-lbl { font-size: 12px; }
+
+.bc-panel-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bc-panel-tab-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bc-panel-tab-body > .bc-settings-body { flex: 1; overflow: hidden; }
+
+.bc-panel-tab-body--narrow {
+  max-width: 520px;
+  align-self: center;
+  width: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Provider options ── */
+
+.bc-provider-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface-2, #f9fafb);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: border-color .12s, background .12s;
+  color: var(--color-text, #111);
+}
+.bc-provider-opt:hover { border-color: var(--bc-acc); background: var(--bc-acc-dim); }
+.bc-provider-opt.active { border-color: var(--bc-acc); background: var(--bc-acc-dim); color: var(--bc-acc); }
+.bc-provider-opt-name { flex: 1; text-align: left; }
+.bc-provider-opt-check { font-size: 11px; font-weight: 700; color: var(--bc-ok); }
 
 /* ── Saved feedback ── */
 .bc-settings-saved {
