@@ -27,6 +27,14 @@ logger = logging.getLogger("homeplatform.beatcrades.beatport.binary")
 
 NOISE_LINES = ("enter url or search query", "error reading input string")
 
+_FMT_TO_BDL_QUALITY = {
+    "flac": "flac",
+    "mp3":  "mp3",
+    "wav":  "wav",
+    "aiff": "aiff",
+    "aac":  "aac-256",
+}
+
 _BDL_TOKEN_MAP = {
     "{title}":        "{name}",
     "{artist}":       "{artists}",
@@ -79,6 +87,7 @@ class BinaryBeatportProvider(DownloadProvider):
         self._proc: Optional[asyncio.subprocess.Process] = None
         self._stop: asyncio.Event = asyncio.Event()
         self._watcher: Optional[asyncio.Task] = None
+        self._stalled: bool = False
 
     @property
     def name(self) -> str:
@@ -95,7 +104,8 @@ class BinaryBeatportProvider(DownloadProvider):
         crade_name: Optional[str],
         filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
-        ctx = self._prepare(url, download_dir, job_id, filename_template)
+        self._stalled = False
+        ctx = self._prepare(url, download_dir, job_id, fmt, filename_template)
         if ctx is None:
             return DownloadResult(success=False, error="Config voorbereiding mislukt.")
 
@@ -145,6 +155,7 @@ class BinaryBeatportProvider(DownloadProvider):
             return DownloadResult(
                 success=False,
                 error=_build_error(self._proc, lines, real_errors),
+                stalled=self._stalled,
             )
 
         finally:
@@ -163,7 +174,7 @@ class BinaryBeatportProvider(DownloadProvider):
 
     # ── Interne methoden ───────────────────────────────────────────────────────
 
-    def _prepare(self, url: str, download_dir: str, job_id: str, filename_template: str = "{title} - {artist}") -> Optional[_PrepContext]:
+    def _prepare(self, url: str, download_dir: str, job_id: str, fmt: str = "", filename_template: str = "{title} - {artist}") -> Optional[_PrepContext]:
         config_dir = settings.BEATPORTDL_CONFIG_DIR
         if not config_dir:
             update_job(job_id, status="error", error="BEATPORTDL_CONFIG_DIR niet geconfigureerd.")
@@ -192,6 +203,8 @@ class BinaryBeatportProvider(DownloadProvider):
             cfg["downloads_directory"] = download_dir
             cfg["show_progress"] = "false"
             cfg["track_file_template"] = _tpl_to_beatportdl(filename_template)
+            if fmt and fmt in _FMT_TO_BDL_QUALITY:
+                cfg["quality"] = _FMT_TO_BDL_QUALITY[fmt]
 
             with open(os.path.join(work_dir, "beatportdl-config.yml"), "w", encoding="utf-8") as f:
                 for key, val in cfg.items():
@@ -238,6 +251,7 @@ class BinaryBeatportProvider(DownloadProvider):
             except asyncio.TimeoutError:
                 now = datetime.utcnow()
                 if (now - last_output).total_seconds() >= _NO_OUTPUT_TIMEOUT:
+                    self._stalled = True
                     self._proc.kill()
                     break
                 update_job(job_id, last_progress_at=now)

@@ -148,6 +148,13 @@
 .bc-fmt-btn:hover { background: var(--bc-acc-dim); color: var(--bc-acc); }
 .bc-fmt-btn.active { background: var(--bc-acc); color: #fff; }
 
+.bc-fmt-note {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.72rem;
+  color: var(--bc-muted);
+}
+
 .bc-fmt-locked {
   display: inline-flex;
   align-items: center;

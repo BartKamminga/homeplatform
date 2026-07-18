@@ -52,10 +52,19 @@ logger = logging.getLogger("homeplatform")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import asyncio as _asyncio
     create_db_and_tables()
     if not settings.is_dev and settings.SECRET_KEY == "dev-secret-change-me":
         logger.warning("SECRET_KEY is still the default dev value — change it in production!")
-    downloader.reset_stale_jobs()
+
+    from routers.downloader_helpers import get_app_setting as _get_setting
+    from routers.downloader_worker import reinit_semaphore, run_download as _run_download
+    reinit_semaphore(int(_get_setting("beatcrades.max_concurrent", "2")))
+
+    stale_ids = downloader.reset_stale_jobs()
+    for _job_id in stale_ids:
+        _asyncio.create_task(_run_download(_job_id))
+
     yield
 
 

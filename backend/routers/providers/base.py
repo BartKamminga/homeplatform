@@ -13,6 +13,7 @@ class DownloadResult:
     output_path: Optional[str] = None
     move_dir: bool = False  # True → rename_crade verplaatst ook de map op disk
     error: Optional[str] = None
+    stalled: bool = False   # True → no-output timeout getriggerd; worker mag eenmalig herstarten
 
 
 class DownloadProvider(ABC):

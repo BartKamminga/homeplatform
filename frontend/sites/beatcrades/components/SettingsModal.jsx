@@ -62,12 +62,13 @@ function hasUnresolved(s) {
 // ── Hoofd-component ───────────────────────────────────────────────────────────
 
 export function SettingsModal({ onClose, onSaved }) {
-  const [loading,  setLoading]  = useState(true)
-  const [saving,   setSaving]   = useState(false)
-  const [fnTpl,    setFnTpl]    = useState(DEFAULTS.filename_template)
-  const [dirTpl,   setDirTpl]   = useState(DEFAULTS.dir_template)
-  const [sampleIdx,setSample]   = useState(0)
-  const [saved,    setSaved]    = useState(false)
+  const [loading,      setLoading]      = useState(true)
+  const [saving,       setSaving]       = useState(false)
+  const [fnTpl,        setFnTpl]        = useState(DEFAULTS.filename_template)
+  const [dirTpl,       setDirTpl]       = useState(DEFAULTS.dir_template)
+  const [maxConcurrent,setMaxConcurrent]= useState(2)
+  const [sampleIdx,    setSample]       = useState(0)
+  const [saved,        setSaved]        = useState(false)
 
   const fnRef  = useRef(null)
   const dirRef = useRef(null)
@@ -77,6 +78,7 @@ export function SettingsModal({ onClose, onSaved }) {
       .then(s => {
         if (s.filename_template) setFnTpl(s.filename_template)
         if (s.dir_template)      setDirTpl(s.dir_template)
+        if (s.max_concurrent)    setMaxConcurrent(Math.max(1, Math.min(10, parseInt(s.max_concurrent, 10) || 2)))
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -137,7 +139,7 @@ export function SettingsModal({ onClose, onSaved }) {
   const save = async () => {
     setSaving(true)
     try {
-      await putSettings({ filename_template: fnTpl, dir_template: dirTpl })
+      await putSettings({ filename_template: fnTpl, dir_template: dirTpl, max_concurrent: String(maxConcurrent) })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       onSaved?.()
@@ -258,6 +260,30 @@ export function SettingsModal({ onClose, onSaved }) {
                   </div>
                   <div className="bc-settings-info">
                     Gebruik <strong>/</strong> als mapscheiding. Segmenten die leeg zijn worden weggelaten.
+                  </div>
+                </div>
+              </div>
+
+              {/* Download concurrency */}
+              <div className="bc-settings-card">
+                <div className="bc-settings-card-hdr">
+                  <span className="bc-settings-card-ico">⚡</span>
+                  <span className="bc-settings-card-title">Gelijktijdige downloads</span>
+                </div>
+                <div className="bc-settings-card-body">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="range" min={1} max={10} value={maxConcurrent}
+                      onChange={e => setMaxConcurrent(Number(e.target.value))}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 600, fontSize: '1rem' }}>
+                      {maxConcurrent}
+                    </span>
+                  </div>
+                  <div className="bc-settings-info">
+                    Maximaal aantal downloads tegelijk (1–10). Hoog getal kan de NAS belasten.
+                    Wordt actief na herstart van de backend.
                   </div>
                 </div>
               </div>

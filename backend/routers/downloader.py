@@ -34,23 +34,26 @@ router = APIRouter(prefix="/api/beatcrades", tags=["beatcrades"])
 
 # ── Startup-hulp ──────────────────────────────────────────────────────────────
 
-def reset_stale_jobs() -> None:
-    """Reset jobs die bij een vorige server-run als 'downloading'/'queued' achterbleven."""
+def reset_stale_jobs() -> list:
+    """Herplan jobs die bij een vorige server-run als 'downloading'/'queued' achterbleven."""
     from sqlmodel import Session as _S
     from core.database import engine as _engine
     stale_statuses = ("downloading", "queued")
+    job_ids = []
     with _S(_engine) as s:
         jobs = s.exec(
             select(DownloadJob).where(DownloadJob.status.in_(stale_statuses))
         ).all()
         for job in jobs:
-            job.status = "error"
-            job.error  = "Download onderbroken door herstart van de server. Klik op ↺ om opnieuw te starten."
+            job.status = "queued"
+            job.error  = None
             job.updated_at = datetime.utcnow()
             s.add(job)
+            job_ids.append(job.id)
         if jobs:
             s.commit()
-            logger.info("reset_stale_jobs: %d jobs gereset", len(jobs))
+            logger.info("reset_stale_jobs: %d jobs hergepland", len(jobs))
+    return job_ids
 logger = logging.getLogger("homeplatform.beatcrades")
 
 

@@ -13,7 +13,7 @@ from models.settings import AppSetting
 router = APIRouter(tags=["settings"])
 
 _ALLOWED_KEYS = {
-    "beatcrades": {"filename_template", "dir_template"},
+    "beatcrades": {"filename_template", "dir_template", "max_concurrent"},
 }
 
 

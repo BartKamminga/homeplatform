@@ -45,14 +45,23 @@ def _detect_format(directory: str) -> str | None:
 # Actieve providers per job_id — gebruikt door /cancel endpoint
 active_downloads: dict[str, DownloadProvider] = {}
 
-# Max 2 gelijktijdige downloads; overige jobs wachten als 'queued'
+# Max gelijktijdige downloads — instelbaar via beatcrades.max_concurrent setting
 _DOWNLOAD_SEM = asyncio.Semaphore(2)
+
+# Jobs die al eenmalig automatisch zijn herstart na een stall
+_retried_jobs: set[str] = set()
+
+
+def reinit_semaphore(n: int) -> None:
+    """Vervang de download-semaphore met een nieuwe capaciteit (alleen bij startup)."""
+    global _DOWNLOAD_SEM
+    _DOWNLOAD_SEM = asyncio.Semaphore(max(1, min(n, 10)))
 
 
 # ── Publiek entry-point ───────────────────────────────────────────────────────
 
 async def run_download(job_id: str) -> None:
-    """Semaphore-wrapper: maximaal 2 downloads tegelijk."""
+    """Semaphore-wrapper: maximaal N downloads tegelijk."""
     async with _DOWNLOAD_SEM:
         await _run_inner(job_id)
 
@@ -119,6 +128,16 @@ async def _run_inner(job_id: str) -> None:
         return
     finally:
         active_downloads.pop(job_id, None)
+
+    # Auto-retry bij vastgelopen download (eenmalig per job)
+    if not result.success and result.stalled and job_id not in _retried_jobs:
+        _retried_jobs.add(job_id)
+        logger.info("Download vastgelopen [%s] — eenmalig auto-herstart", job_id)
+        update_job(job_id, status="queued", error=None, progress_log="Automatisch herstart na vastlopen…")
+        asyncio.create_task(run_download(job_id))
+        return
+
+    _retried_jobs.discard(job_id)
 
     if result.success:
         actual_fmt = _detect_format(download_dir)

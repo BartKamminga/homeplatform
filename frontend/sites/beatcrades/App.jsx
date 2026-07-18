@@ -368,23 +368,19 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              {detectSrc(newUrl) === 'beatport' ? (
-                <div className="bc-field">
-                  <label>Formaat</label>
-                  <span className="bc-fmt-locked">🎵 Via beatportdl config</span>
+              <div className="bc-field">
+                <label>Formaat</label>
+                <div className="bc-fmt-seg">
+                  {FORMATS.map(f => (
+                    <button key={f} type="button" className={`bc-fmt-btn${newFmt===f?' active':''}`} onClick={() => pickFmt(f)}>
+                      {f.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <div className="bc-field">
-                  <label>Formaat</label>
-                  <div className="bc-fmt-seg">
-                    {FORMATS.map(f => (
-                      <button key={f} type="button" className={`bc-fmt-btn${newFmt===f?' active':''}`} onClick={() => pickFmt(f)}>
-                        {f.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                {detectSrc(newUrl) === 'beatport' && (
+                  <span className="bc-fmt-note">Beatport: vereist LINK Professional voor FLAC</span>
+                )}
+              </div>
               {err && <div className="bc-err-msg">{err}</div>}
               <div className="bc-new-acts">
                 <button type="button" className="bc-btn bc-btn-sec" onClick={() => setNewOpen(false)}>Annuleren</button>

@@ -39,6 +39,7 @@ class YtdlpProvider(DownloadProvider):
 
     def __init__(self) -> None:
         self._proc: Optional[asyncio.subprocess.Process] = None
+        self._stalled: bool = False
 
     @property
     def name(self) -> str:
@@ -55,6 +56,7 @@ class YtdlpProvider(DownloadProvider):
         crade_name: Optional[str],
         filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
+        self._stalled = False
         cmd = _build_cmd(url, fmt, download_dir, filename_template)
         self._proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -80,6 +82,7 @@ class YtdlpProvider(DownloadProvider):
         return DownloadResult(
             success=False,
             error=_build_error(self._proc, error_hints, lines),
+            stalled=self._stalled,
         )
 
     async def cancel(self) -> None:
@@ -108,6 +111,7 @@ class YtdlpProvider(DownloadProvider):
             except asyncio.TimeoutError:
                 now = datetime.utcnow()
                 if (now - last_output).total_seconds() >= _NO_OUTPUT_TIMEOUT:
+                    self._stalled = True
                     self._proc.kill()
                     break
                 prog = "\n".join(lines) if lines else "Downloaden gestart…"
