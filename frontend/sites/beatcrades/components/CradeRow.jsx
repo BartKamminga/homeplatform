@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { CradeIcon } from './Icons.jsx'
-import { updateCrade } from '../api.js'
+import { updateCrade, getCradeDiskInfo } from '../api.js'
 import {
   ST, SRC_ICON, STALL_MS,
-  detectSrc, parseProgress, lastLine, parseCurrentTrack, utcDate,
+  detectSrc, parseProgress, lastLine, parseCurrentTrack, utcDate, fmtBytes,
 } from '../helpers.js'
 
 export function CradeRow({
@@ -14,6 +14,8 @@ export function CradeRow({
   const [logExpanded, setLogExpanded] = useState(false)
   const [notes,       setNotes]       = useState(crade.notes || '')
   const [moveOpen,    setMoveOpen]    = useState(false)
+  const [diskInfo,    setDiskInfo]    = useState(null)
+  const [diskLoading, setDiskLoading] = useState(false)
   const logRef  = useRef(null)
   const moveRef = useRef(null)
   const saveTimer = useRef(null)
@@ -38,6 +40,14 @@ export function CradeRow({
 
   // Sync notes when crade prop updates externally
   useEffect(() => { setNotes(crade.notes || '') }, [crade.notes])
+
+  // Load disk info when done crade is expanded
+  useEffect(() => {
+    if (open && crade.status === 'done') {
+      setDiskLoading(true)
+      getCradeDiskInfo(crade.id).then(setDiskInfo).catch(() => {}).finally(() => setDiskLoading(false))
+    }
+  }, [open, crade.id, crade.status])
 
   // Close move popover on outside click
   useEffect(() => {
@@ -175,6 +185,18 @@ export function CradeRow({
 
           {crade.error && (
             <div className="bc-crade-err">{crade.error}</div>
+          )}
+
+          {crade.status === 'done' && (
+            <div className="bc-disk-row">
+              {diskLoading
+                ? 'Schijfinfo laden…'
+                : diskInfo
+                  ? diskInfo.available
+                    ? `${diskInfo.file_count} bestand${diskInfo.file_count !== 1 ? 'en' : ''} · ${fmtBytes(diskInfo.total_bytes)}`
+                    : 'Map niet gevonden op schijf'
+                  : null}
+            </div>
           )}
 
           <div className="bc-notes-row">

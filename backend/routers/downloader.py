@@ -67,9 +67,6 @@ logger = logging.getLogger("homeplatform.beatcrades")
 class SectionCreate(BaseModel):
     name: str
 
-class SectionUpdate(BaseModel):
-    name: str
-
 class SectionMerge(BaseModel):
     source_id: str
     target_id: str
@@ -85,6 +82,12 @@ class RackCreate(BaseModel):
 class RackUpdate(BaseModel):
     name: Optional[str] = None
     section_id: Optional[str] = None
+    default_format: Optional[str] = None
+    sort_order: Optional[int] = None
+
+class SectionUpdate(BaseModel):
+    name: str
+    sort_order: Optional[int] = None
 
 class CradeCreate(BaseModel):
     name: str = ""
@@ -139,12 +142,15 @@ class RackOut(BaseModel):
     id: str
     name: str
     section_id: Optional[str]
+    sort_order: int
+    default_format: Optional[str]
     created_at: datetime
     crades: List[CradeOut] = []
 
 class SectionOut(BaseModel):
     id: str
     name: str
+    sort_order: int
     created_at: datetime
     racks: List[RackOut] = []
 
@@ -200,6 +206,8 @@ def update_section(
         raise AppError("Section niet gevonden", 404)
     renamed = body.name.strip() != s.name
     s.name = body.name.strip()
+    if body.sort_order is not None:
+        s.sort_order = body.sort_order
     s.updated_at = datetime.utcnow()
     session.add(s)
     if renamed:
@@ -318,6 +326,10 @@ def update_rack(
         if (body.section_id or None) != r.section_id:
             renamed_or_moved = True
         r.section_id = body.section_id or None
+    if "default_format" in body.model_fields_set:
+        r.default_format = body.default_format or None
+    if body.sort_order is not None:
+        r.sort_order = body.sort_order
     r.updated_at = datetime.utcnow()
     session.add(r)
     if renamed_or_moved:
@@ -562,8 +574,8 @@ def get_tree(
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    sections = session.exec(select(DownloadSection).order_by(DownloadSection.created_at)).all()
-    racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.name)).all()
+    sections = session.exec(select(DownloadSection).order_by(DownloadSection.sort_order, DownloadSection.created_at)).all()
+    racks    = session.exec(select(DownloadCradeGroup).order_by(DownloadCradeGroup.sort_order, DownloadCradeGroup.name)).all()
     crades   = session.exec(select(DownloadCrade).order_by(DownloadCrade.created_at.desc())).all()
 
     # Alle jobs in één query — meest recente per crade via dict
@@ -585,13 +597,14 @@ def get_tree(
         rack_crades = [crade_map[c.id] for c in crades if c.group_id == r.id]
         rack_map[r.id] = RackOut(
             id=r.id, name=r.name, section_id=r.section_id,
+            sort_order=r.sort_order, default_format=r.default_format,
             created_at=r.created_at, crades=rack_crades,
         )
 
     section_outs = []
     for s in sections:
         section_racks = [rack_map[r.id] for r in racks if r.section_id == s.id]
-        section_outs.append(SectionOut(id=s.id, name=s.name, created_at=s.created_at, racks=section_racks))
+        section_outs.append(SectionOut(id=s.id, name=s.name, sort_order=s.sort_order, created_at=s.created_at, racks=section_racks))
 
     return TreeOut(
         sections=section_outs,
@@ -682,6 +695,69 @@ def list_jobs(
     return session.exec(
         select(DownloadJob).order_by(DownloadJob.created_at.desc()).limit(200)
     ).all()
+
+
+# ── Reorder ───────────────────────────────────────────────────────────────────
+
+class ReorderIn(BaseModel):
+    ids: List[str]  # ordered list of ids — index becomes sort_order
+
+
+@router.post("/sections/reorder")
+def reorder_sections(
+    body: ReorderIn,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    for i, sid in enumerate(body.ids):
+        s = session.get(DownloadSection, sid)
+        if s:
+            s.sort_order = i
+            s.updated_at = datetime.utcnow()
+            session.add(s)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/racks/reorder")
+def reorder_racks(
+    body: ReorderIn,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    for i, rid in enumerate(body.ids):
+        r = session.get(DownloadCradeGroup, rid)
+        if r:
+            r.sort_order = i
+            r.updated_at = datetime.utcnow()
+            session.add(r)
+    session.commit()
+    return {"ok": True}
+
+
+# ── Disk-info ─────────────────────────────────────────────────────────────────
+
+@router.get("/crades/{crade_id}/disk-info")
+def crade_disk_info(
+    crade_id: str,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    c = session.get(DownloadCrade, crade_id)
+    if not c:
+        raise AppError("Crade niet gevonden", 404)
+    if not c.subdir:
+        return {"file_count": 0, "total_bytes": 0, "available": False}
+    full = os.path.join(settings.DOWNLOAD_DIR, c.subdir.replace("\\", "/").strip("/"))
+    if not os.path.isdir(full):
+        return {"file_count": 0, "total_bytes": 0, "available": False}
+    file_count = 0
+    total_bytes = 0
+    for entry in os.scandir(full):
+        if entry.is_file(follow_symlinks=False):
+            file_count += 1
+            total_bytes += entry.stat().st_size
+    return {"file_count": file_count, "total_bytes": total_bytes, "available": True}
 
 
 # ── Disk-sync ─────────────────────────────────────────────────────────────────

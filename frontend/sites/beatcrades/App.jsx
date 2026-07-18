@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { getTree, createSection, updateSection, deleteSection, mergeSections, createRack, updateRack, deleteRack, mergeRacks, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade } from './api.js'
+import { getTree, createSection, updateSection, deleteSection, mergeSections, createRack, updateRack, deleteRack, mergeRacks, createCrade, updateCrade, deleteCrade, restartCrade, cancelCrade, reorderSections, reorderRacks } from './api.js'
 import { FORMATS, FMT_LABEL, detectSrc, slugFromBeatportUrl, todayName, allCradesFrom } from './helpers.js'
 import { SectionIcon } from './components/Icons.jsx'
 import { CradeRow } from './components/CradeRow.jsx'
@@ -136,9 +136,14 @@ export default function App() {
   }
 
   // ── Crade actions ──
+  const _findRack = id => {
+    for (const s of tree.sections) { const r = s.racks.find(r => r.id === id); if (r) return r }
+    return tree.racks.find(r => r.id === id) || null
+  }
   const addCradeInRack = async (rackId, url) => {
     const slug = detectSrc(url) === 'beatport' ? slugFromBeatportUrl(url) : null
-    const fmt = localStorage.getItem('bc_fmt') || 'flac'
+    const rack = _findRack(rackId)
+    const fmt  = rack?.default_format || localStorage.getItem('bc_fmt') || 'flac'
     await createCrade({ name: slug || todayName(), source_url: url, format: fmt, group_id: rackId })
     await load()
   }
@@ -205,30 +210,58 @@ export default function App() {
     setDraggingRack(null); setDragOver(null)
   }
 
-  // ── Rack drag-drop (merge) ──
+  // ── Rack drag-drop (merge or reorder) ──
+  const _rackSectionId = id =>
+    tree.sections.find(s => s.racks.some(r => r.id === id))?.id ?? null
+
   const onRackMergeDragOver = (e, rackId) => {
     if (!draggingRack || draggingRack === rackId) return
     e.preventDefault(); e.stopPropagation()
-    setDragOver({ kind: 'rack-merge', id: rackId })
+    const kind = _rackSectionId(draggingRack) === _rackSectionId(rackId) ? 'rack-reorder' : 'rack-merge'
+    setDragOver({ kind, id: rackId })
   }
   const onRackMergeDrop = async (e, targetId) => {
     if (!draggingRack || draggingRack === targetId) return
     e.preventDefault(); e.stopPropagation()
-    await mergeRack(draggingRack, targetId)
+    const draggingSec = _rackSectionId(draggingRack)
+    const targetSec   = _rackSectionId(targetId)
+    if (draggingSec === targetSec) {
+      // Same container → reorder
+      const containerRacks = draggingSec
+        ? tree.sections.find(s => s.id === draggingSec)?.racks
+        : tree.racks
+      if (containerRacks) {
+        const ids = containerRacks.map(r => r.id)
+        const fromIdx = ids.indexOf(draggingRack)
+        const toIdx   = ids.indexOf(targetId)
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          const newIds = [...ids]; newIds.splice(fromIdx, 1); newIds.splice(toIdx, 0, draggingRack)
+          await reorderRacks(newIds); await load()
+        }
+      }
+    } else {
+      await mergeRack(draggingRack, targetId)
+    }
     setDraggingRack(null); setDragOver(null)
   }
 
-  // ── Section drag-drop (merge) ──
+  // ── Section drag-drop (reorder) ──
   const onSectionDragStart = (e, id) => { setDraggingSection(id); e.dataTransfer.effectAllowed = 'move' }
   const onSectionDragEnd   = ()      => { setDraggingSection(null); setDragOver(null) }
   const onSectionMergeDragOver = (e, sectionId) => {
     if (!draggingSection || draggingSection === sectionId) return
-    e.preventDefault(); setDragOver({ kind: 'section-merge', id: sectionId })
+    e.preventDefault(); setDragOver({ kind: 'section-reorder', id: sectionId })
   }
   const onSectionMergeDrop = async (e, targetId) => {
     e.preventDefault()
     if (draggingSection && draggingSection !== targetId) {
-      await mergeSection(draggingSection, targetId)
+      const ids = tree.sections.map(s => s.id)
+      const fromIdx = ids.indexOf(draggingSection)
+      const toIdx   = ids.indexOf(targetId)
+      if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+        const newIds = [...ids]; newIds.splice(fromIdx, 1); newIds.splice(toIdx, 0, draggingSection)
+        await reorderSections(newIds); await load()
+      }
     }
     setDraggingSection(null); setDragOver(null)
   }
@@ -269,7 +302,7 @@ export default function App() {
     onRackMergeDragOver, onRackMergeDrop,
     renameRack, removeRack, removeCrade, onRestartCrade, onCancelCrade,
     renameCrade, addCradeInRack,
-    allRacks, onMoveCrade,
+    allRacks, onMoveCrade, onLoad: load,
   }
 
   return (
@@ -374,12 +407,13 @@ export default function App() {
 
         {tree.sections.map(section => (
           <div key={section.id}
+            data-section-id={section.id}
             className={`bc-section${isSectionOpen(section.id) ? ' open' : ''}${dragOver?.kind === 'section' && dragOver.id === section.id ? ' dz-over' : ''}${draggingSection === section.id ? ' dragging' : ''}`}
             onDragOver={e => { onSectionDragOver(e, section.id); onSectionMergeDragOver(e, section.id) }}
             onDrop={e => { onSectionDrop(e, section.id); onSectionMergeDrop(e, section.id) }}
             onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null) }}>
 
-            <div className={`bc-section-head${dragOver?.kind === 'section-merge' && dragOver.id === section.id ? ' bc-section-head--merge-over' : ''}`}>
+            <div className={`bc-section-head${dragOver?.kind === 'section-reorder' && dragOver.id === section.id ? ' bc-section-head--merge-over' : ''}`}>
               <span className="bc-drag" title="Section slepen om samen te voegen"
                 draggable
                 onDragStart={e => { e.stopPropagation(); onSectionDragStart(e, section.id) }}

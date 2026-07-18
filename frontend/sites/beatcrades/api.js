@@ -22,4 +22,7 @@ export const setProvider     = (provider) => api.put('/api/admin/beatport-provid
 
 export const getSettings     = ()        => api.get('/api/beatcrades/settings')
 export const putSettings     = (body)    => api.put('/api/beatcrades/settings', body)
-export const getToolVersions = ()        => api.get('/api/beatcrades/tool-versions')
+export const getToolVersions  = ()        => api.get('/api/beatcrades/tool-versions')
+export const reorderSections  = (ids)     => api.post('/api/beatcrades/sections/reorder', { ids })
+export const reorderRacks     = (ids)     => api.post('/api/beatcrades/racks/reorder',    { ids })
+export const getCradeDiskInfo = (id)      => api.get(`/api/beatcrades/crades/${id}/disk-info`)

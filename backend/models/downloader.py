@@ -13,6 +13,7 @@ class DownloadSection(SQLModel, table=True):
 
     id:         str           = Field(default_factory=new_uuid, primary_key=True)
     name:       str
+    sort_order: int           = Field(default=0)
     created_at: datetime      = Field(default_factory=datetime.utcnow)
     updated_at: datetime      = Field(default_factory=datetime.utcnow)
     created_by: Optional[str] = Field(default=None, foreign_key="users.id")
@@ -21,12 +22,14 @@ class DownloadSection(SQLModel, table=True):
 class DownloadCradeGroup(SQLModel, table=True):
     __tablename__ = "download_crade_groups"
 
-    id:         str           = Field(default_factory=new_uuid, primary_key=True)
-    name:       str
-    section_id: Optional[str] = Field(default=None)  # no FK due to SQLite
-    created_at: datetime      = Field(default_factory=datetime.utcnow)
-    updated_at: datetime      = Field(default_factory=datetime.utcnow)
-    created_by: Optional[str] = Field(default=None, foreign_key="users.id")
+    id:             str           = Field(default_factory=new_uuid, primary_key=True)
+    name:           str
+    section_id:     Optional[str] = Field(default=None)  # no FK due to SQLite
+    sort_order:     int           = Field(default=0)
+    default_format: Optional[str] = Field(default=None)
+    created_at:     datetime      = Field(default_factory=datetime.utcnow)
+    updated_at:     datetime      = Field(default_factory=datetime.utcnow)
+    created_by:     Optional[str] = Field(default=None, foreign_key="users.id")
 
 
 class DownloadCrade(SQLModel, table=True):

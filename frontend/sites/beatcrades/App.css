@@ -287,6 +287,11 @@
   outline: 2px dashed var(--bc-acc);
   outline-offset: -2px;
 }
+.bc-rack-head--reorder-over {
+  background: color-mix(in srgb, var(--bc-ok) 14%, transparent);
+  outline: 2px dashed var(--bc-ok);
+  outline-offset: -2px;
+}
 
 .bc-rack-icon {
   display: flex;
@@ -1587,6 +1592,65 @@
 .bc-ver-badge.ok   { background: color-mix(in srgb, var(--bc-ok) 12%, transparent); color: var(--bc-ok); }
 .bc-ver-badge.new  { background: color-mix(in srgb, var(--bc-warn) 15%, transparent); color: var(--bc-warn); }
 .bc-ver-badge.miss { background: color-mix(in srgb, var(--bc-err) 12%, transparent); color: var(--bc-err); }
+
+/* ── Rack format badge/picker (item 307) ── */
+
+.bc-rack-fmt-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.bc-rack-fmt-btn {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: transparent;
+  color: var(--bc-muted);
+  cursor: pointer;
+  letter-spacing: .03em;
+  transition: border-color .15s, color .15s;
+}
+.bc-rack-fmt-btn:hover,
+.bc-rack-fmt-btn--set { color: var(--bc-acc); border-color: var(--bc-acc); }
+.bc-rack-fmt-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  z-index: 80;
+  min-width: 90px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bc-rack-fmt-opt {
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text, #111);
+  transition: background .1s;
+}
+.bc-rack-fmt-opt:hover { background: var(--bc-acc-dim); }
+.bc-rack-fmt-opt.active { color: var(--bc-acc); }
+
+/* ── Disk info row (item 308) ── */
+
+.bc-disk-row {
+  padding: 5px 12px 5px 36px;
+  font-size: 12px;
+  color: var(--bc-muted);
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
 
 /* ── Saved feedback ── */
 .bc-settings-saved {
