@@ -232,7 +232,8 @@ def suggest_match(
 ):
     """Zoek het beste Tournix-toernooi/fase voor een of meer gevangen competitiegroepen op basis van teamoverlap."""
     def normalize(name: str) -> str:
-        return re.sub(r'\s+[A-Z]?O?\d+-\d+$', '', name.strip()).lower()
+        # Bewaar categorie (MO14, JO18 etc.), strip alleen het volgnummer (-1, -2)
+        return re.sub(r'-\d+$', '', name.strip()).lower()
 
     tournaments = session.exec(
         select(Tournament).where(Tournament.season == body.season)
