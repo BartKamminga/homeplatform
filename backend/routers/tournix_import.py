@@ -22,17 +22,11 @@ router = APIRouter(prefix="/api/tournix/import", tags=["tournix-import"])
 
 # ── Parser ────────────────────────────────────────────────────────────────────
 
-def _clean_o14(name: str) -> str:
-    return re.sub(r'\s+[A-Z]?O?\d+-\d+$', '', name).strip()
-
-def _clean_o16(name: str) -> str:
-    return re.sub(r'\s+[MJ]O\d+-\d+$', '', name).strip()
-
-def _parse_match_raw(m: dict, clean_fn) -> dict:
+def _parse_match_raw(m: dict) -> dict:
     score = m.get("score") or {}
     return {
-        "home":        clean_fn(m.get("home", {}).get("name", "")),
-        "away":        clean_fn(m.get("away", {}).get("name", "")),
+        "home":        m.get("home", {}).get("name", ""),
+        "away":        m.get("away", {}).get("name", ""),
         "round":       m.get("round"),
         "date":        m.get("date"),
         "status":      m.get("status", "scheduled"),
@@ -68,9 +62,9 @@ def _parse_o16(entry: dict, root: dict) -> Optional[dict]:
         ma = p.get("matches", [])
         poule_map[letter] = {
             "pool_name": p.get("name", f"Poule {letter}"),
-            "teams": [_clean_o16(s["team"]["name"]) for s in p.get("standings", [])],
-            "played":    [_parse_match_raw(m, _clean_o16) for m in ma if m.get("status") == "final"],
-            "remaining": [_parse_match_raw(m, _clean_o16) for m in ma if m.get("status") in ("scheduled", "announced")],
+            "teams": [s["team"]["name"] for s in p.get("standings", [])],
+            "played":    [_parse_match_raw(m) for m in ma if m.get("status") == "final"],
+            "remaining": [_parse_match_raw(m) for m in ma if m.get("status") in ("scheduled", "announced")],
         }
     return _build(poule_map, label) if poule_map else None
 
@@ -92,9 +86,9 @@ def _parse_o14(entries: list) -> Optional[dict]:
         ma = poule.get("matches", [])
         poule_map[letter] = {
             "pool_name": poule.get("name", f"Poule {letter}"),
-            "teams": [_clean_o14(s["team"]["name"]) for s in poule.get("standings", [])],
-            "played":    [_parse_match_raw(m, _clean_o14) for m in ma if m.get("status") == "final"],
-            "remaining": [_parse_match_raw(m, _clean_o14) for m in ma if m.get("status") in ("scheduled", "announced")],
+            "teams": [s["team"]["name"] for s in poule.get("standings", [])],
+            "played":    [_parse_match_raw(m) for m in ma if m.get("status") == "final"],
+            "remaining": [_parse_match_raw(m) for m in ma if m.get("status") in ("scheduled", "announced")],
         }
     return _build(poule_map, comp_name or "Hockey import") if poule_map else None
 
