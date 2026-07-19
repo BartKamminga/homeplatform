@@ -69,3 +69,6 @@ export const preAllocatePhaseTeams  = (pid, positions) => api.post(`/api/tournix
 export const resolvePhaseplaceholders = (pid)      => api.post(`/api/tournix/phases/${pid}/resolve-placeholders`)
 export const setPhaseFields           = (pid, field_ids) => api.post(`/api/tournix/phases/${pid}/fields`, { field_ids })
 export const planPhaseSchedule        = (pid, startTime) => api.post(`/api/tournix/phases/${pid}/plan-schedule`, { start_time: startTime || null })
+
+export const getCaptureSessions       = ()        => api.get('/api/capture/sessions')
+export const getCaptureSessionItems   = (sid)     => api.get(`/api/capture/sessions/${sid}/items`)

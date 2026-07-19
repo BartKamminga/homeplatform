@@ -1,4 +1,4 @@
-// popup.js v9.5 — expandable log entries met capture detail
+// popup.js v9.6 — DataVault: auto-archive poule captures naar HomePlatform
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
@@ -9,6 +9,7 @@ var CONFIG = [];
 var CONFIG_LOADED = false;
 var SUGGESTIONS = {};     // comp-groepnaam → {tournament_id, phase_id, tournament_name, phase_name, score, matched}
 var SUGGESTIONS_LOADED = false;
+var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste archivering
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -145,6 +146,73 @@ function loadSuggestions() {
       render();
     })
     .catch(function(e) { addLog('err', '[BE] suggest fout: ' + e.message); });
+}
+
+function getOrCreateSessionId(cb) {
+  if (SESSION_ID) { cb(SESSION_ID); return; }
+  chrome.storage.local.get(['hw_session_id'], function(r) {
+    var sid = r.hw_session_id;
+    if (!sid) {
+      sid = 'hwv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+      chrome.storage.local.set({ hw_session_id: sid });
+    }
+    SESSION_ID = sid;
+    cb(sid);
+  });
+}
+
+function archiveCaptures() {
+  if (!HP.url || !HP.key) return;
+  var items = [];
+  var keys = Object.keys(D);
+  for (var i = 0; i < keys.length; i++) {
+    var entry = D[keys[i]];
+    if (!isPoule(entry)) continue;
+    var pouleData = null;
+    try { pouleData = entry.data.data.poule; } catch(e) {}
+    if (!pouleData) continue;
+    var standings = pouleData.standings || [];
+    var matches = pouleData.matches || [];
+    var played = 0, remaining = 0;
+    for (var mi = 0; mi < matches.length; mi++) {
+      if (matches[mi].status === 'final') played++; else remaining++;
+    }
+    var teams = [];
+    for (var si = 0; si < standings.length; si++) {
+      try { teams.push(standings[si].team.name); } catch(e2) {}
+    }
+    items.push({
+      external_id: String(keys[i]),
+      capture_type: 'poule',
+      payload: entry.data,
+      meta: {
+        poule_id: keys[i],
+        poule_name: entry.poule_name || null,
+        competition: entry.competition || null,
+        class_name: entry.class_name || null,
+        via_team: entry.team_name || null,
+        team_count: standings.length,
+        teams: teams,
+        matches_played: played,
+        matches_remaining: remaining,
+      }
+    });
+  }
+  if (!items.length) return;
+  getOrCreateSessionId(function(sid) {
+    fetch(HP.url + '/api/capture/archive', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'hockey-vanger', session_id: sid, items: items })
+    })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(res) {
+        if (res && res.created > 0) {
+          addLog('info', '[Archief] ' + res.created + ' nieuwe poules gearchiveerd (sessie: ' + sid.slice(-6) + ')');
+        }
+      })
+      .catch(function() {});  // stil falen — archief is niet kritiek
+  });
 }
 
 function saveSettings() {
@@ -371,6 +439,7 @@ function load() {
       SUGGESTIONS = {}; SUGGESTIONS_LOADED = false;
       render();
       loadSuggestions();
+      archiveCaptures();
       // Lees ook interceptor-log uit tab localStorage
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
