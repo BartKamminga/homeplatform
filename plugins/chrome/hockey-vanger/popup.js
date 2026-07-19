@@ -1,4 +1,4 @@
-// popup.js v9.0 — server-driven config (item 316)
+// popup.js v9.1 — tournament_id meegeven bij push (item 316)
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
@@ -177,19 +177,22 @@ function renderLog() {
 // ══════════════════════════════════════
 // HOMEPLATFORM PUSH
 // ══════════════════════════════════════
-function pushToHomePlatform(label, data, callback) {
+function pushToHomePlatform(label, data, tournamentId, phaseId, callback) {
   if (!HP.url || !HP.key) {
     toast('❌ HomePlatform niet geconfigureerd');
     addLog('err', 'Push mislukt — geen config (zie ⚙️ tab)');
     return;
   }
+  var body = { label: label, season: '2026-2027', data: data };
+  if (tournamentId) body.tournament_id = tournamentId;
+  if (phaseId) body.phase_id = phaseId;
   fetch(HP.url + '/api/tournix/import/hockey-nl', {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + HP.key,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ label: label, season: '2026-2027', data: data })
+    body: JSON.stringify(body)
   })
     .then(function(r) {
       return r.ok ? r.json() : r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.slice(0,120)); });
@@ -216,8 +219,19 @@ function pushComp(compName) {
     if (D[known.ids[i]]) data[known.ids[i]] = D[known.ids[i]];
   }
   if (!Object.keys(data).length) { toast('❌ Geen data'); return; }
+  // Zoek tournament_id + phase_id uit server-config
+  var tid = null, pid = null;
+  if (CONFIG_LOADED) {
+    for (var ci3 = 0; ci3 < CONFIG.length; ci3++) {
+      if (CONFIG[ci3].capture_group === compName) {
+        tid = CONFIG[ci3].tournament_id;
+        pid = CONFIG[ci3].phase_id;
+        break;
+      }
+    }
+  }
   toast('📤 Pushen...');
-  pushToHomePlatform(known.label || compName, data, function() { render(); });
+  pushToHomePlatform(known.label || compName, data, tid, pid, function() { render(); loadCoverage(); });
 }
 
 function buildEffectiveKnown() {
@@ -243,8 +257,19 @@ function pushFullComp(storeKey) {
   var fc = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveFullComps() : KNOWN_FULL_COMPS)[storeKey];
   if (!entry || !fc) return;
   var data = {}; data[storeKey] = entry;
+  // Zoek tournament_id + phase_id uit server-config
+  var tid = null, pid = null;
+  if (CONFIG_LOADED) {
+    for (var ci4 = 0; ci4 < CONFIG.length; ci4++) {
+      if (CONFIG[ci4].capture_type === 'full' && CONFIG[ci4].capture_ids && CONFIG[ci4].capture_ids[0] === storeKey) {
+        tid = CONFIG[ci4].tournament_id;
+        pid = CONFIG[ci4].phase_id;
+        break;
+      }
+    }
+  }
   toast('📤 Pushen...');
-  pushToHomePlatform(fc.label, data, function() {});
+  pushToHomePlatform(fc.label, data, tid, pid, function() { loadCoverage(); });
 }
 
 // ══════════════════════════════════════

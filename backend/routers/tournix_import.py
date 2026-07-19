@@ -210,6 +210,7 @@ class HockeyNlImportBody(BaseModel):
     label:         str
     season:        str           = "2026-2027"
     tournament_id: Optional[str] = None
+    phase_id:      Optional[str] = None
     data:          dict
 
 
@@ -246,7 +247,12 @@ def import_hockey_nl(
         session.flush()
         action = "created"
 
-    phase                 = _get_or_create_phase(session, tournament)
+    if body.phase_id:
+        phase = session.get(TournixPhase, body.phase_id)
+        if not phase or phase.tournament_id != tournament.id:
+            raise HTTPException(404, f"Fase {body.phase_id} niet gevonden in dit toernooi")
+    else:
+        phase = _get_or_create_phase(session, tournament)
     pool_map, team_map    = _upsert_pools_teams(session, tournament, phase, parsed["pools"])
     matches_created, matches_updated = _upsert_matches(session, tournament, phase, pool_map, team_map, parsed["matches"])
 
