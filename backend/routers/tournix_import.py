@@ -213,8 +213,74 @@ class HockeyNlImportBody(BaseModel):
     phase_id:      Optional[str] = None
     data:          dict
 
+class SuggestMatchGroup(BaseModel):
+    key:   str
+    teams: list[str]
+
+class SuggestMatchBody(BaseModel):
+    groups: list[SuggestMatchGroup]
+    season: str = "2026-2027"
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("/suggest-match")
+def suggest_match(
+    body: SuggestMatchBody,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Zoek het beste Tournix-toernooi/fase voor een of meer gevangen competitiegroepen op basis van teamoverlap."""
+    def normalize(name: str) -> str:
+        return re.sub(r'\s+[A-Z]?O?\d+-\d+$', '', name.strip()).lower()
+
+    tournaments = session.exec(
+        select(Tournament).where(Tournament.season == body.season)
+    ).all()
+
+    # Bouw phase→teams index eenmalig op
+    phase_team_index: dict[str, set[str]] = {}
+    phase_meta: dict[str, dict] = {}
+    for t in tournaments:
+        phases = session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id,
+                TournixPhase.phase_type == "pool",
+            )
+        ).all()
+        for phase in phases:
+            pools = session.exec(select(TournixPool).where(TournixPool.phase_id == phase.id)).all()
+            team_set: set[str] = set()
+            for pool in pools:
+                for team in session.exec(select(TournixTeam).where(TournixTeam.pool_id == pool.id)).all():
+                    team_set.add(normalize(team.name))
+            if team_set:
+                phase_team_index[phase.id] = team_set
+                phase_meta[phase.id] = {
+                    "tournament_id":   t.id,
+                    "tournament_name": t.name,
+                    "phase_id":        phase.id,
+                    "phase_name":      phase.name,
+                }
+
+    suggestions: dict[str, dict] = {}
+    for group in body.groups:
+        input_set = {normalize(t) for t in group.teams}
+        if not input_set:
+            continue
+        best: dict | None = None
+        for pid, team_set in phase_team_index.items():
+            overlap = len(input_set & team_set)
+            if overlap == 0:
+                continue
+            score = overlap / len(input_set)
+            if best is None or score > best["score"]:
+                best = {**phase_meta[pid], "score": round(score, 2), "matched": overlap, "total": len(team_set)}
+        if best and best["score"] >= 0.5:
+            suggestions[group.key] = best
+
+    return {"suggestions": suggestions}
+
 
 @router.post("/hockey-nl")
 def import_hockey_nl(
