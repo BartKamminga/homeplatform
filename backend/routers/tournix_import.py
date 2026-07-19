@@ -362,57 +362,6 @@ def get_import_log(
     ]
 
 
-@router.delete("/cleanup-bare-teams/{tournament_id}")
-def cleanup_bare_teams(
-    tournament_id: str,
-    session: Session = Depends(get_session),
-    _: User = Depends(get_current_user),
-):
-    """Verwijder teams zonder categorie-suffix die een dubbelganger MET suffix hebben (eenmalige opschoning)."""
-    tournament = session.get(Tournament, tournament_id)
-    if not tournament:
-        raise HTTPException(404, "Toernooi niet gevonden")
-
-    all_teams = session.exec(
-        select(TournixTeam).where(TournixTeam.tournament_id == tournament_id)
-    ).all()
-
-    names_with_suffix = {t.name for t in all_teams if re.search(r'\s+[MJ]O\d+-\d+$', t.name)}
-    bare_teams = [
-        t for t in all_teams
-        if not re.search(r'\s+[MJ]O\d+-\d+$', t.name)
-        and any(n.startswith(t.name + " ") for n in names_with_suffix)
-    ]
-
-    if not bare_teams:
-        return {"deleted_teams": 0, "deleted_matches": 0, "names": []}
-
-    bare_ids = {t.id for t in bare_teams}
-
-    matches = session.exec(
-        select(TournixMatch).where(TournixMatch.tournament_id == tournament_id)
-    ).all()
-    matches_to_delete = [m for m in matches if m.team_a_id in bare_ids or m.team_b_id in bare_ids]
-    for m in matches_to_delete:
-        session.delete(m)
-
-    phase_teams = session.exec(
-        select(TournixPhaseTeam).where(TournixPhaseTeam.team_id.in_(list(bare_ids)))
-    ).all()
-    for pt in phase_teams:
-        session.delete(pt)
-
-    for t in bare_teams:
-        session.delete(t)
-
-    session.commit()
-    return {
-        "deleted_teams":   len(bare_teams),
-        "deleted_matches": len(matches_to_delete),
-        "names":           sorted(t.name for t in bare_teams),
-    }
-
-
 @router.get("/config")
 def get_import_config(
     season: str = "2026-2027",
