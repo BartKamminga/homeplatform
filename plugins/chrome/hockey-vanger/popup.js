@@ -1,10 +1,12 @@
-// popup.js v8.1 — HomePlatform push + coverage
+// popup.js v9.0 — server-driven config (item 316)
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
 var LOG = [];
 var COVERAGE_BY_LABEL = {};
 var COVERAGE_LOADED = false;
+var CONFIG = [];          // server-driven capture config (vervangt KNOWN_COMPS)
+var CONFIG_LOADED = false;
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -67,8 +69,23 @@ function loadSettings() {
     HP.url = (r.hp_url || '').replace(/\/$/, '');
     HP.key = r.hp_key || '';
     renderSettings();
+    loadConfig();
     loadCoverage();
   });
+}
+function loadConfig() {
+  if (!HP.url || !HP.key) return;
+  fetch(HP.url + '/api/tournix/import/config?season=2026-2027', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (!res || !res.entries) return;
+      CONFIG = res.entries;
+      CONFIG_LOADED = true;
+      render();
+    })
+    .catch(function() {});
 }
 function loadCoverage() {
   if (!HP.url || !HP.key) return;
@@ -192,7 +209,7 @@ function pushToHomePlatform(label, data, callback) {
 }
 
 function pushComp(compName) {
-  var known = KNOWN_COMPS[compName];
+  var known = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveKnown() : KNOWN_COMPS)[compName];
   if (!known) return;
   var data = {};
   for (var i = 0; i < known.ids.length; i++) {
@@ -203,9 +220,27 @@ function pushComp(compName) {
   pushToHomePlatform(known.label || compName, data, function() { render(); });
 }
 
+function buildEffectiveKnown() {
+  var ek = {};
+  for (var i = 0; i < CONFIG.length; i++) {
+    var cfg = CONFIG[i];
+    if (cfg.capture_type === 'poule' && cfg.capture_group)
+      ek[cfg.capture_group] = { ids: cfg.capture_ids || [], pouleLabels: cfg.capture_labels || [], label: cfg.tournament_name };
+  }
+  return ek;
+}
+function buildEffectiveFullComps() {
+  var ef = {};
+  for (var i = 0; i < CONFIG.length; i++) {
+    var cfg = CONFIG[i];
+    if (cfg.capture_type === 'full' && cfg.capture_ids && cfg.capture_ids[0])
+      ef[cfg.capture_ids[0]] = { label: cfg.tournament_name };
+  }
+  return ef;
+}
 function pushFullComp(storeKey) {
   var entry = D[storeKey];
-  var fc = KNOWN_FULL_COMPS[storeKey];
+  var fc = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveFullComps() : KNOWN_FULL_COMPS)[storeKey];
   if (!entry || !fc) return;
   var data = {}; data[storeKey] = entry;
   toast('📤 Pushen...');
@@ -250,6 +285,26 @@ function render() {
     if (isPoule(D[keys[i]])) all.push([keys[i], D[keys[i]]]);
     else if (D[keys[i]].type === 'competition') compEntries.push([keys[i], D[keys[i]]]);
   }
+  // Bouw KNOWN_COMPS uit server-config als die geladen is
+  var effectiveKnown = KNOWN_COMPS;
+  var effectiveFullComps = KNOWN_FULL_COMPS;
+  if (CONFIG_LOADED && CONFIG.length > 0) {
+    effectiveKnown = {};
+    effectiveFullComps = {};
+    for (var ci2 = 0; ci2 < CONFIG.length; ci2++) {
+      var cfg = CONFIG[ci2];
+      if (cfg.capture_type === 'poule' && cfg.capture_group) {
+        effectiveKnown[cfg.capture_group] = {
+          ids: cfg.capture_ids || [],
+          pouleLabels: cfg.capture_labels || [],
+          label: cfg.tournament_name,
+        };
+      } else if (cfg.capture_type === 'full' && cfg.capture_ids && cfg.capture_ids[0]) {
+        effectiveFullComps[cfg.capture_ids[0]] = { label: cfg.tournament_name };
+      }
+    }
+  }
+
   var groups = {};
   for (var i = 0; i < all.length; i++) {
     var id = all[i][0], e = all[i][1];
@@ -272,9 +327,9 @@ function render() {
   for (var gi = 0; gi < sortedKeys.length; gi++) {
     var comp = sortedKeys[gi], entries = groups[comp];
     renderedComps[comp] = true;
-    var known = KNOWN_COMPS[comp];
+    var known = effectiveKnown[comp];
     var serverPools = known && COVERAGE_BY_LABEL[known.label] ? COVERAGE_BY_LABEL[known.label].pools : {};
-    renderCompHeader(cnt, comp, entries, hpOk, serverPools);
+    renderCompHeader(cnt, comp, entries, hpOk, serverPools, known);
     entries.sort(function(a, b) { return (a[1].poule_name || '').localeCompare(b[1].poule_name || ''); });
     var capturedIds = {};
     for (var ei = 0; ei < entries.length; ei++) {
@@ -293,11 +348,11 @@ function render() {
   }
 
   // Empty known comps
-  for (var compName in KNOWN_COMPS) {
+  for (var compName in effectiveKnown) {
     if (!renderedComps[compName]) {
-      var known2 = KNOWN_COMPS[compName];
+      var known2 = effectiveKnown[compName];
       var serverPools2 = COVERAGE_BY_LABEL[known2.label] ? COVERAGE_BY_LABEL[known2.label].pools : {};
-      renderCompHeader(cnt, compName, [], hpOk, serverPools2);
+      renderCompHeader(cnt, compName, [], hpOk, serverPools2, known2);
       for (var ki2 = 0; ki2 < known2.ids.length; ki2++) {
         var emptyLbl = known2.pouleLabels ? known2.pouleLabels[ki2] : null;
         renderMissingPoule(cnt, known2.ids[ki2], emptyLbl, !!(emptyLbl && serverPools2[emptyLbl]));
@@ -308,11 +363,11 @@ function render() {
   // Competition entries (O16)
   for (var ci = 0; ci < compEntries.length; ci++) {
     renderedFullComps[compEntries[ci][0]] = true;
-    renderCompEntryItem(cnt, compEntries[ci][0], compEntries[ci][1], hpOk);
+    renderCompEntryItem(cnt, compEntries[ci][0], compEntries[ci][1], hpOk, effectiveFullComps);
   }
-  for (var fcKey in KNOWN_FULL_COMPS) {
+  for (var fcKey in effectiveFullComps) {
     if (!renderedFullComps[fcKey]) {
-      var fc = KNOWN_FULL_COMPS[fcKey];
+      var fc = effectiveFullComps[fcKey];
       var srvFc = COVERAGE_LOADED && COVERAGE_BY_LABEL[fc.label];
       var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
       var fcBadge = srvFc
@@ -329,8 +384,8 @@ function render() {
   updBtn();
 }
 
-function renderCompHeader(cnt, comp, entries, hpOk, serverPools) {
-  var known = KNOWN_COMPS[comp];
+function renderCompHeader(cnt, comp, entries, hpOk, serverPools, known) {
+  if (known === undefined) known = KNOWN_COMPS[comp];
   var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
   var left = '<span class="comp-name">' + comp + '</span>';
   if (known) {
@@ -383,8 +438,8 @@ function renderMissingPoule(cnt, pouleId, label, onServer) {
   cnt.appendChild(el);
 }
 
-function renderCompEntryItem(cnt, storeKey, entry, hpOk) {
-  var fc = KNOWN_FULL_COMPS[storeKey];
+function renderCompEntryItem(cnt, storeKey, entry, hpOk, fullComps) {
+  var fc = (fullComps || KNOWN_FULL_COMPS)[storeKey];
   var ts = timeAgo(entry.timestamp);
   var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
   var left = '<span class="comp-name">' + (entry.competition || (fc && fc.label) || storeKey) + '</span>' +
@@ -474,7 +529,7 @@ function doJson() {
   downloadFile(JSON.stringify(sel, null, 2), 'hockey_selectie_' + dateStamp() + '.json');
 }
 function downloadComp(compName) {
-  var known = KNOWN_COMPS[compName]; if (!known) return;
+  var known = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveKnown() : KNOWN_COMPS)[compName]; if (!known) return;
   var sel = {}, count = 0;
   for (var i = 0; i < known.ids.length; i++) { if (D[known.ids[i]]) { sel[known.ids[i]] = D[known.ids[i]]; count++; } }
   if (!count) { toast('❌ Geen data'); return; }
@@ -482,7 +537,7 @@ function downloadComp(compName) {
   toast('💾 ' + count + ' poules');
 }
 function downloadFullComp(storeKey) {
-  var entry = D[storeKey]; var fc = KNOWN_FULL_COMPS[storeKey];
+  var entry = D[storeKey]; var fc = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveFullComps() : KNOWN_FULL_COMPS)[storeKey];
   if (!entry) { toast('❌ Geen data'); return; }
   var exp = {}; exp[storeKey] = entry;
   downloadFile(JSON.stringify(exp, null, 2), (fc ? fc.label : storeKey).replace(/\s+/g,'_') + '_' + dateStamp() + '.json');
@@ -510,7 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('bAll').addEventListener('click', selAll);
   $('bExp').addEventListener('click', doExport);
   $('bJson').addEventListener('click', doJson);
-  $('bRefresh').addEventListener('click', function() { load(); loadCoverage(); });
+  $('bRefresh').addEventListener('click', function() { load(); loadConfig(); loadCoverage(); });
   $('bClear').addEventListener('click', doClear);
   loadSettings();
   renderLog();

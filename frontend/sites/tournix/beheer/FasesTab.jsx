@@ -274,6 +274,118 @@ function ScheduleSettings({ phase, fields, isReadonly, flash }) {
   )
 }
 
+// ── CaptureConfig ─────────────────────────────────────────────────────────────
+
+function CaptureConfig({ phase, flash, onRefresh }) {
+  const [open,   setOpen]   = useState(false)
+  const [type,   setType]   = useState(phase.capture_type   || 'poule')
+  const [group,  setGroup]  = useState(phase.capture_group  || '')
+  const [ids,    setIds]    = useState(phase.capture_ids    || '')
+  const [labels, setLabels] = useState(phase.capture_labels || '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setType(phase.capture_type   || 'poule')
+    setGroup(phase.capture_group  || '')
+    setIds(phase.capture_ids    || '')
+    setLabels(phase.capture_labels || '')
+  }, [phase.id, phase.capture_type, phase.capture_group, phase.capture_ids, phase.capture_labels])
+
+  const isConfigured = !!phase.capture_type
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await updatePhase(phase.id, {
+        capture_type:   type   || null,
+        capture_group:  group  || null,
+        capture_ids:    ids    || null,
+        capture_labels: labels || null,
+      })
+      flash('Vanger-config opgeslagen')
+      setOpen(false)
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+    finally { setSaving(false) }
+  }
+
+  async function handleClear() {
+    if (!window.confirm('Vanger-configuratie voor deze fase wissen?')) return
+    await updatePhase(phase.id, { capture_type: null, capture_group: null, capture_ids: null, capture_labels: null })
+    flash('Vanger-config gewist')
+    await onRefresh()
+  }
+
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 12 : 0 }}>
+        <div style={sectionLabel}>HOCKEY VANGER</div>
+        {isConfigured && !open && (
+          <span style={{ fontSize: 11, background: 'var(--color-primary)', color: '#fff', borderRadius: 99, padding: '1px 8px' }}>
+            {phase.capture_type} · {phase.capture_group || '—'}
+          </span>
+        )}
+        <button onClick={() => setOpen(o => !o)}
+          style={{ ...ghostBtn, fontSize: 11, marginLeft: 'auto', padding: '3px 10px' }}>
+          {open ? 'Sluiten' : isConfigured ? '✏️ Bewerken' : '+ Configureren'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', minWidth: 90 }}>Type</label>
+            <select value={type} onChange={e => setType(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
+              <option value="poule">poule (O14-stijl)</option>
+              <option value="full">full (O16-stijl)</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', minWidth: 90 }}>Groepnaam</label>
+            <input value={group} onChange={e => setGroup(e.target.value)}
+              placeholder='bv. "Meisjes O14 Lente · Super"'
+              style={{ ...inputStyle, flex: 1, minWidth: 240 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', minWidth: 90, paddingTop: 6 }}>
+              Capture IDs<br />
+              <span style={{ fontWeight: 400, opacity: 0.7 }}>(JSON-array)</span>
+            </label>
+            <textarea value={ids} onChange={e => setIds(e.target.value)}
+              placeholder='["179035","179036","179037"]'
+              rows={2}
+              style={{ ...inputStyle, flex: 1, minWidth: 240, fontFamily: 'monospace', fontSize: 12 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', minWidth: 90, paddingTop: 6 }}>
+              Labels<br />
+              <span style={{ fontWeight: 400, opacity: 0.7 }}>(JSON-array)</span>
+            </label>
+            <textarea value={labels} onChange={e => setLabels(e.target.value)}
+              placeholder='["Poule A","Poule B","Poule C"]'
+              rows={2}
+              style={{ ...inputStyle, flex: 1, minWidth: 240, fontFamily: 'monospace', fontSize: 12 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleSave} disabled={saving} style={{ ...primaryBtn, fontSize: 12 }}>
+              {saving ? 'Opslaan…' : 'Opslaan'}
+            </button>
+            {isConfigured && (
+              <button onClick={handleClear} style={{ ...ghostBtn, fontSize: 12, color: 'var(--color-error)' }}>
+                Wissen
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            <strong>poule:</strong> IDs zijn poule-nummers uit de hockey.nl URL · <strong>full:</strong> IDs is de localStorage-sleutel (bv. <code>["comp_22"]</code>)
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 // ── PhaseCard ─────────────────────────────────────────────────────────────────
 
 function PhaseCard({
@@ -522,6 +634,8 @@ function PhaseCard({
           )}
         </>
       )}
+
+      <CaptureConfig phase={phase} flash={flash} onRefresh={onRefresh} />
 
       <ScheduleSettings phase={phase} fields={fields} isReadonly={isReadonly} flash={flash} />
 

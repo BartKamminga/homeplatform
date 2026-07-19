@@ -40,6 +40,10 @@ class PhaseUpdate(BaseModel):
     pool_type:          Optional[str] = None
     match_duration_min: Optional[int] = None
     break_min:          Optional[int] = None
+    capture_type:       Optional[str] = None
+    capture_group:      Optional[str] = None
+    capture_ids:        Optional[str] = None
+    capture_labels:     Optional[str] = None
 
 
 class SetPhaseFieldsBody(BaseModel):
@@ -152,6 +156,10 @@ def _phase_dict(phase: TournixPhase, session: Session) -> dict:
         "is_main_phase": _is_main_phase(phase, session),
         "teams": [{"team_id": m.team_id, "group_name": m.group_name} for m in members],
         "pools": pool_data,
+        "capture_type":   phase.capture_type,
+        "capture_group":  phase.capture_group,
+        "capture_ids":    phase.capture_ids,
+        "capture_labels": phase.capture_labels,
     }
 
 
@@ -223,6 +231,10 @@ def list_phases(tid: str, session: Session = Depends(get_session), _: User = Dep
                 {"id": p.id, "name": p.name, "order": p.order, "team_count": team_count_by_pool.get(p.id, 0)}
                 for p in phase_pools
             ],
+            "capture_type":   phase.capture_type,
+            "capture_group":  phase.capture_group,
+            "capture_ids":    phase.capture_ids,
+            "capture_labels": phase.capture_labels,
         })
     return result
 

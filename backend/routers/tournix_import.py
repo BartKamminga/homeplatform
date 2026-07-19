@@ -295,6 +295,49 @@ def get_import_log(
     ]
 
 
+@router.get("/config")
+def get_import_config(
+    season: str = "2026-2027",
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Capture-configuratie voor de hockey-vanger popup (vervangt KNOWN_COMPS)."""
+    import json
+    tournaments = session.exec(
+        select(Tournament).where(Tournament.season == season)
+    ).all()
+
+    result = []
+    for t in tournaments:
+        phases = session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id,
+                TournixPhase.capture_type != None,  # noqa: E711
+            ).order_by(TournixPhase.order)
+        ).all()
+        for phase in phases:
+            try:
+                ids = json.loads(phase.capture_ids) if phase.capture_ids else []
+            except Exception:
+                ids = []
+            try:
+                labels = json.loads(phase.capture_labels) if phase.capture_labels else []
+            except Exception:
+                labels = []
+            result.append({
+                "phase_id":        phase.id,
+                "tournament_id":   t.id,
+                "tournament_name": t.name,
+                "season":          t.season,
+                "capture_type":    phase.capture_type,
+                "capture_group":   phase.capture_group,
+                "capture_ids":     ids,
+                "capture_labels":  labels,
+            })
+
+    return {"season": season, "entries": result}
+
+
 @router.get("/coverage")
 def get_import_coverage(
     season: str = "2026-2027",

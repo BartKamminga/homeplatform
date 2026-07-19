@@ -92,6 +92,11 @@ class TournixPhase(SQLModel, table=True):
     match_duration_min:  int           = Field(default=20)        # wedstrijdduur in minuten
     break_min:           int           = Field(default=5)         # pauze tussen slots
     created_at:          datetime      = Field(default_factory=datetime.utcnow)
+    # Hockey-vanger capture config
+    capture_type:        Optional[str] = Field(default=None)  # "poule" | "full"
+    capture_group:       Optional[str] = Field(default=None)  # weergavenaam in popup (bv. "Meisjes O14 Lente · Super")
+    capture_ids:         Optional[str] = Field(default=None)  # JSON: ["179035", ...] of ["comp_22"]
+    capture_labels:      Optional[str] = Field(default=None)  # JSON: ["Poule A", ...]
 
 
 class TournixPhaseField(SQLModel, table=True):
