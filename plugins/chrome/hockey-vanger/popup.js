@@ -1,4 +1,4 @@
-// popup.js v9.2 — auto-match op teamnamen (item 317)
+// popup.js v9.3 — KNOWN_COMPS verwijderd, lege skeletons weg
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
@@ -12,22 +12,9 @@ var SUGGESTIONS_LOADED = false;
 
 var $ = function(id) { return document.getElementById(id); };
 
-var KNOWN_COMPS = {
-  'Meisjes O14 Lente · Super': {
-    ids: ['179035','179036','179037','179038','179039'],
-    pouleLabels: ['Poule A','Poule B','Poule C','Poule D','Poule E'],
-    label: 'NK Hockey MO14 Lente Super'
-  },
-  'Jongens O14 Lente · Super': {
-    ids: ['179024','179025','179026','179027','179028'],
-    pouleLabels: ['Poule A','Poule B','Poule C','Poule D','Poule E'],
-    label: 'NK Hockey JO14 Lente Super'
-  }
-};
-var KNOWN_FULL_COMPS = {
-  'comp_22': { label: 'Landelijk Meisjes O16' },
-  'comp_21': { label: 'Landelijk Jongens O16' }
-};
+// KNOWN_COMPS en KNOWN_FULL_COMPS zijn vervangen door suggest-match (item 317)
+var KNOWN_COMPS = {};
+var KNOWN_FULL_COMPS = {};
 
 // ══════════════════════════════════════
 // HELPERS
@@ -425,10 +412,16 @@ function render() {
     }
   }
 
-  // Empty known comps
+  // Empty known comps — alleen tonen als er al iets gevangen is in die groep
   for (var compName in effectiveKnown) {
     if (!renderedComps[compName]) {
       var known2 = effectiveKnown[compName];
+      // Sla over als er helemaal geen data is voor deze groep
+      var hasAny = false;
+      for (var ki2check = 0; ki2check < known2.ids.length; ki2check++) {
+        if (D[known2.ids[ki2check]]) { hasAny = true; break; }
+      }
+      if (!hasAny) continue;
       var serverPools2 = COVERAGE_BY_LABEL[known2.label] ? COVERAGE_BY_LABEL[known2.label].pools : {};
       renderCompHeader(cnt, compName, [], hpOk, serverPools2, known2);
       for (var ki2 = 0; ki2 < known2.ids.length; ki2++) {
@@ -446,11 +439,11 @@ function render() {
   for (var fcKey in effectiveFullComps) {
     if (!renderedFullComps[fcKey]) {
       var fc = effectiveFullComps[fcKey];
+      // Alleen tonen als er serverdata is — anders is het ruis
       var srvFc = COVERAGE_LOADED && COVERAGE_BY_LABEL[fc.label];
+      if (!srvFc) continue;
       var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
-      var fcBadge = srvFc
-        ? '<span class="comp-badge comp-badge-partial">🗄 ' + srvFc.pool_count + ' poules op server</span>'
-        : '<span class="comp-badge comp-badge-empty">niet opgehaald</span>';
+      var fcBadge = '<span class="comp-badge comp-badge-partial">🗄 ' + srvFc.pool_count + ' poules op server</span>';
       hdr.innerHTML = '<div class="comp-hdr-left"><span class="comp-name">' + fc.label + '</span>' + fcBadge + '</div>';
       cnt.appendChild(hdr);
       var hint = document.createElement('div'); hint.className = 'comp-hint'; hint.textContent = 'Open deze competitie op hockey.nl';
