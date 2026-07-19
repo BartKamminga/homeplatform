@@ -11,10 +11,12 @@
 
   console.log('[HDV] 🏑 v6 interceptor laden... target:', TARGET);
 
-  function writeLog(type, msg) {
+  function writeLog(type, msg, detail) {
     try {
       const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
-      log.unshift({ ts: Date.now(), type: type, msg: msg });
+      const entry = { ts: Date.now(), type: type, msg: msg };
+      if (detail) entry.detail = detail;
+      log.unshift(entry);
       if (log.length > 100) log.length = 100;
       localStorage.setItem(LOG_KEY, JSON.stringify(log));
     } catch(e) {}
@@ -98,7 +100,11 @@
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(store));
       const count = Object.keys(store).length;
-      writeLog('ok', '✅ Gevangen: ' + pouleName + ' · ' + compName + ' · ' + className + ' (via ' + teamName + ')  [' + count + ' totaal]');
+      let teams = [];
+      try { teams = data.data.poule.standings.map(s => s.team.name); } catch(e) {}
+      writeLog('ok', '✅ Gevangen: ' + pouleName + ' · ' + compName + ' · ' + className + ' (via ' + teamName + ')  [' + count + ' totaal]', {
+        poule_id: pouleId, poule_name: pouleName, comp: compName + ' · ' + className, teams: teams
+      });
     } catch(e) {
       writeLog('err', '❌ Save mislukt: ' + e.message);
     }

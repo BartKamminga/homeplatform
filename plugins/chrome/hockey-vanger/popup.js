@@ -1,4 +1,4 @@
-// popup.js v9.4 — interceptor + backend logging
+// popup.js v9.5 — expandable log entries met capture detail
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
@@ -32,9 +32,11 @@ function dateStamp() {
   var d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
 }
-function addLog(type, msg) {
-  LOG.unshift({ time: new Date().toLocaleTimeString('nl-NL'), type: type, msg: msg });
-  if (LOG.length > 50) LOG.pop();
+function addLog(type, msg, detail) {
+  var entry = { time: new Date().toLocaleTimeString('nl-NL'), type: type, msg: msg };
+  if (detail) entry.detail = detail;
+  LOG.unshift(entry);
+  if (LOG.length > 100) LOG.pop();
   renderLog();
 }
 
@@ -133,7 +135,9 @@ function loadSuggestions() {
       if (keys.length) {
         for (var si = 0; si < keys.length; si++) {
           var s = SUGGESTIONS[keys[si]];
-          addLog('ok', '[BE] match: "' + keys[si] + '" → ' + s.tournament_name + ' · ' + s.phase_name + ' (' + Math.round(s.score * 100) + '%)');
+          addLog('ok', '[BE] match: "' + keys[si] + '" → ' + s.tournament_name + ' · ' + s.phase_name + ' (' + Math.round(s.score * 100) + '%)', {
+          match: s.tournament_name + ' · ' + s.phase_name + ' | score: ' + Math.round(s.score * 100) + '% (' + s.matched + '/' + s.total + ' teams)'
+        });
         }
       } else {
         addLog('info', '[BE] suggest: geen matches gevonden voor ' + groups.length + ' groepen');
@@ -204,10 +208,30 @@ function renderLog() {
   var pane = $('logPane');
   if (!pane) return;
   if (LOG.length === 0) { pane.innerHTML = '<div class="empty">Nog geen activiteit</div>'; return; }
-  pane.innerHTML = LOG.map(function(l) {
+  var html = LOG.map(function(l, idx) {
     var cls = l.type === 'ok' ? 'log-ok' : l.type === 'err' ? 'log-err' : 'log-info';
-    return '<div class="log-entry"><span class="log-time">' + l.time + '</span> <span class="' + cls + '">' + l.msg + '</span></div>';
+    var detail = '';
+    if (l.detail) {
+      var d = l.detail;
+      var rows = '';
+      if (d.teams && d.teams.length) rows += '<div class="log-detail-teams">' + d.teams.join(', ') + '</div>';
+      if (d.match) rows += '<div class="log-detail-match">→ ' + d.match + '</div>';
+      if (d.candidates) rows += '<div class="log-detail-match">' + d.candidates + '</div>';
+      detail = '<div class="log-detail" id="ld' + idx + '" style="display:none">' + rows + '</div>';
+    }
+    var toggle = l.detail ? '<span class="log-expand" data-idx="' + idx + '">▶</span> ' : '';
+    return '<div class="log-entry">' + toggle + '<span class="log-time">' + l.time + '</span> <span class="' + cls + '">' + escHtml(l.msg) + '</span>' + detail + '</div>';
   }).join('');
+  pane.innerHTML = html;
+  pane.querySelectorAll('.log-expand').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var det = $('ld' + btn.getAttribute('data-idx'));
+      if (!det) return;
+      var open = det.style.display !== 'none';
+      det.style.display = open ? 'none' : 'block';
+      btn.textContent = open ? '▶' : '▼';
+    });
+  });
 }
 
 // ══════════════════════════════════════
