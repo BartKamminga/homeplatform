@@ -1,6 +1,5 @@
-// popup.js v9.6 — DataVault: auto-archive poule captures naar HomePlatform
+// popup.js v9.7 — save-knoppen weg, push conditioneel op nieuwe data
 var D = {};
-var SEL = new Set();
 var HP = { url: '', key: '' };
 var LOG = [];
 var COVERAGE_BY_LABEL = {};
@@ -29,16 +28,26 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleString('nl-NL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 }
 function isPoule(e) { return e && e.url && /\/poules\/\d+\/teams\/\d+/.test(e.url); }
-function dateStamp() {
-  var d = new Date();
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
-}
 function addLog(type, msg, detail) {
   var entry = { time: new Date().toLocaleTimeString('nl-NL'), type: type, msg: msg };
   if (detail) entry.detail = detail;
   LOG.unshift(entry);
   if (LOG.length > 100) LOG.pop();
   renderLog();
+}
+
+// Geeft true als de groep nieuwere captures heeft dan de laatste import op de server
+function groupHasNewData(entries, label) {
+  if (!entries || !entries.length) return false;
+  var maxTs = 0;
+  for (var i = 0; i < entries.length; i++) {
+    var ts = entries[i][1].timestamp || 0;
+    if (ts > maxTs) maxTs = ts;
+  }
+  if (!maxTs) return true;
+  var lastImportStr = label && COVERAGE_BY_LABEL[label] ? COVERAGE_BY_LABEL[label].last_import : null;
+  if (!lastImportStr) return true;
+  return maxTs > new Date(lastImportStr).getTime();
 }
 
 // ══════════════════════════════════════
@@ -137,8 +146,8 @@ function loadSuggestions() {
         for (var si = 0; si < keys.length; si++) {
           var s = SUGGESTIONS[keys[si]];
           addLog('ok', '[BE] match: "' + keys[si] + '" → ' + s.tournament_name + ' · ' + s.phase_name + ' (' + Math.round(s.score * 100) + '%)', {
-          match: s.tournament_name + ' · ' + s.phase_name + ' | score: ' + Math.round(s.score * 100) + '% (' + s.matched + '/' + s.total + ' teams)'
-        });
+            match: s.tournament_name + ' · ' + s.phase_name + ' | score: ' + Math.round(s.score * 100) + '% (' + s.matched + '/' + s.total + ' teams)'
+          });
         }
       } else {
         addLog('info', '[BE] suggest: geen matches gevonden voor ' + groups.length + ' groepen');
@@ -211,7 +220,7 @@ function archiveCaptures() {
           addLog('info', '[Archief] ' + res.created + ' nieuwe poules gearchiveerd (sessie: ' + sid.slice(-6) + ')');
         }
       })
-      .catch(function() {});  // stil falen — archief is niet kritiek
+      .catch(function() {});
   });
 }
 
@@ -350,7 +359,6 @@ function pushComp(compName) {
       if (D[known.ids[i]]) data[known.ids[i]] = D[known.ids[i]];
     }
   } else {
-    // Geen KNOWN_COMPS — alle gevangen poules in deze groep meenemen
     var keys = Object.keys(D);
     for (var ki = 0; ki < keys.length; ki++) {
       var e = D[keys[ki]];
@@ -361,7 +369,6 @@ function pushComp(compName) {
   }
   if (!Object.keys(data).length) { toast('❌ Geen data'); return; }
 
-  // tournament_id + phase_id: CONFIG heeft prioriteit, dan suggestie
   var tid = null, pid = null;
   if (CONFIG_LOADED) {
     for (var ci3 = 0; ci3 < CONFIG.length; ci3++) {
@@ -398,7 +405,6 @@ function pushFullComp(storeKey) {
   var fc = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveFullComps() : KNOWN_FULL_COMPS)[storeKey];
   if (!entry || !fc) return;
   var data = {}; data[storeKey] = entry;
-  // Zoek tournament_id + phase_id uit server-config
   var tid = null, pid = null;
   if (CONFIG_LOADED) {
     for (var ci4 = 0; ci4 < CONFIG.length; ci4++) {
@@ -440,7 +446,6 @@ function load() {
       render();
       loadSuggestions();
       archiveCaptures();
-      // Lees ook interceptor-log uit tab localStorage
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: function() { try { return localStorage.getItem('__hw_log') || '[]'; } catch(e) { return '[]'; } }
@@ -473,7 +478,6 @@ function render() {
     if (isPoule(D[keys[i]])) all.push([keys[i], D[keys[i]]]);
     else if (D[keys[i]].type === 'competition') compEntries.push([keys[i], D[keys[i]]]);
   }
-  // Bouw KNOWN_COMPS uit server-config als die geladen is
   var effectiveKnown = KNOWN_COMPS;
   var effectiveFullComps = KNOWN_FULL_COMPS;
   if (CONFIG_LOADED && CONFIG.length > 0) {
@@ -511,7 +515,6 @@ function render() {
   var renderedComps = {}, renderedFullComps = {};
   var hpOk = HP.url && HP.key;
 
-  // Poule groups (O14)
   for (var gi = 0; gi < sortedKeys.length; gi++) {
     var comp = sortedKeys[gi], entries = groups[comp];
     renderedComps[comp] = true;
@@ -535,11 +538,9 @@ function render() {
     }
   }
 
-  // Empty known comps — alleen tonen als er al iets gevangen is in die groep
   for (var compName in effectiveKnown) {
     if (!renderedComps[compName]) {
       var known2 = effectiveKnown[compName];
-      // Sla over als er helemaal geen data is voor deze groep
       var hasAny = false;
       for (var ki2check = 0; ki2check < known2.ids.length; ki2check++) {
         if (D[known2.ids[ki2check]]) { hasAny = true; break; }
@@ -554,7 +555,6 @@ function render() {
     }
   }
 
-  // Competition entries (O16)
   for (var ci = 0; ci < compEntries.length; ci++) {
     renderedFullComps[compEntries[ci][0]] = true;
     renderCompEntryItem(cnt, compEntries[ci][0], compEntries[ci][1], hpOk, effectiveFullComps);
@@ -562,7 +562,6 @@ function render() {
   for (var fcKey in effectiveFullComps) {
     if (!renderedFullComps[fcKey]) {
       var fc = effectiveFullComps[fcKey];
-      // Alleen tonen als er serverdata is — anders is het ruis
       var srvFc = COVERAGE_LOADED && COVERAGE_BY_LABEL[fc.label];
       if (!srvFc) continue;
       var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
@@ -573,9 +572,6 @@ function render() {
       cnt.appendChild(hint);
     }
   }
-
-  document.querySelectorAll('.pi').forEach(function(el) { el.addEventListener('click', handlePouleClick); });
-  updBtn();
 }
 
 function renderCompHeader(cnt, comp, entries, hpOk, serverPools, known) {
@@ -601,21 +597,28 @@ function renderCompHeader(cnt, comp, entries, hpOk, serverPools, known) {
     var matchCls = suggestion.score >= 0.8 ? 'comp-badge-ok' : 'comp-badge-partial';
     left += '<span class="comp-badge ' + matchCls + '" title="' + suggestion.matched + '/' + suggestion.total + ' teams">→ ' + suggestion.tournament_name + ' · ' + suggestion.phase_name + '</span>';
   }
-  var canPush = hpOk && (known || suggestion);
+
+  // Push-knop alleen tonen als er nieuwe data is t.o.v. laatste import
+  var label = (known && known.label) || (suggestion && suggestion.tournament_name) || null;
+  var hasNew = groupHasNewData(entries, label);
+  var canPush = hpOk && (known || suggestion) && entries.length > 0;
   var right = '';
-  if (known || entries.length > 0) right = '<button class="comp-dl-btn" data-comp="' + comp + '">💾</button>';
-  if (canPush) right += '<button class="comp-push-btn" data-comp="' + comp + '">📤 HP</button>';
+  if (canPush) {
+    if (hasNew) {
+      right = '<button class="comp-push-btn" data-comp="' + comp + '">📤 Push</button>';
+    } else {
+      right = '<span class="comp-synced">✓ sync</span>';
+    }
+  }
   hdr.innerHTML = '<div class="comp-hdr-left">' + left + '</div><div class="comp-hdr-right">' + right + '</div>';
   cnt.appendChild(hdr);
 
-  var dlBtn = hdr.querySelector('.comp-dl-btn');
-  if (dlBtn) dlBtn.addEventListener('click', function(evt) { evt.stopPropagation(); downloadComp(evt.target.getAttribute('data-comp')); });
   var pushBtn = hdr.querySelector('.comp-push-btn');
   if (pushBtn) pushBtn.addEventListener('click', function(evt) {
     evt.stopPropagation();
     var b = evt.target; b.disabled = true; b.textContent = '⏳';
     pushComp(b.getAttribute('data-comp'));
-    setTimeout(function() { b.disabled = false; b.textContent = '📤 HP'; }, 4000);
+    setTimeout(function() { b.disabled = false; b.textContent = '📤 Push'; }, 4000);
   });
 }
 
@@ -623,7 +626,7 @@ function renderPouleItem(cnt, id, e, onServer) {
   var played = 0, rem = 0;
   try { var ma = e.data.data.poule.matches || []; for (var mi = 0; mi < ma.length; mi++) { if (ma[mi].status === 'final') played++; else rem++; } } catch(ex) {}
   var ts = timeAgo(e.timestamp);
-  var el = document.createElement('div'); el.className = 'pi' + (SEL.has(id) ? ' sel' : ''); el.setAttribute('data-id', id);
+  var el = document.createElement('div'); el.className = 'pi'; el.setAttribute('data-id', id);
   var srvDot = COVERAGE_LOADED ? (onServer ? '<span class="pi-srv pi-srv--ok" title="Op server">🗄</span>' : '<span class="pi-srv pi-srv--no" title="Nog niet op server">○</span>') : '';
   el.innerHTML = '<div class="pi-row"><span class="pi-name">' + (e.poule_name || '?') + '</span>' + srvDot + '<span class="pi-stat">📊 ' + played + '</span><span class="pi-stat">📅 ' + rem + '</span><span class="pi-via">via ' + (e.team_name || '?').replace(/ [A-Z]?O?\d+-\d+/g, '').trim() + '</span><span class="pi-ts">' + ts + '</span></div>';
   cnt.appendChild(el);
@@ -642,115 +645,33 @@ function renderCompEntryItem(cnt, storeKey, entry, hpOk, fullComps) {
   var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
   var left = '<span class="comp-name">' + (entry.competition || (fc && fc.label) || storeKey) + '</span>' +
     '<span class="comp-badge comp-badge-ok">✅ ' + (entry.poule_count || '?') + ' poules</span>';
+
+  // Push conditioneel: vergelijk entry.timestamp met last_import
+  var fcLabel = fc ? fc.label : null;
+  var entryTs = entry.timestamp ? [[null, entry]] : [];
+  var hasNew = groupHasNewData(entryTs, fcLabel);
   var right = '';
-  if (fc) {
-    right = '<button class="comp-dl-btn" data-fcomp="' + storeKey + '">💾</button>';
-    if (hpOk) right += '<button class="comp-push-btn" data-fcomp="' + storeKey + '">📤 HP</button>';
+  if (fc && hpOk) {
+    if (hasNew) {
+      right = '<button class="comp-push-btn" data-fcomp="' + storeKey + '">📤 Push</button>';
+    } else {
+      right = '<span class="comp-synced">✓ sync</span>';
+    }
   }
   hdr.innerHTML = '<div class="comp-hdr-left">' + left + '</div><div class="comp-hdr-right">' + right + '</div>';
   cnt.appendChild(hdr);
 
-  var dlBtn = hdr.querySelector('.comp-dl-btn');
-  if (dlBtn) dlBtn.addEventListener('click', function(evt) { evt.stopPropagation(); downloadFullComp(evt.target.getAttribute('data-fcomp')); });
   var pushBtn = hdr.querySelector('.comp-push-btn');
   if (pushBtn) pushBtn.addEventListener('click', function(evt) {
     evt.stopPropagation();
     var b = evt.target; b.disabled = true; b.textContent = '⏳';
     pushFullComp(b.getAttribute('data-fcomp'));
-    setTimeout(function() { b.disabled = false; b.textContent = '📤 HP'; }, 4000);
+    setTimeout(function() { b.disabled = false; b.textContent = '📤 Push'; }, 4000);
   });
 
   var el = document.createElement('div'); el.className = 'pi-row-static';
   el.innerHTML = '<span class="pi-stat">📊 ' + (entry.played_count || 0) + ' gespeeld</span><span class="pi-stat">📅 ' + (entry.remaining_count || 0) + ' resterend</span><span class="pi-ts">' + ts + '</span>';
   cnt.appendChild(el);
-}
-
-// ══════════════════════════════════════
-// INTERACTIONS
-// ══════════════════════════════════════
-function handlePouleClick(evt) {
-  var id = evt.currentTarget.getAttribute('data-id');
-  if (SEL.has(id)) SEL.delete(id); else SEL.add(id);
-  document.querySelectorAll('.pi').forEach(function(el) { el.classList.toggle('sel', SEL.has(el.getAttribute('data-id'))); });
-  updBtn();
-}
-function selAll() {
-  var ids = Object.keys(D).filter(function(k) { return isPoule(D[k]); });
-  if (SEL.size === ids.length) SEL.clear(); else ids.forEach(function(k) { SEL.add(k); });
-  document.querySelectorAll('.pi').forEach(function(el) { el.classList.toggle('sel', SEL.has(el.getAttribute('data-id'))); });
-  updBtn();
-}
-function updBtn() {
-  var n = SEL.size;
-  $('bExp').className = n ? 'bx' : 'bx off';
-  $('bJson').className = n ? 'bj' : 'bj off';
-  $('bExp').textContent = n ? '📋 Kopieer ' + n : '📋 Selecteer';
-}
-
-// ══════════════════════════════════════
-// EXPORT / DOWNLOAD
-// ══════════════════════════════════════
-function buildMC() {
-  var mc = {}; var iter = SEL.values(); var next = iter.next();
-  while (!next.done) {
-    var id = next.value, e = D[id];
-    if (e && e.data && e.data.data && e.data.data.poule && e.data.data.poule.standings) {
-      var d = e.data.data, letter = d.poule.name.replace('Poule ', ''), key = letter;
-      if (mc[key]) key = letter + '_' + id;
-      var st = d.poule.standings, ma = d.poule.matches || [], played = [], rem = [];
-      for (var i = 0; i < ma.length; i++) { if (ma[i].status === 'final') played.push(ma[i]); else rem.push(ma[i]); }
-      var cl = function(n) { return n.replace(/ [A-Z]?O?\d+-\d+/g, '').trim(); };
-      mc[key] = {
-        poule_id: parseInt(id),
-        competition: (e.competition || '') + ' · ' + (e.class_name || ''),
-        teams: st.map(function(s) { return cl(s.team.name); }),
-        pts: st.map(function(s) { return s.points; }),
-        ds: st.map(function(s) { return s.goals_for - s.goals_against; }),
-        played_count: played.length,
-        remaining: rem.map(function(m) { return [cl(m.home.name), cl(m.away.name)]; }),
-        standings: st.map(function(s) { return { rank:s.rank, team:cl(s.team.name), team_id:s.team.id, points:s.points, wins:s.wins, draws:s.draws, losses:s.losses, gf:s.goals_for, ga:s.goals_against, gd:s.goals_for-s.goals_against }; }),
-        matches_played: played.map(function(m) { return { round:m.round, home:cl(m.home.name), away:cl(m.away.name), score:m.score.home+'-'+m.score.away }; })
-      };
-    }
-    next = iter.next();
-  }
-  return mc;
-}
-function doExport() {
-  if (!SEL.size) return;
-  navigator.clipboard.writeText(JSON.stringify(buildMC(), null, 2)).then(function() { toast('✅ Gekopieerd!'); });
-}
-function doJson() {
-  if (!SEL.size) return;
-  var sel = {}; var iter = SEL.values(); var next = iter.next();
-  while (!next.done) { if (D[next.value]) sel[next.value] = D[next.value]; next = iter.next(); }
-  downloadFile(JSON.stringify(sel, null, 2), 'hockey_selectie_' + dateStamp() + '.json');
-}
-function downloadComp(compName) {
-  var known = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveKnown() : KNOWN_COMPS)[compName]; if (!known) return;
-  var sel = {}, count = 0;
-  for (var i = 0; i < known.ids.length; i++) { if (D[known.ids[i]]) { sel[known.ids[i]] = D[known.ids[i]]; count++; } }
-  if (!count) { toast('❌ Geen data'); return; }
-  downloadFile(JSON.stringify(sel, null, 2), (known.label || compName).replace(/\s+/g,'_') + '_' + dateStamp() + '.json');
-  toast('💾 ' + count + ' poules');
-}
-function downloadFullComp(storeKey) {
-  var entry = D[storeKey]; var fc = (CONFIG_LOADED && CONFIG.length > 0 ? buildEffectiveFullComps() : KNOWN_FULL_COMPS)[storeKey];
-  if (!entry) { toast('❌ Geen data'); return; }
-  var exp = {}; exp[storeKey] = entry;
-  downloadFile(JSON.stringify(exp, null, 2), (fc ? fc.label : storeKey).replace(/\s+/g,'_') + '_' + dateStamp() + '.json');
-}
-function downloadFile(content, filename) {
-  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-  a.download = filename; a.click();
-}
-function doClear() {
-  if (!confirm('Alle data wissen?')) return;
-  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    if (!tabs || !tabs[0]) return;
-    chrome.scripting.executeScript({ target: { tabId: tabs[0].id }, func: function() { localStorage.removeItem('__hw_poules'); localStorage.removeItem('__hw_captured'); }
-    }, function() { D = {}; SEL.clear(); render(); toast('🗑️ Gewist'); addLog('info', 'Data gewist'); });
-  });
 }
 
 // ══════════════════════════════════════
@@ -760,12 +681,18 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.addEventListener('click', function() { switchTab(btn.getAttribute('data-tab')); });
   });
-  $('bAll').addEventListener('click', selAll);
-  $('bExp').addEventListener('click', doExport);
-  $('bJson').addEventListener('click', doJson);
   $('bRefresh').addEventListener('click', function() { load(); loadConfig(); loadCoverage(); loadSuggestions(); });
   $('bClear').addEventListener('click', doClear);
   loadSettings();
   renderLog();
   load();
 });
+
+function doClear() {
+  if (!confirm('Alle data wissen?')) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (!tabs || !tabs[0]) return;
+    chrome.scripting.executeScript({ target: { tabId: tabs[0].id }, func: function() { localStorage.removeItem('__hw_poules'); localStorage.removeItem('__hw_captured'); }
+    }, function() { D = {}; render(); toast('🗑️ Gewist'); addLog('info', 'Data gewist'); });
+  });
+}
