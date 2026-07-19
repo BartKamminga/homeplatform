@@ -237,7 +237,7 @@ def import_hockey_nl(
             try: parsed_date = datetime.fromisoformat(parsed["date"])
             except Exception: pass
         tournament = Tournament(
-            name=parsed["name"], date=parsed_date,
+            name=body.label or parsed["name"], date=parsed_date,
             stage="inregel", status="active",
             num_pools=len(parsed["pools"]), pool_type="half",
             season=body.season, created_by=user.id,
