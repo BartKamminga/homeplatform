@@ -1,8 +1,10 @@
-// popup.js v8 — HomePlatform push
+// popup.js v8.1 — HomePlatform push + coverage
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
 var LOG = [];
+var COVERAGE_BY_LABEL = {};
+var COVERAGE_LOADED = false;
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -65,7 +67,28 @@ function loadSettings() {
     HP.url = (r.hp_url || '').replace(/\/$/, '');
     HP.key = r.hp_key || '';
     renderSettings();
+    loadCoverage();
   });
+}
+function loadCoverage() {
+  if (!HP.url || !HP.key) return;
+  fetch(HP.url + '/api/tournix/import/coverage?season=2026-2027', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (!res) return;
+      COVERAGE_BY_LABEL = {};
+      for (var i = 0; i < res.tournaments.length; i++) {
+        var t = res.tournaments[i];
+        var poolsMap = {};
+        for (var j = 0; j < t.pools.length; j++) poolsMap[t.pools[j].name] = t.pools[j];
+        COVERAGE_BY_LABEL[t.tournament_name] = { pools: poolsMap, last_import: t.last_import, pool_count: t.pool_count };
+      }
+      COVERAGE_LOADED = true;
+      render();
+    })
+    .catch(function() {});
 }
 function saveSettings() {
   var url = ($('hpUrl').value || '').trim().replace(/\/$/, '');
@@ -79,7 +102,7 @@ function saveSettings() {
 }
 function testConnection() {
   if (!HP.url || !HP.key) { toast('❌ Vul eerst URL en API key in'); return; }
-  fetch(HP.url + '/api/system/health', {
+  fetch(HP.url + '/api/health', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   })
     .then(function(r) {
@@ -249,17 +272,22 @@ function render() {
   for (var gi = 0; gi < sortedKeys.length; gi++) {
     var comp = sortedKeys[gi], entries = groups[comp];
     renderedComps[comp] = true;
-    renderCompHeader(cnt, comp, entries, hpOk);
+    var known = KNOWN_COMPS[comp];
+    var serverPools = known && COVERAGE_BY_LABEL[known.label] ? COVERAGE_BY_LABEL[known.label].pools : {};
+    renderCompHeader(cnt, comp, entries, hpOk, serverPools);
     entries.sort(function(a, b) { return (a[1].poule_name || '').localeCompare(b[1].poule_name || ''); });
     var capturedIds = {};
     for (var ei = 0; ei < entries.length; ei++) {
       capturedIds[entries[ei][0]] = true;
-      renderPouleItem(cnt, entries[ei][0], entries[ei][1]);
+      var onServer = !!(entries[ei][1].poule_name && serverPools[entries[ei][1].poule_name]);
+      renderPouleItem(cnt, entries[ei][0], entries[ei][1], onServer);
     }
-    var known = KNOWN_COMPS[comp];
     if (known) {
       for (var ki = 0; ki < known.ids.length; ki++) {
-        if (!capturedIds[known.ids[ki]]) renderMissingPoule(cnt, known.ids[ki], known.pouleLabels ? known.pouleLabels[ki] : null);
+        if (!capturedIds[known.ids[ki]]) {
+          var missLbl = known.pouleLabels ? known.pouleLabels[ki] : null;
+          renderMissingPoule(cnt, known.ids[ki], missLbl, !!(missLbl && serverPools[missLbl]));
+        }
       }
     }
   }
@@ -268,8 +296,12 @@ function render() {
   for (var compName in KNOWN_COMPS) {
     if (!renderedComps[compName]) {
       var known2 = KNOWN_COMPS[compName];
-      renderCompHeader(cnt, compName, [], hpOk);
-      for (var ki = 0; ki < known2.ids.length; ki++) renderMissingPoule(cnt, known2.ids[ki], known2.pouleLabels ? known2.pouleLabels[ki] : null);
+      var serverPools2 = COVERAGE_BY_LABEL[known2.label] ? COVERAGE_BY_LABEL[known2.label].pools : {};
+      renderCompHeader(cnt, compName, [], hpOk, serverPools2);
+      for (var ki2 = 0; ki2 < known2.ids.length; ki2++) {
+        var emptyLbl = known2.pouleLabels ? known2.pouleLabels[ki2] : null;
+        renderMissingPoule(cnt, known2.ids[ki2], emptyLbl, !!(emptyLbl && serverPools2[emptyLbl]));
+      }
     }
   }
 
@@ -281,8 +313,12 @@ function render() {
   for (var fcKey in KNOWN_FULL_COMPS) {
     if (!renderedFullComps[fcKey]) {
       var fc = KNOWN_FULL_COMPS[fcKey];
+      var srvFc = COVERAGE_LOADED && COVERAGE_BY_LABEL[fc.label];
       var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
-      hdr.innerHTML = '<div class="comp-hdr-left"><span class="comp-name">' + fc.label + '</span><span class="comp-badge comp-badge-empty">niet opgehaald</span></div>';
+      var fcBadge = srvFc
+        ? '<span class="comp-badge comp-badge-partial">🗄 ' + srvFc.pool_count + ' poules op server</span>'
+        : '<span class="comp-badge comp-badge-empty">niet opgehaald</span>';
+      hdr.innerHTML = '<div class="comp-hdr-left"><span class="comp-name">' + fc.label + '</span>' + fcBadge + '</div>';
       cnt.appendChild(hdr);
       var hint = document.createElement('div'); hint.className = 'comp-hint'; hint.textContent = 'Open deze competitie op hockey.nl';
       cnt.appendChild(hint);
@@ -293,7 +329,7 @@ function render() {
   updBtn();
 }
 
-function renderCompHeader(cnt, comp, entries, hpOk) {
+function renderCompHeader(cnt, comp, entries, hpOk, serverPools) {
   var known = KNOWN_COMPS[comp];
   var hdr = document.createElement('div'); hdr.className = 'comp-hdr';
   var left = '<span class="comp-name">' + comp + '</span>';
@@ -303,6 +339,11 @@ function renderCompHeader(cnt, comp, entries, hpOk) {
     var complete = have === known.ids.length;
     left += '<span class="comp-badge ' + (complete ? 'comp-badge-ok' : have > 0 ? 'comp-badge-partial' : 'comp-badge-empty') + '">' +
       (complete ? '✅ ' : '⏳ ') + have + '/' + known.ids.length + '</span>';
+    if (COVERAGE_LOADED && serverPools) {
+      var srvCnt = Object.keys(serverPools).length;
+      var srvCls = srvCnt === known.ids.length ? 'comp-badge-ok' : srvCnt > 0 ? 'comp-badge-partial' : 'comp-badge-empty';
+      left += '<span class="comp-badge comp-badge-srv ' + srvCls + '">🗄 ' + srvCnt + '/' + known.ids.length + '</span>';
+    }
   } else {
     left += '<span class="comp-badge comp-badge-other">' + entries.length + ' poules</span>';
   }
@@ -325,18 +366,20 @@ function renderCompHeader(cnt, comp, entries, hpOk) {
   });
 }
 
-function renderPouleItem(cnt, id, e) {
+function renderPouleItem(cnt, id, e, onServer) {
   var played = 0, rem = 0;
   try { var ma = e.data.data.poule.matches || []; for (var mi = 0; mi < ma.length; mi++) { if (ma[mi].status === 'final') played++; else rem++; } } catch(ex) {}
   var ts = timeAgo(e.timestamp);
   var el = document.createElement('div'); el.className = 'pi' + (SEL.has(id) ? ' sel' : ''); el.setAttribute('data-id', id);
-  el.innerHTML = '<div class="pi-row"><span class="pi-name">' + (e.poule_name || '?') + '</span><span class="pi-stat">📊 ' + played + '</span><span class="pi-stat">📅 ' + rem + '</span><span class="pi-via">via ' + (e.team_name || '?').replace(/ [A-Z]?O?\d+-\d+/g, '').trim() + '</span><span class="pi-ts">' + ts + '</span></div>';
+  var srvDot = COVERAGE_LOADED ? (onServer ? '<span class="pi-srv pi-srv--ok" title="Op server">🗄</span>' : '<span class="pi-srv pi-srv--no" title="Nog niet op server">○</span>') : '';
+  el.innerHTML = '<div class="pi-row"><span class="pi-name">' + (e.poule_name || '?') + '</span>' + srvDot + '<span class="pi-stat">📊 ' + played + '</span><span class="pi-stat">📅 ' + rem + '</span><span class="pi-via">via ' + (e.team_name || '?').replace(/ [A-Z]?O?\d+-\d+/g, '').trim() + '</span><span class="pi-ts">' + ts + '</span></div>';
   cnt.appendChild(el);
 }
 
-function renderMissingPoule(cnt, pouleId, label) {
-  var el = document.createElement('div'); el.className = 'pi-missing';
-  el.innerHTML = '<span class="pi-missing-name">' + (label || 'Poule ' + pouleId) + '</span><span class="pi-missing-hint">niet opgehaald</span>';
+function renderMissingPoule(cnt, pouleId, label, onServer) {
+  var el = document.createElement('div'); el.className = 'pi-missing' + (onServer ? ' pi-missing--server' : '');
+  var hint = onServer ? '🗄 op server' : 'niet opgehaald';
+  el.innerHTML = '<span class="pi-missing-name">' + (label || 'Poule ' + pouleId) + '</span><span class="pi-missing-hint">' + hint + '</span>';
   cnt.appendChild(el);
 }
 
@@ -467,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('bAll').addEventListener('click', selAll);
   $('bExp').addEventListener('click', doExport);
   $('bJson').addEventListener('click', doJson);
-  $('bRefresh').addEventListener('click', load);
+  $('bRefresh').addEventListener('click', function() { load(); loadCoverage(); });
   $('bClear').addEventListener('click', doClear);
   loadSettings();
   renderLog();

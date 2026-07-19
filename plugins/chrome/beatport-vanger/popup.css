@@ -20,6 +20,7 @@ body {
   background: #12151e;
 }
 .logo { font-weight: 700; font-size: 13px; color: #7daaff; letter-spacing: .3px; }
+.logo-version { font-weight: 400; font-size: 10px; color: #4a5568; letter-spacing: 0; }
 
 .tabs { display: flex; gap: 4px; }
 .tab-btn {

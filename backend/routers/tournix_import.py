@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func as sqlfunc
 from sqlmodel import Session, select
 
 from core.auth import get_current_user
@@ -292,3 +293,54 @@ def get_import_log(
         }
         for l in logs
     ]
+
+
+@router.get("/coverage")
+def get_import_coverage(
+    season: str = "2026-2027",
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Per-toernooi poule-dekking voor een seizoen (voor de hockey-vanger popup)."""
+    tournaments = session.exec(
+        select(Tournament).where(Tournament.season == season)
+    ).all()
+
+    result = []
+    for t in tournaments:
+        phases = session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id,
+                TournixPhase.phase_type == "pool",
+            )
+        ).all()
+
+        pools = []
+        for phase in phases:
+            phase_pools = session.exec(
+                select(TournixPool)
+                .where(TournixPool.phase_id == phase.id)
+                .order_by(TournixPool.order)
+            ).all()
+            for pool in phase_pools:
+                tc = session.exec(
+                    select(sqlfunc.count(TournixTeam.id)).where(TournixTeam.pool_id == pool.id)
+                ).one()
+                pools.append({"name": pool.name, "team_count": tc})
+
+        last_log = session.exec(
+            select(TournixImportLog)
+            .where(TournixImportLog.tournament_id == t.id)
+            .order_by(TournixImportLog.created_at.desc())
+        ).first()
+
+        result.append({
+            "tournament_id":   t.id,
+            "tournament_name": t.name,
+            "stage":           t.stage,
+            "pool_count":      len(pools),
+            "pools":           pools,
+            "last_import":     last_log.created_at.isoformat() if last_log else None,
+        })
+
+    return {"season": season, "tournaments": result}

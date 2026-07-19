@@ -69,6 +69,15 @@ button{padding:7px 11px;border:none;border-radius:6px;font-size:11px;font-weight
 .settings-ok{background:#052e16;color:#4ade80}
 .settings-err{background:#2a1215;color:#f87171}
 
+/* Coverage */
+.comp-badge-srv{margin-left:2px}
+.pi-srv{font-size:10px;flex-shrink:0}
+.pi-srv--ok{color:#4ade80;opacity:.9}
+.pi-srv--no{color:#444;font-size:11px}
+.pi-missing--server{border-color:#14532d}
+.pi-missing--server .pi-missing-name{color:#6b7280}
+.pi-missing--server .pi-missing-hint{color:#4ade80;font-style:normal}
+
 /* Log */
 .log-entry{padding:6px 0;border-bottom:1px solid #1e2028;font-size:11px}
 .log-entry:last-child{border-bottom:none}
