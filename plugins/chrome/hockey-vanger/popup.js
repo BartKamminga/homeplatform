@@ -1,4 +1,4 @@
-// popup.js v9.3 — KNOWN_COMPS verwijderd, lege skeletons weg
+// popup.js v9.4 — interceptor + backend logging
 var D = {};
 var SEL = new Set();
 var HP = { url: '', key: '' };
@@ -69,12 +69,13 @@ function loadConfig() {
   })
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(res) {
-      if (!res || !res.entries) return;
+      if (!res || !res.entries) { addLog('err', '[BE] config: geen entries'); return; }
       CONFIG = res.entries;
       CONFIG_LOADED = true;
+      addLog('info', '[BE] config: ' + CONFIG.length + ' entries geladen');
       render();
     })
-    .catch(function() {});
+    .catch(function(e) { addLog('err', '[BE] config fout: ' + e.message); });
 }
 function loadCoverage() {
   if (!HP.url || !HP.key) return;
@@ -92,9 +93,10 @@ function loadCoverage() {
         COVERAGE_BY_LABEL[t.tournament_name] = { pools: poolsMap, last_import: t.last_import, pool_count: t.pool_count };
       }
       COVERAGE_LOADED = true;
+      addLog('info', '[BE] coverage: ' + res.tournaments.length + ' toernooien');
       render();
     })
-    .catch(function() {});
+    .catch(function(e) { addLog('err', '[BE] coverage fout: ' + e.message); });
 }
 function loadSuggestions() {
   if (!HP.url || !HP.key) return;
@@ -124,12 +126,21 @@ function loadSuggestions() {
   })
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(res) {
-      if (!res || !res.suggestions) return;
+      if (!res || !res.suggestions) { addLog('err', '[BE] suggest: geen response'); return; }
       SUGGESTIONS = res.suggestions;
       SUGGESTIONS_LOADED = true;
+      var keys = Object.keys(SUGGESTIONS);
+      if (keys.length) {
+        for (var si = 0; si < keys.length; si++) {
+          var s = SUGGESTIONS[keys[si]];
+          addLog('ok', '[BE] match: "' + keys[si] + '" → ' + s.tournament_name + ' · ' + s.phase_name + ' (' + Math.round(s.score * 100) + '%)');
+        }
+      } else {
+        addLog('info', '[BE] suggest: geen matches gevonden voor ' + groups.length + ' groepen');
+      }
       render();
     })
-    .catch(function() {});
+    .catch(function(e) { addLog('err', '[BE] suggest fout: ' + e.message); });
 }
 
 function saveSettings() {
@@ -336,6 +347,25 @@ function load() {
       SUGGESTIONS = {}; SUGGESTIONS_LOADED = false;
       render();
       loadSuggestions();
+      // Lees ook interceptor-log uit tab localStorage
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: function() { try { return localStorage.getItem('__hw_log') || '[]'; } catch(e) { return '[]'; } }
+      }, function(r2) {
+        var raw2 = r2 && r2[0] && r2[0].result;
+        try {
+          var entries = JSON.parse(raw2 || '[]');
+          for (var li = 0; li < entries.length; li++) {
+            var e2 = entries[li];
+            var t = new Date(e2.ts).toLocaleTimeString('nl-NL');
+            if (!LOG.find(function(l) { return l.msg === e2.msg && l.time === t; })) {
+              LOG.push({ time: t, type: e2.type, msg: '[vangt] ' + e2.msg });
+            }
+          }
+          LOG.sort(function(a, b) { return b.time.localeCompare(a.time); });
+        } catch(ex) {}
+        renderLog();
+      });
     });
   });
 }
