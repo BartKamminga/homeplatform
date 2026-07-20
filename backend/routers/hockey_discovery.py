@@ -1,6 +1,7 @@
 import json
+import re
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -254,6 +255,73 @@ def upsert_club_detail(
         "teams_updated": teams_updated,
         "total_teams": teams_created + teams_updated,
         "youth_teams": youth_count,
+    }
+
+
+# ── Youth poule queue ────────────────────────────────────
+_AGE_RE = re.compile(r"[JM][OZ](1[1-8])-")
+
+
+def _is_target_age(short_name: str) -> bool:
+    return bool(_AGE_RE.search(short_name or ""))
+
+
+@router.get("/youth-queue")
+def get_youth_queue(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Unique poule_ids for Junioren O11-O18, with capture status."""
+    teams = session.exec(
+        select(HockeyTeam)
+        .where(HockeyTeam.category_group_name == "Junioren")
+        .where(col(HockeyTeam.recent_poule_id).is_not(None))
+        .order_by(col(HockeyTeam.short_name))
+    ).all()
+
+    seen: Dict[int, dict] = {}
+    for t in teams:
+        if not t.recent_poule_id or not _is_target_age(t.short_name):
+            continue
+        pid = t.recent_poule_id
+        if pid not in seen:
+            seen[pid] = {
+                "poule_id": pid,
+                "team_id": t.team_id,
+                "team_name": t.name,
+                "short_name": t.short_name,
+                "club_external_id": t.club_external_id,
+                "hockey_type": t.hockey_type,
+                "captured": False,
+                "imported": False,
+            }
+
+    if not seen:
+        return {"total": 0, "captured": 0, "imported": 0, "missing": 0, "poules": []}
+
+    # Check data_captures for captured poules
+    str_ids = [str(pid) for pid in seen]
+    rows = session.exec(
+        select(col(DataCapture.external_id))
+        .where(DataCapture.capture_type == "poule")
+        .where(col(DataCapture.external_id).in_(str_ids))
+    ).all()
+    captured_set = set(rows)
+
+    for pid, info in seen.items():
+        info["captured"] = str(pid) in captured_set
+
+    result = list(seen.values())
+    result.sort(key=lambda x: x["short_name"])
+    total = len(result)
+    n_captured = sum(1 for r in result if r["captured"])
+
+    return {
+        "total": total,
+        "captured": n_captured,
+        "imported": 0,          # filled in later when Tournix import is wired
+        "missing": total - n_captured,
+        "poules": result,
     }
 
 

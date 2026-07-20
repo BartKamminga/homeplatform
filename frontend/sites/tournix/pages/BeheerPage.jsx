@@ -8,11 +8,12 @@ import FasesTab              from '../beheer/FasesTab.jsx'
 import ClubsTab              from '../beheer/ClubsTab.jsx'
 import ImportTab             from '../beheer/ImportTab.jsx'
 import ArchiefTab            from '../beheer/ArchiefTab.jsx'
+import DiscoveryTab          from '../beheer/DiscoveryTab.jsx'
 import CreateTournamentPopup from '../beheer/CreateTournamentPopup.jsx'
 import { inputStyle, primaryBtn, ghostBtn } from '../beheer/styles.js'
 
 const TABS_TOURNAMENT = ['Toernooi', 'Fases', 'Teams', 'Velden', 'Wedstrijden']
-const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief']
+const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief', 'Discovery']
 
 export default function BeheerPage({ isAdmin, onStageChange }) {
   const [tab,        setTab]        = useState('Toernooi')
@@ -143,6 +144,7 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
       {tab === 'Clubs'       && <ClubsTab      clubs={clubs} onRefresh={loadClubs} />}
       {tab === 'Importeer'   && <ImportTab     onImported={loadAll} />}
       {tab === 'Archief'     && <ArchiefTab />}
+      {tab === 'Discovery'   && <DiscoveryTab />}
     </div>
   )
 }
