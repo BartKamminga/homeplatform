@@ -1,6 +1,7 @@
 """Tournix — hockey.nl import API (Datavanger endpoint)."""
 
 import re
+import string
 from datetime import datetime
 from typing import Optional
 
@@ -50,7 +51,7 @@ def _build(poule_map: dict, name: str) -> dict:
     return {"name": name, "date": date, "pools": pools, "matches": matches}
 
 def _parse_o16(entry: dict, root: dict) -> Optional[dict]:
-    LETTERS = list("ABCDEFGH")
+    LETTERS = set(string.ascii_uppercase)
     label = entry.get("label") or entry.get("competition") or "Hockey import"
     poule_map = {}
     for p in root.get("poules", []):
@@ -69,7 +70,7 @@ def _parse_o16(entry: dict, root: dict) -> Optional[dict]:
     return _build(poule_map, label) if poule_map else None
 
 def _parse_o14(entries: list) -> Optional[dict]:
-    LETTERS = list("ABCDEFGH")
+    LETTERS = set(string.ascii_uppercase)
     poule_map, comp_name = {}, None
     for entry in entries:
         if entry.get("type") == "competition":
