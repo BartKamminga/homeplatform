@@ -1,4 +1,4 @@
-// popup.js v10.1 — club auto-nav scan
+// popup.js v10.3 — club scan: volledige page reload per club zodat SPA API opnieuw aanroept
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -12,7 +12,7 @@ var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste 
 var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
 var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false };
 var _discQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
-var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
+var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -322,6 +322,10 @@ function startClubDiscovery() {
 function stopClubDiscovery() {
   clearInterval(_clubQueue.tickTimer);
   clearTimeout(_clubQueue.stepTimer);
+  if (_clubQueue.tabLoadedListener) {
+    chrome.tabs.onUpdated.removeListener(_clubQueue.tabLoadedListener);
+    _clubQueue.tabLoadedListener = null;
+  }
   _clubQueue.running = false;
   for (var i = _clubQueue.currentIdx; i < _clubQueue.items.length; i++) _clubQueue.items[i].state = 'pending';
   addLog('info', '🏒 Club scan gestopt na ' + _clubQueue.currentIdx + ' clubs');
@@ -344,11 +348,18 @@ function activateNextClubItem() {
   _clubQueue.countdownMs = it.delay;
   addLog('info', '🏒 → ' + it.label + ' (' + (_clubQueue.currentIdx + 1) + '/' + items.length + ')');
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
-  chrome.scripting.executeScript({
-    target: { tabId: _clubQueue.tabId },
-    func: function(hash) { window.location.hash = hash; },
-    args: [it.hash]
-  }, function() {
+
+  // Ruim vorige listener op
+  if (_clubQueue.tabLoadedListener) {
+    chrome.tabs.onUpdated.removeListener(_clubQueue.tabLoadedListener);
+    _clubQueue.tabLoadedListener = null;
+  }
+
+  // Registreer listener vóór reload — start countdown pas als pagina klaar is
+  var onTabLoaded = function(tabId, info) {
+    if (tabId !== _clubQueue.tabId || info.status !== 'complete') return;
+    chrome.tabs.onUpdated.removeListener(onTabLoaded);
+    _clubQueue.tabLoadedListener = null;
     var startTime = Date.now(), duration = it.delay;
     _clubQueue.tickTimer = setInterval(function() {
       _clubQueue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
@@ -361,6 +372,19 @@ function activateNextClubItem() {
       _clubQueue.currentIdx++;
       setTimeout(activateNextClubItem, 400);
     }, duration);
+  };
+  _clubQueue.tabLoadedListener = onTabLoaded;
+  chrome.tabs.onUpdated.addListener(onTabLoaded);
+
+  // Stel hash in, dan volledige reload — SPA mist de cache en doet verse API-aanroep
+  chrome.scripting.executeScript({
+    target: { tabId: _clubQueue.tabId },
+    func: function(hash) { window.location.hash = hash; },
+    args: ['/club/' + it.external_id + '/field-teams']
+  }, function() {
+    setTimeout(function() {
+      chrome.tabs.reload(_clubQueue.tabId);
+    }, 300);
   });
 }
 

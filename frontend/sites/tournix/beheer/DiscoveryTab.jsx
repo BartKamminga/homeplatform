@@ -25,6 +25,16 @@ function sortCats(cats) {
   })
 }
 
+const HT_LABEL = { VE: '🏑 Veldhockey', ZA: '🏒 Zaalhockey' }
+const HT_ORDER = ['VE', 'ZA']
+
+// Zaal-teams hebben 'z' als prefix in short_name (bijv. zMO14) of hockey_type='ZA'
+function resolveHockeyType(t) {
+  if (t.hockey_type === 'VE' || t.hockey_type === 'ZA') return t.hockey_type
+  if (t.short_name && t.short_name[0] === 'z') return 'ZA'
+  return 'VE'
+}
+
 export default function DiscoveryTab() {
   const [clubs,    setClubs]    = useState([])
   const [allTeams, setAllTeams] = useState([])
@@ -73,6 +83,8 @@ export default function DiscoveryTab() {
   }
 
   const youthCount   = allTeams.filter(t => t.category_group_name === 'Junioren').length
+  const veldCount    = allTeams.filter(t => resolveHockeyType(t) === 'VE').length
+  const zaalCount    = allTeams.filter(t => resolveHockeyType(t) === 'ZA').length
   const detailLoaded = clubs.filter(c => c.detail_loaded).length
   const noDetail     = clubs.length - detailLoaded
 
@@ -90,6 +102,8 @@ export default function DiscoveryTab() {
         <div style={statBox}><span style={statNum}>{clubs.length}</span><span style={statLbl}>clubs</span></div>
         <div style={statBox}><span style={statNum}>{detailLoaded}</span><span style={statLbl}>detail geladen</span></div>
         <div style={statBox}><span style={statNum}>{youthCount}</span><span style={statLbl}>jeugdteams</span></div>
+        <div style={statBox}><span style={statNum}>{veldCount}</span><span style={statLbl}>🏑 veld</span></div>
+        <div style={statBox}><span style={statNum}>{zaalCount}</span><span style={statLbl}>🏒 zaal</span></div>
         <div style={{ ...statBox, borderColor: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-border)' }}>
           <span style={{ ...statNum, color: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-text)' }}>
             {queue.captured}/{queue.total}
@@ -117,12 +131,16 @@ export default function DiscoveryTab() {
         const pVar    = tot === 0 ? 'muted' : cap === tot ? 'ok' : cap > 0 ? 'partial' : 'muted'
         const isOpen  = expanded.has(c.external_id)
 
-        const byCategory = {}
+        // Groepeer per hockey_type, dan per categorie
+        const byType = {}
         for (const t of teams) {
-          if (!byCategory[t.category_group_name]) byCategory[t.category_group_name] = []
-          byCategory[t.category_group_name].push(t)
+          const ht = resolveHockeyType(t)
+          if (!byType[ht]) byType[ht] = {}
+          if (!byType[ht][t.category_group_name]) byType[ht][t.category_group_name] = []
+          byType[ht][t.category_group_name].push(t)
         }
-        const cats = sortCats(Object.keys(byCategory))
+        const types = HT_ORDER.filter(ht => byType[ht])
+        const multiType = types.length > 1
 
         return (
           <div key={c.external_id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -132,7 +150,12 @@ export default function DiscoveryTab() {
               <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 80 }}>{c.friendly_name || c.name}</span>
               {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
               <span style={pill(c.detail_loaded ? 'ok' : 'muted')}>{c.detail_loaded ? '✓ detail' : '– geen detail'}</span>
-              {teams.length > 0 && <span style={pill('muted')}>{teams.length} teams</span>}
+              {teams.filter(t => resolveHockeyType(t) === 'VE').length > 0 && (
+                <span style={pill('muted')}>🏑 {teams.filter(t => resolveHockeyType(t) === 'VE').length}</span>
+              )}
+              {teams.filter(t => resolveHockeyType(t) === 'ZA').length > 0 && (
+                <span style={pill('muted')}>🏒 {teams.filter(t => resolveHockeyType(t) === 'ZA').length}</span>
+              )}
               {pStats && <span style={pill(pVar)}>{cap}/{tot} poules</span>}
             </div>
 
@@ -156,29 +179,42 @@ export default function DiscoveryTab() {
                   </div>
                 )}
 
-                {/* Teams per categorie */}
-                {cats.length > 0 ? cats.map(cat => {
-                  const catTeams = [...byCategory[cat]].sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                {/* Teams per hockey_type en categorie */}
+                {types.length > 0 ? types.map(ht => {
+                  const catMap = byType[ht]
+                  const cats = sortCats(Object.keys(catMap))
                   return (
-                    <div key={cat}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>
-                        {cat} <span style={{ fontWeight: 400 }}>({catTeams.length})</span>
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {catTeams.map(t => {
-                          const qp         = queueByTeamId[t.team_id]
-                          const hasCaptured = qp && qp.captured
-                          const hasPoule    = !!t.recent_poule_id
-                          const v           = hasCaptured ? 'ok' : hasPoule ? 'partial' : 'muted'
-                          return (
-                            <span key={t.team_id} style={pill(v)}
-                              title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule')}>
-                              {t.short_name}
-                              {hasPoule && <span style={{ opacity: 0.65 }}>{hasCaptured ? '✓' : '○'}</span>}
-                            </span>
-                          )
-                        })}
-                      </div>
+                    <div key={ht}>
+                      {multiType && (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
+                          {HT_LABEL[ht]}
+                        </div>
+                      )}
+                      {cats.map(cat => {
+                        const catTeams = [...catMap[cat]].sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                        return (
+                          <div key={cat} style={{ marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                              {cat} <span style={{ fontWeight: 400 }}>({catTeams.length})</span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {catTeams.map(t => {
+                                const qp          = queueByTeamId[t.team_id]
+                                const hasCaptured = qp && qp.captured
+                                const hasPoule    = !!t.recent_poule_id
+                                const v           = hasCaptured ? 'ok' : hasPoule ? 'partial' : 'muted'
+                                return (
+                                  <span key={t.team_id} style={pill(v)}
+                                    title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule')}>
+                                    {t.short_name}
+                                    {hasPoule && <span style={{ opacity: 0.65 }}>{hasCaptured ? '✓' : '○'}</span>}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 }) : (

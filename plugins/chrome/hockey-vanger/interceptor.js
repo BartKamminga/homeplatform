@@ -1,17 +1,19 @@
-// interceptor.js v7 — MAIN world
+// interceptor.js v8 — MAIN world
 // Intercepts fetch/XHR to app.hockeyweerelt.nl
 // Handles: poule teams, competitions, club list, club detail
 
 (function() {
-  const TARGET       = 'app.hockeyweerelt.nl';
-  const STORE_KEY    = '__hw_poules';
-  const LOG_KEY      = '__hw_log';
-  const CLUBS_KEY    = '__hw_clubs';
-  const DETAILS_KEY  = '__hw_club_details';
-  const POULE_RE     = /\/poules\/(\d+)\/teams\/(\d+)/;
-  const COMP_RE      = /\/competitions\/national\/(\d+)/;
+  const TARGET         = 'app.hockeyweerelt.nl';
+  const STORE_KEY      = '__hw_poules';
+  const LOG_KEY        = '__hw_log';
+  const CLUBS_KEY      = '__hw_clubs';
+  const DETAILS_KEY    = '__hw_club_details';
+  const POULE_RE       = /\/poules\/(\d+)\/teams\/(\d+)/;
+  const COMP_RE        = /\/competitions\/national\/(\d+)/;
+  // /clubs/HH11AR3 — club-id uit URL, ongeacht body-veldnamen
+  const CLUB_DETAIL_RE = /\/clubs\/([A-Za-z0-9]+)(?:\/|$)/;
 
-  console.log('[HDV] 🏑 v7 interceptor laden... target:', TARGET);
+  console.log('[HDV] 🏑 v8 interceptor laden... target:', TARGET);
 
   function writeLog(type, msg, detail) {
     try {
@@ -66,12 +68,27 @@
         return resp;
       }
 
-      // Shape detection: club list or club detail
+      // URL-patroon club detail — body mist soms federation_reference_id in SPA
+      const cdMatch = url.match(CLUB_DETAIL_RE);
+      if (cdMatch) {
+        try {
+          const clone = resp.clone();
+          const body = await clone.json();
+          // Accepteer ook clubs zonder teams-veld (lege clubs)
+          if (body && body.data && !Array.isArray(body.data)) {
+            if (!body.data.federation_reference_id) body.data.federation_reference_id = cdMatch[1];
+            if (!Array.isArray(body.data.teams)) body.data.teams = [];
+            saveClubDetail(url, body.data);
+          }
+        } catch(e) { writeLog('err', 'Club detail parse: ' + e.message); }
+        return resp;
+      }
+
+      // Shape detection: club list
       try {
         const clone = resp.clone();
         const body = await clone.json();
         if (isClubList(body)) { saveClubs(url, body.data); }
-        else if (isClubDetail(body)) { saveClubDetail(url, body.data); }
       } catch(e) { /* not JSON or irrelevant shape */ }
     }
     return resp;
@@ -97,11 +114,22 @@
           catch(e) { writeLog('err', 'XHR parse fout: ' + e.message); }
           return;
         }
-        // Shape detect for XHR too
+        const cdMatchXhr = url.match(CLUB_DETAIL_RE);
+        if (cdMatchXhr) {
+          try {
+            const body = JSON.parse(this.responseText);
+            if (body && body.data && !Array.isArray(body.data)) {
+              if (!body.data.federation_reference_id) body.data.federation_reference_id = cdMatchXhr[1];
+              if (!Array.isArray(body.data.teams)) body.data.teams = [];
+              saveClubDetail(url, body.data);
+            }
+          } catch(e) { writeLog('err', 'XHR club parse: ' + e.message); }
+          return;
+        }
+        // Shape detect: club list
         try {
           const body = JSON.parse(this.responseText);
           if (isClubList(body)) saveClubs(url, body.data);
-          else if (isClubDetail(body)) saveClubDetail(url, body.data);
         } catch(e) {}
       });
     }
@@ -175,13 +203,12 @@
   }
 
   // ── Save club detail ─────────────────────────────────────
+  // Bewaar altijd maar één entry — pushClubDetailFromPage() leest alleen de laatste
   function saveClubDetail(url, clubData) {
     try {
-      let details = {};
-      try { details = JSON.parse(localStorage.getItem(DETAILS_KEY) || '{}'); } catch(e) {}
       const extId = clubData.federation_reference_id;
-      details[extId] = { ts: Date.now(), url: url, data: clubData };
-      localStorage.setItem(DETAILS_KEY, JSON.stringify(details));
+      const entry = { [extId]: { ts: Date.now(), url: url, data: clubData } };
+      localStorage.setItem(DETAILS_KEY, JSON.stringify(entry));
       window.dispatchEvent(new CustomEvent('__hw_club_detail_captured'));
       const teams = clubData.teams || [];
       const youth = teams.filter(t => t.category_group_name === 'Junioren');
@@ -204,5 +231,5 @@
   window.__hwList   = () => Object.entries(window.__hwGet()).map(([id, e]) =>
     `${id}: ${e.poule_name} · ${e.competition} · ${e.class_name} (${e.team_name})`).join('\n');
 
-  writeLog('info', '🏑 v7 actief op ' + location.hostname + ' · target: ' + TARGET);
+  writeLog('info', '🏑 v8 actief op ' + location.hostname + ' · target: ' + TARGET);
 })();
