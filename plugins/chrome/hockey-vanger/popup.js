@@ -744,8 +744,17 @@ function renderAnalysePane() {
   var pane = $('analysePane');
   if (!pane) return;
 
-  if (!CONFIG_LOADED || !CONFIG.length) {
-    pane.innerHTML = '<div class="empty">Config niet geladen — klik Vernieuwen</div>';
+  if (!HP.url || !HP.key) {
+    pane.innerHTML = '<div class="empty">HomePlatform niet geconfigureerd — zie ⚙️ Instellingen</div>';
+    return;
+  }
+  if (!CONFIG_LOADED) {
+    pane.innerHTML = '<div class="empty">Config laden…</div>';
+    loadConfig();
+    return;
+  }
+  if (!CONFIG.length) {
+    pane.innerHTML = '<div class="empty">Geen capture-config gevonden.<br><small style="color:#444">Stel capture_type in op de fasen in Tournix Beheer.</small></div>';
     return;
   }
 
@@ -846,7 +855,9 @@ document.addEventListener('DOMContentLoaded', function() {
           renderCapturePane();
         }
       }
-      if (tab === 'analyse') renderAnalysePane();
+      if (tab === 'analyse') {
+        renderAnalysePane(); // toont "laden…" als config nog niet klaar is, en triggert loadConfig()
+      }
     });
   });
   $('bRefresh').addEventListener('click', function() { load(); loadConfig(); loadCoverage(); loadSuggestions(); });
