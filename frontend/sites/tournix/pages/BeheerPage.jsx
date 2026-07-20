@@ -12,7 +12,8 @@ import CoverageTab           from '../beheer/CoverageTab.jsx'
 import CreateTournamentPopup from '../beheer/CreateTournamentPopup.jsx'
 import { inputStyle, primaryBtn, ghostBtn } from '../beheer/styles.js'
 
-const TABS = ['Toernooi', 'Fases', 'Teams', 'Velden', 'Wedstrijden', 'Clubs', 'Importeer', 'Archief', 'Coverage']
+const TABS_TOURNAMENT = ['Toernooi', 'Fases', 'Teams', 'Velden', 'Wedstrijden']
+const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief', 'Coverage']
 
 export default function BeheerPage({ isAdmin, onStageChange }) {
   const [tab,        setTab]        = useState('Toernooi')
@@ -99,16 +100,31 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
       )}
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '6px 14px', fontSize: 12, fontWeight: tab === t ? 600 : 400,
-            borderRadius: 20, fontFamily: 'inherit', cursor: 'pointer',
-            border: `1px solid ${tab === t ? 'var(--color-primary)' : 'var(--color-border)'}`,
-            background: tab === t ? 'var(--color-primary)' : 'var(--color-surface)',
-            color: tab === t ? '#fff' : 'var(--color-text)',
-          }}>{t}</button>
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2, whiteSpace: 'nowrap' }}>Toernooi</span>
+          {TABS_TOURNAMENT.map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: tab === t ? 600 : 400,
+              borderRadius: 20, fontFamily: 'inherit', cursor: 'pointer',
+              border: `1px solid ${tab === t ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              background: tab === t ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: tab === t ? '#fff' : 'var(--color-text)',
+            }}>{t}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2, whiteSpace: 'nowrap' }}>Algemeen</span>
+          {TABS_GLOBAL.map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: tab === t ? 600 : 400,
+              borderRadius: 20, fontFamily: 'inherit', cursor: 'pointer',
+              border: `1px solid ${tab === t ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              background: tab === t ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: tab === t ? '#fff' : 'var(--color-text)',
+            }}>{t}</button>
+          ))}
+        </div>
       </div>
 
       {tab === 'Toernooi'    && <TournamentTab active={active} clubs={clubs} onRefresh={loadAll} onSelect={setTid} />}

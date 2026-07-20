@@ -45,7 +45,8 @@ function SessionRow({ s, onSelect, selected }) {
 }
 
 function ItemDetail({ item }) {
-  const [open, setOpen] = useState(false)
+  const [open,    setOpen]    = useState(false)
+  const [rawOpen, setRawOpen] = useState(false)
   const m = item.meta
 
   // Parse standings and matches from payload
@@ -154,9 +155,29 @@ function ItemDetail({ item }) {
             </div>
           )}
 
-          <div style={{ padding: '6px 12px 8px', fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace', borderTop: '1px solid var(--color-border)' }}>
-            id: {item.external_id} · vastgelegd {fmt(item.captured_at)}
+          <div style={{ borderTop: '1px solid var(--color-border)', padding: '6px 12px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace', flex: 1 }}>
+              id: {item.external_id} · vastgelegd {fmt(item.captured_at)}
+            </span>
+            {item.payload && (
+              <button
+                onClick={e => { e.stopPropagation(); setRawOpen(o => !o) }}
+                style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
+                  border: '1px solid var(--color-border)', background: rawOpen ? 'var(--color-surface-2)' : 'transparent',
+                  color: rawOpen ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+              >
+                {rawOpen ? '▲ raw' : '▶ raw'}
+              </button>
+            )}
           </div>
+          {rawOpen && item.payload && (
+            <div style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-2)' }}>
+              <pre style={{ margin: 0, padding: '10px 12px', fontSize: 10, fontFamily: 'monospace', lineHeight: 1.5,
+                color: 'var(--color-text-muted)', overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
+                {JSON.stringify(item.payload, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>

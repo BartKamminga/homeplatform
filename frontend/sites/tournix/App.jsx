@@ -56,8 +56,8 @@ export default function App() {
         <span style={{ fontSize: 20 }}>🏆</span>
         <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.3px' }}>Tournix</span>
 
-        {/* Toernooikiezer — productie + actief */}
-        {publicList.length > 0 && (
+        {/* Toernooikiezer — productie + actief; verborgen in Beheer (heeft eigen selector) */}
+        {publicList.length > 0 && tab !== 'beheer' && (
           <select
             value={tournament?.id ?? ''}
             onChange={e => setTournament(publicList.find(t => t.id === e.target.value) ?? null)}

@@ -1072,7 +1072,12 @@ function startCapture() {
             var e = store[pid];
             if (e) {
               if (e.timestamp) timestamps[pid] = e.timestamp;
-              compInfo[pid] = { competition: e.competition || '', class_name: e.class_name || '' };
+              compInfo[pid] = {
+                competition: e.competition || '',
+                class_name:  e.class_name  || '',
+                poule_name:  e.poule_name  || '',
+                team_name:   e.team_name   || '',
+              };
             }
           });
         } catch(e) {}
@@ -1099,7 +1104,8 @@ function startCapture() {
           var freshness = ts ? (now - ts < STALE_MS ? 'fresh' : 'stale') : 'missing';
           var ci = pid && compInfo[pid] ? compInfo[pid] : null;
           var competition = ci ? ((ci.competition || '') + (ci.class_name ? ' · ' + ci.class_name : '')) : null;
-          return { href: it.href, label: it.label || it.href, state: 'pending', delay: randDelay(),
+          var enrichedLabel = (ci && ci.poule_name) ? ci.poule_name : (ci && ci.team_name) ? ci.team_name : (it.label || it.href);
+          return { href: it.href, label: enrichedLabel, navLabel: it.label || it.href, state: 'pending', delay: randDelay(),
                    pouleId: pid, capturedAt: ts, freshness: freshness, competition: competition || null };
         }),
         currentIdx: 0, countdownMs: 0,
