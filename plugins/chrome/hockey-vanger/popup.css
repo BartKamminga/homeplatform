@@ -197,3 +197,12 @@ button{padding:7px 11px;border:none;border-radius:6px;font-size:11px;font-weight
 .an-disc-active{font-size:10px;color:#60a5fa;padding:4px 0 2px;font-style:italic}
 .an-disc-import{background:#1e2a42;border:1px solid #2a3d5e;color:#60a5fa;font-size:11px;font-weight:700;border-radius:4px;padding:3px 10px;cursor:pointer}
 .an-disc-import:hover{background:#243350}
+.an-club-list{max-height:150px;overflow-y:auto;margin-top:6px;border:1px solid #222;border-radius:6px;display:flex;flex-direction:column;gap:0}
+.an-club-item{display:flex;align-items:center;gap:6px;padding:3px 8px;font-size:11px;border-bottom:1px solid #1a1d24}
+.an-club-item:last-child{border-bottom:none}
+.an-club-item-active{background:#1e2a42}
+.an-club-dot{font-size:8px;flex-shrink:0;line-height:1}
+.an-club-dot-ok{color:#4ade80}
+.an-club-dot-miss{color:#444}
+.an-club-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c0bdb8}
+.an-club-empty{padding:8px;font-size:11px;color:#555;text-align:center}

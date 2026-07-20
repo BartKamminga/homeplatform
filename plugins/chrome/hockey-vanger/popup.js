@@ -1,4 +1,4 @@
-// popup.js v10.0 — poule discovery queue (350)
+// popup.js v10.1 — club auto-nav scan
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -12,6 +12,7 @@ var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste 
 var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
 var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false };
 var _discQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
+var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -97,6 +98,7 @@ function loadDiscoveryClubs() {
       if (!res) return;
       DISCOVERY.total = res.total || 0;
       DISCOVERY.detailLoaded = res.detail_loaded || 0;
+      DISCOVERY.clubs = res.clubs || [];
       DISCOVERY.loaded = true;
       if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
     })
@@ -292,6 +294,76 @@ function renderDiscoveryQueueMetasOnly() {
   if (activeEl) activeEl.textContent = fmtMs(_discQueue.countdownMs);
 }
 
+// ── Club auto-nav scan ───────────────────────────────────
+function startClubDiscovery() {
+  if (_clubQueue.running) return;
+  if (!DISCOVERY.clubs.length) { toast('⚠️ Clubs nog niet geladen — vernieuw eerst'); return; }
+  var pending = DISCOVERY.clubs.filter(function(c) { return !c.detail_loaded; });
+  if (!pending.length) { toast('✅ Alle clubs al geladen!'); return; }
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar www.hockey.nl'); return; }
+    var items = pending.map(function(c) {
+      return {
+        hash: '/club/' + c.external_id + '/field-teams',
+        label: c.friendly_name || c.name,
+        external_id: c.external_id,
+        state: 'pending',
+        delay: randDelay(),
+      };
+    });
+    _clubQueue = { running: true, items: items, currentIdx: 0, countdownMs: 0, tabId: tab.id, tickTimer: null, stepTimer: null };
+    addLog('info', '🏒 Club scan: ' + items.length + ' clubs te laden');
+    activateNextClubItem();
+    if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+  });
+}
+
+function stopClubDiscovery() {
+  clearInterval(_clubQueue.tickTimer);
+  clearTimeout(_clubQueue.stepTimer);
+  _clubQueue.running = false;
+  for (var i = _clubQueue.currentIdx; i < _clubQueue.items.length; i++) _clubQueue.items[i].state = 'pending';
+  addLog('info', '🏒 Club scan gestopt na ' + _clubQueue.currentIdx + ' clubs');
+  if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+}
+
+function activateNextClubItem() {
+  var items = _clubQueue.items;
+  if (_clubQueue.currentIdx >= items.length) {
+    _clubQueue.running = false;
+    addLog('ok', '🏒 Club scan klaar — ' + items.length + ' clubs gelopen');
+    toast('✅ Club scan klaar!');
+    DISCOVERY.loaded = false;
+    loadDiscoveryClubs();
+    if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+    return;
+  }
+  var it = items[_clubQueue.currentIdx];
+  it.state = 'active';
+  _clubQueue.countdownMs = it.delay;
+  addLog('info', '🏒 → ' + it.label + ' (' + (_clubQueue.currentIdx + 1) + '/' + items.length + ')');
+  if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+  chrome.scripting.executeScript({
+    target: { tabId: _clubQueue.tabId },
+    func: function(hash) { window.location.hash = hash; },
+    args: [it.hash]
+  }, function() {
+    var startTime = Date.now(), duration = it.delay;
+    _clubQueue.tickTimer = setInterval(function() {
+      _clubQueue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
+      var el = $('clubQueueActive');
+      if (el) el.textContent = fmtMs(_clubQueue.countdownMs);
+    }, 120);
+    _clubQueue.stepTimer = setTimeout(function() {
+      clearInterval(_clubQueue.tickTimer);
+      it.state = 'done';
+      _clubQueue.currentIdx++;
+      setTimeout(activateNextClubItem, 400);
+    }, duration);
+  });
+}
+
 function importDiscoveredPoules() {
   if (!HP.url || !HP.key) { toast('❌ HomePlatform niet geconfigureerd'); return; }
   var groups = {};
@@ -401,6 +473,7 @@ function pushClubDetailFromPage() {
             addLog('ok', '🏒 ' + (clubData.friendly_name || clubData.name) +
               ' · +' + res.teams_created + ' teams · ' + res.teams_updated + ' bijgewerkt (' + res.youth_teams + ' jeugd)');
             loadDiscoveryClubs();
+            loadYouthQueue();
           })
           .catch(function(e) { addLog('err', '❌ club-detail push: ' + e.message); });
       });
@@ -1074,15 +1147,8 @@ function renderAnalysePane() {
     pane.innerHTML = '<div class="empty">HomePlatform niet geconfigureerd — zie ⚙️ Instellingen</div>';
     return;
   }
-  if (!CONFIG_LOADED) {
-    pane.innerHTML = '<div class="empty">Config laden…</div>';
-    loadConfig();
-    return;
-  }
-  if (!CONFIG.length) {
-    pane.innerHTML = '<div class="empty">Geen capture-config gevonden.<br><small style="color:#444">Stel capture_type in op de fasen in Tournix Beheer.</small></div>';
-    return;
-  }
+  // CONFIG is optional — club discovery renders regardless
+  if (!CONFIG_LOADED) loadConfig();
 
   // Welke poule-ids zijn gevangen (in D, gekeyed door poule_id)
   var capturedIds = {};
@@ -1126,6 +1192,33 @@ function renderAnalysePane() {
     ? (YOUTH_QUEUE.captured + '/' + YOUTH_QUEUE.total + ' gevangen · ' + YOUTH_QUEUE.missing + ' nodig')
     : 'laden…';
 
+  // ── Club queue ──────────────────────────────────────────
+  var clubQueueRunning = _clubQueue.running;
+  var clubQueueDone = 0;
+  for (var cqi = 0; cqi < _clubQueue.items.length; cqi++) { if (_clubQueue.items[cqi].state === 'done') clubQueueDone++; }
+  var clubQueueBtn = clubQueueRunning
+    ? '<button class="an-disc-stop" id="anClubStop">⏹ Stop</button><span class="an-disc-count" id="clubQueueCount">' + clubQueueDone + ' / ' + _clubQueue.items.length + '</span>'
+    : '<button class="an-disc-start" id="anClubStart"' + (!DISCOVERY.clubs.length || DISCOVERY.detailLoaded === DISCOVERY.total ? ' disabled' : '') + '>▶ Start club scan</button>';
+  var clubActiveLabel = clubQueueRunning && _clubQueue.items[_clubQueue.currentIdx]
+    ? '<div class="an-disc-active">→ ' + escHtml(_clubQueue.items[_clubQueue.currentIdx].label) +
+      ' <span id="clubQueueActive">' + fmtMs(_clubQueue.countdownMs) + '</span></div>'
+    : '';
+  var clubListHtml = '';
+  if (!DISCOVERY.clubs.length) {
+    clubListHtml = '<div class="an-club-empty">Geen clubs — klik ↻ om te laden</div>';
+  } else {
+    for (var cli = 0; cli < DISCOVERY.clubs.length; cli++) {
+      var cl = DISCOVERY.clubs[cli];
+      var isActiveClub = clubQueueRunning && _clubQueue.items[_clubQueue.currentIdx] && _clubQueue.items[_clubQueue.currentIdx].external_id === cl.external_id;
+      var dotCls = cl.detail_loaded ? 'an-club-dot-ok' : 'an-club-dot-miss';
+      var dotChar = cl.detail_loaded ? '●' : '○';
+      clubListHtml += '<div class="an-club-item' + (isActiveClub ? ' an-club-item-active' : '') + '">' +
+        '<span class="an-club-dot ' + dotCls + '">' + dotChar + '</span>' +
+        '<span class="an-club-name">' + escHtml(cl.friendly_name || cl.name) + '</span>' +
+        '</div>';
+    }
+  }
+
   var discQueueRunning = _discQueue.running;
   var discQueueDone = 0;
   for (var dqi = 0; dqi < _discQueue.items.length; dqi++) { if (_discQueue.items[dqi].state === 'done') discQueueDone++; }
@@ -1147,10 +1240,9 @@ function renderAnalysePane() {
       '<span class="an-badge ' + discBadgeCls + '">' + discBadge + '</span>' +
       '<button class="an-disc-refresh" id="anRefreshClubs">↻</button>' +
     '</div>' +
-    '<div class="an-disc-hint">' +
-      'Surf naar <strong>app.hockeyweerelt.nl</strong> om clubs &amp; teams te vangen. ' +
-      'Jeugdteams: O11–O18 via <em>Junioren</em>-categorie.' +
-    '</div>' +
+    '<div class="an-disc-btns">' + clubQueueBtn + '</div>' +
+    clubActiveLabel +
+    '<div class="an-club-list">' + clubListHtml + '</div>' +
   '</div>' +
   '<div class="an-discovery">' +
     '<div class="an-disc-hdr">' +
@@ -1241,6 +1333,11 @@ function renderAnalysePane() {
 
   var discImportBtn = $('anImportPoules');
   if (discImportBtn) discImportBtn.addEventListener('click', importDiscoveredPoules);
+
+  var clubStartBtn = $('anClubStart');
+  if (clubStartBtn) clubStartBtn.addEventListener('click', startClubDiscovery);
+  var clubStopBtn = $('anClubStop');
+  if (clubStopBtn) clubStopBtn.addEventListener('click', stopClubDiscovery);
 }
 
 // ══════════════════════════════════════
