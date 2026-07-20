@@ -180,3 +180,11 @@ button{padding:7px 11px;border:none;border-radius:6px;font-size:11px;font-weight
 .an-lbl-miss{color:#383c46;flex:1}
 .an-state{font-size:9px;color:#555;flex-shrink:0}
 .an-state-miss{color:#2a2d35}
+
+/* Discovery section */
+.an-discovery{background:#131720;border:1px solid #1e2540;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.an-disc-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.an-disc-title{font-size:12px;font-weight:700;color:#c9d1e0;flex:1}
+.an-disc-refresh{background:#1e2a42;border:1px solid #2a3d5e;color:#60a5fa;font-size:11px;font-weight:700;border-radius:4px;padding:2px 8px;cursor:pointer;flex-shrink:0}
+.an-disc-refresh:hover{background:#243350}
+.an-disc-hint{font-size:10px;color:#444;line-height:1.5}

@@ -1,4 +1,4 @@
-// popup.js v9.8 — real-time log (329), missing nav poules (324)
+// popup.js v9.9 — club discovery (347)
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -9,6 +9,7 @@ var CONFIG_LOADED = false;
 var SUGGESTIONS = {};     // comp-groepnaam → {tournament_id, phase_id, tournament_name, phase_name, score, matched}
 var SUGGESTIONS_LOADED = false;
 var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste archivering
+var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -80,8 +81,117 @@ function loadSettings() {
     renderSettings();
     loadConfig();
     loadCoverage();
+    loadDiscoveryClubs();
   });
 }
+function loadDiscoveryClubs() {
+  if (!HP.url || !HP.key) return;
+  fetch(HP.url + '/api/tournix/discovery/clubs', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (!res) return;
+      DISCOVERY.total = res.total || 0;
+      DISCOVERY.detailLoaded = res.detail_loaded || 0;
+      DISCOVERY.loaded = true;
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+    })
+    .catch(function(e) { addLog('err', '[BE] discovery clubs: ' + e.message); });
+  // Also get team counts
+  fetch(HP.url + '/api/tournix/discovery/teams?category=Junioren', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(res) {
+      if (!res) return;
+      DISCOVERY.youthTeams = res.total || 0;
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+    })
+    .catch(function() {});
+}
+
+function pushClubsFromPage() {
+  if (!HP.url || !HP.key) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab) return;
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function() {
+        try { return localStorage.getItem('__hw_clubs'); } catch(e) { return null; }
+      }
+    }, function(results) {
+      var raw = results && results[0] && results[0].result;
+      if (!raw) return;
+      var stored;
+      try { stored = JSON.parse(raw); } catch(e) { return; }
+      var clubs = stored.clubs || [];
+      if (!clubs.length) return;
+      getOrCreateSessionId(function(sid) {
+        fetch(HP.url + '/api/tournix/discovery/clubs', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clubs: clubs, session_id: sid })
+        })
+        .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(res) {
+            if (!res) return;
+            addLog('ok', '🏒 Clubs: +' + res.created + ' nieuw · ' + res.updated + ' bijgewerkt (' + res.total + ' totaal)');
+            DISCOVERY.total = res.total;
+            if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+          })
+          .catch(function(e) { addLog('err', '❌ clubs push: ' + e.message); });
+      });
+    });
+  });
+}
+
+function pushClubDetailFromPage() {
+  if (!HP.url || !HP.key) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab) return;
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function() {
+        try {
+          var raw = localStorage.getItem('__hw_club_details');
+          if (!raw) return null;
+          var details = JSON.parse(raw);
+          var keys = Object.keys(details);
+          if (!keys.length) return null;
+          // Return the most recently captured detail
+          var latest = null, latestTs = 0;
+          for (var i = 0; i < keys.length; i++) {
+            var d = details[keys[i]];
+            if (d.ts > latestTs) { latestTs = d.ts; latest = d.data; }
+          }
+          return latest;
+        } catch(e) { return null; }
+      }
+    }, function(results) {
+      var clubData = results && results[0] && results[0].result;
+      if (!clubData) return;
+      getOrCreateSessionId(function(sid) {
+        fetch(HP.url + '/api/tournix/discovery/club-detail', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({}, clubData, { session_id: sid }))
+        })
+        .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(res) {
+            if (!res) return;
+            addLog('ok', '🏒 ' + (clubData.friendly_name || clubData.name) +
+              ' · +' + res.teams_created + ' teams · ' + res.teams_updated + ' bijgewerkt (' + res.youth_teams + ' jeugd)');
+            loadDiscoveryClubs();
+          })
+          .catch(function(e) { addLog('err', '❌ club-detail push: ' + e.message); });
+      });
+    });
+  });
+}
+
 function loadConfig() {
   if (!HP.url || !HP.key) return;
   fetch(HP.url + '/api/tournix/import/config?season=2026-2027', {
@@ -782,7 +892,28 @@ function renderAnalysePane() {
     tournMap[tn].push(cfg);
   }
 
-  var html = '';
+  // ── Discovery section ──────────────────────────────────
+  if (!DISCOVERY.loaded) loadDiscoveryClubs();
+  var discBadgeCls = DISCOVERY.loaded
+    ? (DISCOVERY.detailLoaded === DISCOVERY.total ? 'an-badge-ok' : 'an-badge-partial')
+    : 'an-badge-empty';
+  var discBadge = DISCOVERY.loaded
+    ? (DISCOVERY.total + ' clubs · ' + DISCOVERY.detailLoaded + ' details · ' + DISCOVERY.youthTeams + ' jeugd')
+    : 'laden…';
+
+  var html = '<div class="an-discovery">' +
+    '<div class="an-disc-hdr">' +
+      '<span class="an-disc-title">🏒 Club Discovery</span>' +
+      '<span class="an-badge ' + discBadgeCls + '">' + discBadge + '</span>' +
+      '<button class="an-disc-refresh" id="anRefreshClubs">↻</button>' +
+    '</div>' +
+    '<div class="an-disc-hint">' +
+      'Surf naar <strong>app.hockeyweerelt.nl</strong> om clubs &amp; teams te vangen. ' +
+      'Per club wordt de detail-pagina automatisch naar de backend gepusht. ' +
+      'Jeugdteams: O11–O18 via <em>Junioren</em>-categorie.' +
+    '</div>' +
+  '</div>';
+
   if (!navLoaded) {
     html += '<div class="an-notice">Nav niet geladen — open Capture tab voor nav-status</div>';
   }
@@ -838,6 +969,13 @@ function renderAnalysePane() {
   }
 
   pane.innerHTML = html || '<div class="empty">Geen toernooiconfiguratie gevonden</div>';
+
+  var refBtn = $('anRefreshClubs');
+  if (refBtn) refBtn.addEventListener('click', function() {
+    DISCOVERY.loaded = false;
+    loadDiscoveryClubs();
+    renderAnalysePane();
+  });
 }
 
 // ══════════════════════════════════════
@@ -873,6 +1011,10 @@ document.addEventListener('DOMContentLoaded', function() {
       _autoRefreshTimer = setTimeout(function() { load(); }, 600);
     } else if (msg.type === 'hw_log_updated') {
       if (!$('logPane').classList.contains('hidden')) refreshLogOnly();
+    } else if (msg.type === 'hw_clubs_captured') {
+      pushClubsFromPage();
+    } else if (msg.type === 'hw_club_detail_captured') {
+      pushClubDetailFromPage();
     }
   });
 });

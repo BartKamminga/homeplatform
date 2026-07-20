@@ -47,6 +47,7 @@ from routers import roadmap  # noqa: E402
 from routers import downloader  # noqa: E402
 from routers import app_settings  # noqa: E402
 from routers import capture  # noqa: E402
+from routers import hockey_discovery  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
 
@@ -152,6 +153,7 @@ app.include_router(roadmap.router)
 app.include_router(downloader.router)
 app.include_router(app_settings.router)
 app.include_router(capture.router)
+app.include_router(hockey_discovery.router)
 
 
 @app.get("/")
