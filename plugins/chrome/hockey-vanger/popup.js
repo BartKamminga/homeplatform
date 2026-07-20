@@ -165,16 +165,10 @@ function loadSuggestions() {
 }
 
 function getOrCreateSessionId(cb) {
-  if (SESSION_ID) { cb(SESSION_ID); return; }
-  chrome.storage.local.get(['hw_session_id'], function(r) {
-    var sid = r.hw_session_id;
-    if (!sid) {
-      sid = 'hwv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
-      chrome.storage.local.set({ hw_session_id: sid });
-    }
-    SESSION_ID = sid;
-    cb(sid);
-  });
+  if (!SESSION_ID) {
+    SESSION_ID = 'hwv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+  }
+  cb(SESSION_ID);
 }
 
 function archiveCaptures() {
@@ -300,11 +294,26 @@ function escHtml(s) {
 // ══════════════════════════════════════
 // LOG
 // ══════════════════════════════════════
+function clearLog() {
+  LOG = [];
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (tab && tab.url && tab.url.indexOf('hockey.nl') !== -1) {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: function() { try { localStorage.removeItem('__hw_log'); } catch(e) {} }
+      });
+    }
+    renderLog();
+  });
+}
 function renderLog() {
   var pane = $('logPane');
   if (!pane) return;
   if (LOG.length === 0) { pane.innerHTML = '<div class="empty">Nog geen activiteit</div>'; return; }
-  var html = LOG.map(function(l, idx) {
+  var topbar = '<div class="log-topbar"><span class="log-ct">' + LOG.length + ' entries</span>' +
+    '<button class="log-clear-btn" id="logClearBtn">🗑️ Leegmaken</button></div>';
+  var html = topbar + LOG.map(function(l, idx) {
     var cls = l.type === 'ok' ? 'log-ok' : l.type === 'err' ? 'log-err' : 'log-info';
     var detail = '';
     if (l.detail) {
@@ -319,6 +328,8 @@ function renderLog() {
     return '<div class="log-entry">' + toggle + '<span class="log-time">' + l.time + '</span> <span class="' + cls + '">' + escHtml(l.msg) + '</span>' + detail + '</div>';
   }).join('');
   pane.innerHTML = html;
+  var clrBtn = $('logClearBtn');
+  if (clrBtn) clrBtn.addEventListener('click', clearLog);
   pane.querySelectorAll('.log-expand').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var det = $('ld' + btn.getAttribute('data-idx'));

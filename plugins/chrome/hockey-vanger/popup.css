@@ -145,6 +145,10 @@ button{padding:7px 11px;border:none;border-radius:6px;font-size:11px;font-weight
 .qi-missing-nav .qi-meta{color:#2a2d35;font-style:italic;font-size:10px}
 
 /* Log */
+.log-topbar{display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:1px solid #1e2028;margin-bottom:4px}
+.log-ct{font-size:10px;color:#555}
+.log-clear-btn{background:none;border:1px solid #2a2d35;color:#555;font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;transition:color .12s,border-color .12s}
+.log-clear-btn:hover{border-color:#f87171;color:#f87171}
 .log-entry{padding:6px 0;border-bottom:1px solid #1e2028;font-size:11px}
 .log-entry:last-child{border-bottom:none}
 .log-time{color:#555;font-family:monospace;font-size:10px}

@@ -8,12 +8,11 @@ import FasesTab              from '../beheer/FasesTab.jsx'
 import ClubsTab              from '../beheer/ClubsTab.jsx'
 import ImportTab             from '../beheer/ImportTab.jsx'
 import ArchiefTab            from '../beheer/ArchiefTab.jsx'
-import CoverageTab           from '../beheer/CoverageTab.jsx'
 import CreateTournamentPopup from '../beheer/CreateTournamentPopup.jsx'
 import { inputStyle, primaryBtn, ghostBtn } from '../beheer/styles.js'
 
 const TABS_TOURNAMENT = ['Toernooi', 'Fases', 'Teams', 'Velden', 'Wedstrijden']
-const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief', 'Coverage']
+const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief']
 
 export default function BeheerPage({ isAdmin, onStageChange }) {
   const [tab,        setTab]        = useState('Toernooi')
@@ -39,7 +38,11 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
     const l = await getTournaments().catch(() => [])
     setList(l)
     if (!tid) {
-      const act = l.find(t => t.status === 'active') ?? l[0] ?? null
+      const stored = localStorage.getItem('tournix_beheer_tid')
+      const act = (stored ? l.find(t => String(t.id) === stored) : null)
+        ?? l.find(t => t.status === 'active')
+        ?? l[0]
+        ?? null
       if (act) setTid(act.id)
     }
     if (onStageChange) onStageChange()
@@ -70,7 +73,12 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
 
       {/* Toernooikiezer */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <select value={tid ?? ''} onChange={e => setTid(e.target.value || null)}
+        <select value={tid ?? ''} onChange={e => {
+          const val = e.target.value || null
+          if (val) localStorage.setItem('tournix_beheer_tid', val)
+          else localStorage.removeItem('tournix_beheer_tid')
+          setTid(val)
+        }}
           style={{ ...inputStyle, flex: 1, fontWeight: 600 }}>
           {list.length === 0 && <option value="">Geen toernooien</option>}
           {list.map(t => {
@@ -135,7 +143,6 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
       {tab === 'Clubs'       && <ClubsTab      clubs={clubs} onRefresh={loadClubs} />}
       {tab === 'Importeer'   && <ImportTab     onImported={loadAll} />}
       {tab === 'Archief'     && <ArchiefTab />}
-      {tab === 'Coverage'    && <CoverageTab tid={tid} />}
     </div>
   )
 }
