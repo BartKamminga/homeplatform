@@ -17,9 +17,10 @@
       const entry = { ts: Date.now(), type: type, msg: msg };
       if (detail) entry.detail = detail;
       log.unshift(entry);
-      if (log.length > 100) log.length = 100;
+      if (log.length > 200) log.length = 200;
       localStorage.setItem(LOG_KEY, JSON.stringify(log));
     } catch(e) {}
+    try { window.dispatchEvent(new CustomEvent('__hw_log_updated')); } catch(e) {}
     const color = type === 'ok' ? '#4ade80' : type === 'err' ? '#f87171' : '#93c5fd';
     console.log(`%c[HDV] ${msg}`, `color:${color};font-weight:bold`);
   }
@@ -31,7 +32,7 @@
     const resp = await origFetch.apply(this, args);
 
     if (url.includes(TARGET)) {
-      writeLog('info', '→ ' + url.replace(/^https?:\/\/[^/]+/, ''));
+      writeLog('info', resp.status + ' → ' + url.replace(/^https?:\/\/[^/]+/, ''));
 
       const m = url.match(POULE_RE);
       if (m) {
@@ -66,16 +67,14 @@
   XMLHttpRequest.prototype.send = function(...args) {
     if (this._hwUrl.includes(TARGET)) {
       const url = this._hwUrl;
-      writeLog('info', '[XHR] → ' + url.replace(/^https?:\/\/[^/]+/, ''));
-      if (POULE_RE.test(url)) {
-        this.addEventListener('load', function() {
-          const m = url.match(POULE_RE);
-          if (m) {
-            try { save(url, m[1], m[2], JSON.parse(this.responseText)); }
-            catch(e) { writeLog('err', 'XHR parse fout: ' + e.message); }
-          }
-        });
-      }
+      this.addEventListener('load', function() {
+        writeLog('info', '[XHR] ' + this.status + ' → ' + url.replace(/^https?:\/\/[^/]+/, ''));
+        const m = url.match(POULE_RE);
+        if (m) {
+          try { save(url, m[1], m[2], JSON.parse(this.responseText)); }
+          catch(e) { writeLog('err', 'XHR parse fout: ' + e.message); }
+        }
+      });
     }
     return xhrSend.apply(this, args);
   };

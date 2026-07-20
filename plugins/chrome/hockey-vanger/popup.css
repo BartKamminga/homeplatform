@@ -137,6 +137,13 @@ button{padding:7px 11px;border:none;border-radius:6px;font-size:11px;font-weight
 .qi-excluded .qi-excl{border-color:#252830;color:#383c46}
 .qi-excluded .qi-excl:hover{border-color:#4ade80;color:#4ade80}
 
+/* Missing from nav (324) */
+.cp-missing-hdr{margin-top:10px;padding:5px 0 3px;font-size:9px;font-weight:700;color:#444;letter-spacing:.07em;text-transform:uppercase;border-top:1px dashed #1e2028}
+.qi-missing-nav{background:#0d0e12;border:1px dashed #252830;opacity:.6}
+.qi-missing-nav .qi-dot{background:#14151a;border:1.5px solid #252830}
+.qi-missing-nav .qi-name{color:#38414e}
+.qi-missing-nav .qi-meta{color:#2a2d35;font-style:italic;font-size:10px}
+
 /* Log */
 .log-entry{padding:6px 0;border-bottom:1px solid #1e2028;font-size:11px}
 .log-entry:last-child{border-bottom:none}

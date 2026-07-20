@@ -1,4 +1,4 @@
-// popup.js v9.7 — save-knoppen weg, push conditioneel op nieuwe data
+// popup.js v9.8 — real-time log (329), missing nav poules (324)
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -35,7 +35,7 @@ function addLog(type, msg, detail) {
   var entry = { time: new Date().toLocaleTimeString('nl-NL'), type: type, msg: msg };
   if (detail) entry.detail = detail;
   LOG.unshift(entry);
-  if (LOG.length > 100) LOG.pop();
+  if (LOG.length > 200) LOG.pop();
   renderLog();
 }
 
@@ -326,6 +326,36 @@ function renderLog() {
       var open = det.style.display !== 'none';
       det.style.display = open ? 'none' : 'block';
       btn.textContent = open ? '▶' : '▼';
+    });
+  });
+}
+
+function refreshLogOnly() {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab || tab.url.indexOf('hockey.nl') === -1) return;
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function() { try { return localStorage.getItem('__hw_log') || '[]'; } catch(e) { return '[]'; } }
+    }, function(r2) {
+      var raw2 = r2 && r2[0] && r2[0].result;
+      try {
+        var entries = JSON.parse(raw2 || '[]');
+        var added = 0;
+        for (var li = 0; li < entries.length; li++) {
+          var e2 = entries[li];
+          var t = new Date(e2.ts).toLocaleTimeString('nl-NL');
+          if (!LOG.find(function(l) { return l.msg === e2.msg && l.time === t; })) {
+            LOG.unshift({ time: t, type: e2.type, msg: '[vangt] ' + e2.msg, detail: e2.detail });
+            added++;
+          }
+        }
+        if (added > 0) {
+          LOG.sort(function(a, b) { return b.time.localeCompare(a.time); });
+          if (LOG.length > 200) LOG.length = 200;
+          renderLog();
+        }
+      } catch(ex) {}
     });
   });
 }
@@ -718,9 +748,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Auto-refresh zodra de interceptor nieuwe data vangt (via bridge.js → background)
   chrome.runtime.onMessage.addListener(function(msg) {
-    if (msg.type !== 'hw_data_updated') return;
-    clearTimeout(_autoRefreshTimer);
-    _autoRefreshTimer = setTimeout(function() { load(); }, 600);
+    if (msg.type === 'hw_data_updated') {
+      clearTimeout(_autoRefreshTimer);
+      _autoRefreshTimer = setTimeout(function() { load(); }, 600);
+    } else if (msg.type === 'hw_log_updated') {
+      if (!$('logPane').classList.contains('hidden')) refreshLogOnly();
+    }
   });
 });
 
@@ -844,11 +877,34 @@ function renderCapturePane() {
 
       html += '<div class="qi ' + stateClass + '"' + dStyle + freshAttr + ' id="qi-' + idx + '">' +
         '<div class="qi-dot"></div>' +
-        '<span class="qi-name">' + escHtml(it3.label) + '</span>' +
+        '<span class="qi-name" title="' + escHtml(it3.navLabel || it3.label) + '">' + escHtml(it3.label) + '</span>' +
         '<span class="qi-meta" id="qm-' + idx + '">' + meta + '</span>' +
         exclBtn +
         '<div class="qi-bar"></div>' +
         '</div>';
+    }
+  }
+
+  // Item 324: toon config-poules die niet in nav staan
+  if (!isRunning && _queue.missingPoules && _queue.missingPoules.length > 0) {
+    var missByComp = {}, missOrder = [];
+    for (var mni = 0; mni < _queue.missingPoules.length; mni++) {
+      var mnp = _queue.missingPoules[mni];
+      var mng = mnp.competition || 'Onbekend';
+      if (!missByComp[mng]) { missByComp[mng] = []; missOrder.push(mng); }
+      missByComp[mng].push(mnp);
+    }
+    html += '<div class="cp-missing-hdr">Niet in nav (' + _queue.missingPoules.length + ')</div>';
+    for (var mngi = 0; mngi < missOrder.length; mngi++) {
+      var mngName = missOrder[mngi];
+      var mnps = missByComp[mngName];
+      html += '<div class="cp-group"><span class="cp-group-name">' + escHtml(mngName) + '</span></div>';
+      for (var mni2 = 0; mni2 < mnps.length; mni2++) {
+        var mnp2 = mnps[mni2];
+        html += '<div class="qi qi-missing-nav"><div class="qi-dot"></div>' +
+          '<span class="qi-name">' + escHtml(mnp2.label) + '</span>' +
+          '<span class="qi-meta">nav?</span><div class="qi-bar"></div></div>';
+      }
     }
   }
 
@@ -1109,8 +1165,27 @@ function startCapture() {
                    pouleId: pid, capturedAt: ts, freshness: freshness, competition: competition || null };
         }),
         currentIdx: 0, countdownMs: 0,
-        tabId: tab.id, tickTimer: null, stepTimer: null
+        tabId: tab.id, tickTimer: null, stepTimer: null,
+        missingPoules: []
       };
+      // Item 324: config-poules die NIET in de nav staan
+      if (CONFIG_LOADED) {
+        var navPids = {};
+        for (var qi0 = 0; qi0 < _queue.items.length; qi0++) {
+          if (_queue.items[qi0].pouleId) navPids[_queue.items[qi0].pouleId] = true;
+        }
+        for (var ci0 = 0; ci0 < CONFIG.length; ci0++) {
+          var cfg0 = CONFIG[ci0];
+          if (cfg0.capture_type !== 'poule' || !cfg0.capture_ids) continue;
+          for (var pi0 = 0; pi0 < cfg0.capture_ids.length; pi0++) {
+            var mpid = String(cfg0.capture_ids[pi0]);
+            if (!navPids[mpid]) {
+              var mlbl = cfg0.capture_labels && cfg0.capture_labels[pi0] ? cfg0.capture_labels[pi0] : 'Poule ' + mpid;
+              _queue.missingPoules.push({ pouleId: mpid, label: mlbl, competition: cfg0.capture_group || cfg0.tournament_name || '' });
+            }
+          }
+        }
+      }
       showCapturePane();
       renderCapturePane();
     });
