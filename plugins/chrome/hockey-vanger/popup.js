@@ -17,6 +17,7 @@ var KNOWN_COMPS = {};
 var KNOWN_FULL_COMPS = {};
 var _autoRefreshTimer = null;
 var _queue = { running: false, preview: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
+var _excluded = {}; // keyed by pouleId → true, persisted in chrome.storage.sync
 
 // ══════════════════════════════════════
 // HELPERS
@@ -69,11 +70,12 @@ function switchTab(tab) {
 // SETTINGS (HomePlatform config)
 // ══════════════════════════════════════
 function loadSettings() {
-  chrome.storage.sync.get(['hp_url', 'hp_key', 'hw_delay_min', 'hw_delay_max'], function(r) {
+  chrome.storage.sync.get(['hp_url', 'hp_key', 'hw_delay_min', 'hw_delay_max', 'hw_excluded'], function(r) {
     HP.url = (r.hp_url || '').replace(/\/$/, '');
     HP.key = r.hp_key || '';
     HP.delayMin = r.hw_delay_min ? parseInt(r.hw_delay_min) * 1000 : 10000;
     HP.delayMax = r.hw_delay_max ? parseInt(r.hw_delay_max) * 1000 : 15000;
+    _excluded = r.hw_excluded || {};
     renderSettings();
     loadConfig();
     loadCoverage();
@@ -732,6 +734,13 @@ function randDelay() {
 function fmtMs(ms) {
   return (Math.max(0, ms) / 1000).toFixed(1) + 's';
 }
+function fmtAge(ts) {
+  if (!ts) return 'nooit';
+  var d = Date.now() - ts;
+  if (d < 60000) return Math.round(d / 1000) + 's';
+  if (d < 3600000) return Math.round(d / 60000) + 'm';
+  return (d / 3600000).toFixed(1) + 'u';
+}
 function showCapturePane() {
   switchTab('capture');
 }
@@ -739,47 +748,127 @@ function renderCapturePane() {
   var pane = $('capturePane');
   if (!pane) return;
   var items = _queue.items;
-  var done = 0;
-  for (var i = 0; i < items.length; i++) { if (items[i].state === 'done') done++; }
-  var allDone = items.length > 0 && done === items.length;
   var isRunning = _queue.running;
+
+  // Count done/skip
+  var done = 0, skipped = 0;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].state === 'done') done++;
+    if (items[i].state === 'skip') skipped++;
+  }
+  var activeTotal = items.length - skipped;
+  var allDone = activeTotal > 0 && done === activeTotal;
+
+  // Group by competition
+  var groups = {}, groupOrder = [];
+  for (var gi0 = 0; gi0 < items.length; gi0++) {
+    var it0 = items[gi0];
+    var gKey = it0.competition || 'Onbekend';
+    if (!groups[gKey]) { groups[gKey] = []; groupOrder.push(gKey); }
+    groups[gKey].push(gi0);
+  }
+  groupOrder.sort(function(a, b) {
+    if (a === 'Onbekend') return 1;
+    if (b === 'Onbekend') return -1;
+    return a.localeCompare(b);
+  });
 
   var html = '<div class="cp-header">' +
     '<span class="cp-title">📡 AUTO-CAPTURE</span>' +
     '<div class="cp-right">' +
-    '<span class="cp-count" id="cpCount">' + done + ' / ' + items.length + '</span>' +
+    '<span class="cp-count" id="cpCount">' + done + ' / ' + activeTotal + '</span>' +
     (isRunning ? '<button class="cp-stop" id="cpStop">⏹ Stop</button>' : '') +
     '</div></div>';
 
-  for (var qi = 0; qi < items.length; qi++) {
-    var it = items[qi];
-    var meta;
-    if (it.state === 'done') {
-      meta = '✓';
-    } else if (it.state === 'active') {
-      meta = fmtMs(_queue.countdownMs);
-    } else if (isRunning) {
-      var est = _queue.countdownMs;
-      for (var ei = _queue.currentIdx + 1; ei < qi; ei++) est += items[ei].delay;
-      meta = '~' + fmtMs(Math.max(0, est));
-    } else {
-      meta = '—';
-    }
-    var dStyle = it.state === 'active' ? ' style="--d:' + (it.delay / 1000) + 's"' : '';
-    html += '<div class="qi qi-' + it.state + '"' + dStyle + ' id="qi-' + qi + '">' +
-      '<div class="qi-dot"></div>' +
-      '<span class="qi-name">' + escHtml(it.label) + '</span>' +
-      '<span class="qi-meta" id="qm-' + qi + '">' + meta + '</span>' +
-      '<div class="qi-bar"></div>' +
-      '</div>';
+  // Freshness counts (only non-excluded)
+  var nFresh = 0, nStale = 0, nMissing = 0;
+  for (var qi2 = 0; qi2 < items.length; qi2++) {
+    var it2 = items[qi2];
+    if (!isRunning && it2.pouleId && _excluded[it2.pouleId]) continue;
+    if (it2.freshness === 'fresh') nFresh++;
+    else if (it2.freshness === 'stale') nStale++;
+    else nMissing++;
   }
 
+  // Render groups
+  for (var gi = 0; gi < groupOrder.length; gi++) {
+    var gName = groupOrder[gi];
+    var gIdxs = groups[gName];
+
+    // Per-group freshness summary
+    var gFresh = 0, gStale = 0, gMiss = 0, gExcl = 0;
+    for (var gii = 0; gii < gIdxs.length; gii++) {
+      var git = items[gIdxs[gii]];
+      var isExclG = !isRunning && git.pouleId && _excluded[git.pouleId];
+      if (isExclG) { gExcl++; continue; }
+      if (git.freshness === 'fresh') gFresh++;
+      else if (git.freshness === 'stale') gStale++;
+      else gMiss++;
+    }
+    var gCtParts = [];
+    if (gFresh)  gCtParts.push('<span class="cp-fresh-ct">●' + gFresh + '</span>');
+    if (gStale)  gCtParts.push('<span class="cp-stale-ct">●' + gStale + '</span>');
+    if (gMiss)   gCtParts.push('<span class="cp-miss-ct">○' + gMiss + '</span>');
+    if (gExcl)   gCtParts.push('<span class="cp-excl-ct">✕' + gExcl + '</span>');
+
+    html += '<div class="cp-group">' +
+      '<span class="cp-group-name">' + escHtml(gName) + '</span>' +
+      '<span class="cp-group-counts">' + gCtParts.join(' ') + '</span>' +
+      '</div>';
+
+    for (var gii2 = 0; gii2 < gIdxs.length; gii2++) {
+      var idx = gIdxs[gii2];
+      var it3 = items[idx];
+      var isExcluded = !isRunning && it3.pouleId && _excluded[it3.pouleId];
+
+      var meta;
+      if (it3.state === 'done')        { meta = '✓'; }
+      else if (it3.state === 'skip')   { meta = '–'; }
+      else if (it3.state === 'active') { meta = fmtMs(_queue.countdownMs); }
+      else if (isRunning) {
+        var est = _queue.countdownMs;
+        for (var ei = _queue.currentIdx + 1; ei < idx; ei++) {
+          if (items[ei] && items[ei].state !== 'skip') est += items[ei].delay;
+        }
+        meta = '~' + fmtMs(Math.max(0, est));
+      } else {
+        meta = fmtAge(it3.capturedAt);
+      }
+
+      var stateClass = (isExcluded || it3.state === 'skip') ? 'qi-excluded' : 'qi-' + it3.state;
+      var dStyle = it3.state === 'active' ? ' style="--d:' + (it3.delay / 1000) + 's"' : '';
+      var freshAttr = (!isExcluded && it3.freshness) ? ' data-freshness="' + it3.freshness + '"' : '';
+      var exclBtn = (!isRunning && it3.pouleId)
+        ? '<button class="qi-excl" data-pid="' + escHtml(it3.pouleId) + '">' + (isExcluded ? '+' : '✕') + '</button>'
+        : '';
+
+      html += '<div class="qi ' + stateClass + '"' + dStyle + freshAttr + ' id="qi-' + idx + '">' +
+        '<div class="qi-dot"></div>' +
+        '<span class="qi-name">' + escHtml(it3.label) + '</span>' +
+        '<span class="qi-meta" id="qm-' + idx + '">' + meta + '</span>' +
+        exclBtn +
+        '<div class="qi-bar"></div>' +
+        '</div>';
+    }
+  }
+
+  var nNeedCapture = nStale + nMissing;
   if (allDone) {
-    html += '<div class="cp-summary">✅ Alle ' + items.length + ' teams gescraped — data up to date</div>';
+    html += '<div class="cp-summary">✅ Alle ' + activeTotal + ' teams gescraped — data up to date</div>';
   } else if (!isRunning) {
-    html += '<div class="cp-tip"><strong>Preview</strong> — klikt teams in volgorde aan. ' +
-      'Vertraging: <strong>' + Math.round(HP.delayMin / 1000) + '–' + Math.round(HP.delayMax / 1000) + ' sec</strong> per klik.</div>' +
-      '<button class="bx" id="cpStart" style="margin-top:8px;width:100%">▶ Starten</button>';
+    var tipParts = [];
+    if (nFresh)   tipParts.push('<span class="cp-fresh-ct">● ' + nFresh + ' recent</span>');
+    if (nStale)   tipParts.push('<span class="cp-stale-ct">● ' + nStale + ' oud</span>');
+    if (nMissing) tipParts.push('<span class="cp-miss-ct">○ ' + nMissing + ' nooit</span>');
+    html += '<div class="cp-tip">' + tipParts.join(' &nbsp; ') +
+      ' &nbsp;·&nbsp; <strong>' + Math.round(HP.delayMin / 1000) + '–' + Math.round(HP.delayMax / 1000) + 's</strong> per klik</div>' +
+      '<div class="cp-btns">' +
+      '<button class="bx" id="cpStart">▶ Alles (' + activeTotal + ')</button>' +
+      (nNeedCapture > 0
+        ? '<button class="bs cp-stale-btn" id="cpStale">⚡ Stale/nieuw (' + nNeedCapture + ')</button>'
+        : '<button class="bs cp-stale-btn off" disabled>⚡ Alles recent</button>'
+      ) +
+      '</div>';
   }
 
   pane.innerHTML = html;
@@ -787,6 +876,15 @@ function renderCapturePane() {
   if (stopBtn) stopBtn.addEventListener('click', stopCapture);
   var startBtn = $('cpStart');
   if (startBtn) startBtn.addEventListener('click', beginCapture);
+  var staleBtn = $('cpStale');
+  if (staleBtn) staleBtn.addEventListener('click', beginCaptureStale);
+  // Exclude toggle buttons
+  pane.querySelectorAll('.qi-excl').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleExclude(btn.getAttribute('data-pid'));
+    });
+  });
 }
 function updateCaptureMetasOnly() {
   var items = _queue.items;
@@ -795,28 +893,38 @@ function updateCaptureMetasOnly() {
     if (!el) continue;
     var it = items[qi];
     if (it.state === 'done')   { el.textContent = '✓'; continue; }
+    if (it.state === 'skip')   { el.textContent = '–'; continue; }
     if (it.state === 'active') { el.textContent = fmtMs(_queue.countdownMs); continue; }
     var est = _queue.countdownMs;
-    for (var ei = _queue.currentIdx + 1; ei < qi; ei++) est += items[ei].delay;
+    for (var ei = _queue.currentIdx + 1; ei < qi; ei++) {
+      if (items[ei] && items[ei].state !== 'skip') est += items[ei].delay;
+    }
     el.textContent = '~' + fmtMs(Math.max(0, est));
   }
   var countEl = $('cpCount');
   if (countEl) {
-    var done = 0;
-    for (var i = 0; i < items.length; i++) { if (items[i].state === 'done') done++; }
-    countEl.textContent = done + ' / ' + items.length;
+    var done = 0, skipped = 0;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].state === 'done') done++;
+      if (items[i].state === 'skip') skipped++;
+    }
+    countEl.textContent = done + ' / ' + (items.length - skipped);
   }
   var btn = $('bCapture');
   if (btn && _queue.running) btn.textContent = '📡 ' + (_queue.currentIdx + 1) + '/' + items.length;
 }
 function activateNextQueueItem() {
   var items = _queue.items;
+  while (_queue.currentIdx < items.length && items[_queue.currentIdx].state === 'skip') {
+    _queue.currentIdx++;
+  }
   if (_queue.currentIdx >= items.length) {
     _queue.running = false;
     renderCapturePane();
     var btn = $('bCapture');
     if (btn) { btn.textContent = '📡 Capture'; btn.classList.remove('off'); }
-    addLog('ok', '📡 Auto-capture klaar — ' + items.length + ' teams');
+    var skipCt = 0; for (var si = 0; si < items.length; si++) { if (items[si].state === 'skip') skipCt++; }
+    addLog('ok', '📡 Auto-capture klaar — ' + (items.length - skipCt) + ' teams');
     toast('✅ Capture klaar!');
     load();
     return;
@@ -882,15 +990,36 @@ function activateNextQueueItem() {
     }, 800);
   });
 }
+function toggleExclude(pouleId) {
+  if (!pouleId) return;
+  if (_excluded[pouleId]) delete _excluded[pouleId]; else _excluded[pouleId] = true;
+  chrome.storage.sync.set({ hw_excluded: _excluded });
+  renderCapturePane();
+}
+function beginCaptureStale() {
+  var need = _queue.items.filter(function(it) {
+    return it.freshness !== 'fresh' && !(it.pouleId && _excluded[it.pouleId]);
+  });
+  if (!need.length) { toast('✅ Alles is recent!'); return; }
+  _queue.items = need.map(function(it) { return Object.assign({}, it, { state: 'pending', delay: randDelay() }); });
+  beginCapture();
+}
 function beginCapture() {
   if (_queue.running || !_queue.items.length) return;
   _queue.running = true;
   _queue.currentIdx = 0;
+  var activeCount = 0;
   for (var i = 0; i < _queue.items.length; i++) {
-    _queue.items[i].state = 'pending';
-    _queue.items[i].delay = randDelay();
+    var it = _queue.items[i];
+    if (it.pouleId && _excluded[it.pouleId]) {
+      it.state = 'skip';
+    } else {
+      it.state = 'pending';
+      it.delay = randDelay();
+      activeCount++;
+    }
   }
-  addLog('info', '📡 Auto-capture gestart — ' + _queue.items.length + ' teams · ' + Math.round(HP.delayMin/1000) + '–' + Math.round(HP.delayMax/1000) + 's per stap');
+  addLog('info', '📡 Auto-capture gestart — ' + activeCount + ' teams · ' + Math.round(HP.delayMin/1000) + '–' + Math.round(HP.delayMax/1000) + 's per stap');
   activateNextQueueItem();
 }
 function stopCapture() {
@@ -912,24 +1041,7 @@ function startCapture() {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: function() {
-        var seen = {};
-        var items = [];
-        function collect(root) {
-          if (!root) return;
-          try {
-            Array.from(root.querySelectorAll('a[href^="#/team/"]')).forEach(function(a) {
-              var href = a.getAttribute('href');
-              if (href && !seen[href]) {
-                seen[href] = true;
-                items.push({ href: href, label: (a.textContent || '').trim().replace(/\s+/g, ' ') });
-              }
-            });
-            Array.from(root.querySelectorAll('*')).forEach(function(el) {
-              if (el.shadowRoot) collect(el.shadowRoot);
-            });
-          } catch(e) {}
-        }
-        var shadowCount = 0;
+        var seen = {}, items = [], shadowCount = 0;
         function collectWithShadow(root) {
           if (!root) return;
           try {
@@ -951,19 +1063,44 @@ function startCapture() {
             try { collectWithShadow(window.frames[i].document); } catch(e) {}
           }
         } catch(e) {}
-        return items.length ? items : { __debug: true, shadowCount: shadowCount, frameCount: window.frames.length };
+        if (!items.length) return { __debug: true, shadowCount: shadowCount, frameCount: window.frames.length };
+        // Lees timestamps en competitie-info per poule_id uit localStorage
+        var timestamps = {}, compInfo = {};
+        try {
+          var store = JSON.parse(localStorage.getItem('__hw_poules') || '{}');
+          Object.keys(store).forEach(function(pid) {
+            var e = store[pid];
+            if (e) {
+              if (e.timestamp) timestamps[pid] = e.timestamp;
+              compInfo[pid] = { competition: e.competition || '', class_name: e.class_name || '' };
+            }
+          });
+        } catch(e) {}
+        return { navItems: items, timestamps: timestamps, compInfo: compInfo };
       }
     }, function(results) {
-      var rawItems = [];
-      (results || []).forEach(function(r) {
-        if (r && r.result && !r.result.__debug) rawItems = rawItems.concat(r.result);
-        if (r && r.result && r.result.__debug) addLog('info', 'Shadow: ' + r.result.shadowCount + ' roots · frames: ' + r.result.frameCount);
-      });
+      var result = results && results[0] && results[0].result;
+      if (!result || result.__debug) {
+        if (result && result.__debug) addLog('info', 'Shadow: ' + result.shadowCount + ' roots · frames: ' + result.frameCount);
+        toast('❌ Nav niet gevonden — check Log tab');
+        return;
+      }
+      var rawItems = result.navItems || [];
+      var timestamps = result.timestamps || {};
+      var compInfo = result.compInfo || {};
+      var now = Date.now();
+      var STALE_MS = 2 * 60 * 60 * 1000;
       if (!rawItems.length) { toast('❌ Nav niet gevonden — check Log tab'); return; }
       _queue = {
         running: false, preview: true,
         items: rawItems.map(function(it) {
-          return { href: it.href, label: it.label || it.href, state: 'pending', delay: randDelay() };
+          var pid = (it.href.match(/\|(\d+)/) || [])[1] || null;
+          var ts = pid && timestamps[pid] ? timestamps[pid] : null;
+          var freshness = ts ? (now - ts < STALE_MS ? 'fresh' : 'stale') : 'missing';
+          var ci = pid && compInfo[pid] ? compInfo[pid] : null;
+          var competition = ci ? ((ci.competition || '') + (ci.class_name ? ' · ' + ci.class_name : '')) : null;
+          return { href: it.href, label: it.label || it.href, state: 'pending', delay: randDelay(),
+                   pouleId: pid, capturedAt: ts, freshness: freshness, competition: competition || null };
         }),
         currentIdx: 0, countdownMs: 0,
         tabId: tab.id, tickTimer: null, stepTimer: null

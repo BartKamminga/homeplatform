@@ -454,3 +454,76 @@ def get_import_coverage(
         })
 
     return {"season": season, "tournaments": result}
+
+
+@router.get("/coverage-detail")
+def get_coverage_detail(
+    season: str = "2026-2027",
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Per-poule capture dekking voor seizoen (voor Tournix Coverage tab)."""
+    import json
+    from models.capture import DataCapture
+
+    tournaments = session.exec(
+        select(Tournament).where(Tournament.season == season)
+    ).all()
+
+    # Collect all configured poule IDs and phase metadata
+    all_ids_set: set = set()
+    phase_data = []
+    for t in tournaments:
+        phases = session.exec(
+            select(TournixPhase).where(
+                TournixPhase.tournament_id == t.id,
+                TournixPhase.capture_type.isnot(None),  # noqa: E711
+            ).order_by(TournixPhase.order)
+        ).all()
+        for phase in phases:
+            try:
+                ids = json.loads(phase.capture_ids) if phase.capture_ids else []
+            except Exception:
+                ids = []
+            try:
+                labels = json.loads(phase.capture_labels) if phase.capture_labels else []
+            except Exception:
+                labels = []
+            if ids:
+                str_ids = [str(x) for x in ids]
+                all_ids_set.update(str_ids)
+                phase_data.append((t, phase, str_ids, labels))
+
+    # Fetch all captures for these poule IDs and build last-capture map
+    capture_map: dict = {}
+    if all_ids_set:
+        caps = session.exec(
+            select(DataCapture).where(
+                DataCapture.external_id.in_(list(all_ids_set))
+            )
+        ).all()
+        for cap in caps:
+            eid = cap.external_id
+            if eid not in capture_map or cap.captured_at > capture_map[eid]:
+                capture_map[eid] = cap.captured_at
+
+    result = []
+    for (t, phase, str_ids, labels) in phase_data:
+        poules = []
+        for i, pid in enumerate(str_ids):
+            label = labels[i] if i < len(labels) else pid
+            last_cap = capture_map.get(pid)
+            poules.append({
+                "poule_id":    pid,
+                "label":       label,
+                "captured_at": last_cap.isoformat() if last_cap else None,
+            })
+        result.append({
+            "tournament_id":   t.id,
+            "tournament_name": t.name,
+            "capture_group":   phase.capture_group,
+            "capture_type":    phase.capture_type,
+            "poules":          poules,
+        })
+
+    return {"season": season, "entries": result}
