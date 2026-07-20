@@ -157,3 +157,26 @@ button{padding:7px 11px;border:none;border-radius:6px;font-size:11px;font-weight
 .log-detail{background:#0d0f14;border-left:2px solid #2a3040;margin:4px 0 2px 12px;padding:4px 8px;font-size:10px;color:#94a3b8;border-radius:3px}
 .log-detail-teams{color:#93c5fd;word-break:break-all}
 .log-detail-match{color:#4ade80;margin-top:2px}
+
+/* Analyse tab (337) */
+.an-notice{font-size:10px;color:#555;padding:4px 0 10px;font-style:italic}
+.an-tourn{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #1e2028}
+.an-tourn:last-child{border-bottom:none}
+.an-tourn-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.an-tourn-name{font-size:12px;font-weight:700;color:#c9d1e0}
+.an-badge{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap}
+.an-badge-ok{background:#14351f;color:#4ade80;border:1px solid #1a5c2f}
+.an-badge-partial{background:#2d2010;color:#fbbf24;border:1px solid #4d3510}
+.an-badge-empty{background:#1e1e2a;color:#60a5fa;border:1px solid #2a3040}
+.an-group{font-size:9px;font-weight:700;color:#444;text-transform:uppercase;letter-spacing:.07em;padding:5px 0 3px;margin-top:2px;border-top:1px solid #1a1c22}
+.an-tourn-hdr + .an-group{border-top:none;margin-top:0}
+.an-poule{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px}
+.an-dot{width:12px;flex-shrink:0;font-size:10px;text-align:center}
+.an-dot-ok{color:#4ade80}
+.an-dot-nav{color:#60a5fa}
+.an-dot-miss{color:#2a2d35}
+.an-lbl-ok{color:#c9d1e0;flex:1}
+.an-lbl-nav{color:#60a5fa;flex:1}
+.an-lbl-miss{color:#383c46;flex:1}
+.an-state{font-size:9px;color:#555;flex-shrink:0}
+.an-state-miss{color:#2a2d35}

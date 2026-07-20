@@ -64,6 +64,7 @@ function switchTab(tab) {
   $('settingsPane').classList.toggle('hidden', tab !== 'settings');
   $('logPane').classList.toggle('hidden', tab !== 'log');
   $('capturePane').classList.toggle('hidden', tab !== 'capture');
+  $('analysePane').classList.toggle('hidden', tab !== 'analyse');
 }
 
 // ══════════════════════════════════════
@@ -93,6 +94,7 @@ function loadConfig() {
       CONFIG_LOADED = true;
       addLog('info', '[BE] config: ' + CONFIG.length + ' entries geladen');
       render();
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
     })
     .catch(function(e) { addLog('err', '[BE] config fout: ' + e.message); });
 }
@@ -504,6 +506,7 @@ function load() {
       try { D = JSON.parse(raw); } catch(e) { $('cnt').innerHTML = '<div class="err-box">JSON: ' + e.message + '</div>'; return; }
       SUGGESTIONS = {}; SUGGESTIONS_LOADED = false;
       render();
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
       loadSuggestions();
       archiveCaptures();
       chrome.scripting.executeScript({
@@ -735,6 +738,100 @@ function renderCompEntryItem(cnt, storeKey, entry, hpOk, fullComps) {
 }
 
 // ══════════════════════════════════════
+// ANALYSE TAB (item 337)
+// ══════════════════════════════════════
+function renderAnalysePane() {
+  var pane = $('analysePane');
+  if (!pane) return;
+
+  if (!CONFIG_LOADED || !CONFIG.length) {
+    pane.innerHTML = '<div class="empty">Config niet geladen — klik Vernieuwen</div>';
+    return;
+  }
+
+  // Welke poule-ids zijn gevangen (in D, gekeyed door poule_id)
+  var capturedIds = {};
+  var dKeys = Object.keys(D);
+  for (var i = 0; i < dKeys.length; i++) capturedIds[dKeys[i]] = true;
+
+  // Welke poule-ids staan in de huidige nav
+  var navIds = {};
+  if (_queue.items && _queue.items.length) {
+    for (var qi = 0; qi < _queue.items.length; qi++) {
+      if (_queue.items[qi].pouleId) navIds[_queue.items[qi].pouleId] = true;
+    }
+  }
+  var navLoaded = _queue.items && _queue.items.length > 0;
+
+  // Groepeer CONFIG op tournament_name
+  var tournMap = {}, tournOrder = [];
+  for (var ci = 0; ci < CONFIG.length; ci++) {
+    var cfg = CONFIG[ci];
+    if (!cfg.capture_ids || !cfg.capture_ids.length) continue;
+    var tn = cfg.tournament_name || 'Onbekend';
+    if (!tournMap[tn]) { tournMap[tn] = []; tournOrder.push(tn); }
+    tournMap[tn].push(cfg);
+  }
+
+  var html = '';
+  if (!navLoaded) {
+    html += '<div class="an-notice">Nav niet geladen — open Capture tab voor nav-status</div>';
+  }
+
+  for (var ti = 0; ti < tournOrder.length; ti++) {
+    var tName = tournOrder[ti];
+    var phases = tournMap[tName];
+
+    var total = 0, got = 0, inNav = 0;
+    for (var pi = 0; pi < phases.length; pi++) {
+      var ids = phases[pi].capture_ids;
+      for (var ii = 0; ii < ids.length; ii++) {
+        var pid = String(ids[ii]);
+        total++;
+        if (capturedIds[pid]) got++;
+        else if (navIds[pid]) inNav++;
+      }
+    }
+
+    var pct = total > 0 ? Math.round(got / total * 100) : 0;
+    var badgeCls = got === total ? 'an-badge-ok' : got > 0 ? 'an-badge-partial' : 'an-badge-empty';
+
+    html += '<div class="an-tourn">';
+    html += '<div class="an-tourn-hdr">' +
+      '<span class="an-tourn-name">' + escHtml(tName) + '</span>' +
+      '<span class="an-badge ' + badgeCls + '">' + got + ' / ' + total + '</span>' +
+      '</div>';
+
+    for (var pi2 = 0; pi2 < phases.length; pi2++) {
+      var ph = phases[pi2];
+      var grp = ph.capture_group || ph.tournament_name || '';
+      html += '<div class="an-group">' + escHtml(grp) + '</div>';
+
+      for (var ii2 = 0; ii2 < ph.capture_ids.length; ii2++) {
+        var pid2 = String(ph.capture_ids[ii2]);
+        var lbl = ph.capture_labels && ph.capture_labels[ii2] ? ph.capture_labels[ii2] : 'Poule ' + pid2;
+        var dotCls, dotChar, lblCls, stateLabel;
+        if (capturedIds[pid2]) {
+          dotCls = 'an-dot-ok'; dotChar = '●'; lblCls = 'an-lbl-ok'; stateLabel = '';
+        } else if (navIds[pid2]) {
+          dotCls = 'an-dot-nav'; dotChar = '●'; lblCls = 'an-lbl-nav'; stateLabel = '<span class="an-state">in nav</span>';
+        } else {
+          dotCls = 'an-dot-miss'; dotChar = '○'; lblCls = 'an-lbl-miss'; stateLabel = '<span class="an-state an-state-miss">ontbreekt</span>';
+        }
+        html += '<div class="an-poule">' +
+          '<span class="an-dot ' + dotCls + '">' + dotChar + '</span>' +
+          '<span class="' + lblCls + '">' + escHtml(lbl) + '</span>' +
+          stateLabel +
+          '</div>';
+      }
+    }
+    html += '</div>';
+  }
+
+  pane.innerHTML = html || '<div class="empty">Geen toernooiconfiguratie gevonden</div>';
+}
+
+// ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
@@ -749,6 +846,7 @@ document.addEventListener('DOMContentLoaded', function() {
           renderCapturePane();
         }
       }
+      if (tab === 'analyse') renderAnalysePane();
     });
   });
   $('bRefresh').addEventListener('click', function() { load(); loadConfig(); loadCoverage(); loadSuggestions(); });
