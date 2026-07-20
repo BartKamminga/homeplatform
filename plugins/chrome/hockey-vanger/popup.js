@@ -1,6 +1,6 @@
 // popup.js v9.7 — save-knoppen weg, push conditioneel op nieuwe data
 var D = {};
-var HP = { url: '', key: '' };
+var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
 var COVERAGE_BY_LABEL = {};
 var COVERAGE_LOADED = false;
@@ -15,6 +15,8 @@ var $ = function(id) { return document.getElementById(id); };
 // KNOWN_COMPS en KNOWN_FULL_COMPS zijn vervangen door suggest-match (item 317)
 var KNOWN_COMPS = {};
 var KNOWN_FULL_COMPS = {};
+var _autoRefreshTimer = null;
+var _queue = { running: false, preview: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
 
 // ══════════════════════════════════════
 // HELPERS
@@ -60,15 +62,18 @@ function switchTab(tab) {
   $('cnt').classList.toggle('hidden', tab !== 'data');
   $('settingsPane').classList.toggle('hidden', tab !== 'settings');
   $('logPane').classList.toggle('hidden', tab !== 'log');
+  $('capturePane').classList.toggle('hidden', tab !== 'capture');
 }
 
 // ══════════════════════════════════════
 // SETTINGS (HomePlatform config)
 // ══════════════════════════════════════
 function loadSettings() {
-  chrome.storage.sync.get(['hp_url', 'hp_key'], function(r) {
+  chrome.storage.sync.get(['hp_url', 'hp_key', 'hw_delay_min', 'hw_delay_max'], function(r) {
     HP.url = (r.hp_url || '').replace(/\/$/, '');
     HP.key = r.hp_key || '';
+    HP.delayMin = r.hw_delay_min ? parseInt(r.hw_delay_min) * 1000 : 10000;
+    HP.delayMax = r.hw_delay_max ? parseInt(r.hw_delay_max) * 1000 : 15000;
     renderSettings();
     loadConfig();
     loadCoverage();
@@ -227,8 +232,10 @@ function archiveCaptures() {
 function saveSettings() {
   var url = ($('hpUrl').value || '').trim().replace(/\/$/, '');
   var key = ($('hpKey').value || '').trim();
-  chrome.storage.sync.set({ hp_url: url, hp_key: key }, function() {
-    HP.url = url; HP.key = key;
+  var dmin = Math.max(3, parseInt(($('hwDelayMin') || {}).value) || 10);
+  var dmax = Math.max(dmin, parseInt(($('hwDelayMax') || {}).value) || 15);
+  chrome.storage.sync.set({ hp_url: url, hp_key: key, hw_delay_min: dmin, hw_delay_max: dmax }, function() {
+    HP.url = url; HP.key = key; HP.delayMin = dmin * 1000; HP.delayMax = dmax * 1000;
     addLog('info', 'Instellingen opgeslagen');
     toast('✅ Opgeslagen');
     renderSettings();
@@ -262,6 +269,16 @@ function renderSettings() {
       '<div class="settings-label">API Key</div>' +
       '<input class="settings-input" id="hpKey" type="password" value="' + escHtml(HP.key) + '" placeholder="je-api-key"/>' +
       '<div class="settings-hint">Admin → Account → API key aanmaken</div>' +
+    '</div>' +
+    '<div class="settings-group">' +
+      '<div class="settings-label">Capture vertraging (seconden)</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<div style="flex:1"><div class="settings-hint" style="margin-bottom:3px">Min</div>' +
+        '<input class="settings-input" id="hwDelayMin" type="number" value="' + Math.round(HP.delayMin / 1000) + '" min="3" max="120"/></div>' +
+        '<div style="flex:1"><div class="settings-hint" style="margin-bottom:3px">Max</div>' +
+        '<input class="settings-input" id="hwDelayMax" type="number" value="' + Math.round(HP.delayMax / 1000) + '" min="3" max="120"/></div>' +
+      '</div>' +
+      '<div class="settings-hint">Tussenpoze per klik (standaard 10–15 sec)</div>' +
     '</div>' +
     '<button class="settings-save" id="hpSave">Opslaan</button>' +
     '<button class="settings-save" id="hpTest" style="background:#1e3a5f;margin-top:6px">🔗 Test verbinding</button>' +
@@ -679,14 +696,283 @@ function renderCompEntryItem(cnt, storeKey, entry, hpOk, fullComps) {
 // ══════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() { switchTab(btn.getAttribute('data-tab')); });
+    btn.addEventListener('click', function() {
+      var tab = btn.getAttribute('data-tab');
+      switchTab(tab);
+      if (tab === 'capture') {
+        if (!_queue.items.length && !_queue.running) {
+          startCapture();
+        } else {
+          renderCapturePane();
+        }
+      }
+    });
   });
   $('bRefresh').addEventListener('click', function() { load(); loadConfig(); loadCoverage(); loadSuggestions(); });
   $('bClear').addEventListener('click', doClear);
   loadSettings();
   renderLog();
   load();
+
+  // Auto-refresh zodra de interceptor nieuwe data vangt (via bridge.js → background)
+  chrome.runtime.onMessage.addListener(function(msg) {
+    if (msg.type !== 'hw_data_updated') return;
+    clearTimeout(_autoRefreshTimer);
+    _autoRefreshTimer = setTimeout(function() { load(); }, 600);
+  });
 });
+
+// ══════════════════════════════════════
+// CAPTURE QUEUE
+// ══════════════════════════════════════
+function randDelay() {
+  var range = HP.delayMax - HP.delayMin;
+  return HP.delayMin + Math.floor(Math.random() * (range + 1));
+}
+function fmtMs(ms) {
+  return (Math.max(0, ms) / 1000).toFixed(1) + 's';
+}
+function showCapturePane() {
+  switchTab('capture');
+}
+function renderCapturePane() {
+  var pane = $('capturePane');
+  if (!pane) return;
+  var items = _queue.items;
+  var done = 0;
+  for (var i = 0; i < items.length; i++) { if (items[i].state === 'done') done++; }
+  var allDone = items.length > 0 && done === items.length;
+  var isRunning = _queue.running;
+
+  var html = '<div class="cp-header">' +
+    '<span class="cp-title">📡 AUTO-CAPTURE</span>' +
+    '<div class="cp-right">' +
+    '<span class="cp-count" id="cpCount">' + done + ' / ' + items.length + '</span>' +
+    (isRunning ? '<button class="cp-stop" id="cpStop">⏹ Stop</button>' : '') +
+    '</div></div>';
+
+  for (var qi = 0; qi < items.length; qi++) {
+    var it = items[qi];
+    var meta;
+    if (it.state === 'done') {
+      meta = '✓';
+    } else if (it.state === 'active') {
+      meta = fmtMs(_queue.countdownMs);
+    } else if (isRunning) {
+      var est = _queue.countdownMs;
+      for (var ei = _queue.currentIdx + 1; ei < qi; ei++) est += items[ei].delay;
+      meta = '~' + fmtMs(Math.max(0, est));
+    } else {
+      meta = '—';
+    }
+    var dStyle = it.state === 'active' ? ' style="--d:' + (it.delay / 1000) + 's"' : '';
+    html += '<div class="qi qi-' + it.state + '"' + dStyle + ' id="qi-' + qi + '">' +
+      '<div class="qi-dot"></div>' +
+      '<span class="qi-name">' + escHtml(it.label) + '</span>' +
+      '<span class="qi-meta" id="qm-' + qi + '">' + meta + '</span>' +
+      '<div class="qi-bar"></div>' +
+      '</div>';
+  }
+
+  if (allDone) {
+    html += '<div class="cp-summary">✅ Alle ' + items.length + ' teams gescraped — data up to date</div>';
+  } else if (!isRunning) {
+    html += '<div class="cp-tip"><strong>Preview</strong> — klikt teams in volgorde aan. ' +
+      'Vertraging: <strong>' + Math.round(HP.delayMin / 1000) + '–' + Math.round(HP.delayMax / 1000) + ' sec</strong> per klik.</div>' +
+      '<button class="bx" id="cpStart" style="margin-top:8px;width:100%">▶ Starten</button>';
+  }
+
+  pane.innerHTML = html;
+  var stopBtn = $('cpStop');
+  if (stopBtn) stopBtn.addEventListener('click', stopCapture);
+  var startBtn = $('cpStart');
+  if (startBtn) startBtn.addEventListener('click', beginCapture);
+}
+function updateCaptureMetasOnly() {
+  var items = _queue.items;
+  for (var qi = 0; qi < items.length; qi++) {
+    var el = $('qm-' + qi);
+    if (!el) continue;
+    var it = items[qi];
+    if (it.state === 'done')   { el.textContent = '✓'; continue; }
+    if (it.state === 'active') { el.textContent = fmtMs(_queue.countdownMs); continue; }
+    var est = _queue.countdownMs;
+    for (var ei = _queue.currentIdx + 1; ei < qi; ei++) est += items[ei].delay;
+    el.textContent = '~' + fmtMs(Math.max(0, est));
+  }
+  var countEl = $('cpCount');
+  if (countEl) {
+    var done = 0;
+    for (var i = 0; i < items.length; i++) { if (items[i].state === 'done') done++; }
+    countEl.textContent = done + ' / ' + items.length;
+  }
+  var btn = $('bCapture');
+  if (btn && _queue.running) btn.textContent = '📡 ' + (_queue.currentIdx + 1) + '/' + items.length;
+}
+function activateNextQueueItem() {
+  var items = _queue.items;
+  if (_queue.currentIdx >= items.length) {
+    _queue.running = false;
+    renderCapturePane();
+    var btn = $('bCapture');
+    if (btn) { btn.textContent = '📡 Capture'; btn.classList.remove('off'); }
+    addLog('ok', '📡 Auto-capture klaar — ' + items.length + ' teams');
+    toast('✅ Capture klaar!');
+    load();
+    return;
+  }
+  var it = items[_queue.currentIdx];
+  it.state = 'active';
+  _queue.countdownMs = it.delay;
+  renderCapturePane();
+  var capBtn = $('bCapture');
+  if (capBtn) { capBtn.textContent = '📡 ' + (_queue.currentIdx + 1) + '/' + items.length; capBtn.classList.add('off'); }
+  addLog('info', '📡 → ' + it.label + ' (' + (_queue.currentIdx + 1) + '/' + items.length + ')');
+  // Eerst terug naar hoofdpagina zodat de SPA het team altijd vers laadt
+  chrome.scripting.executeScript({
+    target: { tabId: _queue.tabId },
+    func: function() { window.location.hash = '/'; }
+  }, function() {
+    setTimeout(function() {
+      chrome.scripting.executeScript({
+        target: { tabId: _queue.tabId },
+        func: function(h) {
+          var clicked = false;
+          function findAndClick(root) {
+            if (!root || clicked) return;
+            try {
+              var links = root.querySelectorAll('a[href="' + h + '"]');
+              if (links.length) { links[0].click(); clicked = true; return; }
+              root.querySelectorAll('*').forEach(function(el) { if (el.shadowRoot) findAndClick(el.shadowRoot); });
+            } catch(e) {}
+          }
+          findAndClick(document);
+          if (!clicked) window.location.hash = h.replace(/^#/, '');
+          return clicked;
+        },
+        args: [it.href]
+      }, function(res) {
+        var clicked = res && res[0] && res[0].result;
+        addLog('info', (clicked ? '🖱️ geklikt' : '🔗 hash gezet') + ': ' + it.href);
+    var startTime = Date.now(), duration = it.delay;
+    _queue.tickTimer = setInterval(function() {
+      _queue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
+      updateCaptureMetasOnly();
+    }, 60);
+    _queue.stepTimer = setTimeout(function() {
+      clearInterval(_queue.tickTimer);
+      var el = $('qi-' + _queue.currentIdx);
+      if (el) { el.classList.remove('qi-active'); el.classList.add('qi-done', 'qi-done-flash'); }
+      it.state = 'done';
+      _queue.currentIdx++;
+      // Log hoeveel data er gevangen is voor dit team
+      chrome.scripting.executeScript({
+        target: { tabId: _queue.tabId },
+        func: function() {
+          var raw = localStorage.getItem('__hw_poules') || '{}';
+          return raw.length;
+        }
+      }, function(r) {
+        var bytes = r && r[0] && r[0].result;
+        if (bytes) addLog('ok', '✅ ' + it.label + ' → ' + Math.round(bytes / 1024) + ' KB totaal in store');
+      });
+      setTimeout(activateNextQueueItem, 400);
+    }, duration);
+      });
+    }, 800);
+  });
+}
+function beginCapture() {
+  if (_queue.running || !_queue.items.length) return;
+  _queue.running = true;
+  _queue.currentIdx = 0;
+  for (var i = 0; i < _queue.items.length; i++) {
+    _queue.items[i].state = 'pending';
+    _queue.items[i].delay = randDelay();
+  }
+  addLog('info', '📡 Auto-capture gestart — ' + _queue.items.length + ' teams · ' + Math.round(HP.delayMin/1000) + '–' + Math.round(HP.delayMax/1000) + 's per stap');
+  activateNextQueueItem();
+}
+function stopCapture() {
+  clearInterval(_queue.tickTimer);
+  clearTimeout(_queue.stepTimer);
+  _queue.running = false;
+  for (var i = _queue.currentIdx; i < _queue.items.length; i++) _queue.items[i].state = 'pending';
+  if (_queue.items[_queue.currentIdx]) _queue.items[_queue.currentIdx].state = 'pending';
+  renderCapturePane();
+  var btn = $('bCapture');
+  if (btn) { btn.textContent = '📡 Capture'; btn.classList.remove('off'); }
+  addLog('info', '📡 Capture gestopt na ' + _queue.currentIdx + ' teams');
+}
+function startCapture() {
+  if (_queue.running) { showCapturePane(); renderCapturePane(); return; }
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar hockey.nl'); return; }
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function() {
+        var seen = {};
+        var items = [];
+        function collect(root) {
+          if (!root) return;
+          try {
+            Array.from(root.querySelectorAll('a[href^="#/team/"]')).forEach(function(a) {
+              var href = a.getAttribute('href');
+              if (href && !seen[href]) {
+                seen[href] = true;
+                items.push({ href: href, label: (a.textContent || '').trim().replace(/\s+/g, ' ') });
+              }
+            });
+            Array.from(root.querySelectorAll('*')).forEach(function(el) {
+              if (el.shadowRoot) collect(el.shadowRoot);
+            });
+          } catch(e) {}
+        }
+        var shadowCount = 0;
+        function collectWithShadow(root) {
+          if (!root) return;
+          try {
+            Array.from(root.querySelectorAll('a[href^="#/team/"]')).forEach(function(a) {
+              var href = a.getAttribute('href');
+              if (href && !seen[href]) {
+                seen[href] = true;
+                items.push({ href: href, label: (a.textContent || '').trim().replace(/\s+/g, ' ') });
+              }
+            });
+            Array.from(root.querySelectorAll('*')).forEach(function(el) {
+              if (el.shadowRoot) { shadowCount++; collectWithShadow(el.shadowRoot); }
+            });
+          } catch(e) {}
+        }
+        collectWithShadow(document);
+        try {
+          for (var i = 0; i < window.frames.length; i++) {
+            try { collectWithShadow(window.frames[i].document); } catch(e) {}
+          }
+        } catch(e) {}
+        return items.length ? items : { __debug: true, shadowCount: shadowCount, frameCount: window.frames.length };
+      }
+    }, function(results) {
+      var rawItems = [];
+      (results || []).forEach(function(r) {
+        if (r && r.result && !r.result.__debug) rawItems = rawItems.concat(r.result);
+        if (r && r.result && r.result.__debug) addLog('info', 'Shadow: ' + r.result.shadowCount + ' roots · frames: ' + r.result.frameCount);
+      });
+      if (!rawItems.length) { toast('❌ Nav niet gevonden — check Log tab'); return; }
+      _queue = {
+        running: false, preview: true,
+        items: rawItems.map(function(it) {
+          return { href: it.href, label: it.label || it.href, state: 'pending', delay: randDelay() };
+        }),
+        currentIdx: 0, countdownMs: 0,
+        tabId: tab.id, tickTimer: null, stepTimer: null
+      };
+      showCapturePane();
+      renderCapturePane();
+    });
+  });
+}
 
 function doClear() {
   if (!confirm('Alle data wissen?')) return;

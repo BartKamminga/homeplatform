@@ -137,6 +137,7 @@ def session_items(
             "capture_type": row.capture_type,
             "captured_at": row.captured_at.isoformat(),
             "meta": json.loads(row.meta),
+            "payload": json.loads(row.payload) if row.payload else None,
         })
 
     return {"items": items}

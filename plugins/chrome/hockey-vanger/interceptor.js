@@ -99,6 +99,7 @@
         url: url, timestamp: Date.now(), data: data,
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      window.dispatchEvent(new CustomEvent('__hw_captured'));
       const count = Object.keys(store).length;
       let teams = [];
       try { teams = data.data.poule.standings.map(s => s.team.name); } catch(e) {}
@@ -127,6 +128,7 @@
         url: url, timestamp: Date.now(), data: data,
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      window.dispatchEvent(new CustomEvent('__hw_captured'));
       writeLog('ok', '✅ Competitie: ' + name + ' · ' + land.length + ' poules · ' + played + ' gespeeld');
     } catch(e) {
       writeLog('err', '❌ Save comp mislukt: ' + e.message);

@@ -53,7 +53,7 @@ function PoolCard({ poolName, rows, poolMatches, teamMap }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontWeight: 700, fontSize: 13 }}>{poolName}</span>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-            {openRounds > 0 ? `nog ${openRounds} ronde${openRounds !== 1 ? 's' : ''}` : '✓ klaar'}
+            {openRounds > 0 ? `nog ${openRounds} ronde${openRounds !== 1 ? 's' : ''}` : poolMatches.length === 0 ? 'schema volgt' : '✓ klaar'}
           </span>
         </div>
         {openRounds > 0 && (

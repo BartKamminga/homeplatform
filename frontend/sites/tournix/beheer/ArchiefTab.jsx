@@ -47,9 +47,23 @@ function SessionRow({ s, onSelect, selected }) {
 function ItemDetail({ item }) {
   const [open, setOpen] = useState(false)
   const m = item.meta
-  const teamCount = m.team_count ?? '?'
-  const played = m.matches_played ?? '?'
-  const remaining = m.matches_remaining ?? '?'
+
+  // Parse standings and matches from payload
+  const pouleData = item.payload?.data?.poule ?? null
+  const standings = pouleData?.standings ?? []
+  const matches   = pouleData?.matches   ?? []
+
+  const rounds = {}
+  for (const match of matches) {
+    const r = match.round ?? match.match_day ?? 0
+    if (!rounds[r]) rounds[r] = []
+    rounds[r].push(match)
+  }
+  const sortedRounds = Object.keys(rounds).sort((a, b) => Number(a) - Number(b))
+
+  const title = [m.competition, m.poule_name].filter(Boolean).join(' — ')
+  const subtitle = [m.class_name, m.via_team ? `via ${m.via_team}` : null].filter(Boolean).join(' · ')
+
   return (
     <div style={{
       borderRadius: 7,
@@ -60,44 +74,87 @@ function ItemDetail({ item }) {
     }}>
       <div
         onClick={() => setOpen(o => !o)}
-        style={{
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          cursor: 'pointer',
-        }}
+        style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
       >
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)', userSelect: 'none' }}>
           {open ? '▼' : '▶'}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: 'var(--color-text)' }}>
-          {m.poule_name || item.external_id}
-        </span>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-          👥 {teamCount} &nbsp; 📊 {played} &nbsp; 📅 {remaining}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {title || item.external_id}
+          </div>
+          {subtitle && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>{subtitle}</div>
+          )}
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>
+          👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}
         </span>
       </div>
+
       {open && (
-        <div style={{ padding: '0 12px 10px', borderTop: '1px solid var(--color-border)' }}>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8, marginBottom: 4 }}>
-            {m.competition && <span>{m.competition}</span>}
-            {m.class_name && <span> · {m.class_name}</span>}
-            {m.via_team && <span style={{ marginLeft: 8, opacity: 0.7 }}>via {m.via_team}</span>}
-          </div>
-          {m.teams && m.teams.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-              {m.teams.map((t, i) => (
-                <span key={i} style={{
-                  fontSize: 11, padding: '2px 8px', borderRadius: 99,
-                  background: 'var(--color-surface-2)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text)',
-                }}>{t}</span>
+        <div style={{ borderTop: '1px solid var(--color-border)' }}>
+
+          {/* Standings */}
+          {standings.length > 0 && (
+            <div style={{ padding: '8px 12px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', marginBottom: 6 }}>Stand</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '18px 1fr 28px 28px 28px', gap: 4, fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2, padding: '0 2px' }}>
+                <span>#</span><span>Team</span><span style={{ textAlign: 'right' }}>P</span><span style={{ textAlign: 'right' }}>D</span><span style={{ textAlign: 'right', fontWeight: 700 }}>Pts</span>
+              </div>
+              {standings.map((s, i) => {
+                const name = s.team?.name ?? s.name ?? '—'
+                const pts  = s.points ?? s.pts ?? 0
+                const gf   = s.goals_for  ?? s.gf ?? 0
+                const ga   = s.goals_against ?? s.ga ?? 0
+                const diff = gf - ga
+                return (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '18px 1fr 28px 28px 28px', gap: 4, fontSize: 12, padding: '3px 2px', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>{i + 1}</span>
+                    <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                    <span style={{ textAlign: 'right', color: 'var(--color-text-muted)', fontSize: 11 }}>{gf}–{ga}</span>
+                    <span style={{ textAlign: 'right', fontSize: 11, color: diff > 0 ? 'var(--color-success)' : diff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
+                      {diff > 0 ? '+' : ''}{diff}
+                    </span>
+                    <span style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-primary)' }}>{pts}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Match rounds */}
+          {sortedRounds.length > 0 && (
+            <div style={{ padding: '8px 12px', borderTop: standings.length > 0 ? '1px solid var(--color-border)' : 'none' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', marginBottom: 6 }}>Wedstrijden</div>
+              {sortedRounds.map(r => (
+                <div key={r} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 3 }}>Ronde {r}</div>
+                  {rounds[r].map((match, mi) => {
+                    const ha = match.home_team?.name ?? match.team_a?.name ?? '—'
+                    const hb = match.away_team?.name ?? match.team_b?.name ?? '—'
+                    const finished = match.status === 'final' || match.status === 'finished'
+                    const score = finished ? `${match.home_goals ?? match.score_a ?? 0}–${match.away_goals ?? match.score_b ?? 0}` : '–'
+                    return (
+                      <div key={mi} style={{ display: 'flex', alignItems: 'center', fontSize: 11, gap: 4, padding: '1px 0' }}>
+                        <span style={{ flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>{ha}</span>
+                        <span style={{ minWidth: 28, textAlign: 'center', fontWeight: 700, color: finished ? 'var(--color-text)' : 'var(--color-text-muted)', fontSize: finished ? 12 : 11 }}>{score}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>{hb}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               ))}
             </div>
           )}
-          <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 8, fontFamily: 'monospace' }}>
+
+          {standings.length === 0 && sortedRounds.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+              Geen detail-data beschikbaar voor dit item.
+            </div>
+          )}
+
+          <div style={{ padding: '6px 12px 8px', fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace', borderTop: '1px solid var(--color-border)' }}>
             id: {item.external_id} · vastgelegd {fmt(item.captured_at)}
           </div>
         </div>
