@@ -51,7 +51,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [compOpen,     setCompOpen]     = useState(false)
   const [errOpen,      setErrOpen]      = useState(false)
   const [queueOpen,    setQueueOpen]    = useState(true)
-  const [qFilter,      setQFilter]      = useState({ age_groups: [], club_external_id: null, categories: ['Junioren'], hockey_types: ['VE'] })
+  const [qFilter,      setQFilter]      = useState({ age_groups: [], club_external_id: null, categories: ['Junioren'], hockey_types: ['VE'], genders: [] })
   const [showWaiting,  setShowWaiting]  = useState(() => {
     try { return localStorage.getItem('disc_show_waiting') !== 'false' } catch { return true }
   })
@@ -78,6 +78,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
           club_external_id: filterRes.club_external_id || null,
           categories:       filterRes.categories       || ['Junioren'],
           hockey_types:     filterRes.hockey_types     || ['VE'],
+          genders:          filterRes.genders          || [],
         })
       setCapturedPoules(poulesRes.poules || [])
       setClubScanQueue(clubScanRes)
@@ -91,6 +92,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       club_external_id: next.club_external_id || null,
       categories:       next.categories?.length   ? next.categories   : ['Junioren'],
       hockey_types:     next.hockey_types?.length ? next.hockey_types : ['VE'],
+      genders:          next.genders || [],
     }).then(() => api.get('/api/tournix/discovery/poule-queue'))
       .then(q => setQueue(q))
       .catch(() => {})
@@ -105,11 +107,18 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     })
   }
 
-  function toggleCat(cat) {
+  function toggleNiveau(cat) {
     const next = qFilter.categories.includes(cat)
       ? qFilter.categories.filter(c => c !== cat)
       : [...qFilter.categories, cat]
     saveFilter({ ...qFilter, categories: next.length ? next : ['Junioren'] })
+  }
+
+  function toggleGender(g) {
+    const next = qFilter.genders.includes(g)
+      ? qFilter.genders.filter(x => x !== g)
+      : [...qFilter.genders, g]
+    saveFilter({ ...qFilter, genders: next })
   }
 
   function toggleHt(ht) {
@@ -464,13 +473,13 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎛 Queue filter</div>
 
-              {/* Categorie */}
+              {/* Niveau */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Categorie</span>
-                {CAT_ORDER.map(cat => {
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Niveau</span>
+                {['Junioren', 'Senioren'].map(cat => {
                   const on = qFilter.categories.includes(cat)
                   return (
-                    <button key={cat} onClick={() => toggleCat(cat)} style={{
+                    <button key={cat} onClick={() => toggleNiveau(cat)} style={{
                       fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
                       border: `1px solid ${on ? 'var(--color-primary)' : 'var(--color-border)'}`,
                       background: on ? 'var(--color-primary)' : 'var(--color-surface)',
@@ -479,6 +488,33 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                   )
                 })}
               </div>
+
+              {/* Geslacht */}
+              {(() => {
+                const hasJun = qFilter.categories.includes('Junioren')
+                const hasSen = qFilter.categories.includes('Senioren')
+                const options = [
+                  ...(hasJun ? ['Jongens', 'Meisjes'] : []),
+                  ...(hasSen ? ['Heren', 'Dames'] : []),
+                ]
+                if (!options.length) return null
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Geslacht</span>
+                    {options.map(g => {
+                      const on = qFilter.genders.includes(g)
+                      return (
+                        <button key={g} onClick={() => toggleGender(g)} style={{
+                          fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                          border: `1px solid ${on ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                          background: on ? 'var(--color-primary)' : 'var(--color-surface)',
+                          color: on ? '#fff' : 'var(--color-text)', fontWeight: on ? 600 : 400,
+                        }}>{g}</button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
 
               {/* Hockey type */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -496,8 +532,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                 })}
               </div>
 
-              {/* Leeftijdsgroep */}
-              {(() => {
+              {/* Leeftijdsgroep — alleen bij Junioren */}
+              {qFilter.categories.includes('Junioren') && (() => {
                 const AGE_RE_G = /[JMjm][OZoz](\d+)-/
                 const ageOfG = sn => { const m = AGE_RE_G.exec(sn || ''); return m ? 'O' + m[1] : null }
                 const availAges = [...new Set(
@@ -579,7 +615,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                 </div>
               )}
 
-              {(qFilter.age_groups.length > 0 || qFilter.club_external_id) && (
+              {(qFilter.age_groups.length > 0 || qFilter.club_external_id || qFilter.genders?.length > 0) && (
                 <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
                   Filter actief — de vanger pakt alleen deze teams op
                 </div>

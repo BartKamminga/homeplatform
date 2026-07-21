@@ -288,19 +288,38 @@ DISC_FILTER_AGE    = "disc_queue_age_groups"
 DISC_FILTER_CLUB   = "disc_queue_club"
 DISC_FILTER_CAT    = "disc_queue_category"
 DISC_FILTER_HT     = "disc_queue_hockey_type"
+DISC_FILTER_GENDER = "disc_queue_gender"
 DISC_TARGET_SEASON = "disc_target_season"
+
+_GENDER_PREFIX = {"Jongens": "J", "Meisjes": "M", "Heren": "H", "Dames": "D"}
 
 
 def _get_queue_filter(session: Session):
-    age_row  = session.get(AppSetting, DISC_FILTER_AGE)
-    club_row = session.get(AppSetting, DISC_FILTER_CLUB)
-    cat_row  = session.get(AppSetting, DISC_FILTER_CAT)
-    ht_row   = session.get(AppSetting, DISC_FILTER_HT)
-    ages = [a for a in (age_row.value if age_row else "").split(",") if a]
-    club = (club_row.value or None) if club_row else None
-    cats = [c for c in (cat_row.value if cat_row else "Junioren").split(",") if c]
-    hts  = [h for h in (ht_row.value  if ht_row  else "VE"      ).split(",") if h]
-    return ages, club, cats, hts
+    age_row    = session.get(AppSetting, DISC_FILTER_AGE)
+    club_row   = session.get(AppSetting, DISC_FILTER_CLUB)
+    cat_row    = session.get(AppSetting, DISC_FILTER_CAT)
+    ht_row     = session.get(AppSetting, DISC_FILTER_HT)
+    gender_row = session.get(AppSetting, DISC_FILTER_GENDER)
+    ages    = [a for a in (age_row.value    if age_row    else "").split(",") if a]
+    club    = (club_row.value or None)       if club_row   else None
+    cats    = [c for c in (cat_row.value    if cat_row    else "Junioren").split(",") if c]
+    hts     = [h for h in (ht_row.value     if ht_row     else "VE"      ).split(",") if h]
+    genders = [g for g in (gender_row.value if gender_row else ""         ).split(",") if g]
+    return ages, club, cats, hts, genders
+
+
+def _apply_gender_filter(q, genders):
+    """Filter op geslacht via LIKE-prefix op short_name (J/M/H/D)."""
+    if not genders:
+        return q
+    conds = [col(HockeyTeam.short_name).like(f"{_GENDER_PREFIX[g]}%")
+             for g in genders if g in _GENDER_PREFIX]
+    if not conds:
+        return q
+    combined = conds[0]
+    for c in conds[1:]:
+        combined = combined | c
+    return q.where(combined)
 
 
 def _get_target_season(session: Session) -> str:
@@ -313,6 +332,7 @@ class QueueFilterBody(BaseModel):
     club_external_id: Optional[str] = None
     categories: List[str] = []
     hockey_types: List[str] = []
+    genders: List[str] = []
 
 
 @router.get("/queue-filter")
@@ -320,8 +340,8 @@ def get_queue_filter(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    ages, club, cats, hts = _get_queue_filter(session)
-    return {"age_groups": ages, "club_external_id": club, "categories": cats, "hockey_types": hts}
+    ages, club, cats, hts, genders = _get_queue_filter(session)
+    return {"age_groups": ages, "club_external_id": club, "categories": cats, "hockey_types": hts, "genders": genders}
 
 
 @router.patch("/queue-filter")
@@ -332,10 +352,11 @@ def update_queue_filter(
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     for key, val in [
-        (DISC_FILTER_AGE,  ",".join(body.age_groups)),
-        (DISC_FILTER_CLUB, body.club_external_id or ""),
-        (DISC_FILTER_CAT,  ",".join(body.categories)   if body.categories   else "Junioren"),
-        (DISC_FILTER_HT,   ",".join(body.hockey_types) if body.hockey_types else "VE"),
+        (DISC_FILTER_AGE,    ",".join(body.age_groups)),
+        (DISC_FILTER_CLUB,   body.club_external_id or ""),
+        (DISC_FILTER_CAT,    ",".join(body.categories)   if body.categories   else "Junioren"),
+        (DISC_FILTER_HT,     ",".join(body.hockey_types) if body.hockey_types else "VE"),
+        (DISC_FILTER_GENDER, ",".join(body.genders)),
     ]:
         row = session.get(AppSetting, key)
         if row:
@@ -345,8 +366,8 @@ def update_queue_filter(
         else:
             session.add(AppSetting(key=key, value=val, updated_at=now))
     session.commit()
-    ages, club, cats, hts = _get_queue_filter(session)
-    return {"age_groups": ages, "club_external_id": club, "categories": cats, "hockey_types": hts}
+    ages, club, cats, hts, genders = _get_queue_filter(session)
+    return {"age_groups": ages, "club_external_id": club, "categories": cats, "hockey_types": hts, "genders": genders}
 
 
 @router.get("/youth-queue")
@@ -384,7 +405,7 @@ def get_poule_queue(
 ):
     """Generieke poule-queue — filter volledig vanuit AppSettings."""
     target_season = _get_target_season(session)
-    ages, club, cats, hts = _get_queue_filter(session)
+    ages, club, cats, hts, genders = _get_queue_filter(session)
 
     def _age_key(short_name):
         m = _AGE_RE_GENERIC.search(short_name or "")
@@ -395,6 +416,7 @@ def get_poule_queue(
         q = q.where(col(HockeyTeam.category_group_name).in_(cats))
     if hts:
         q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    q = _apply_gender_filter(q, genders)
     q = q.order_by(col(HockeyTeam.short_name))
     teams_with = session.exec(q).all()
 
@@ -453,6 +475,7 @@ def get_poule_queue(
         q2 = q2.where(col(HockeyTeam.category_group_name).in_(cats))
     if hts:
         q2 = q2.where(col(HockeyTeam.hockey_type).in_(hts))
+    q2 = _apply_gender_filter(q2, genders)
     q2 = q2.order_by(col(HockeyTeam.short_name))
     teams_waiting = session.exec(q2).all()
 
@@ -509,7 +532,7 @@ def get_poule_queue_next(
 ):
     """Volgende niet-gecaptured poule item (hoog leeftijdsgetal eerst). Live — altijd actueel."""
     target_season = _get_target_season(session)
-    ages, club, cats, hts = _get_queue_filter(session)
+    ages, club, cats, hts, genders = _get_queue_filter(session)
 
     captured_ids = {p.poule_id for p in session.exec(
         select(HockeyPoule).where(HockeyPoule.season == target_season)
@@ -520,6 +543,7 @@ def get_poule_queue_next(
         q = q.where(col(HockeyTeam.category_group_name).in_(cats))
     if hts:
         q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    q = _apply_gender_filter(q, genders)
     q = q.order_by(col(HockeyTeam.short_name))
     teams = session.exec(q).all()
 
@@ -574,7 +598,7 @@ def get_club_scan_queue(
     _=Depends(get_current_user),
 ):
     """Clubs waarvan teams no_new_poule_confirmed of season_pending hebben — kandidaten voor herscanning."""
-    _, _, cats, hts = _get_queue_filter(session)
+    _, _, cats, hts, genders = _get_queue_filter(session)
     q = select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)
     )
@@ -582,6 +606,7 @@ def get_club_scan_queue(
         q = q.where(col(HockeyTeam.category_group_name).in_(cats))
     if hts:
         q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    q = _apply_gender_filter(q, genders)
     teams = session.exec(q).all()
 
     counts: Dict[str, int] = {}
@@ -615,7 +640,7 @@ def get_club_scan_queue_next(
     _=Depends(get_current_user),
 ):
     """Volgende club om te scannen (meeste pending teams eerst)."""
-    _, _, cats, hts = _get_queue_filter(session)
+    _, _, cats, hts, genders = _get_queue_filter(session)
     q = select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)
     )
@@ -623,6 +648,7 @@ def get_club_scan_queue_next(
         q = q.where(col(HockeyTeam.category_group_name).in_(cats))
     if hts:
         q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    q = _apply_gender_filter(q, genders)
     teams = session.exec(q).all()
 
     if not teams:
