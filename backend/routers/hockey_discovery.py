@@ -427,13 +427,33 @@ def get_youth_queue(
             "stale":            False,
         })
 
+    age_filter, club_filter = _get_queue_filter(session)
+    filter_active = bool(age_filter or club_filter)
+    if filter_active:
+        filtered = [r for r in result if
+            (not age_filter or _age_group_of(r["short_name"]) in age_filter) and
+            (not club_filter or r["club_external_id"] == club_filter
+             or club_filter in r.get("clubs_in_poule", []))
+        ]
+        f_cap   = sum(1 for r in filtered if r["captured"] and not r["stale"])
+        f_stale = sum(1 for r in filtered if r["stale"])
+    else:
+        filtered = result
+        f_cap    = n_captured
+        f_stale  = n_stale
+
     return {
-        "total":    total,
-        "captured": n_captured,
-        "missing":  total - n_captured - n_stale,
-        "stale":    n_stale,
-        "waiting":  len(waiting),
-        "poules":   result + waiting,
+        "total":            total,
+        "captured":         n_captured,
+        "missing":          total - n_captured - n_stale,
+        "stale":            n_stale,
+        "waiting":          len(waiting),
+        "poules":           result + waiting,
+        "filter_active":    filter_active,
+        "filtered_total":   len(filtered),
+        "filtered_captured": f_cap,
+        "filtered_missing": len(filtered) - f_cap - f_stale,
+        "filtered_stale":   f_stale,
     }
 
 
@@ -456,13 +476,19 @@ def get_youth_queue_next(
         .order_by(col(HockeyTeam.short_name))
     ).all()
 
+    confirmed_skip_ids = {
+        t.recent_poule_id
+        for t in teams
+        if t.no_new_poule_confirmed and t.recent_poule_id
+    }
+
     seen: set = set()
     candidates = []
     for t in teams:
         if not t.recent_poule_id or not _is_target_age(t.short_name):
             continue
         pid = t.recent_poule_id
-        if pid in captured_ids or pid in seen:
+        if pid in captured_ids or pid in seen or pid in confirmed_skip_ids:
             continue
         seen.add(pid)
         candidates.append({
