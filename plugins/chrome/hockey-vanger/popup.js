@@ -215,11 +215,11 @@ function activateNextPouleItem() {
   _discQueue.tabLoadedListener = onTabLoaded;
   chrome.tabs.onUpdated.addListener(onTabLoaded);
 
-  // Directe navigatie via team_id — geen nav-DOM nodig
+  // Directe navigatie via team_id|poule_id/standings
   chrome.scripting.executeScript({
     target: { tabId: _discQueue.tabId },
-    func: function(tid) { window.location.hash = '/team/' + tid; },
-    args: [it.team_id]
+    func: function(hash) { window.location.hash = hash; },
+    args: ['/team/' + it.team_id + '|' + it.poule_id + '/standings']
   }, function() {
     setTimeout(function() { chrome.tabs.reload(_discQueue.tabId); }, 300);
   });
