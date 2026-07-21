@@ -51,7 +51,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [compOpen,     setCompOpen]     = useState(false)
   const [errOpen,      setErrOpen]      = useState(false)
   const [queueOpen,    setQueueOpen]    = useState(true)
-  const [qFilter,      setQFilter]      = useState({ age_groups: [], club_external_id: null })
+  const [qFilter,      setQFilter]      = useState({ age_groups: [], club_external_id: null, categories: ['Junioren'], hockey_types: ['VE'] })
   const [showWaiting,  setShowWaiting]  = useState(() => {
     try { return localStorage.getItem('disc_show_waiting') !== 'false' } catch { return true }
   })
@@ -61,7 +61,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     Promise.all([
       api.get('/api/tournix/discovery/clubs'),
       api.get('/api/tournix/discovery/teams'),
-      api.get('/api/tournix/discovery/youth-queue'),
+      api.get('/api/tournix/discovery/poule-queue'),
       api.get('/api/tournix/discovery/competitions?season=2026-2027'),
       api.get('/api/tournix/discovery/plugin-errors?limit=30'),
       api.get('/api/tournix/discovery/queue-filter'),
@@ -73,7 +73,12 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       setQueue(queueRes)
       setCompetitions(compsRes.competitions || [])
       setPluginErrors(errRes.errors || [])
-      setQFilter({ age_groups: filterRes.age_groups || [], club_external_id: filterRes.club_external_id || null })
+      setQFilter({
+          age_groups:       filterRes.age_groups       || [],
+          club_external_id: filterRes.club_external_id || null,
+          categories:       filterRes.categories       || ['Junioren'],
+          hockey_types:     filterRes.hockey_types     || ['VE'],
+        })
       setCapturedPoules(poulesRes.poules || [])
       setClubScanQueue(clubScanRes)
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
@@ -82,8 +87,10 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   function saveFilter(next) {
     setQFilter(next)
     api.patch('/api/tournix/discovery/queue-filter', {
-      age_groups: next.age_groups,
+      age_groups:       next.age_groups,
       club_external_id: next.club_external_id || null,
+      categories:       next.categories?.length   ? next.categories   : ['Junioren'],
+      hockey_types:     next.hockey_types?.length ? next.hockey_types : ['VE'],
     }).catch(() => {})
   }
 
@@ -94,6 +101,20 @@ export default function DiscoveryTab({ view = 'vanger' }) {
         ? qFilter.age_groups.filter(a => a !== ag)
         : [...qFilter.age_groups, ag],
     })
+  }
+
+  function toggleCat(cat) {
+    const next = qFilter.categories.includes(cat)
+      ? qFilter.categories.filter(c => c !== cat)
+      : [...qFilter.categories, cat]
+    saveFilter({ ...qFilter, categories: next.length ? next : ['Junioren'] })
+  }
+
+  function toggleHt(ht) {
+    const next = qFilter.hockey_types.includes(ht)
+      ? qFilter.hockey_types.filter(h => h !== ht)
+      : [...qFilter.hockey_types, ht]
+    saveFilter({ ...qFilter, hockey_types: next.length ? next : ['VE'] })
   }
 
   useEffect(() => { load() }, [])
@@ -167,7 +188,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
           <span style={{ ...statNum, color: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-text)' }}>
             {queue.captured}/{queue.total}
           </span>
-          <span style={statLbl}>poules 2026-2027</span>
+          <span style={statLbl}>poules {queue.target_season || '2026-2027'}</span>
         </div>
         {queue.stale > 0 && (
           <div style={statBox}>
@@ -441,28 +462,70 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎛 Queue filter</div>
 
-              {/* Leeftijdsgroep */}
+              {/* Categorie */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Leeftijd</span>
-                {['O18','O16','O14','O12','O11'].map(ag => {
-                  const on = qFilter.age_groups.includes(ag)
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Categorie</span>
+                {CAT_ORDER.map(cat => {
+                  const on = qFilter.categories.includes(cat)
                   return (
-                    <button key={ag} onClick={() => toggleAge(ag)} style={{
+                    <button key={cat} onClick={() => toggleCat(cat)} style={{
                       fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
                       border: `1px solid ${on ? 'var(--color-primary)' : 'var(--color-border)'}`,
                       background: on ? 'var(--color-primary)' : 'var(--color-surface)',
                       color: on ? '#fff' : 'var(--color-text)', fontWeight: on ? 600 : 400,
-                    }}>{ag}</button>
+                    }}>{cat}</button>
                   )
                 })}
-                {qFilter.age_groups.length > 0 && (
-                  <button onClick={() => saveFilter({ ...qFilter, age_groups: [] })}
-                    style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
-                      border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)' }}>
-                    × alles
-                  </button>
-                )}
               </div>
+
+              {/* Hockey type */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Type</span>
+                {['VE', 'ZA'].map(ht => {
+                  const on = qFilter.hockey_types.includes(ht)
+                  return (
+                    <button key={ht} onClick={() => toggleHt(ht)} style={{
+                      fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                      border: `1px solid ${on ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      background: on ? 'var(--color-primary)' : 'var(--color-surface)',
+                      color: on ? '#fff' : 'var(--color-text)', fontWeight: on ? 600 : 400,
+                    }}>{HT_LABEL[ht] || ht}</button>
+                  )
+                })}
+              </div>
+
+              {/* Leeftijdsgroep */}
+              {(() => {
+                const AGE_RE_G = /[JMjm][OZoz](\d+)-/
+                const ageOfG = sn => { const m = AGE_RE_G.exec(sn || ''); return m ? 'O' + m[1] : null }
+                const availAges = [...new Set(
+                  (queue.poules || []).filter(p => p.has_poule !== false).map(p => ageOfG(p.short_name)).filter(Boolean)
+                )].sort((a, b) => parseInt(b.slice(1)) - parseInt(a.slice(1)))
+                if (!availAges.length) return null
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Leeftijd</span>
+                    {availAges.map(ag => {
+                      const on = qFilter.age_groups.includes(ag)
+                      return (
+                        <button key={ag} onClick={() => toggleAge(ag)} style={{
+                          fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                          border: `1px solid ${on ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                          background: on ? 'var(--color-primary)' : 'var(--color-surface)',
+                          color: on ? '#fff' : 'var(--color-text)', fontWeight: on ? 600 : 400,
+                        }}>{ag}</button>
+                      )
+                    })}
+                    {qFilter.age_groups.length > 0 && (
+                      <button onClick={() => saveFilter({ ...qFilter, age_groups: [] })}
+                        style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                          border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)' }}>
+                        × alles
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Club */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -580,9 +643,12 @@ export default function DiscoveryTab({ view = 'vanger' }) {
 
           {/* Poule queue */}
           {queue.total > 0 && (() => {
-            const AGE_RE = /[JM][OZ](1[1-8])-/
+            const AGE_RE = /[JMjm][OZoz](\d+)-/
             const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }
-            const ages   = ['O18','O16','O14','O12','O11']
+            const allAgesInQueue = [...new Set(
+              (queue.poules || []).filter(p => p.has_poule !== false).map(p => ageOf(p.short_name)).filter(a => a !== '?')
+            )].sort((a, b) => parseInt(b.slice(1)) - parseInt(a.slice(1)))
+            const ages = allAgesInQueue
             const byAge  = {}
             for (const p of queue.poules || []) {
               const ag = ageOf(p.short_name)

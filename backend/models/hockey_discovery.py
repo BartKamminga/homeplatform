@@ -43,6 +43,7 @@ class HockeyTeam(SQLModel, table=True):
     category_group_name: str                    # Junioren / Senioren / ...
     recent_poule_id:          Optional[int] = None
     no_new_poule_confirmed:   bool          = Field(default=False)
+    season_pending:           bool          = Field(default=False)
     discovered_at:            datetime      = Field(default_factory=datetime.utcnow)
     updated_at:               datetime      = Field(default_factory=datetime.utcnow)
 

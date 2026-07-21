@@ -214,6 +214,7 @@ def upsert_club_detail(
             if team_in.recent_poule_id != existing_team.recent_poule_id:
                 existing_team.recent_poule_id = team_in.recent_poule_id
                 existing_team.no_new_poule_confirmed = False
+                existing_team.season_pending = False
             existing_team.updated_at = now
             session.add(existing_team)
             teams_updated += 1
@@ -269,8 +270,9 @@ def upsert_club_detail(
     }
 
 
-# ── Youth poule queue ────────────────────────────────────
-_AGE_RE = re.compile(r"[JM][OZ](1[1-8])-")
+# ── Queue helpers ────────────────────────────────────────
+_AGE_RE         = re.compile(r"[JM][OZ](1[1-8])-")
+_AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
 
 
 def _is_target_age(short_name: str) -> bool:
@@ -278,25 +280,39 @@ def _is_target_age(short_name: str) -> bool:
 
 
 def _age_group_of(short_name: str) -> str:
-    m = _AGE_RE.search(short_name or "")
+    m = _AGE_RE_GENERIC.search(short_name or "")
     return "O" + m.group(1) if m else "?"
 
 
-DISC_FILTER_AGE  = "disc_queue_age_groups"
-DISC_FILTER_CLUB = "disc_queue_club"
+DISC_FILTER_AGE    = "disc_queue_age_groups"
+DISC_FILTER_CLUB   = "disc_queue_club"
+DISC_FILTER_CAT    = "disc_queue_category"
+DISC_FILTER_HT     = "disc_queue_hockey_type"
+DISC_TARGET_SEASON = "disc_target_season"
 
 
 def _get_queue_filter(session: Session):
     age_row  = session.get(AppSetting, DISC_FILTER_AGE)
     club_row = session.get(AppSetting, DISC_FILTER_CLUB)
+    cat_row  = session.get(AppSetting, DISC_FILTER_CAT)
+    ht_row   = session.get(AppSetting, DISC_FILTER_HT)
     ages = [a for a in (age_row.value if age_row else "").split(",") if a]
     club = (club_row.value or None) if club_row else None
-    return ages, club
+    cats = [c for c in (cat_row.value if cat_row else "Junioren").split(",") if c]
+    hts  = [h for h in (ht_row.value  if ht_row  else "VE"      ).split(",") if h]
+    return ages, club, cats, hts
+
+
+def _get_target_season(session: Session) -> str:
+    row = session.get(AppSetting, DISC_TARGET_SEASON)
+    return row.value if row and row.value else "2026-2027"
 
 
 class QueueFilterBody(BaseModel):
     age_groups: List[str] = []
     club_external_id: Optional[str] = None
+    categories: List[str] = []
+    hockey_types: List[str] = []
 
 
 @router.get("/queue-filter")
@@ -304,8 +320,8 @@ def get_queue_filter(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    ages, club = _get_queue_filter(session)
-    return {"age_groups": ages, "club_external_id": club}
+    ages, club, cats, hts = _get_queue_filter(session)
+    return {"age_groups": ages, "club_external_id": club, "categories": cats, "hockey_types": hts}
 
 
 @router.patch("/queue-filter")
@@ -318,6 +334,8 @@ def update_queue_filter(
     for key, val in [
         (DISC_FILTER_AGE,  ",".join(body.age_groups)),
         (DISC_FILTER_CLUB, body.club_external_id or ""),
+        (DISC_FILTER_CAT,  ",".join(body.categories)   if body.categories   else "Junioren"),
+        (DISC_FILTER_HT,   ",".join(body.hockey_types) if body.hockey_types else "VE"),
     ]:
         row = session.get(AppSetting, key)
         if row:
@@ -327,8 +345,8 @@ def update_queue_filter(
         else:
             session.add(AppSetting(key=key, value=val, updated_at=now))
     session.commit()
-    ages, club = _get_queue_filter(session)
-    return {"age_groups": ages, "club_external_id": club}
+    ages, club, cats, hts = _get_queue_filter(session)
+    return {"age_groups": ages, "club_external_id": club, "categories": cats, "hockey_types": hts}
 
 
 @router.get("/youth-queue")
@@ -336,23 +354,53 @@ def get_youth_queue(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    """Unique poule_ids for Junioren O11-O18, with capture status. Also includes teams without poule (has_poule=False)."""
+    """Alias for /poule-queue — kept for backward compatibility."""
+    return get_poule_queue(session=session, _=_)
+
+
+@router.get("/youth-queue/next")
+def get_youth_queue_next(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Alias for /poule-queue/next — kept for backward compatibility."""
+    return get_poule_queue_next(session=session, _=_)
+
+
+# ── Generieke poule-queue ────────────────────────────────
+
+def _age_in_range(short_name: str, age_min: int, age_max: int) -> bool:
+    m = _AGE_RE_GENERIC.search(short_name or "")
+    if not m:
+        return False
+    age = int(m.group(1))
+    return age_min <= age <= age_max
+
+
+@router.get("/poule-queue")
+def get_poule_queue(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Generieke poule-queue — filter volledig vanuit AppSettings."""
+    target_season = _get_target_season(session)
+    ages, club, cats, hts = _get_queue_filter(session)
+
     def _age_key(short_name):
-        m = _AGE_RE.search(short_name or "")
+        m = _AGE_RE_GENERIC.search(short_name or "")
         return int(m.group(1)) if m else 0
 
-    # Teams met bekende poule
-    teams_with = session.exec(
-        select(HockeyTeam)
-        .where(HockeyTeam.category_group_name == "Junioren")
-        .where(col(HockeyTeam.recent_poule_id).is_not(None))
-        .where(HockeyTeam.hockey_type == "VE")
-        .order_by(col(HockeyTeam.short_name))
-    ).all()
+    q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
+    if cats:
+        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
+    if hts:
+        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    q = q.order_by(col(HockeyTeam.short_name))
+    teams_with = session.exec(q).all()
 
     by_poule: Dict[int, list] = {}
     for t in teams_with:
-        if not t.recent_poule_id or not _is_target_age(t.short_name):
+        if not t.recent_poule_id:
             continue
         pid = t.recent_poule_id
         if pid not in by_poule:
@@ -378,11 +426,9 @@ def get_youth_queue(
             "has_poule":        True,
             "captured":         False,
             "stale":            False,
-            "imported":         False,
             "clubs_in_poule":   clubs_ordered,
         }
 
-    target_season = "2026-2027"
     if seen:
         captured_poules = session.exec(
             select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(list(seen.keys())))
@@ -402,20 +448,16 @@ def get_youth_queue(
     n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
     n_stale    = sum(1 for r in result if r["stale"])
 
-    # Teams zonder poule (nog niet ingedeeld)
-    teams_waiting = session.exec(
-        select(HockeyTeam)
-        .where(HockeyTeam.category_group_name == "Junioren")
-        .where(col(HockeyTeam.recent_poule_id).is_(None))
-        .where(HockeyTeam.hockey_type == "VE")
-        .order_by(col(HockeyTeam.short_name))
-    ).all()
+    q2 = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_(None))
+    if cats:
+        q2 = q2.where(col(HockeyTeam.category_group_name).in_(cats))
+    if hts:
+        q2 = q2.where(col(HockeyTeam.hockey_type).in_(hts))
+    q2 = q2.order_by(col(HockeyTeam.short_name))
+    teams_waiting = session.exec(q2).all()
 
-    waiting = []
-    for t in teams_waiting:
-        if not _is_target_age(t.short_name):
-            continue
-        waiting.append({
+    waiting = [
+        {
             "poule_id":         None,
             "team_id":          t.team_id,
             "team_name":        t.name,
@@ -425,15 +467,16 @@ def get_youth_queue(
             "has_poule":        False,
             "captured":         False,
             "stale":            False,
-        })
+        }
+        for t in teams_waiting
+    ]
 
-    age_filter, club_filter = _get_queue_filter(session)
-    filter_active = bool(age_filter or club_filter)
+    filter_active = bool(ages or club)
     if filter_active:
         filtered = [r for r in result if
-            (not age_filter or _age_group_of(r["short_name"]) in age_filter) and
-            (not club_filter or r["club_external_id"] == club_filter
-             or club_filter in r.get("clubs_in_poule", []))
+            (not ages or _age_group_of(r["short_name"]) in ages) and
+            (not club or r["club_external_id"] == club
+             or club in r.get("clubs_in_poule", []))
         ]
         f_cap   = sum(1 for r in filtered if r["captured"] and not r["stale"])
         f_stale = sum(1 for r in filtered if r["stale"])
@@ -443,74 +486,73 @@ def get_youth_queue(
         f_stale  = n_stale
 
     return {
-        "total":            total,
-        "captured":         n_captured,
-        "missing":          total - n_captured - n_stale,
-        "stale":            n_stale,
-        "waiting":          len(waiting),
-        "poules":           result + waiting,
-        "filter_active":    filter_active,
-        "filtered_poules":  filtered if filter_active else [],
-        "filtered_total":   len(filtered),
+        "total":             total,
+        "captured":          n_captured,
+        "missing":           total - n_captured - n_stale,
+        "stale":             n_stale,
+        "waiting":           len(waiting),
+        "target_season":     target_season,
+        "poules":            result + waiting,
+        "filter_active":     filter_active,
+        "filtered_poules":   filtered if filter_active else [],
+        "filtered_total":    len(filtered),
         "filtered_captured": f_cap,
-        "filtered_missing": len(filtered) - f_cap - f_stale,
-        "filtered_stale":   f_stale,
+        "filtered_missing":  len(filtered) - f_cap - f_stale,
+        "filtered_stale":    f_stale,
     }
 
 
-@router.get("/youth-queue/next")
-def get_youth_queue_next(
+@router.get("/poule-queue/next")
+def get_poule_queue_next(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    """Geeft het eerstvolgende niet-gecaptured item terug (O18-eerst). Live — altijd actueel."""
-    target_season = "2026-2027"
+    """Volgende niet-gecaptured poule item (hoog leeftijdsgetal eerst). Live — altijd actueel."""
+    target_season = _get_target_season(session)
+    ages, club, cats, hts = _get_queue_filter(session)
+
     captured_ids = {p.poule_id for p in session.exec(
         select(HockeyPoule).where(HockeyPoule.season == target_season)
     ).all()}
 
-    teams = session.exec(
-        select(HockeyTeam)
-        .where(HockeyTeam.category_group_name == "Junioren")
-        .where(col(HockeyTeam.recent_poule_id).is_not(None))
-        .where(HockeyTeam.hockey_type == "VE")
-        .order_by(col(HockeyTeam.short_name))
-    ).all()
+    q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
+    if cats:
+        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
+    if hts:
+        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    q = q.order_by(col(HockeyTeam.short_name))
+    teams = session.exec(q).all()
 
-    confirmed_skip_ids = {
+    skip_ids = {
         t.recent_poule_id
         for t in teams
-        if t.no_new_poule_confirmed and t.recent_poule_id
+        if t.recent_poule_id and (t.no_new_poule_confirmed or t.season_pending)
     }
 
     seen: set = set()
     candidates = []
     for t in teams:
-        if not t.recent_poule_id or not _is_target_age(t.short_name):
+        if not t.recent_poule_id:
             continue
         pid = t.recent_poule_id
-        if pid in captured_ids or pid in seen or pid in confirmed_skip_ids:
+        if pid in captured_ids or pid in seen or pid in skip_ids:
             continue
         seen.add(pid)
         candidates.append({
-            "poule_id":        pid,
-            "team_id":         t.team_id,
-            "team_name":       t.name,
-            "short_name":      t.short_name,
+            "poule_id":         pid,
+            "team_id":          t.team_id,
+            "team_name":        t.name,
+            "short_name":       t.short_name,
             "club_external_id": t.club_external_id,
-            "hockey_type":     t.hockey_type,
+            "hockey_type":      t.hockey_type,
         })
 
-    age_filter, club_filter = _get_queue_filter(session)
-    if age_filter:
-        candidates = [c for c in candidates if _age_group_of(c["short_name"]) in age_filter]
-    if club_filter:
+    if ages:
+        candidates = [c for c in candidates if _age_group_of(c["short_name"]) in ages]
+    if club:
         club_poule_ids = {
-            t.recent_poule_id
-            for t in teams
-            if t.club_external_id == club_filter
-               and t.recent_poule_id
-               and _is_target_age(t.short_name)
+            t.recent_poule_id for t in teams
+            if t.club_external_id == club and t.recent_poule_id
         }
         candidates = [c for c in candidates if c["poule_id"] in club_poule_ids]
 
@@ -518,93 +560,11 @@ def get_youth_queue_next(
         return {"done": True}
 
     def _age_key(item):
-        m = _AGE_RE.search(item["short_name"] or "")
+        m = _AGE_RE_GENERIC.search(item["short_name"] or "")
         return int(m.group(1)) if m else 0
 
     candidates.sort(key=lambda x: -_age_key(x))
     return {"done": False, **candidates[0]}
-
-
-# ── Generieke poule-queue ────────────────────────────────
-_AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
-
-
-def _age_in_range(short_name: str, age_min: int, age_max: int) -> bool:
-    m = _AGE_RE_GENERIC.search(short_name or "")
-    if not m:
-        return False
-    age = int(m.group(1))
-    return age_min <= age <= age_max
-
-
-@router.get("/poule-queue")
-def get_poule_queue(
-    category:   Optional[str] = "Junioren",
-    hockey_type: Optional[str] = None,
-    age_min:    Optional[int] = 11,
-    age_max:    Optional[int] = 18,
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
-    """Unieke poule_ids voor teams met recent_poule_id, met capture-status.
-    Standaard: Junioren O11-O18 (zelfde als youth-queue)."""
-    q = (select(HockeyTeam)
-         .where(col(HockeyTeam.recent_poule_id).is_not(None))
-         .where(HockeyTeam.hockey_type == "VE"))
-    if category and category != "all":
-        q = q.where(HockeyTeam.category_group_name == category)
-    if hockey_type:
-        q = q.where(HockeyTeam.hockey_type == hockey_type)
-    q = q.order_by(col(HockeyTeam.short_name))
-    teams = session.exec(q).all()
-
-    seen: Dict[int, dict] = {}
-    for t in teams:
-        if not t.recent_poule_id:
-            continue
-        if age_min is not None and age_max is not None:
-            if not _age_in_range(t.short_name, age_min, age_max):
-                continue
-        pid = t.recent_poule_id
-        if pid not in seen:
-            seen[pid] = {
-                "poule_id":        pid,
-                "team_id":         t.team_id,
-                "team_name":       t.name,
-                "short_name":      t.short_name,
-                "club_external_id": t.club_external_id,
-                "hockey_type":     t.hockey_type,
-                "captured":        False,
-                "imported":        False,
-            }
-
-    if not seen:
-        return {"total": 0, "captured": 0, "missing": 0, "stale": 0, "poules": []}
-
-    target_season = "2026-2027"
-    captured_poules = session.exec(
-        select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(list(seen.keys())))
-    ).all()
-    captured_map2: Dict[int, str] = {p.poule_id: p.season for p in captured_poules}
-
-    for pid, info in seen.items():
-        if pid in captured_map2:
-            info["captured"] = True
-            info["stale"] = captured_map2[pid] != target_season
-        else:
-            info["captured"] = False
-            info["stale"] = False
-
-    result = sorted(seen.values(), key=lambda x: x["short_name"])
-    n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
-    n_stale    = sum(1 for r in result if r["stale"])
-    return {
-        "total":    len(result),
-        "captured": n_captured,
-        "missing":  len(result) - n_captured - n_stale,
-        "stale":    n_stale,
-        "poules":   result,
-    }
 
 
 # ── Club-scan queue ──────────────────────────────────────
@@ -613,13 +573,16 @@ def get_club_scan_queue(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    """Clubs waarvan teams no_new_poule_confirmed=True hebben — kandidaten voor herscanning."""
-    teams = session.exec(
-        select(HockeyTeam)
-        .where(HockeyTeam.no_new_poule_confirmed == True)
-        .where(HockeyTeam.category_group_name == "Junioren")
-        .where(HockeyTeam.hockey_type == "VE")
-    ).all()
+    """Clubs waarvan teams no_new_poule_confirmed of season_pending hebben — kandidaten voor herscanning."""
+    _, _, cats, hts = _get_queue_filter(session)
+    q = select(HockeyTeam).where(
+        (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)
+    )
+    if cats:
+        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
+    if hts:
+        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    teams = session.exec(q).all()
 
     counts: Dict[str, int] = {}
     for t in teams:
@@ -652,12 +615,15 @@ def get_club_scan_queue_next(
     _=Depends(get_current_user),
 ):
     """Volgende club om te scannen (meeste pending teams eerst)."""
-    teams = session.exec(
-        select(HockeyTeam)
-        .where(HockeyTeam.no_new_poule_confirmed == True)
-        .where(HockeyTeam.category_group_name == "Junioren")
-        .where(HockeyTeam.hockey_type == "VE")
-    ).all()
+    _, _, cats, hts = _get_queue_filter(session)
+    q = select(HockeyTeam).where(
+        (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)
+    )
+    if cats:
+        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
+    if hts:
+        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    teams = session.exec(q).all()
 
     if not teams:
         return {"done": True}
@@ -770,13 +736,13 @@ def upsert_poule_capture(
                 captured_at=now,
             ))
 
-    target_season = "2026-2027"
+    target_season = _get_target_season(session)
     if body.season != target_season:
         stale_teams = session.exec(
             select(HockeyTeam).where(HockeyTeam.recent_poule_id == body.poule_id)
         ).all()
         for t in stale_teams:
-            t.no_new_poule_confirmed = True
+            t.season_pending = True
             session.add(t)
 
     session.commit()

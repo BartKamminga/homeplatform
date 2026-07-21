@@ -10,7 +10,7 @@ var SUGGESTIONS = {};     // comp-groepnaam → {tournament_id, phase_id, tourna
 var SUGGESTIONS_LOADED = false;
 var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste archivering
 var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
-var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false, filter_active: false, filtered_poules: [], filtered_total: 0, filtered_captured: 0, filtered_missing: 0, filtered_stale: 0 };
+var POULE_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false, filter_active: false, filtered_poules: [], filtered_total: 0, filtered_captured: 0, filtered_missing: 0, filtered_stale: 0 };
 var _queueListOpen = false;
 var _discQueue = { running: false, currentItem: null, doneCount: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
@@ -128,23 +128,23 @@ function loadDiscoveryClubs() {
 
 function loadYouthQueue() {
   if (!HP.url || !HP.key) return;
-  fetch(HP.url + '/api/tournix/discovery/youth-queue', {
+  fetch(HP.url + '/api/tournix/discovery/poule-queue', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   })
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(res) {
       if (!res) return;
-      YOUTH_QUEUE.poules            = res.poules            || [];
-      YOUTH_QUEUE.total             = res.total             || 0;
-      YOUTH_QUEUE.captured          = res.captured          || 0;
-      YOUTH_QUEUE.missing           = res.missing           || 0;
-      YOUTH_QUEUE.filter_active     = res.filter_active     || false;
-      YOUTH_QUEUE.filtered_poules   = res.filtered_poules   || [];
-      YOUTH_QUEUE.filtered_total    = res.filtered_total    || 0;
-      YOUTH_QUEUE.filtered_captured = res.filtered_captured || 0;
-      YOUTH_QUEUE.filtered_missing  = res.filtered_missing  || 0;
-      YOUTH_QUEUE.filtered_stale    = res.filtered_stale    || 0;
-      YOUTH_QUEUE.loaded            = true;
+      POULE_QUEUE.poules            = res.poules            || [];
+      POULE_QUEUE.total             = res.total             || 0;
+      POULE_QUEUE.captured          = res.captured          || 0;
+      POULE_QUEUE.missing           = res.missing           || 0;
+      POULE_QUEUE.filter_active     = res.filter_active     || false;
+      POULE_QUEUE.filtered_poules   = res.filtered_poules   || [];
+      POULE_QUEUE.filtered_total    = res.filtered_total    || 0;
+      POULE_QUEUE.filtered_captured = res.filtered_captured || 0;
+      POULE_QUEUE.filtered_missing  = res.filtered_missing  || 0;
+      POULE_QUEUE.filtered_stale    = res.filtered_stale    || 0;
+      POULE_QUEUE.loaded            = true;
       if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
     })
     .catch(function(e) { addLog('err', '[BE] youth-queue: ' + e.message); });
@@ -183,7 +183,7 @@ function activateNextPouleItem() {
   if (!_discQueue.running) return;
 
   // Haal het volgende item live op uit Tournix
-  fetch(HP.url + '/api/tournix/discovery/youth-queue/next', {
+  fetch(HP.url + '/api/tournix/discovery/poule-queue/next', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   })
     .then(function(r) { return r.ok ? r.json() : null; })
@@ -1358,15 +1358,15 @@ function renderAnalysePane() {
     : 'laden…';
 
   // ── Poule discovery queue section ──────────────────────
-  if (!YOUTH_QUEUE.loaded) loadYouthQueue();
-  var qTotal    = YOUTH_QUEUE.filter_active ? YOUTH_QUEUE.filtered_total    : YOUTH_QUEUE.total;
-  var qCaptured = YOUTH_QUEUE.filter_active ? YOUTH_QUEUE.filtered_captured : YOUTH_QUEUE.captured;
-  var qMissing  = YOUTH_QUEUE.filter_active ? YOUTH_QUEUE.filtered_missing  : YOUTH_QUEUE.missing;
-  var qBadgeCls = YOUTH_QUEUE.loaded
+  if (!POULE_QUEUE.loaded) loadYouthQueue();
+  var qTotal    = POULE_QUEUE.filter_active ? POULE_QUEUE.filtered_total    : POULE_QUEUE.total;
+  var qCaptured = POULE_QUEUE.filter_active ? POULE_QUEUE.filtered_captured : POULE_QUEUE.captured;
+  var qMissing  = POULE_QUEUE.filter_active ? POULE_QUEUE.filtered_missing  : POULE_QUEUE.missing;
+  var qBadgeCls = POULE_QUEUE.loaded
     ? (qMissing === 0 ? 'an-badge-ok' : 'an-badge-partial')
     : 'an-badge-empty';
-  var qBadge = YOUTH_QUEUE.loaded
-    ? ((YOUTH_QUEUE.filter_active ? '🎛 ' : '') + qCaptured + '/' + qTotal + ' gevangen · ' + qMissing + ' nodig')
+  var qBadge = POULE_QUEUE.loaded
+    ? ((POULE_QUEUE.filter_active ? '🎛 ' : '') + qCaptured + '/' + qTotal + ' gevangen · ' + qMissing + ' nodig')
     : 'laden…';
 
   // ── Club queue ──────────────────────────────────────────
@@ -1412,9 +1412,9 @@ function renderAnalysePane() {
     : '<button class="an-disc-start" id="anDiscStart"' + (qMissing === 0 ? ' disabled' : '') + '>▶ Start discovery</button>';
 
   // Queue-lijst: gebruik gefilterde lijst wanneer filter actief, anders volledige lijst
-  var _queueSource = YOUTH_QUEUE.filter_active ? YOUTH_QUEUE.filtered_poules : YOUTH_QUEUE.poules.filter(function(p) { return p.has_poule !== false; });
+  var _queueSource = POULE_QUEUE.filter_active ? POULE_QUEUE.filtered_poules : POULE_QUEUE.poules.filter(function(p) { return p.has_poule !== false; });
   var queueListHtml = '';
-  if (YOUTH_QUEUE.loaded && _queueSource.length > 0) {
+  if (POULE_QUEUE.loaded && _queueSource.length > 0) {
     var toggleLabel = _queueListOpen ? '▲ Verberg queue' : '▼ Toon queue (' + _queueSource.length + ')';
     queueListHtml = '<div style="margin-top:6px"><button class="an-disc-refresh" id="anQueueListToggle" style="font-size:10px;padding:2px 6px">' + toggleLabel + '</button></div>';
     if (_queueListOpen) {
@@ -1457,7 +1457,7 @@ function renderAnalysePane() {
   '</div>' +
   '<div class="an-discovery">' +
     '<div class="an-disc-hdr">' +
-      '<span class="an-disc-title">⚡ Poule Queue (O11–O18)</span>' +
+      '<span class="an-disc-title">⚡ Poule Queue</span>' +
       '<span class="an-badge ' + qBadgeCls + '">' + qBadge + '</span>' +
       '<button class="an-disc-refresh" id="anRefreshQueue">↻</button>' +
     '</div>' +
@@ -1532,7 +1532,7 @@ function renderAnalysePane() {
 
   var refQBtn = $('anRefreshQueue');
   if (refQBtn) refQBtn.addEventListener('click', function() {
-    YOUTH_QUEUE.loaded = false;
+    POULE_QUEUE.loaded = false;
     _queueListOpen = true;
     loadYouthQueue();
     renderAnalysePane();
