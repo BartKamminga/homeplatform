@@ -369,7 +369,11 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                     borderColor: qFilter.club_external_id ? 'var(--color-primary)' : 'var(--color-border)' }}>
                   <option value="">— alle clubs —</option>
                   {(() => {
-                    const idsInQueue = new Set((queue.poules || []).map(p => p.club_external_id))
+                    const idsInQueue = new Set()
+                    for (const p of (queue.poules || [])) {
+                      idsInQueue.add(p.club_external_id)
+                      for (const id of (p.clubs_in_poule || [])) idsInQueue.add(id)
+                    }
                     return clubs
                       .filter(c => idsInQueue.has(c.external_id))
                       .sort((a, b) => (a.friendly_name || a.name).localeCompare(b.friendly_name || b.name, 'nl'))
@@ -509,18 +513,28 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                             {g.captured  > 0 && <span style={{ fontSize: 10, color: 'var(--color-success)', marginLeft: 4 }}>✓ {g.captured}</span>}
                             {g.waiting   > 0 && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', marginLeft: 4, opacity: 0.6 }}>⏳ {g.waiting}</span>}
                           </div>
-                          {agOpen && g.items.filter(p => !qFilter.club_external_id || p.club_external_id === qFilter.club_external_id).map(p => (
-                            <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                              <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{p.team_name}</span>
-                              <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
-                              {p.captured && !p.stale && <span style={{ color: 'var(--color-success)', fontSize: 10 }}>✓</span>}
-                              {p.stale                && <span style={{ color: 'var(--color-warning)',  fontSize: 10 }}>↩</span>}
-                              {(p.captured || p.stale) && (
-                                <button onClick={() => resetPoule(p.poule_id)}
-                                  style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
-                              )}
-                            </div>
-                          ))}
+                          {agOpen && g.items.filter(p =>
+                            !qFilter.club_external_id ||
+                            p.club_external_id === qFilter.club_external_id ||
+                            (p.clubs_in_poule || []).includes(qFilter.club_external_id)
+                          ).map(p => {
+                            const filterTeam = qFilter.club_external_id && p.club_external_id !== qFilter.club_external_id
+                              ? allTeams.find(t => t.club_external_id === qFilter.club_external_id && t.recent_poule_id === p.poule_id)
+                              : null
+                            const displayName = filterTeam ? filterTeam.name : p.team_name
+                            return (
+                              <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                                <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{displayName}</span>
+                                <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
+                                {p.captured && !p.stale && <span style={{ color: 'var(--color-success)', fontSize: 10 }}>✓</span>}
+                                {p.stale                && <span style={{ color: 'var(--color-warning)',  fontSize: 10 }}>↩</span>}
+                                {(p.captured || p.stale) && (
+                                  <button onClick={() => resetPoule(p.poule_id)}
+                                    style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
+                                )}
+                              </div>
+                            )
+                          })}
                           {agOpen && g.waitingItems.filter(p => !qFilter.club_external_id || p.club_external_id === qFilter.club_external_id).map(p => (
                             <div key={p.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)', opacity: 0.5 }}>
                               <span style={{ flex: 1, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{p.team_name}</span>

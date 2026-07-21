@@ -348,24 +348,37 @@ def get_youth_queue(
         .order_by(col(HockeyTeam.short_name))
     ).all()
 
-    seen: Dict[int, dict] = {}
+    by_poule: Dict[int, list] = {}
     for t in teams_with:
         if not t.recent_poule_id or not _is_target_age(t.short_name):
             continue
         pid = t.recent_poule_id
-        if pid not in seen:
-            seen[pid] = {
-                "poule_id":        pid,
-                "team_id":         t.team_id,
-                "team_name":       t.name,
-                "short_name":      t.short_name,
-                "club_external_id": t.club_external_id,
-                "hockey_type":     t.hockey_type,
-                "has_poule":       True,
-                "captured":        False,
-                "stale":           False,
-                "imported":        False,
-            }
+        if pid not in by_poule:
+            by_poule[pid] = []
+        by_poule[pid].append(t)
+
+    seen: Dict[int, dict] = {}
+    for pid, team_list in by_poule.items():
+        rep = team_list[0]
+        clubs_ordered: list = []
+        clubs_set: set = set()
+        for t in team_list:
+            if t.club_external_id not in clubs_set:
+                clubs_ordered.append(t.club_external_id)
+                clubs_set.add(t.club_external_id)
+        seen[pid] = {
+            "poule_id":         pid,
+            "team_id":          rep.team_id,
+            "team_name":        rep.name,
+            "short_name":       rep.short_name,
+            "club_external_id": rep.club_external_id,
+            "hockey_type":      rep.hockey_type,
+            "has_poule":        True,
+            "captured":         False,
+            "stale":            False,
+            "imported":         False,
+            "clubs_in_poule":   clubs_ordered,
+        }
 
     target_season = "2026-2027"
     if seen:
@@ -463,7 +476,14 @@ def get_youth_queue_next(
     if age_filter:
         candidates = [c for c in candidates if _age_group_of(c["short_name"]) in age_filter]
     if club_filter:
-        candidates = [c for c in candidates if c["club_external_id"] == club_filter]
+        club_poule_ids = {
+            t.recent_poule_id
+            for t in teams
+            if t.club_external_id == club_filter
+               and t.recent_poule_id
+               and _is_target_age(t.short_name)
+        }
+        candidates = [c for c in candidates if c["poule_id"] in club_poule_ids]
 
     if not candidates:
         return {"done": True}
