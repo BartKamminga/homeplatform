@@ -37,10 +37,11 @@ function resolveHockeyType(t) {
 const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#e3f2fd', fg: '#1565c0', dark: '#0d47a1' } }
 
 export default function DiscoveryTab({ view = 'vanger' }) {
-  const [clubs,        setClubs]        = useState([])
-  const [allTeams,     setAllTeams]     = useState([])
-  const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
-  const [competitions, setCompetitions] = useState([])
+  const [clubs,          setClubs]          = useState([])
+  const [allTeams,       setAllTeams]       = useState([])
+  const [queue,          setQueue]          = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
+  const [competitions,   setCompetitions]   = useState([])
+  const [capturedPoules, setCapturedPoules] = useState([])
   const [pluginErrors, setPluginErrors] = useState([])
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState('')
@@ -62,13 +63,15 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       api.get('/api/tournix/discovery/competitions?season=2026-2027'),
       api.get('/api/tournix/discovery/plugin-errors?limit=30'),
       api.get('/api/tournix/discovery/queue-filter'),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes]) => {
+      api.get('/api/tournix/discovery/poules?season=2026-2027'),
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes, poulesRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setCompetitions(compsRes.competitions || [])
       setPluginErrors(errRes.errors || [])
       setQFilter({ age_groups: filterRes.age_groups || [], club_external_id: filterRes.club_external_id || null })
+      setCapturedPoules(poulesRes.poules || [])
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
 
@@ -98,6 +101,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       return next
     })
   }
+
+  const clubMap = {}
+  for (const c of clubs) clubMap[c.external_id] = c.friendly_name || c.name
 
   const teamsByClub = {}
   for (const t of allTeams) {
@@ -190,14 +196,64 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
                           {htLabel}
                         </div>
-                        {group.map(c => (
-                          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12 }}>
-                            <span style={{ flex: 1 }}>{c.name}</span>
-                            {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
-                            {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
-                            <span style={pill('muted')}>{c.poule_count} poules</span>
-                          </div>
-                        ))}
+                        {group.map(c => {
+                          const cKey    = 'comp_' + c.id
+                          const cOpen   = expanded.has(cKey)
+                          const cPoules = capturedPoules
+                            .filter(p => p.competition_id === c.id)
+                            .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+                          return (
+                            <div key={c.id}>
+                              <div
+                                onClick={() => cPoules.length > 0 && toggle(cKey)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: cPoules.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
+                                <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
+                                  {cPoules.length > 0 ? (cOpen ? '▾' : '▸') : ''}
+                                </span>
+                                <span style={{ flex: 1 }}>{c.name}</span>
+                                {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
+                                {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
+                                <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
+                              </div>
+                              {cOpen && (
+                                <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
+                                  {cPoules.map(p => {
+                                    const pKey   = 'poule_' + p.poule_id
+                                    const pOpen  = expanded.has(pKey)
+                                    const pTeams = allTeams
+                                      .filter(t => t.recent_poule_id === p.poule_id)
+                                      .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                                    return (
+                                      <div key={p.poule_id}>
+                                        <div
+                                          onClick={() => pTeams.length > 0 && toggle(pKey)}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, cursor: pTeams.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
+                                          <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
+                                            {pTeams.length > 0 ? (pOpen ? '▾' : '▸') : '·'}
+                                          </span>
+                                          <span style={{ flex: 1, color: 'var(--color-text)' }}>{p.name}</span>
+                                          <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
+                                          {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
+                                        </div>
+                                        {pOpen && (
+                                          <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
+                                            {pTeams.map(t => (
+                                              <div key={t.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px', fontSize: 11 }}>
+                                                <span style={{ width: 80, flexShrink: 0, fontWeight: 500 }}>{t.short_name}</span>
+                                                <span style={{ flex: 1, color: 'var(--color-text-muted)', fontSize: 10 }}>{clubMap[t.club_external_id] || t.club_external_id}</span>
+                                                <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{t.team_id}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )
                   })}

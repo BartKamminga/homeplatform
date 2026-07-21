@@ -726,6 +726,31 @@ def list_competitions(
     }
 
 
+# ── Poules query ─────────────────────────────────────────
+@router.get("/poules")
+def list_poules(
+    season: Optional[str] = "2026-2027",
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    q = select(HockeyPoule).order_by(col(HockeyPoule.name))
+    if season and season != "all":
+        q = q.where(HockeyPoule.season == season)
+    poules = session.exec(q).all()
+    return {
+        "total": len(poules),
+        "poules": [
+            {
+                "poule_id":      p.poule_id,
+                "name":          p.name,
+                "competition_id": p.competition_id,
+                "season":        p.season,
+            }
+            for p in poules
+        ],
+    }
+
+
 # ── Plugin errors ────────────────────────────────────────
 class PluginErrorIn(BaseModel):
     message:    str
