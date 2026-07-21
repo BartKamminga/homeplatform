@@ -36,15 +36,7 @@ function resolveHockeyType(t) {
 
 const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#e3f2fd', fg: '#1565c0', dark: '#0d47a1' } }
 
-const subTabBtn = (active) => ({
-  fontSize: 12, padding: '5px 14px', borderRadius: 6, cursor: 'pointer',
-  border: '1px solid ' + (active ? 'var(--color-primary)' : 'var(--color-border)'),
-  background: active ? 'var(--color-primary)' : 'var(--color-surface)',
-  color: active ? '#fff' : 'var(--color-text)',
-  fontWeight: active ? 600 : 400,
-})
-
-export default function DiscoveryTab() {
+export default function DiscoveryTab({ view = 'vanger' }) {
   const [clubs,        setClubs]        = useState([])
   const [allTeams,     setAllTeams]     = useState([])
   const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, stale: 0, poules: [] })
@@ -56,7 +48,6 @@ export default function DiscoveryTab() {
   const [compOpen,     setCompOpen]     = useState(false)
   const [errOpen,      setErrOpen]      = useState(false)
   const [queueOpen,    setQueueOpen]    = useState(false)
-  const [subTab,       setSubTab]       = useState('vanger')
 
   function load() {
     setLoading(true); setError('')
@@ -136,7 +127,7 @@ export default function DiscoveryTab() {
           </div>
         )}
         {pluginErrors.length > 0 && (
-          <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => { setSubTab('vanger'); setErrOpen(true) }}>
+          <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => setErrOpen(true)}>
             <span style={{ ...statNum, color: 'var(--color-danger)' }}>{pluginErrors.length}</span>
             <span style={statLbl}>plugin fouten</span>
           </div>
@@ -147,14 +138,8 @@ export default function DiscoveryTab() {
       {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
       {loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
 
-      {/* Sub-tab navigatie */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={() => setSubTab('resultaten')} style={subTabBtn(subTab === 'resultaten')}>📊 Resultaten</button>
-        <button onClick={() => setSubTab('vanger')}     style={subTabBtn(subTab === 'vanger')}>🎯 Vanger Manager</button>
-      </div>
-
       {/* ── RESULTATEN ── */}
-      {subTab === 'resultaten' && (
+      {view === 'resultaten' && (
         <>
           {/* Competities */}
           {competitions.length > 0 && (
@@ -308,7 +293,7 @@ export default function DiscoveryTab() {
       )}
 
       {/* ── VANGER MANAGER ── */}
-      {subTab === 'vanger' && (
+      {view === 'vanger' && (
         <>
           {noDetail > 0 && !loading && (
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>

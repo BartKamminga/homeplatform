@@ -13,7 +13,7 @@ import CreateTournamentPopup from '../beheer/CreateTournamentPopup.jsx'
 import { inputStyle, primaryBtn, ghostBtn } from '../beheer/styles.js'
 
 const TABS_TOURNAMENT = ['Toernooi', 'Fases', 'Teams', 'Velden', 'Wedstrijden']
-const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief', 'Discovery']
+const TABS_GLOBAL     = ['Clubs', 'Importeer', 'Archief', 'Discovery', 'Vanger']
 
 export default function BeheerPage({ isAdmin, onStageChange }) {
   const [tab,        setTab]        = useState('Toernooi')
@@ -144,7 +144,8 @@ export default function BeheerPage({ isAdmin, onStageChange }) {
       {tab === 'Clubs'       && <ClubsTab      clubs={clubs} onRefresh={loadClubs} />}
       {tab === 'Importeer'   && <ImportTab     onImported={loadAll} />}
       {tab === 'Archief'     && <ArchiefTab />}
-      {tab === 'Discovery'   && <DiscoveryTab />}
+      {tab === 'Discovery'   && <DiscoveryTab view="resultaten" />}
+      {tab === 'Vanger'      && <DiscoveryTab view="vanger" />}
     </div>
   )
 }
