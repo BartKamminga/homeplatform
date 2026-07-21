@@ -212,60 +212,83 @@ export default function DiscoveryTab() {
       )}
 
       {/* Poule queue */}
-      {queue.total > 0 && (
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-          <div onClick={() => setQueueOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{queueOpen ? '▾' : '▸'}</span>
-            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>📋 Poule queue</span>
-            <span style={pill(queue.captured === queue.total ? 'ok' : queue.captured > 0 ? 'partial' : 'muted')}>{queue.captured}/{queue.total} captured</span>
-            {queue.missing > 0 && <span style={pill('muted')}>{queue.missing} open</span>}
-            {queue.stale  > 0 && <span style={pill('muted')}>{queue.stale} oud</span>}
-          </div>
-          {queueOpen && (
-            <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {['missing', 'stale', 'captured'].map(group => {
-                const items = (queue.poules || []).filter(p =>
-                  group === 'missing'  ? !p.captured && !p.stale :
-                  group === 'stale'    ? p.stale :
-                  p.captured && !p.stale
-                )
-                if (!items.length) return null
-                const label = group === 'missing' ? '⬜ Open' : group === 'stale' ? '↩ Oud seizoen' : '✓ Captured'
-                const groupColor = group === 'missing' ? 'var(--color-text-muted)' : group === 'stale' ? 'var(--color-warning)' : 'var(--color-success)'
-                return (
-                  <div key={group}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: groupColor, letterSpacing: '0.05em', padding: '6px 2px 3px', borderBottom: '1px solid var(--color-border)', marginBottom: 2 }}>
-                      {label} ({items.length})
-                    </div>
-                    {items.map(p => (
-                      <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11 }}>
-                        <span style={{ flex: 1, color: group === 'stale' ? 'var(--color-text-muted)' : 'var(--color-text)' }}>
-                          {p.team_name}
-                        </span>
-                        <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', fontSize: 10 }}>#{p.poule_id}</span>
-                        {(p.captured || p.stale) && (
-                          <button
-                            onClick={() => api.delete('/api/tournix/discovery/poules/' + p.poule_id).then(() =>
-                              setQueue(q => {
-                                const poules = q.poules.map(x => x.poule_id === p.poule_id ? { ...x, captured: false, stale: false } : x)
-                                const n_cap  = poules.filter(x => x.captured && !x.stale).length
-                                const n_stale = poules.filter(x => x.stale).length
-                                return { ...q, poules, captured: n_cap, stale: n_stale, missing: q.total - n_cap - n_stale }
-                              })
-                            )}
-                            style={{ fontSize: 10, padding: '1px 6px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4, cursor: 'pointer' }}
-                          >reset</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
+      {queue.total > 0 && (() => {
+        const AGE_RE = /[JM][OZ](1[1-8])-/
+        const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }
+        const ages   = ['O18','O16','O14','O12','O11']
+        // Per leeftijdsgroep: { missing, stale, captured, items }
+        const byAge  = {}
+        for (const p of queue.poules || []) {
+          const ag = ageOf(p.short_name)
+          if (!byAge[ag]) byAge[ag] = { missing: 0, stale: 0, captured: 0, items: [] }
+          byAge[ag].items.push(p)
+          if (p.stale)                  byAge[ag].stale++
+          else if (p.captured)          byAge[ag].captured++
+          else                          byAge[ag].missing++
+        }
+        const knownAges = ages.filter(a => byAge[a])
+        const otherAges = Object.keys(byAge).filter(a => !ages.includes(a)).sort()
+        const allAges   = [...knownAges, ...otherAges]
+
+        function resetPoule(poule_id) {
+          api.delete('/api/tournix/discovery/poules/' + poule_id).then(() =>
+            setQueue(q => {
+              const poules  = q.poules.map(x => x.poule_id === poule_id ? { ...x, captured: false, stale: false } : x)
+              const n_cap   = poules.filter(x => x.captured && !x.stale).length
+              const n_stale = poules.filter(x => x.stale).length
+              return { ...q, poules, captured: n_cap, stale: n_stale, missing: q.total - n_cap - n_stale }
+            })
+          )
+        }
+
+        return (
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div onClick={() => setQueueOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{queueOpen ? '▾' : '▸'}</span>
+              <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>📋 Poule queue</span>
+              <span style={pill(queue.captured === queue.total ? 'ok' : queue.captured > 0 ? 'partial' : 'muted')}>{queue.captured}/{queue.total}</span>
+              {queue.missing > 0 && <span style={pill('muted')}>{queue.missing} open</span>}
+              {queue.stale   > 0 && <span style={{ ...pill('muted'), color: 'var(--color-warning)' }}>{queue.stale} oud</span>}
             </div>
-          )}
-        </div>
-      )}
+            {queueOpen && (
+              <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {/* Per leeftijdsgroep */}
+                {allAges.map(ag => {
+                  const g = byAge[ag]
+                  const agOpen = expanded.has('q_' + ag)
+                  const allCap = g.missing === 0 && g.stale === 0
+                  return (
+                    <div key={ag}>
+                      <div onClick={() => toggle('q_' + ag)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 2px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}>
+                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10 }}>{agOpen ? '▾' : '▸'}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, width: 32, color: allCap ? 'var(--color-success)' : 'var(--color-text)' }}>{ag}</span>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flex: 1 }}>{g.items.length} poules</span>
+                        {g.missing   > 0 && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{g.missing} open</span>}
+                        {g.stale     > 0 && <span style={{ fontSize: 10, color: 'var(--color-warning)', marginLeft: 4 }}>{g.stale} oud</span>}
+                        {g.captured  > 0 && <span style={{ fontSize: 10, color: 'var(--color-success)', marginLeft: 4 }}>✓ {g.captured}</span>}
+                      </div>
+                      {agOpen && g.items.map(p => (
+                        <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                          <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{p.team_name}</span>
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
+                          {p.captured && !p.stale && <span style={{ color: 'var(--color-success)', fontSize: 10 }}>✓</span>}
+                          {p.stale                && <span style={{ color: 'var(--color-warning)',  fontSize: 10 }}>↩</span>}
+                          {(p.captured || p.stale) && (
+                            <button onClick={() => resetPoule(p.poule_id)}
+                              style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Clublijst */}
       {sortedClubs.map(c => {

@@ -344,6 +344,53 @@ def get_youth_queue(
     }
 
 
+@router.get("/youth-queue/next")
+def get_youth_queue_next(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Geeft het eerstvolgende niet-gecaptured item terug (O18-eerst). Live — altijd actueel."""
+    target_season = "2026-2027"
+    captured_ids = {p.poule_id for p in session.exec(
+        select(HockeyPoule).where(HockeyPoule.season == target_season)
+    ).all()}
+
+    teams = session.exec(
+        select(HockeyTeam)
+        .where(HockeyTeam.category_group_name == "Junioren")
+        .where(col(HockeyTeam.recent_poule_id).is_not(None))
+        .where(col(HockeyTeam.name).not_like("z%"))
+        .order_by(col(HockeyTeam.short_name))
+    ).all()
+
+    seen: set = set()
+    candidates = []
+    for t in teams:
+        if not t.recent_poule_id or not _is_target_age(t.short_name):
+            continue
+        pid = t.recent_poule_id
+        if pid in captured_ids or pid in seen:
+            continue
+        seen.add(pid)
+        candidates.append({
+            "poule_id":        pid,
+            "team_id":         t.team_id,
+            "team_name":       t.name,
+            "short_name":      t.short_name,
+            "club_external_id": t.club_external_id,
+            "hockey_type":     t.hockey_type,
+        })
+
+    if not candidates:
+        return {"done": True}
+
+    def _age_key(item):
+        m = _AGE_RE.search(item["short_name"] or "")
+        return int(m.group(1)) if m else 0
+
+    candidates.sort(key=lambda x: -_age_key(x))
+    return {"done": False, **candidates[0]}
+
 
 # ── Generieke poule-queue ────────────────────────────────
 _AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")

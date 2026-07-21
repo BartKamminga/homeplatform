@@ -11,7 +11,7 @@ var SUGGESTIONS_LOADED = false;
 var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste archivering
 var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
 var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false };
-var _discQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
+var _discQueue = { running: false, currentItem: null, doneCount: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 
 var $ = function(id) { return document.getElementById(id); };
@@ -141,28 +141,16 @@ function loadYouthQueue() {
     .catch(function(e) { addLog('err', '[BE] youth-queue: ' + e.message); });
 }
 
-// ── Poule discovery: directe URL-navigatie via team_id ───
+// ── Poule discovery: live queue via Tournix ───────────────
 function startPouleDiscovery() {
   if (_discQueue.running) { renderAnalysePane(); return; }
-  if (!YOUTH_QUEUE.loaded || !YOUTH_QUEUE.missing) { toast('✅ Alle poules al gevangen!'); return; }
+  if (!HP.url || !HP.key) { toast('❌ Geen HomePlatform verbinding'); return; }
   chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
     var tab = tabs && tabs[0];
     if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar www.hockey.nl'); return; }
-    var items = YOUTH_QUEUE.poules
-      .filter(function(p) { return !p.captured; })
-      .map(function(p) {
-        return {
-          team_id:     p.team_id,
-          poule_id:    p.poule_id,
-          hockey_type: p.hockey_type || '',
-          label:       p.short_name + ' (' + (p.club_external_id || '') + ')',
-          state:       'pending',
-          delay:       randDelay(),
-        };
-      });
-    _discQueue = { running: true, items: items, currentIdx: 0, countdownMs: 0,
+    _discQueue = { running: true, currentItem: null, doneCount: 0, countdownMs: 0,
                    tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null };
-    addLog('info', '⚡ Poule queue: ' + items.length + ' poules te laden');
+    addLog('info', '⚡ Poule discovery gestart — live queue van Tournix');
     activateNextPouleItem();
     if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
   });
@@ -176,60 +164,78 @@ function stopPouleDiscovery() {
     _discQueue.tabLoadedListener = null;
   }
   _discQueue.running = false;
-  for (var i = _discQueue.currentIdx; i < _discQueue.items.length; i++) _discQueue.items[i].state = 'pending';
-  addLog('info', '⚡ Poule queue gestopt na ' + _discQueue.currentIdx + ' poules');
+  addLog('info', '⚡ Poule queue gestopt na ' + (_discQueue.doneCount || 0) + ' poules');
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
 }
 
 function activateNextPouleItem() {
-  var items = _discQueue.items;
-  if (_discQueue.currentIdx >= items.length) {
-    _discQueue.running = false;
-    addLog('ok', '⚡ Poule queue klaar — ' + items.length + ' poules gelopen');
-    toast('✅ Poule queue klaar!');
-    loadYouthQueue();
-    if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
-    return;
-  }
-  var it = items[_discQueue.currentIdx];
-  it.state = 'active';
-  _discQueue.countdownMs = it.delay;
-  addLog('info', '⚡ → ' + it.label + ' (' + (_discQueue.currentIdx + 1) + '/' + items.length + ')');
-  if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+  if (!_discQueue.running) return;
 
-  if (_discQueue.tabLoadedListener) {
-    chrome.tabs.onUpdated.removeListener(_discQueue.tabLoadedListener);
-    _discQueue.tabLoadedListener = null;
-  }
+  // Haal het volgende item live op uit Tournix
+  fetch(HP.url + '/api/tournix/discovery/youth-queue/next', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || data.done) {
+        _discQueue.running = false;
+        addLog('ok', '⚡ Poule queue klaar — ' + (_discQueue.doneCount || 0) + ' poules gelopen');
+        toast('✅ Poule queue klaar!');
+        loadYouthQueue();
+        if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+        return;
+      }
 
-  var onTabLoaded = function(tabId, info) {
-    if (tabId !== _discQueue.tabId || info.status !== 'complete') return;
-    chrome.tabs.onUpdated.removeListener(onTabLoaded);
-    _discQueue.tabLoadedListener = null;
-    var startTime = Date.now(), duration = it.delay;
-    _discQueue.tickTimer = setInterval(function() {
-      _discQueue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
-      if (!$('analysePane').classList.contains('hidden')) renderDiscoveryQueueMetasOnly();
-    }, 120);
-    _discQueue.stepTimer = setTimeout(function() {
-      clearInterval(_discQueue.tickTimer);
-      pushPouleCaptureFromQueue(it);
-      it.state = 'done';
-      _discQueue.currentIdx++;
-      setTimeout(activateNextPouleItem, 400);
-    }, duration);
-  };
-  _discQueue.tabLoadedListener = onTabLoaded;
-  chrome.tabs.onUpdated.addListener(onTabLoaded);
+      var it = {
+        team_id:     data.team_id,
+        poule_id:    data.poule_id,
+        hockey_type: data.hockey_type || '',
+        label:       data.short_name + ' (' + (data.club_external_id || '') + ')',
+        delay:       randDelay(),
+      };
+      _discQueue.currentItem = it;
+      _discQueue.countdownMs = it.delay;
+      addLog('info', '⚡ → ' + it.label + ' (#' + it.poule_id + ', gedaan: ' + (_discQueue.doneCount || 0) + ')');
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
 
-  // Directe navigatie via team_id|poule_id/standings
-  chrome.scripting.executeScript({
-    target: { tabId: _discQueue.tabId },
-    func: function(hash) { window.location.hash = hash; },
-    args: ['/team/' + it.team_id + '|' + it.poule_id + '/standings']
-  }, function() {
-    setTimeout(function() { chrome.tabs.reload(_discQueue.tabId); }, 300);
-  });
+      if (_discQueue.tabLoadedListener) {
+        chrome.tabs.onUpdated.removeListener(_discQueue.tabLoadedListener);
+        _discQueue.tabLoadedListener = null;
+      }
+
+      var onTabLoaded = function(tabId, info) {
+        if (tabId !== _discQueue.tabId || info.status !== 'complete') return;
+        chrome.tabs.onUpdated.removeListener(onTabLoaded);
+        _discQueue.tabLoadedListener = null;
+        var startTime = Date.now(), duration = it.delay;
+        _discQueue.tickTimer = setInterval(function() {
+          _discQueue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
+          if (!$('analysePane').classList.contains('hidden')) renderDiscoveryQueueMetasOnly();
+        }, 120);
+        _discQueue.stepTimer = setTimeout(function() {
+          clearInterval(_discQueue.tickTimer);
+          pushPouleCaptureFromQueue(it);
+          _discQueue.doneCount = (_discQueue.doneCount || 0) + 1;
+          setTimeout(activateNextPouleItem, 400);
+        }, duration);
+      };
+      _discQueue.tabLoadedListener = onTabLoaded;
+      chrome.tabs.onUpdated.addListener(onTabLoaded);
+
+      // Directe navigatie via team_id|poule_id/standings
+      chrome.scripting.executeScript({
+        target: { tabId: _discQueue.tabId },
+        func: function(hash) { window.location.hash = hash; },
+        args: ['/team/' + it.team_id + '|' + it.poule_id + '/standings']
+      }, function() {
+        setTimeout(function() { chrome.tabs.reload(_discQueue.tabId); }, 300);
+      });
+    })
+    .catch(function(err) {
+      addLog('err', '⚡ Kan volgende item niet ophalen: ' + err.message);
+      _discQueue.running = false;
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+    });
 }
 
 var CURRENT_SEASON = '2026-2027';
@@ -283,11 +289,7 @@ function pushPouleCaptureFromQueue(it) {
 
 function renderDiscoveryQueueMetasOnly() {
   var countEl = $('discQueueCount');
-  if (countEl) {
-    var done = 0;
-    for (var i = 0; i < _discQueue.items.length; i++) { if (_discQueue.items[i].state === 'done') done++; }
-    countEl.textContent = done + ' / ' + _discQueue.items.length;
-  }
+  if (countEl) countEl.textContent = (_discQueue.doneCount || 0) + ' gedaan';
   var activeEl = $('discQueueActive');
   if (activeEl) activeEl.textContent = fmtMs(_discQueue.countdownMs);
 }
@@ -1242,17 +1244,15 @@ function renderAnalysePane() {
   }
 
   var discQueueRunning = _discQueue.running;
-  var discQueueDone = 0;
-  for (var dqi = 0; dqi < _discQueue.items.length; dqi++) { if (_discQueue.items[dqi].state === 'done') discQueueDone++; }
   var discQueueBtn = discQueueRunning
-    ? '<button class="an-disc-stop" id="anDiscStop">⏹ Stop</button><span class="an-disc-count" id="discQueueCount">' + discQueueDone + ' / ' + _discQueue.items.length + '</span>'
+    ? '<button class="an-disc-stop" id="anDiscStop">⏹ Stop</button><span class="an-disc-count" id="discQueueCount">' + (_discQueue.doneCount || 0) + ' gedaan</span>'
     : '<button class="an-disc-start" id="anDiscStart"' + (YOUTH_QUEUE.missing === 0 ? ' disabled' : '') + '>▶ Start discovery</button>' +
       (YOUTH_QUEUE.captured > 0 && !discQueueRunning
         ? '<button class="an-disc-import" id="anImportPoules">📥 Import naar Tournix</button>'
         : '');
 
-  var discActiveLabel = discQueueRunning && _discQueue.items[_discQueue.currentIdx]
-    ? '<div class="an-disc-active">→ ' + escHtml(_discQueue.items[_discQueue.currentIdx].label) +
+  var discActiveLabel = discQueueRunning && _discQueue.currentItem
+    ? '<div class="an-disc-active">→ ' + escHtml(_discQueue.currentItem.label) +
       ' <span id="discQueueActive">' + fmtMs(_discQueue.countdownMs) + '</span></div>'
     : '';
 
