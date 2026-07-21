@@ -266,7 +266,7 @@ function pushPouleCaptureFromQueue(it) {
           competition_name: entry.competition || '',
           class_name:       entry.class_name || '',
           hockey_type:      it.hockey_type || '',
-          season:           '2026-2027',
+          season:           entry.seizoen || CURRENT_SEASON,
           session_id:       sid,
         })
       })
