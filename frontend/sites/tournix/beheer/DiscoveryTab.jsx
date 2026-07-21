@@ -434,7 +434,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
         <>
           {/* Vanger live status */}
           {vangerStatus && (() => {
-            const seenAt = vangerStatus.last_seen ? new Date(vangerStatus.last_seen) : null
+            const seenAt = vangerStatus.last_seen ? new Date(vangerStatus.last_seen + 'Z') : null
             const ageSec = seenAt ? Math.round((Date.now() - seenAt.getTime()) / 1000) : null
             const online = ageSec !== null && ageSec < 60
             const running = vangerStatus.running && online
