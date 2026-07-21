@@ -111,13 +111,19 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     teamsByClub[t.club_external_id].push(t)
   }
 
-  const poulesByClub = {}
-  const queueByTeamId = {}
+  const queueByPouleId = {}
   for (const p of queue.poules || []) {
-    queueByTeamId[p.team_id] = p
-    if (!poulesByClub[p.club_external_id]) poulesByClub[p.club_external_id] = { total: 0, captured: 0 }
-    poulesByClub[p.club_external_id].total++
-    if (p.captured) poulesByClub[p.club_external_id].captured++
+    if (p.poule_id) queueByPouleId[p.poule_id] = p
+  }
+
+  const poulesByClub = {}
+  for (const t of allTeams) {
+    if (!t.recent_poule_id) continue
+    const qp = queueByPouleId[t.recent_poule_id]
+    if (!qp) continue
+    if (!poulesByClub[t.club_external_id]) poulesByClub[t.club_external_id] = { total: 0, captured: 0 }
+    poulesByClub[t.club_external_id].total++
+    if (qp.captured && !qp.stale) poulesByClub[t.club_external_id].captured++
   }
 
   const youthCount   = allTeams.filter(t => t.category_group_name === 'Junioren').length
@@ -334,7 +340,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                   {catTeams.map(t => {
-                                    const qp          = queueByTeamId[t.team_id]
+                                    const qp          = t.recent_poule_id ? (queueByPouleId[t.recent_poule_id] ?? null) : null
                                     const hasCaptured = qp && qp.captured && !qp.stale
                                     const isStale     = qp && qp.stale
                                     const hasPoule    = !!t.recent_poule_id
