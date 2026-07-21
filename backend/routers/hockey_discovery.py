@@ -11,6 +11,7 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam
+from models.settings import AppSetting
 
 router = APIRouter(prefix="/api/tournix/discovery", tags=["hockey-discovery"])
 
@@ -274,6 +275,60 @@ def _is_target_age(short_name: str) -> bool:
     return bool(_AGE_RE.search(short_name or ""))
 
 
+def _age_group_of(short_name: str) -> str:
+    m = _AGE_RE.search(short_name or "")
+    return "O" + m.group(1) if m else "?"
+
+
+DISC_FILTER_AGE  = "disc_queue_age_groups"
+DISC_FILTER_CLUB = "disc_queue_club"
+
+
+def _get_queue_filter(session: Session):
+    age_row  = session.get(AppSetting, DISC_FILTER_AGE)
+    club_row = session.get(AppSetting, DISC_FILTER_CLUB)
+    ages = [a for a in (age_row.value if age_row else "").split(",") if a]
+    club = (club_row.value or None) if club_row else None
+    return ages, club
+
+
+class QueueFilterBody(BaseModel):
+    age_groups: List[str] = []
+    club_external_id: Optional[str] = None
+
+
+@router.get("/queue-filter")
+def get_queue_filter(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    ages, club = _get_queue_filter(session)
+    return {"age_groups": ages, "club_external_id": club}
+
+
+@router.patch("/queue-filter")
+def update_queue_filter(
+    body: QueueFilterBody,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for key, val in [
+        (DISC_FILTER_AGE,  ",".join(body.age_groups)),
+        (DISC_FILTER_CLUB, body.club_external_id or ""),
+    ]:
+        row = session.get(AppSetting, key)
+        if row:
+            row.value = val
+            row.updated_at = now
+            session.add(row)
+        else:
+            session.add(AppSetting(key=key, value=val, updated_at=now))
+    session.commit()
+    ages, club = _get_queue_filter(session)
+    return {"age_groups": ages, "club_external_id": club}
+
+
 @router.get("/youth-queue")
 def get_youth_queue(
     session: Session = Depends(get_session),
@@ -380,6 +435,12 @@ def get_youth_queue_next(
             "club_external_id": t.club_external_id,
             "hockey_type":     t.hockey_type,
         })
+
+    age_filter, club_filter = _get_queue_filter(session)
+    if age_filter:
+        candidates = [c for c in candidates if _age_group_of(c["short_name"]) in age_filter]
+    if club_filter:
+        candidates = [c for c in candidates if c["club_external_id"] == club_filter]
 
     if not candidates:
         return {"done": True}

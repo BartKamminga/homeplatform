@@ -47,7 +47,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [expanded,     setExpanded]     = useState(new Set())
   const [compOpen,     setCompOpen]     = useState(false)
   const [errOpen,      setErrOpen]      = useState(false)
-  const [queueOpen,    setQueueOpen]    = useState(false)
+  const [queueOpen,    setQueueOpen]    = useState(true)
+  const [qFilter,      setQFilter]      = useState({ age_groups: [], club_external_id: null })
 
   function load() {
     setLoading(true); setError('')
@@ -57,13 +58,32 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       api.get('/api/tournix/discovery/youth-queue'),
       api.get('/api/tournix/discovery/competitions?season=2026-2027'),
       api.get('/api/tournix/discovery/plugin-errors?limit=30'),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes]) => {
+      api.get('/api/tournix/discovery/queue-filter'),
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setCompetitions(compsRes.competitions || [])
       setPluginErrors(errRes.errors || [])
+      setQFilter({ age_groups: filterRes.age_groups || [], club_external_id: filterRes.club_external_id || null })
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
+  }
+
+  function saveFilter(next) {
+    setQFilter(next)
+    api.patch('/api/tournix/discovery/queue-filter', {
+      age_groups: next.age_groups,
+      club_external_id: next.club_external_id || null,
+    }).catch(() => {})
+  }
+
+  function toggleAge(ag) {
+    saveFilter({
+      ...qFilter,
+      age_groups: qFilter.age_groups.includes(ag)
+        ? qFilter.age_groups.filter(a => a !== ag)
+        : [...qFilter.age_groups, ag],
+    })
   }
 
   useEffect(() => { load() }, [])
@@ -301,6 +321,71 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             </div>
           )}
 
+          {/* Queue filter */}
+          {queue.total > 0 && (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎛 Queue filter</div>
+
+              {/* Leeftijdsgroep */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Leeftijd</span>
+                {['O18','O16','O14','O12','O11'].map(ag => {
+                  const on = qFilter.age_groups.includes(ag)
+                  return (
+                    <button key={ag} onClick={() => toggleAge(ag)} style={{
+                      fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                      border: `1px solid ${on ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      background: on ? 'var(--color-primary)' : 'var(--color-surface)',
+                      color: on ? '#fff' : 'var(--color-text)', fontWeight: on ? 600 : 400,
+                    }}>{ag}</button>
+                  )
+                })}
+                {qFilter.age_groups.length > 0 && (
+                  <button onClick={() => saveFilter({ ...qFilter, age_groups: [] })}
+                    style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                      border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)' }}>
+                    × alles
+                  </button>
+                )}
+              </div>
+
+              {/* Club */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Club</span>
+                <select
+                  value={qFilter.club_external_id || ''}
+                  onChange={e => saveFilter({ ...qFilter, club_external_id: e.target.value || null })}
+                  style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)', color: 'var(--color-text)', fontFamily: 'inherit',
+                    borderColor: qFilter.club_external_id ? 'var(--color-primary)' : 'var(--color-border)' }}>
+                  <option value="">— alle clubs —</option>
+                  {(() => {
+                    const idsInQueue = new Set((queue.poules || []).map(p => p.club_external_id))
+                    return clubs
+                      .filter(c => idsInQueue.has(c.external_id))
+                      .sort((a, b) => (a.friendly_name || a.name).localeCompare(b.friendly_name || b.name, 'nl'))
+                      .map(c => (
+                        <option key={c.external_id} value={c.external_id}>{c.friendly_name || c.name}</option>
+                      ))
+                  })()}
+                </select>
+                {qFilter.club_external_id && (
+                  <button onClick={() => saveFilter({ ...qFilter, club_external_id: null })}
+                    style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                      border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)' }}>
+                    × wissen
+                  </button>
+                )}
+              </div>
+
+              {(qFilter.age_groups.length > 0 || qFilter.club_external_id) && (
+                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  Filter actief — de vanger pakt alleen deze teams op
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Plugin fouten */}
           {pluginErrors.length > 0 && (
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-danger)', borderRadius: 10, overflow: 'hidden' }}>
@@ -347,7 +432,10 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             }
             const knownAges = ages.filter(a => byAge[a])
             const otherAges = Object.keys(byAge).filter(a => !ages.includes(a)).sort()
-            const allAges   = [...knownAges, ...otherAges]
+            const allAgesRaw = [...knownAges, ...otherAges]
+            const allAges = qFilter.age_groups.length > 0
+              ? allAgesRaw.filter(a => qFilter.age_groups.includes(a))
+              : allAgesRaw
 
             function resetPoule(poule_id) {
               api.delete('/api/tournix/discovery/poules/' + poule_id).then(() =>
@@ -387,7 +475,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                             {g.stale     > 0 && <span style={{ fontSize: 10, color: 'var(--color-warning)', marginLeft: 4 }}>{g.stale} oud</span>}
                             {g.captured  > 0 && <span style={{ fontSize: 10, color: 'var(--color-success)', marginLeft: 4 }}>✓ {g.captured}</span>}
                           </div>
-                          {agOpen && g.items.map(p => (
+                          {agOpen && g.items.filter(p => !qFilter.club_external_id || p.club_external_id === qFilter.club_external_id).map(p => (
                             <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
                               <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{p.team_name}</span>
                               <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
