@@ -140,18 +140,25 @@
   function save(url, pouleId, teamId, data) {
     try {
       const store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
-      let pouleName = '', teamName = '', compName = '', className = '';
+      let pouleName = '', teamName = '', compName = '', className = '', seizoen = '';
       try {
         pouleName = data.data.poule.name || '';
         teamName  = data.data.team.name || '';
         compName  = data.data.poule.competition.name || '';
         className = data.data.poule.competition.class_name || '';
+        seizoen   = data.data.poule.competition.season || '';
       } catch(e) {}
+      // Fallback: seizoen uit competitienaam of poulnaam extraheren
+      if (!seizoen) {
+        var m = (compName + ' ' + pouleName).match(/(\d{4}-\d{4})/);
+        if (m) seizoen = m[1];
+      }
 
       store[pouleId] = {
         poule_id: pouleId, team_id: teamId,
         poule_name: pouleName, team_name: teamName,
         competition: compName, class_name: className,
+        seizoen: seizoen,
         url: url, timestamp: Date.now(), data: data,
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(store));

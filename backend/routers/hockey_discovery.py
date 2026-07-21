@@ -305,19 +305,23 @@ def get_youth_queue(
             }
 
     if not seen:
-        return {"total": 0, "captured": 0, "imported": 0, "missing": 0, "poules": []}
+        return {"total": 0, "captured": 0, "imported": 0, "missing": 0, "stale": 0, "poules": []}
 
-    # Check data_captures for captured poules
-    str_ids = [str(pid) for pid in seen]
-    rows = session.exec(
-        select(col(DataCapture.external_id))
-        .where(DataCapture.capture_type == "poule")
-        .where(col(DataCapture.external_id).in_(str_ids))
+    target_season = "2026-2027"
+
+    # Check HockeyPoule voor captured status + seizoencheck
+    captured_poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(list(seen.keys())))
     ).all()
-    captured_set = set(rows)
+    captured_map: Dict[int, str] = {p.poule_id: p.season for p in captured_poules}
 
     for pid, info in seen.items():
-        info["captured"] = str(pid) in captured_set
+        if pid in captured_map:
+            info["captured"] = True
+            info["stale"] = captured_map[pid] != target_season
+        else:
+            info["captured"] = False
+            info["stale"] = False
 
     def _age_key(short_name):
         m = _AGE_RE.search(short_name or "")
@@ -326,14 +330,16 @@ def get_youth_queue(
     result = list(seen.values())
     result.sort(key=lambda x: (-_age_key(x["short_name"]), x["short_name"]))
     total = len(result)
-    n_captured = sum(1 for r in result if r["captured"])
+    n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
+    n_stale    = sum(1 for r in result if r["stale"])
 
     return {
-        "total": total,
+        "total":    total,
         "captured": n_captured,
-        "imported": 0,          # filled in later when Tournix import is wired
-        "missing": total - n_captured,
-        "poules": result,
+        "imported": 0,
+        "missing":  total - n_captured - n_stale,
+        "stale":    n_stale,
+        "poules":   result,
     }
 
 
@@ -390,24 +396,30 @@ def get_poule_queue(
             }
 
     if not seen:
-        return {"total": 0, "captured": 0, "missing": 0, "poules": []}
+        return {"total": 0, "captured": 0, "missing": 0, "stale": 0, "poules": []}
 
-    str_ids = [str(pid) for pid in seen]
-    rows = session.exec(
-        select(col(DataCapture.external_id))
-        .where(DataCapture.capture_type == "poule")
-        .where(col(DataCapture.external_id).in_(str_ids))
+    target_season = "2026-2027"
+    captured_poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(list(seen.keys())))
     ).all()
-    captured_set = set(rows)
+    captured_map2: Dict[int, str] = {p.poule_id: p.season for p in captured_poules}
+
     for pid, info in seen.items():
-        info["captured"] = str(pid) in captured_set
+        if pid in captured_map2:
+            info["captured"] = True
+            info["stale"] = captured_map2[pid] != target_season
+        else:
+            info["captured"] = False
+            info["stale"] = False
 
     result = sorted(seen.values(), key=lambda x: x["short_name"])
-    n_captured = sum(1 for r in result if r["captured"])
+    n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
+    n_stale    = sum(1 for r in result if r["stale"])
     return {
         "total":    len(result),
         "captured": n_captured,
-        "missing":  len(result) - n_captured,
+        "missing":  len(result) - n_captured - n_stale,
+        "stale":    n_stale,
         "poules":   result,
     }
 
@@ -419,7 +431,7 @@ class PouleCaptureIn(BaseModel):
     competition_name: str
     class_name:       str
     hockey_type:      str = ""
-    season:           str = "2025-2026"
+    season:           str = "2026-2027"
     session_id:       Optional[str] = None
 
 

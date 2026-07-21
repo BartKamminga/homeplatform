@@ -232,6 +232,8 @@ function activateNextPouleItem() {
   });
 }
 
+var CURRENT_SEASON = '2026-2027';
+
 function pushPouleCaptureFromQueue(it) {
   if (!HP.url || !HP.key) return;
   chrome.scripting.executeScript({
@@ -247,6 +249,11 @@ function pushPouleCaptureFromQueue(it) {
     var entry = results && results[0] && results[0].result;
     if (!entry) {
       addLog('err', '⚡ Poule ' + it.poule_id + ' niet gevonden — interceptor niet gevangen?');
+      return;
+    }
+    // Seizoenfilter: sla oud-seizoen poules over
+    if (entry.seizoen && entry.seizoen !== CURRENT_SEASON) {
+      addLog('warn', '⏭ ' + it.label + ' — oud seizoen (' + entry.seizoen + '), nog geen indeling voor ' + CURRENT_SEASON);
       return;
     }
     getOrCreateSessionId(function(sid) {

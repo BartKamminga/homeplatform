@@ -40,7 +40,7 @@ const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { 
 export default function DiscoveryTab() {
   const [clubs,        setClubs]        = useState([])
   const [allTeams,     setAllTeams]     = useState([])
-  const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, poules: [] })
+  const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, stale: 0, poules: [] })
   const [competitions, setCompetitions] = useState([])
   const [pluginErrors, setPluginErrors] = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -118,8 +118,14 @@ export default function DiscoveryTab() {
           <span style={{ ...statNum, color: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-text)' }}>
             {queue.captured}/{queue.total}
           </span>
-          <span style={statLbl}>poules gevangen</span>
+          <span style={statLbl}>poules 2026-2027</span>
         </div>
+        {queue.stale > 0 && (
+          <div style={statBox}>
+            <span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.stale}</span>
+            <span style={statLbl}>oud seizoen</span>
+          </div>
+        )}
         {pluginErrors.length > 0 && (
           <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => setErrOpen(o => !o)}>
             <span style={{ ...statNum, color: 'var(--color-danger)' }}>{pluginErrors.length}</span>
@@ -279,14 +285,18 @@ export default function DiscoveryTab() {
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                               {catTeams.map(t => {
                                 const qp          = queueByTeamId[t.team_id]
-                                const hasCaptured = qp && qp.captured
+                                const hasCaptured = qp && qp.captured && !qp.stale
+                                const isStale     = qp && qp.stale
                                 const hasPoule    = !!t.recent_poule_id
-                                const v           = hasCaptured ? 'ok' : hasPoule ? 'partial' : 'muted'
+                                const v           = hasCaptured ? 'ok' : isStale ? 'muted' : hasPoule ? 'partial' : 'muted'
+                                const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : hasPoule ? ' · wacht op scan' : ' · geen poule'
                                 return (
-                                  <span key={t.team_id} style={pill(v)}
-                                    title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule')}>
+                                  <span key={t.team_id} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
+                                    title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule') + titleSuffix}>
                                     {t.short_name}
-                                    {hasPoule && <span style={{ opacity: 0.65 }}>{hasCaptured ? '✓' : '○'}</span>}
+                                    {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
+                                    {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
+                                    {!isStale && !hasCaptured && hasPoule && <span style={{ opacity: 0.65 }}>○</span>}
                                   </span>
                                 )
                               })}
