@@ -1,4 +1,4 @@
-// popup.js v10.3 — club scan: volledige page reload per club zodat SPA API opnieuw aanroept
+// popup.js v10.4 — poule discovery: directe URL-nav via team_id + poule-capture endpoint
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -11,7 +11,7 @@ var SUGGESTIONS_LOADED = false;
 var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste archivering
 var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
 var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false };
-var _discQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null };
+var _discQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 
 var $ = function(id) { return document.getElementById(id); };
@@ -134,105 +134,52 @@ function loadYouthQueue() {
     .catch(function(e) { addLog('err', '[BE] youth-queue: ' + e.message); });
 }
 
-// ── Poule discovery auto-navigate ────────────────────────
+// ── Poule discovery: directe URL-navigatie via team_id ───
 function startPouleDiscovery() {
   if (_discQueue.running) { renderAnalysePane(); return; }
   if (!YOUTH_QUEUE.loaded || !YOUTH_QUEUE.missing) { toast('✅ Alle poules al gevangen!'); return; }
   chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
     var tab = tabs && tabs[0];
-    if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar hockey.nl'); return; }
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: function() {
-        // Collect nav items + their team_ids from href #/team/...
-        var seen = {}, items = [];
-        function collect(root) {
-          if (!root) return;
-          try {
-            Array.from(root.querySelectorAll('a[href^="#/team/"]')).forEach(function(a) {
-              var href = a.getAttribute('href');
-              if (href && !seen[href]) {
-                seen[href] = true;
-                // Extract team_id from href pattern |{team_id} or /{team_id}
-                var m = href.match(/[|/](\d+)/g) || [];
-                var teamId = m.length ? parseInt(m[m.length - 1].replace(/[|/]/, '')) : null;
-                items.push({ href: href, label: (a.textContent || '').trim(), teamId: teamId });
-              }
-            });
-            Array.from(root.querySelectorAll('*')).forEach(function(el) {
-              if (el.shadowRoot) collect(el.shadowRoot);
-            });
-          } catch(e) {}
-        }
-        collect(document);
-        return items;
-      }
-    }, function(results) {
-      var navItems = results && results[0] && results[0].result || [];
-      if (!navItems.length) { toast('❌ Geen nav gevonden — open een competitie op hockey.nl'); return; }
-
-      // Build team_id → href map from nav
-      var navByTeamId = {};
-      for (var i = 0; i < navItems.length; i++) {
-        if (navItems[i].teamId) navByTeamId[navItems[i].teamId] = navItems[i];
-      }
-
-      // Match youth-queue poules to nav items
-      var queueItems = [];
-      var missing = YOUTH_QUEUE.poules.filter(function(p) { return !p.captured; });
-      for (var mi = 0; mi < missing.length; mi++) {
-        var p = missing[mi];
-        var nav = navByTeamId[p.team_id];
-        if (nav) {
-          queueItems.push({
-            href: nav.href,
-            label: p.short_name + ' (' + (p.club_external_id || '') + ')',
-            navLabel: nav.label,
-            pouleId: String(p.poule_id),
-            teamId: String(p.team_id),
-            state: 'pending',
-            delay: randDelay(),
-          });
-        }
-      }
-
-      if (!queueItems.length) {
-        toast('⚠️ Geen nav-items gevonden voor de queue — open de juiste competitie');
-        addLog('info', '🏒 Discovery: ' + missing.length + ' poules nodig maar 0 matches in nav. Zorg dat de competitie-nav geladen is.');
-        return;
-      }
-
-      _discQueue = {
-        running: false, items: queueItems,
-        currentIdx: 0, countdownMs: 0,
-        tabId: tab.id, tickTimer: null, stepTimer: null,
-      };
-      addLog('info', '🏒 Discovery queue: ' + queueItems.length + ' van ' + missing.length + ' poules gevonden in nav');
-      _discQueue.running = true;
-      activateNextDiscoveryItem();
-      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
-    });
+    if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar www.hockey.nl'); return; }
+    var items = YOUTH_QUEUE.poules
+      .filter(function(p) { return !p.captured; })
+      .map(function(p) {
+        return {
+          team_id:     p.team_id,
+          poule_id:    p.poule_id,
+          hockey_type: p.hockey_type || '',
+          label:       p.short_name + ' (' + (p.club_external_id || '') + ')',
+          state:       'pending',
+          delay:       randDelay(),
+        };
+      });
+    _discQueue = { running: true, items: items, currentIdx: 0, countdownMs: 0,
+                   tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null };
+    addLog('info', '⚡ Poule queue: ' + items.length + ' poules te laden');
+    activateNextPouleItem();
+    if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
   });
 }
 
 function stopPouleDiscovery() {
   clearInterval(_discQueue.tickTimer);
   clearTimeout(_discQueue.stepTimer);
+  if (_discQueue.tabLoadedListener) {
+    chrome.tabs.onUpdated.removeListener(_discQueue.tabLoadedListener);
+    _discQueue.tabLoadedListener = null;
+  }
   _discQueue.running = false;
   for (var i = _discQueue.currentIdx; i < _discQueue.items.length; i++) _discQueue.items[i].state = 'pending';
-  addLog('info', '🏒 Discovery gestopt na ' + _discQueue.currentIdx + ' poules');
+  addLog('info', '⚡ Poule queue gestopt na ' + _discQueue.currentIdx + ' poules');
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
 }
 
-function activateNextDiscoveryItem() {
+function activateNextPouleItem() {
   var items = _discQueue.items;
-  while (_discQueue.currentIdx < items.length && items[_discQueue.currentIdx].state === 'skip') {
-    _discQueue.currentIdx++;
-  }
   if (_discQueue.currentIdx >= items.length) {
     _discQueue.running = false;
-    addLog('ok', '🏒 Poule discovery klaar — ' + items.length + ' poules gelopen');
-    toast('✅ Discovery klaar!');
+    addLog('ok', '⚡ Poule queue klaar — ' + items.length + ' poules gelopen');
+    toast('✅ Poule queue klaar!');
     loadYouthQueue();
     if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
     return;
@@ -240,46 +187,83 @@ function activateNextDiscoveryItem() {
   var it = items[_discQueue.currentIdx];
   it.state = 'active';
   _discQueue.countdownMs = it.delay;
+  addLog('info', '⚡ → ' + it.label + ' (' + (_discQueue.currentIdx + 1) + '/' + items.length + ')');
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
-  addLog('info', '🏒 → ' + it.label + ' (' + (_discQueue.currentIdx + 1) + '/' + items.length + ')');
 
-  // Navigate: eerst terug naar home, dan naar het team
+  if (_discQueue.tabLoadedListener) {
+    chrome.tabs.onUpdated.removeListener(_discQueue.tabLoadedListener);
+    _discQueue.tabLoadedListener = null;
+  }
+
+  var onTabLoaded = function(tabId, info) {
+    if (tabId !== _discQueue.tabId || info.status !== 'complete') return;
+    chrome.tabs.onUpdated.removeListener(onTabLoaded);
+    _discQueue.tabLoadedListener = null;
+    var startTime = Date.now(), duration = it.delay;
+    _discQueue.tickTimer = setInterval(function() {
+      _discQueue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
+      if (!$('analysePane').classList.contains('hidden')) renderDiscoveryQueueMetasOnly();
+    }, 120);
+    _discQueue.stepTimer = setTimeout(function() {
+      clearInterval(_discQueue.tickTimer);
+      pushPouleCaptureFromQueue(it);
+      it.state = 'done';
+      _discQueue.currentIdx++;
+      setTimeout(activateNextPouleItem, 400);
+    }, duration);
+  };
+  _discQueue.tabLoadedListener = onTabLoaded;
+  chrome.tabs.onUpdated.addListener(onTabLoaded);
+
+  // Directe navigatie via team_id — geen nav-DOM nodig
   chrome.scripting.executeScript({
     target: { tabId: _discQueue.tabId },
-    func: function() { window.location.hash = '/'; }
+    func: function(tid) { window.location.hash = '/team/' + tid; },
+    args: [it.team_id]
   }, function() {
-    setTimeout(function() {
-      chrome.scripting.executeScript({
-        target: { tabId: _discQueue.tabId },
-        func: function(h) {
-          var clicked = false;
-          function findAndClick(root) {
-            if (!root || clicked) return;
-            try {
-              var links = root.querySelectorAll('a[href="' + h + '"]');
-              if (links.length) { links[0].click(); clicked = true; return; }
-              root.querySelectorAll('*').forEach(function(el) { if (el.shadowRoot) findAndClick(el.shadowRoot); });
-            } catch(e) {}
-          }
-          findAndClick(document);
-          if (!clicked) window.location.hash = h.replace(/^#/, '');
-          return clicked;
-        },
-        args: [it.href]
-      }, function() {
-        var startTime = Date.now(), duration = it.delay;
-        _discQueue.tickTimer = setInterval(function() {
-          _discQueue.countdownMs = Math.max(0, duration - (Date.now() - startTime));
-          if (!$('analysePane').classList.contains('hidden')) renderDiscoveryQueueMetasOnly();
-        }, 120);
-        _discQueue.stepTimer = setTimeout(function() {
-          clearInterval(_discQueue.tickTimer);
-          it.state = 'done';
-          _discQueue.currentIdx++;
-          setTimeout(activateNextDiscoveryItem, 400);
-        }, duration);
-      });
-    }, 800);
+    setTimeout(function() { chrome.tabs.reload(_discQueue.tabId); }, 300);
+  });
+}
+
+function pushPouleCaptureFromQueue(it) {
+  if (!HP.url || !HP.key) return;
+  chrome.scripting.executeScript({
+    target: { tabId: _discQueue.tabId },
+    func: function(pouleId) {
+      try {
+        var store = JSON.parse(localStorage.getItem('__hw_poules') || '{}');
+        return store[String(pouleId)] || null;
+      } catch(e) { return null; }
+    },
+    args: [it.poule_id]
+  }, function(results) {
+    var entry = results && results[0] && results[0].result;
+    if (!entry) {
+      addLog('err', '⚡ Poule ' + it.poule_id + ' niet gevonden — interceptor niet gevangen?');
+      return;
+    }
+    getOrCreateSessionId(function(sid) {
+      fetch(HP.url + '/api/tournix/discovery/poule-capture', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poule_id:         parseInt(entry.poule_id),
+          poule_name:       entry.poule_name || '',
+          competition_name: entry.competition || '',
+          class_name:       entry.class_name || '',
+          hockey_type:      it.hockey_type || '',
+          season:           '2026-2027',
+          session_id:       sid,
+        })
+      })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(res) {
+        if (!res) return;
+        addLog('ok', '⚡ ' + (entry.poule_name || it.poule_id) + ' → ' + res.competition_name + ' [' + res.status + ']');
+        loadYouthQueue();
+      })
+      .catch(function(e) { addLog('err', '⚡ poule-capture push: ' + e.message); });
+    });
   });
 }
 
@@ -1276,7 +1260,7 @@ function renderAnalysePane() {
     '</div>' +
     discActiveLabel +
     '<div class="an-disc-btns">' + discQueueBtn + '</div>' +
-    '<div class="an-disc-hint">Open een competitie-nav op hockey.nl, dan klikt de vanger automatisch alle ontbrekende teams langs.</div>' +
+    '<div class="an-disc-hint">De vanger navigeert automatisch naar elke ontbrekende poule via team-URL — geen competitie-nav nodig.</div>' +
   '</div>';
 
   if (!navLoaded) {

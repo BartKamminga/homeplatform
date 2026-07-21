@@ -10,7 +10,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
-from models.hockey_discovery import HockeyClub, HockeyTeam
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam
 
 router = APIRouter(prefix="/api/tournix/discovery", tags=["hockey-discovery"])
 
@@ -330,6 +330,179 @@ def get_youth_queue(
         "imported": 0,          # filled in later when Tournix import is wired
         "missing": total - n_captured,
         "poules": result,
+    }
+
+
+
+# ── Generieke poule-queue ────────────────────────────────
+_AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
+
+
+def _age_in_range(short_name: str, age_min: int, age_max: int) -> bool:
+    m = _AGE_RE_GENERIC.search(short_name or "")
+    if not m:
+        return False
+    age = int(m.group(1))
+    return age_min <= age <= age_max
+
+
+@router.get("/poule-queue")
+def get_poule_queue(
+    category:   Optional[str] = "Junioren",
+    hockey_type: Optional[str] = None,
+    age_min:    Optional[int] = 11,
+    age_max:    Optional[int] = 18,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Unieke poule_ids voor teams met recent_poule_id, met capture-status.
+    Standaard: Junioren O11-O18 (zelfde als youth-queue)."""
+    q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
+    if category and category != "all":
+        q = q.where(HockeyTeam.category_group_name == category)
+    if hockey_type:
+        q = q.where(HockeyTeam.hockey_type == hockey_type)
+    q = q.order_by(col(HockeyTeam.short_name))
+    teams = session.exec(q).all()
+
+    seen: Dict[int, dict] = {}
+    for t in teams:
+        if not t.recent_poule_id:
+            continue
+        if age_min is not None and age_max is not None:
+            if not _age_in_range(t.short_name, age_min, age_max):
+                continue
+        pid = t.recent_poule_id
+        if pid not in seen:
+            seen[pid] = {
+                "poule_id":        pid,
+                "team_id":         t.team_id,
+                "team_name":       t.name,
+                "short_name":      t.short_name,
+                "club_external_id": t.club_external_id,
+                "hockey_type":     t.hockey_type,
+                "captured":        False,
+                "imported":        False,
+            }
+
+    if not seen:
+        return {"total": 0, "captured": 0, "missing": 0, "poules": []}
+
+    str_ids = [str(pid) for pid in seen]
+    rows = session.exec(
+        select(col(DataCapture.external_id))
+        .where(DataCapture.capture_type == "poule")
+        .where(col(DataCapture.external_id).in_(str_ids))
+    ).all()
+    captured_set = set(rows)
+    for pid, info in seen.items():
+        info["captured"] = str(pid) in captured_set
+
+    result = sorted(seen.values(), key=lambda x: x["short_name"])
+    n_captured = sum(1 for r in result if r["captured"])
+    return {
+        "total":    len(result),
+        "captured": n_captured,
+        "missing":  len(result) - n_captured,
+        "poules":   result,
+    }
+
+
+# ── Poule capture: structureer competitie + poule ────────
+class PouleCaptureIn(BaseModel):
+    poule_id:         int
+    poule_name:       str
+    competition_name: str
+    class_name:       str
+    hockey_type:      str = ""
+    season:           str = "2025-2026"
+    session_id:       Optional[str] = None
+
+
+@router.post("/poule-capture")
+def upsert_poule_capture(
+    body: PouleCaptureIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Competition upsert
+    ext_id = body.competition_name + "|" + body.season
+    comp = session.exec(
+        select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)
+    ).first()
+    if comp:
+        comp.class_name  = body.class_name
+        comp.updated_at  = now
+        if body.hockey_type:
+            comp.hockey_type = body.hockey_type
+        session.add(comp)
+    else:
+        comp = HockeyCompetition(
+            external_id  = ext_id,
+            name         = body.competition_name,
+            class_name   = body.class_name,
+            hockey_type  = body.hockey_type,
+            season       = body.season,
+            discovered_at = now,
+            updated_at   = now,
+        )
+        session.add(comp)
+    session.flush()
+
+    # Poule upsert
+    poule = session.exec(
+        select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
+    ).first()
+    status = "updated" if poule else "created"
+    if poule:
+        poule.name           = body.poule_name
+        poule.competition_id = comp.id
+        poule.updated_at     = now
+        session.add(poule)
+    else:
+        poule = HockeyPoule(
+            poule_id       = body.poule_id,
+            name           = body.poule_name,
+            competition_id = comp.id,
+            season         = body.season,
+            discovered_at  = now,
+            updated_at     = now,
+        )
+        session.add(poule)
+
+    # DataCapture per sessie (idempotent)
+    if body.session_id:
+        ext_cap = "poule_capture_" + str(body.poule_id)
+        already = session.exec(
+            select(DataCapture)
+            .where(DataCapture.session_id == body.session_id)
+            .where(DataCapture.external_id == ext_cap)
+        ).first()
+        if not already:
+            session.add(DataCapture(
+                id=new_uuid(),
+                source="hockey-vanger",
+                capture_type="poule_capture",
+                external_id=ext_cap,
+                session_id=body.session_id,
+                payload=json.dumps(body.model_dump(exclude={"session_id"}), ensure_ascii=False),
+                meta=json.dumps({
+                    "poule_id":    body.poule_id,
+                    "poule_name":  body.poule_name,
+                    "competition": body.competition_name,
+                    "season":      body.season,
+                }, ensure_ascii=False),
+                captured_at=now,
+            ))
+
+    session.commit()
+    return {
+        "poule_id":        body.poule_id,
+        "competition_name": body.competition_name,
+        "competition_id":  comp.id,
+        "status":          status,
     }
 
 

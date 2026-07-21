@@ -44,3 +44,29 @@ class HockeyTeam(SQLModel, table=True):
     recent_poule_id:     Optional[int] = None
     discovered_at:       datetime      = Field(default_factory=datetime.utcnow)
     updated_at:          datetime      = Field(default_factory=datetime.utcnow)
+
+
+class HockeyCompetition(SQLModel, table=True):
+    __tablename__ = "hockey_competitions"
+
+    id:           int           = Field(default=None, primary_key=True)
+    external_id:  str           = Field(unique=True, index=True)  # "{name}|{season}"
+    name:         str
+    class_name:   str                    # Gewest / District / Landelijk
+    district:     Optional[str] = None
+    hockey_type:  str           = Field(default="")  # VE / ZA
+    season:       str
+    discovered_at: datetime     = Field(default_factory=datetime.utcnow)
+    updated_at:    datetime     = Field(default_factory=datetime.utcnow)
+
+
+class HockeyPoule(SQLModel, table=True):
+    __tablename__ = "hockey_poules"
+
+    id:             int      = Field(default=None, primary_key=True)
+    poule_id:       int      = Field(unique=True, index=True)  # hockey.nl poule id
+    name:           str
+    competition_id: int      = Field(index=True)               # → hockey_competitions.id
+    season:         str
+    discovered_at:  datetime = Field(default_factory=datetime.utcnow)
+    updated_at:     datetime = Field(default_factory=datetime.utcnow)
