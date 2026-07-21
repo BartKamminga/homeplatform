@@ -525,12 +525,14 @@ def upsert_poule_capture(
 # ── Competitions query ───────────────────────────────────
 @router.get("/competitions")
 def list_competitions(
+    season: Optional[str] = "2026-2027",
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    comps = session.exec(
-        select(HockeyCompetition).order_by(col(HockeyCompetition.name))
-    ).all()
+    q = select(HockeyCompetition).order_by(col(HockeyCompetition.name))
+    if season and season != "all":
+        q = q.where(HockeyCompetition.season == season)
+    comps = session.exec(q).all()
     poules_all = session.exec(select(HockeyPoule)).all()
     poule_counts: Dict[int, int] = {}
     for p in poules_all:

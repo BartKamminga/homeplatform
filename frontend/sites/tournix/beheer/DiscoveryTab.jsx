@@ -55,7 +55,7 @@ export default function DiscoveryTab() {
       api.get('/api/tournix/discovery/clubs'),
       api.get('/api/tournix/discovery/teams'),
       api.get('/api/tournix/discovery/youth-queue'),
-      api.get('/api/tournix/discovery/competitions'),
+      api.get('/api/tournix/discovery/competitions?season=2026-2027'),
       api.get('/api/tournix/discovery/plugin-errors?limit=30'),
     ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes]) => {
       setClubs(clubsRes.clubs || [])
