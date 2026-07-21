@@ -398,40 +398,6 @@ function activateNextClubItem() {
   });
 }
 
-function importDiscoveredPoules() {
-  if (!HP.url || !HP.key) { toast('❌ HomePlatform niet geconfigureerd'); return; }
-  var groups = {};
-  var keys = Object.keys(D);
-  for (var i = 0; i < keys.length; i++) {
-    var e = D[keys[i]];
-    if (!isPoule(e)) continue;
-    var gKey = (e.competition || '') + ' · ' + (e.class_name || '');
-    if (!groups[gKey]) groups[gKey] = {};
-    groups[gKey][keys[i]] = e;
-  }
-  var groupKeys = Object.keys(groups);
-  if (!groupKeys.length) { toast('⚠️ Geen poules in geheugen — laad eerst data'); return; }
-  var total = groupKeys.length;
-  var done = 0;
-  toast('📤 ' + total + ' groepen importeren...');
-  addLog('info', '🏒 Import → ' + total + ' competitiegroepen verwerken');
-  for (var gi = 0; gi < groupKeys.length; gi++) {
-    (function(gKey2) {
-      var data2 = groups[gKey2];
-      var suggestion = SUGGESTIONS[gKey2];
-      var tid = suggestion ? suggestion.tournament_id : null;
-      var pid = suggestion ? suggestion.phase_id : null;
-      pushToHomePlatform(gKey2, data2, tid, pid, function() {
-        done++;
-        if (done === total) {
-          addLog('ok', '🏒 Import klaar — ' + total + ' groepen verwerkt');
-          loadYouthQueue();
-          if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
-        }
-      });
-    })(groupKeys[gi]);
-  }
-}
 
 function pushClubsFromPage() {
   if (!HP.url || !HP.key) return;
@@ -1259,10 +1225,7 @@ function renderAnalysePane() {
   var discQueueRunning = _discQueue.running;
   var discQueueBtn = discQueueRunning
     ? '<button class="an-disc-stop" id="anDiscStop">⏹ Stop</button><span class="an-disc-count" id="discQueueCount">' + (_discQueue.doneCount || 0) + ' gedaan</span>'
-    : '<button class="an-disc-start" id="anDiscStart"' + (qMissing === 0 ? ' disabled' : '') + '>▶ Start discovery</button>' +
-      (YOUTH_QUEUE.captured > 0 && !discQueueRunning
-        ? '<button class="an-disc-import" id="anImportPoules">📥 Import naar Tournix</button>'
-        : '');
+    : '<button class="an-disc-start" id="anDiscStart"' + (qMissing === 0 ? ' disabled' : '') + '>▶ Start discovery</button>';
 
   // Queue-lijst: toon alle items uit de server-queue
   var queueListHtml = '';
@@ -1390,9 +1353,6 @@ function renderAnalysePane() {
 
   var discStopBtn = $('anDiscStop');
   if (discStopBtn) discStopBtn.addEventListener('click', stopPouleDiscovery);
-
-  var discImportBtn = $('anImportPoules');
-  if (discImportBtn) discImportBtn.addEventListener('click', importDiscoveredPoules);
 
   var clubStartBtn = $('anClubStart');
   if (clubStartBtn) clubStartBtn.addEventListener('click', startClubDiscovery);
