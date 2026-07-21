@@ -284,7 +284,7 @@ def get_youth_queue(
         select(HockeyTeam)
         .where(HockeyTeam.category_group_name == "Junioren")
         .where(col(HockeyTeam.recent_poule_id).is_not(None))
-        .where(col(HockeyTeam.name).not_like("z%"))
+        .where(HockeyTeam.hockey_type == "VE")
         .order_by(col(HockeyTeam.short_name))
     ).all()
 
@@ -359,7 +359,7 @@ def get_youth_queue_next(
         select(HockeyTeam)
         .where(HockeyTeam.category_group_name == "Junioren")
         .where(col(HockeyTeam.recent_poule_id).is_not(None))
-        .where(col(HockeyTeam.name).not_like("z%"))
+        .where(HockeyTeam.hockey_type == "VE")
         .order_by(col(HockeyTeam.short_name))
     ).all()
 
@@ -417,7 +417,7 @@ def get_poule_queue(
     Standaard: Junioren O11-O18 (zelfde als youth-queue)."""
     q = (select(HockeyTeam)
          .where(col(HockeyTeam.recent_poule_id).is_not(None))
-         .where(col(HockeyTeam.name).not_like("z%")))
+         .where(HockeyTeam.hockey_type == "VE"))
     if category and category != "all":
         q = q.where(HockeyTeam.category_group_name == category)
     if hockey_type:
