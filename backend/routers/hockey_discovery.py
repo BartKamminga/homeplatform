@@ -211,7 +211,9 @@ def upsert_club_detail(
             existing_team.logo_url = team_in.logo
             existing_team.hockey_type = team_in.hockey_type
             existing_team.category_group_name = team_in.category_group_name
-            existing_team.recent_poule_id = team_in.recent_poule_id
+            if team_in.recent_poule_id != existing_team.recent_poule_id:
+                existing_team.recent_poule_id = team_in.recent_poule_id
+                existing_team.no_new_poule_confirmed = False
             existing_team.updated_at = now
             session.add(existing_team)
             teams_updated += 1
@@ -578,6 +580,80 @@ def get_poule_queue(
     }
 
 
+# ── Club-scan queue ──────────────────────────────────────
+@router.get("/club-scan-queue")
+def get_club_scan_queue(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Clubs waarvan teams no_new_poule_confirmed=True hebben — kandidaten voor herscanning."""
+    teams = session.exec(
+        select(HockeyTeam)
+        .where(HockeyTeam.no_new_poule_confirmed == True)
+        .where(HockeyTeam.category_group_name == "Junioren")
+        .where(HockeyTeam.hockey_type == "VE")
+    ).all()
+
+    counts: Dict[str, int] = {}
+    for t in teams:
+        counts[t.club_external_id] = counts.get(t.club_external_id, 0) + 1
+
+    if not counts:
+        return {"total": 0, "clubs": []}
+
+    clubs = session.exec(
+        select(HockeyClub).where(col(HockeyClub.external_id).in_(list(counts.keys())))
+    ).all()
+
+    result = [
+        {
+            "club_external_id": c.external_id,
+            "name":             c.name,
+            "friendly_name":    c.friendly_name,
+            "city":             c.city,
+            "pending_teams":    counts[c.external_id],
+        }
+        for c in clubs
+    ]
+    result.sort(key=lambda x: (-x["pending_teams"], x["friendly_name"] or x["name"]))
+    return {"total": len(result), "clubs": result}
+
+
+@router.get("/club-scan-queue/next")
+def get_club_scan_queue_next(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Volgende club om te scannen (meeste pending teams eerst)."""
+    teams = session.exec(
+        select(HockeyTeam)
+        .where(HockeyTeam.no_new_poule_confirmed == True)
+        .where(HockeyTeam.category_group_name == "Junioren")
+        .where(HockeyTeam.hockey_type == "VE")
+    ).all()
+
+    if not teams:
+        return {"done": True}
+
+    counts: Dict[str, int] = {}
+    for t in teams:
+        counts[t.club_external_id] = counts.get(t.club_external_id, 0) + 1
+
+    best_id = max(counts, key=lambda k: counts[k])
+    club = session.exec(select(HockeyClub).where(HockeyClub.external_id == best_id)).first()
+    if not club:
+        return {"done": True}
+
+    return {
+        "done":             False,
+        "club_external_id": club.external_id,
+        "name":             club.name,
+        "friendly_name":    club.friendly_name,
+        "city":             club.city,
+        "pending_teams":    counts[best_id],
+    }
+
+
 # ── Poule capture: structureer competitie + poule ────────
 class PouleCaptureIn(BaseModel):
     poule_id:         int
@@ -666,6 +742,15 @@ def upsert_poule_capture(
                 }, ensure_ascii=False),
                 captured_at=now,
             ))
+
+    target_season = "2026-2027"
+    if body.season != target_season:
+        stale_teams = session.exec(
+            select(HockeyTeam).where(HockeyTeam.recent_poule_id == body.poule_id)
+        ).all()
+        for t in stale_teams:
+            t.no_new_poule_confirmed = True
+            session.add(t)
 
     session.commit()
     return {

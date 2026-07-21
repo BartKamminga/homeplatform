@@ -41,7 +41,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [allTeams,       setAllTeams]       = useState([])
   const [queue,          setQueue]          = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
   const [competitions,   setCompetitions]   = useState([])
-  const [capturedPoules, setCapturedPoules] = useState([])
+  const [capturedPoules,  setCapturedPoules]  = useState([])
+  const [clubScanQueue,   setClubScanQueue]   = useState({ total: 0, clubs: [] })
   const [pluginErrors, setPluginErrors] = useState([])
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState('')
@@ -64,7 +65,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       api.get('/api/tournix/discovery/plugin-errors?limit=30'),
       api.get('/api/tournix/discovery/queue-filter'),
       api.get('/api/tournix/discovery/poules?season=2026-2027'),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes, poulesRes]) => {
+      api.get('/api/tournix/discovery/club-scan-queue'),
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes, poulesRes, clubScanRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
@@ -72,6 +74,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       setPluginErrors(errRes.errors || [])
       setQFilter({ age_groups: filterRes.age_groups || [], club_external_id: filterRes.club_external_id || null })
       setCapturedPoules(poulesRes.poules || [])
+      setClubScanQueue(clubScanRes)
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
 
@@ -501,6 +504,32 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                         {e.message}
                         {e.meta?.context && <span style={{ color: 'var(--color-text-muted)', marginLeft: 6 }}>({e.meta.context})</span>}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Club-scan queue */}
+          {clubScanQueue.total > 0 && (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div onClick={() => toggle('club_scan_q')}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{expanded.has('club_scan_q') ? '▾' : '▸'}</span>
+                <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏢 Club-scan queue</span>
+                <span style={{ ...pill('partial'), color: 'var(--color-warning)', borderColor: 'var(--color-warning)' }}>{clubScanQueue.total} clubs</span>
+              </div>
+              {expanded.has('club_scan_q') && (
+                <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 2px 8px', fontStyle: 'italic' }}>
+                    Poule gescand maar bond heeft nog geen nieuw seizoen — club opnieuw scannen om nieuwe poule-ID op te halen
+                  </div>
+                  {clubScanQueue.clubs.map(c => (
+                    <div key={c.club_external_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                      <span style={{ flex: 1 }}>{c.friendly_name || c.name}</span>
+                      {c.city && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.city}</span>}
+                      <span style={{ ...pill('partial'), fontSize: 10 }}>{c.pending_teams} teams</span>
                     </div>
                   ))}
                 </div>
