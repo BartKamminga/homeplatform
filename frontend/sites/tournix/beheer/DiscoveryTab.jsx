@@ -468,8 +468,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             </div>
           )}
 
-          {/* Queue filter */}
-          {queue.total > 0 && (
+          {/* Queue filter — altijd tonen zodat je kunt terugschakelen ook als queue leeg is */}
+          {(
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎛 Queue filter</div>
 
