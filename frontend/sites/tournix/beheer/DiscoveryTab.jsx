@@ -183,11 +183,14 @@ export default function DiscoveryTab() {
       {/* Plugin fouten */}
       {pluginErrors.length > 0 && (
         <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-danger)', borderRadius: 10, overflow: 'hidden' }}>
-          <div onClick={() => setErrOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{errOpen ? '▾' : '▸'}</span>
-            <span style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)' }}>⚠️ Plugin fouten</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', userSelect: 'none' }}>
+            <span onClick={() => setErrOpen(o => !o)} style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, cursor: 'pointer' }}>{errOpen ? '▾' : '▸'}</span>
+            <span onClick={() => setErrOpen(o => !o)} style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)', cursor: 'pointer' }}>⚠️ Plugin fouten</span>
             <span style={pill('muted')}>{pluginErrors.length} recent</span>
+            <button
+              onClick={() => { if (window.confirm('Alle plugin fouten wissen?')) api.delete('/api/tournix/discovery/plugin-errors').then(() => setPluginErrors([])) }}
+              style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 4, cursor: 'pointer' }}
+            >legen</button>
           </div>
           {errOpen && (
             <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -284,6 +284,7 @@ def get_youth_queue(
         select(HockeyTeam)
         .where(HockeyTeam.category_group_name == "Junioren")
         .where(col(HockeyTeam.recent_poule_id).is_not(None))
+        .where(col(HockeyTeam.name).not_like("z%"))
         .order_by(col(HockeyTeam.short_name))
     ).all()
 
@@ -367,7 +368,9 @@ def get_poule_queue(
 ):
     """Unieke poule_ids voor teams met recent_poule_id, met capture-status.
     Standaard: Junioren O11-O18 (zelfde als youth-queue)."""
-    q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
+    q = (select(HockeyTeam)
+         .where(col(HockeyTeam.recent_poule_id).is_not(None))
+         .where(col(HockeyTeam.name).not_like("z%")))
     if category and category != "all":
         q = q.where(HockeyTeam.category_group_name == category)
     if hockey_type:
@@ -614,6 +617,23 @@ def get_plugin_errors(
             for r in rows
         ],
     }
+
+
+@router.delete("/plugin-errors")
+def clear_plugin_errors(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    rows = session.exec(
+        select(DataCapture)
+        .where(DataCapture.source == "hockey-vanger")
+        .where(DataCapture.capture_type == "plugin_error")
+    ).all()
+    count = len(rows)
+    for r in rows:
+        session.delete(r)
+    session.commit()
+    return {"deleted": count}
 
 
 # ── Teams query ───────────────────────────────────────────
