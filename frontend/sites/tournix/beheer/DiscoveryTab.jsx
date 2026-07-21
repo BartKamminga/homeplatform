@@ -28,7 +28,6 @@ function sortCats(cats) {
 const HT_LABEL = { VE: '🏑 Veldhockey', ZA: '🏒 Zaalhockey' }
 const HT_ORDER = ['VE', 'ZA']
 
-// Zaal-teams hebben 'z' als prefix in short_name (bijv. zMO14) of hockey_type='ZA'
 function resolveHockeyType(t) {
   if (t.hockey_type === 'VE' || t.hockey_type === 'ZA') return t.hockey_type
   if (t.short_name && t.short_name[0] === 'z') return 'ZA'
@@ -36,6 +35,14 @@ function resolveHockeyType(t) {
 }
 
 const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#e3f2fd', fg: '#1565c0', dark: '#0d47a1' } }
+
+const subTabBtn = (active) => ({
+  fontSize: 12, padding: '5px 14px', borderRadius: 6, cursor: 'pointer',
+  border: '1px solid ' + (active ? 'var(--color-primary)' : 'var(--color-border)'),
+  background: active ? 'var(--color-primary)' : 'var(--color-surface)',
+  color: active ? '#fff' : 'var(--color-text)',
+  fontWeight: active ? 600 : 400,
+})
 
 export default function DiscoveryTab() {
   const [clubs,        setClubs]        = useState([])
@@ -49,6 +56,7 @@ export default function DiscoveryTab() {
   const [compOpen,     setCompOpen]     = useState(false)
   const [errOpen,      setErrOpen]      = useState(false)
   const [queueOpen,    setQueueOpen]    = useState(false)
+  const [subTab,       setSubTab]       = useState('vanger')
 
   function load() {
     setLoading(true); setError('')
@@ -77,7 +85,6 @@ export default function DiscoveryTab() {
     })
   }
 
-  // Lookup structures
   const teamsByClub = {}
   for (const t of allTeams) {
     if (!teamsByClub[t.club_external_id]) teamsByClub[t.club_external_id] = []
@@ -108,7 +115,8 @@ export default function DiscoveryTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Stats */}
+
+      {/* Stats — altijd zichtbaar */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
         <div style={statBox}><span style={statNum}>{clubs.length}</span><span style={statLbl}>clubs</span></div>
         <div style={statBox}><span style={statNum}>{detailLoaded}</span><span style={statLbl}>detail geladen</span></div>
@@ -128,7 +136,7 @@ export default function DiscoveryTab() {
           </div>
         )}
         {pluginErrors.length > 0 && (
-          <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => setErrOpen(o => !o)}>
+          <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => { setSubTab('vanger'); setErrOpen(true) }}>
             <span style={{ ...statNum, color: 'var(--color-danger)' }}>{pluginErrors.length}</span>
             <span style={statLbl}>plugin fouten</span>
           </div>
@@ -139,275 +147,290 @@ export default function DiscoveryTab() {
       {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
       {loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
 
-      {noDetail > 0 && !loading && (
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
-          ⚠️ {noDetail} clubs zonder detail — scan via de vanger op www.hockey.nl
-        </div>
-      )}
+      {/* Sub-tab navigatie */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => setSubTab('resultaten')} style={subTabBtn(subTab === 'resultaten')}>📊 Resultaten</button>
+        <button onClick={() => setSubTab('vanger')}     style={subTabBtn(subTab === 'vanger')}>🎯 Vanger Manager</button>
+      </div>
 
-      {/* Competities */}
-      {competitions.length > 0 && (
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-          <div onClick={() => setCompOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{compOpen ? '▾' : '▸'}</span>
-            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities</span>
-            <span style={pill('muted')}>{competitions.length} gevonden</span>
-          </div>
-          {compOpen && (
-            <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {['VE', 'ZA', ''].map(ht => {
-                const group = competitions.filter(c => (ht === '' ? !c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA') : c.hockey_type === ht))
-                if (!group.length) return null
-                const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Onbekend type'
-                return (
-                  <div key={ht || 'other'}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
-                      {htLabel}
-                    </div>
-                    {group.map(c => (
-                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12 }}>
-                        <span style={{ flex: 1 }}>{c.name}</span>
-                        {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
-                        {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
-                        <span style={pill('muted')}>{c.poule_count} poules</span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Plugin fouten */}
-      {pluginErrors.length > 0 && (
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-danger)', borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', userSelect: 'none' }}>
-            <span onClick={() => setErrOpen(o => !o)} style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, cursor: 'pointer' }}>{errOpen ? '▾' : '▸'}</span>
-            <span onClick={() => setErrOpen(o => !o)} style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)', cursor: 'pointer' }}>⚠️ Plugin fouten</span>
-            <span style={pill('muted')}>{pluginErrors.length} recent</span>
-            <button
-              onClick={() => { if (window.confirm('Alle plugin fouten wissen?')) api.delete('/api/tournix/discovery/plugin-errors').then(() => setPluginErrors([])) }}
-              style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 4, cursor: 'pointer' }}
-            >legen</button>
-          </div>
-          {errOpen && (
-            <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {pluginErrors.map(e => (
-                <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 6, fontSize: 11, padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
-                  <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                    {new Date(e.captured_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <span style={{ color: 'var(--color-danger)' }}>
-                    {e.message}
-                    {e.meta?.context && <span style={{ color: 'var(--color-text-muted)', marginLeft: 6 }}>({e.meta.context})</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Poule queue */}
-      {queue.total > 0 && (() => {
-        const AGE_RE = /[JM][OZ](1[1-8])-/
-        const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }
-        const ages   = ['O18','O16','O14','O12','O11']
-        // Per leeftijdsgroep: { missing, stale, captured, items }
-        const byAge  = {}
-        for (const p of queue.poules || []) {
-          const ag = ageOf(p.short_name)
-          if (!byAge[ag]) byAge[ag] = { missing: 0, stale: 0, captured: 0, items: [] }
-          byAge[ag].items.push(p)
-          if (p.stale)                  byAge[ag].stale++
-          else if (p.captured)          byAge[ag].captured++
-          else                          byAge[ag].missing++
-        }
-        const knownAges = ages.filter(a => byAge[a])
-        const otherAges = Object.keys(byAge).filter(a => !ages.includes(a)).sort()
-        const allAges   = [...knownAges, ...otherAges]
-
-        function resetPoule(poule_id) {
-          api.delete('/api/tournix/discovery/poules/' + poule_id).then(() =>
-            setQueue(q => {
-              const poules  = q.poules.map(x => x.poule_id === poule_id ? { ...x, captured: false, stale: false } : x)
-              const n_cap   = poules.filter(x => x.captured && !x.stale).length
-              const n_stale = poules.filter(x => x.stale).length
-              return { ...q, poules, captured: n_cap, stale: n_stale, missing: q.total - n_cap - n_stale }
-            })
-          )
-        }
-
-        return (
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div onClick={() => setQueueOpen(o => !o)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{queueOpen ? '▾' : '▸'}</span>
-              <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>📋 Poule queue</span>
-              <span style={pill(queue.captured === queue.total ? 'ok' : queue.captured > 0 ? 'partial' : 'muted')}>{queue.captured}/{queue.total}</span>
-              {queue.missing > 0 && <span style={pill('muted')}>{queue.missing} open</span>}
-              {queue.stale   > 0 && <span style={{ ...pill('muted'), color: 'var(--color-warning)' }}>{queue.stale} oud</span>}
-            </div>
-            {queueOpen && (
-              <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {/* Per leeftijdsgroep */}
-                {allAges.map(ag => {
-                  const g = byAge[ag]
-                  const agOpen = expanded.has('q_' + ag)
-                  const allCap = g.missing === 0 && g.stale === 0
-                  return (
-                    <div key={ag}>
-                      <div onClick={() => toggle('q_' + ag)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 2px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}>
-                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10 }}>{agOpen ? '▾' : '▸'}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, width: 32, color: allCap ? 'var(--color-success)' : 'var(--color-text)' }}>{ag}</span>
-                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flex: 1 }}>{g.items.length} poules</span>
-                        {g.missing   > 0 && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{g.missing} open</span>}
-                        {g.stale     > 0 && <span style={{ fontSize: 10, color: 'var(--color-warning)', marginLeft: 4 }}>{g.stale} oud</span>}
-                        {g.captured  > 0 && <span style={{ fontSize: 10, color: 'var(--color-success)', marginLeft: 4 }}>✓ {g.captured}</span>}
-                      </div>
-                      {agOpen && g.items.map(p => (
-                        <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                          <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{p.team_name}</span>
-                          <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
-                          {p.captured && !p.stale && <span style={{ color: 'var(--color-success)', fontSize: 10 }}>✓</span>}
-                          {p.stale                && <span style={{ color: 'var(--color-warning)',  fontSize: 10 }}>↩</span>}
-                          {(p.captured || p.stale) && (
-                            <button onClick={() => resetPoule(p.poule_id)}
-                              style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })}
+      {/* ── RESULTATEN ── */}
+      {subTab === 'resultaten' && (
+        <>
+          {/* Competities */}
+          {competitions.length > 0 && (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div onClick={() => setCompOpen(o => !o)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{compOpen ? '▾' : '▸'}</span>
+                <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities</span>
+                <span style={pill('muted')}>{competitions.length} gevonden</span>
               </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Clublijst */}
-      {sortedClubs.map(c => {
-        const teams   = teamsByClub[c.external_id] || []
-        const pStats  = poulesByClub[c.external_id]
-        const cap     = pStats ? pStats.captured : 0
-        const tot     = pStats ? pStats.total    : 0
-        const pVar    = tot === 0 ? 'muted' : cap === tot ? 'ok' : cap > 0 ? 'partial' : 'muted'
-        const isOpen  = expanded.has(c.external_id)
-
-        // Groepeer per hockey_type, dan per categorie
-        const byType = {}
-        for (const t of teams) {
-          const ht = resolveHockeyType(t)
-          if (!byType[ht]) byType[ht] = {}
-          if (!byType[ht][t.category_group_name]) byType[ht][t.category_group_name] = []
-          byType[ht][t.category_group_name].push(t)
-        }
-        const types = HT_ORDER.filter(ht => byType[ht])
-        const multiType = types.length > 1
-
-        return (
-          <div key={c.external_id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-            {/* Header */}
-            <div onClick={() => toggle(c.external_id)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, flexShrink: 0 }}>{isOpen ? '▾' : '▸'}</span>
-              <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 80 }}>{c.friendly_name || c.name}</span>
-              {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
-              <span style={pill(c.detail_loaded ? 'ok' : 'muted')}>{c.detail_loaded ? '✓ detail' : '– geen detail'}</span>
-              {teams.filter(t => resolveHockeyType(t) === 'VE').length > 0 && (
-                <span style={pill('muted')}>🏑 {teams.filter(t => resolveHockeyType(t) === 'VE').length}</span>
-              )}
-              {teams.filter(t => resolveHockeyType(t) === 'ZA').length > 0 && (
-                <span style={pill('muted')}>🏒 {teams.filter(t => resolveHockeyType(t) === 'ZA').length}</span>
-              )}
-              {pStats && <span style={pill(pVar)}>{cap}/{tot} poules</span>}
-            </div>
-
-            {/* Detail */}
-            {isOpen && (
-              <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* Contactinfo */}
-                {(c.district || c.address || c.phone || c.email || c.website) && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 16px', fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    {c.district && <span>📍 {c.district}</span>}
-                    {c.address  && <span>{c.address}{c.zipcode ? ', ' + c.zipcode : ''}</span>}
-                    {c.phone    && <span>📞 {c.phone}</span>}
-                    {c.email    && <span>✉ {c.email}</span>}
-                    {c.website  && (
-                      <a href={c.website} target="_blank" rel="noreferrer"
-                        style={{ color: 'var(--color-primary)', fontSize: 12 }}
-                        onClick={e => e.stopPropagation()}>
-                        🌐 {c.website.replace(/^https?:\/\//, '')}
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                {/* Teams per hockey_type en categorie */}
-                {types.length > 0 ? types.map(ht => {
-                  const catMap = byType[ht]
-                  const cats = sortCats(Object.keys(catMap))
-                  return (
-                    <div key={ht}>
-                      {multiType && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
-                          {HT_LABEL[ht]}
+              {compOpen && (
+                <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {['VE', 'ZA', ''].map(ht => {
+                    const group = competitions.filter(c => (ht === '' ? !c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA') : c.hockey_type === ht))
+                    if (!group.length) return null
+                    const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Onbekend type'
+                    return (
+                      <div key={ht || 'other'}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
+                          {htLabel}
                         </div>
-                      )}
-                      {cats.map(cat => {
-                        const catTeams = [...catMap[cat]].sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
-                        return (
-                          <div key={cat} style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                              {cat} <span style={{ fontWeight: 400 }}>({catTeams.length})</span>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {catTeams.map(t => {
-                                const qp          = queueByTeamId[t.team_id]
-                                const hasCaptured = qp && qp.captured && !qp.stale
-                                const isStale     = qp && qp.stale
-                                const hasPoule    = !!t.recent_poule_id
-                                const v           = hasCaptured ? 'ok' : isStale ? 'muted' : hasPoule ? 'partial' : 'muted'
-                                const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : hasPoule ? ' · wacht op scan' : ' · geen poule'
-                                return (
-                                  <span key={t.team_id} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
-                                    title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule') + titleSuffix}>
-                                    {t.short_name}
-                                    {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
-                                    {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
-                                    {!isStale && !hasCaptured && hasPoule && <span style={{ opacity: 0.65 }}>○</span>}
-                                  </span>
-                                )
-                              })}
-                            </div>
+                        {group.map(c => (
+                          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12 }}>
+                            <span style={{ flex: 1 }}>{c.name}</span>
+                            {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
+                            {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
+                            <span style={pill('muted')}>{c.poule_count} poules</span>
                           </div>
-                        )
-                      })}
-                    </div>
-                  )
-                }) : (
-                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
-                    Geen teams geladen — scan deze club via de vanger
-                  </p>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Clublijst */}
+          {sortedClubs.map(c => {
+            const teams   = teamsByClub[c.external_id] || []
+            const pStats  = poulesByClub[c.external_id]
+            const cap     = pStats ? pStats.captured : 0
+            const tot     = pStats ? pStats.total    : 0
+            const pVar    = tot === 0 ? 'muted' : cap === tot ? 'ok' : cap > 0 ? 'partial' : 'muted'
+            const isOpen  = expanded.has(c.external_id)
+
+            const byType = {}
+            for (const t of teams) {
+              const ht = resolveHockeyType(t)
+              if (!byType[ht]) byType[ht] = {}
+              if (!byType[ht][t.category_group_name]) byType[ht][t.category_group_name] = []
+              byType[ht][t.category_group_name].push(t)
+            }
+            const types = HT_ORDER.filter(ht => byType[ht])
+            const multiType = types.length > 1
+
+            return (
+              <div key={c.external_id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+                <div onClick={() => toggle(c.external_id)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, flexShrink: 0 }}>{isOpen ? '▾' : '▸'}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 80 }}>{c.friendly_name || c.name}</span>
+                  {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
+                  <span style={pill(c.detail_loaded ? 'ok' : 'muted')}>{c.detail_loaded ? '✓ detail' : '– geen detail'}</span>
+                  {teams.filter(t => resolveHockeyType(t) === 'VE').length > 0 && (
+                    <span style={pill('muted')}>🏑 {teams.filter(t => resolveHockeyType(t) === 'VE').length}</span>
+                  )}
+                  {teams.filter(t => resolveHockeyType(t) === 'ZA').length > 0 && (
+                    <span style={pill('muted')}>🏒 {teams.filter(t => resolveHockeyType(t) === 'ZA').length}</span>
+                  )}
+                  {pStats && <span style={pill(pVar)}>{cap}/{tot} poules</span>}
+                </div>
+
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {(c.district || c.address || c.phone || c.email || c.website) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 16px', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        {c.district && <span>📍 {c.district}</span>}
+                        {c.address  && <span>{c.address}{c.zipcode ? ', ' + c.zipcode : ''}</span>}
+                        {c.phone    && <span>📞 {c.phone}</span>}
+                        {c.email    && <span>✉ {c.email}</span>}
+                        {c.website  && (
+                          <a href={c.website} target="_blank" rel="noreferrer"
+                            style={{ color: 'var(--color-primary)', fontSize: 12 }}
+                            onClick={e => e.stopPropagation()}>
+                            🌐 {c.website.replace(/^https?:\/\//, '')}
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {types.length > 0 ? types.map(ht => {
+                      const catMap = byType[ht]
+                      const cats = sortCats(Object.keys(catMap))
+                      return (
+                        <div key={ht}>
+                          {multiType && (
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
+                              {HT_LABEL[ht]}
+                            </div>
+                          )}
+                          {cats.map(cat => {
+                            const catTeams = [...catMap[cat]].sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                            return (
+                              <div key={cat} style={{ marginBottom: 8 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                                  {cat} <span style={{ fontWeight: 400 }}>({catTeams.length})</span>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                  {catTeams.map(t => {
+                                    const qp          = queueByTeamId[t.team_id]
+                                    const hasCaptured = qp && qp.captured && !qp.stale
+                                    const isStale     = qp && qp.stale
+                                    const hasPoule    = !!t.recent_poule_id
+                                    const v           = hasCaptured ? 'ok' : isStale ? 'muted' : hasPoule ? 'partial' : 'muted'
+                                    const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : hasPoule ? ' · wacht op scan' : ' · geen poule'
+                                    return (
+                                      <span key={t.team_id} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
+                                        title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule') + titleSuffix}>
+                                        {t.short_name}
+                                        {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
+                                        {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
+                                        {!isStale && !hasCaptured && hasPoule && <span style={{ opacity: 0.65 }}>○</span>}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }) : (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
+                        Geen teams geladen — scan deze club via de vanger
+                      </p>
+                    )}
+
+                    <div style={{ fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.5 }}>{c.external_id}</div>
+                  </div>
                 )}
-
-                {/* Externe ID */}
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.5 }}>{c.external_id}</div>
               </div>
-            )}
-          </div>
-        )
-      })}
+            )
+          })}
 
-      {!loading && clubs.length === 0 && (
-        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
-          Geen clubs — surf naar www.hockey.nl met de hockey-vanger actief
-        </div>
+          {!loading && clubs.length === 0 && (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+              Geen clubs — surf naar www.hockey.nl met de hockey-vanger actief
+            </div>
+          )}
+        </>
       )}
+
+      {/* ── VANGER MANAGER ── */}
+      {subTab === 'vanger' && (
+        <>
+          {noDetail > 0 && !loading && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
+              ⚠️ {noDetail} clubs zonder detail — scan via de vanger op www.hockey.nl
+            </div>
+          )}
+
+          {/* Plugin fouten */}
+          {pluginErrors.length > 0 && (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-danger)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', userSelect: 'none' }}>
+                <span onClick={() => setErrOpen(o => !o)} style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, cursor: 'pointer' }}>{errOpen ? '▾' : '▸'}</span>
+                <span onClick={() => setErrOpen(o => !o)} style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)', cursor: 'pointer' }}>⚠️ Plugin fouten</span>
+                <span style={pill('muted')}>{pluginErrors.length} recent</span>
+                <button
+                  onClick={() => { if (window.confirm('Alle plugin fouten wissen?')) api.delete('/api/tournix/discovery/plugin-errors').then(() => setPluginErrors([])) }}
+                  style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 4, cursor: 'pointer' }}
+                >legen</button>
+              </div>
+              {errOpen && (
+                <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {pluginErrors.map(e => (
+                    <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 6, fontSize: 11, padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                        {new Date(e.captured_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span style={{ color: 'var(--color-danger)' }}>
+                        {e.message}
+                        {e.meta?.context && <span style={{ color: 'var(--color-text-muted)', marginLeft: 6 }}>({e.meta.context})</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Poule queue */}
+          {queue.total > 0 && (() => {
+            const AGE_RE = /[JM][OZ](1[1-8])-/
+            const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }
+            const ages   = ['O18','O16','O14','O12','O11']
+            const byAge  = {}
+            for (const p of queue.poules || []) {
+              const ag = ageOf(p.short_name)
+              if (!byAge[ag]) byAge[ag] = { missing: 0, stale: 0, captured: 0, items: [] }
+              byAge[ag].items.push(p)
+              if (p.stale)         byAge[ag].stale++
+              else if (p.captured) byAge[ag].captured++
+              else                 byAge[ag].missing++
+            }
+            const knownAges = ages.filter(a => byAge[a])
+            const otherAges = Object.keys(byAge).filter(a => !ages.includes(a)).sort()
+            const allAges   = [...knownAges, ...otherAges]
+
+            function resetPoule(poule_id) {
+              api.delete('/api/tournix/discovery/poules/' + poule_id).then(() =>
+                setQueue(q => {
+                  const poules  = q.poules.map(x => x.poule_id === poule_id ? { ...x, captured: false, stale: false } : x)
+                  const n_cap   = poules.filter(x => x.captured && !x.stale).length
+                  const n_stale = poules.filter(x => x.stale).length
+                  return { ...q, poules, captured: n_cap, stale: n_stale, missing: q.total - n_cap - n_stale }
+                })
+              )
+            }
+
+            return (
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+                <div onClick={() => setQueueOpen(o => !o)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{queueOpen ? '▾' : '▸'}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>📋 Poule queue</span>
+                  <span style={pill(queue.captured === queue.total ? 'ok' : queue.captured > 0 ? 'partial' : 'muted')}>{queue.captured}/{queue.total}</span>
+                  {queue.missing > 0 && <span style={pill('muted')}>{queue.missing} open</span>}
+                  {queue.stale   > 0 && <span style={{ ...pill('muted'), color: 'var(--color-warning)' }}>{queue.stale} oud</span>}
+                </div>
+                {queueOpen && (
+                  <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    {allAges.map(ag => {
+                      const g = byAge[ag]
+                      const agOpen = expanded.has('q_' + ag)
+                      const allCap = g.missing === 0 && g.stale === 0
+                      return (
+                        <div key={ag}>
+                          <div onClick={() => toggle('q_' + ag)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 2px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}>
+                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10 }}>{agOpen ? '▾' : '▸'}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, width: 32, color: allCap ? 'var(--color-success)' : 'var(--color-text)' }}>{ag}</span>
+                            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flex: 1 }}>{g.items.length} poules</span>
+                            {g.missing   > 0 && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{g.missing} open</span>}
+                            {g.stale     > 0 && <span style={{ fontSize: 10, color: 'var(--color-warning)', marginLeft: 4 }}>{g.stale} oud</span>}
+                            {g.captured  > 0 && <span style={{ fontSize: 10, color: 'var(--color-success)', marginLeft: 4 }}>✓ {g.captured}</span>}
+                          </div>
+                          {agOpen && g.items.map(p => (
+                            <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                              <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{p.team_name}</span>
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
+                              {p.captured && !p.stale && <span style={{ color: 'var(--color-success)', fontSize: 10 }}>✓</span>}
+                              {p.stale                && <span style={{ color: 'var(--color-warning)',  fontSize: 10 }}>↩</span>}
+                              {(p.captured || p.stale) && (
+                                <button onClick={() => resetPoule(p.poule_id)}
+                                  style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {!loading && queue.total === 0 && (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+              Geen poule queue — teams worden geladen zodra de vanger clubs heeft gescand
+            </div>
+          )}
+        </>
+      )}
+
     </div>
   )
 }
