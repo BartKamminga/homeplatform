@@ -251,9 +251,9 @@ function pushPouleCaptureFromQueue(it) {
       addLog('err', '⚡ Poule ' + it.poule_id + ' niet gevonden — interceptor niet gevangen?');
       return;
     }
-    // Seizoenfilter: sla oud-seizoen poules over
-    if (entry.seizoen && entry.seizoen !== CURRENT_SEASON) {
-      addLog('warn', '⏭ ' + it.label + ' — oud seizoen (' + entry.seizoen + '), nog geen indeling voor ' + CURRENT_SEASON);
+    // Alleen pushen als seizoen bevestigd huidig is — skip bij leeg of oud
+    if (!entry.seizoen || entry.seizoen !== CURRENT_SEASON) {
+      addLog('warn', '⏭ ' + it.label + ' — ' + (entry.seizoen ? 'oud seizoen (' + entry.seizoen + ')' : 'seizoen onbekend') + ', geen indeling voor ' + CURRENT_SEASON);
       return;
     }
     getOrCreateSessionId(function(sid) {

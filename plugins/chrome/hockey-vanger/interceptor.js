@@ -146,13 +146,16 @@
         teamName  = data.data.team.name || '';
         compName  = data.data.poule.competition.name || '';
         className = data.data.poule.competition.class_name || '';
-        seizoen   = data.data.poule.competition.season || '';
       } catch(e) {}
-      // Fallback: seizoen uit competitienaam of poulnaam extraheren
-      if (!seizoen) {
-        var m = (compName + ' ' + pouleName).match(/(\d{4}-\d{4})/);
-        if (m) seizoen = m[1];
-      }
+      // Seizoen bepalen op basis van eerste wedstrijddatum (geen season-veld in API)
+      try {
+        var matches = data.data.poule.matches || [];
+        if (matches.length > 0) {
+          var d = new Date(matches[0].date);
+          var y = d.getFullYear(), mo = d.getMonth() + 1;
+          seizoen = mo >= 8 ? (y + '-' + (y + 1)) : ((y - 1) + '-' + y);
+        }
+      } catch(e) {}
 
       store[pouleId] = {
         poule_id: pouleId, team_id: teamId,
