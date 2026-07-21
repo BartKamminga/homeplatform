@@ -55,6 +55,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [showWaiting,  setShowWaiting]  = useState(() => {
     try { return localStorage.getItem('disc_show_waiting') !== 'false' } catch { return true }
   })
+  const [autoRefresh,  setAutoRefresh]  = useState(() => {
+    try { return localStorage.getItem('disc_auto_refresh') === 'true' } catch { return false }
+  })
 
   function load() {
     setLoading(true); setError('')
@@ -128,7 +131,27 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     saveFilter({ ...qFilter, hockey_types: next.length ? next : ['VE'] })
   }
 
+  function refreshQuiet() {
+    Promise.all([
+      api.get('/api/tournix/discovery/poule-queue'),
+      api.get('/api/tournix/discovery/club-scan-queue'),
+      api.get('/api/tournix/discovery/teams'),
+      api.get('/api/tournix/discovery/poules?season=2026-2027'),
+    ]).then(([queueRes, clubScanRes, teamsRes, poulesRes]) => {
+      setQueue(queueRes)
+      setClubScanQueue(clubScanRes)
+      setAllTeams(teamsRes.teams || [])
+      setCapturedPoules(poulesRes.poules || [])
+    }).catch(() => {})
+  }
+
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    const t = setInterval(refreshQuiet, 10000)
+    return () => clearInterval(t)
+  }, [autoRefresh])
 
   useEffect(() => {
     if (view !== 'vanger') return
@@ -220,6 +243,16 @@ export default function DiscoveryTab({ view = 'vanger' }) {
           </div>
         )}
         <button onClick={load} style={{ ...ghostBtn, alignSelf: 'center' }}>↻ Vernieuwen</button>
+        <button onClick={() => setAutoRefresh(v => {
+          const next = !v
+          try { localStorage.setItem('disc_auto_refresh', next) } catch {}
+          return next
+        })} style={{
+          ...ghostBtn, alignSelf: 'center',
+          borderColor: autoRefresh ? 'var(--color-primary)' : 'var(--color-border)',
+          color: autoRefresh ? 'var(--color-primary)' : 'var(--color-text-muted)',
+          fontWeight: autoRefresh ? 700 : 400,
+        }}>⟳ live{autoRefresh ? ' ✓' : ''}</button>
       </div>
 
       {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
