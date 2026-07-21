@@ -96,6 +96,7 @@ function loadSettings() {
     loadCoverage();
     loadDiscoveryClubs();
     loadYouthQueue();
+    startHeartbeat();
   });
 }
 function loadDiscoveryClubs() {
@@ -175,7 +176,6 @@ function stopPouleDiscovery() {
   }
   _discQueue.running = false;
   addLog('info', '⚡ Poule queue gestopt na ' + (_discQueue.doneCount || 0) + ' poules');
-  stopHeartbeat();
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
 }
 
@@ -470,7 +470,6 @@ function stopClubRescan() {
   }
   _clubRescanQueue.running = false;
   addLog('info', '🏢 Club-rescan gestopt na ' + _clubRescanQueue.doneCount + ' clubs');
-  stopHeartbeat();
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
 }
 
@@ -485,7 +484,6 @@ function activateNextClubRescanItem() {
         _clubRescanQueue.running = false;
         addLog('ok', '🏢 Club-rescan klaar — ' + _clubRescanQueue.doneCount + ' clubs gelopen');
         toast('✅ Club-rescan klaar!');
-        stopHeartbeat();
         DISCOVERY.loaded = false;
         loadDiscoveryClubs();
         if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
@@ -534,7 +532,6 @@ function activateNextClubRescanItem() {
     .catch(function(err) {
       addLog('err', '🏢 Club-rescan fout: ' + err.message);
       _clubRescanQueue.running = false;
-      stopHeartbeat();
       if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
     });
 }

@@ -91,7 +91,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       club_external_id: next.club_external_id || null,
       categories:       next.categories?.length   ? next.categories   : ['Junioren'],
       hockey_types:     next.hockey_types?.length ? next.hockey_types : ['VE'],
-    }).catch(() => {})
+    }).then(() => api.get('/api/tournix/discovery/poule-queue'))
+      .then(q => setQueue(q))
+      .catch(() => {})
   }
 
   function toggleAge(ag) {
