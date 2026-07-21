@@ -41,6 +41,13 @@ function addLog(type, msg, detail) {
   LOG.unshift(entry);
   if (LOG.length > 200) LOG.pop();
   renderLog();
+  if (type === 'err' && HP.url && HP.key) {
+    fetch(HP.url + '/api/tournix/discovery/plugin-error', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, context: detail || null, session_id: SESSION_ID })
+    }).catch(function() {}); // stil falen — fout-logging mag zelf nooit crashen
+  }
 }
 
 // Geeft true als de groep nieuwere captures heeft dan de laatste import op de server

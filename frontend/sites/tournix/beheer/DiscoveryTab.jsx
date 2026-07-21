@@ -42,10 +42,12 @@ export default function DiscoveryTab() {
   const [allTeams,     setAllTeams]     = useState([])
   const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, poules: [] })
   const [competitions, setCompetitions] = useState([])
+  const [pluginErrors, setPluginErrors] = useState([])
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState('')
   const [expanded,     setExpanded]     = useState(new Set())
   const [compOpen,     setCompOpen]     = useState(false)
+  const [errOpen,      setErrOpen]      = useState(false)
 
   function load() {
     setLoading(true); setError('')
@@ -54,11 +56,13 @@ export default function DiscoveryTab() {
       api.get('/api/tournix/discovery/teams'),
       api.get('/api/tournix/discovery/youth-queue'),
       api.get('/api/tournix/discovery/competitions'),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes]) => {
+      api.get('/api/tournix/discovery/plugin-errors?limit=30'),
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setCompetitions(compsRes.competitions || [])
+      setPluginErrors(errRes.errors || [])
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
 
@@ -116,6 +120,12 @@ export default function DiscoveryTab() {
           </span>
           <span style={statLbl}>poules gevangen</span>
         </div>
+        {pluginErrors.length > 0 && (
+          <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => setErrOpen(o => !o)}>
+            <span style={{ ...statNum, color: 'var(--color-danger)' }}>{pluginErrors.length}</span>
+            <span style={statLbl}>plugin fouten</span>
+          </div>
+        )}
         <button onClick={load} style={{ ...ghostBtn, alignSelf: 'center' }}>↻ Vernieuwen</button>
       </div>
 
@@ -159,6 +169,33 @@ export default function DiscoveryTab() {
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Plugin fouten */}
+      {pluginErrors.length > 0 && (
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-danger)', borderRadius: 10, overflow: 'hidden' }}>
+          <div onClick={() => setErrOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{errOpen ? '▾' : '▸'}</span>
+            <span style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)' }}>⚠️ Plugin fouten</span>
+            <span style={pill('muted')}>{pluginErrors.length} recent</span>
+          </div>
+          {errOpen && (
+            <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {pluginErrors.map(e => (
+                <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 6, fontSize: 11, padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
+                  <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    {new Date(e.captured_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span style={{ color: 'var(--color-danger)' }}>
+                    {e.message}
+                    {e.meta?.context && <span style={{ color: 'var(--color-text-muted)', marginLeft: 6 }}>({e.meta.context})</span>}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
