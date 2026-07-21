@@ -1375,6 +1375,9 @@ function renderAnalysePane() {
 // INIT
 // ══════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
+  var vEl = document.getElementById('appVersion');
+  if (vEl) vEl.textContent = chrome.runtime.getManifest().version;
+
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var tab = btn.getAttribute('data-tab');
