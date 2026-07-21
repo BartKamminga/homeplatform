@@ -804,6 +804,25 @@ def delete_poule_capture(
     return {"deleted": True}
 
 
+# ── Poule skip (geen data gevonden door interceptor) ─────
+@router.post("/poule-skip")
+def skip_poule(
+    poule_id: int,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Markeert alle teams met recent_poule_id == poule_id als no_new_poule_confirmed."""
+    teams = session.exec(
+        select(HockeyTeam).where(HockeyTeam.recent_poule_id == poule_id)
+    ).all()
+    for t in teams:
+        t.no_new_poule_confirmed = True
+        t.updated_at = datetime.utcnow()
+        session.add(t)
+    session.commit()
+    return {"poule_id": poule_id, "marked": len(teams)}
+
+
 # ── Competitions query ───────────────────────────────────
 @router.get("/competitions")
 def list_competitions(

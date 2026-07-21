@@ -261,11 +261,17 @@ function pushPouleCaptureFromQueue(it) {
   }, function(results) {
     var entry = results && results[0] && results[0].result;
     if (!entry) {
-      addLog('err', '⚡ Poule ' + it.poule_id + ' niet gevonden — interceptor niet gevangen?');
+      addLog('warn', '⏭ ' + it.label + ' — poule ' + it.poule_id + ' niet gevonden, seizoen nog niet beschikbaar → skip');
+      fetch(HP.url + '/api/tournix/discovery/poule-skip?poule_id=' + it.poule_id, {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + HP.key }
+      }).catch(function() {});
       return;
     }
     if (!entry.seizoen) {
-      addLog('warn', '⏭ ' + it.label + ' — seizoen onbekend in interceptor, skip');
+      addLog('warn', '⏭ ' + it.label + ' — seizoen onbekend → skip');
+      fetch(HP.url + '/api/tournix/discovery/poule-skip?poule_id=' + it.poule_id, {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + HP.key }
+      }).catch(function() {});
       return;
     }
     var isStale = entry.seizoen !== CURRENT_SEASON;
