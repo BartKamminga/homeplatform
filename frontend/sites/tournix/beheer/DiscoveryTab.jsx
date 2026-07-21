@@ -39,7 +39,7 @@ const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { 
 export default function DiscoveryTab({ view = 'vanger' }) {
   const [clubs,        setClubs]        = useState([])
   const [allTeams,     setAllTeams]     = useState([])
-  const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, stale: 0, poules: [] })
+  const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
   const [competitions, setCompetitions] = useState([])
   const [pluginErrors, setPluginErrors] = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -49,6 +49,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [errOpen,      setErrOpen]      = useState(false)
   const [queueOpen,    setQueueOpen]    = useState(true)
   const [qFilter,      setQFilter]      = useState({ age_groups: [], club_external_id: null })
+  const [showWaiting,  setShowWaiting]  = useState(() => {
+    try { return localStorage.getItem('disc_show_waiting') !== 'false' } catch { return true }
+  })
 
   function load() {
     setLoading(true); setError('')
@@ -144,6 +147,12 @@ export default function DiscoveryTab({ view = 'vanger' }) {
           <div style={statBox}>
             <span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.stale}</span>
             <span style={statLbl}>oud seizoen</span>
+          </div>
+        )}
+        {queue.waiting > 0 && (
+          <div style={statBox}>
+            <span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.waiting}</span>
+            <span style={statLbl}>⏳ wacht</span>
           </div>
         )}
         {pluginErrors.length > 0 && (
@@ -378,6 +387,23 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                 )}
               </div>
 
+              {/* Wacht op indeling toggle */}
+              {queue.waiting > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 60, flexShrink: 0 }}>Toon</span>
+                  <button onClick={() => {
+                    const next = !showWaiting
+                    setShowWaiting(next)
+                    try { localStorage.setItem('disc_show_waiting', String(next)) } catch {}
+                  }} style={{
+                    fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${showWaiting ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: showWaiting ? 'var(--color-primary)' : 'var(--color-surface)',
+                    color: showWaiting ? '#fff' : 'var(--color-text)', fontWeight: showWaiting ? 600 : 400,
+                  }}>⏳ wacht op indeling ({queue.waiting})</button>
+                </div>
+              )}
+
               {(qFilter.age_groups.length > 0 || qFilter.club_external_id) && (
                 <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
                   Filter actief — de vanger pakt alleen deze teams op
@@ -424,11 +450,18 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             const byAge  = {}
             for (const p of queue.poules || []) {
               const ag = ageOf(p.short_name)
-              if (!byAge[ag]) byAge[ag] = { missing: 0, stale: 0, captured: 0, items: [] }
-              byAge[ag].items.push(p)
-              if (p.stale)         byAge[ag].stale++
-              else if (p.captured) byAge[ag].captured++
-              else                 byAge[ag].missing++
+              if (!byAge[ag]) byAge[ag] = { missing: 0, stale: 0, captured: 0, waiting: 0, items: [], waitingItems: [] }
+              if (p.has_poule === false) {
+                if (showWaiting) {
+                  byAge[ag].waiting++
+                  byAge[ag].waitingItems.push(p)
+                }
+              } else {
+                byAge[ag].items.push(p)
+                if (p.stale)         byAge[ag].stale++
+                else if (p.captured) byAge[ag].captured++
+                else                 byAge[ag].missing++
+              }
             }
             const knownAges = ages.filter(a => byAge[a])
             const otherAges = Object.keys(byAge).filter(a => !ages.includes(a)).sort()
@@ -474,6 +507,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                             {g.missing   > 0 && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{g.missing} open</span>}
                             {g.stale     > 0 && <span style={{ fontSize: 10, color: 'var(--color-warning)', marginLeft: 4 }}>{g.stale} oud</span>}
                             {g.captured  > 0 && <span style={{ fontSize: 10, color: 'var(--color-success)', marginLeft: 4 }}>✓ {g.captured}</span>}
+                            {g.waiting   > 0 && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', marginLeft: 4, opacity: 0.6 }}>⏳ {g.waiting}</span>}
                           </div>
                           {agOpen && g.items.filter(p => !qFilter.club_external_id || p.club_external_id === qFilter.club_external_id).map(p => (
                             <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
@@ -485,6 +519,12 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 <button onClick={() => resetPoule(p.poule_id)}
                                   style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
                               )}
+                            </div>
+                          ))}
+                          {agOpen && g.waitingItems.filter(p => !qFilter.club_external_id || p.club_external_id === qFilter.club_external_id).map(p => (
+                            <div key={p.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)', opacity: 0.5 }}>
+                              <span style={{ flex: 1, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{p.team_name}</span>
+                              <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>⏳ geen poule</span>
                             </div>
                           ))}
                         </div>

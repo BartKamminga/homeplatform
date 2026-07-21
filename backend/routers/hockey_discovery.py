@@ -334,8 +334,13 @@ def get_youth_queue(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    """Unique poule_ids for Junioren O11-O18, with capture status."""
-    teams = session.exec(
+    """Unique poule_ids for Junioren O11-O18, with capture status. Also includes teams without poule (has_poule=False)."""
+    def _age_key(short_name):
+        m = _AGE_RE.search(short_name or "")
+        return int(m.group(1)) if m else 0
+
+    # Teams met bekende poule
+    teams_with = session.exec(
         select(HockeyTeam)
         .where(HockeyTeam.category_group_name == "Junioren")
         .where(col(HockeyTeam.recent_poule_id).is_not(None))
@@ -344,58 +349,76 @@ def get_youth_queue(
     ).all()
 
     seen: Dict[int, dict] = {}
-    for t in teams:
+    for t in teams_with:
         if not t.recent_poule_id or not _is_target_age(t.short_name):
             continue
         pid = t.recent_poule_id
         if pid not in seen:
             seen[pid] = {
-                "poule_id": pid,
-                "team_id": t.team_id,
-                "team_name": t.name,
-                "short_name": t.short_name,
+                "poule_id":        pid,
+                "team_id":         t.team_id,
+                "team_name":       t.name,
+                "short_name":      t.short_name,
                 "club_external_id": t.club_external_id,
-                "hockey_type": t.hockey_type,
-                "captured": False,
-                "imported": False,
+                "hockey_type":     t.hockey_type,
+                "has_poule":       True,
+                "captured":        False,
+                "stale":           False,
+                "imported":        False,
             }
 
-    if not seen:
-        return {"total": 0, "captured": 0, "imported": 0, "missing": 0, "stale": 0, "poules": []}
-
     target_season = "2026-2027"
-
-    # Check HockeyPoule voor captured status + seizoencheck
-    captured_poules = session.exec(
-        select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(list(seen.keys())))
-    ).all()
-    captured_map: Dict[int, str] = {p.poule_id: p.season for p in captured_poules}
-
-    for pid, info in seen.items():
-        if pid in captured_map:
-            info["captured"] = True
-            info["stale"] = captured_map[pid] != target_season
-        else:
-            info["captured"] = False
-            info["stale"] = False
-
-    def _age_key(short_name):
-        m = _AGE_RE.search(short_name or "")
-        return int(m.group(1)) if m else 0
+    if seen:
+        captured_poules = session.exec(
+            select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(list(seen.keys())))
+        ).all()
+        captured_map: Dict[int, str] = {p.poule_id: p.season for p in captured_poules}
+        for pid, info in seen.items():
+            if pid in captured_map:
+                info["captured"] = True
+                info["stale"]    = captured_map[pid] != target_season
+            else:
+                info["captured"] = False
+                info["stale"]    = False
 
     result = list(seen.values())
     result.sort(key=lambda x: (-_age_key(x["short_name"]), x["short_name"]))
-    total = len(result)
+    total      = len(result)
     n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
     n_stale    = sum(1 for r in result if r["stale"])
+
+    # Teams zonder poule (nog niet ingedeeld)
+    teams_waiting = session.exec(
+        select(HockeyTeam)
+        .where(HockeyTeam.category_group_name == "Junioren")
+        .where(col(HockeyTeam.recent_poule_id).is_(None))
+        .where(HockeyTeam.hockey_type == "VE")
+        .order_by(col(HockeyTeam.short_name))
+    ).all()
+
+    waiting = []
+    for t in teams_waiting:
+        if not _is_target_age(t.short_name):
+            continue
+        waiting.append({
+            "poule_id":         None,
+            "team_id":          t.team_id,
+            "team_name":        t.name,
+            "short_name":       t.short_name,
+            "club_external_id": t.club_external_id,
+            "hockey_type":      t.hockey_type,
+            "has_poule":        False,
+            "captured":         False,
+            "stale":            False,
+        })
 
     return {
         "total":    total,
         "captured": n_captured,
-        "imported": 0,
         "missing":  total - n_captured - n_stale,
         "stale":    n_stale,
-        "poules":   result,
+        "waiting":  len(waiting),
+        "poules":   result + waiting,
     }
 
 
