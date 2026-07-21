@@ -10,7 +10,7 @@ var SUGGESTIONS = {};     // comp-groepnaam → {tournament_id, phase_id, tourna
 var SUGGESTIONS_LOADED = false;
 var SESSION_ID = null;    // UUID voor deze popup-sessie, aangemaakt bij eerste archivering
 var DISCOVERY = { clubs: [], total: 0, detailLoaded: 0, teams: 0, youthTeams: 0, loaded: false };
-var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false, filter_active: false, filtered_total: 0, filtered_captured: 0, filtered_missing: 0, filtered_stale: 0 };
+var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false, filter_active: false, filtered_poules: [], filtered_total: 0, filtered_captured: 0, filtered_missing: 0, filtered_stale: 0 };
 var _queueListOpen = false;
 var _discQueue = { running: false, currentItem: null, doneCount: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
@@ -132,15 +132,16 @@ function loadYouthQueue() {
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(res) {
       if (!res) return;
-      YOUTH_QUEUE.poules            = res.poules           || [];
-      YOUTH_QUEUE.total             = res.total            || 0;
-      YOUTH_QUEUE.captured          = res.captured         || 0;
-      YOUTH_QUEUE.missing           = res.missing          || 0;
-      YOUTH_QUEUE.filter_active     = res.filter_active    || false;
-      YOUTH_QUEUE.filtered_total    = res.filtered_total   || 0;
-      YOUTH_QUEUE.filtered_captured = res.filtered_captured|| 0;
-      YOUTH_QUEUE.filtered_missing  = res.filtered_missing || 0;
-      YOUTH_QUEUE.filtered_stale    = res.filtered_stale   || 0;
+      YOUTH_QUEUE.poules            = res.poules            || [];
+      YOUTH_QUEUE.total             = res.total             || 0;
+      YOUTH_QUEUE.captured          = res.captured          || 0;
+      YOUTH_QUEUE.missing           = res.missing           || 0;
+      YOUTH_QUEUE.filter_active     = res.filter_active     || false;
+      YOUTH_QUEUE.filtered_poules   = res.filtered_poules   || [];
+      YOUTH_QUEUE.filtered_total    = res.filtered_total    || 0;
+      YOUTH_QUEUE.filtered_captured = res.filtered_captured || 0;
+      YOUTH_QUEUE.filtered_missing  = res.filtered_missing  || 0;
+      YOUTH_QUEUE.filtered_stale    = res.filtered_stale    || 0;
       YOUTH_QUEUE.loaded            = true;
       if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
     })
@@ -1227,18 +1228,16 @@ function renderAnalysePane() {
     ? '<button class="an-disc-stop" id="anDiscStop">⏹ Stop</button><span class="an-disc-count" id="discQueueCount">' + (_discQueue.doneCount || 0) + ' gedaan</span>'
     : '<button class="an-disc-start" id="anDiscStart"' + (qMissing === 0 ? ' disabled' : '') + '>▶ Start discovery</button>';
 
-  // Queue-lijst: toon alle items uit de server-queue
+  // Queue-lijst: gebruik gefilterde lijst wanneer filter actief, anders volledige lijst
+  var _queueSource = YOUTH_QUEUE.filter_active ? YOUTH_QUEUE.filtered_poules : YOUTH_QUEUE.poules.filter(function(p) { return p.has_poule !== false; });
   var queueListHtml = '';
-  var qPouleCount = 0;
-  for (var qi2 = 0; qi2 < YOUTH_QUEUE.poules.length; qi2++) { if (YOUTH_QUEUE.poules[qi2].has_poule !== false) qPouleCount++; }
-  if (YOUTH_QUEUE.loaded && qPouleCount > 0) {
-    var toggleLabel = _queueListOpen ? '▲ Verberg queue' : '▼ Toon queue (' + qPouleCount + ')';
+  if (YOUTH_QUEUE.loaded && _queueSource.length > 0) {
+    var toggleLabel = _queueListOpen ? '▲ Verberg queue' : '▼ Toon queue (' + _queueSource.length + ')';
     queueListHtml = '<div style="margin-top:6px"><button class="an-disc-refresh" id="anQueueListToggle" style="font-size:10px;padding:2px 6px">' + toggleLabel + '</button></div>';
     if (_queueListOpen) {
       var listItems = '';
-      for (var qli = 0; qli < YOUTH_QUEUE.poules.length; qli++) {
-        var qp = YOUTH_QUEUE.poules[qli];
-        if (qp.has_poule === false) continue; // skip waiting items
+      for (var qli = 0; qli < _queueSource.length; qli++) {
+        var qp = _queueSource[qli];
         var qDot = qp.captured && !qp.stale ? '●' : qp.stale ? '↩' : '○';
         var qDotCls = qp.captured && !qp.stale ? 'an-club-dot-ok' : qp.stale ? 'an-club-dot-stale' : 'an-club-dot-miss';
         listItems += '<div class="an-club-item">' +

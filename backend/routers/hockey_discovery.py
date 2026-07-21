@@ -450,6 +450,7 @@ def get_youth_queue(
         "waiting":          len(waiting),
         "poules":           result + waiting,
         "filter_active":    filter_active,
+        "filtered_poules":  filtered if filter_active else [],
         "filtered_total":   len(filtered),
         "filtered_captured": f_cap,
         "filtered_missing": len(filtered) - f_cap - f_stale,
