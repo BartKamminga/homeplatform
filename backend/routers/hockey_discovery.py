@@ -990,3 +990,51 @@ def list_youth_teams(
             for t in teams
         ],
     }
+
+
+# ── Vanger heartbeat / live status ───────────────────────
+VANGER_STATUS_KEY = "vanger_status"
+
+
+class VangerHeartbeatIn(BaseModel):
+    running: bool
+    mode: Optional[str] = None   # poule_scan | club_rescan | idle
+    task: Optional[str] = None   # huidige item label
+    done_count: int = 0
+    queue_total: int = 0
+
+
+@router.post("/vanger/heartbeat")
+def vanger_heartbeat(
+    body: VangerHeartbeatIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    payload = json.dumps({
+        "running":     body.running,
+        "mode":        body.mode,
+        "task":        body.task,
+        "done_count":  body.done_count,
+        "queue_total": body.queue_total,
+        "last_seen":   now.isoformat(),
+    }, ensure_ascii=False)
+    row = session.get(AppSetting, VANGER_STATUS_KEY)
+    if row:
+        row.value = payload
+        session.add(row)
+    else:
+        session.add(AppSetting(key=VANGER_STATUS_KEY, value=payload))
+    session.commit()
+    return {"ok": True}
+
+
+@router.get("/vanger/status")
+def get_vanger_status(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    row = session.get(AppSetting, VANGER_STATUS_KEY)
+    if not row or not row.value:
+        return {"running": False, "mode": None, "task": None, "done_count": 0, "queue_total": 0, "last_seen": None}
+    return json.loads(row.value)

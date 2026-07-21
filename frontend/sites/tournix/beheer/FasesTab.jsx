@@ -319,7 +319,7 @@ function CaptureConfig({ phase, flash, onRefresh }) {
   return (
     <div style={{ marginTop: 14, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 12 : 0 }}>
-        <div style={sectionLabel}>HOCKEY VANGER</div>
+        <div style={sectionLabel} title="Koppel deze fase aan een competitiegroep uit de Hockey Vanger — de vanger haalt automatisch de standen op">HOCKEY VANGER</div>
         {isConfigured && !open && (
           <span style={{ fontSize: 11, background: 'var(--color-primary)', color: '#fff', borderRadius: 99, padding: '1px 8px' }}>
             {phase.capture_type} · {phase.capture_group || '—'}

@@ -14,6 +14,8 @@ var YOUTH_QUEUE = { poules: [], total: 0, captured: 0, missing: 0, loaded: false
 var _queueListOpen = false;
 var _discQueue = { running: false, currentItem: null, doneCount: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
 var _clubQueue = { running: false, items: [], currentIdx: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
+var _clubRescanQueue = { running: false, current: null, doneCount: 0, countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null };
+var _heartbeatTimer = null;
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -158,6 +160,7 @@ function startPouleDiscovery() {
     _discQueue = { running: true, currentItem: null, doneCount: 0, countdownMs: 0,
                    tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null };
     addLog('info', '⚡ Poule discovery gestart — live queue van Tournix');
+    startHeartbeat();
     activateNextPouleItem();
     if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
   });
@@ -172,6 +175,7 @@ function stopPouleDiscovery() {
   }
   _discQueue.running = false;
   addLog('info', '⚡ Poule queue gestopt na ' + (_discQueue.doneCount || 0) + ' poules');
+  stopHeartbeat();
   if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
 }
 
@@ -402,6 +406,169 @@ function activateNextClubItem() {
     setTimeout(function() {
       chrome.tabs.reload(_clubQueue.tabId);
     }, 300);
+  });
+}
+
+
+// ── Heartbeat ─────────────────────────────────────────────
+function sendHeartbeat() {
+  if (!HP.url || !HP.key) return;
+  var running = _discQueue.running || _clubRescanQueue.running;
+  var mode = _discQueue.running ? 'poule_scan' : _clubRescanQueue.running ? 'club_rescan' : 'idle';
+  var task = _discQueue.running && _discQueue.currentItem ? _discQueue.currentItem.label
+           : _clubRescanQueue.running && _clubRescanQueue.current ? (_clubRescanQueue.current.friendly_name || _clubRescanQueue.current.name)
+           : null;
+  var doneCount = _discQueue.running ? (_discQueue.doneCount || 0) : _clubRescanQueue.running ? _clubRescanQueue.doneCount : 0;
+  var queueTotal = _discQueue.running ? 0 : _clubRescanQueue.running ? 0 : 0;
+  fetch(HP.url + '/api/tournix/discovery/vanger/heartbeat', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ running: running, mode: mode, task: task, done_count: doneCount, queue_total: queueTotal })
+  }).catch(function() {});
+}
+
+function startHeartbeat() {
+  if (_heartbeatTimer) return;
+  sendHeartbeat();
+  _heartbeatTimer = setInterval(sendHeartbeat, 15000);
+}
+
+function stopHeartbeat() {
+  if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
+  if (HP.url && HP.key) {
+    fetch(HP.url + '/api/tournix/discovery/vanger/heartbeat', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ running: false, mode: 'idle', task: null, done_count: 0, queue_total: 0 })
+    }).catch(function() {});
+  }
+}
+
+
+// ── Club-rescan loop (no_new_poule_confirmed → opnieuw scannen) ──
+function startClubRescan() {
+  if (_clubRescanQueue.running) return;
+  if (!HP.url || !HP.key) { toast('❌ Geen HomePlatform verbinding'); return; }
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar www.hockey.nl'); return; }
+    _clubRescanQueue = { running: true, current: null, doneCount: 0, countdownMs: 0,
+                         tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null };
+    addLog('info', '🏢 Club-rescan gestart — queue van server');
+    startHeartbeat();
+    activateNextClubRescanItem();
+    if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+  });
+}
+
+function stopClubRescan() {
+  clearInterval(_clubRescanQueue.tickTimer);
+  clearTimeout(_clubRescanQueue.stepTimer);
+  if (_clubRescanQueue.tabLoadedListener) {
+    chrome.tabs.onUpdated.removeListener(_clubRescanQueue.tabLoadedListener);
+    _clubRescanQueue.tabLoadedListener = null;
+  }
+  _clubRescanQueue.running = false;
+  addLog('info', '🏢 Club-rescan gestopt na ' + _clubRescanQueue.doneCount + ' clubs');
+  stopHeartbeat();
+  if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+}
+
+function activateNextClubRescanItem() {
+  if (!_clubRescanQueue.running) return;
+  fetch(HP.url + '/api/tournix/discovery/club-scan-queue/next', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || data.done) {
+        _clubRescanQueue.running = false;
+        addLog('ok', '🏢 Club-rescan klaar — ' + _clubRescanQueue.doneCount + ' clubs gelopen');
+        toast('✅ Club-rescan klaar!');
+        stopHeartbeat();
+        DISCOVERY.loaded = false;
+        loadDiscoveryClubs();
+        if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+        return;
+      }
+      _clubRescanQueue.current = data;
+      addLog('info', '🏢 → ' + (data.friendly_name || data.name) + ' (' + data.pending_teams + ' teams)');
+      sendHeartbeat();
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+
+      if (_clubRescanQueue.tabLoadedListener) {
+        chrome.tabs.onUpdated.removeListener(_clubRescanQueue.tabLoadedListener);
+        _clubRescanQueue.tabLoadedListener = null;
+      }
+
+      var onTabLoaded = function(tabId, info) {
+        if (tabId !== _clubRescanQueue.tabId || info.status !== 'complete') return;
+        chrome.tabs.onUpdated.removeListener(onTabLoaded);
+        _clubRescanQueue.tabLoadedListener = null;
+        var delay = randDelay();
+        var startTime = Date.now();
+        _clubRescanQueue.tickTimer = setInterval(function() {
+          _clubRescanQueue.countdownMs = Math.max(0, delay - (Date.now() - startTime));
+          var el = $('clubRescanActive');
+          if (el) el.textContent = fmtMs(_clubRescanQueue.countdownMs);
+        }, 120);
+        _clubRescanQueue.stepTimer = setTimeout(function() {
+          clearInterval(_clubRescanQueue.tickTimer);
+          pushClubRescanFromQueue(data);
+          _clubRescanQueue.doneCount++;
+          setTimeout(activateNextClubRescanItem, 400);
+        }, delay);
+      };
+      _clubRescanQueue.tabLoadedListener = onTabLoaded;
+      chrome.tabs.onUpdated.addListener(onTabLoaded);
+
+      // Navigeer naar club-pagina op hockey.nl
+      chrome.scripting.executeScript({
+        target: { tabId: _clubRescanQueue.tabId },
+        func: function(hash) { window.location.hash = hash; },
+        args: ['/club/' + data.club_external_id + '/field-teams']
+      }, function() {
+        setTimeout(function() { chrome.tabs.reload(_clubRescanQueue.tabId); }, 300);
+      });
+    })
+    .catch(function(err) {
+      addLog('err', '🏢 Club-rescan fout: ' + err.message);
+      _clubRescanQueue.running = false;
+      stopHeartbeat();
+      if (!$('analysePane').classList.contains('hidden')) renderAnalysePane();
+    });
+}
+
+function pushClubRescanFromQueue(item) {
+  if (!HP.url || !HP.key) return;
+  chrome.scripting.executeScript({
+    target: { tabId: _clubRescanQueue.tabId },
+    func: function(extId) {
+      try {
+        var store = JSON.parse(localStorage.getItem('__hw_clubs') || '{}');
+        return store[String(extId)] || null;
+      } catch(e) { return null; }
+    },
+    args: [item.club_external_id]
+  }, function(results) {
+    var entry = results && results[0] && results[0].result;
+    if (!entry) {
+      addLog('warn', '🏢 ' + (item.friendly_name || item.name) + ' — geen club-data in interceptor, skip');
+      return;
+    }
+    getOrCreateSessionId(function(sid) {
+      fetch(HP.url + '/api/tournix/discovery/club-detail', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({}, entry, { session_id: sid }))
+      })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(res) {
+          if (!res) return;
+          addLog('ok', '🏢 ' + (entry.friendly_name || entry.name) + ' → +' + res.teams_created + ' teams, ' + res.teams_updated + ' bijgewerkt');
+        })
+        .catch(function(e) { addLog('err', '🏢 club-detail push: ' + e.message); });
+    });
   });
 }
 
@@ -1229,6 +1396,16 @@ function renderAnalysePane() {
     }
   }
 
+  // ── Club-rescan queue ───────────────────────────────────
+  var crRunning = _clubRescanQueue.running;
+  var crBtn = crRunning
+    ? '<button class="an-disc-stop" id="anClubRescanStop">⏹ Stop</button><span class="an-disc-count">' + _clubRescanQueue.doneCount + ' gedaan</span>'
+    : '<button class="an-disc-start" id="anClubRescanStart">▶ Start club-rescan</button>';
+  var crActiveLabel = crRunning && _clubRescanQueue.current
+    ? '<div class="an-disc-active">→ ' + escHtml(_clubRescanQueue.current.friendly_name || _clubRescanQueue.current.name) +
+      ' (' + _clubRescanQueue.current.pending_teams + ' teams) <span id="clubRescanActive">' + fmtMs(_clubRescanQueue.countdownMs) + '</span></div>'
+    : '';
+
   var discQueueRunning = _discQueue.running;
   var discQueueBtn = discQueueRunning
     ? '<button class="an-disc-stop" id="anDiscStop">⏹ Stop</button><span class="an-disc-count" id="discQueueCount">' + (_discQueue.doneCount || 0) + ' gedaan</span>'
@@ -1269,6 +1446,14 @@ function renderAnalysePane() {
     '<div class="an-disc-btns">' + clubQueueBtn + '</div>' +
     clubActiveLabel +
     '<div class="an-club-list">' + clubListHtml + '</div>' +
+  '</div>' +
+  '<div class="an-discovery">' +
+    '<div class="an-disc-hdr">' +
+      '<span class="an-disc-title">🏢 Club-rescan queue</span>' +
+    '</div>' +
+    crActiveLabel +
+    '<div class="an-disc-btns">' + crBtn + '</div>' +
+    '<div class="an-disc-hint">Clubs met teams zonder nieuw seizoen — opnieuw scannen om nieuwe poule-ID op te halen.</div>' +
   '</div>' +
   '<div class="an-discovery">' +
     '<div class="an-disc-hdr">' +
@@ -1363,6 +1548,11 @@ function renderAnalysePane() {
   if (clubStartBtn) clubStartBtn.addEventListener('click', startClubDiscovery);
   var clubStopBtn = $('anClubStop');
   if (clubStopBtn) clubStopBtn.addEventListener('click', stopClubDiscovery);
+
+  var crStartBtn = $('anClubRescanStart');
+  if (crStartBtn) crStartBtn.addEventListener('click', startClubRescan);
+  var crStopBtn = $('anClubRescanStop');
+  if (crStopBtn) crStopBtn.addEventListener('click', stopClubRescan);
 
   var queueListToggle = $('anQueueListToggle');
   if (queueListToggle) queueListToggle.addEventListener('click', function() {

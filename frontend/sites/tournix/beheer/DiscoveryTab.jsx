@@ -44,6 +44,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [capturedPoules,  setCapturedPoules]  = useState([])
   const [clubScanQueue,   setClubScanQueue]   = useState({ total: 0, clubs: [] })
   const [pluginErrors, setPluginErrors] = useState([])
+  const [vangerStatus, setVangerStatus] = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState('')
   const [expanded,     setExpanded]     = useState(new Set())
@@ -96,6 +97,16 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (view !== 'vanger') return
+    function pollVanger() {
+      api.get('/api/tournix/discovery/vanger/status').then(setVangerStatus).catch(() => {})
+    }
+    pollVanger()
+    const t = setInterval(pollVanger, 8000)
+    return () => clearInterval(t)
+  }, [view])
 
   function toggle(extId) {
     setExpanded(prev => {
@@ -389,6 +400,36 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       {/* ── VANGER MANAGER ── */}
       {view === 'vanger' && (
         <>
+          {/* Vanger live status */}
+          {vangerStatus && (() => {
+            const seenAt = vangerStatus.last_seen ? new Date(vangerStatus.last_seen) : null
+            const ageSec = seenAt ? Math.round((Date.now() - seenAt.getTime()) / 1000) : null
+            const online = ageSec !== null && ageSec < 60
+            const running = vangerStatus.running && online
+            const modeLabel = { poule_scan: '⚡ Poule scan', club_rescan: '🏢 Club-rescan', idle: '—' }
+            return (
+              <div style={{ background: 'var(--color-surface)', border: `1px solid ${running ? 'var(--color-success)' : online ? 'var(--color-border)' : 'var(--color-border)'}`, borderRadius: 10, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 16 }}>{running ? '🟢' : online ? '🟡' : '⚫'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>
+                    {running ? (modeLabel[vangerStatus.mode] || vangerStatus.mode) : online ? 'Vanger online · inactief' : 'Vanger offline'}
+                  </div>
+                  {running && vangerStatus.task && (
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      → {vangerStatus.task}
+                      {vangerStatus.done_count > 0 && <span style={{ marginLeft: 6 }}>({vangerStatus.done_count} gedaan)</span>}
+                    </div>
+                  )}
+                </div>
+                {seenAt && (
+                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                    {ageSec < 60 ? ageSec + 's geleden' : Math.round(ageSec / 60) + 'm geleden'}
+                  </span>
+                )}
+              </div>
+            )
+          })()}
+
           {noDetail > 0 && !loading && (
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
               ⚠️ {noDetail} clubs zonder detail — scan via de vanger op www.hockey.nl
