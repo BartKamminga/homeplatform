@@ -521,10 +521,12 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                             const filterTeam = qFilter.club_external_id && p.club_external_id !== qFilter.club_external_id
                               ? allTeams.find(t => t.club_external_id === qFilter.club_external_id && t.recent_poule_id === p.poule_id)
                               : null
-                            const displayName = filterTeam ? filterTeam.name : p.team_name
                             return (
                               <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                                <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>{displayName}</span>
+                                <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>
+                                  {filterTeam ? filterTeam.name : p.team_name}
+                                  {filterTeam && <span style={{ color: 'var(--color-text-muted)', fontSize: 9, marginLeft: 5, fontStyle: 'italic' }}>via {p.team_name}</span>}
+                                </span>
                                 <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
                                 {p.captured && !p.stale && <span style={{ color: 'var(--color-success)', fontSize: 10 }}>✓</span>}
                                 {p.stale                && <span style={{ color: 'var(--color-warning)',  fontSize: 10 }}>↩</span>}
