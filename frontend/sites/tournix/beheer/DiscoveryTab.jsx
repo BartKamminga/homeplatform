@@ -35,13 +35,17 @@ function resolveHockeyType(t) {
   return 'VE'
 }
 
+const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#e3f2fd', fg: '#1565c0', dark: '#0d47a1' } }
+
 export default function DiscoveryTab() {
-  const [clubs,    setClubs]    = useState([])
-  const [allTeams, setAllTeams] = useState([])
-  const [queue,    setQueue]    = useState({ total: 0, captured: 0, missing: 0, poules: [] })
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState('')
-  const [expanded, setExpanded] = useState(new Set())
+  const [clubs,        setClubs]        = useState([])
+  const [allTeams,     setAllTeams]     = useState([])
+  const [queue,        setQueue]        = useState({ total: 0, captured: 0, missing: 0, poules: [] })
+  const [competitions, setCompetitions] = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState('')
+  const [expanded,     setExpanded]     = useState(new Set())
+  const [compOpen,     setCompOpen]     = useState(false)
 
   function load() {
     setLoading(true); setError('')
@@ -49,10 +53,12 @@ export default function DiscoveryTab() {
       api.get('/api/tournix/discovery/clubs'),
       api.get('/api/tournix/discovery/teams'),
       api.get('/api/tournix/discovery/youth-queue'),
-    ]).then(([clubsRes, teamsRes, queueRes]) => {
+      api.get('/api/tournix/discovery/competitions'),
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
+      setCompetitions(compsRes.competitions || [])
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
 
@@ -119,6 +125,42 @@ export default function DiscoveryTab() {
       {noDetail > 0 && !loading && (
         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
           ⚠️ {noDetail} clubs zonder detail — scan via de vanger op www.hockey.nl
+        </div>
+      )}
+
+      {/* Competities */}
+      {competitions.length > 0 && (
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+          <div onClick={() => setCompOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{compOpen ? '▾' : '▸'}</span>
+            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities</span>
+            <span style={pill('muted')}>{competitions.length} gevonden</span>
+          </div>
+          {compOpen && (
+            <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {['VE', 'ZA', ''].map(ht => {
+                const group = competitions.filter(c => (ht === '' ? !c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA') : c.hockey_type === ht))
+                if (!group.length) return null
+                const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Onbekend type'
+                return (
+                  <div key={ht || 'other'}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
+                      {htLabel}
+                    </div>
+                    {group.map(c => (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12 }}>
+                        <span style={{ flex: 1 }}>{c.name}</span>
+                        {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
+                        {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
+                        <span style={pill('muted')}>{c.poule_count} poules</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

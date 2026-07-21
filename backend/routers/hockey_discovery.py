@@ -319,8 +319,12 @@ def get_youth_queue(
     for pid, info in seen.items():
         info["captured"] = str(pid) in captured_set
 
+    def _age_key(short_name):
+        m = _AGE_RE.search(short_name or "")
+        return int(m.group(1)) if m else 0
+
     result = list(seen.values())
-    result.sort(key=lambda x: x["short_name"])
+    result.sort(key=lambda x: (-_age_key(x["short_name"]), x["short_name"]))
     total = len(result)
     n_captured = sum(1 for r in result if r["captured"])
 
@@ -503,6 +507,38 @@ def upsert_poule_capture(
         "competition_name": body.competition_name,
         "competition_id":  comp.id,
         "status":          status,
+    }
+
+
+# ── Competitions query ───────────────────────────────────
+@router.get("/competitions")
+def list_competitions(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    comps = session.exec(
+        select(HockeyCompetition).order_by(col(HockeyCompetition.name))
+    ).all()
+    poules_all = session.exec(select(HockeyPoule)).all()
+    poule_counts: Dict[int, int] = {}
+    for p in poules_all:
+        poule_counts[p.competition_id] = poule_counts.get(p.competition_id, 0) + 1
+
+    return {
+        "total": len(comps),
+        "competitions": [
+            {
+                "id":           c.id,
+                "name":         c.name,
+                "class_name":   c.class_name,
+                "district":     c.district,
+                "hockey_type":  c.hockey_type,
+                "season":       c.season,
+                "poule_count":  poule_counts.get(c.id, 0),
+                "updated_at":   c.updated_at.isoformat(),
+            }
+            for c in comps
+        ],
     }
 
 
