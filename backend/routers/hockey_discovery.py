@@ -525,6 +525,22 @@ def upsert_poule_capture(
     }
 
 
+# ── Poule reset (bijsturen queue) ────────────────────────
+@router.delete("/poules/{poule_id}")
+def delete_poule_capture(
+    poule_id: int,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Verwijdert de HockeyPoule capture, zodat het team als 'missing' terug in de queue komt."""
+    row = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == poule_id)).first()
+    if not row:
+        return {"deleted": False}
+    session.delete(row)
+    session.commit()
+    return {"deleted": True}
+
+
 # ── Competitions query ───────────────────────────────────
 @router.get("/competitions")
 def list_competitions(
