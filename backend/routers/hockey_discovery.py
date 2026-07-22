@@ -1615,6 +1615,27 @@ def post_cmd_result(
     if duration_ms is not None:
         summary_data["duration_ms"] = duration_ms
 
+    # Archief: raw data opslaan (vanger 3.0 gebruikt geen session_id meer)
+    session_key = "vanger_cmd_" + str(cmd_id)
+    if cmd.cmd_type == "get_poule":
+        archive_ext = "poule_capture_" + str(params.get("poule_id", cmd_id))
+        archive_type = "poule_capture"
+    else:
+        archive_ext = "club_detail_" + str(params.get("external_id", cmd_id))
+        archive_type = "club_detail"
+    already = session.exec(select(DataCapture).where(DataCapture.external_id == archive_ext).where(DataCapture.session_id == session_key)).first()
+    if not already:
+        session.add(DataCapture(
+            id=new_uuid(),
+            source="hockey-vanger",
+            capture_type=archive_type,
+            external_id=archive_ext,
+            session_id=session_key,
+            payload=json.dumps(body.raw, ensure_ascii=False),
+            meta=json.dumps({"label": result_label, "cmd_id": cmd_id}, ensure_ascii=False),
+            captured_at=now,
+        ))
+
     try:
         if cmd.cmd_type == "get_poule":
             capture_body = _parse_raw_poule(body.raw, params)
