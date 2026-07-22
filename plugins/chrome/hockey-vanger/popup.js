@@ -1,9 +1,12 @@
-// popup.js v11.1 — competition detail + competition list cmds (389/390)
+// popup.js v11.2 — idle polling: 20 min na lege queue (384)
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
+var IDLE_TIMEOUT_MS  = 20 * 60 * 1000;
+var IDLE_POLL_MS     = 30 * 1000;
 var _vanger = {
   running: false, currentCmd: null, doneCount: 0, failCount: 0,
-  countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null
+  countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null,
+  idleStartMs: 0
 };
 var _heartbeatTimer = null;
 
@@ -159,7 +162,8 @@ function startVanger() {
     if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar www.hockey.nl'); return; }
     _vanger = {
       running: true, currentCmd: null, doneCount: 0, failCount: 0,
-      countdownMs: 0, tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null
+      countdownMs: 0, tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null,
+      idleStartMs: 0
     };
     addLog('info', '▶ Vanger 3.0 gestart');
     startHeartbeat();
@@ -177,6 +181,7 @@ function stopVanger() {
   }
   _vanger.running = false;
   _vanger.currentCmd = null;
+  _vanger.idleStartMs = 0;
   addLog('info', '■ Gestopt — ✓ ' + _vanger.doneCount + '  ✗ ' + _vanger.failCount);
   stopHeartbeat();
   renderVangerPane();
@@ -190,11 +195,22 @@ function pollNextCmd() {
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(data) {
       if (!data || data.done) {
-        addLog('ok', '✅ Queue leeg — ✓ ' + _vanger.doneCount + '  ✗ ' + _vanger.failCount);
-        toast('✅ Queue leeg!');
-        stopVanger();
+        if (!_vanger.idleStartMs) {
+          _vanger.idleStartMs = Date.now();
+          addLog('ok', '⏸ Queue leeg — pollen tot 20 min inactief (✓ ' + _vanger.doneCount + ')');
+          toast('⏸ Queue leeg — wacht 20 min');
+        }
+        if (Date.now() - _vanger.idleStartMs >= IDLE_TIMEOUT_MS) {
+          addLog('ok', '✅ 20 min inactief — sessie gesloten · ✓ ' + _vanger.doneCount + '  ✗ ' + _vanger.failCount);
+          toast('✅ Sessie gesloten na 20 min');
+          stopVanger();
+          return;
+        }
+        renderVangerPane();
+        _vanger.stepTimer = setTimeout(pollNextCmd, IDLE_POLL_MS);
         return;
       }
+      _vanger.idleStartMs = 0;
       executeCmd(data);
     })
     .catch(function(err) {
@@ -224,7 +240,7 @@ function executeCmd(cmd) {
     lsKey = '__hw_clubs';
     lsId  = null;
   } else if (cmd.cmd_type === 'get_competition_detail') {
-    hash  = '/competition/' + cmd.params.comp_id;
+    hash  = '/competitions/' + cmd.params.comp_id;
     lsKey = '__hw_comp_detail';
     lsId  = String(cmd.params.comp_id);
   } else if (cmd.cmd_type === 'get_competitions') {
@@ -330,8 +346,11 @@ function renderVangerPane() {
   var running   = _vanger.running;
   var cmd       = _vanger.currentCmd;
 
-  var statusDot  = connected ? (running ? '🟢' : '🟡') : '⚫';
-  var statusText = running ? 'Bezig' : connected ? 'Online · inactief' : 'Niet verbonden';
+  var idle       = running && !cmd && _vanger.idleStartMs > 0;
+  var statusDot  = connected ? (running ? (idle ? '🟠' : '🟢') : '🟡') : '⚫';
+  var statusText = running
+    ? (idle ? 'Wacht op queue...' : 'Bezig')
+    : connected ? 'Online · inactief' : 'Niet verbonden';
 
   var html = '<div style="padding:12px;display:flex;flex-direction:column;gap:10px;">';
 
@@ -347,6 +366,16 @@ function renderVangerPane() {
       (connected ? '' : ' disabled') + '>▶ Start</button>';
   } else {
     html += '<button id="vStop" style="padding:10px;border-radius:8px;border:none;background:#b71c1c;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">■ Stop</button>';
+  }
+
+  // Idle: wacht op nieuwe cmds
+  if (idle) {
+    var elapsed   = Date.now() - _vanger.idleStartMs;
+    var remMs     = Math.max(0, IDLE_TIMEOUT_MS - elapsed);
+    var remMin    = Math.ceil(remMs / 60000);
+    html += '<div style="background:rgba(255,152,0,.12);border:1px solid rgba(255,152,0,.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#ffb74d;">' +
+      '⏸ Queue leeg — stopt automatisch over <strong>' + remMin + ' min</strong>' +
+      '</div>';
   }
 
   // Huidige cmd

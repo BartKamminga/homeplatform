@@ -58,6 +58,7 @@ class HockeyCompetition(SQLModel, table=True):
     district:     Optional[str] = None
     hockey_type:  str           = Field(default="")  # VE / ZA
     season:       str
+    hl_comp_id:   Optional[int] = None   # hockey.nl competition id
     discovered_at: datetime     = Field(default_factory=datetime.utcnow)
     updated_at:    datetime     = Field(default_factory=datetime.utcnow)
 

@@ -67,10 +67,9 @@ function makeCmdConclusion(cmd, summary) {
     return parts.join(' · ')
   }
   if (cmd.cmd_type === 'get_competitions') {
-    const { competitions_found = 0, cmds_queued = 0 } = summary
+    const { competitions_found = 0, upserted = 0 } = summary
     const parts = [`${competitions_found} competities`]
-    if (cmds_queued > 0)  parts.push(`+${cmds_queued} detail cmds`)
-    if (cmds_queued === 0) parts.push('alles al in queue')
+    if (upserted > 0) parts.push(`${upserted} opgeslagen`)
     return parts.join(' · ')
   }
   return null
@@ -438,6 +437,13 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
                                 {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
                                 <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
+                                {c.hl_comp_id && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); addSingleCmd('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }) }}
+                                    style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, border: '1px solid #b45309', background: 'none', color: '#b45309', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                                    ⟳
+                                  </button>
+                                )}
                               </div>
                               {cOpen && (
                                 <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>

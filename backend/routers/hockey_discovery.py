@@ -960,6 +960,7 @@ def list_competitions(
                 "district":     c.district,
                 "hockey_type":  c.hockey_type,
                 "season":       c.season,
+                "hl_comp_id":   c.hl_comp_id,
                 "poule_count":  poule_counts.get(c.id, 0),
                 "updated_at":   c.updated_at.isoformat(),
             }
@@ -1385,7 +1386,7 @@ def get_cmd_queue(
         ).all())
 
     recent = session.exec(
-        select(VangerCmd).order_by(col(VangerCmd.id).desc()).limit(30)
+        select(VangerCmd).order_by(col(VangerCmd.id).desc()).limit(200)
     ).all()
 
     return {
@@ -1952,16 +1953,20 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                     pass
 
         # HockeyCompetition upsert
-        ext_id = comp_name + "|" + (season or "onbekend")
+        ext_id  = comp_name + "|" + (season or "onbekend")
+        hl_cid  = params.get("comp_id")
         comp_row = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
         if comp_row:
             comp_row.class_name = class_name or comp_row.class_name
+            if hl_cid:
+                comp_row.hl_comp_id = hl_cid
             comp_row.updated_at = now
             session.add(comp_row)
         else:
             comp_row = HockeyCompetition(
                 external_id=ext_id, name=comp_name, class_name=class_name,
-                hockey_type="VE", season=season or "onbekend", discovered_at=now, updated_at=now,
+                hockey_type="VE", season=season or "onbekend",
+                hl_comp_id=hl_cid, discovered_at=now, updated_at=now,
             )
             session.add(comp_row)
         session.flush()
@@ -2082,7 +2087,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
 
 
 def _call_competitions_list(raw: dict, session: Session):
-    """Verwerk nationale competities lijst: queue get_competition_detail cmds voor elk."""
+    """Verwerk nationale competities lijst: upsert HockeyCompetition records (geen auto-queue)."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
         competitions = raw.get("competitions") or raw.get("data") or []
@@ -2091,35 +2096,41 @@ def _call_competitions_list(raw: dict, session: Session):
     except Exception:
         return None
 
-    # Welke comp_ids zitten al in queue of zijn al klaar?
-    existing_cmds = session.exec(
-        select(VangerCmd).where(VangerCmd.cmd_type == "get_competition_detail")
-    ).all()
-    existing_comp_ids: set = set()
-    for c in existing_cmds:
-        try:
-            p = json.loads(c.params)
-            if c.status in ("pending", "in_progress", "done"):
-                existing_comp_ids.add(p.get("comp_id"))
-        except Exception:
-            pass
-
-    cmds_queued = 0
+    target_season = _get_target_season(session)
+    upserted = 0
     for item in competitions:
         comp_id = item.get("id")
-        if not comp_id or comp_id in existing_comp_ids:
+        if not comp_id:
             continue
-        name = item.get("name") or ("Comp " + str(comp_id))
-        session.add(VangerCmd(
-            cmd_type="get_competition_detail",
-            params=json.dumps({"comp_id": comp_id, "label": name}),
-            created_at=now,
-        ))
-        cmds_queued += 1
+        name       = item.get("name") or ("Comp " + str(comp_id))
+        class_name = item.get("class_name") or ""
+        ht         = "ZA" if "Zaal" in name else "VE"
+        ext_id     = name + "|" + target_season
 
+        existing = session.exec(
+            select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)
+        ).first()
+        if existing:
+            existing.hl_comp_id = comp_id
+            existing.updated_at = now
+            session.add(existing)
+        else:
+            session.add(HockeyCompetition(
+                external_id=ext_id,
+                name=name,
+                class_name=class_name,
+                hockey_type=ht,
+                season=target_season,
+                hl_comp_id=comp_id,
+                discovered_at=now,
+                updated_at=now,
+            ))
+        upserted += 1
+
+    session.commit()
     return {
         "competitions_found": len(competitions),
-        "cmds_queued":        cmds_queued,
+        "upserted":           upserted,
     }
 
 
