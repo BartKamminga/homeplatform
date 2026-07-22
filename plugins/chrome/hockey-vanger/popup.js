@@ -220,21 +220,9 @@ function executeCmd(cmd) {
     lsKey = '__hw_clubs';
     lsId  = String(cmd.params.external_id);
   } else if (cmd.cmd_type === 'get_clubs') {
-    addLog('info', '→ Ophalen volledige clubslijst van hockey.nl');
-    fetch('https://app.hockeyweerelt.nl/clubs', {
-      headers: { 'accept': 'application/json' }
-    })
-      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
-      .then(function(data) {
-        var count = (data && data.data) ? data.data.length : 0;
-        addLog('ok', '✓ Clubs opgehaald: ' + count + ' clubs');
-        reportResult(cmd.id, data, null);
-      })
-      .catch(function(err) {
-        addLog('err', '❌ get_clubs: ' + err);
-        reportResult(cmd.id, null, String(err));
-      });
-    return;
+    hash  = '/search/clubs';
+    lsKey = '__hw_clubs';
+    lsId  = null;  // lees de hele key, niet een sub-key
   } else {
     addLog('warn', '⚠️ Onbekend cmd_type: ' + cmd.cmd_type);
     reportResult(cmd.id, null, 'Onbekend cmd_type: ' + cmd.cmd_type);
@@ -281,7 +269,10 @@ function readAndReport(cmd, lsKey, lsId) {
     target: { tabId: _vanger.tabId },
     func: function(key, id) {
       try {
-        var store = JSON.parse(localStorage.getItem(key) || '{}');
+        var raw = localStorage.getItem(key);
+        if (!raw) return null;
+        if (id === null) return JSON.parse(raw);  // get_clubs: hele key teruggeven
+        var store = JSON.parse(raw);
         return store[id] || null;
       } catch(e) { return null; }
     },

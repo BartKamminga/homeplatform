@@ -1676,7 +1676,8 @@ def post_cmd_result(
                 summary_data["parse_failed"] = True
         elif cmd.cmd_type == "get_clubs":
             clubs_raw = body.raw if isinstance(body.raw, dict) else {}
-            clubs_list = clubs_raw.get("data") if clubs_raw else None
+            # interceptor slaat op als {ts, url, clubs: [...]}; directe API geeft {data: [...]}
+            clubs_list = clubs_raw.get("clubs") or clubs_raw.get("data")
             if isinstance(clubs_list, list):
                 clubs_sum = _call_clubs_list(clubs_list, session)
                 if clubs_sum:
