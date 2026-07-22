@@ -42,9 +42,13 @@ function makeCmdConclusion(cmd, summary) {
     return base + ` · ${matches_played}/${matches_total} gespeeld (${pct}%)`
   }
   if (cmd.cmd_type === 'scan_club') {
-    const { teams_found = 0, teams_added = 0 } = summary
-    const added = teams_added > 0 ? ` · +${teams_added} nieuw` : ''
-    return `${teams_found} teams gevonden${added}`
+    const { teams_found = 0, teams_added = 0, teams_new_poule = 0, teams_disappeared = 0 } = summary
+    const parts = [`${teams_found} teams`]
+    if (teams_added > 0)      parts.push(`+${teams_added} nieuw`)
+    if (teams_new_poule > 0)  parts.push(`${teams_new_poule} nieuwe poule`)
+    if (teams_disappeared > 0) parts.push(`${teams_disappeared} verdwenen`)
+    if (teams_added === 0 && teams_new_poule === 0 && teams_disappeared === 0) parts.push('geen wijzigingen')
+    return parts.join(' · ')
   }
   return null
 }
@@ -683,8 +687,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
 
                     {/* Cmd lijst */}
                     {recent.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {recent.slice(0, 25).map(c => {
+                      <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 380, overflowY: 'auto', borderRadius: 6, border: '1px solid var(--color-border)' }}>
+                        {recent.map(c => {
                           const p      = c.params || {}
                           const label  = p.label || p.external_id || '–'
                           const subId  = c.cmd_type === 'get_poule' ? p.poule_id : p.external_id
@@ -1074,7 +1078,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 {!p.captured && p.poule_id && (
                                   <button
                                     disabled={!!addState}
-                                    onClick={() => addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: p.team_id, label: p.short_name || p.team_name })}
+                                    onClick={() => addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: p.team_id, label: p.team_name || p.short_name })}
                                     style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, cursor: addState ? 'default' : 'pointer', fontFamily: 'inherit',
                                       border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
                                       background: 'none',

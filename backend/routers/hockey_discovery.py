@@ -1455,7 +1455,7 @@ def fill_cmd_queue(
             candidates.append({
                 "poule_id":   pid,
                 "team_id":    t.team_id,
-                "label":      t.short_name + " (#" + str(pid) + ")",
+                "label":      t.name + " (#" + str(pid) + ")",
                 "hockey_type": t.hockey_type,
             })
 
@@ -1776,7 +1776,15 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
     club.detail_loaded = True; club.updated_at = now
     session.add(club)
 
+    known_team_ids = {
+        t.team_id for t in session.exec(
+            select(HockeyTeam).where(HockeyTeam.club_external_id == body.federation_reference_id)
+        ).all()
+    }
+    incoming_team_ids = {team_in.id for team_in in body.teams}
+
     teams_added = 0
+    teams_new_poule = 0
     for team_in in body.teams:
         existing_team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == team_in.id)).first()
         if existing_team:
@@ -1787,6 +1795,7 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
                 existing_team.recent_poule_id = team_in.recent_poule_id
                 existing_team.no_new_poule_confirmed = False
                 existing_team.season_pending = False
+                teams_new_poule += 1
             existing_team.updated_at = now
             session.add(existing_team)
         else:
@@ -1800,7 +1809,14 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
                 discovered_at=now, updated_at=now,
             ))
 
-    return {"teams_found": len(body.teams), "teams_added": teams_added}
+    teams_disappeared = len(known_team_ids - incoming_team_ids)
+
+    return {
+        "teams_found":      len(body.teams),
+        "teams_added":      teams_added,
+        "teams_new_poule":  teams_new_poule,
+        "teams_disappeared": teams_disappeared,
+    }
 
 
 @router.delete("/vanger/cmd-queue")
