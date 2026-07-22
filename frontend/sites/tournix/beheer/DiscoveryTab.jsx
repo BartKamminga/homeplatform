@@ -44,18 +44,27 @@ function makeCmdConclusion(cmd, summary) {
   if (cmd.cmd_type === 'scan_club') {
     const { teams_found = 0, teams_added = 0, teams_new_poule = 0, teams_disappeared = 0 } = summary
     const parts = [`${teams_found} teams`]
-    if (teams_added > 0)      parts.push(`+${teams_added} nieuw`)
-    if (teams_new_poule > 0)  parts.push(`${teams_new_poule} nieuwe poule`)
+    if (teams_added > 0)       parts.push(`+${teams_added} nieuw`)
+    if (teams_new_poule > 0)   parts.push(`${teams_new_poule} nieuwe poule`)
     if (teams_disappeared > 0) parts.push(`${teams_disappeared} verdwenen`)
     if (teams_added === 0 && teams_new_poule === 0 && teams_disappeared === 0) parts.push('geen wijzigingen')
+    return parts.join(' · ')
+  }
+  if (cmd.cmd_type === 'get_clubs') {
+    const { clubs_found = 0, clubs_added = 0, clubs_updated = 0 } = summary
+    const parts = [`${clubs_found} clubs`]
+    if (clubs_added > 0)   parts.push(`+${clubs_added} nieuw`)
+    if (clubs_updated > 0) parts.push(`${clubs_updated} bijgewerkt`)
+    if (clubs_added === 0 && clubs_updated === 0) parts.push('geen wijzigingen')
     return parts.join(' · ')
   }
   return null
 }
 
 const TYPE_BADGE = {
-  get_poule: { label: 'poule', color: '#1565c0', bg: '#dbeafe', darkBg: '#1e3a5f', darkColor: '#93c5fd' },
-  scan_club: { label: 'club',  color: '#15803d', bg: '#dcfce7', darkBg: '#14532d', darkColor: '#86efac' },
+  get_poule:  { label: 'poule', color: '#1565c0', bg: '#dbeafe', darkBg: '#1e3a5f', darkColor: '#93c5fd' },
+  scan_club:  { label: 'club',  color: '#15803d', bg: '#dcfce7', darkBg: '#14532d', darkColor: '#86efac' },
+  get_clubs:  { label: 'clubs', color: '#7c3aed', bg: '#ede9fe', darkBg: '#3b1d6e', darkColor: '#c4b5fd' },
 }
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
@@ -657,6 +666,10 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                       <button onClick={() => fillCmdQueue('clubs')} disabled={!!cmdFilling}
                         style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
                         {cmdFilling === 'clubs' ? '…' : '+ Clubs vullen'}
+                      </button>
+                      <button onClick={() => addSingleCmd('get_clubs', { label: 'Alle clubs' })}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #7c3aed', background: 'none', color: '#7c3aed', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        ⟳ Clubs sync
                       </button>
                       {failed > 0 && (
                         <button onClick={retryAllFailed}

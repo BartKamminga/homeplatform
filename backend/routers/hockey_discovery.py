@@ -1528,8 +1528,27 @@ def add_single_cmd(
     _=Depends(get_current_user),
 ):
     from fastapi import HTTPException
-    if body.cmd_type not in ("get_poule", "scan_club"):
+    if body.cmd_type not in ("get_poule", "scan_club", "get_clubs"):
         raise HTTPException(status_code=400, detail="Ongeldig cmd_type")
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    if body.cmd_type == "get_clubs":
+        existing = session.exec(
+            select(VangerCmd).where(
+                VangerCmd.cmd_type == "get_clubs",
+                col(VangerCmd.status).in_(["pending", "in_progress"]),
+            )
+        ).first()
+        if existing:
+            return {"added": False, "reason": "already_queued"}
+        session.add(VangerCmd(
+            cmd_type="get_clubs",
+            params=json.dumps({"label": body.params.get("label", "Alle clubs")}),
+            created_at=now,
+        ))
+        session.commit()
+        return {"added": True}
 
     key_field = "poule_id" if body.cmd_type == "get_poule" else "external_id"
     target_id = body.params.get(key_field)
@@ -1542,7 +1561,6 @@ def add_single_cmd(
         if e.cmd_type == body.cmd_type and ep.get(key_field) == target_id:
             return {"added": False, "reason": "already_queued"}
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
     session.add(VangerCmd(cmd_type=body.cmd_type, params=json.dumps(body.params), created_at=now))
     session.commit()
     return {"added": True}
@@ -1618,11 +1636,14 @@ def post_cmd_result(
     # Archief: raw data opslaan (vanger 3.0 gebruikt geen session_id meer)
     session_key = "vanger_cmd_" + str(cmd_id)
     if cmd.cmd_type == "get_poule":
-        archive_ext = "poule_capture_" + str(params.get("poule_id", cmd_id))
+        archive_ext  = "poule_capture_" + str(params.get("poule_id", cmd_id))
         archive_type = "poule_capture"
-    else:
-        archive_ext = "club_detail_" + str(params.get("external_id", cmd_id))
+    elif cmd.cmd_type == "scan_club":
+        archive_ext  = "club_detail_" + str(params.get("external_id", cmd_id))
         archive_type = "club_detail"
+    else:
+        archive_ext  = "clubs_list_" + str(cmd_id)
+        archive_type = "clubs_list"
     already = session.exec(select(DataCapture).where(DataCapture.external_id == archive_ext).where(DataCapture.session_id == session_key)).first()
     if not already:
         session.add(DataCapture(
@@ -1651,6 +1672,15 @@ def post_cmd_result(
                 club_sum = _call_club_detail(detail_body, session)
                 if club_sum:
                     summary_data.update(club_sum)
+            else:
+                summary_data["parse_failed"] = True
+        elif cmd.cmd_type == "get_clubs":
+            clubs_raw = body.raw if isinstance(body.raw, dict) else {}
+            clubs_list = clubs_raw.get("data") if clubs_raw else None
+            if isinstance(clubs_list, list):
+                clubs_sum = _call_clubs_list(clubs_list, session)
+                if clubs_sum:
+                    summary_data.update(clubs_sum)
             else:
                 summary_data["parse_failed"] = True
     except Exception as e:
@@ -1812,10 +1842,52 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
     teams_disappeared = len(known_team_ids - incoming_team_ids)
 
     return {
-        "teams_found":      len(body.teams),
-        "teams_added":      teams_added,
-        "teams_new_poule":  teams_new_poule,
+        "teams_found":       len(body.teams),
+        "teams_added":       teams_added,
+        "teams_new_poule":   teams_new_poule,
         "teams_disappeared": teams_disappeared,
+    }
+
+
+def _call_clubs_list(clubs: list, session: Session):
+    """Upsert clubs uit de hockey.nl clubs-lijst. Overschrijft alleen basis-velden; detail_loaded blijft intact."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    clubs_added = 0
+    clubs_updated = 0
+    for item in clubs:
+        ext_id = item.get("federation_reference_id")
+        if not ext_id:
+            continue
+        existing = session.exec(select(HockeyClub).where(HockeyClub.external_id == ext_id)).first()
+        if existing:
+            changed = False
+            if existing.name != item.get("name"):
+                existing.name = item.get("name"); changed = True
+            if existing.friendly_name != item.get("friendly_name"):
+                existing.friendly_name = item.get("friendly_name"); changed = True
+            if existing.city != item.get("city"):
+                existing.city = item.get("city"); changed = True
+            if existing.logo_url != item.get("logo"):
+                existing.logo_url = item.get("logo"); changed = True
+            if changed:
+                existing.updated_at = now
+                session.add(existing)
+                clubs_updated += 1
+        else:
+            session.add(HockeyClub(
+                external_id=ext_id,
+                name=item.get("name"),
+                friendly_name=item.get("friendly_name"),
+                city=item.get("city"),
+                logo_url=item.get("logo"),
+                discovered_at=now,
+                updated_at=now,
+            ))
+            clubs_added += 1
+    return {
+        "clubs_found":   len(clubs),
+        "clubs_added":   clubs_added,
+        "clubs_updated": clubs_updated,
     }
 
 

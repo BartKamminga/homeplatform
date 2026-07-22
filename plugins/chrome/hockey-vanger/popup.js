@@ -219,6 +219,22 @@ function executeCmd(cmd) {
     hash  = '/club/' + cmd.params.external_id + '/field-teams';
     lsKey = '__hw_clubs';
     lsId  = String(cmd.params.external_id);
+  } else if (cmd.cmd_type === 'get_clubs') {
+    addLog('info', '→ Ophalen volledige clubslijst van hockey.nl');
+    fetch('https://app.hockeyweerelt.nl/clubs', {
+      headers: { 'accept': 'application/json' }
+    })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function(data) {
+        var count = (data && data.data) ? data.data.length : 0;
+        addLog('ok', '✓ Clubs opgehaald: ' + count + ' clubs');
+        reportResult(cmd.id, data, null);
+      })
+      .catch(function(err) {
+        addLog('err', '❌ get_clubs: ' + err);
+        reportResult(cmd.id, null, String(err));
+      });
+    return;
   } else {
     addLog('warn', '⚠️ Onbekend cmd_type: ' + cmd.cmd_type);
     reportResult(cmd.id, null, 'Onbekend cmd_type: ' + cmd.cmd_type);
