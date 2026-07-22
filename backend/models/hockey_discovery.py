@@ -92,6 +92,19 @@ class HockeyPouleStanding(SQLModel, table=True):
     updated_at:    datetime      = Field(default_factory=datetime.utcnow)
 
 
+class VangerCmd(SQLModel, table=True):
+    __tablename__ = "vanger_cmd_queue"
+
+    id:           int           = Field(default=None, primary_key=True)
+    cmd_type:     str           = Field(index=True)   # get_poule | scan_club
+    params:       str                                 # JSON: {team_id, poule_id, label} or {external_id, label}
+    status:       str           = Field(default="pending", index=True)  # pending|in_progress|done|failed|skipped
+    created_at:   datetime      = Field(default_factory=datetime.utcnow)
+    started_at:   Optional[datetime] = None
+    finished_at:  Optional[datetime] = None
+    error:        Optional[str] = None
+
+
 class HockeyPouleMatch(SQLModel, table=True):
     __tablename__ = "hockey_poule_matches"
 

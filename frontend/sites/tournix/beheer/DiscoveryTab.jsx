@@ -61,9 +61,37 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [rangeData,    setRangeData]    = useState(null)
   const [isInferring,  setIsInferring]  = useState(false)
   const [inferResult,  setInferResult]  = useState(null)
+  const [cmdQueue,     setCmdQueue]     = useState(null)
+  const [cmdFilling,   setCmdFilling]   = useState(null)  // 'poules'|'clubs'|null
+  const [cmdOpen,      setCmdOpen]      = useState(true)
 
   function loadRanges() {
     api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {})
+  }
+
+  function loadCmdQueue() {
+    api.get('/api/tournix/discovery/vanger/cmd-queue').then(setCmdQueue).catch(() => {})
+  }
+
+  function fillCmdQueue(type) {
+    setCmdFilling(type)
+    api.post('/api/tournix/discovery/vanger/cmd-queue/fill', { type })
+      .then(() => loadCmdQueue())
+      .catch(() => {})
+      .finally(() => setCmdFilling(null))
+  }
+
+  function clearCmdQueue() {
+    if (!window.confirm('Alle pending cmds wissen?')) return
+    api.delete('/api/tournix/discovery/vanger/cmd-queue')
+      .then(() => loadCmdQueue())
+      .catch(() => {})
+  }
+
+  function retryCmdQueue(id) {
+    api.post('/api/tournix/discovery/vanger/cmd-queue/' + id + '/retry', {})
+      .then(() => loadCmdQueue())
+      .catch(() => {})
   }
 
   function runInfer() {
@@ -160,7 +188,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     }).catch(() => {})
   }
 
-  useEffect(() => { load(); loadRanges() }, [])
+  useEffect(() => { load(); loadRanges(); loadCmdQueue() }, [])
 
   useEffect(() => {
     if (!autoRefresh) return
@@ -172,6 +200,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     if (view !== 'vanger') return
     function pollVanger() {
       api.get('/api/tournix/discovery/vanger/status').then(setVangerStatus).catch(() => {})
+      loadCmdQueue()
     }
     pollVanger()
     const t = setInterval(pollVanger, 8000)
@@ -505,6 +534,78 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                   <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                     {ageSec < 60 ? ageSec + 's geleden' : Math.round(ageSec / 60) + 'm geleden'}
                   </span>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* ── Cmd Queue ── */}
+          {(() => {
+            const counts = cmdQueue?.counts || {}
+            const recent = cmdQueue?.recent || []
+            const pending    = counts.pending    || 0
+            const inProgress = counts.in_progress || 0
+            const done       = counts.done        || 0
+            const failed     = counts.failed      || 0
+            const skipped    = counts.skipped     || 0
+            const hasAny     = pending + inProgress + done + failed + skipped > 0
+            const STATUS_COLOR = { pending: 'var(--color-text-muted)', in_progress: 'var(--color-warning)', done: 'var(--color-success)', failed: 'var(--color-danger)', skipped: 'var(--color-text-muted)' }
+            const STATUS_ICON  = { pending: '⏳', in_progress: '🔄', done: '✓', failed: '✗', skipped: '⏭' }
+            return (
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+                <div onClick={() => setCmdOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{cmdOpen ? '▾' : '▸'}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>⚡ Cmd queue</span>
+                  {pending > 0    && <span style={{ ...pill('partial') }}>{pending} wacht</span>}
+                  {inProgress > 0 && <span style={{ ...pill('partial'), color: 'var(--color-warning)', borderColor: 'var(--color-warning)' }}>{inProgress} bezig</span>}
+                  {done > 0       && <span style={{ ...pill('ok') }}>✓ {done}</span>}
+                  {failed > 0     && <span style={{ ...pill('muted'), color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>✗ {failed}</span>}
+                </div>
+                {cmdOpen && (
+                  <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Actieknoppen */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button onClick={() => fillCmdQueue('poules')} disabled={!!cmdFilling} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules' ? 0.6 : 1 }}>
+                        {cmdFilling === 'poules' ? '…' : '+ Poules vullen'}
+                      </button>
+                      <button onClick={() => fillCmdQueue('clubs')} disabled={!!cmdFilling} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
+                        {cmdFilling === 'clubs' ? '…' : '+ Clubs vullen'}
+                      </button>
+                      {(pending + inProgress) > 0 && (
+                        <button onClick={clearCmdQueue} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-danger)', background: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'inherit' }}>🗑 Leeg</button>
+                      )}
+                    </div>
+
+                    {/* Recent */}
+                    {recent.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        {recent.slice(0, 15).map(c => {
+                          const params = c.params || {}
+                          const label  = params.label || params.external_id || '–'
+                          const color  = STATUS_COLOR[c.status] || 'var(--color-text-muted)'
+                          const icon   = STATUS_ICON[c.status] || '?'
+                          const fin    = c.finished_at ? new Date(c.finished_at + 'Z').toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null
+                          return (
+                            <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '14px 80px 1fr auto auto', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                              <span style={{ color, fontWeight: 600 }}>{icon}</span>
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>{c.cmd_type}</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                              {fin && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{fin}</span>}
+                              {c.status === 'failed' && (
+                                <button onClick={() => retryCmdQueue(c.id)} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>↺</button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {!hasAny && (
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                        Queue leeg — vul met poules of clubs om te starten
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )
