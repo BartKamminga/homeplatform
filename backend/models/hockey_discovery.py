@@ -121,4 +121,6 @@ class HockeyPouleMatch(SQLModel, table=True):
     home_score:     Optional[int] = None
     away_score:     Optional[int] = None
     round:          Optional[int] = None
+    location_name:  Optional[str] = None
+    field_type:     Optional[str] = None
     updated_at:     datetime      = Field(default_factory=datetime.utcnow)

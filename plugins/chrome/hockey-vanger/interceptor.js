@@ -1,19 +1,21 @@
-// interceptor.js v8 — MAIN world
+// interceptor.js v9 — MAIN world
 // Intercepts fetch/XHR to app.hockeyweerelt.nl
-// Handles: poule teams, competitions, club list, club detail
+// Handles: poule teams, competition detail, competition list, club list, club detail
 
 (function() {
-  const TARGET         = 'app.hockeyweerelt.nl';
-  const STORE_KEY      = '__hw_poules';
-  const LOG_KEY        = '__hw_log';
-  const CLUBS_KEY      = '__hw_clubs';
-  const DETAILS_KEY    = '__hw_club_details';
-  const POULE_RE       = /\/poules\/(\d+)\/teams\/(\d+)/;
-  const COMP_RE        = /\/competitions\/national\/(\d+)/;
+  const TARGET          = 'app.hockeyweerelt.nl';
+  const STORE_KEY       = '__hw_poules';
+  const LOG_KEY         = '__hw_log';
+  const CLUBS_KEY       = '__hw_clubs';
+  const DETAILS_KEY     = '__hw_club_details';
+  const COMP_DETAIL_KEY = '__hw_comp_detail';
+  const COMPS_KEY       = '__hw_competitions';
+  const POULE_RE        = /\/poules\/(\d+)\/teams\/(\d+)/;
+  const COMP_RE         = /\/competitions\/national\/(\d+)/;
   // /clubs/HH11AR3 — club-id uit URL, ongeacht body-veldnamen
-  const CLUB_DETAIL_RE = /\/clubs\/([A-Za-z0-9]+)(?:\/|$)/;
+  const CLUB_DETAIL_RE  = /\/clubs\/([A-Za-z0-9]+)(?:\/|$)/;
 
-  console.log('[HDV] 🏑 v8 interceptor laden... target:', TARGET);
+  console.log('[HDV] 🏑 v9 interceptor laden... target:', TARGET);
 
   function writeLog(type, msg, detail) {
     try {
@@ -34,6 +36,16 @@
     return Array.isArray(body && body.data) &&
       body.data.length > 0 &&
       body.data[0] && body.data[0].federation_reference_id !== undefined;
+  }
+
+  // ── Competition list shape ────────────────────────────────
+  function isCompetitionList(body) {
+    return Array.isArray(body && body.data) &&
+      body.data.length > 0 &&
+      typeof body.data[0].poule_id === 'number' &&
+      typeof body.data[0].class_name === 'string' &&
+      typeof body.data[0].id === 'number' &&
+      body.data[0].federation_reference_id === undefined;
   }
 
   // ── Club detail shape ────────────────────────────────────
@@ -84,11 +96,12 @@
         return resp;
       }
 
-      // Shape detection: club list
+      // Shape detection: club list / competition list
       try {
         const clone = resp.clone();
         const body = await clone.json();
         if (isClubList(body)) { saveClubs(url, body.data); }
+        else if (isCompetitionList(body)) { saveCompetitionsList(url, body.data); }
       } catch(e) { /* not JSON or irrelevant shape */ }
     }
     return resp;
@@ -126,10 +139,11 @@
           } catch(e) { writeLog('err', 'XHR club parse: ' + e.message); }
           return;
         }
-        // Shape detect: club list
+        // Shape detect: club list / competition list
         try {
           const body = JSON.parse(this.responseText);
           if (isClubList(body)) saveClubs(url, body.data);
+          else if (isCompetitionList(body)) saveCompetitionsList(url, body.data);
         } catch(e) {}
       });
     }
@@ -177,27 +191,36 @@
     }
   }
 
-  // ── Save competition ─────────────────────────────────────
+  // ── Save competition detail ───────────────────────────────
   function saveCompetition(url, compId, data) {
     try {
-      const store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      const detail = JSON.parse(localStorage.getItem(COMP_DETAIL_KEY) || '{}');
       const name   = (data.data && data.data.name) || ('comp_' + compId);
       const poules = (data.data && data.data.poules) || [];
-      const land   = poules.filter(p => p.competition && p.competition.class_name === 'Landelijk');
       let played = 0, rem = 0;
-      for (const p of land) for (const m of (p.matches || [])) { if (m.status === 'final') played++; else rem++; }
+      for (const p of poules) for (const m of (p.matches || [])) { if (m.status === 'final') played++; else rem++; }
 
-      store['comp_' + compId] = {
-        type: 'competition', comp_id: compId,
-        competition: name, poule_count: land.length,
-        played_count: played, remaining_count: rem,
+      detail[String(compId)] = {
+        type: 'competition_detail', comp_id: compId, name: name,
+        poule_count: poules.length, played_count: played, remaining_count: rem,
         url: url, timestamp: Date.now(), data: data,
       };
-      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      localStorage.setItem(COMP_DETAIL_KEY, JSON.stringify(detail));
       window.dispatchEvent(new CustomEvent('__hw_captured'));
-      writeLog('ok', '✅ Competitie: ' + name + ' · ' + land.length + ' poules · ' + played + ' gespeeld');
+      writeLog('ok', '✅ Competitie: ' + name + ' · ' + poules.length + ' poules · ' + played + ' gespeeld');
     } catch(e) {
       writeLog('err', '❌ Save comp mislukt: ' + e.message);
+    }
+  }
+
+  // ── Save competitions list ────────────────────────────────
+  function saveCompetitionsList(url, competitions) {
+    try {
+      localStorage.setItem(COMPS_KEY, JSON.stringify({ ts: Date.now(), url: url, competitions: competitions }));
+      window.dispatchEvent(new CustomEvent('__hw_competitions_discovered'));
+      writeLog('ok', '🏆 ' + competitions.length + ' nationale competities onderschept');
+    } catch(e) {
+      writeLog('err', '❌ saveCompetitionsList mislukt: ' + e.message);
     }
   }
 
@@ -229,13 +252,16 @@
     }
   }
 
-  window.__hwGet    = () => JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
-  window.__hwLog    = () => JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
-  window.__hwClubs  = () => JSON.parse(localStorage.getItem(CLUBS_KEY) || 'null');
-  window.__hwDetails= () => JSON.parse(localStorage.getItem(DETAILS_KEY) || '{}');
-  window.__hwClear  = () => {
+  window.__hwGet       = () => JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  window.__hwLog       = () => JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+  window.__hwClubs     = () => JSON.parse(localStorage.getItem(CLUBS_KEY) || 'null');
+  window.__hwDetails   = () => JSON.parse(localStorage.getItem(DETAILS_KEY) || '{}');
+  window.__hwCompDetail= () => JSON.parse(localStorage.getItem(COMP_DETAIL_KEY) || '{}');
+  window.__hwComps     = () => JSON.parse(localStorage.getItem(COMPS_KEY) || 'null');
+  window.__hwClear     = () => {
     localStorage.removeItem(STORE_KEY); localStorage.removeItem(LOG_KEY);
     localStorage.removeItem(CLUBS_KEY); localStorage.removeItem(DETAILS_KEY);
+    localStorage.removeItem(COMP_DETAIL_KEY); localStorage.removeItem(COMPS_KEY);
     console.log('[HDV] 🗑️ Gewist');
   };
   window.__hwList   = () => Object.entries(window.__hwGet()).map(([id, e]) =>

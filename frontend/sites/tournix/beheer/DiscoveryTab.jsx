@@ -58,13 +58,30 @@ function makeCmdConclusion(cmd, summary) {
     if (clubs_added === 0 && clubs_updated === 0) parts.push('geen wijzigingen')
     return parts.join(' · ')
   }
+  if (cmd.cmd_type === 'get_competition_detail') {
+    const { poules_processed = 0, teams_found = 0, get_poule_cmds_queued = 0, competition = '' } = summary
+    const parts = [competition || `comp #${cmd.params?.comp_id ?? ''}`]
+    if (poules_processed > 0) parts.push(`${poules_processed} poule${poules_processed !== 1 ? 's' : ''}`)
+    if (teams_found > 0)      parts.push(`${teams_found} teams`)
+    if (get_poule_cmds_queued > 0) parts.push(`+${get_poule_cmds_queued} poule cmds`)
+    return parts.join(' · ')
+  }
+  if (cmd.cmd_type === 'get_competitions') {
+    const { competitions_found = 0, cmds_queued = 0 } = summary
+    const parts = [`${competitions_found} competities`]
+    if (cmds_queued > 0)  parts.push(`+${cmds_queued} detail cmds`)
+    if (cmds_queued === 0) parts.push('alles al in queue')
+    return parts.join(' · ')
+  }
   return null
 }
 
 const TYPE_BADGE = {
-  get_poule:  { label: 'poule', color: '#1565c0', bg: '#dbeafe', darkBg: '#1e3a5f', darkColor: '#93c5fd' },
-  scan_club:  { label: 'club',  color: '#15803d', bg: '#dcfce7', darkBg: '#14532d', darkColor: '#86efac' },
-  get_clubs:  { label: 'clubs', color: '#7c3aed', bg: '#ede9fe', darkBg: '#3b1d6e', darkColor: '#c4b5fd' },
+  get_poule:              { label: 'poule',      color: '#1565c0', bg: '#dbeafe', darkBg: '#1e3a5f', darkColor: '#93c5fd' },
+  scan_club:              { label: 'club',       color: '#15803d', bg: '#dcfce7', darkBg: '#14532d', darkColor: '#86efac' },
+  get_clubs:              { label: 'clubs',      color: '#7c3aed', bg: '#ede9fe', darkBg: '#3b1d6e', darkColor: '#c4b5fd' },
+  get_competition_detail: { label: 'competitie', color: '#b45309', bg: '#fef3c7', darkBg: '#451a03', darkColor: '#fcd34d' },
+  get_competitions:       { label: 'comp-lijst', color: '#9a3412', bg: '#fff7ed', darkBg: '#431407', darkColor: '#fdba74' },
 }
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
@@ -670,6 +687,10 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                       <button onClick={() => addSingleCmd('get_clubs', { label: 'Alle clubs' })}
                         style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #7c3aed', background: 'none', color: '#7c3aed', cursor: 'pointer', fontFamily: 'inherit' }}>
                         ⟳ Clubs sync
+                      </button>
+                      <button onClick={() => addSingleCmd('get_competitions', { label: 'Nationale competities' })}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #b45309', background: 'none', color: '#b45309', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        ⟳ Competities
                       </button>
                       {failed > 0 && (
                         <button onClick={retryAllFailed}

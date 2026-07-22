@@ -1528,29 +1528,33 @@ def add_single_cmd(
     _=Depends(get_current_user),
 ):
     from fastapi import HTTPException
-    if body.cmd_type not in ("get_poule", "scan_club", "get_clubs"):
+    valid = ("get_poule", "scan_club", "get_clubs", "get_competition_detail", "get_competitions")
+    if body.cmd_type not in valid:
         raise HTTPException(status_code=400, detail="Ongeldig cmd_type")
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    if body.cmd_type == "get_clubs":
+    # Single-instance cmds (max 1 pending tegelijk)
+    if body.cmd_type in ("get_clubs", "get_competitions"):
         existing = session.exec(
             select(VangerCmd).where(
-                VangerCmd.cmd_type == "get_clubs",
+                VangerCmd.cmd_type == body.cmd_type,
                 col(VangerCmd.status).in_(["pending", "in_progress"]),
             )
         ).first()
         if existing:
             return {"added": False, "reason": "already_queued"}
+        default_label = "Alle clubs" if body.cmd_type == "get_clubs" else "Nationale competities"
         session.add(VangerCmd(
-            cmd_type="get_clubs",
-            params=json.dumps({"label": body.params.get("label", "Alle clubs")}),
+            cmd_type=body.cmd_type,
+            params=json.dumps({"label": body.params.get("label", default_label)}),
             created_at=now,
         ))
         session.commit()
         return {"added": True}
 
-    key_field = "poule_id" if body.cmd_type == "get_poule" else "external_id"
+    # Key-based dedup
+    key_field = {"get_poule": "poule_id", "scan_club": "external_id", "get_competition_detail": "comp_id"}.get(body.cmd_type)
     target_id = body.params.get(key_field)
 
     pending = session.exec(
@@ -1641,9 +1645,15 @@ def post_cmd_result(
     elif cmd.cmd_type == "scan_club":
         archive_ext  = "club_detail_" + str(params.get("external_id", cmd_id))
         archive_type = "club_detail"
-    else:
+    elif cmd.cmd_type == "get_clubs":
         archive_ext  = "clubs_list_" + str(cmd_id)
         archive_type = "clubs_list"
+    elif cmd.cmd_type == "get_competition_detail":
+        archive_ext  = "comp_detail_" + str(params.get("comp_id", cmd_id))
+        archive_type = "comp_detail"
+    else:
+        archive_ext  = "comp_list_" + str(cmd_id)
+        archive_type = "comp_list"
     already = session.exec(select(DataCapture).where(DataCapture.external_id == archive_ext).where(DataCapture.session_id == session_key)).first()
     if not already:
         session.add(DataCapture(
@@ -1676,12 +1686,25 @@ def post_cmd_result(
                 summary_data["parse_failed"] = True
         elif cmd.cmd_type == "get_clubs":
             clubs_raw = body.raw if isinstance(body.raw, dict) else {}
-            # interceptor slaat op als {ts, url, clubs: [...]}; directe API geeft {data: [...]}
             clubs_list = clubs_raw.get("clubs") or clubs_raw.get("data")
             if isinstance(clubs_list, list):
                 clubs_sum = _call_clubs_list(clubs_list, session)
                 if clubs_sum:
                     summary_data.update(clubs_sum)
+            else:
+                summary_data["parse_failed"] = True
+        elif cmd.cmd_type == "get_competition_detail":
+            comp_raw = body.raw if isinstance(body.raw, dict) else {}
+            comp_sum = _call_competition_detail(comp_raw, session, params)
+            if comp_sum:
+                summary_data.update(comp_sum)
+            else:
+                summary_data["parse_failed"] = True
+        elif cmd.cmd_type == "get_competitions":
+            comps_raw = body.raw if isinstance(body.raw, dict) else {}
+            comps_sum = _call_competitions_list(comps_raw, session)
+            if comps_sum:
+                summary_data.update(comps_sum)
             else:
                 summary_data["parse_failed"] = True
     except Exception as e:
@@ -1889,6 +1912,214 @@ def _call_clubs_list(clubs: list, session: Session):
         "clubs_found":   len(clubs),
         "clubs_added":   clubs_added,
         "clubs_updated": clubs_updated,
+    }
+
+
+def _call_competition_detail(raw: dict, session: Session, params: dict):
+    """Verwerk competition detail: sla alle poules op en queue get_poule cmds voor current-season poules."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        data = raw.get("data") or {}
+        inner = data.get("data") or {}
+        comp_name = inner.get("name") or params.get("label", "Onbekend")
+        poules_list = inner.get("poules") or []
+    except Exception:
+        return None
+
+    if not isinstance(poules_list, list) or not poules_list:
+        return None
+
+    poules_processed = 0
+    teams_found_set: set = set()
+    current_poule_map: Dict[int, int] = {}  # recent_poule_id → een team_id
+
+    for poule_data in poules_list:
+        poule_id = poule_data.get("id")
+        poule_name = poule_data.get("name", "")
+        comp_info = poule_data.get("competition") or {}
+        class_name = comp_info.get("class_name", "Landelijk")
+
+        matches = poule_data.get("matches") or []
+        season = ""
+        for m in matches:
+            d_str = (m.get("date") or "")[:10]
+            if len(d_str) >= 7:
+                try:
+                    y, mo = int(d_str[:4]), int(d_str[5:7])
+                    season = f"{y}-{y+1}" if mo >= 8 else f"{y-1}-{y}"
+                    break
+                except Exception:
+                    pass
+
+        # HockeyCompetition upsert
+        ext_id = comp_name + "|" + (season or "onbekend")
+        comp_row = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
+        if comp_row:
+            comp_row.class_name = class_name or comp_row.class_name
+            comp_row.updated_at = now
+            session.add(comp_row)
+        else:
+            comp_row = HockeyCompetition(
+                external_id=ext_id, name=comp_name, class_name=class_name,
+                hockey_type="VE", season=season or "onbekend", discovered_at=now, updated_at=now,
+            )
+            session.add(comp_row)
+        session.flush()
+
+        # HockeyPoule upsert
+        if poule_id:
+            poule_row = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == poule_id)).first()
+            if poule_row:
+                poule_row.name = poule_name
+                poule_row.competition_id = comp_row.id
+                poule_row.updated_at = now
+                session.add(poule_row)
+            else:
+                session.add(HockeyPoule(
+                    poule_id=poule_id, name=poule_name, competition_id=comp_row.id,
+                    season=season or "onbekend", discovered_at=now, updated_at=now,
+                ))
+
+        # Standings opslaan
+        standings = poule_data.get("standings") or []
+        if standings and poule_id:
+            for old in session.exec(select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == poule_id)).all():
+                session.delete(old)
+            for s in standings:
+                team = s.get("team") or {}
+                tid = team.get("id")
+                if tid:
+                    teams_found_set.add(tid)
+                    ht_row = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == tid)).first()
+                    if not ht_row:
+                        session.add(HockeyTeam(
+                            team_id=tid,
+                            club_external_id=team.get("federation_reference_id") or "",
+                            name=team.get("name", ""),
+                            short_name=team.get("short_name") or team.get("name", ""),
+                            logo_url=team.get("logo"),
+                            hockey_type=team.get("hockey_type") or "VE",
+                            category_group_name=_derive_category(team.get("name", "")),
+                            discovered_at=now, updated_at=now,
+                        ))
+                    elif not ht_row.club_external_id and team.get("federation_reference_id"):
+                        ht_row.club_external_id = team["federation_reference_id"]
+                        ht_row.updated_at = now
+                        session.add(ht_row)
+                session.add(HockeyPouleStanding(
+                    poule_id=poule_id, team_id=tid or 0, team_name=team.get("name", ""),
+                    position=s.get("rank"), played=s.get("played", 0),
+                    won=s.get("wins", 0), drawn=s.get("draws", 0), lost=s.get("losses", 0),
+                    goals_for=s.get("goals_for", 0), goals_against=s.get("goals_against", 0),
+                    points=s.get("points", 0), updated_at=now,
+                ))
+
+        # Wedstrijden opslaan (inclusief locatie en veldtype)
+        if matches and poule_id:
+            for old in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all():
+                session.delete(old)
+            for m in matches:
+                home = m.get("home") or {}
+                away = m.get("away") or {}
+                # Verzamel current-season poule IDs via recent_poule_id
+                for side in [home, away]:
+                    rpid = side.get("recent_poule_id")
+                    tid = side.get("id")
+                    if rpid and tid and rpid not in current_poule_map:
+                        current_poule_map[rpid] = tid
+                score = m.get("score") or {}
+                is_final = m.get("status") == "final"
+                loc = (m.get("location") or {})
+                facility = (loc.get("facility") or {})
+                field = (loc.get("field") or {})
+                session.add(HockeyPouleMatch(
+                    poule_id=poule_id, match_id=m.get("id"),
+                    home_team_id=home.get("id"), home_team_name=home.get("name", ""),
+                    away_team_id=away.get("id"), away_team_name=away.get("name", ""),
+                    match_date=m.get("date"), status=m.get("status", ""),
+                    home_score=score.get("home") if is_final else None,
+                    away_score=score.get("away") if is_final else None,
+                    round=m.get("round"),
+                    location_name=facility.get("name"),
+                    field_type=field.get("type"),
+                    updated_at=now,
+                ))
+
+        poules_processed += 1
+
+    # Queue get_poule cmds voor current-season poules (die nog niet gecaptured of al in queue zijn)
+    captured_poule_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
+    pending_cmds = session.exec(
+        select(VangerCmd).where(
+            VangerCmd.cmd_type == "get_poule",
+            col(VangerCmd.status).in_(["pending", "in_progress"]),
+        )
+    ).all()
+    pending_poule_ids = set()
+    for c in pending_cmds:
+        try:
+            pending_poule_ids.add(json.loads(c.params).get("poule_id"))
+        except Exception:
+            pass
+
+    cmds_queued = 0
+    for rpid, team_id in current_poule_map.items():
+        if rpid in captured_poule_ids or rpid in pending_poule_ids:
+            continue
+        session.add(VangerCmd(
+            cmd_type="get_poule",
+            params=json.dumps({"poule_id": rpid, "team_id": team_id, "label": comp_name + " #" + str(rpid)}),
+            created_at=now,
+        ))
+        cmds_queued += 1
+
+    return {
+        "poules_processed":       poules_processed,
+        "teams_found":            len(teams_found_set),
+        "get_poule_cmds_queued":  cmds_queued,
+        "competition":            comp_name,
+    }
+
+
+def _call_competitions_list(raw: dict, session: Session):
+    """Verwerk nationale competities lijst: queue get_competition_detail cmds voor elk."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        competitions = raw.get("competitions") or raw.get("data") or []
+        if not isinstance(competitions, list):
+            return None
+    except Exception:
+        return None
+
+    # Welke comp_ids zitten al in queue of zijn al klaar?
+    existing_cmds = session.exec(
+        select(VangerCmd).where(VangerCmd.cmd_type == "get_competition_detail")
+    ).all()
+    existing_comp_ids: set = set()
+    for c in existing_cmds:
+        try:
+            p = json.loads(c.params)
+            if c.status in ("pending", "in_progress", "done"):
+                existing_comp_ids.add(p.get("comp_id"))
+        except Exception:
+            pass
+
+    cmds_queued = 0
+    for item in competitions:
+        comp_id = item.get("id")
+        if not comp_id or comp_id in existing_comp_ids:
+            continue
+        name = item.get("name") or ("Comp " + str(comp_id))
+        session.add(VangerCmd(
+            cmd_type="get_competition_detail",
+            params=json.dumps({"comp_id": comp_id, "label": name}),
+            created_at=now,
+        ))
+        cmds_queued += 1
+
+    return {
+        "competitions_found": len(competitions),
+        "cmds_queued":        cmds_queued,
     }
 
 

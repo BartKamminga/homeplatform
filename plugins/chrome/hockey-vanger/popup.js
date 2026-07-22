@@ -1,4 +1,4 @@
-// popup.js v11.0 — Vanger 3.0: pure bridge via server cmd-queue (364)
+// popup.js v11.1 — competition detail + competition list cmds (389/390)
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
 var _vanger = {
@@ -222,7 +222,15 @@ function executeCmd(cmd) {
   } else if (cmd.cmd_type === 'get_clubs') {
     hash  = '/search/clubs';
     lsKey = '__hw_clubs';
-    lsId  = null;  // lees de hele key, niet een sub-key
+    lsId  = null;
+  } else if (cmd.cmd_type === 'get_competition_detail') {
+    hash  = '/competition/' + cmd.params.comp_id;
+    lsKey = '__hw_comp_detail';
+    lsId  = String(cmd.params.comp_id);
+  } else if (cmd.cmd_type === 'get_competitions') {
+    hash  = '/search/competition';
+    lsKey = '__hw_competitions';
+    lsId  = null;
   } else {
     addLog('warn', '⚠️ Onbekend cmd_type: ' + cmd.cmd_type);
     reportResult(cmd.id, null, 'Onbekend cmd_type: ' + cmd.cmd_type);
