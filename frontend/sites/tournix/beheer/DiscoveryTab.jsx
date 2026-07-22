@@ -16,6 +16,44 @@ function pill(variant) {
   return { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, padding: '2px 8px', borderRadius: 99, background: c.bg, color: c.fg, border: `1px solid ${c.border}`, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
 }
 
+function fmtDuration(ms) {
+  if (!ms && ms !== 0) return null
+  if (ms < 1000) return ms + 'ms'
+  return (ms / 1000).toFixed(1) + 's'
+}
+
+function fmtBytes(b) {
+  if (!b) return null
+  if (b < 1024) return b + 'B'
+  if (b < 1024 * 1024) return Math.round(b / 1024) + 'kB'
+  return (b / (1024 * 1024)).toFixed(1) + 'MB'
+}
+
+function makeCmdConclusion(cmd, summary) {
+  if (!summary) return null
+  if (summary.parse_failed) return '⚠ Parse mislukt — raw data onleesbaar'
+  if (cmd.cmd_type === 'get_poule') {
+    const { teams = 0, standings = 0, matches_total = 0, matches_played = 0, competition, season } = summary
+    if (standings === 0 && matches_total === 0) return `Poule leeg – nog geen indeling${season ? ' · ' + season : ''}`
+    const base = `${teams || standings} teams`
+    if (matches_total === 0) return base + ' · geen wedstrijdschema'
+    if (matches_played === 0) return base + ` · ${matches_total} wedstrijden · nog niet gespeeld`
+    const pct = Math.round((matches_played / matches_total) * 100)
+    return base + ` · ${matches_played}/${matches_total} gespeeld (${pct}%)`
+  }
+  if (cmd.cmd_type === 'scan_club') {
+    const { teams_found = 0, teams_added = 0 } = summary
+    const added = teams_added > 0 ? ` · +${teams_added} nieuw` : ''
+    return `${teams_found} teams gevonden${added}`
+  }
+  return null
+}
+
+const TYPE_BADGE = {
+  get_poule: { label: 'poule', color: '#1565c0', bg: '#dbeafe', darkBg: '#1e3a5f', darkColor: '#93c5fd' },
+  scan_club: { label: 'club',  color: '#15803d', bg: '#dcfce7', darkBg: '#14532d', darkColor: '#86efac' },
+}
+
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {
   return [...cats].sort((a, b) => {
@@ -64,6 +102,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [cmdQueue,     setCmdQueue]     = useState(null)
   const [cmdFilling,   setCmdFilling]   = useState(null)  // 'poules'|'clubs'|null
   const [cmdOpen,      setCmdOpen]      = useState(true)
+  const [cmdAdding,    setCmdAdding]    = useState({})    // {key: 'adding'|'added'|'exists'}
 
   function loadRanges() {
     api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {})
@@ -92,6 +131,32 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     api.post('/api/tournix/discovery/vanger/cmd-queue/' + id + '/retry', {})
       .then(() => loadCmdQueue())
       .catch(() => {})
+  }
+
+  function retryAllFailed() {
+    const failed = cmdQueue?.recent?.filter(c => c.status === 'failed') || []
+    if (!failed.length) return
+    Promise.all(failed.map(c => api.post('/api/tournix/discovery/vanger/cmd-queue/' + c.id + '/retry', {})))
+      .then(() => loadCmdQueue())
+      .catch(() => {})
+  }
+
+  function clearDoneCmds() {
+    api.delete('/api/tournix/discovery/vanger/cmd-queue?scope=done')
+      .then(() => loadCmdQueue())
+      .catch(() => {})
+  }
+
+  function addSingleCmd(type, params) {
+    const key = type + '_' + (params.poule_id || params.external_id)
+    setCmdAdding(prev => ({ ...prev, [key]: 'adding' }))
+    api.post('/api/tournix/discovery/vanger/cmd-queue/add', { cmd_type: type, params })
+      .then(r => {
+        setCmdAdding(prev => ({ ...prev, [key]: r.added ? 'added' : 'exists' }))
+        loadCmdQueue()
+        setTimeout(() => setCmdAdding(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
+      })
+      .catch(() => setCmdAdding(prev => { const n = { ...prev }; delete n[key]; return n }))
   }
 
   function runInfer() {
@@ -541,58 +606,129 @@ export default function DiscoveryTab({ view = 'vanger' }) {
 
           {/* ── Cmd Queue ── */}
           {(() => {
-            const counts = cmdQueue?.counts || {}
-            const recent = cmdQueue?.recent || []
+            const counts     = cmdQueue?.counts || {}
+            const recent     = cmdQueue?.recent || []
             const pending    = counts.pending    || 0
             const inProgress = counts.in_progress || 0
             const done       = counts.done        || 0
             const failed     = counts.failed      || 0
             const skipped    = counts.skipped     || 0
             const hasAny     = pending + inProgress + done + failed + skipped > 0
+            const total      = pending + inProgress + done + failed + skipped
+            const finished   = done + failed + skipped
+            const progress   = total > 0 ? Math.round((finished / total) * 100) : 0
+            const isRunning  = inProgress > 0 || pending > 0
             const STATUS_COLOR = { pending: 'var(--color-text-muted)', in_progress: 'var(--color-warning)', done: 'var(--color-success)', failed: 'var(--color-danger)', skipped: 'var(--color-text-muted)' }
             const STATUS_ICON  = { pending: '⏳', in_progress: '🔄', done: '✓', failed: '✗', skipped: '⏭' }
+
             return (
-              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ background: 'var(--color-surface)', border: `1px solid ${failed > 0 && !isRunning ? 'var(--color-danger)' : isRunning ? 'var(--color-warning)' : done > 0 ? 'var(--color-success)' : 'var(--color-border)'}`, borderRadius: 10, overflow: 'hidden' }}>
+                {/* Header */}
                 <div onClick={() => setCmdOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
                   <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{cmdOpen ? '▾' : '▸'}</span>
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>⚡ Cmd queue</span>
-                  {pending > 0    && <span style={{ ...pill('partial') }}>{pending} wacht</span>}
-                  {inProgress > 0 && <span style={{ ...pill('partial'), color: 'var(--color-warning)', borderColor: 'var(--color-warning)' }}>{inProgress} bezig</span>}
-                  {done > 0       && <span style={{ ...pill('ok') }}>✓ {done}</span>}
+                  {inProgress > 0 && <span style={{ fontSize: 11, color: 'var(--color-warning)', fontWeight: 700 }}>● {inProgress} bezig</span>}
+                  {pending > 0    && <span style={pill('partial')}>{pending} wacht</span>}
+                  {done > 0       && <span style={pill('ok')}>✓ {done}</span>}
                   {failed > 0     && <span style={{ ...pill('muted'), color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>✗ {failed}</span>}
+                  {skipped > 0    && <span style={pill('muted')}>⏭ {skipped}</span>}
                 </div>
+
+                {/* Progress bar */}
+                {isRunning && total > 1 && (
+                  <div style={{ height: 2, background: 'var(--color-border)' }}>
+                    <div style={{ height: '100%', width: progress + '%', background: 'var(--color-warning)', transition: 'width 0.5s ease' }} />
+                  </div>
+                )}
+
                 {cmdOpen && (
                   <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+
                     {/* Actieknoppen */}
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button onClick={() => fillCmdQueue('poules')} disabled={!!cmdFilling} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules' ? 0.6 : 1 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button onClick={() => fillCmdQueue('poules')} disabled={!!cmdFilling}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules' ? 0.6 : 1 }}>
                         {cmdFilling === 'poules' ? '…' : '+ Poules vullen'}
                       </button>
-                      <button onClick={() => fillCmdQueue('clubs')} disabled={!!cmdFilling} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
+                      <button onClick={() => fillCmdQueue('clubs')} disabled={!!cmdFilling}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
                         {cmdFilling === 'clubs' ? '…' : '+ Clubs vullen'}
                       </button>
+                      {failed > 0 && (
+                        <button onClick={retryAllFailed}
+                          style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          ↺ Retry alle ({failed})
+                        </button>
+                      )}
                       {(pending + inProgress) > 0 && (
-                        <button onClick={clearCmdQueue} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-danger)', background: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'inherit' }}>🗑 Leeg</button>
+                        <button onClick={clearCmdQueue}
+                          style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-danger)', background: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          🗑 Pending leeg
+                        </button>
+                      )}
+                      {(done + skipped) > 0 && !(pending + inProgress) && (
+                        <button onClick={clearDoneCmds}
+                          style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          🗑 Done wissen
+                        </button>
                       )}
                     </div>
 
-                    {/* Recent */}
+                    {/* Voortgang samenvatting */}
+                    {isRunning && total > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 8px', background: 'color-mix(in srgb, var(--color-warning) 8%, var(--color-surface))', borderRadius: 6, border: '1px solid color-mix(in srgb, var(--color-warning) 20%, transparent)' }}>
+                        🔄 {finished}/{total} klaar ({progress}%) — {pending} in wacht{inProgress > 0 ? `, ${inProgress} bezig` : ''}
+                      </div>
+                    )}
+
+                    {/* Cmd lijst */}
                     {recent.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                        {recent.slice(0, 15).map(c => {
-                          const params = c.params || {}
-                          const label  = params.label || params.external_id || '–'
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {recent.slice(0, 25).map(c => {
+                          const p      = c.params || {}
+                          const label  = p.label || p.external_id || '–'
+                          const subId  = c.cmd_type === 'get_poule' ? p.poule_id : p.external_id
+                          const badge  = TYPE_BADGE[c.cmd_type]
+                          const summ   = c.result_summary
+                          const concl  = summ ? makeCmdConclusion(c, summ) : null
+                          const durStr = summ?.duration_ms != null ? fmtDuration(summ.duration_ms) : null
+                          const szStr  = summ?.raw_bytes ? fmtBytes(summ.raw_bytes) : null
                           const color  = STATUS_COLOR[c.status] || 'var(--color-text-muted)'
-                          const icon   = STATUS_ICON[c.status] || '?'
-                          const fin    = c.finished_at ? new Date(c.finished_at + 'Z').toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null
+                          const icon   = STATUS_ICON[c.status]  || '?'
+                          const fin    = c.finished_at
+                            ? new Date(c.finished_at + 'Z').toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                            : null
+
                           return (
-                            <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '14px 80px 1fr auto auto', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                              <span style={{ color, fontWeight: 600 }}>{icon}</span>
-                              <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>{c.cmd_type}</span>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                              {fin && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{fin}</span>}
-                              {c.status === 'failed' && (
-                                <button onClick={() => retryCmdQueue(c.id)} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>↺</button>
+                            <div key={c.id} style={{ padding: '5px 2px', borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                              {/* Hoofdregel */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                                <span style={{ color, fontWeight: 700, fontSize: 12, flexShrink: 0, width: 14 }}>{icon}</span>
+                                {badge && (
+                                  <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: badge.bg, color: badge.color, flexShrink: 0, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                                    {badge.label}
+                                  </span>
+                                )}
+                                <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                                  {label}
+                                  {subId && <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · #{subId}</span>}
+                                </span>
+                                {durStr && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{durStr}</span>}
+                                {fin    && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{fin}</span>}
+                                {c.status === 'failed' && (
+                                  <button onClick={() => retryCmdQueue(c.id)}
+                                    style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', flexShrink: 0 }}>↺</button>
+                                )}
+                              </div>
+
+                              {/* Conclusie / fout */}
+                              {(concl || c.error) && (
+                                <div style={{ marginLeft: 19, marginTop: 2, fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ color: c.error ? 'var(--color-danger)' : 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {c.error || concl}
+                                  </span>
+                                  {szStr && <span style={{ color: 'var(--color-text-muted)', opacity: 0.6, flexShrink: 0 }}>{szStr}</span>}
+                                </div>
                               )}
                             </div>
                           )
@@ -602,7 +738,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
 
                     {!hasAny && (
                       <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                        Queue leeg — vul met poules of clubs om te starten
+                        Queue leeg — vul met poules of clubs, of voeg individuele items toe via de queues hieronder
                       </div>
                     )}
                   </div>
@@ -816,13 +952,27 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 2px 8px', fontStyle: 'italic' }}>
                     Poule gescand maar bond heeft nog geen nieuw seizoen — club opnieuw scannen om nieuwe poule-ID op te halen
                   </div>
-                  {clubScanQueue.clubs.map(c => (
-                    <div key={c.club_external_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                      <span style={{ flex: 1 }}>{c.friendly_name || c.name}</span>
-                      {c.city && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.city}</span>}
-                      <span style={{ ...pill('partial'), fontSize: 10 }}>{c.pending_teams} teams</span>
-                    </div>
-                  ))}
+                  {clubScanQueue.clubs.map(c => {
+                    const addKey = 'scan_club_' + c.club_external_id
+                    const addState = cmdAdding[addKey]
+                    return (
+                      <div key={c.club_external_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                        <span style={{ flex: 1 }}>{c.friendly_name || c.name}</span>
+                        {c.city && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.city}</span>}
+                        <span style={{ ...pill('partial'), fontSize: 10 }}>{c.pending_teams} teams</span>
+                        <button
+                          disabled={!!addState}
+                          onClick={() => addSingleCmd('scan_club', { external_id: c.club_external_id, label: c.friendly_name || c.name })}
+                          style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, cursor: addState ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                            border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
+                            background: 'none',
+                            color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                          }}>
+                          {addState === 'adding' ? '…' : addState === 'added' ? '✓ toegevoegd' : addState === 'exists' ? '⚠ al in queue' : '+ cmd'}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -906,6 +1056,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                             const filterTeam = qFilter.club_external_id && p.club_external_id !== qFilter.club_external_id
                               ? allTeams.find(t => t.club_external_id === qFilter.club_external_id && t.recent_poule_id === p.poule_id)
                               : null
+                            const addKey   = 'get_poule_' + p.poule_id
+                            const addState = cmdAdding[addKey]
                             return (
                               <div key={p.poule_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px 3px 18px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
                                 <span style={{ flex: 1, color: p.stale ? 'var(--color-text-muted)' : 'var(--color-text)', opacity: p.stale ? 0.6 : 1 }}>
@@ -918,6 +1070,18 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 {(p.captured || p.stale) && (
                                   <button onClick={() => resetPoule(p.poule_id)}
                                     style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
+                                )}
+                                {!p.captured && p.poule_id && (
+                                  <button
+                                    disabled={!!addState}
+                                    onClick={() => addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: p.team_id, label: p.short_name || p.team_name })}
+                                    style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, cursor: addState ? 'default' : 'pointer', fontFamily: 'inherit',
+                                      border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
+                                      background: 'none',
+                                      color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                                    }}>
+                                    {addState === 'adding' ? '…' : addState === 'added' ? '✓' : addState === 'exists' ? '⚠' : '+ cmd'}
+                                  </button>
                                 )}
                               </div>
                             )

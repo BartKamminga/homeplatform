@@ -1392,13 +1392,15 @@ def get_cmd_queue(
         "counts": counts,
         "recent": [
             {
-                "id":           c.id,
-                "cmd_type":     c.cmd_type,
-                "params":       json.loads(c.params),
-                "status":       c.status,
-                "created_at":   c.created_at.isoformat() if c.created_at else None,
-                "finished_at":  c.finished_at.isoformat() if c.finished_at else None,
-                "error":        c.error,
+                "id":             c.id,
+                "cmd_type":       c.cmd_type,
+                "params":         json.loads(c.params),
+                "status":         c.status,
+                "created_at":     c.created_at.isoformat() if c.created_at else None,
+                "started_at":     c.started_at.isoformat() if c.started_at else None,
+                "finished_at":    c.finished_at.isoformat() if c.finished_at else None,
+                "error":          c.error,
+                "result_summary": json.loads(c.result_summary) if c.result_summary else None,
             }
             for c in recent
         ],
@@ -1514,6 +1516,38 @@ def fill_cmd_queue(
     return {"added": added, "type": body.type}
 
 
+class CmdAddIn(BaseModel):
+    cmd_type: str           # "get_poule" | "scan_club"
+    params:   Dict[str, Any]
+
+
+@router.post("/vanger/cmd-queue/add")
+def add_single_cmd(
+    body: CmdAddIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    from fastapi import HTTPException
+    if body.cmd_type not in ("get_poule", "scan_club"):
+        raise HTTPException(status_code=400, detail="Ongeldig cmd_type")
+
+    key_field = "poule_id" if body.cmd_type == "get_poule" else "external_id"
+    target_id = body.params.get(key_field)
+
+    pending = session.exec(
+        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all()
+    for e in pending:
+        ep = json.loads(e.params)
+        if e.cmd_type == body.cmd_type and ep.get(key_field) == target_id:
+            return {"added": False, "reason": "already_queued"}
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(VangerCmd(cmd_type=body.cmd_type, params=json.dumps(body.params), created_at=now))
+    session.commit()
+    return {"added": True}
+
+
 @router.get("/vanger/cmd-queue/next")
 def get_cmd_queue_next(
     session: Session = Depends(get_session),
@@ -1575,25 +1609,41 @@ def post_cmd_result(
 
     # Verwerk op basis van cmd_type
     result_label = params.get("label", "")
+    raw_bytes = len(json.dumps(body.raw).encode("utf-8")) if body.raw else 0
+    duration_ms = round((now - cmd.started_at).total_seconds() * 1000) if cmd.started_at else None
+    summary_data: Dict[str, Any] = {"raw_bytes": raw_bytes}
+    if duration_ms is not None:
+        summary_data["duration_ms"] = duration_ms
+
     try:
         if cmd.cmd_type == "get_poule":
             capture_body = _parse_raw_poule(body.raw, params)
             if capture_body:
-                _call_poule_capture(capture_body, session)
+                poule_sum = _call_poule_capture(capture_body, session)
+                if poule_sum:
+                    summary_data.update(poule_sum)
+            else:
+                summary_data["parse_failed"] = True
         elif cmd.cmd_type == "scan_club":
             detail_body = _parse_raw_club(body.raw, params)
             if detail_body:
-                _call_club_detail(detail_body, session)
+                club_sum = _call_club_detail(detail_body, session)
+                if club_sum:
+                    summary_data.update(club_sum)
+            else:
+                summary_data["parse_failed"] = True
     except Exception as e:
-        cmd.status     = "failed"
-        cmd.error      = str(e)
-        cmd.finished_at = now
+        cmd.status         = "failed"
+        cmd.error          = str(e)
+        cmd.finished_at    = now
+        cmd.result_summary = json.dumps(summary_data)
         session.add(cmd)
         session.commit()
         return {"ok": False, "status": "failed", "error": str(e)}
 
-    cmd.status     = "done"
-    cmd.finished_at = now
+    cmd.status         = "done"
+    cmd.finished_at    = now
+    cmd.result_summary = json.dumps(summary_data)
     session.add(cmd)
     session.commit()
     return {"ok": True, "status": "done", "label": result_label}
@@ -1679,6 +1729,16 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
             t.season_pending = True
             session.add(t)
 
+    matches_played = sum(1 for m in (body.matches_data or []) if m.home_score is not None)
+    return {
+        "teams":          len(body.teams_in_poule),
+        "standings":      len(body.standings_data or []),
+        "matches_total":  len(body.matches_data or []),
+        "matches_played": matches_played,
+        "competition":    body.competition_name,
+        "season":         body.season,
+    }
+
 
 def _call_club_detail(body: "ClubDetailIn", session: Session):
     """Direct de club-detail logica aanroepen zonder HTTP-laag."""
@@ -1695,6 +1755,7 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
     club.detail_loaded = True; club.updated_at = now
     session.add(club)
 
+    teams_added = 0
     for team_in in body.teams:
         existing_team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == team_in.id)).first()
         if existing_team:
@@ -1708,6 +1769,7 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
             existing_team.updated_at = now
             session.add(existing_team)
         else:
+            teams_added += 1
             session.add(HockeyTeam(
                 team_id=team_in.id, club_external_id=body.federation_reference_id,
                 name=team_in.name, short_name=team_in.short_name,
@@ -1717,15 +1779,25 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
                 discovered_at=now, updated_at=now,
             ))
 
+    return {"teams_found": len(body.teams), "teams_added": teams_added}
+
 
 @router.delete("/vanger/cmd-queue")
 def clear_cmd_queue(
+    scope: str = "pending",  # "pending" = pending+in_progress, "done" = done+skipped, "all" = alles
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
+    if scope == "done":
+        statuses = ["done", "skipped"]
+    elif scope == "all":
+        statuses = ["pending", "in_progress", "done", "failed", "skipped"]
+    else:
+        statuses = ["pending", "in_progress"]
+
     deleted = 0
     for cmd in session.exec(
-        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+        select(VangerCmd).where(col(VangerCmd.status).in_(statuses))
     ).all():
         session.delete(cmd)
         deleted += 1
@@ -1743,10 +1815,11 @@ def retry_cmd(
     cmd = session.get(VangerCmd, cmd_id)
     if not cmd:
         raise HTTPException(status_code=404, detail="Cmd niet gevonden")
-    cmd.status = "pending"
-    cmd.error = None
-    cmd.started_at = None
-    cmd.finished_at = None
+    cmd.status         = "pending"
+    cmd.error          = None
+    cmd.started_at     = None
+    cmd.finished_at    = None
+    cmd.result_summary = None
     session.add(cmd)
     session.commit()
     return {"ok": True}
