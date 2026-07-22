@@ -1,4 +1,4 @@
-// popup.js v10.4 — poule discovery: directe URL-nav via team_id + poule-capture endpoint
+// popup.js v10.5 — standings meesturen bij poule capture (378+379)
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -280,6 +280,21 @@ function pushPouleCaptureFromQueue(it) {
     }
     var isStale = entry.seizoen !== CURRENT_SEASON;
     getOrCreateSessionId(function(sid) {
+      var teamsInPoule = [];
+      try {
+        var standings = entry.data.data.poule.standings || [];
+        for (var si = 0; si < standings.length; si++) {
+          var st = standings[si].team || {};
+          if (st.id) teamsInPoule.push({
+            id:                      st.id,
+            name:                    st.name || '',
+            short_name:              st.short_name || st.name || '',
+            logo:                    st.logo || null,
+            federation_reference_id: st.federation_reference_id || null,
+          });
+        }
+      } catch(e) {}
+
       fetch(HP.url + '/api/tournix/discovery/poule-capture', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
@@ -291,6 +306,7 @@ function pushPouleCaptureFromQueue(it) {
           hockey_type:      it.hockey_type || '',
           season:           entry.seizoen,
           session_id:       sid,
+          teams_in_poule:   teamsInPoule,
         })
       })
       .then(function(r) { return r.ok ? r.json() : null; })
@@ -299,7 +315,8 @@ function pushPouleCaptureFromQueue(it) {
         if (isStale) {
           addLog('warn', '⏭ ' + it.label + ' — oud seizoen (' + entry.seizoen + '), no_new_poule_confirmed gezet');
         } else {
-          addLog('ok', '⚡ ' + (entry.poule_name || it.poule_id) + ' → ' + res.competition_name + ' [' + res.status + ']');
+          var teamMsg = (res.teams_updated || 0) + ' upd, ' + (res.teams_created || 0) + ' nieuw';
+          addLog('ok', '⚡ ' + (entry.poule_name || it.poule_id) + ' → ' + res.competition_name + ' [' + res.status + '] · teams: ' + teamMsg);
         }
         loadYouthQueue();
       })

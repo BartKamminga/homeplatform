@@ -674,6 +674,26 @@ def get_club_scan_queue_next(
 
 
 # ── Poule capture: structureer competitie + poule ────────
+_CAT_JUNIOR_RE = re.compile(r"^[zZ]?[JjMm][OoZz]\d")
+
+def _derive_category(name: str) -> str:
+    """Leidt category_group_name af uit teamnaam (J/M prefix = Junioren, H/D = Senioren)."""
+    n = name.lstrip("z").lstrip("Z")
+    if _CAT_JUNIOR_RE.match(name):
+        return "Junioren"
+    if n and n[0] in ("H", "h", "D", "d"):
+        return "Senioren"
+    return ""
+
+
+class TeamInPoule(BaseModel):
+    id:                      int
+    name:                    str
+    short_name:              str = ""
+    logo:                    Optional[str] = None
+    federation_reference_id: Optional[str] = None
+
+
 class PouleCaptureIn(BaseModel):
     poule_id:         int
     poule_name:       str
@@ -682,6 +702,7 @@ class PouleCaptureIn(BaseModel):
     hockey_type:      str = ""
     season:           str = "2026-2027"
     session_id:       Optional[str] = None
+    teams_in_poule:   List[TeamInPoule] = []
 
 
 @router.post("/poule-capture")
@@ -762,8 +783,44 @@ def upsert_poule_capture(
                 captured_at=now,
             ))
 
+    # ── Teams uit standings verwerken (378 + 379) ──────────
     target_season = _get_target_season(session)
-    if body.season != target_season:
+    is_target     = body.season == target_season
+    teams_updated = 0
+    teams_created = 0
+
+    for t_in in body.teams_in_poule:
+        existing = session.exec(
+            select(HockeyTeam).where(HockeyTeam.team_id == t_in.id)
+        ).first()
+        if existing:
+            if is_target and existing.recent_poule_id != body.poule_id:
+                existing.recent_poule_id        = body.poule_id
+                existing.season_pending         = False
+                existing.no_new_poule_confirmed = False
+                existing.updated_at             = now
+                session.add(existing)
+                teams_updated += 1
+        else:
+            hockey_type = body.hockey_type or "VE"
+            if not hockey_type and t_in.name.startswith(("z", "Z")):
+                hockey_type = "ZA"
+            session.add(HockeyTeam(
+                team_id              = t_in.id,
+                club_external_id     = t_in.federation_reference_id or "",
+                name                 = t_in.name,
+                short_name           = t_in.short_name or t_in.name,
+                logo_url             = t_in.logo,
+                hockey_type          = hockey_type,
+                category_group_name  = _derive_category(t_in.name),
+                recent_poule_id      = body.poule_id,
+                season_pending       = not is_target,
+                discovered_at        = now,
+                updated_at           = now,
+            ))
+            teams_created += 1
+
+    if not is_target:
         stale_teams = session.exec(
             select(HockeyTeam).where(HockeyTeam.recent_poule_id == body.poule_id)
         ).all()
@@ -773,10 +830,12 @@ def upsert_poule_capture(
 
     session.commit()
     return {
-        "poule_id":        body.poule_id,
+        "poule_id":         body.poule_id,
         "competition_name": body.competition_name,
-        "competition_id":  comp.id,
-        "status":          status,
+        "competition_id":   comp.id,
+        "status":           status,
+        "teams_updated":    teams_updated,
+        "teams_created":    teams_created,
     }
 
 
