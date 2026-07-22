@@ -10,7 +10,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
-from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam
 from models.settings import AppSetting
 
 router = APIRouter(prefix="/api/tournix/discovery", tags=["hockey-discovery"])
@@ -694,6 +694,32 @@ class TeamInPoule(BaseModel):
     federation_reference_id: Optional[str] = None
 
 
+class StandingIn(BaseModel):
+    team_id:       int
+    team_name:     str = ""
+    position:      Optional[int] = None
+    played:        int = 0
+    won:           int = 0
+    drawn:         int = 0
+    lost:          int = 0
+    goals_for:     int = 0
+    goals_against: int = 0
+    points:        int = 0
+
+
+class MatchIn(BaseModel):
+    match_id:       Optional[int] = None
+    home_team_id:   Optional[int] = None
+    home_team_name: str = ""
+    away_team_id:   Optional[int] = None
+    away_team_name: str = ""
+    match_date:     Optional[str] = None
+    status:         str = ""
+    home_score:     Optional[int] = None
+    away_score:     Optional[int] = None
+    round:          Optional[int] = None
+
+
 class PouleCaptureIn(BaseModel):
     poule_id:         int
     poule_name:       str
@@ -703,6 +729,8 @@ class PouleCaptureIn(BaseModel):
     season:           str = "2026-2027"
     session_id:       Optional[str] = None
     teams_in_poule:   List[TeamInPoule] = []
+    standings_data:   List[StandingIn]  = []
+    matches_data:     List[MatchIn]     = []
 
 
 @router.post("/poule-capture")
@@ -783,6 +811,36 @@ def upsert_poule_capture(
                 captured_at=now,
             ))
 
+    # ── Standings opslaan (381) ─────────────────────────────
+    if body.standings_data:
+        for old in session.exec(
+            select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == body.poule_id)
+        ).all():
+            session.delete(old)
+        for sd in body.standings_data:
+            session.add(HockeyPouleStanding(
+                poule_id=body.poule_id, team_id=sd.team_id, team_name=sd.team_name,
+                position=sd.position, played=sd.played, won=sd.won, drawn=sd.drawn,
+                lost=sd.lost, goals_for=sd.goals_for, goals_against=sd.goals_against,
+                points=sd.points, updated_at=now,
+            ))
+
+    # ── Wedstrijden opslaan (381) ────────────────────────────
+    if body.matches_data:
+        for old in session.exec(
+            select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)
+        ).all():
+            session.delete(old)
+        for md in body.matches_data:
+            session.add(HockeyPouleMatch(
+                poule_id=body.poule_id, match_id=md.match_id,
+                home_team_id=md.home_team_id, home_team_name=md.home_team_name,
+                away_team_id=md.away_team_id, away_team_name=md.away_team_name,
+                match_date=md.match_date, status=md.status,
+                home_score=md.home_score, away_score=md.away_score,
+                round=md.round, updated_at=now,
+            ))
+
     # ── Teams uit standings verwerken (378 + 379) ──────────
     target_season = _get_target_season(session)
     is_target     = body.season == target_season
@@ -830,12 +888,14 @@ def upsert_poule_capture(
 
     session.commit()
     return {
-        "poule_id":         body.poule_id,
-        "competition_name": body.competition_name,
-        "competition_id":   comp.id,
-        "status":           status,
-        "teams_updated":    teams_updated,
-        "teams_created":    teams_created,
+        "poule_id":          body.poule_id,
+        "competition_name":  body.competition_name,
+        "competition_id":    comp.id,
+        "status":            status,
+        "teams_updated":     teams_updated,
+        "teams_created":     teams_created,
+        "standings_saved":   len(body.standings_data),
+        "matches_saved":     len(body.matches_data),
     }
 
 

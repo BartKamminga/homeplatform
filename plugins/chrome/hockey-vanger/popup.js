@@ -1,4 +1,4 @@
-// popup.js v10.5 — standings meesturen bij poule capture (378+379)
+// popup.js v10.6 — standings + wedstrijden opslaan bij poule capture (381)
 var D = {};
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
@@ -281,16 +281,53 @@ function pushPouleCaptureFromQueue(it) {
     var isStale = entry.seizoen !== CURRENT_SEASON;
     getOrCreateSessionId(function(sid) {
       var teamsInPoule = [];
+      var standingsData = [];
+      var matchesData = [];
       try {
-        var standings = entry.data.data.poule.standings || [];
+        var pouleData = entry.data.data.poule;
+        var standings = pouleData.standings || [];
         for (var si = 0; si < standings.length; si++) {
-          var st = standings[si].team || {};
-          if (st.id) teamsInPoule.push({
-            id:                      st.id,
-            name:                    st.name || '',
-            short_name:              st.short_name || st.name || '',
-            logo:                    st.logo || null,
-            federation_reference_id: st.federation_reference_id || null,
+          var s = standings[si];
+          var st = s.team || {};
+          if (st.id) {
+            teamsInPoule.push({
+              id:                      st.id,
+              name:                    st.name || '',
+              short_name:              st.short_name || st.name || '',
+              logo:                    st.logo || null,
+              federation_reference_id: st.federation_reference_id || null,
+            });
+            standingsData.push({
+              team_id:       st.id,
+              team_name:     st.name || '',
+              position:      s.position || s.rank || null,
+              played:        s.played || s.games_played || 0,
+              won:           s.won || s.wins || 0,
+              drawn:         s.draw || s.drawn || s.draws || 0,
+              lost:          s.lost || s.losses || 0,
+              goals_for:     s.goals_for || s.gf || s.goals_scored || 0,
+              goals_against: s.goals_against || s.ga || s.goals_conceded || 0,
+              points:        s.points || s.pts || 0,
+            });
+          }
+        }
+        var matches = pouleData.matches || [];
+        for (var mi = 0; mi < matches.length; mi++) {
+          var m = matches[mi];
+          var ht = m.home_team || m.homeTeam || {};
+          var at = m.away_team || m.awayTeam || {};
+          var sc = m.score || {};
+          matchesData.push({
+            match_id:       m.id || null,
+            home_team_id:   ht.id || null,
+            home_team_name: ht.name || '',
+            away_team_id:   at.id || null,
+            away_team_name: at.name || '',
+            match_date:     m.date || null,
+            status:         m.status || '',
+            home_score:     m.home_score != null ? m.home_score : (sc.home != null ? sc.home : null),
+            away_score:     m.away_score != null ? m.away_score : (sc.away != null ? sc.away : null),
+            round:          m.round || m.round_number || null,
           });
         }
       } catch(e) {}
@@ -307,6 +344,8 @@ function pushPouleCaptureFromQueue(it) {
           season:           entry.seizoen,
           session_id:       sid,
           teams_in_poule:   teamsInPoule,
+          standings_data:   standingsData,
+          matches_data:     matchesData,
         })
       })
       .then(function(r) { return r.ok ? r.json() : null; })
@@ -316,7 +355,8 @@ function pushPouleCaptureFromQueue(it) {
           addLog('warn', '⏭ ' + it.label + ' — oud seizoen (' + entry.seizoen + '), no_new_poule_confirmed gezet');
         } else {
           var teamMsg = (res.teams_updated || 0) + ' upd, ' + (res.teams_created || 0) + ' nieuw';
-          addLog('ok', '⚡ ' + (entry.poule_name || it.poule_id) + ' → ' + res.competition_name + ' [' + res.status + '] · teams: ' + teamMsg);
+          var extraMsg = (res.standings_saved || 0) + ' standen, ' + (res.matches_saved || 0) + ' wedstrijden';
+          addLog('ok', '⚡ ' + (entry.poule_name || it.poule_id) + ' → ' + res.competition_name + ' [' + res.status + '] · teams: ' + teamMsg + ' · ' + extraMsg);
         }
         loadYouthQueue();
       })

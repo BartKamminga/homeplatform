@@ -72,3 +72,39 @@ class HockeyPoule(SQLModel, table=True):
     season:         str
     discovered_at:  datetime = Field(default_factory=datetime.utcnow)
     updated_at:     datetime = Field(default_factory=datetime.utcnow)
+
+
+class HockeyPouleStanding(SQLModel, table=True):
+    __tablename__ = "hockey_poule_standings"
+
+    id:            int           = Field(default=None, primary_key=True)
+    poule_id:      int           = Field(index=True)
+    team_id:       int           = Field(index=True)
+    team_name:     str
+    position:      Optional[int] = None
+    played:        int           = Field(default=0)
+    won:           int           = Field(default=0)
+    drawn:         int           = Field(default=0)
+    lost:          int           = Field(default=0)
+    goals_for:     int           = Field(default=0)
+    goals_against: int           = Field(default=0)
+    points:        int           = Field(default=0)
+    updated_at:    datetime      = Field(default_factory=datetime.utcnow)
+
+
+class HockeyPouleMatch(SQLModel, table=True):
+    __tablename__ = "hockey_poule_matches"
+
+    id:             int           = Field(default=None, primary_key=True)
+    poule_id:       int           = Field(index=True)
+    match_id:       Optional[int] = Field(default=None, index=True)
+    home_team_id:   Optional[int] = None
+    home_team_name: str           = Field(default="")
+    away_team_id:   Optional[int] = None
+    away_team_name: str           = Field(default="")
+    match_date:     Optional[str] = None
+    status:         str           = Field(default="")
+    home_score:     Optional[int] = None
+    away_score:     Optional[int] = None
+    round:          Optional[int] = None
+    updated_at:     datetime      = Field(default_factory=datetime.utcnow)
