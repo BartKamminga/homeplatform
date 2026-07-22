@@ -14,6 +14,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    cols = {r[1] for r in bind.execute(sa.text("PRAGMA table_info(vanger_cmd_queue)")).fetchall()}
+    if "result_summary" in cols:
+        return
     with op.batch_alter_table("vanger_cmd_queue") as batch_op:
         batch_op.add_column(sa.Column("result_summary", sa.Text(), nullable=True))
 

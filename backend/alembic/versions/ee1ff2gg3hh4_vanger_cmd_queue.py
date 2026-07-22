@@ -14,6 +14,11 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    existing = {r[0] for r in bind.execute(sa.text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()}
+    if "vanger_cmd_queue" in existing:
+        return
+
     op.create_table(
         "vanger_cmd_queue",
         sa.Column("id",           sa.Integer(),  nullable=False),

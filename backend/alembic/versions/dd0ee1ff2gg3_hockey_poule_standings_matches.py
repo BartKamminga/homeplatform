@@ -14,6 +14,13 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    existing = bind.execute(sa.text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+    existing_tables = {r[0] for r in existing}
+
+    if "hockey_poule_standings" in existing_tables and "hockey_poule_matches" in existing_tables:
+        return
+
     op.create_table(
         "hockey_poule_standings",
         sa.Column("id",            sa.Integer(),  nullable=False),
