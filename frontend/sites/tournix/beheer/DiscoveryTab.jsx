@@ -58,6 +58,21 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [autoRefresh,  setAutoRefresh]  = useState(() => {
     try { return localStorage.getItem('disc_auto_refresh') === 'true' } catch { return false }
   })
+  const [rangeData,    setRangeData]    = useState(null)
+  const [isInferring,  setIsInferring]  = useState(false)
+  const [inferResult,  setInferResult]  = useState(null)
+
+  function loadRanges() {
+    api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {})
+  }
+
+  function runInfer() {
+    setIsInferring(true); setInferResult(null)
+    api.post('/api/tournix/discovery/infer-season-pending', {})
+      .then(r => { setInferResult(r); loadRanges(); refreshQuiet() })
+      .catch(() => {})
+      .finally(() => setIsInferring(false))
+  }
 
   function load() {
     setLoading(true); setError('')
@@ -145,7 +160,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     }).catch(() => {})
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadRanges() }, [])
 
   useEffect(() => {
     if (!autoRefresh) return
@@ -820,6 +835,43 @@ export default function DiscoveryTab({ view = 'vanger' }) {
               </div>
             )
           })()}
+
+          {/* ID-reeks per seizoen */}
+          {rangeData && rangeData.seasons.length > 0 && (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
+                <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>📊 Poule ID-reeks</span>
+                <button onClick={runInfer} disabled={isInferring} style={{ ...ghostBtn, alignSelf: 'center' }}>
+                  {isInferring ? '⏳ bezig…' : '⚡ Infereer seizoen'}
+                </button>
+              </div>
+              <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {rangeData.seasons.map(s => (
+                  <div key={s.season} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '2px 0' }}>
+                    <span style={{ fontWeight: 600, minWidth: 72 }}>{s.season}</span>
+                    <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {s.min_id} – {s.max_id}
+                    </span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>({s.count} poules, span {s.span})</span>
+                    {s.gap_before > 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                        gap: {s.gap_before}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {inferResult && (
+                  <div style={{ marginTop: 6, fontSize: 11, padding: '5px 8px', borderRadius: 6,
+                    background: 'color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))',
+                    color: 'var(--color-warning)', border: '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)' }}>
+                    ⚡ {inferResult.marked_pending} teams → season_pending
+                    {inferResult.cleared_pending > 0 && `, ${inferResult.cleared_pending} gecleard`}
+                    {inferResult.marked_pending === 0 && inferResult.cleared_pending === 0 && ' — alles al correct'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {!loading && queue.total === 0 && (
             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>

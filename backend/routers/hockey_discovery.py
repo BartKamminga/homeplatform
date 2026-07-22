@@ -874,6 +874,107 @@ def list_poules(
     }
 
 
+# ── Poule ID-reeksen per seizoen ─────────────────────────
+@router.get("/poule-ranges")
+def get_poule_ranges(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Berekent min/max poule-ID per seizoen uit gecaptured HockeyPoules."""
+    poules = session.exec(select(HockeyPoule)).all()
+    ranges: Dict[str, dict] = {}
+    for p in poules:
+        if p.season not in ranges:
+            ranges[p.season] = {"min_id": p.poule_id, "max_id": p.poule_id, "count": 0}
+        ranges[p.season]["min_id"] = min(ranges[p.season]["min_id"], p.poule_id)
+        ranges[p.season]["max_id"] = max(ranges[p.season]["max_id"], p.poule_id)
+        ranges[p.season]["count"] += 1
+
+    seasons = sorted(ranges.items())
+    result = []
+    for i, (season, r) in enumerate(seasons):
+        gap_before = None
+        if i > 0:
+            prev_max = seasons[i - 1][1]["max_id"]
+            gap_before = r["min_id"] - prev_max - 1
+        result.append({
+            "season":     season,
+            "min_id":     r["min_id"],
+            "max_id":     r["max_id"],
+            "count":      r["count"],
+            "span":       r["max_id"] - r["min_id"],
+            "gap_before": gap_before,
+        })
+
+    return {"seasons": result}
+
+
+# ── Seizoeninferentie op basis van ID-reeks ──────────────
+@router.post("/infer-season-pending")
+def infer_season_pending(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Markeert teams als season_pending als hun recent_poule_id in een oud seizoen valt."""
+    target_season = _get_target_season(session)
+
+    poules = session.exec(select(HockeyPoule)).all()
+    season_ranges: Dict[str, dict] = {}
+    for p in poules:
+        if p.season not in season_ranges:
+            season_ranges[p.season] = {"min_id": p.poule_id, "max_id": p.poule_id}
+        season_ranges[p.season]["min_id"] = min(season_ranges[p.season]["min_id"], p.poule_id)
+        season_ranges[p.season]["max_id"] = max(season_ranges[p.season]["max_id"], p.poule_id)
+
+    if not season_ranges:
+        return {"marked_pending": 0, "cleared_pending": 0, "target_season": target_season}
+
+    global_max = max(r["max_id"] for r in season_ranges.values())
+
+    def _infer(poule_id: int) -> str:
+        for season, r in season_ranges.items():
+            if r["min_id"] <= poule_id <= r["max_id"]:
+                return season
+        # Boven alle bekende maxima → waarschijnlijk target season
+        if poule_id > global_max:
+            return target_season
+        # In een gat tussen seizoenen → conservatief: target season
+        return target_season
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    teams = session.exec(
+        select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
+    ).all()
+
+    marked_pending = 0
+    cleared_pending = 0
+
+    for t in teams:
+        if t.no_new_poule_confirmed:
+            continue
+        inferred = _infer(t.recent_poule_id)
+        if inferred != target_season and not t.season_pending:
+            t.season_pending = True
+            t.updated_at = now
+            session.add(t)
+            marked_pending += 1
+        elif inferred == target_season and t.season_pending:
+            t.season_pending = False
+            t.updated_at = now
+            session.add(t)
+            cleared_pending += 1
+
+    session.commit()
+    return {
+        "marked_pending":  marked_pending,
+        "cleared_pending": cleared_pending,
+        "target_season":   target_season,
+        "season_ranges":   [
+            {"season": s, **r} for s, r in sorted(season_ranges.items())
+        ],
+    }
+
+
 # ── Plugin errors ────────────────────────────────────────
 class PluginErrorIn(BaseModel):
     message:    str
