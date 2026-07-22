@@ -6,7 +6,8 @@ var IDLE_POLL_MS     = 30 * 1000;
 var _vanger = {
   running: false, currentCmd: null, doneCount: 0, failCount: 0,
   countdownMs: 0, tabId: null, tickTimer: null, stepTimer: null, tabLoadedListener: null,
-  idleStartMs: 0
+  idleStartMs: 0, startMs: 0, sessionTimer: null, flowStep: '',
+  tabOk: false, tabUrlListener: null
 };
 var _heartbeatTimer = null;
 
@@ -24,6 +25,11 @@ function randDelay() {
   return HP.delayMin + Math.floor(Math.random() * (HP.delayMax - HP.delayMin + 1));
 }
 function fmtMs(ms) { return (Math.max(0, ms) / 1000).toFixed(1) + 's'; }
+function fmtElapsed(startMs) {
+  var s = Math.floor((Date.now() - startMs) / 1000);
+  var m = Math.floor(s / 60); s = s % 60;
+  return (m > 0 ? m + 'm ' : '') + s + 's';
+}
 
 // ══════════════════════════════════════
 // TABS
@@ -35,6 +41,7 @@ function switchTab(tab) {
   $('vangerPane').classList.toggle('hidden', tab !== 'vanger');
   $('settingsPane').classList.toggle('hidden', tab !== 'settings');
   $('logPane').classList.toggle('hidden', tab !== 'log');
+  $('helpPane').classList.toggle('hidden', tab !== 'help');
   if (tab === 'vanger')   renderVangerPane();
   if (tab === 'settings') renderSettings();
   if (tab === 'log')      renderLog();
@@ -163,8 +170,33 @@ function startVanger() {
     _vanger = {
       running: true, currentCmd: null, doneCount: 0, failCount: 0,
       countdownMs: 0, tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null,
-      idleStartMs: 0
+      idleStartMs: 0, startMs: Date.now(), sessionTimer: null, flowStep: '',
+      tabOk: true, tabUrlListener: null
     };
+    _vanger.tabUrlListener = function(tabId, info) {
+      if (tabId !== _vanger.tabId) return;
+      var ok = info.url ? info.url.indexOf('hockey.nl') !== -1 : _vanger.tabOk;
+      if (ok !== _vanger.tabOk) {
+        _vanger.tabOk = ok;
+        var el = $('vcTabStatus');
+        if (el) { el.textContent = ok ? '🟢' : '🔴'; el.title = ok ? 'hockey.nl actief' : 'Niet op hockey.nl'; }
+      }
+    };
+    chrome.tabs.onUpdated.addListener(_vanger.tabUrlListener);
+    _vanger.sessionTimer = setInterval(function() {
+      var el = $('vSessionElapsed');
+      if (el) el.textContent = fmtElapsed(_vanger.startMs);
+      var idleEl = $('vIdleCountdown');
+      if (idleEl && _vanger.idleStartMs > 0) {
+        var rem = Math.max(0, IDLE_TIMEOUT_MS - (Date.now() - _vanger.idleStartMs));
+        idleEl.textContent = Math.ceil(rem / 60000) + ' min';
+      }
+    }, 1000);
+    // Ruim __hw_log op om localStorage-ruimte vrij te maken
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function() { try { localStorage.removeItem('__hw_log'); } catch(e) {} }
+    });
     addLog('info', '▶ Vanger 3.0 gestart');
     startHeartbeat();
     renderVangerPane();
@@ -173,7 +205,12 @@ function startVanger() {
 }
 
 function stopVanger() {
+  if (_vanger.tabUrlListener) {
+    chrome.tabs.onUpdated.removeListener(_vanger.tabUrlListener);
+    _vanger.tabUrlListener = null;
+  }
   clearInterval(_vanger.tickTimer);
+  clearInterval(_vanger.sessionTimer);
   clearTimeout(_vanger.stepTimer);
   if (_vanger.tabLoadedListener) {
     chrome.tabs.onUpdated.removeListener(_vanger.tabLoadedListener);
@@ -189,6 +226,7 @@ function stopVanger() {
 
 function pollNextCmd() {
   if (!_vanger.running) return;
+  cockpitPollPing();
   fetch(HP.url + '/api/tournix/discovery/vanger/cmd-queue/next', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   })
@@ -199,6 +237,9 @@ function pollNextCmd() {
           _vanger.idleStartMs = Date.now();
           addLog('ok', '⏸ Queue leeg — pollen tot 20 min inactief (✓ ' + _vanger.doneCount + ')');
           toast('⏸ Queue leeg — wacht 20 min');
+          var banner = $('vcIdleBanner');
+          if (banner) banner.classList.remove('hidden');
+          var sl = $('vcStateLbl'); if (sl) sl.textContent = 'Wacht op queue';
         }
         if (Date.now() - _vanger.idleStartMs >= IDLE_TIMEOUT_MS) {
           addLog('ok', '✅ 20 min inactief — sessie gesloten · ✓ ' + _vanger.doneCount + '  ✗ ' + _vanger.failCount);
@@ -206,11 +247,11 @@ function pollNextCmd() {
           stopVanger();
           return;
         }
-        renderVangerPane();
         _vanger.stepTimer = setTimeout(pollNextCmd, IDLE_POLL_MS);
         return;
       }
       _vanger.idleStartMs = 0;
+      var banner = $('vcIdleBanner'); if (banner) banner.classList.add('hidden');
       executeCmd(data);
     })
     .catch(function(err) {
@@ -220,11 +261,86 @@ function pollNextCmd() {
     });
 }
 
+// ══════════════════════════════════════
+// COCKPIT DOM-UPDATES (geen re-render)
+// ══════════════════════════════════════
+var FLOW_STEPS = [
+  { key: 'nav',     icon: '⌗', label: 'Hash' },
+  { key: 'reload',  icon: '↺', label: 'Reload' },
+  { key: 'loading', icon: '…', label: 'Laden' },
+  { key: 'wait',    icon: '◷', label: 'Wacht' },
+  { key: 'read',    icon: '○', label: 'Lees' },
+  { key: 'post',    icon: '↑', label: 'POST' },
+];
+
+function setFlowStep(key) {
+  _vanger.flowStep = key;
+  var activeIdx = -1;
+  for (var i = 0; i < FLOW_STEPS.length; i++) {
+    if (FLOW_STEPS[i].key === key) { activeIdx = i; break; }
+  }
+  var isDone = key === 'done';
+  for (var i = 0; i < FLOW_STEPS.length; i++) {
+    var s = FLOW_STEPS[i];
+    var stepEl = $('vfStep_' + s.key);
+    var dotEl  = $('vfDot_'  + s.key);
+    var lineEl = i < FLOW_STEPS.length - 1 ? $('vfLine_' + i) : null;
+    if (!stepEl || !dotEl) continue;
+    var sc = isDone ? 'vflow-done' : (i < activeIdx ? 'vflow-done' : (i === activeIdx ? 'vflow-active' : 'vflow-pending'));
+    stepEl.className = 'vflow-step ' + sc;
+    dotEl.textContent = (isDone || i < activeIdx) ? '✓' : s.icon;
+    if (lineEl) lineEl.className = 'vflow-line' + (isDone || i < activeIdx ? ' vflow-line-done' : '');
+    if (s.key === 'wait') {
+      var wl = $('flowWaitLabel');
+      if (wl) wl.style.display = (i === activeIdx && !isDone) ? 'block' : 'none';
+    }
+  }
+  var barEl = $('vfLoopBar');
+  if (barEl) {
+    var pct = isDone ? 100 : (activeIdx < 0 ? 0 : Math.round(activeIdx / (FLOW_STEPS.length - 1) * 100));
+    barEl.style.width = pct + '%';
+    barEl.className = 'vflow-loop-bar' + (isDone ? ' vflow-loop-bar--done' : '');
+  }
+  var ck = $('vcCockpit');
+  if (ck && key && key !== 'done') ck.setAttribute('data-state', 'active');
+}
+
+function cockpitSetCmd(cmd) {
+  var ck = $('vcCockpit'); if (!ck) return;
+  var t = $('vcCmdType'); if (t) t.textContent = cmd.cmd_type;
+  var n = $('vcCmdName'); if (n) n.textContent = cmd.params.label || cmd.params.external_id || '';
+  var sl = $('vcStateLbl'); if (sl) sl.textContent = 'Verwerken...';
+  var banner = $('vcIdleBanner'); if (banner) banner.classList.add('hidden');
+  setFlowStep('');
+  ck.setAttribute('data-state', 'active');
+}
+
+function cockpitCollapse() {
+  var ck = $('vcCockpit'); if (!ck) return;
+  var sl = $('vcStateLbl'); if (sl) sl.textContent = 'Aan het pollen...';
+  ck.setAttribute('data-state', 'idle');
+}
+
+function cockpitPollPing() {
+  var el = $('vcPollDot'); if (!el) return;
+  el.classList.remove('vc-poll-ping');
+  void el.offsetWidth;
+  el.classList.add('vc-poll-ping');
+}
+
+function updateCounters() {
+  var d = $('vDoneCount'); if (d) d.textContent = _vanger.doneCount;
+  var f = $('vFailCount'); if (f) f.textContent = _vanger.failCount;
+}
+
+// ══════════════════════════════════════
+// CMD LOOP
+// ══════════════════════════════════════
 function executeCmd(cmd) {
   _vanger.currentCmd = cmd;
   addLog('info', '→ ' + cmd.cmd_type + ' · ' + (cmd.params.label || cmd.params.external_id || ''));
   sendHeartbeat();
-  renderVangerPane();
+  cockpitSetCmd(cmd);
 
   var hash, lsKey, lsId;
   if (cmd.cmd_type === 'get_poule') {
@@ -233,7 +349,7 @@ function executeCmd(cmd) {
     lsId  = String(cmd.params.poule_id);
   } else if (cmd.cmd_type === 'scan_club') {
     hash  = '/club/' + cmd.params.external_id + '/field-teams';
-    lsKey = '__hw_clubs';
+    lsKey = '__hw_club_details';
     lsId  = String(cmd.params.external_id);
   } else if (cmd.cmd_type === 'get_clubs') {
     hash  = '/search/clubs';
@@ -253,61 +369,95 @@ function executeCmd(cmd) {
     return;
   }
 
+  addLog('info', '⚙ nav: hash=' + hash + '  zoekt: ' + lsKey + '[' + (lsId || 'lijst') + ']');
+
   if (_vanger.tabLoadedListener) {
     chrome.tabs.onUpdated.removeListener(_vanger.tabLoadedListener);
     _vanger.tabLoadedListener = null;
   }
 
-  var onTabLoaded = function(tabId, info) {
-    if (tabId !== _vanger.tabId || info.status !== 'complete') return;
-    chrome.tabs.onUpdated.removeListener(onTabLoaded);
-    _vanger.tabLoadedListener = null;
-
-    var delay = randDelay();
-    var startTime = Date.now();
-    _vanger.countdownMs = delay;
-    _vanger.tickTimer = setInterval(function() {
-      _vanger.countdownMs = Math.max(0, delay - (Date.now() - startTime));
-      var el = $('vCountdown');
-      if (el) el.textContent = fmtMs(_vanger.countdownMs);
-    }, 120);
-    _vanger.stepTimer = setTimeout(function() {
-      clearInterval(_vanger.tickTimer);
-      readAndReport(cmd, lsKey, lsId);
-    }, delay);
-  };
-  _vanger.tabLoadedListener = onTabLoaded;
-  chrome.tabs.onUpdated.addListener(onTabLoaded);
+  setFlowStep('nav');
 
   chrome.scripting.executeScript({
     target: { tabId: _vanger.tabId },
     func: function(h) { window.location.hash = h; },
     args: [hash]
   }, function() {
-    setTimeout(function() { chrome.tabs.reload(_vanger.tabId); }, 300);
+    setFlowStep('reload');
+
+    setTimeout(function() {
+      if (!_vanger.running) return;
+      setFlowStep('loading');
+
+      var onReloadDone = function(tabId, info) {
+        if (tabId !== _vanger.tabId || info.status !== 'complete') return;
+        chrome.tabs.onUpdated.removeListener(onReloadDone);
+        _vanger.tabLoadedListener = null;
+
+        var delay = randDelay();
+        addLog('info', '♻ tab herladen · wacht ' + Math.round(delay / 1000) + 's');
+        var startTime = Date.now();
+        _vanger.countdownMs = delay;
+        setFlowStep('wait');
+
+        _vanger.tickTimer = setInterval(function() {
+          _vanger.countdownMs = Math.max(0, delay - (Date.now() - startTime));
+          var el = $('flowWaitLabel');
+          if (el) el.textContent = fmtMs(_vanger.countdownMs);
+        }, 120);
+        _vanger.stepTimer = setTimeout(function() {
+          clearInterval(_vanger.tickTimer);
+          readAndReport(cmd, lsKey, lsId);
+        }, delay);
+      };
+      _vanger.tabLoadedListener = onReloadDone;
+      chrome.tabs.onUpdated.addListener(onReloadDone);
+      chrome.tabs.reload(_vanger.tabId, { bypassCache: true });
+    }, 600);
   });
 }
 
 function readAndReport(cmd, lsKey, lsId) {
+  setFlowStep('read');
   chrome.scripting.executeScript({
     target: { tabId: _vanger.tabId },
     func: function(key, id) {
       try {
         var raw = localStorage.getItem(key);
-        if (!raw) return null;
-        if (id === null) return JSON.parse(raw);  // get_clubs: hele key teruggeven
-        var store = JSON.parse(raw);
-        return store[id] || null;
-      } catch(e) { return null; }
+        var store = raw ? JSON.parse(raw) : {};
+        var keys = Object.keys(store);
+        var data = (id === null) ? store : (store[id] || null);
+        var status = data ? 'ok' : (raw ? 'key_ontbreekt' : 'ls_leeg');
+        // Lees recente interceptor-log voor diagnostiek
+        var hwLog = [];
+        try {
+          var lr = localStorage.getItem('__hw_log');
+          if (lr) hwLog = JSON.parse(lr).slice(0, 10);
+        } catch(e) {}
+        return { data: data, status: status, keys: keys, hwLog: hwLog };
+      } catch(e) { return { data: null, status: 'parse_fout:' + e.message, keys: [], hwLog: [] }; }
     },
     args: [lsKey, lsId]
   }, function(results) {
-    var raw = results && results[0] && results[0].result;
+    var res = results && results[0] && results[0].result;
+    var raw = res && res.data;
+    if (!raw && res) {
+      var keysStr = (res.keys && res.keys.length) ? res.keys.join(', ') : '(geen)';
+      addLog('warn', '🔍 ' + lsKey + '[' + (lsId || 'lijst') + '] → ' + res.status + ' · aanwezig: ' + keysStr);
+      if (res.hwLog && res.hwLog.length) {
+        var lines = res.hwLog.slice(0, 6).map(function(e) {
+          var icon = e.type === 'ok' ? '✅' : e.type === 'err' ? '❌' : '·';
+          return icon + ' ' + e.msg;
+        }).join('  |  ');
+        addLog('info', '📋 interceptor log: ' + lines);
+      }
+    }
     reportResult(cmd.id, raw, null);
   });
 }
 
 function reportResult(cmdId, raw, error) {
+  setFlowStep('post');
   fetch(HP.url + '/api/tournix/discovery/vanger/cmd-queue/' + cmdId + '/result', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
@@ -323,81 +473,89 @@ function reportResult(cmdId, raw, error) {
         _vanger.doneCount++;
         addLog('ok', '✓ cmd ' + cmdId + (res && res.label ? ' · ' + res.label : '') + ' [' + status + ']');
       }
-      _vanger.currentCmd = null;
-      renderVangerPane();
-      setTimeout(function() { pollNextCmd(); }, 400);
+      setFlowStep('done');
+      updateCounters();
+      setTimeout(function() {
+        cockpitCollapse();
+        _vanger.currentCmd = null;
+        setTimeout(function() { pollNextCmd(); }, 350);
+      }, 600);
     })
     .catch(function(e) {
       _vanger.failCount++;
       addLog('err', '❌ result POST: ' + e.message);
-      _vanger.currentCmd = null;
-      renderVangerPane();
-      setTimeout(function() { pollNextCmd(); }, 1000);
+      setFlowStep('done');
+      updateCounters();
+      setTimeout(function() {
+        cockpitCollapse();
+        _vanger.currentCmd = null;
+        setTimeout(function() { pollNextCmd(); }, 1000);
+      }, 600);
     });
 }
 
 // ══════════════════════════════════════
-// VANGER PANE RENDER
+// VANGER PANE RENDER (shell, eenmalig)
 // ══════════════════════════════════════
 function renderVangerPane() {
   var pane = $('vangerPane');
   if (!pane) return;
   var connected = !!(HP.url && HP.key);
   var running   = _vanger.running;
-  var cmd       = _vanger.currentCmd;
 
-  var idle       = running && !cmd && _vanger.idleStartMs > 0;
-  var statusDot  = connected ? (running ? (idle ? '🟠' : '🟢') : '🟡') : '⚫';
-  var statusText = running
-    ? (idle ? 'Wacht op queue...' : 'Bezig')
-    : connected ? 'Online · inactief' : 'Niet verbonden';
+  var html = '<div class="vcockpit"' + (running ? ' id="vcCockpit" data-state="idle"' : '') + '>';
 
-  var html = '<div style="padding:12px;display:flex;flex-direction:column;gap:10px;">';
-
-  // Status balk
-  html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.05);border-radius:8px;">' +
-    '<span style="font-size:16px;">' + statusDot + '</span>' +
-    '<span style="font-size:12px;font-weight:600;flex:1;">' + statusText + '</span>' +
-    '</div>';
-
-  // Start / stop knop
   if (!running) {
-    html += '<button id="vStart" style="padding:10px;border-radius:8px;border:none;background:#1565c0;color:#fff;font-size:13px;font-weight:600;cursor:pointer;"' +
-      (connected ? '' : ' disabled') + '>▶ Start</button>';
+    html += '<div class="vcockpit-idle">' +
+      '<div class="vc-logo-wrap"><div class="vc-ring vc-ring-1 vc-ring--off"></div><div class="vc-ring vc-ring-2 vc-ring--off"></div><div class="vc-dot-static">🏑</div></div>' +
+      '<div class="vcockpit-idle-title">' + (connected ? 'Hockey Vanger' : 'Niet verbonden') + '</div>' +
+      '<div class="vcockpit-idle-sub">' + (connected ? 'Klaar om te starten' : 'Stel URL en API-key in bij Instellingen') + '</div>' +
+      '<button id="vStart" class="vcockpit-start-btn"' + (connected ? '' : ' disabled') + '>▶ Start Vanger</button>' +
+      (_vanger.doneCount > 0 || _vanger.failCount > 0
+        ? '<div class="vcockpit-lastsession">Vorige sessie: <span class="vcs-ok">' + _vanger.doneCount + ' ✓</span>' +
+          (_vanger.failCount > 0 ? ' <span class="vcs-fail">' + _vanger.failCount + ' ✗</span>' : '') + '</div>'
+        : '') +
+      '</div>';
   } else {
-    html += '<button id="vStop" style="padding:10px;border-radius:8px;border:none;background:#b71c1c;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">■ Stop</button>';
-  }
-
-  // Idle: wacht op nieuwe cmds
-  if (idle) {
-    var elapsed   = Date.now() - _vanger.idleStartMs;
-    var remMs     = Math.max(0, IDLE_TIMEOUT_MS - elapsed);
-    var remMin    = Math.ceil(remMs / 60000);
-    html += '<div style="background:rgba(255,152,0,.12);border:1px solid rgba(255,152,0,.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#ffb74d;">' +
-      '⏸ Queue leeg — stopt automatisch over <strong>' + remMin + ' min</strong>' +
+    // Header: tab-status + elapsed + tellers + idle + stop
+    html += '<div class="vcockpit-hdr">' +
+      '<span id="vcTabStatus" class="vc-tab-status" title="hockey.nl actief">' + (_vanger.tabOk ? '🟢' : '🔴') + '</span>' +
+      '<span class="vcockpit-elapsed" id="vSessionElapsed">' + fmtElapsed(_vanger.startMs) + '</span>' +
+      '<span class="vcc-inline"><span class="vcc-ok" id="vDoneCount">' + _vanger.doneCount + '</span> ✓' +
+      '  <span class="vcc-fail" id="vFailCount">' + _vanger.failCount + '</span> ✗</span>' +
+      '<span class="vcc-idle hidden" id="vcIdleBanner">⏸ <span id="vIdleCountdown">20 min</span></span>' +
+      '<button id="vStop" class="vcockpit-stop-btn">■ Stop</button>' +
       '</div>';
-  }
 
-  // Huidige cmd
-  if (running && cmd) {
-    var cdMs = _vanger.countdownMs;
-    html += '<div style="background:rgba(255,255,255,.05);border-radius:8px;padding:10px 12px;">' +
-      '<div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">' + cmd.cmd_type + '</div>' +
-      '<div style="font-size:12px;font-weight:600;">' + (cmd.params.label || cmd.params.external_id || '') + '</div>' +
-      (cdMs > 0 ? '<div style="font-size:11px;color:#90caf9;margin-top:4px;" id="vCountdown">' + fmtMs(cdMs) + '</div>' : '') +
+    // Radar cirkel (always visible when running)
+    html += '<div class="vc-center">' +
+      '<div class="vc-ring vc-ring-1"></div>' +
+      '<div class="vc-ring vc-ring-2"></div>' +
+      '<div class="vc-ring vc-ring-3"></div>' +
+      '<div class="vc-dot" id="vcPollDot">🏑</div>' +
+      '<div class="vc-state-lbl" id="vcStateLbl">Aan het pollen...</div>' +
       '</div>';
-  }
 
-  // Sessie tellers
-  if (running || _vanger.doneCount > 0 || _vanger.failCount > 0) {
-    html += '<div style="display:flex;gap:8px;">' +
-      '<div style="flex:1;text-align:center;padding:8px;background:rgba(76,175,80,.15);border-radius:8px;">' +
-      '<div style="font-size:18px;font-weight:700;color:#4caf50;">' + _vanger.doneCount + '</div>' +
-      '<div style="font-size:10px;color:#888;">gedaan</div></div>' +
-      '<div style="flex:1;text-align:center;padding:8px;background:rgba(244,67,54,.15);border-radius:8px;">' +
-      '<div style="font-size:18px;font-weight:700;color:#f44336;">' + _vanger.failCount + '</div>' +
-      '<div style="font-size:10px;color:#888;">fouten</div></div>' +
-      '</div>';
+    // Steps wrap — expands when active
+    html += '<div class="vc-steps-wrap">';
+    html += '<div class="vflow-cmd-info"><div class="vflow-cmd-label" id="vcCmdType"></div><div class="vflow-cmd-name" id="vcCmdName"></div></div>';
+    html += '<div class="vflow" id="vcFlow">';
+    for (var fi = 0; fi < FLOW_STEPS.length; fi++) {
+      var s = FLOW_STEPS[fi];
+      html += '<div class="vflow-step vflow-pending" id="vfStep_' + s.key + '" style="--i:' + fi + '">' +
+        '<div class="vflow-dot" id="vfDot_' + s.key + '">' + s.icon + '</div>' +
+        '<div class="vflow-lbl">' + s.label +
+        (s.key === 'wait' ? '<span class="vflow-countdown" id="flowWaitLabel" style="display:none"></span>' : '') +
+        '</div>' +
+        '</div>';
+      if (fi < FLOW_STEPS.length - 1) {
+        html += '<div class="vflow-line" id="vfLine_' + fi + '"></div>';
+      }
+    }
+    html += '</div>';
+    html += '<div class="vflow-loop-track"><div class="vflow-loop-bar" id="vfLoopBar" style="width:0"></div></div>';
+    html += '</div>'; // vc-steps-wrap
+
   }
 
   html += '</div>';
@@ -407,14 +565,26 @@ function renderVangerPane() {
   if (startBtn) startBtn.addEventListener('click', startVanger);
   var stopBtn = $('vStop');
   if (stopBtn) stopBtn.addEventListener('click', stopVanger);
+
+  // Herstel state na tab-switch
+  if (running && _vanger.currentCmd) {
+    cockpitSetCmd(_vanger.currentCmd);
+    if (_vanger.flowStep) setFlowStep(_vanger.flowStep);
+  } else if (running && _vanger.idleStartMs > 0) {
+    var banner = $('vcIdleBanner'); if (banner) banner.classList.remove('hidden');
+    var sl = $('vcStateLbl'); if (sl) sl.textContent = 'Wacht op queue';
+  }
 }
 
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
+  var ver = chrome.runtime.getManifest().version;
   var vEl = document.getElementById('appVersion');
-  if (vEl) vEl.textContent = chrome.runtime.getManifest().version;
+  if (vEl) vEl.textContent = ver;
+  var hvEl = document.getElementById('helpVersion');
+  if (hvEl) hvEl.textContent = ver;
 
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {

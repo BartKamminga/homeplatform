@@ -13,10 +13,65 @@
   <button class="tab-btn active" data-tab="vanger">🏑 Vanger</button>
   <button class="tab-btn" data-tab="settings">⚙️ Instellingen</button>
   <button class="tab-btn" data-tab="log">📝 Log</button>
+  <button class="tab-btn" data-tab="help">❓ Help</button>
 </div>
 <div class="cnt" id="vangerPane"></div>
 <div class="cnt hidden" id="settingsPane"></div>
 <div class="cnt hidden" id="logPane"></div>
+<div class="cnt hidden" id="helpPane">
+  <p class="help-intro">Vanger v<span id="helpVersion">…</span> · interceptor.js v10 · bypassCache reload + willekeurige vertraging (10–15 s)</p>
+  <div class="help-wrap">
+    <table class="help-tbl">
+      <thead>
+        <tr>
+          <th>cmd</th>
+          <th>hockey.nl URL</th>
+          <th>interceptor vangt op</th>
+          <th>localStorage</th>
+          <th>payload naar backend</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>get_poule</code></td>
+          <td><code>#/team/{team_id}|{poule_id}/standings</code></td>
+          <td><code>/poules/{id}/teams/{id}</code><br><span class="help-via">fetch + XHR</span></td>
+          <td><code>__hw_poules[poule_id]</code></td>
+          <td>Teams, standen, wedstrijden</td>
+        </tr>
+        <tr>
+          <td><code>scan_club</code></td>
+          <td><code>#/club/{external_id}/field-teams</code></td>
+          <td><code>/clubs/{id}</code><br><span class="help-via">fetch + XHR</span></td>
+          <td><code>__hw_club_details[external_id]</code></td>
+          <td>Clubinfo incl. teams</td>
+        </tr>
+        <tr>
+          <td><code>get_clubs</code></td>
+          <td><code>#/search/clubs</code></td>
+          <td>shape: <code>federation_reference_id</code><br><span class="help-via">fetch + XHR</span></td>
+          <td><code>__hw_clubs</code> (lijst)</td>
+          <td>Volledige clublijst → upsert</td>
+        </tr>
+        <tr>
+          <td><code>get_competitions</code></td>
+          <td><code>#/search/competition</code></td>
+          <td>shape: <code>class_name + poule_id</code><br><span class="help-via">fetch + XHR</span></td>
+          <td><code>__hw_competitions</code></td>
+          <td>Competities + <code>hl_comp_id</code> → upsert</td>
+        </tr>
+        <tr>
+          <td><code>get_competition_detail</code></td>
+          <td><code>#/competitions/{comp_id}</code></td>
+          <td><code>/competitions/national/{id}</code><br><span class="help-via">fetch + XHR</span></td>
+          <td><code>__hw_comp_detail[comp_id]</code></td>
+          <td>Poules per competitie → opslaan</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="help-note">Bij volle localStorage gooit de interceptor eerst <code>__hw_log</code> weg en herprobeert. De Vanger wist <code>__hw_log</code> ook bij elke start.</div>
+</div>
 <div class="toast" id="toast"></div>
 <script src="popup.js"></script>
 </body>

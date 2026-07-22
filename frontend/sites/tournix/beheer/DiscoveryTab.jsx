@@ -177,7 +177,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   }
 
   function addSingleCmd(type, params) {
-    const key = type + '_' + (params.poule_id || params.external_id)
+    const key = type + '_' + (params.poule_id || params.external_id || params.comp_id)
     setCmdAdding(prev => ({ ...prev, [key]: 'adding' }))
     api.post('/api/tournix/discovery/vanger/cmd-queue/add', { cmd_type: type, params })
       .then(r => {
@@ -1013,6 +1013,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                             border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
                             background: 'none',
                             color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                            transition: 'color .2s, border-color .2s',
                           }}>
                           {addState === 'adding' ? '…' : addState === 'added' ? '✓ toegevoegd' : addState === 'exists' ? '⚠ al in queue' : '+ cmd'}
                         </button>
@@ -1069,8 +1070,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                       border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
                                       background: 'none',
                                       color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                                      transition: 'color .2s, border-color .2s',
                                     }}>
-                                    {addState === 'adding' ? '…' : addState === 'added' ? '✓' : addState === 'exists' ? '⚠' : '+ cmd'}
+                                    {addState === 'adding' ? '…' : addState === 'added' ? '✓ toegevoegd' : addState === 'exists' ? '⚠ al in queue' : '+ cmd'}
                                   </button>
                                 )}
                               </div>
@@ -1186,8 +1188,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                       border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
                                       background: 'none',
                                       color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                                      transition: 'color .2s, border-color .2s',
                                     }}>
-                                    {addState === 'adding' ? '…' : addState === 'added' ? '✓' : addState === 'exists' ? '⚠' : '+ cmd'}
+                                    {addState === 'adding' ? '…' : addState === 'added' ? '✓ toegevoegd' : addState === 'exists' ? '⚠ al in queue' : '+ cmd'}
                                   </button>
                                 )}
                               </div>

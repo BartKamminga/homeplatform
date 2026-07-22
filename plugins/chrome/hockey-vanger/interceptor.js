@@ -1,4 +1,4 @@
-// interceptor.js v9 — MAIN world
+// interceptor.js v10 — MAIN world
 // Intercepts fetch/XHR to app.hockeyweerelt.nl
 // Handles: poule teams, competition detail, competition list, club list, club detail
 
@@ -23,8 +23,11 @@
       const entry = { ts: Date.now(), type: type, msg: msg };
       if (detail) entry.detail = detail;
       log.unshift(entry);
-      if (log.length > 200) log.length = 200;
-      localStorage.setItem(LOG_KEY, JSON.stringify(log));
+      if (log.length > 50) log.length = 50;
+      try { localStorage.setItem(LOG_KEY, JSON.stringify(log)); } catch(e) {
+        // Log vol — herstart met alleen dit entry
+        try { localStorage.setItem(LOG_KEY, JSON.stringify([entry])); } catch(e2) {}
+      }
     } catch(e) {}
     try { window.dispatchEvent(new CustomEvent('__hw_log_updated')); } catch(e) {}
     const color = type === 'ok' ? '#4ade80' : type === 'err' ? '#f87171' : '#93c5fd';
@@ -127,6 +130,13 @@
           catch(e) { writeLog('err', 'XHR parse fout: ' + e.message); }
           return;
         }
+        const cmXhr = url.match(COMP_RE);
+        if (cmXhr) {
+          try { saveCompetition(url, cmXhr[1], JSON.parse(this.responseText)); }
+          catch(e) { writeLog('err', 'XHR comp parse: ' + e.message); }
+          return;
+        }
+
         const cdMatchXhr = url.match(CLUB_DETAIL_RE);
         if (cdMatchXhr) {
           try {
@@ -149,6 +159,30 @@
     }
     return xhrSend.apply(this, args);
   };
+
+  // ── localStorage helper met quota-recovery ───────────────
+  function isQuotaErr(e) {
+    return e.name === 'QuotaExceededError' || e.code === 22 ||
+           (e.message && e.message.toLowerCase().indexOf('quota') !== -1);
+  }
+  function safeSetItem(key, value) {
+    try { localStorage.setItem(key, value); return; } catch(e) { if (!isQuotaErr(e)) return; }
+    // Stap 1: log weggooien
+    try { localStorage.removeItem(LOG_KEY); } catch(e) {}
+    try { localStorage.setItem(key, value); return; } catch(e) { if (!isQuotaErr(e)) return; }
+    // Stap 2: oude comp-detail weggooien (we schrijven er sowieso overheen)
+    if (key !== COMP_DETAIL_KEY) { try { localStorage.removeItem(COMP_DETAIL_KEY); } catch(e) {} }
+    try { localStorage.setItem(key, value); return; } catch(e) { if (!isQuotaErr(e)) return; }
+    // Stap 3: poules trimmen tot laatste 5
+    try {
+      const store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      const keys = Object.keys(store).sort();
+      if (keys.length > 5) keys.slice(0, keys.length - 5).forEach(function(k) { delete store[k]; });
+      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    } catch(e) {}
+    try { localStorage.setItem(key, value); return; } catch(e) {}
+    console.warn('[HDV] localStorage blijft vol, data verloren voor:', key);
+  }
 
   // ── Save poule ───────────────────────────────────────────
   function save(url, pouleId, teamId, data) {
@@ -178,7 +212,7 @@
         seizoen: seizoen,
         url: url, timestamp: Date.now(), data: data,
       };
-      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      safeSetItem(STORE_KEY, JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('__hw_captured'));
       const count = Object.keys(store).length;
       let teams = [];
@@ -192,20 +226,22 @@
   }
 
   // ── Save competition detail ───────────────────────────────
+  // Sla alleen de huidige comp op — historische entries zijn niet nodig
+  // (de Vanger leest direct na capture en POST naar backend)
   function saveCompetition(url, compId, data) {
     try {
-      const detail = JSON.parse(localStorage.getItem(COMP_DETAIL_KEY) || '{}');
       const name   = (data.data && data.data.name) || ('comp_' + compId);
       const poules = (data.data && data.data.poules) || [];
       let played = 0, rem = 0;
       for (const p of poules) for (const m of (p.matches || [])) { if (m.status === 'final') played++; else rem++; }
 
-      detail[String(compId)] = {
+      const entry = {};
+      entry[String(compId)] = {
         type: 'competition_detail', comp_id: compId, name: name,
         poule_count: poules.length, played_count: played, remaining_count: rem,
         url: url, timestamp: Date.now(), data: data,
       };
-      localStorage.setItem(COMP_DETAIL_KEY, JSON.stringify(detail));
+      safeSetItem(COMP_DETAIL_KEY, JSON.stringify(entry));
       window.dispatchEvent(new CustomEvent('__hw_captured'));
       writeLog('ok', '✅ Competitie: ' + name + ' · ' + poules.length + ' poules · ' + played + ' gespeeld');
     } catch(e) {
@@ -216,7 +252,7 @@
   // ── Save competitions list ────────────────────────────────
   function saveCompetitionsList(url, competitions) {
     try {
-      localStorage.setItem(COMPS_KEY, JSON.stringify({ ts: Date.now(), url: url, competitions: competitions }));
+      safeSetItem(COMPS_KEY, JSON.stringify({ ts: Date.now(), url: url, competitions: competitions }));
       window.dispatchEvent(new CustomEvent('__hw_competitions_discovered'));
       writeLog('ok', '🏆 ' + competitions.length + ' nationale competities onderschept');
     } catch(e) {
@@ -227,7 +263,7 @@
   // ── Save clubs list ──────────────────────────────────────
   function saveClubs(url, clubs) {
     try {
-      localStorage.setItem(CLUBS_KEY, JSON.stringify({ ts: Date.now(), url: url, clubs: clubs }));
+      safeSetItem(CLUBS_KEY, JSON.stringify({ ts: Date.now(), url: url, clubs: clubs }));
       window.dispatchEvent(new CustomEvent('__hw_clubs_discovered'));
       writeLog('ok', '🏒 ' + clubs.length + ' clubs onderschept');
     } catch(e) {
@@ -241,7 +277,7 @@
     try {
       const extId = clubData.federation_reference_id;
       const entry = { [extId]: { ts: Date.now(), url: url, data: clubData } };
-      localStorage.setItem(DETAILS_KEY, JSON.stringify(entry));
+      safeSetItem(DETAILS_KEY, JSON.stringify(entry));
       window.dispatchEvent(new CustomEvent('__hw_club_detail_captured'));
       const teams = clubData.teams || [];
       const youth = teams.filter(t => t.category_group_name === 'Junioren');
@@ -267,5 +303,5 @@
   window.__hwList   = () => Object.entries(window.__hwGet()).map(([id, e]) =>
     `${id}: ${e.poule_name} · ${e.competition} · ${e.class_name} (${e.team_name})`).join('\n');
 
-  writeLog('info', '🏑 v8 actief op ' + location.hostname + ' · target: ' + TARGET);
+  writeLog('info', '🏑 v10 actief op ' + location.hostname + ' · target: ' + TARGET);
 })();
