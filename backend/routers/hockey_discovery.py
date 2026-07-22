@@ -170,8 +170,8 @@ def upsert_club_detail(
     ).first()
     club = existing or HockeyClub(external_id=body.federation_reference_id, discovered_at=now)
 
-    club.name = body.name
-    club.friendly_name = body.friendly_name
+    if body.name: club.name = body.name
+    if body.friendly_name: club.friendly_name = body.friendly_name
     club.city = body.city
     club.logo_url = body.logo
     club.address = body.address
@@ -206,8 +206,8 @@ def upsert_club_detail(
             select(HockeyTeam).where(HockeyTeam.team_id == team_in.id)
         ).first()
         if existing_team:
-            existing_team.name = team_in.name
-            existing_team.short_name = team_in.short_name
+            if team_in.name: existing_team.name = team_in.name
+            if team_in.short_name: existing_team.short_name = team_in.short_name
             existing_team.logo_url = team_in.logo
             existing_team.hockey_type = team_in.hockey_type
             existing_team.category_group_name = team_in.category_group_name
@@ -1821,7 +1821,9 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     existing = session.exec(select(HockeyClub).where(HockeyClub.external_id == body.federation_reference_id)).first()
     club = existing or HockeyClub(external_id=body.federation_reference_id, discovered_at=now)
-    club.name = body.name; club.friendly_name = body.friendly_name; club.city = body.city
+    if body.name: club.name = body.name
+    if body.friendly_name: club.friendly_name = body.friendly_name
+    club.city = body.city
     club.logo_url = body.logo; club.address = body.address; club.zipcode = body.zipcode
     club.phone = body.phone; club.email = body.email; club.website = body.website
     club.tenue = body.tenue; club.district = body.district
@@ -1843,7 +1845,8 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
     for team_in in body.teams:
         existing_team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == team_in.id)).first()
         if existing_team:
-            existing_team.name = team_in.name; existing_team.short_name = team_in.short_name
+            if team_in.name: existing_team.name = team_in.name
+            if team_in.short_name: existing_team.short_name = team_in.short_name
             existing_team.logo_url = team_in.logo; existing_team.hockey_type = team_in.hockey_type
             existing_team.category_group_name = team_in.category_group_name
             if team_in.recent_poule_id and team_in.recent_poule_id != existing_team.recent_poule_id:

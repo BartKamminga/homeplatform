@@ -177,7 +177,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   }
 
   function addSingleCmd(type, params) {
-    const key = type + '_' + (params.poule_id || params.external_id || params.comp_id)
+    const key = type + '_' + (params.poule_id || params.external_id || params.comp_id || 'global')
     setCmdAdding(prev => ({ ...prev, [key]: 'adding' }))
     api.post('/api/tournix/discovery/vanger/cmd-queue/add', { cmd_type: type, params })
       .then(r => {
@@ -186,6 +186,25 @@ export default function DiscoveryTab({ view = 'vanger' }) {
         setTimeout(() => setCmdAdding(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
       })
       .catch(() => setCmdAdding(prev => { const n = { ...prev }; delete n[key]; return n }))
+  }
+
+  function cmdBtn(type, params, label, color, sz = 'sm') {
+    const key = type + '_' + (params.poule_id || params.external_id || params.comp_id || 'global')
+    const s   = cmdAdding[key]
+    const base = sz === 'md'
+      ? { fontSize: 11, padding: '4px 10px', borderRadius: 6 }
+      : { fontSize: 10, padding: '1px 7px', borderRadius: 4 }
+    return (
+      <button
+        disabled={!!s}
+        onClick={e => { e.stopPropagation(); addSingleCmd(type, params) }}
+        style={{ ...base, border: `1px solid ${s === 'added' ? 'var(--color-success)' : s === 'exists' ? 'var(--color-warning)' : color}`,
+          color: s === 'added' ? 'var(--color-success)' : s === 'exists' ? 'var(--color-warning)' : color,
+          background: 'none', cursor: s ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
+          transition: 'color .2s, border-color .2s' }}>
+        {s === 'adding' ? '…' : s === 'added' ? '✓' : s === 'exists' ? '⚠' : label}
+      </button>
+    )
   }
 
   function runInfer() {
@@ -439,13 +458,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
                                 {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
                                 <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
-                                {c.hl_comp_id && (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); addSingleCmd('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }) }}
-                                    style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, border: '1px solid #b45309', background: 'none', color: '#b45309', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                                    ⟳
-                                  </button>
-                                )}
+                                {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
                               </div>
                               {cOpen && (
                                 <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
@@ -466,6 +479,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                           <span style={{ flex: 1, color: 'var(--color-text)' }}>{p.name}</span>
                                           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
                                           {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
+                                          {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
                                         </div>
                                         {pOpen && (
                                           <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
@@ -692,14 +706,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                         style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
                         {cmdFilling === 'clubs' ? '…' : '+ Clubs vullen'}
                       </button>
-                      <button onClick={() => addSingleCmd('get_clubs', { label: 'Alle clubs' })}
-                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #7c3aed', background: 'none', color: '#7c3aed', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        ⟳ Clubs sync
-                      </button>
-                      <button onClick={() => addSingleCmd('get_competitions', { label: 'Nationale competities' })}
-                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #b45309', background: 'none', color: '#b45309', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        ⟳ Competities
-                      </button>
+                      {cmdBtn('get_clubs',       { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md')}
+                      {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md')}
                       {failed > 0 && (
                         <button onClick={retryAllFailed}
                           style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit' }}>
