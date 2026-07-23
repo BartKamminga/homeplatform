@@ -25,94 +25,78 @@ _cache: dict = {"data": None, "ts": 0}
 
 
 def _extract_competition_name(soup: BeautifulSoup, url: str) -> str:
-    """Extract the competition/tournament name from the page."""
-    # Try <h1> first
-    h1 = soup.find("h1")
-    if h1 and h1.get_text(strip=True):
-        return h1.get_text(strip=True)
+    """Extract competition name from page heading or URL."""
+    for tag in ("h1", "h2", "h3"):
+        el = soup.find(tag)
+        if el:
+            text = el.get_text(strip=True)
+            if text and len(text) < 80:
+                return text
 
-    # Try <h2>
-    h2 = soup.find("h2")
-    if h2 and h2.get_text(strip=True):
-        return h2.get_text(strip=True)
-
-    # Try <title>
-    title = soup.find("title")
-    if title and title.get_text(strip=True):
-        text = title.get_text(strip=True)
-        # Strip common suffixes like " | Site Name"
-        text = re.split(r"\s*[|–—]\s*", text)[0].strip()
-        if text:
-            return text
-
-    # Fallback: derive from URL
+    # Fallback: competition ID from URL
     comp_id = url.rstrip("/").split("/")[-2]
     return f"Competition {comp_id}"
 
 
 def _parse_matches(html: str, url: str) -> list[dict]:
-    """Parse match rows from the HTML page."""
+    """Parse matches from altiusrt.com div#match-listing > div.panel structure."""
     soup = BeautifulSoup(html, "html.parser")
     competition_name = _extract_competition_name(soup, url)
 
-    # Find the match table — look for a table whose id/class contains "match"
-    table = None
-    for t in soup.find_all("table"):
-        t_id = t.get("id", "")
-        t_class = " ".join(t.get("class", []))
-        if "match" in t_id.lower() or "match" in t_class.lower():
-            table = t
-            break
-
-    # Fallback: first table on the page
-    if table is None:
-        table = soup.find("table")
-
-    if table is None:
-        logger.warning("scrapster: no table found on %s", url)
+    listing = soup.find("div", id="match-listing")
+    if not listing:
+        logger.warning("scrapster: no #match-listing found on %s", url)
         return []
 
     matches = []
-    rows = table.find("tbody")
-    if rows:
-        rows = rows.find_all("tr")
-    else:
-        rows = table.find_all("tr")[1:]  # skip header row
+    for panel in listing.find_all("div", class_="panel"):
+        panel_classes = " ".join(panel.get("class", []))
+        is_live = "panel-live" in panel_classes
+        is_future = "panel-future" in panel_classes
 
-    for row in rows:
-        cells = row.find_all(["td", "th"])
-        if len(cells) < 6:
+        body = panel.find("div", class_="panel-body")
+        if not body:
             continue
 
-        def cell_text(idx: int) -> str:
-            if idx < len(cells):
-                return cells[idx].get_text(separator=" ", strip=True)
-            return ""
-
-        match_num = cell_text(0)
-        datetime_str = cell_text(1)
-        details = cell_text(2)
-        scoreline = cell_text(3)
-        status = cell_text(4)
-        venue = cell_text(5)
-
-        # Skip header-like rows
-        if match_num.lower() in ("match", "#", "nr", "num", "number"):
+        # Teams + match URL from <a><b>TEAM1 - TEAM2</b></a>
+        link = body.find("a")
+        if not link:
             continue
+        match_url = link.get("href", "")
+        match_id = match_url.rstrip("/").split("/")[-1] if match_url else ""
+        teams = link.get_text(strip=True)
 
-        matches.append(
-            {
-                "match_num": match_num,
-                "datetime_str": datetime_str,
-                "details": details,
-                "scoreline": scoreline,
-                "status": status,
-                "venue": venue,
-                "source": competition_name,
-                "competition_url": url,
-            }
-        )
+        # Score: first <b> not inside the <a>
+        score = ""
+        for b in body.find_all("b"):
+            if not b.find_parent("a"):
+                score = b.get_text(strip=True)
+                break
 
+        # Status: remaining text lines after removing teams and score
+        status_lines = []
+        for line in body.get_text(separator="\n", strip=True).split("\n"):
+            line = line.strip()
+            if not line or line == teams or line == score:
+                continue
+            if len(line) > 60:
+                continue
+            status_lines.append(line)
+        status = status_lines[0] if status_lines else ("Live" if is_live else ("Upcoming" if is_future else "FT"))
+
+        matches.append({
+            "match_num": match_id,
+            "datetime_str": "",
+            "details": teams,
+            "scoreline": score,
+            "status": status,
+            "venue": "",
+            "is_live": is_live,
+            "source": competition_name,
+            "competition_url": url,
+        })
+
+    logger.info("scrapster: parsed %d matches from %s", len(matches), url)
     return matches
 
 
