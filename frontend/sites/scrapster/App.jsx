@@ -629,7 +629,7 @@ const CSS = `
   .col-num      { width: 3.5rem;  color: #6ee7b7; font-family: monospace; font-size: 0.9rem; }
   .col-datetime { width: 10rem;   white-space: nowrap; font-size: 0.95rem; color: #d1fae5; }
   .col-details  { min-width: 14rem; font-size: 1.05rem; font-weight: 600; color: #f0fdf4; }
-  .col-score    { width: 6rem;    text-align: center; font-family: monospace; font-size: 1rem; color: #94a3b8; }
+  .col-score    { width: 6rem;    text-align: center; font-family: monospace; font-size: 1rem; color: #94a3b8; white-space: nowrap; }
   .col-score.score-set { color: #4ade80; font-size: 1.2rem; font-weight: 800; }
   .col-status   { width: 8rem;   }
   .col-venue    { width: 8rem;    font-size: 0.9rem; color: #86efac; }
