@@ -10,7 +10,6 @@ const DEFAULT_REFRESH = 60 // seconds
 
 function parseDate(str) {
   if (!str) return new Date(0)
-  // Try ISO-ish formats and common European dd-mm-yyyy HH:MM patterns
   const cleaned = str.trim()
   // dd-mm-yyyy HH:MM  or  dd/mm/yyyy HH:MM
   const dmyMatch = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})\s+(\d{2}):(\d{2})/)
@@ -18,8 +17,20 @@ function parseDate(str) {
     const [, d, m, y, hh, mm] = dmyMatch
     return new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm))
   }
-  const parsed = new Date(cleaned)
-  return isNaN(parsed.getTime()) ? new Date(0) : parsed
+  // "2026-07-23 09:00:00" → safe ISO parse (space → T)
+  const iso = new Date(cleaned.replace(' ', 'T'))
+  return isNaN(iso.getTime()) ? new Date(0) : iso
+}
+
+function formatDatetime(str) {
+  if (!str) return '—'
+  const d = parseDate(str)
+  if (!d || d.getTime() === 0) return str
+  const day = d.getDate()
+  const month = d.toLocaleString('nl-NL', { month: 'short' })
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${day} ${month} ${hh}:${mm}`
 }
 
 function loadSavedFilters() {
@@ -29,7 +40,7 @@ function loadSavedFilters() {
   } catch {
     // ignore
   }
-  return { venues: [], sources: [] }
+  return { venues: [], sources: [], pastFilter: 'laatste3' }
 }
 
 function saveFilters(filters) {
@@ -38,6 +49,17 @@ function saveFilters(filters) {
   } catch {
     // ignore
   }
+}
+
+function applyPastFilter(list, pastFilter) {
+  const isComplete = m => m.status.toLowerCase().includes('complete')
+  if (pastFilter === 'verberg') return list.filter(m => !isComplete(m))
+  if (pastFilter === 'laatste3') {
+    const done = list.filter(isComplete).sort((a, b) => parseDate(b.datetime_str) - parseDate(a.datetime_str)).slice(0, 3)
+    const other = list.filter(m => !isComplete(m))
+    return [...done, ...other]
+  }
+  return list
 }
 
 function statusInfo(status) {
@@ -90,7 +112,7 @@ function MatchRow({ match }) {
   return (
     <tr className="match-row">
       <td className="col-num">{match.match_num}</td>
-      <td className="col-datetime">{match.datetime_str || '—'}</td>
+      <td className="col-datetime">{formatDatetime(match.datetime_str)}</td>
       <td className="col-details">{match.details || '—'}</td>
       <td className={`col-score${hasScore ? ' score-set' : ''}`}>
         {match.scoreline || '—'}
@@ -127,6 +149,7 @@ export default function App() {
   const savedFilters = loadSavedFilters()
   const [selectedVenues, setSelectedVenues] = useState(savedFilters.venues)
   const [selectedSources, setSelectedSources] = useState(savedFilters.sources)
+  const [pastFilter, setPastFilter] = useState(savedFilters.pastFilter ?? 'laatste3')
 
   const [refreshInterval, setRefreshInterval] = useState(DEFAULT_REFRESH)
   const [countdown, setCountdown] = useState(DEFAULT_REFRESH)
@@ -175,8 +198,8 @@ export default function App() {
 
   // Persist filters
   useEffect(() => {
-    saveFilters({ venues: selectedVenues, sources: selectedSources })
-  }, [selectedVenues, selectedSources])
+    saveFilters({ venues: selectedVenues, sources: selectedSources, pastFilter })
+  }, [selectedVenues, selectedSources, pastFilter])
 
   // Unique filter options derived from data
   const allVenues = [...new Set(matches.map(m => m.venue).filter(Boolean))].sort()
@@ -190,10 +213,12 @@ export default function App() {
   }
 
   // Filter + sort
-  const filtered = matches
-    .filter(m => selectedVenues.length === 0 || selectedVenues.includes(m.venue))
-    .filter(m => selectedSources.length === 0 || selectedSources.includes(m.source))
-    .sort((a, b) => parseDate(a.datetime_str) - parseDate(b.datetime_str))
+  const filtered = applyPastFilter(
+    matches
+      .filter(m => selectedVenues.length === 0 || selectedVenues.includes(m.venue))
+      .filter(m => selectedSources.length === 0 || selectedSources.includes(m.source)),
+    pastFilter
+  ).sort((a, b) => parseDate(a.datetime_str) - parseDate(b.datetime_str))
 
   const now = new Date()
   const timeStr = lastFetched
@@ -210,8 +235,8 @@ export default function App() {
           <div className="header-left">
             <span className="logo">🏑</span>
             <div>
-              <h1 className="title">Scrapster</h1>
-              <p className="subtitle">HC Victoria Masters — Live wedstrijdoverzicht</p>
+              <h1 className="title">HC Victoria</h1>
+              <p className="subtitle">WMH Rotterdam 2026 — Live wedstrijdoverzicht</p>
             </div>
           </div>
           <div className="header-right">
@@ -268,6 +293,18 @@ export default function App() {
                 onToggle={toggleVenue}
               />
             )}
+            <div className="chip-group">
+              <span className="chip-label">Afgelopen:</span>
+              {[['alle', 'Toon alles'], ['laatste3', 'Laatste 3'], ['verberg', 'Verberg']].map(([val, lbl]) => (
+                <button
+                  key={val}
+                  className={`chip${pastFilter === val ? ' chip-active' : ''}`}
+                  onClick={() => setPastFilter(val)}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
             {(selectedVenues.length > 0 || selectedSources.length > 0) && (
               <button
                 className="btn-clear"

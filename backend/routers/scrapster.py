@@ -66,8 +66,11 @@ def _parse_matches(html: str, url: str) -> list[dict]:
                 is_live_map[mid] = "panel-live" in panel_classes
 
     # Parse the match table for full data (venue, datetime, match#, details, score, status)
+    # The matches table lives inside a .table-responsive wrapper inside the blue portlet.
+    # There are other table-condensed tables on the page (e.g. help FAQ), so scope the search.
     matches = []
-    table = soup.find("table", class_=lambda c: c and "table-condensed" in c)
+    table_wrap = soup.find("div", class_="table-responsive")
+    table = table_wrap.find("table") if table_wrap else None
     if not table:
         logger.warning("scrapster: no match table found on %s", url)
         return []
