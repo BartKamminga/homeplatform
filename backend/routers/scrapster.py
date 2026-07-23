@@ -1,12 +1,20 @@
 """Scrapster router — scrape hockey match pages and return a combined match list."""
 
+import json
 import logging
+import secrets
 import time
-import re
+from datetime import datetime
+from typing import Optional
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlmodel import Session
+
+from database import engine
 
 logger = logging.getLogger("homeplatform")
 
@@ -155,3 +163,52 @@ async def get_matches():
     _cache["ts"] = now
 
     return {"matches": matches, "cached": False, "cache_age": 0}
+
+
+# ── URL shortener ──────────────────────────────────────────────────────────
+
+class ShortenRequest(BaseModel):
+    venues: list[str] = []
+    sources: list[str] = []
+    pastFilter: str = "laatste3"
+
+
+@router.post("/shorten")
+def shorten_url(body: ShortenRequest):
+    """Store filter state and return a short token."""
+    filters_json = json.dumps({"venues": body.venues, "sources": body.sources, "pastFilter": body.pastFilter})
+    token = secrets.token_urlsafe(5)  # ~7 chars
+
+    with Session(engine) as session:
+        # Collision retry (extremely unlikely)
+        for _ in range(5):
+            existing = session.exec(
+                text("SELECT id FROM scrapster_short_urls WHERE token = :t"),
+                params={"t": token},
+            ).first()
+            if not existing:
+                break
+            token = secrets.token_urlsafe(5)
+
+        session.exec(
+            text("INSERT INTO scrapster_short_urls (token, filters, created_at) VALUES (:t, :f, :c)"),
+            params={"t": token, "f": filters_json, "c": datetime.utcnow()},
+        )
+        session.commit()
+
+    return {"token": token}
+
+
+@router.get("/s/{token}")
+def resolve_short_url(token: str):
+    """Resolve a short token back to filter state."""
+    with Session(engine) as session:
+        row = session.exec(
+            text("SELECT filters FROM scrapster_short_urls WHERE token = :t"),
+            params={"t": token},
+        ).first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Token niet gevonden")
+
+    return json.loads(row[0])

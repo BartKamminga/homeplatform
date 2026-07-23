@@ -52,13 +52,21 @@ function writeFiltersToUrl(venues, sources, pastFilter) {
   history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
 }
 
-function buildKioskUrl(venues, sources, pastFilter) {
-  const p = new URLSearchParams()
-  venues.forEach(v => p.append('venue', v))
-  sources.forEach(s => p.append('source', s))
-  if (pastFilter && pastFilter !== 'laatste3') p.set('past', pastFilter)
-  p.set('kiosk', '1')
-  return `${window.location.origin}${window.location.pathname}?${p.toString()}`
+async function fetchShortToken(venues, sources, pastFilter) {
+  const res = await fetch('/api/scrapster/shorten', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ venues, sources, pastFilter }),
+  })
+  if (!res.ok) throw new Error('Shorten mislukt')
+  const { token } = await res.json()
+  return `${window.location.origin}${window.location.pathname}?s=${token}&kiosk=1`
+}
+
+async function resolveShortToken(token) {
+  const res = await fetch(`/api/scrapster/s/${token}`)
+  if (!res.ok) return null
+  return res.json()
 }
 
 function applyPastFilter(list, pastFilter) {
@@ -157,11 +165,13 @@ export default function App() {
   const [cacheAge, setCacheAge] = useState(null)
 
   const initFilters = readFiltersFromUrl()
+  const shortToken = new URLSearchParams(window.location.search).get('s')
   const [selectedVenues, setSelectedVenues] = useState(initFilters.venues)
   const [selectedSources, setSelectedSources] = useState(initFilters.sources)
   const [pastFilter, setPastFilter] = useState(initFilters.pastFilter)
-  const kiosk = initFilters.kiosk
+  const kiosk = initFilters.kiosk || !!shortToken
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
 
   const [refreshInterval, setRefreshInterval] = useState(DEFAULT_REFRESH)
   const [countdown, setCountdown] = useState(DEFAULT_REFRESH)
@@ -189,6 +199,17 @@ export default function App() {
     }
   }, [])
 
+  // Resolve short token → apply filters
+  useEffect(() => {
+    if (!shortToken) return
+    resolveShortToken(shortToken).then(f => {
+      if (!f) return
+      setSelectedVenues(f.venues || [])
+      setSelectedSources(f.sources || [])
+      setPastFilter(f.pastFilter || 'laatste3')
+    })
+  }, [shortToken])
+
   // Initial fetch
   useEffect(() => {
     fetchMatches()
@@ -214,11 +235,11 @@ export default function App() {
   }, [selectedVenues, selectedSources, pastFilter])
 
   function copyUrl() {
-    const url = buildKioskUrl(selectedVenues, selectedSources, pastFilter)
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    setCopyError(false)
+    fetchShortToken(selectedVenues, selectedSources, pastFilter)
+      .then(url => navigator.clipboard.writeText(url))
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500) })
+      .catch(() => { setCopyError(true); setTimeout(() => setCopyError(false), 2500) })
   }
 
   // Unique filter options derived from data
@@ -334,7 +355,7 @@ export default function App() {
               </button>
             )}
             <button className="btn-copy-url" onClick={copyUrl}>
-              {copied ? '✓ Gekopieerd!' : '🔗 Kopieer link'}
+              {copied ? '✓ Gekopieerd!' : copyError ? '✗ Mislukt' : '🔗 Kopieer link'}
             </button>
           </section>
         )}
