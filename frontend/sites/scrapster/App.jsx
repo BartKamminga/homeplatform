@@ -122,24 +122,21 @@ function parseMatchTeams(details) {
   return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()) }
 }
 
-const TEAM_NAME_MAP = {
-  'THIS':    'Scottish Thistles',
-  'DRAGONS': 'Dragons',
-  'ALLP':    'Alliance Purple',
-  'ALL':     'Alliance',
-  'ALLB':    'Alliance Blue',
+// For team codes not matching standard ISO: override with base code or full standings name
+const TEAM_LOGO_BASE = {
+  'THIS': 'SCO',            // Scottish Thistles → Scotland flag
 }
-
-function displayTeamName(code) {
-  const key = code.toUpperCase()
-  if (TEAM_NAME_MAP[key]) return TEAM_NAME_MAP[key]
-  // 4-char country+variant: "AUSB" → "AUS B", "ENGB" → "ENG B"
-  if (/^[A-Z]{3}[A-Z]$/.test(key)) return `${key.slice(0, 3)} ${key.slice(3)}`
-  return code
+const TEAM_CODE_TO_NAME = {
+  'THIS': 'Scottish Thistles',
+  'ALLP': 'Alliance Purple',
+  'ALL':  'Alliance',
+  'ALLB': 'Alliance Blue',
 }
 
 function lookupLogo(map, teamCode) {
   const key = teamCode.toUpperCase().trim()
+  // Explicit base-code override (e.g. THIS → SCO)
+  if (TEAM_LOGO_BASE[key] && map[TEAM_LOGO_BASE[key]]) return map[TEAM_LOGO_BASE[key]]
   if (map[key]) return map[key]
   // Strip trailing variant letter: "ENGB" → "ENG", "AUSB" → "AUS"
   if (key.length > 3 && !/\s/.test(key)) {
@@ -152,6 +149,9 @@ function lookupLogo(map, teamCode) {
     const base = key.slice(0, lastSpace)
     if (map[base]) return map[base]
   }
+  // Name-based fallback for special team codes (e.g. AllP → "Alliance Purple")
+  const nameKey = TEAM_CODE_TO_NAME[key]
+  if (nameKey && map[nameKey.toUpperCase()]) return map[nameKey.toUpperCase()]
   return null
 }
 
@@ -197,14 +197,14 @@ function MatchRow({ match, logoByTeamName, highlight }) {
               {lookupLogo(logoByTeamName, teams.home) && (
                 <img src={lookupLogo(logoByTeamName, teams.home)} className="team-flag" alt="" loading="lazy" />
               )}
-              {displayTeamName(teams.home)}
+              {teams.home}
             </span>
             <span className="vs-sep">v</span>
             <span className={`team-name${highlight?.side === 'away' ? ' team-scored' : ''}`}>
               {lookupLogo(logoByTeamName, teams.away) && (
                 <img src={lookupLogo(logoByTeamName, teams.away)} className="team-flag" alt="" loading="lazy" />
               )}
-              {displayTeamName(teams.away)}
+              {teams.away}
             </span>
           </div>
         ) : (match.details || '—')}
