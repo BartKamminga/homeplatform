@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -99,6 +99,32 @@ function applyPastFilter(list, pastFilter) {
   return list
 }
 
+// ── Match team helpers ─────────────────────────────────────────────────────
+
+const SUFFIX_RE = /\s+[WM]\d+(?:\/\d+)?$/i
+
+function stripSuffix(name) {
+  return name.replace(SUFFIX_RE, '').trim()
+}
+
+function isPlaceholderDetails(details) {
+  return /\b\d+(?:st|nd|rd|th)\b/i.test(details) || /\(/.test(details)
+}
+
+function parseMatchTeams(details) {
+  if (!details || isPlaceholderDetails(details)) return null
+  const parts = details.split(' v ')
+  if (parts.length !== 2) return null
+  return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()) }
+}
+
+function parseScore(scoreline) {
+  if (!scoreline) return null
+  const m = scoreline.match(/^(\d+)[^0-9]+(\d+)$/)
+  if (!m) return null
+  return { home: Number(m[1]), away: Number(m[2]) }
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function ChipGroup({ label, options, selected, onToggle }) {
@@ -118,15 +144,37 @@ function ChipGroup({ label, options, selected, onToggle }) {
   )
 }
 
-function MatchRow({ match }) {
+function MatchRow({ match, logoByTeamName, highlight }) {
   const { label: statusLabel, cls: statusCls } = statusInfo(match.status)
   const hasScore = match.scoreline && match.scoreline !== '-' && match.scoreline.trim() !== ''
+  const teams = parseMatchTeams(match.details)
+
   return (
     <tr className="match-row">
       <td className="col-num">{match.match_num}</td>
       <td className="col-datetime">{formatDatetime(match.datetime_str)}</td>
-      <td className="col-details">{match.details || '—'}</td>
-      <td className={`col-score${hasScore ? ' score-set' : ''}`}>{match.scoreline || '—'}</td>
+      <td className="col-details">
+        {teams ? (
+          <div className="match-teams">
+            <span className={`team-name${highlight?.side === 'home' ? ' team-scored' : ''}`}>
+              {logoByTeamName[teams.home.toLowerCase()] && (
+                <img src={logoByTeamName[teams.home.toLowerCase()]} className="team-flag" alt="" loading="lazy" />
+              )}
+              {teams.home}
+            </span>
+            <span className="vs-sep">v</span>
+            <span className={`team-name${highlight?.side === 'away' ? ' team-scored' : ''}`}>
+              {logoByTeamName[teams.away.toLowerCase()] && (
+                <img src={logoByTeamName[teams.away.toLowerCase()]} className="team-flag" alt="" loading="lazy" />
+              )}
+              {teams.away}
+            </span>
+          </div>
+        ) : (match.details || '—')}
+      </td>
+      <td className={`col-score${hasScore ? ' score-set' : ''}${highlight ? ' score-flash' : ''}`}>
+        {match.scoreline || '—'}
+      </td>
       <td className="col-status"><span className={`badge ${statusCls}`}>{statusLabel}</span></td>
       <td className="col-venue">{match.venue || '—'}</td>
       <td className="col-source"><span className="source-tag">{match.source}</span></td>
@@ -237,6 +285,9 @@ export default function App() {
   const refreshIntervalRef = useRef(refreshInterval)
   useEffect(() => { refreshIntervalRef.current = refreshInterval }, [refreshInterval])
 
+  const prevScoresRef  = useRef({})
+  const [goalHighlights, setGoalHighlights] = useState({})
+
   // Persist theme
   useEffect(() => { localStorage.setItem('scrapster-theme', theme) }, [theme])
 
@@ -246,9 +297,32 @@ export default function App() {
       const res = await fetch(API_MATCHES)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
-      setMatches(json.matches || [])
+      const newMatches = json.matches || []
+      setMatches(newMatches)
       setLastFetched(new Date())
       setCacheAge(json.cache_age ?? null)
+
+      // Goal detection: diff old vs new scores
+      const newHighlights = {}
+      for (const m of newMatches) {
+        const key = `${m.competition_url}-${m.match_num}`
+        const prevScore = prevScoresRef.current[key]
+        if (prevScore && m.scoreline && m.scoreline !== '-' && m.scoreline !== prevScore) {
+          const cur  = parseScore(m.scoreline)
+          const prev = parseScore(prevScore)
+          if (cur && prev) {
+            const side = cur.home > prev.home ? 'home' : cur.away > prev.away ? 'away' : null
+            if (side) {
+              const teams = parseMatchTeams(m.details)
+              newHighlights[key] = { side, ts: Date.now(), homeTeam: teams?.home || '', awayTeam: teams?.away || '' }
+            }
+          }
+        }
+        if (m.scoreline && m.scoreline !== '-') prevScoresRef.current[key] = m.scoreline
+      }
+      if (Object.keys(newHighlights).length > 0) {
+        setGoalHighlights(prev => ({ ...prev, ...newHighlights }))
+      }
     } catch (err) {
       setError(err.message || 'Ophalen mislukt')
     } finally {
@@ -285,12 +359,18 @@ export default function App() {
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
 
-  // Countdown + auto-refresh
+  // Countdown + auto-refresh + highlight expiry
   useEffect(() => {
     const tick = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) { fetchMatches(); return refreshIntervalRef.current }
         return prev - 1
+      })
+      setGoalHighlights(prev => {
+        if (!Object.keys(prev).length) return prev
+        const now  = Date.now()
+        const next = Object.fromEntries(Object.entries(prev).filter(([, v]) => now - v.ts < 120000))
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next
       })
     }, 1000)
     return () => clearInterval(tick)
@@ -323,6 +403,17 @@ export default function App() {
       .filter(m => statusFilter === 'alle' || statusInfo(m.status).cat === statusFilter),
     pastFilter
   ).sort((a, b) => parseDate(a.datetime_str) - parseDate(b.datetime_str))
+
+  // Logo lookup map from standings — keyed by stripped lowercased team name
+  const logoByTeamName = useMemo(() => {
+    const map = {}
+    for (const group of standings) {
+      for (const team of group.teams) {
+        if (team.logo_url) map[stripSuffix(team.name).toLowerCase()] = team.logo_url
+      }
+    }
+    return map
+  }, [standings])
 
   // Filter standings by selected sources
   const filteredStandings = standings.filter(
@@ -482,9 +573,17 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((m, i) => (
-                      <MatchRow key={`${m.competition_url}-${m.match_num}-${i}`} match={m} />
-                    ))}
+                    {filtered.map((m, i) => {
+                      const key = `${m.competition_url}-${m.match_num}`
+                      return (
+                        <MatchRow
+                          key={`${key}-${i}`}
+                          match={m}
+                          logoByTeamName={logoByTeamName}
+                          highlight={goalHighlights[key]}
+                        />
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -907,6 +1006,20 @@ const CSS = `
   .st-diff.neg { color: #f87171; }
 
   .team-flag { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; border-radius: 2px; }
+
+  /* ── Match teams (col-details) ── */
+  .match-teams { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .team-name   { display: flex; align-items: center; gap: 0.35rem; }
+  .vs-sep      { color: var(--text-5); font-size: 0.85rem; font-weight: 500; flex-shrink: 0; }
+  .team-scored { color: var(--accent); font-weight: 800; }
+
+  /* ── Goal flash animation ── */
+  @keyframes goalFlash {
+    0%   { background: var(--accent); color: var(--accent-text); transform: scale(1.1); }
+    40%  { background: var(--accent); color: var(--accent-text); transform: scale(1.05); }
+    100% { background: transparent;  color: inherit;             transform: scale(1); }
+  }
+  .score-flash { animation: goalFlash 1.2s ease-out forwards; border-radius: 4px; }
 
   /* ── Responsive: TV / large ── */
   @media (min-width: 1400px) {

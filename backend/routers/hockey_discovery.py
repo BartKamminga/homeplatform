@@ -984,6 +984,7 @@ def list_poules(
         "total": len(poules),
         "poules": [
             {
+                "id":            p.id,
                 "poule_id":      p.poule_id,
                 "name":          p.name,
                 "competition_id": p.competition_id,

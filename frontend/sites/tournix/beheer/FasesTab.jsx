@@ -4,6 +4,7 @@ import {
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
   assignTeamPool, getTeams, autoMatchTournament,
+  getDiscoveryComps, getDiscoveryPoules,
 } from '../api.js'
 import {
   inputStyle, primaryBtn, ghostBtn, noTid,
@@ -27,7 +28,16 @@ export default function FasesTab({ tid, stage }) {
   const [matching,   setMatching]   = useState(false)
   const [matchResult, setMatchResult] = useState(null)
 
-  useEffect(() => { if (tid) load() }, [tid])
+  // Discovery create flow
+  const [createMode,       setCreateMode]       = useState('discovery') // 'discovery' | 'manual'
+  const [discPoules,       setDiscPoules]       = useState([])
+  const [discComps,        setDiscComps]        = useState([])
+  const [discLoading,      setDiscLoading]      = useState(false)
+  const [discLoaded,       setDiscLoaded]       = useState(false)
+  const [selectedPoule,    setSelectedPoule]    = useState(null)
+  const [discName,         setDiscName]         = useState('')
+
+  useEffect(() => { if (tid) { load(); loadDiscovery() } }, [tid])
 
   async function load() {
     setLoading(true)
@@ -79,6 +89,43 @@ export default function FasesTab({ tid, stage }) {
     } finally {
       setMatching(false)
     }
+  }
+
+  function loadDiscovery() {
+    if (discLoaded || discLoading) return
+    setDiscLoading(true)
+    Promise.all([
+      getDiscoveryPoules('2026-2027'),
+      getDiscoveryComps(),
+    ]).then(([poulesRes, compsRes]) => {
+      setDiscPoules(poulesRes.poules || [])
+      setDiscComps(compsRes.competitions || [])
+      setDiscLoaded(true)
+    }).catch(() => {})
+    .finally(() => setDiscLoading(false))
+  }
+
+  function handleSelectMode(mode) {
+    setCreateMode(mode)
+    if (mode === 'discovery') loadDiscovery()
+  }
+
+  function handleSelectPoule(poule) {
+    setSelectedPoule(poule)
+    setDiscName(poule ? poule.name : '')
+  }
+
+  async function handleAddFromDiscovery(e) {
+    e.preventDefault()
+    if (!selectedPoule || !discName.trim()) return
+    try {
+      const phase = await createPhase(tid, { name: discName.trim(), order: phases.length, phase_type: 'pool' })
+      await updatePhase(phase.id, { hockey_poule_id: selectedPoule.id })
+      setSelectedPoule(null)
+      setDiscName('')
+      flash('Fase aangemaakt en gekoppeld aan discovery')
+      await load()
+    } catch (e) { flash(e.message, true) }
   }
 
   if (!tid) return <p style={noTid}>Selecteer een toernooi via de keuzelijst bovenaan.</p>
@@ -133,22 +180,225 @@ export default function FasesTab({ tid, stage }) {
 
       {!isReadonly && (
         <div style={card}>
-          <div style={cardLabel}>NIEUWE FASE</div>
-          <form onSubmit={handleAddPhase} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              placeholder="Naam van de fase"
-              style={{ ...inputStyle, flex: 1, minWidth: 160 }}
-            />
-            <select value={newType} onChange={e => setNewType(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
-              <option value="pool">Round-robin (poule)</option>
-              <option value="ko">Knock-out</option>
-            </select>
-            <button type="submit" disabled={!newName.trim()} style={{ ...primaryBtn, opacity: newName.trim() ? 1 : 0.5 }}>
-              Voeg toe
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 12 }}>
+            <div style={cardLabel}>NIEUWE FASE</div>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              {['discovery', 'manual'].map(m => (
+                <button key={m} onClick={() => handleSelectMode(m)}
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, fontFamily: 'inherit',
+                    border: 'none', cursor: 'pointer',
+                    background: createMode === m ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                    color: createMode === m ? '#fff' : 'var(--color-text-muted)', fontWeight: createMode === m ? 600 : 400 }}>
+                  {m === 'discovery' ? '🔍 Discovery' : '✏️ Handmatig'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {createMode === 'discovery' ? (
+            <form onSubmit={handleAddFromDiscovery} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {discLoading && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Poules laden…</div>}
+              {!discLoading && discLoaded && (
+                <DiscoveryPoulePicker
+                  poules={discPoules}
+                  comps={discComps}
+                  selected={selectedPoule}
+                  onSelect={handleSelectPoule}
+                  linkedIds={new Set(phases.map(p => p.hockey_poule_id).filter(Boolean))}
+                />
+              )}
+              {!discLoading && !discLoaded && (
+                <button type="button" onClick={loadDiscovery}
+                  style={{ ...ghostBtn, fontSize: 12, alignSelf: 'flex-start' }}>
+                  Poules laden
+                </button>
+              )}
+              {selectedPoule && (
+                <input
+                  value={discName}
+                  onChange={e => setDiscName(e.target.value)}
+                  placeholder="Naam van de fase"
+                  style={{ ...inputStyle }}
+                />
+              )}
+              <button type="submit"
+                disabled={!selectedPoule || !discName.trim()}
+                style={{ ...primaryBtn, opacity: selectedPoule && discName.trim() ? 1 : 0.5, alignSelf: 'flex-start' }}>
+                Fase aanmaken + koppelen
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleAddPhase} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Naam van de fase"
+                style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+              />
+              <select value={newType} onChange={e => setNewType(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
+                <option value="pool">Round-robin (poule)</option>
+                <option value="ko">Knock-out</option>
+              </select>
+              <button type="submit" disabled={!newName.trim()} style={{ ...primaryBtn, opacity: newName.trim() ? 1 : 0.5 }}>
+                Voeg toe
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DiscoveryPoulePicker ──────────────────────────────────────────────────────
+
+function DiscoveryPoulePicker({ poules, comps, selected, onSelect, linkedIds }) {
+  const compMap = {}
+  for (const c of comps) compMap[c.id] = c
+
+  // Group poules by competition
+  const groups = {}
+  for (const p of poules) {
+    const key = p.competition_id || '__none__'
+    if (!groups[key]) groups[key] = { comp: compMap[key] || null, poules: [] }
+    groups[key].poules.push(p)
+  }
+
+  const sortedGroups = Object.entries(groups).sort(([, a], [, b]) => {
+    const na = a.comp?.name || 'ZZZ'
+    const nb = b.comp?.name || 'ZZZ'
+    return na.localeCompare(nb)
+  })
+
+  const htIcon = { VE: '🏑', ZA: '🏒' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {sortedGroups.map(([compId, { comp, poules: gPoules }]) => (
+        <div key={compId}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase',
+            letterSpacing: '0.05em', marginBottom: 4 }}>
+            {htIcon[comp?.hockey_type] || ''} {comp?.name || 'Onbekende competitie'}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {gPoules.map(p => {
+              const isLinked  = linkedIds.has(p.id)
+              const isSelected = selected?.id === p.id
+              return (
+                <button key={p.id} type="button"
+                  onClick={() => isLinked ? null : onSelect(isSelected ? null : p)}
+                  style={{ fontSize: 12, padding: '4px 10px', borderRadius: 7, fontFamily: 'inherit',
+                    cursor: isLinked ? 'default' : 'pointer',
+                    border: isSelected ? 'none' : '1px solid var(--color-border)',
+                    background: isSelected
+                      ? 'var(--color-primary)'
+                      : isLinked ? 'var(--color-surface-2)' : 'transparent',
+                    color: isSelected ? '#fff' : isLinked ? 'var(--color-text-muted)' : 'var(--color-text)',
+                    opacity: isLinked ? 0.55 : 1,
+                    textDecoration: isLinked ? 'line-through' : 'none' }}>
+                  {p.name}{isLinked ? ' 🔗' : ''}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+      {poules.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+          Geen discovery-poules gevonden voor seizoen 2026-2027.
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DiscoveryLink (per bestaande fase) ────────────────────────────────────────
+
+function DiscoveryLink({ phase, flash, onRefresh }) {
+  const [open,       setOpen]       = useState(false)
+  const [poules,     setPoules]     = useState([])
+  const [comps,      setComps]      = useState([])
+  const [loaded,     setLoaded]     = useState(false)
+  const [loading,    setLoading]    = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [selected,   setSelected]   = useState(null)
+
+  function loadData() {
+    if (loaded || loading) return
+    setLoading(true)
+    Promise.all([getDiscoveryPoules('2026-2027'), getDiscoveryComps()])
+      .then(([pr, cr]) => { setPoules(pr.poules || []); setComps(cr.competitions || []); setLoaded(true) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  function handleOpen() {
+    setOpen(true)
+    loadData()
+  }
+
+  async function handleLink() {
+    if (!selected) return
+    setSaving(true)
+    try {
+      await updatePhase(phase.id, { hockey_poule_id: selected.id })
+      flash('Fase gekoppeld aan discovery-poule')
+      setOpen(false)
+      setSelected(null)
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+    finally { setSaving(false) }
+  }
+
+  async function handleUnlink() {
+    if (!window.confirm('Discovery-koppeling voor deze fase verwijderen?')) return
+    try {
+      await updatePhase(phase.id, { hockey_poule_id: null })
+      flash('Discovery-koppeling verwijderd')
+      await onRefresh()
+    } catch (e) { flash(e.message, true) }
+  }
+
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 10 : 0 }}>
+        <div style={sectionLabel}>DISCOVERY</div>
+        {phase.hockey_poule_id && !open && (
+          <span style={{ fontSize: 11, background: 'rgba(34,197,94,0.15)', color: 'var(--color-success,#22c55e)',
+            borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
+            🔗 gekoppeld #{phase.hockey_poule_id}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {phase.hockey_poule_id && (
+            <button onClick={handleUnlink}
+              style={{ ...ghostBtn, fontSize: 11, padding: '3px 8px', color: 'var(--color-error)' }}>
+              Ontkoppelen
             </button>
-          </form>
+          )}
+          <button onClick={() => open ? setOpen(false) : handleOpen()}
+            style={{ ...ghostBtn, fontSize: 11, padding: '3px 10px' }}>
+            {open ? 'Sluiten' : phase.hockey_poule_id ? '↺ Wijzigen' : '+ Koppelen'}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {loading && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Laden…</div>}
+          {!loading && loaded && (
+            <DiscoveryPoulePicker
+              poules={poules}
+              comps={comps}
+              selected={selected}
+              onSelect={setSelected}
+              linkedIds={new Set(phase.hockey_poule_id ? [phase.hockey_poule_id] : [])}
+            />
+          )}
+          <button onClick={handleLink} disabled={!selected || saving}
+            style={{ ...primaryBtn, fontSize: 12, opacity: selected && !saving ? 1 : 0.5, alignSelf: 'flex-start' }}>
+            {saving ? 'Opslaan…' : 'Koppelen'}
+          </button>
         </div>
       )}
     </div>
@@ -641,6 +891,7 @@ function PhaseCard({
         </>
       )}
 
+      <DiscoveryLink phase={phase} flash={flash} onRefresh={onRefresh} />
       <ScheduleSettings phase={phase} isReadonly={isReadonly} flash={flash} />
 
       {(hasPools || phaseTeamObjects.length > 0) && phase.match_count === 0 && !isReadonly && (
