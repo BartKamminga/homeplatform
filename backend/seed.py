@@ -64,6 +64,7 @@ def seed_sites(session: Session):
         ("DontForget", "dontforget", "dontforget", "📋"),
         ("Poulebord", "poulebord", "poulebord", "🏒"),
         ("BeatCrades", "beatcrades", "beatcrades", "🎵"),
+        ("Scrapster", "scrapster", "scrapster", "📡"),
     ]
 
     for name, slug, module, icon in sites:
