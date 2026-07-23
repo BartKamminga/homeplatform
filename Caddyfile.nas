@@ -70,6 +70,12 @@
         file_server
     }
 
+    handle /scrapster/* {
+        root * /srv/www
+        try_files {path} /scrapster/index.html
+        file_server
+    }
+
     handle /assets/* {
         root * /srv/www
         file_server
