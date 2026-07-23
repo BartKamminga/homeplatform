@@ -13,3 +13,4 @@ slowapi==0.1.9
 yt-dlp
 httpx==0.28.1
 mutagen==1.47.0
+beautifulsoup4==4.12.3

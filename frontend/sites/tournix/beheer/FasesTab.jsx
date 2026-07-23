@@ -3,7 +3,7 @@ import {
   getPhases, createPhase, updatePhase, deletePhase,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
-  assignTeamPool, getTeams,
+  assignTeamPool, getTeams, autoMatchTournament,
 } from '../api.js'
 import {
   inputStyle, primaryBtn, ghostBtn, noTid,
@@ -15,15 +15,17 @@ import {
 } from './styles.js'
 
 export default function FasesTab({ tid, stage }) {
-  const [phases,   setPhases]   = useState([])
-  const [teams,    setTeams]    = useState([])
-  const [loading,  setLoading]  = useState(false)
-  const [msg,      setMsg]      = useState('')
-  const [error,    setError]    = useState('')
-  const [newName,  setNewName]  = useState('')
-  const [newType,  setNewType]  = useState('pool')
-  const [editId,   setEditId]   = useState(null)
-  const [editName, setEditName] = useState('')
+  const [phases,     setPhases]     = useState([])
+  const [teams,      setTeams]      = useState([])
+  const [loading,    setLoading]    = useState(false)
+  const [msg,        setMsg]        = useState('')
+  const [error,      setError]      = useState('')
+  const [newName,    setNewName]    = useState('')
+  const [newType,    setNewType]    = useState('pool')
+  const [editId,     setEditId]     = useState(null)
+  const [editName,   setEditName]   = useState('')
+  const [matching,   setMatching]   = useState(false)
+  const [matchResult, setMatchResult] = useState(null)
 
   useEffect(() => { if (tid) load() }, [tid])
 
@@ -64,6 +66,21 @@ export default function FasesTab({ tid, stage }) {
     catch (e) { flash(e.message, true) }
   }
 
+  async function handleAutoMatch() {
+    setMatching(true)
+    setMatchResult(null)
+    try {
+      const r = await autoMatchTournament(tid)
+      setMatchResult(r)
+      await load()
+      setTimeout(() => setMatchResult(null), 6000)
+    } catch (e) {
+      flash(e.message, true)
+    } finally {
+      setMatching(false)
+    }
+  }
+
   if (!tid) return <p style={noTid}>Selecteer een toernooi via de keuzelijst bovenaan.</p>
   if (loading) return <p style={muted}>Laden…</p>
 
@@ -73,6 +90,25 @@ export default function FasesTab({ tid, stage }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {msg   && <div style={successBanner}>{msg}</div>}
       {error && <div style={errorBanner}>{error}</div>}
+
+      {/* Auto-koppel knop */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={handleAutoMatch}
+          disabled={matching}
+          style={{ ...ghostBtn, fontSize: 12, opacity: matching ? 0.6 : 1 }}
+        >
+          {matching ? '🔄 Koppelen…' : '🔗 Auto-koppel hockey.nl'}
+        </button>
+        {matchResult && (
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+            Fases: {matchResult.phases.matched} gekoppeld
+            {matchResult.phases.not_found > 0 ? `, ${matchResult.phases.not_found} niet gevonden` : ''}
+            {' · '}Teams: {matchResult.teams.matched} gekoppeld
+            {matchResult.teams.no_match > 0 ? `, ${matchResult.teams.no_match} geen match` : ''}
+          </span>
+        )}
+      </div>
 
       {phases.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: 24 }}>
@@ -441,6 +477,12 @@ function PhaseCard({
         )}
         <span style={typePill}>{typeBadge}</span>
         {phase.is_main_phase && <span style={mainPill}>hoofd</span>}
+        {phase.hockey_poule_id && (
+          <span title={`Gekoppeld aan hockey_poule #${phase.hockey_poule_id}`}
+            style={{ fontSize: 11, color: 'var(--color-success, #22c55e)', fontWeight: 600 }}>
+            🔗
+          </span>
+        )}
         <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{phase.match_count} wedstrijden</span>
         {!isReadonly && <button onClick={() => onDelete(phase.id, phase.name)} style={deleteBtn}>✕</button>}
       </div>
