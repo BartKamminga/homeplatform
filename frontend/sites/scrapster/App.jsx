@@ -38,6 +38,7 @@ function readFiltersFromUrl() {
     venues: p.getAll('venue'),
     sources: p.getAll('source'),
     pastFilter: p.get('past') || 'laatste3',
+    kiosk: p.has('kiosk'),
   }
 }
 
@@ -46,8 +47,18 @@ function writeFiltersToUrl(venues, sources, pastFilter) {
   venues.forEach(v => p.append('venue', v))
   sources.forEach(s => p.append('source', s))
   if (pastFilter && pastFilter !== 'laatste3') p.set('past', pastFilter)
+  // kiosk param is never written back to the live URL — only added by copyUrl()
   const qs = p.toString()
   history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
+}
+
+function buildKioskUrl(venues, sources, pastFilter) {
+  const p = new URLSearchParams()
+  venues.forEach(v => p.append('venue', v))
+  sources.forEach(s => p.append('source', s))
+  if (pastFilter && pastFilter !== 'laatste3') p.set('past', pastFilter)
+  p.set('kiosk', '1')
+  return `${window.location.origin}${window.location.pathname}?${p.toString()}`
 }
 
 function applyPastFilter(list, pastFilter) {
@@ -149,6 +160,7 @@ export default function App() {
   const [selectedVenues, setSelectedVenues] = useState(initFilters.venues)
   const [selectedSources, setSelectedSources] = useState(initFilters.sources)
   const [pastFilter, setPastFilter] = useState(initFilters.pastFilter)
+  const kiosk = initFilters.kiosk
   const [copied, setCopied] = useState(false)
 
   const [refreshInterval, setRefreshInterval] = useState(DEFAULT_REFRESH)
@@ -202,7 +214,8 @@ export default function App() {
   }, [selectedVenues, selectedSources, pastFilter])
 
   function copyUrl() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
+    const url = buildKioskUrl(selectedVenues, selectedSources, pastFilter)
+    navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -282,7 +295,7 @@ export default function App() {
         </header>
 
         {/* ── Filters ── */}
-        {(allVenues.length > 0 || allSources.length > 0) && (
+        {!kiosk && (allVenues.length > 0 || allSources.length > 0) && (
           <section className="filters">
             {allSources.length > 0 && (
               <ChipGroup
