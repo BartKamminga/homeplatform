@@ -133,6 +133,12 @@ const TEAM_CODE_TO_NAME = {
   'ALLB': 'Alliance Blue',
 }
 
+function displayTeamName(code) {
+  // 4-letter code → split after 3rd char: "AUSB" → "AUS B", "ALLP" → "ALL P"
+  if (/^[A-Za-z]{4}$/.test(code)) return `${code.slice(0, 3)} ${code.slice(3)}`
+  return code
+}
+
 function lookupLogo(map, teamCode) {
   const key = teamCode.toUpperCase().trim()
   // Explicit base-code override (e.g. THIS → SCO)
@@ -197,14 +203,14 @@ function MatchRow({ match, logoByTeamName, highlight }) {
               {lookupLogo(logoByTeamName, teams.home) && (
                 <img src={lookupLogo(logoByTeamName, teams.home)} className="team-flag" alt="" loading="lazy" />
               )}
-              {teams.home}
+              {displayTeamName(teams.home)}
             </span>
             <span className="vs-sep">v</span>
             <span className={`team-name${highlight?.side === 'away' ? ' team-scored' : ''}`}>
               {lookupLogo(logoByTeamName, teams.away) && (
                 <img src={lookupLogo(logoByTeamName, teams.away)} className="team-flag" alt="" loading="lazy" />
               )}
-              {teams.away}
+              {displayTeamName(teams.away)}
             </span>
           </div>
         ) : (match.details || '—')}
