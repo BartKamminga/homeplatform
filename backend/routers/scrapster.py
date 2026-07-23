@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Session
 
-from database import engine
+from core.database import engine
 
 logger = logging.getLogger("homeplatform")
 
