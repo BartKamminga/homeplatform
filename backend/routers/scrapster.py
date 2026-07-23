@@ -39,59 +39,73 @@ def _extract_competition_name(soup: BeautifulSoup, url: str) -> str:
 
 
 def _parse_matches(html: str, url: str) -> list[dict]:
-    """Parse matches from altiusrt.com div#match-listing > div.panel structure."""
+    """Parse matches from altiusrt.com.
+
+    The page has two sections:
+    - div#match-listing with visual panels (used only for is_live via CSS class)
+    - a <table class="table-condensed"> with full data including venue and datetime
+    """
     soup = BeautifulSoup(html, "html.parser")
     competition_name = _extract_competition_name(soup, url)
 
+    # Build is_live lookup from panels (panel-live CSS class is reliable for live state)
+    is_live_map: dict[str, bool] = {}
     listing = soup.find("div", id="match-listing")
-    if not listing:
-        logger.warning("scrapster: no #match-listing found on %s", url)
+    if listing:
+        for panel in listing.find_all("div", class_="panel"):
+            panel_classes = " ".join(panel.get("class", []))
+            body = panel.find("div", class_="panel-body")
+            if not body:
+                continue
+            link = body.find("a")
+            if not link:
+                continue
+            href = link.get("href", "")
+            mid = href.rstrip("/").split("/")[-1] if href else ""
+            if mid:
+                is_live_map[mid] = "panel-live" in panel_classes
+
+    # Parse the match table for full data (venue, datetime, match#, details, score, status)
+    matches = []
+    table = soup.find("table", class_=lambda c: c and "table-condensed" in c)
+    if not table:
+        logger.warning("scrapster: no match table found on %s", url)
         return []
 
-    matches = []
-    for panel in listing.find_all("div", class_="panel"):
-        panel_classes = " ".join(panel.get("class", []))
-        is_live = "panel-live" in panel_classes
-        is_future = "panel-future" in panel_classes
+    tbody = table.find("tbody")
+    if not tbody:
+        return []
 
-        body = panel.find("div", class_="panel-body")
-        if not body:
+    for row in tbody.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 6:
             continue
 
-        # Teams + match URL from <a><b>TEAM1 - TEAM2</b></a>
-        link = body.find("a")
+        match_num = cells[0].get_text(strip=True)
+
+        # Prefer machine-readable UTC datetime from data attribute
+        dt_span = cells[1].find("span", attrs={"data-datetimelocal__notimechange": True})
+        datetime_str = dt_span["data-datetimelocal__notimechange"] if dt_span else cells[1].get_text(strip=True)
+
+        link = cells[2].find("a")
         if not link:
             continue
-        match_url = link.get("href", "")
-        match_id = match_url.rstrip("/").split("/")[-1] if match_url else ""
-        teams = link.get_text(strip=True)
+        match_href = link.get("href", "")
+        match_id = match_href.rstrip("/").split("/")[-1] if match_href else ""
+        details = link.get_text(strip=True)
 
-        # Score: first <b> not inside the <a>
-        score = ""
-        for b in body.find_all("b"):
-            if not b.find_parent("a"):
-                score = b.get_text(strip=True)
-                break
-
-        # Status: remaining text lines after removing teams and score
-        status_lines = []
-        for line in body.get_text(separator="\n", strip=True).split("\n"):
-            line = line.strip()
-            if not line or line == teams or line == score:
-                continue
-            if len(line) > 60:
-                continue
-            status_lines.append(line)
-        status = status_lines[0] if status_lines else ("Live" if is_live else ("Upcoming" if is_future else "FT"))
+        scoreline = cells[3].get_text(strip=True)
+        status = cells[4].get_text(strip=True)
+        venue = cells[5].get_text(strip=True)
 
         matches.append({
-            "match_num": match_id,
-            "datetime_str": "",
-            "details": teams,
-            "scoreline": score,
+            "match_num": match_num,
+            "datetime_str": datetime_str,
+            "details": details,
+            "scoreline": scoreline,
             "status": status,
-            "venue": "",
-            "is_live": is_live,
+            "venue": venue,
+            "is_live": is_live_map.get(match_id, False),
             "source": competition_name,
             "competition_url": url,
         })
