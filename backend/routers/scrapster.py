@@ -226,6 +226,7 @@ def _parse_standings(html: str, url: str, logo_map: dict[str, str]) -> list[dict
             })
 
         if teams:
+            teams.sort(key=lambda t: (t["rank"] if t["rank"] > 0 else 999, -t["points"], -t["goal_diff"]))
             results.append({
                 "competition_name": competition_name,
                 "pool_name": pool_name,
