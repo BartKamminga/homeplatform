@@ -171,9 +171,14 @@ def _parse_standings(html: str, url: str, logo_map: dict[str, str]) -> list[dict
     soup = BeautifulSoup(html, "html.parser")
     competition_name = _extract_competition_name(soup, url)
 
-    portlet_body = soup.find("div", class_="portlet-body")
+    # There are multiple portlet-body divs on the page (e.g. FAQ dropdown first).
+    # Pick the one that actually contains an <h4> (the pool standings portlet).
+    portlet_body = next(
+        (pb for pb in soup.find_all("div", class_="portlet-body") if pb.find("h4")),
+        None,
+    )
     if not portlet_body:
-        logger.warning("scrapster: no portlet-body on pools page %s", url)
+        logger.warning("scrapster: no standings portlet-body on pools page %s", url)
         return []
 
     results = []
