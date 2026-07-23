@@ -160,15 +160,15 @@ function MatchRow({ match, logoByTeamName, highlight }) {
         {teams ? (
           <div className="match-teams">
             <span className={`team-name${highlight?.side === 'home' ? ' team-scored' : ''}`}>
-              {logoByTeamName[teams.home.toLowerCase()] && (
-                <img src={logoByTeamName[teams.home.toLowerCase()]} className="team-flag" alt="" loading="lazy" />
+              {logoByTeamName[teams.home.toUpperCase()] && (
+                <img src={logoByTeamName[teams.home.toUpperCase()]} className="team-flag" alt="" loading="lazy" />
               )}
               {teams.home}
             </span>
             <span className="vs-sep">v</span>
             <span className={`team-name${highlight?.side === 'away' ? ' team-scored' : ''}`}>
-              {logoByTeamName[teams.away.toLowerCase()] && (
-                <img src={logoByTeamName[teams.away.toLowerCase()]} className="team-flag" alt="" loading="lazy" />
+              {logoByTeamName[teams.away.toUpperCase()] && (
+                <img src={logoByTeamName[teams.away.toUpperCase()]} className="team-flag" alt="" loading="lazy" />
               )}
               {teams.away}
             </span>
@@ -407,12 +407,17 @@ export default function App() {
     pastFilter
   ).sort((a, b) => parseDate(a.datetime_str) - parseDate(b.datetime_str))
 
-  // Logo lookup map from standings — keyed by stripped lowercased team name
+  // Logo lookup map from standings — keyed by UPPERCASE name AND by code extracted from logo URL
+  // e.g. "NETHERLANDS" → url, and "NED" → url (from .../flags/round/NED.png)
   const logoByTeamName = useMemo(() => {
     const map = {}
     for (const group of standings) {
       for (const team of group.teams) {
-        if (team.logo_url) map[stripSuffix(team.name).toLowerCase()] = team.logo_url
+        if (team.logo_url) {
+          map[stripSuffix(team.name).toUpperCase()] = team.logo_url
+          const m = team.logo_url.match(/\/([A-Z]{2,4})\.png$/i)
+          if (m) map[m[1].toUpperCase()] = team.logo_url
+        }
       }
     }
     return map
