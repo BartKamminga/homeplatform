@@ -1,5 +1,6 @@
 """Scrapster router — scrape hockey match pages and return a combined match list."""
 
+import asyncio
 import json
 import logging
 import secrets
@@ -38,6 +39,7 @@ COMPETITION_URLS = [
 CACHE_TTL = 55  # seconds
 
 _cache: dict = {"data": None, "ts": 0}
+_standings_cache: dict = {"data": None, "ts": 0}
 
 
 def _extract_competition_name(soup: BeautifulSoup, url: str) -> str:
@@ -151,6 +153,123 @@ async def _fetch_all_matches() -> list[dict]:
     return all_matches
 
 
+def _parse_team_logos(html: str) -> dict[str, str]:
+    """Parse team_name → logo_url from a competition teams page."""
+    soup = BeautifulSoup(html, "html.parser")
+    logo_map: dict[str, str] = {}
+    for link in soup.find_all("a", href=lambda h: h and "/teams/" in (h or "")):
+        img = link.find("img")
+        if img and img.get("src"):
+            name = link.get_text(strip=True)
+            if name:
+                logo_map[name] = img["src"]
+    return logo_map
+
+
+def _parse_standings(html: str, url: str, logo_map: dict[str, str]) -> list[dict]:
+    """Parse pool standings tables from altiusrt.com pools page."""
+    soup = BeautifulSoup(html, "html.parser")
+    competition_name = _extract_competition_name(soup, url)
+
+    portlet_body = soup.find("div", class_="portlet-body")
+    if not portlet_body:
+        logger.warning("scrapster: no portlet-body on pools page %s", url)
+        return []
+
+    results = []
+    # Each <h4> is followed by a <div class="table-responsive"> containing the pool table
+    for h4 in portlet_body.find_all("h4"):
+        pool_name = h4.get_text(strip=True) or competition_name
+        table_wrap = h4.find_next_sibling("div", class_="table-responsive")
+        if not table_wrap:
+            continue
+        table = table_wrap.find("table")
+        if not table:
+            continue
+
+        teams = []
+        for row in table.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) < 2:
+                continue
+            try:
+                rank = int(cells[0].get_text(strip=True))
+            except ValueError:
+                continue
+            team_link = cells[1].find("a")
+            team_name = team_link.get_text(strip=True) if team_link else cells[1].get_text(strip=True)
+            logo_url = logo_map.get(team_name, "")
+
+            def safe_int(idx):
+                try:
+                    return int(cells[idx].get_text(strip=True))
+                except Exception:
+                    return 0
+
+            teams.append({
+                "rank": rank,
+                "name": team_name,
+                "logo_url": logo_url,
+                "played": safe_int(2),
+                "won": safe_int(3),
+                "drawn": safe_int(4),
+                "lost": safe_int(5),
+                "goals_for": safe_int(6),
+                "goals_against": safe_int(7),
+                "goal_diff": safe_int(8),
+                "points": safe_int(9),
+            })
+
+        if teams:
+            results.append({
+                "competition_name": competition_name,
+                "pool_name": pool_name,
+                "competition_url": url,
+                "teams": teams,
+            })
+
+    logger.info("scrapster: parsed %d pools from %s", len(results), url)
+    return results
+
+
+async def _fetch_all_standings() -> list[dict]:
+    """Fetch pool standings for all competition URLs."""
+    all_standings: list[dict] = []
+
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for matches_url in COMPETITION_URLS:
+            pools_url = matches_url.replace("/matches", "/pools")
+            teams_url = matches_url.replace("/matches", "/teams")
+            try:
+                teams_resp, pools_resp = await asyncio.gather(
+                    client.get(teams_url),
+                    client.get(pools_url),
+                )
+                teams_resp.raise_for_status()
+                pools_resp.raise_for_status()
+                logo_map = _parse_team_logos(teams_resp.text)
+                standings = _parse_standings(pools_resp.text, matches_url, logo_map)
+                all_standings.extend(standings)
+            except Exception as exc:
+                logger.warning("scrapster: failed to fetch standings for %s — %s", matches_url, exc)
+
+    return all_standings
+
+
+@router.get("/standings")
+async def get_standings():
+    """Return pool standings for all competitions. Cached for 55 seconds."""
+    now = time.time()
+    if _standings_cache["data"] is not None and (now - _standings_cache["ts"]) < CACHE_TTL:
+        return {"standings": _standings_cache["data"], "cached": True, "cache_age": int(now - _standings_cache["ts"])}
+
+    standings = await _fetch_all_standings()
+    _standings_cache["data"] = standings
+    _standings_cache["ts"] = now
+
+    return {"standings": standings, "cached": False, "cache_age": 0}
+
+
 @router.get("/matches")
 async def get_matches():
     """Return combined match list from all competition URLs. Cached for 55 seconds."""
@@ -171,12 +290,18 @@ class ShortenRequest(BaseModel):
     venues: list[str] = []
     sources: list[str] = []
     pastFilter: str = "laatste3"
+    view: str = "matches"
 
 
 @router.post("/shorten")
 def shorten_url(body: ShortenRequest):
     """Store filter state and return a short token."""
-    filters_json = json.dumps({"venues": body.venues, "sources": body.sources, "pastFilter": body.pastFilter})
+    filters_json = json.dumps({
+        "venues": body.venues,
+        "sources": body.sources,
+        "pastFilter": body.pastFilter,
+        "view": body.view,
+    })
     token = secrets.token_urlsafe(5)  # ~7 chars
 
     with Session(engine) as session:
