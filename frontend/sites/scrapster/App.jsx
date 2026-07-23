@@ -365,13 +365,6 @@ export default function App() {
               {cacheAge !== null && cacheAge > 0 && (
                 <span className="cache-note">(cache {cacheAge}s oud)</span>
               )}
-              <button
-                className="btn-theme"
-                onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-                title={theme === 'dark' ? 'Schakel naar licht' : 'Schakel naar donker'}
-              >
-                {theme === 'dark' ? '☀' : '🌙'}
-              </button>
             </div>
             <CountdownBar seconds={countdown} total={refreshInterval} />
             <div className="refresh-row">
@@ -451,6 +444,13 @@ export default function App() {
                 Filters wissen
               </button>
             )}
+            <button
+              className="btn-theme"
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? 'Schakel naar licht' : 'Schakel naar donker'}
+            >
+              {theme === 'dark' ? '☀ Licht' : '🌙 Donker'}
+            </button>
             <button className="btn-copy-url" onClick={copyUrl}>
               {copied ? '✓ Gekopieerd!' : copyError ? '✗ Mislukt' : '🔗 Kopieer link'}
             </button>
