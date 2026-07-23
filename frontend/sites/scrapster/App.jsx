@@ -56,11 +56,11 @@ function writeFiltersToUrl(venues, sources, pastFilter, view, statusFilter, inte
   history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
 }
 
-async function fetchShortToken(venues, sources, pastFilter, view, statusFilter, interval) {
+async function fetchShortToken(venues, sources, pastFilter, view, statusFilter, interval, theme) {
   const res = await fetch('/api/scrapster/shorten', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ venues, sources, pastFilter, view, statusFilter, interval }),
+    body: JSON.stringify({ venues, sources, pastFilter, view, statusFilter, interval, theme }),
   })
   if (!res.ok) throw new Error('Shorten mislukt')
   const { token } = await res.json()
@@ -268,6 +268,7 @@ export default function App() {
       setView(f.view                   || 'matches')
       setStatusFilter(f.statusFilter   || 'alle')
       if (f.interval) { setRefreshInterval(f.interval); setCountdown(f.interval) }
+      if (f.theme)    { setTheme(f.theme) }
     })
   }, [shortToken])
 
@@ -302,7 +303,7 @@ export default function App() {
 
   function copyUrl() {
     setCopyError(false)
-    fetchShortToken(selectedVenues, selectedSources, pastFilter, view, statusFilter, refreshInterval)
+    fetchShortToken(selectedVenues, selectedSources, pastFilter, view, statusFilter, refreshInterval, theme)
       .then(url => navigator.clipboard.writeText(url))
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500) })
       .catch(() => { setCopyError(true); setTimeout(() => setCopyError(false), 2500) })
@@ -843,9 +844,10 @@ const CSS = `
 
   /* ── Standings ── */
   .standings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 1.25rem;
+    justify-content: center;
   }
 
   .standings-card {
@@ -853,6 +855,8 @@ const CSS = `
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
+    flex: 0 1 520px;
+    min-width: 340px;
   }
 
   .standings-card-header {
@@ -911,7 +915,7 @@ const CSS = `
     .match-row td { padding: 1rem 1.25rem; }
     .col-score.score-set { font-size: 1.4rem; }
     .col-details { font-size: 1.2rem; }
-    .standings-grid { grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); }
+    .standings-card { flex-basis: 600px; }
     .standings-table { font-size: 1rem; }
     .standings-table td { padding: 0.65rem 0.75rem; }
     .team-flag { width: 28px; height: 28px; }
@@ -924,6 +928,6 @@ const CSS = `
     .filters { padding: 0.5rem 1rem; }
     .main { padding: 0.5rem; }
     .col-source, .col-num { display: none; }
-    .standings-grid { grid-template-columns: 1fr; }
+    .standings-card { flex-basis: 100%; min-width: 0; }
   }
 `

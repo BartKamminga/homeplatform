@@ -298,6 +298,7 @@ class ShortenRequest(BaseModel):
     view: str = "matches"
     statusFilter: str = "alle"
     interval: int = 60
+    theme: str = "dark"
 
 
 @router.post("/shorten")
@@ -310,6 +311,7 @@ def shorten_url(body: ShortenRequest):
         "view": body.view,
         "statusFilter": body.statusFilter,
         "interval": body.interval,
+        "theme": body.theme,
     })
     token = secrets.token_urlsafe(5)  # ~7 chars
 
