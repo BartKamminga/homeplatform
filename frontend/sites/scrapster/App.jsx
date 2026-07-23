@@ -83,7 +83,8 @@ function statusInfo(status) {
   ) return { label: status, cls: 'badge-live', cat: 'live' }
   if (
     s.includes('finish') || s.includes('played') || s.includes('gespeeld') ||
-    s.includes('result') || s.includes('full') || s.includes('complete')
+    s.includes('result') || s.includes('full') || s.includes('complete') ||
+    s.includes('official')
   ) return { label: status, cls: 'badge-done', cat: 'gespeeld' }
   return { label: status, cls: 'badge-upcoming', cat: 'aankomend' }
 }
@@ -119,6 +120,22 @@ function parseMatchTeams(details) {
   const parts = cleaned.split(' v ')
   if (parts.length !== 2) return null
   return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()) }
+}
+
+const TEAM_NAME_MAP = {
+  'THIS':    'Scottish Thistles',
+  'DRAGONS': 'Dragons',
+  'ALLP':    'Alliance Purple',
+  'ALL':     'Alliance',
+  'ALLB':    'Alliance Blue',
+}
+
+function displayTeamName(code) {
+  const key = code.toUpperCase()
+  if (TEAM_NAME_MAP[key]) return TEAM_NAME_MAP[key]
+  // 4-char country+variant: "AUSB" → "AUS B", "ENGB" → "ENG B"
+  if (/^[A-Z]{3}[A-Z]$/.test(key)) return `${key.slice(0, 3)} ${key.slice(3)}`
+  return code
 }
 
 function lookupLogo(map, teamCode) {
@@ -180,14 +197,14 @@ function MatchRow({ match, logoByTeamName, highlight }) {
               {lookupLogo(logoByTeamName, teams.home) && (
                 <img src={lookupLogo(logoByTeamName, teams.home)} className="team-flag" alt="" loading="lazy" />
               )}
-              {teams.home}
+              {displayTeamName(teams.home)}
             </span>
             <span className="vs-sep">v</span>
             <span className={`team-name${highlight?.side === 'away' ? ' team-scored' : ''}`}>
               {lookupLogo(logoByTeamName, teams.away) && (
                 <img src={lookupLogo(logoByTeamName, teams.away)} className="team-flag" alt="" loading="lazy" />
               )}
-              {teams.away}
+              {displayTeamName(teams.away)}
             </span>
           </div>
         ) : (match.details || '—')}
