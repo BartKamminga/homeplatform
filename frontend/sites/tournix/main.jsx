@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@core/theme.css'
+import './seizoen.css'
 import App from './App.jsx'
 import ErrorBoundary from '@components/ErrorBoundary.jsx'
 import AuthGate from '@components/AuthGate.jsx'

@@ -67,6 +67,8 @@ class TournixTeam(SQLModel, table=True):
     placeholder_source_phase_id: Optional[str] = Field(default=None, foreign_key="tournix_phases.id")
     placeholder_pool_name:       Optional[str] = Field(default=None)
     placeholder_position:        Optional[int] = Field(default=None)
+    # Seizoensplanner: koppeling naar hockey.nl team voor auto-matching
+    hockey_team_id:              Optional[int] = Field(default=None)  # → hockey_teams.id
 
 
 class TournixField(SQLModel, table=True):
@@ -97,6 +99,11 @@ class TournixPhase(SQLModel, table=True):
     capture_group:       Optional[str] = Field(default=None)  # weergavenaam in popup (bv. "Meisjes O14 Lente · Super")
     capture_ids:         Optional[str] = Field(default=None)  # JSON: ["179035", ...] of ["comp_22"]
     capture_labels:      Optional[str] = Field(default=None)  # JSON: ["Poule A", ...]
+    # Seizoensplanner: competitie-type en periode
+    surface:             Optional[str] = Field(default=None)  # "veld" | "zaal"
+    period:              Optional[str] = Field(default=None)  # "herfst" | "lente" | "nk" | "overig"
+    phase_label:         Optional[str] = Field(default=None)  # weergavelabel, bv. "🏑 Herfst"
+    hockey_poule_id:     Optional[int] = Field(default=None)  # → hockey_poules.id
 
 
 class TournixPhaseField(SQLModel, table=True):

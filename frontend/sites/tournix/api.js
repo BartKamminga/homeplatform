@@ -64,3 +64,10 @@ export const planPhaseSchedule        = (pid, startTime) => api.post(`/api/tourn
 
 export const getCaptureSessions       = ()        => api.get('/api/capture/sessions')
 export const getCaptureSessionItems   = (sid)     => api.get(`/api/capture/sessions/${sid}/items`)
+
+// Seizoensplanner
+export const syncPhase         = (pid)  => api.post(`/api/tournix/phases/${pid}/sync`)
+export const syncTournament    = (tid)  => api.post(`/api/tournix/tournaments/${tid}/sync`)
+export const getDiscoveryComps = ()     => api.get('/api/tournix/discovery/competitions')
+export const getVangerQueue    = (status) =>
+  api.get(`/api/tournix/discovery/vanger/cmd-queue${status ? `?status=${status}` : ''}`)

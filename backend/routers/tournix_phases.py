@@ -1,16 +1,18 @@
 """Tournix — fases (alle bracket-typen na of inclusief de poule fase)."""
 
-from datetime import datetime, timedelta
+import json
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from core.database import get_session
 from core.auth import get_current_user, require_admin
 from core.crud import get_or_404
 from models.core import User
+from models.hockey_discovery import HockeyPoule, VangerCmd
 from models.tournix import (
     Tournament, TournixPhase, TournixPhaseTeam, TournixTeam,
     TournixField, TournixMatch, TournixPool, TournixPhaseField,
@@ -44,6 +46,11 @@ class PhaseUpdate(BaseModel):
     capture_group:      Optional[str] = None
     capture_ids:        Optional[str] = None
     capture_labels:     Optional[str] = None
+    # Seizoensplanner
+    surface:            Optional[str] = None  # "veld" | "zaal"
+    period:             Optional[str] = None  # "herfst" | "lente" | "nk" | "overig"
+    phase_label:        Optional[str] = None  # bv. "🏑 Herfst"
+    hockey_poule_id:    Optional[int] = None  # → hockey_poules.id
 
 
 class SetPhaseFieldsBody(BaseModel):
@@ -268,6 +275,117 @@ def update_phase(
     session.commit()
     session.refresh(phase)
     return _phase_dict(phase, session)
+
+
+@router.post("/phases/{pid}/sync")
+def sync_phase_to_vanger(
+    pid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Voeg capture-opdrachten toe aan de vanger queue voor alle poules van deze fase."""
+    phase = get_or_404(session, TournixPhase, pid, "Fase")
+    label_base = phase.phase_label or phase.name
+
+    to_queue: list[dict] = []
+
+    if phase.capture_ids:
+        try:
+            ids = json.loads(phase.capture_ids)
+            labels = json.loads(phase.capture_labels or "[]")
+            for i, poule_id_str in enumerate(ids):
+                lbl = labels[i] if i < len(labels) else f"{label_base} · {poule_id_str}"
+                to_queue.append({"poule_id": str(poule_id_str), "label": lbl})
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    if phase.hockey_poule_id:
+        poule = session.get(HockeyPoule, phase.hockey_poule_id)
+        if poule:
+            hl_str = str(poule.poule_id)
+            if not any(p["poule_id"] == hl_str for p in to_queue):
+                to_queue.append({"poule_id": hl_str, "label": label_base})
+
+    if not to_queue:
+        return {"added": 0, "skipped": 0, "reason": "no_poules"}
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    pending = session.exec(
+        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all()
+    pending_poule_ids = {
+        json.loads(c.params).get("poule_id")
+        for c in pending
+        if c.cmd_type == "get_poule"
+    }
+
+    added, skipped = 0, 0
+    for item in to_queue:
+        if item["poule_id"] in pending_poule_ids:
+            skipped += 1
+        else:
+            session.add(VangerCmd(cmd_type="get_poule", params=json.dumps(item), created_at=now))
+            added += 1
+
+    session.commit()
+    return {"added": added, "skipped": skipped}
+
+
+@router.post("/tournaments/{tid}/sync")
+def sync_tournament_to_vanger(
+    tid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Voeg capture-opdrachten toe voor alle fases van dit toernooi."""
+    get_or_404(session, Tournament, tid, "Toernooi")
+    phases = session.exec(select(TournixPhase).where(TournixPhase.tournament_id == tid)).all()
+
+    if not phases:
+        return {"added": 0, "skipped": 0}
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    pending = session.exec(
+        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all()
+    pending_poule_ids = {
+        json.loads(c.params).get("poule_id")
+        for c in pending
+        if c.cmd_type == "get_poule"
+    }
+
+    added, skipped = 0, 0
+    for phase in phases:
+        label_base = phase.phase_label or phase.name
+        to_queue: list[dict] = []
+
+        if phase.capture_ids:
+            try:
+                ids = json.loads(phase.capture_ids)
+                labels = json.loads(phase.capture_labels or "[]")
+                for i, poule_id_str in enumerate(ids):
+                    lbl = labels[i] if i < len(labels) else f"{label_base} · {poule_id_str}"
+                    to_queue.append({"poule_id": str(poule_id_str), "label": lbl})
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        if phase.hockey_poule_id:
+            poule = session.get(HockeyPoule, phase.hockey_poule_id)
+            if poule:
+                hl_str = str(poule.poule_id)
+                if not any(p["poule_id"] == hl_str for p in to_queue):
+                    to_queue.append({"poule_id": hl_str, "label": label_base})
+
+        for item in to_queue:
+            if item["poule_id"] in pending_poule_ids:
+                skipped += 1
+            else:
+                session.add(VangerCmd(cmd_type="get_poule", params=json.dumps(item), created_at=now))
+                pending_poule_ids.add(item["poule_id"])
+                added += 1
+
+    session.commit()
+    return {"added": added, "skipped": skipped}
 
 
 @router.delete("/phases/{pid}", status_code=204)

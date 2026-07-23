@@ -2178,3 +2178,71 @@ def retry_cmd(
     session.add(cmd)
     session.commit()
     return {"ok": True}
+
+
+# ── Seizoensplanner: competities met koppelstatus ────────────────────────────
+
+@router.get("/competitions")
+def list_competitions_with_coupling(
+    season: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """
+    Geeft alle bekende hockey-poules terug met hun koppelstatus aan Tournix-fases.
+    linked=True → al gekoppeld aan een toernooi-fase.
+    linked=False → buitenspel (geen koppeling).
+    """
+    from models.tournix import TournixPhase, Tournament
+
+    q = select(HockeyPoule)
+    if season:
+        q = q.where(HockeyPoule.season == season)
+    poules = session.exec(q.order_by(col(HockeyPoule.id).desc())).all()
+
+    phases = session.exec(select(TournixPhase)).all()
+    tournaments = {t.id: t for t in session.exec(select(Tournament)).all()}
+    comps = {c.id: c for c in session.exec(select(HockeyCompetition)).all()}
+
+    # Bouw koppelkaart op basis van hockey_poule_id (int PK) en capture_ids (hl poule_id strings)
+    pk_coupling: Dict[int, TournixPhase] = {}
+    hl_coupling: Dict[str, TournixPhase] = {}
+    for ph in phases:
+        if ph.hockey_poule_id:
+            pk_coupling[ph.hockey_poule_id] = ph
+        if ph.capture_ids:
+            try:
+                for pid_str in json.loads(ph.capture_ids):
+                    hl_coupling[str(pid_str)] = ph
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    result = []
+    for p in poules:
+        phase = pk_coupling.get(p.id) or hl_coupling.get(str(p.poule_id))
+        comp = comps.get(p.competition_id)
+        entry: Dict[str, Any] = {
+            "id":                p.id,
+            "poule_id":          p.poule_id,
+            "name":              p.name,
+            "season":            p.season,
+            "competition_name":  comp.name       if comp else None,
+            "competition_class": comp.class_name if comp else None,
+            "hockey_type":       comp.hockey_type if comp else None,
+            "updated_at":        p.updated_at.isoformat() if p.updated_at else None,
+            "linked":            bool(phase),
+        }
+        if phase:
+            t = tournaments.get(phase.tournament_id)
+            entry["linked_phase_id"]       = phase.id
+            entry["linked_phase_label"]    = phase.phase_label or phase.name
+            entry["linked_tournament_id"]  = phase.tournament_id
+            entry["linked_tournament_name"] = t.name if t else None
+        else:
+            entry["linked_phase_id"]        = None
+            entry["linked_phase_label"]     = None
+            entry["linked_tournament_id"]   = None
+            entry["linked_tournament_name"] = None
+        result.append(entry)
+
+    return result
