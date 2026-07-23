@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
+import { getTournamentsForImport, importPoule as doImportPoule } from '../api.js'
 import { ghostBtn } from './styles.js'
 
 const statBox = { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, minWidth: 60 }
@@ -101,7 +102,7 @@ function resolveHockeyType(t) {
   return 'VE'
 }
 
-const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#e3f2fd', fg: '#1565c0', dark: '#0d47a1' } }
+const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#ede9fe', fg: '#7c3aed', dark: '#6d28d9' } }
 
 export default function DiscoveryTab({ view = 'vanger' }) {
   const [clubs,          setClubs]          = useState([])
@@ -129,6 +130,14 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [cmdFilling,   setCmdFilling]   = useState(null)  // 'poules'|'clubs'|null
   const [cmdOpen,      setCmdOpen]      = useState(true)
   const [cmdAdding,    setCmdAdding]    = useState({})    // {key: 'adding'|'added'|'exists'}
+
+  const [season,          setSeason]          = useState('2026-2027')
+  const [importTourneys,  setImportTourneys]  = useState([])
+  const [importOpen,      setImportOpen]      = useState(null)  // poule_id being imported
+  const [importTid,       setImportTid]       = useState('')
+  const [importPid,       setImportPid]       = useState('')
+  const [importBusy,      setImportBusy]      = useState(false)
+  const [importResult,    setImportResult]    = useState({})    // keyed by poule_id
 
   function loadRanges() {
     api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {})
@@ -171,6 +180,22 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     api.delete('/api/tournix/discovery/vanger/cmd-queue?scope=done')
       .then(() => loadCmdQueue())
       .catch(() => {})
+  }
+
+  function loadImportTourneys() {
+    getTournamentsForImport().then(r => setImportTourneys(r.tournaments || [])).catch(() => {})
+  }
+
+  function doImport(pouleId) {
+    if (!importTid) return
+    setImportBusy(true)
+    doImportPoule({ poule_id: pouleId, tournament_id: importTid, phase_id: importPid || undefined })
+      .then(r => {
+        setImportResult(prev => ({ ...prev, [pouleId]: r }))
+        setImportOpen(null)
+      })
+      .catch(e => alert('Import mislukt: ' + (e.message || 'onbekende fout')))
+      .finally(() => setImportBusy(false))
   }
 
   function addSingleCmd(type, params) {
@@ -218,10 +243,10 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       api.get('/api/tournix/discovery/clubs'),
       api.get('/api/tournix/discovery/teams'),
       api.get('/api/tournix/discovery/poule-queue'),
-      api.get('/api/tournix/discovery/competitions?season=2026-2027'),
+      api.get(`/api/tournix/discovery/competitions?season=${season}`),
       api.get('/api/tournix/discovery/plugin-errors?limit=30'),
       api.get('/api/tournix/discovery/queue-filter'),
-      api.get('/api/tournix/discovery/poules?season=2026-2027'),
+      api.get(`/api/tournix/discovery/poules?season=${season}`),
       api.get('/api/tournix/discovery/club-scan-queue'),
     ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes, poulesRes, clubScanRes]) => {
       setClubs(clubsRes.clubs || [])
@@ -289,8 +314,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       api.get('/api/tournix/discovery/poule-queue'),
       api.get('/api/tournix/discovery/club-scan-queue'),
       api.get('/api/tournix/discovery/teams'),
-      api.get('/api/tournix/discovery/poules?season=2026-2027'),
-      api.get('/api/tournix/discovery/competitions?season=2026-2027'),
+      api.get(`/api/tournix/discovery/poules?season=${season}`),
+      api.get(`/api/tournix/discovery/competitions?season=${season}`),
     ]).then(([queueRes, clubScanRes, teamsRes, poulesRes, compsRes]) => {
       setQueue(queueRes)
       setClubScanQueue(clubScanRes)
@@ -300,7 +325,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     }).catch(() => {})
   }
 
-  useEffect(() => { load(); loadRanges(); loadCmdQueue() }, [])
+  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadImportTourneys() }, [season])
 
   useEffect(() => {
     if (view !== 'vanger') return
@@ -400,6 +425,19 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       {/* ── RESULTATEN ── */}
       {view === 'resultaten' && (
         <>
+          {/* Seizoen filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Seizoen:</span>
+            {['2024-2025', '2025-2026', '2026-2027'].map(s => (
+              <button key={s} onClick={() => setSeason(s)} style={{
+                fontSize: 11, padding: '3px 10px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
+                border: `1px solid ${season === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                background: season === s ? 'var(--color-primary)' : 'var(--color-surface)',
+                color: season === s ? '#fff' : 'var(--color-text)',
+              }}>{s}</button>
+            ))}
+          </div>
+
           {/* Competities */}
           {competitions.length > 0 && (
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -437,6 +475,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                 <span style={{ flex: 1 }}>{c.name}</span>
                                 {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
                                 {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
+                                {c.hl_comp_id && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>#{c.hl_comp_id}</span>}
                                 <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
                                 {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
                               </div>
@@ -460,7 +499,41 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
                                           {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
                                           {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
+                                          <button onClick={e => { e.stopPropagation(); setImportOpen(importOpen === p.poule_id ? null : p.poule_id); setImportResult(prev => { const n = { ...prev }; delete n[p.poule_id]; return n }) }}
+                                            style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, border: `1px solid ${importResult[p.poule_id] ? 'var(--color-success)' : 'var(--color-primary)'}`, color: importResult[p.poule_id] ? 'var(--color-success)' : 'var(--color-primary)', background: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                                            title="Importeer naar Tournix">
+                                            {importResult[p.poule_id] ? '✓' : '→ Tournix'}
+                                          </button>
                                         </div>
+                                        {importOpen === p.poule_id && (
+                                          <div style={{ marginLeft: 18, marginBottom: 4, padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-primary)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)' }}>→ Importeer "{p.name}" naar Tournix</div>
+                                            <select value={importTid} onChange={e => { setImportTid(e.target.value); setImportPid('') }}
+                                              style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'inherit' }}>
+                                              <option value="">Kies toernooi…</option>
+                                              {importTourneys.map(t => <option key={t.id} value={t.id}>{t.name} ({t.season})</option>)}
+                                            </select>
+                                            {importTid && (
+                                              <select value={importPid} onChange={e => setImportPid(e.target.value)}
+                                                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'inherit' }}>
+                                                <option value="">Automatisch (eerste pool-fase)</option>
+                                                {(importTourneys.find(t => t.id === importTid)?.phases || []).map(ph => (
+                                                  <option key={ph.id} value={ph.id}>{ph.name || ph.phase_label || 'Fase'}</option>
+                                                ))}
+                                              </select>
+                                            )}
+                                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                              <button onClick={() => doImport(p.poule_id)} disabled={!importTid || importBusy}
+                                                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, border: 'none', background: !importTid || importBusy ? 'var(--color-border)' : 'var(--color-primary)', color: '#fff', cursor: importTid && !importBusy ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+                                                {importBusy ? '…bezig' : 'Importeer'}
+                                              </button>
+                                              <button onClick={() => setImportOpen(null)}
+                                                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                                Annuleer
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
                                         {pOpen && (
                                           <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
                                             {pTeams.map(t => (

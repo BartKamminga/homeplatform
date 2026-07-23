@@ -72,3 +72,7 @@ export const autoMatchTournament = (tid) => api.post(`/api/tournix/tournaments/$
 export const getDiscoveryComps = ()     => api.get('/api/tournix/discovery/competitions')
 export const getVangerQueue    = (status) =>
   api.get(`/api/tournix/discovery/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
+
+// Discovery → Tournix import
+export const getTournamentsForImport = () => api.get('/api/tournix/discovery/tournaments-for-import')
+export const importPoule = (data)          => api.post('/api/tournix/discovery/import-poule', data)

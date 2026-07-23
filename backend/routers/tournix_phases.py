@@ -197,6 +197,15 @@ def list_phases(tid: str, session: Session = Depends(get_session), _: User = Dep
     all_teams = session.exec(select(TournixTeam).where(TournixTeam.pool_id.in_(pool_ids))).all() if pool_ids else []
     all_pf = session.exec(select(TournixPhaseField).where(TournixPhaseField.phase_id.in_(phase_ids))).all()
 
+    # Batch-laad finished match counts per fase
+    all_finished_pids = session.exec(
+        select(TournixMatch.phase_id)
+        .where(TournixMatch.phase_id.in_(phase_ids), TournixMatch.status == "finished")
+    ).all()
+    finished_by_phase: dict = {}
+    for pid in all_finished_pids:
+        finished_by_phase[pid] = finished_by_phase.get(pid, 0) + 1
+
     # Groepeer per fase / pool
     members_by_phase: dict = {}
     for m in all_members:
@@ -243,10 +252,16 @@ def list_phases(tid: str, session: Session = Depends(get_session), _: User = Dep
                 {"id": p.id, "name": p.name, "order": p.order, "team_count": team_count_by_pool.get(p.id, 0)}
                 for p in phase_pools
             ],
-            "capture_type":   phase.capture_type,
-            "capture_group":  phase.capture_group,
-            "capture_ids":    phase.capture_ids,
-            "capture_labels": phase.capture_labels,
+            "capture_type":    phase.capture_type,
+            "capture_group":   phase.capture_group,
+            "capture_ids":     phase.capture_ids,
+            "capture_labels":  phase.capture_labels,
+            # Seizoensplanner
+            "surface":         phase.surface,
+            "period":          phase.period,
+            "phase_label":     phase.phase_label,
+            "hockey_poule_id": phase.hockey_poule_id,
+            "matches_finished": finished_by_phase.get(phase.id, 0),
         })
     return result
 

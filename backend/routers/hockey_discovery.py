@@ -2246,3 +2246,243 @@ def list_competitions_with_coupling(
         result.append(entry)
 
     return result
+
+
+# ── Discovery → Tournix import ────────────────────────────────────────────────
+
+from fastapi import HTTPException as _HTTPException
+
+
+@router.get("/tournaments-for-import")
+def get_tournaments_for_import(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Actieve toernooien + pool-fases voor de Discovery import-selector."""
+    from models.tournix import Tournament, TournixPhase
+
+    tournaments = session.exec(
+        select(Tournament)
+        .where(Tournament.status == "active")
+        .order_by(col(Tournament.created_at).desc())
+    ).all()
+
+    result = []
+    for t in tournaments:
+        phases = session.exec(
+            select(TournixPhase)
+            .where(TournixPhase.tournament_id == t.id, TournixPhase.phase_type == "pool")
+            .order_by(TournixPhase.order)
+        ).all()
+        result.append({
+            "id":     t.id,
+            "name":   t.name,
+            "season": t.season,
+            "phases": [
+                {"id": p.id, "name": p.name, "phase_label": p.phase_label}
+                for p in phases
+            ],
+        })
+    return {"tournaments": result}
+
+
+class ImportPouleBody(BaseModel):
+    poule_id:      int
+    tournament_id: str
+    phase_id:      Optional[str] = None
+
+
+@router.post("/import-poule")
+def import_discovery_poule(
+    body: ImportPouleBody,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """
+    Importeer een gevangen hockey poule (standings + matches) naar een Tournix-fase.
+    Maakt teams en wedstrijden aan; koppelt hockey_poule_id + hockey_team_id.
+    """
+    from models.tournix import (
+        Tournament, TournixPhase, TournixPool, TournixTeam,
+        TournixMatch, TournixPhaseTeam,
+    )
+
+    hl_poule = session.exec(
+        select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
+    ).first()
+    if not hl_poule:
+        raise _HTTPException(404, "Poule niet gevonden in discovery data")
+
+    standings = session.exec(
+        select(HockeyPouleStanding)
+        .where(HockeyPouleStanding.poule_id == body.poule_id)
+        .order_by(HockeyPouleStanding.position)
+    ).all()
+    if not standings:
+        raise _HTTPException(404, "Geen standen beschikbaar — vang de poule eerst via de vanger")
+
+    hl_matches = session.exec(
+        select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)
+    ).all()
+
+    tournament = session.get(Tournament, body.tournament_id)
+    if not tournament:
+        raise _HTTPException(404, "Toernooi niet gevonden")
+
+    phase_created = False
+    if body.phase_id:
+        phase = session.get(TournixPhase, body.phase_id)
+        if not phase or phase.tournament_id != body.tournament_id:
+            raise _HTTPException(404, "Fase niet gevonden in dit toernooi")
+    else:
+        phase = session.exec(
+            select(TournixPhase)
+            .where(
+                TournixPhase.tournament_id == body.tournament_id,
+                TournixPhase.phase_type == "pool",
+            )
+            .order_by(TournixPhase.order)
+        ).first()
+        if not phase:
+            phase = TournixPhase(
+                tournament_id=body.tournament_id,
+                name=hl_poule.name,
+                order=0,
+                phase_type="pool",
+            )
+            session.add(phase)
+            session.flush()
+            phase_created = True
+
+    phase.hockey_poule_id = hl_poule.id
+    session.add(phase)
+
+    existing_pool = session.exec(
+        select(TournixPool).where(TournixPool.phase_id == phase.id)
+    ).first()
+    if not existing_pool:
+        pool = TournixPool(
+            tournament_id=body.tournament_id,
+            name=hl_poule.name,
+            order=0,
+            phase_id=phase.id,
+        )
+        session.add(pool)
+        session.flush()
+    else:
+        pool = existing_pool
+
+    # hockey_team_id lookup: HockeyPouleStanding.team_id → HockeyTeam.id (intern PK)
+    hl_team_ext_ids = {s.team_id for s in standings}
+    hl_teams_db = session.exec(
+        select(HockeyTeam).where(HockeyTeam.team_id.in_(list(hl_team_ext_ids)))
+    ).all()
+    hl_team_internal = {ht.team_id: ht.id for ht in hl_teams_db}
+
+    existing_by_name = {
+        t.name: t for t in session.exec(
+            select(TournixTeam).where(TournixTeam.tournament_id == body.tournament_id)
+        ).all()
+    }
+
+    team_map: Dict[str, Any] = {}
+    teams_created = 0
+
+    for s in sorted(standings, key=lambda x: (x.position or 99)):
+        t = existing_by_name.get(s.team_name)
+        internal_id = hl_team_internal.get(s.team_id)
+        if not t:
+            t = TournixTeam(
+                tournament_id=body.tournament_id,
+                name=s.team_name,
+                pool_id=pool.id,
+                hockey_team_id=internal_id,
+            )
+            session.add(t)
+            session.flush()
+            existing_by_name[s.team_name] = t
+            teams_created += 1
+        else:
+            changed = False
+            if t.pool_id != pool.id:
+                t.pool_id = pool.id; changed = True
+            if internal_id and t.hockey_team_id != internal_id:
+                t.hockey_team_id = internal_id; changed = True
+            if changed:
+                session.add(t)
+        team_map[s.team_name] = t
+
+    # Voeg extra teams toe die alleen in matches voorkomen
+    for m in hl_matches:
+        for name in [m.home_team_name, m.away_team_name]:
+            if name and name not in team_map:
+                t = existing_by_name.get(name)
+                if not t:
+                    t = TournixTeam(
+                        tournament_id=body.tournament_id,
+                        name=name,
+                        pool_id=pool.id,
+                    )
+                    session.add(t)
+                    session.flush()
+                    existing_by_name[name] = t
+                    teams_created += 1
+                team_map[name] = t
+
+    existing_pt = {pt.team_id for pt in session.exec(
+        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == phase.id)
+    ).all()}
+    for t in team_map.values():
+        if t.id not in existing_pt:
+            session.add(TournixPhaseTeam(phase_id=phase.id, team_id=t.id))
+
+    existing_matches = session.exec(
+        select(TournixMatch).where(TournixMatch.phase_id == phase.id)
+    ).all()
+    match_keys = {(m.team_a_id, m.team_b_id, m.round): m for m in existing_matches}
+
+    matches_created = 0
+    for m in hl_matches:
+        ta = team_map.get(m.home_team_name)
+        tb = team_map.get(m.away_team_name)
+        if not ta or not tb:
+            continue
+        key = (ta.id, tb.id, m.round)
+        if key in match_keys:
+            ex = match_keys[key]
+            if m.status == "final" and ex.status != "finished":
+                ex.status  = "finished"
+                ex.score_a = m.home_score
+                ex.score_b = m.away_score
+                session.add(ex)
+            continue
+        status = "finished" if m.status == "final" else "scheduled"
+        sched = None
+        if m.match_date:
+            try:
+                sched = datetime.fromisoformat(m.match_date)
+            except Exception:
+                pass
+        session.add(TournixMatch(
+            tournament_id=body.tournament_id,
+            phase_id=phase.id,
+            team_a_id=ta.id,
+            team_b_id=tb.id,
+            score_a=m.home_score if status == "finished" else None,
+            score_b=m.away_score if status == "finished" else None,
+            status=status,
+            match_type="pool",
+            round=m.round,
+            scheduled_at=sched,
+        ))
+        matches_created += 1
+
+    session.commit()
+    return {
+        "phase_id":       phase.id,
+        "phase_created":  phase_created,
+        "pool_id":        pool.id,
+        "teams_imported": len(team_map),
+        "teams_created":  teams_created,
+        "matches_created": matches_created,
+    }

@@ -11,6 +11,14 @@ const SEIZOEN_TABS = [
   { id: 'archief',     label: 'Archief'     },
 ]
 
+// ── Phase type color helper ───────────────────────────────────────────────
+
+function phaseTypeColor(p) {
+  if (p.period === 'nk')    return { color: '#b45309', bg: '#fef3c7' }
+  if (p.surface === 'zaal') return { color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' }
+  return { color: '#2e7d32', bg: '#dcfce7' }
+}
+
 // ── Tournament card ───────────────────────────────────────────────────────
 
 function TournamentCard({ tournament, onOpen }) {
@@ -20,22 +28,42 @@ function TournamentCard({ tournament, onOpen }) {
     getPhases(tournament.id).then(setPhases).catch(() => {})
   }, [tournament.id])
 
-  const phaseLabels = phases
-    .filter(p => p.phase_label)
-    .map(p => p.phase_label)
-    .join(' · ')
-
-  const metaParts = [tournament.season, phaseLabels].filter(Boolean)
+  const labelPhases   = phases.filter(p => p.phase_label)
+  const totalMatches  = labelPhases.reduce((s, p) => s + (p.match_count ?? 0), 0)
+  const doneMatches   = labelPhases.reduce((s, p) => s + (p.matches_finished ?? 0), 0)
+  const overallPct    = totalMatches > 0 ? Math.round(doneMatches / totalMatches * 100) : null
 
   return (
     <div className="t-card" onClick={() => onOpen(tournament)}>
       <div className="t-card-body">
         <div className="t-card-name">{tournament.name}</div>
-        {metaParts.length > 0 && (
-          <div className="t-card-meta">{metaParts.join(' — ')}</div>
+        {tournament.season && (
+          <div className="t-card-meta">{tournament.season}</div>
+        )}
+        {labelPhases.length > 0 && (
+          <div className="t-card-phases">
+            {labelPhases.map(p => {
+              const { color, bg } = phaseTypeColor(p)
+              return (
+                <span key={p.id} className="t-phase-pill" style={{ color, background: bg }}>
+                  {p.phase_label}
+                </span>
+              )
+            })}
+          </div>
+        )}
+        {overallPct !== null && (
+          <div className="t-card-meta" style={{ marginTop: 4 }}>
+            {doneMatches} / {totalMatches} gespeeld
+          </div>
         )}
       </div>
       <VangerButton tournamentId={tournament.id} />
+      {overallPct !== null && (
+        <div className="t-card-progress">
+          <div className="t-card-progress-bar" style={{ width: overallPct + '%' }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -127,21 +155,25 @@ function VangerTab({ items, onRefresh }) {
 
 // ── Discovery tab ─────────────────────────────────────────────────────────
 
-function DiscoveryTab({ competitions }) {
-  if (competitions.length === 0) {
-    return (
-      <div className="empty-state">
-        <div className="empty-state-icon">🔍</div>
-        Geen competities gevonden — start de vanger
-      </div>
-    )
-  }
-
+function DiscoveryTab({ competitions, clubs = [], teams = [] }) {
   const unlinked = competitions.filter(c => !c.linked)
   const linked   = competitions.filter(c => c.linked)
 
+  const teamsByClub = {}
+  for (const t of teams) {
+    if (!teamsByClub[t.club_external_id]) teamsByClub[t.club_external_id] = []
+    teamsByClub[t.club_external_id].push(t)
+  }
+
   return (
     <div>
+      {competitions.length === 0 && clubs.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔍</div>
+          Geen data — start de vanger op hockey.nl
+        </div>
+      )}
+
       {linked.length > 0 && (
         <>
           <div className="section-header">
@@ -157,12 +189,40 @@ function DiscoveryTab({ competitions }) {
       {unlinked.length > 0 && (
         <>
           <div className="section-header">
-            <span className="section-title">Buitenspel ({unlinked.length})</span>
+            <span className="section-title">Competities ({unlinked.length})</span>
           </div>
           <div className="comp-list">
             {unlinked.map(c => (
               <CompItem key={c.id} comp={c} />
             ))}
+          </div>
+        </>
+      )}
+
+      {clubs.length > 0 && (
+        <>
+          <div className="section-header" style={{ marginTop: 16 }}>
+            <span className="section-title">Clubs ({clubs.length})</span>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{teams.length} teams</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[...clubs].sort((a, b) => {
+              const al = (teamsByClub[a.external_id] || []).length
+              const bl = (teamsByClub[b.external_id] || []).length
+              return bl - al || (a.friendly_name || a.name).localeCompare(b.friendly_name || b.name, 'nl')
+            }).map(c => {
+              const ct = teamsByClub[c.external_id] || []
+              const veld = ct.filter(t => t.hockey_type !== 'ZA' && (!t.short_name || t.short_name[0] !== 'z')).length
+              const zaal = ct.filter(t => t.hockey_type === 'ZA' || (t.short_name && t.short_name[0] === 'z')).length
+              return (
+                <div key={c.external_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 9, fontSize: 13 }}>
+                  <span style={{ flex: 1, fontWeight: 500 }}>{c.friendly_name || c.name}</span>
+                  {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
+                  {veld > 0 && <span style={{ fontSize: 11, color: '#2e7d32' }}>🏑 {veld}</span>}
+                  {zaal > 0 && <span style={{ fontSize: 11, color: '#7c3aed' }}>🏒 {zaal}</span>}
+                </div>
+              )
+            })}
           </div>
         </>
       )}
@@ -218,6 +278,8 @@ export function SeizoenScreen({ clubId, onClubChange, onOpenTournament }) {
   const [tournaments,  setTournaments]  = useState([])
   const [vangerItems,  setVangerItems]  = useState([])
   const [competitions, setCompetitions] = useState([])
+  const [discClubs,    setDiscClubs]    = useState([])
+  const [discTeams,    setDiscTeams]    = useState([])
 
   useEffect(() => {
     getTournaments().then(setTournaments).catch(() => {})
@@ -231,8 +293,14 @@ export function SeizoenScreen({ clubId, onClubChange, onOpenTournament }) {
   }
 
   function loadDiscovery() {
-    api.get('/api/tournix/discovery/competitions').then(data => {
-      setCompetitions(Array.isArray(data) ? data : [])
+    Promise.all([
+      api.get('/api/tournix/discovery/competitions'),
+      api.get('/api/tournix/discovery/clubs'),
+      api.get('/api/tournix/discovery/teams'),
+    ]).then(([compsData, clubsData, teamsData]) => {
+      setCompetitions(Array.isArray(compsData) ? compsData : [])
+      setDiscClubs(clubsData.clubs || [])
+      setDiscTeams(teamsData.teams || [])
     }).catch(() => {})
   }
 
@@ -273,7 +341,7 @@ export function SeizoenScreen({ clubId, onClubChange, onOpenTournament }) {
           <VangerTab items={vangerItems} onRefresh={loadVanger} />
         )}
         {tab === 'discovery' && (
-          <DiscoveryTab competitions={competitions} />
+          <DiscoveryTab competitions={competitions} clubs={discClubs} teams={discTeams} />
         )}
         {tab === 'archief' && (
           <ArchiefTab tournaments={finished} onOpen={onOpenTournament} />
