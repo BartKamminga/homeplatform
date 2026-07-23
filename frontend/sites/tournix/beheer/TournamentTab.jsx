@@ -2,10 +2,17 @@ import { useState, useEffect } from 'react'
 import { updateTournament, updateTournamentStage, copyTournament } from '../api.js'
 import { inputStyle, noTid } from './styles.js'
 
-export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
-  const [nameInput, setNameInput] = useState(active?.name ?? '')
+export default function TournamentTab({ active, onRefresh, onSelect }) {
+  const [nameInput,   setNameInput]   = useState(active?.name ?? '')
   const [seasonInput, setSeasonInput] = useState(active?.season ?? '')
-  useEffect(() => { setNameInput(active?.name ?? ''); setSeasonInput(active?.season ?? '') }, [active?.id])
+  const [localStage,  setLocalStage]  = useState(active?.stage ?? null)
+  const [localStatus, setLocalStatus] = useState(active?.status ?? null)
+  useEffect(() => {
+    setNameInput(active?.name ?? '')
+    setSeasonInput(active?.season ?? '')
+    setLocalStage(active?.stage ?? null)
+    setLocalStatus(active?.status ?? null)
+  }, [active?.id])
 
   async function handleRename(e) {
     e.preventDefault()
@@ -23,13 +30,8 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
 
   async function handleStageChange(s) {
     if (!active) return
+    setLocalStage(s)
     await updateTournamentStage(active.id, s)
-    await onRefresh()
-  }
-
-  async function handleLocationClub(clubId) {
-    if (!active) return
-    await updateTournament(active.id, { location_club_id: clubId || null })
     await onRefresh()
   }
 
@@ -91,20 +93,6 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
         </form>
       </div>
 
-      {/* Locatie */}
-      {clubs.length > 0 && (
-        <div style={{ padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>LOCATIE</div>
-          <select value={active.location_club_id ?? ''} onChange={e => handleLocationClub(e.target.value)}
-            style={{ ...inputStyle, width: '100%' }}>
-            <option value="">— geen club —</option>
-            {clubs.map(c => (
-              <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {/* Fase */}
       <div style={{ padding: '12px 16px', background: 'var(--color-surface-2)', borderRadius: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>FASE</div>
@@ -112,19 +100,19 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
           {[['inregel','Inregel'],['test','Test'],['productie','Productie']].map(([s, label]) => (
             <button key={s} onClick={() => handleStageChange(s)} style={{
               padding: '6px 14px', fontSize: 13, borderRadius: 6, fontFamily: 'inherit',
-              border: active.stage === s ? 'none' : '1px solid var(--color-border)',
-              background: active.stage === s
+              border: localStage === s ? 'none' : '1px solid var(--color-border)',
+              background: localStage === s
                 ? (s === 'inregel' ? 'var(--color-primary)' : s === 'test' ? 'var(--color-warning)' : 'var(--color-success)')
                 : 'transparent',
-              color: active.stage === s ? '#fff' : 'var(--color-text-muted)',
-              cursor: 'pointer', fontWeight: active.stage === s ? 600 : 400,
+              color: localStage === s ? '#fff' : 'var(--color-text-muted)',
+              cursor: 'pointer', fontWeight: localStage === s ? 600 : 400,
             }}>{label}</button>
           ))}
         </div>
         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8 }}>
-          {active.stage === 'inregel'   && 'Vrij bewerken — teams, velden en wedstrijden aanmaken.'}
-          {active.stage === 'test'      && 'Bevroren data — scores simuleren zonder opslaan.'}
-          {active.stage === 'productie' && 'Live — scores worden opgeslagen, voorspellingen tellen mee.'}
+          {localStage === 'inregel'   && 'Vrij bewerken — teams, velden en wedstrijden aanmaken.'}
+          {localStage === 'test'      && 'Bevroren data — scores simuleren zonder opslaan.'}
+          {localStage === 'productie' && 'Live — scores worden opgeslagen, voorspellingen tellen mee.'}
         </div>
       </div>
 
@@ -133,18 +121,21 @@ export default function TournamentTab({ active, clubs, onRefresh, onSelect }) {
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8 }}>STATUS</div>
         <div style={{ display: 'flex', gap: 8 }}>
           {[['active','Actief'],['finished','Afgelopen']].map(([val, label]) => (
-            <button key={val} onClick={() => updateTournament(active.id, { status: val }).then(onRefresh)}
+            <button key={val} onClick={() => {
+              setLocalStatus(val)
+              updateTournament(active.id, { status: val }).then(onRefresh)
+            }}
               style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, fontFamily: 'inherit',
-                border: active.status === val ? 'none' : '1px solid var(--color-border)',
-                background: active.status === val
+                border: localStatus === val ? 'none' : '1px solid var(--color-border)',
+                background: localStatus === val
                   ? (val === 'finished' ? 'var(--color-text-muted)' : 'var(--color-success)')
                   : 'transparent',
-                color: active.status === val ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer' }}>
+                color: localStatus === val ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer' }}>
               {label}
             </button>
           ))}
         </div>
-        {active.status === 'finished' && (
+        {localStatus === 'finished' && (
           <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>
             Afgelopen toernooien zijn niet zichtbaar op de overzichtspagina.
           </div>

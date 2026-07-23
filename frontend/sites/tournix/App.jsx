@@ -8,7 +8,6 @@ import { VangerButton }   from './components/VangerButton.jsx'
 export default function App() {
   const [screen,     setScreen]     = useState('seizoen') // 'seizoen' | 'tournooi'
   const [tournament, setTournament] = useState(null)
-  const [clubId,     setClubId]     = useState(null)
   const [isAdmin,    setIsAdmin]    = useState(false)
 
   useEffect(() => {
@@ -66,8 +65,6 @@ export default function App() {
         />
       ) : (
         <SeizoenScreen
-          clubId={clubId}
-          onClubChange={setClubId}
           onOpenTournament={openTournament}
           isAdmin={isAdmin}
         />

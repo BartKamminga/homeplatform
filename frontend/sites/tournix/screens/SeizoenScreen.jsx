@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
-import { getTournaments, getPhases } from '../api.js'
+import { getTournaments, getPhases, getClubs } from '../api.js'
 import { VangerButton } from '../components/VangerButton.jsx'
-import { ClubFilterBar } from '../components/ClubFilterBar.jsx'
 import BeheerDiscoveryTab from '../beheer/DiscoveryTab.jsx'
+import ClubsTab           from '../beheer/ClubsTab.jsx'
+import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },
+  { id: 'archief',     label: 'Archief'     },
+  { id: 'clubs',       label: 'Clubs'       },
   { id: 'vanger',      label: 'Vanger'      },
   { id: 'discovery',   label: 'Discovery'   },
-  { id: 'archief',     label: 'Archief'     },
 ]
 
 // ── Phase type color helper ───────────────────────────────────────────────
@@ -110,18 +112,21 @@ function ArchiefTab({ tournaments, onOpen }) {
 
 // ── SeizoenScreen ─────────────────────────────────────────────────────────
 
-export function SeizoenScreen({ clubId, onClubChange, onOpenTournament }) {
-  const [tab,          setTab]          = useState('publicaties')
-  const [tournaments,  setTournaments]  = useState([])
+export function SeizoenScreen({ onOpenTournament }) {
+  const [tab,         setTab]         = useState('publicaties')
+  const [tournaments, setTournaments] = useState([])
+  const [clubs,       setClubs]       = useState([])
+  const [search,      setSearch]      = useState('')
 
   useEffect(() => {
     getTournaments().then(setTournaments).catch(() => {})
+    getClubs().then(setClubs).catch(() => {})
   }, [])
 
-  // Client-side club filter (by location_club_id)
-  const filtered = clubId
-    ? tournaments.filter(t => t.location_club_id === clubId)
-    : tournaments
+  function loadClubs() { getClubs().then(setClubs).catch(() => {}) }
+
+  const q       = search.trim().toLowerCase()
+  const filtered = q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments
 
   const active   = filtered.filter(t => t.status === 'active')
   const finished = filtered.filter(t => t.status === 'finished')
@@ -140,20 +145,41 @@ export function SeizoenScreen({ clubId, onClubChange, onOpenTournament }) {
         ))}
       </div>
 
-      <ClubFilterBar clubId={clubId} onChange={onClubChange} />
-
       <div className="seizoen-content">
         {tab === 'publicaties' && (
-          <PublicatiesTab tournaments={active} onOpen={onOpenTournament} />
+          <>
+            <input
+              type="search"
+              placeholder="Zoek toernooi…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: '100%', marginBottom: 12, padding: '8px 12px',
+                border: '1px solid var(--color-border)', borderRadius: 9,
+                background: 'var(--color-surface)', color: 'var(--color-text)',
+                fontSize: 13, fontFamily: 'inherit', outline: 'none',
+              }}
+            />
+            <PublicatiesTab tournaments={active} onOpen={onOpenTournament} />
+          </>
+        )}
+        {tab === 'archief' && (
+          <>
+            <ArchiefTab tournaments={finished} onOpen={onOpenTournament} />
+            <div className="section-header" style={{ marginTop: 16 }}>
+              <span className="section-title">Capture-sessies</span>
+            </div>
+            <CaptureArchiefTab />
+          </>
+        )}
+        {tab === 'clubs' && (
+          <ClubsTab clubs={clubs} onRefresh={loadClubs} />
         )}
         {tab === 'vanger' && (
           <BeheerDiscoveryTab view="vanger" />
         )}
         {tab === 'discovery' && (
           <BeheerDiscoveryTab view="resultaten" />
-        )}
-        {tab === 'archief' && (
-          <ArchiefTab tournaments={finished} onOpen={onOpenTournament} />
         )}
       </div>
     </div>

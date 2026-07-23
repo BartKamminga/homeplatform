@@ -641,8 +641,6 @@ function PhaseCard({
         </>
       )}
 
-      <CaptureConfig phase={phase} flash={flash} onRefresh={onRefresh} />
-
       <ScheduleSettings phase={phase} isReadonly={isReadonly} flash={flash} />
 
       {(hasPools || phaseTeamObjects.length > 0) && phase.match_count === 0 && !isReadonly && (
