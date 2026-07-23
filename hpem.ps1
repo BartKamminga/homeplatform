@@ -4,6 +4,8 @@
 # GEBRUIK:
 #   .\hpem.ps1                                       # interactief
 #   .\hpem.ps1 "commit message"                      # alles deployen
+#   .\hpem.ps1 be                                    # alleen backend (shorthand)
+#   .\hpem.ps1 fe                                    # alleen frontend (shorthand)
 #   .\hpem.ps1 "message" -Build fe                   # alleen frontend
 #   .\hpem.ps1 "message" -Build be                   # alleen backend
 #   .\hpem.ps1 "message" -Build be_db                # backend + migraties
@@ -43,7 +45,6 @@
 
 param(
     [string]$Message     = "",
-    [ValidateSet("all", "fe", "be", "be_db")]
     [string]$Build       = "",
     [ValidateSet("nas", "local")]
     [string]$Deploy      = "",
@@ -62,6 +63,19 @@ param(
 
 # Zichzelf unblocking zodat updates direct werken
 Unblock-File $MyInvocation.MyCommand.Path 2>$null
+
+# Shorthand: .\hpem.ps1 be  (i.p.v. .\hpem.ps1 -Build be)
+$validBuilds = @("all", "fe", "be", "be_db")
+# Shorthand: .\hpem.ps1 be  of  .\hpem.ps1 all "message"
+if ($Message -in $validBuilds -and $Build -notin $validBuilds) {
+    $tmp     = $Build
+    $Build   = $Message
+    $Message = $tmp
+}
+if ($Build -ne "" -and $Build -notin $validBuilds) {
+    Write-Error "Ongeldig build-type: '$Build'. Kies uit: all, fe, be, be_db"
+    exit 1
+}
 
 
 # ---------------------------------------------------------------------------

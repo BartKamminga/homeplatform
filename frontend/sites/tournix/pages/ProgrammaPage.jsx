@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMatches, getTeams, getFields, getPools, setResult, getPhases } from '../api.js'
+import { getMatches, getTeams, getPools, setResult, getPhases } from '../api.js'
 import { resolveTeam } from '../helpers.js'
 
 const STATUS_LABEL = { scheduled: 'Gepland', playing: 'Bezig', finished: 'Klaar' }
@@ -8,7 +8,6 @@ const STATUS_COLOR = { scheduled: 'var(--color-text-muted)', playing: '#f59e0b',
 export default function ProgrammaPage({ stage, tournament }) {
   const [matches,  setMatches]  = useState([])
   const [teams,    setTeams]    = useState({})
-  const [fields,   setFields]   = useState({})
   const [pools,    setPools]    = useState([])
   const [phases,   setPhases]   = useState([])
   const [viewMode, setViewMode] = useState('ronde')  // 'ronde' | 'poule'
@@ -32,14 +31,13 @@ export default function ProgrammaPage({ stage, tournament }) {
   const isTest = stage === 'test'
 
   useEffect(() => {
-    setMatches([]); setTeams({}); setFields({}); setPools([]); setPhases([])
+    setMatches([]); setTeams({}); setPools([]); setPhases([])
     if (!tournament?.id) return
     setLoading(true)
-    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getFields(tournament.id), getPools(tournament.id), getPhases(tournament.id)])
-      .then(([m, t, f, p, ph]) => {
+    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getPools(tournament.id), getPhases(tournament.id)])
+      .then(([m, t, p, ph]) => {
         setMatches(m)
         setTeams(Object.fromEntries(t.map(x => [x.id, x])))
-        setFields(Object.fromEntries(f.map(x => [x.id, x])))
         setPools(p)
         setPhases(ph)
       })
@@ -218,9 +216,6 @@ export default function ProgrammaPage({ stage, tournament }) {
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
                     {m.scheduled_at && (
                       <span>{new Date(m.scheduled_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>
-                    )}
-                    {m.field_id && fields[m.field_id] && (
-                      <span>{fields[m.field_id].name}</span>
                     )}
                     <span style={{ color: STATUS_COLOR[m.status] }}>{STATUS_LABEL[m.status]}</span>
                     {isTest && hasSimScore && (

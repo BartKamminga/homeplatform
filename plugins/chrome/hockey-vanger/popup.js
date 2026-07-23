@@ -171,7 +171,8 @@ function startVanger() {
       running: true, currentCmd: null, doneCount: 0, failCount: 0,
       countdownMs: 0, tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null,
       idleStartMs: 0, startMs: Date.now(), sessionTimer: null, flowStep: '',
-      tabOk: true, tabUrlListener: null
+      tabOk: true, tabUrlListener: null,
+      sessionId: crypto.randomUUID()
     };
     _vanger.tabUrlListener = function(tabId, info) {
       if (tabId !== _vanger.tabId) return;
@@ -461,7 +462,7 @@ function reportResult(cmdId, raw, error) {
   fetch(HP.url + '/api/tournix/discovery/vanger/cmd-queue/' + cmdId + '/result', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw: raw || null, error: error || null })
+    body: JSON.stringify({ raw: raw || null, error: error || null, session_id: _vanger.sessionId || null })
   })
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(res) {

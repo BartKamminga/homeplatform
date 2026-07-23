@@ -1366,8 +1366,9 @@ def _parse_raw_club(raw: dict, params: dict) -> Optional["ClubDetailIn"]:
 
 
 class CmdResultIn(BaseModel):
-    raw:   Optional[Any] = None
-    error: Optional[str] = None
+    raw:        Optional[Any] = None
+    error:      Optional[str] = None
+    session_id: Optional[str] = None
 
 
 class CmdFillIn(BaseModel):
@@ -1638,8 +1639,7 @@ def post_cmd_result(
     if duration_ms is not None:
         summary_data["duration_ms"] = duration_ms
 
-    # Archief: raw data opslaan (vanger 3.0 gebruikt geen session_id meer)
-    session_key = "vanger_cmd_" + str(cmd_id)
+    session_key = body.session_id if body.session_id else "vanger_cmd_" + str(cmd_id)
     if cmd.cmd_type == "get_poule":
         archive_ext  = "poule_capture_" + str(params.get("poule_id", cmd_id))
         archive_type = "poule_capture"

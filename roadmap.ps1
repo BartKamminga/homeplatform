@@ -8,6 +8,7 @@
 #   .\roadmap.ps1 -Close -Id 8 -Version 0.4          # afsluiten + changelog
 #   .\roadmap.ps1 -CloseMany -Ids "8,11,12" -Version 0.4           # meerdere tegelijk
 #   .\roadmap.ps1 -Update -Id 8 -Status in_progress  # status wijzigen
+#   .\roadmap.ps1 -Get -Id 8                         # volledig item tonen (incl. description + notes)
 #   .\roadmap.ps1 -Changelog                         # toon recente changelog
 
 param(
@@ -16,6 +17,7 @@ param(
     [switch]$Close,
     [switch]$CloseMany,
     [switch]$Update,
+    [switch]$Get,
     [switch]$Changelog,
 
     [string]$Status      = "",
@@ -98,6 +100,15 @@ if ($CloseMany) {
     if (-not $Version) { Write-Host "Geef -Version op"; exit 1 }
     $idList = ($Ids -split "," | ForEach-Object { $_.Trim() }) -join ","
     NasRun @("closemany", "--ids", $idList, "--version", $Version)
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Get (volledig item)
+# ---------------------------------------------------------------------------
+if ($Get) {
+    if ($Id -eq 0) { Write-Host "Geef -Id op"; exit 1 }
+    NasRun @("get", "--id", $Id)
     exit 0
 }
 

@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { getMatches, getTeams, getFields, getPhases, setResult } from '../api.js'
+import { getMatches, getTeams, getPhases, setResult } from '../api.js'
 
 export default function UitslagenPage({ tournament }) {
   const [matches,  setMatches]  = useState([])
   const [teams,    setTeams]    = useState({})
-  const [fields,   setFields]   = useState({})
   const [phases,   setPhases]   = useState([])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
@@ -17,14 +16,13 @@ export default function UitslagenPage({ tournament }) {
   const [saveError,      setSaveError]      = useState('')
 
   useEffect(() => {
-    setMatches([]); setTeams({}); setFields({}); setPhases([])
+    setMatches([]); setTeams({}); setPhases([])
     if (!tournament?.id) return
     setLoading(true)
-    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getFields(tournament.id), getPhases(tournament.id)])
-      .then(([m, t, f, ph]) => {
+    Promise.all([getMatches(tournament.id), getTeams(tournament.id), getPhases(tournament.id)])
+      .then(([m, t, ph]) => {
         setMatches(m)
         setTeams(Object.fromEntries(t.map(x => [x.id, x])))
-        setFields(Object.fromEntries(f.map(x => [x.id, x])))
         setPhases(ph)
       })
       .catch(e => setError(e.message))
@@ -110,10 +108,9 @@ export default function UitslagenPage({ tournament }) {
             {teams[m.team_b_id]?.name ?? '—'}
           </div>
         </div>
-        {(m.scheduled_at || (m.field_id && fields[m.field_id])) && (
+        {m.scheduled_at && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-            {m.scheduled_at && <span>{new Date(m.scheduled_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>}
-            {m.field_id && fields[m.field_id] && <span>{fields[m.field_id].name}</span>}
+            <span>{new Date(m.scheduled_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         )}
         {isEditing ? (

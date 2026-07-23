@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react'
-import { getMatches, getFields, assignTeamPool, autoAssignPools, updateTournamentPools } from '../api.js'
+import { getMatches, assignTeamPool, autoAssignPools, updateTournamentPools } from '../api.js'
 import { noTid } from './styles.js'
 
 export default function PoolsTab({ tid, active, pools, teams, stage, loadPools, loadTeams, onRefresh }) {
   const [matches,   setMatches]   = useState([])
-  const [fieldMap,  setFieldMap]  = useState({})
   const [assigning, setAssigning] = useState(false)
   const locked = stage !== 'inregel'
 
   useEffect(() => {
     if (!tid) return
     getMatches(tid).then(setMatches).catch(() => {})
-    getFields(tid).then(f => setFieldMap(Object.fromEntries(f.map(x => [x.id, x])))).catch(() => {})
   }, [tid])
 
   async function handlePoolSettings(num, type) {
@@ -147,9 +145,6 @@ export default function PoolsTab({ tid, active, pools, teams, stage, loadPools, 
                         {done ? `${m.score_a}–${m.score_b}` : 'vs'}
                       </span>
                       <span style={{ flex: 1, fontWeight: 500 }}>{tb?.name ?? '—'}</span>
-                      {m.field_id && fieldMap[m.field_id] && (
-                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{fieldMap[m.field_id].name}</span>
-                      )}
                       {m.round != null && (
                         <span style={{ fontSize: 10, color: 'var(--color-text-muted)', marginLeft: 4 }}>R{m.round}</span>
                       )}

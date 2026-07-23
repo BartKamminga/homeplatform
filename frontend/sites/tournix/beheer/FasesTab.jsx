@@ -3,7 +3,7 @@ import {
   getPhases, createPhase, updatePhase, deletePhase,
   createPoolInPhase, deletePoolInPhase, autoPoolsInPhase,
   preAllocatePhaseTeams, resolvePhaseplaceholders,
-  assignTeamPool, getTeams, getFields, setPhaseFields,
+  assignTeamPool, getTeams,
 } from '../api.js'
 import {
   inputStyle, primaryBtn, ghostBtn, noTid,
@@ -17,7 +17,6 @@ import {
 export default function FasesTab({ tid, stage }) {
   const [phases,   setPhases]   = useState([])
   const [teams,    setTeams]    = useState([])
-  const [fields,   setFields]   = useState([])
   const [loading,  setLoading]  = useState(false)
   const [msg,      setMsg]      = useState('')
   const [error,    setError]    = useState('')
@@ -31,8 +30,8 @@ export default function FasesTab({ tid, stage }) {
   async function load() {
     setLoading(true)
     try {
-      const [p, t, f] = await Promise.all([getPhases(tid), getTeams(tid), getFields(tid)])
-      setPhases(p); setTeams(t); setFields(f)
+      const [p, t] = await Promise.all([getPhases(tid), getTeams(tid)])
+      setPhases(p); setTeams(t)
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -84,7 +83,6 @@ export default function FasesTab({ tid, stage }) {
           key={phase.id}
           phase={phase}
           teams={teams}
-          fields={fields}
           isReadonly={isReadonly}
           editId={editId}
           editName={editName}
@@ -198,30 +196,18 @@ function DoorGangSection({ phase, phasePlaceholders, phaseRealTeams, hasPlacehol
 
 // ── ScheduleSettings ──────────────────────────────────────────────────────────
 
-function ScheduleSettings({ phase, fields, isReadonly, flash }) {
-  const [duration,     setDuration]     = useState(phase.match_duration_min ?? 20)
-  const [breakMin,     setBreakMin]     = useState(phase.break_min ?? 5)
-  const [selectedFids, setSelectedFids] = useState(new Set(phase.field_ids ?? []))
+function ScheduleSettings({ phase, isReadonly, flash }) {
+  const [duration, setDuration] = useState(phase.match_duration_min ?? 20)
+  const [breakMin, setBreakMin] = useState(phase.break_min ?? 5)
 
   useEffect(() => {
     setDuration(phase.match_duration_min ?? 20)
     setBreakMin(phase.break_min ?? 5)
-    setSelectedFids(new Set(phase.field_ids ?? []))
-  }, [phase.id, phase.match_duration_min, phase.break_min, phase.field_ids?.join(',')])
-
-  function toggleField(fid) {
-    setSelectedFids(prev => {
-      const next = new Set(prev)
-      if (next.has(fid)) next.delete(fid)
-      else next.add(fid)
-      return next
-    })
-  }
+  }, [phase.id, phase.match_duration_min, phase.break_min])
 
   async function handleSave() {
     try {
       await updatePhase(phase.id, { match_duration_min: duration, break_min: breakMin })
-      await setPhaseFields(phase.id, Array.from(selectedFids))
       flash('Inplanning instellingen opgeslagen')
     } catch (e) { flash(e.message, true) }
   }
@@ -242,28 +228,6 @@ function ScheduleSettings({ phase, fields, isReadonly, flash }) {
             style={{ ...inputStyle, width: 44, fontSize: 12, padding: '4px 6px' }} />
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>min</span>
         </div>
-
-        {fields.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Velden:</span>
-            {fields.map(f => {
-              const checked = selectedFids.has(f.id)
-              return (
-                <button key={f.id} type="button" disabled={isReadonly} onClick={() => toggleField(f.id)}
-                  style={{
-                    padding: '3px 10px', fontSize: 11, borderRadius: 99, cursor: isReadonly ? 'default' : 'pointer',
-                    fontFamily: 'inherit', border: 'none',
-                    background: checked ? 'var(--color-primary)' : 'var(--color-surface)',
-                    color: checked ? '#fff' : 'var(--color-text-muted)',
-                    outline: checked ? 'none' : '1px solid var(--color-border)',
-                    opacity: isReadonly ? 0.6 : 1,
-                  }}
-                  title={selectedFids.size === 0 && !checked ? 'Alle velden (geen selectie = alles)' : undefined}
-                >{f.name}</button>
-              )
-            })}
-          </div>
-        )}
       </div>
       {!isReadonly && (
         <div style={{ marginTop: 10 }}>
@@ -389,7 +353,7 @@ function CaptureConfig({ phase, flash, onRefresh }) {
 // ── PhaseCard ─────────────────────────────────────────────────────────────────
 
 function PhaseCard({
-  phase, teams, fields, isReadonly,
+  phase, teams, isReadonly,
   editId, editName, setEditId, setEditName,
   onRename, onDelete, flash, onRefresh,
 }) {
@@ -637,7 +601,7 @@ function PhaseCard({
 
       <CaptureConfig phase={phase} flash={flash} onRefresh={onRefresh} />
 
-      <ScheduleSettings phase={phase} fields={fields} isReadonly={isReadonly} flash={flash} />
+      <ScheduleSettings phase={phase} isReadonly={isReadonly} flash={flash} />
 
       {(hasPools || phaseTeamObjects.length > 0) && phase.match_count === 0 && !isReadonly && (
         <div style={{ fontSize: 11, color: 'var(--color-warning)', marginTop: 8 }}>

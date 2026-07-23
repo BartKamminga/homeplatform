@@ -12,10 +12,6 @@ export const createTeam             = (tid, data) => api.post(`/api/tournix/tour
 export const updateTeam             = (id, data)  => api.patch(`/api/tournix/teams/${id}`, data)
 export const deleteTeam             = (id)        => api.delete(`/api/tournix/teams/${id}`)
 
-export const getFields              = (tid)       => api.get(`/api/tournix/tournaments/${tid}/fields`)
-export const createField            = (tid, data) => api.post(`/api/tournix/tournaments/${tid}/fields`, data)
-export const deleteField            = (id)        => api.delete(`/api/tournix/fields/${id}`)
-
 export const getMatches             = (tid)       => api.get(`/api/tournix/tournaments/${tid}/matches`)
 export const createMatch            = (tid, data) => api.post(`/api/tournix/tournaments/${tid}/matches`, data)
 export const updateMatch            = (mid, data) => api.patch(`/api/tournix/matches/${mid}`, data)
@@ -23,9 +19,6 @@ export const deleteMatch            = (mid)       => api.delete(`/api/tournix/ma
 export const setResult              = (mid, data) => api.patch(`/api/tournix/matches/${mid}/result`, data)
 
 export const getStandings           = (tid)       => api.get(`/api/tournix/tournaments/${tid}/standings`)
-
-export const predict                = (mid, data) => api.post(`/api/tournix/matches/${mid}/predict`, data)
-export const getPredictions         = (mid)       => api.get(`/api/tournix/matches/${mid}/predictions`)
 
 export const updateTournamentStage  = (tid, stage)  => api.patch(`/api/tournix/tournaments/${tid}`, { stage })
 export const saveSnapshot           = (tid, round)   => api.post(`/api/tournix/tournaments/${tid}/snapshots?round=${round}`)
@@ -67,7 +60,6 @@ export const deletePoolInPhase      = (pid, poolId) => api.delete(`/api/tournix/
 export const autoPoolsInPhase       = (pid, data)  => api.post(`/api/tournix/phases/${pid}/auto-pools`, data)
 export const preAllocatePhaseTeams  = (pid, positions) => api.post(`/api/tournix/phases/${pid}/teams/pre-allocate`, { positions })
 export const resolvePhaseplaceholders = (pid)      => api.post(`/api/tournix/phases/${pid}/resolve-placeholders`)
-export const setPhaseFields           = (pid, field_ids) => api.post(`/api/tournix/phases/${pid}/fields`, { field_ids })
 export const planPhaseSchedule        = (pid, startTime) => api.post(`/api/tournix/phases/${pid}/plan-schedule`, { start_time: startTime || null })
 
 export const getCaptureSessions       = ()        => api.get('/api/capture/sessions')

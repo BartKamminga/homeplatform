@@ -120,6 +120,25 @@ def cmd_closemany(ids, version):
     con.close()
 
 
+def cmd_get(id_):
+    con = _con()
+    cur = con.cursor()
+    cur.execute(
+        "SELECT id, status, site, priority, title, version, description, notes, impact, risk, scope, created_at, updated_at "
+        "FROM roadmap_items WHERE id=?", (id_,)
+    )
+    row = cur.fetchone()
+    con.close()
+    if not row:
+        print(f"[FOUT] Item {id_} niet gevonden")
+        return
+    fields = ["id", "status", "site", "priority", "title", "version", "description", "notes", "impact", "risk", "scope", "created_at", "updated_at"]
+    for f in fields:
+        val = row[f]
+        if val:
+            print(f"{f.upper():<14} {val}")
+
+
 def cmd_update(id_, **kwargs):
     sets = []
     allowed = ["status", "priority", "title", "notes", "version", "impact", "risk", "scope", "description"]
@@ -141,7 +160,7 @@ def cmd_update(id_, **kwargs):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("cmd", choices=["list", "changelog", "add", "close", "closemany", "update"])
+    p.add_argument("cmd", choices=["list", "changelog", "add", "close", "closemany", "update", "get"])
     p.add_argument("--status",      default="")
     p.add_argument("--site",        default="")
     p.add_argument("--priority",    default="")
@@ -169,6 +188,8 @@ if __name__ == "__main__":
     elif args.cmd == "closemany":
         ids = [int(x.strip()) for x in args.ids.split(",") if x.strip()]
         cmd_closemany(ids, args.version)
+    elif args.cmd == "get":
+        cmd_get(args.id)
     elif args.cmd == "update":
         cmd_update(
             args.id,

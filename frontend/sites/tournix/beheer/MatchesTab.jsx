@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react'
 import {
   getMatches, createMatch, updateMatch, deleteMatch, setResult,
-  getTeams, getFields, getSnapshots, saveSnapshot,
+  getTeams, getSnapshots, saveSnapshot,
   getPhases, generatePhaseSchedule, planPhaseSchedule,
 } from '../api.js'
 import { inputStyle, primaryBtn, ghostBtn, noTid, successBanner, errorBanner } from './styles.js'
 import { resolveTeam } from '../helpers.js'
 
 /* ── Add-match popup ── */
-function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
+function AddMatchPopup({ tid, teams, onClose, onCreated }) {
   const [teamA,   setTeamA]   = useState('')
   const [teamB,   setTeamB]   = useState('')
-  const [fieldId, setFieldId] = useState('')
   const [round,   setRound]   = useState('')
   const [time,    setTime]    = useState('')
   const [saving,  setSaving]  = useState(false)
@@ -23,7 +22,6 @@ function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
       await createMatch(tid, {
         team_a_id: teamA || null,
         team_b_id: teamB || null,
-        field_id: fieldId || null,
         round: round ? parseInt(round) : null,
         scheduled_at: time || null,
       })
@@ -49,10 +47,6 @@ function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
               <option value="">Team B</option>
               {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <select value={fieldId} onChange={e => setFieldId(e.target.value)} style={inputStyle}>
-              <option value="">Veld</option>
-              {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
             <input type="number" value={round} onChange={e => setRound(e.target.value)}
               placeholder="Ronde" style={inputStyle} />
           </div>
@@ -68,13 +62,12 @@ function AddMatchPopup({ tid, teams, fields, onClose, onCreated }) {
 }
 
 /* ── Single match card ── */
-function MatchCard({ m, teamMap, fieldMap, matchMap, fields, canScore, onRefresh, structureLocked }) {
+function MatchCard({ m, teamMap, matchMap, canScore, onRefresh, structureLocked }) {
   const [scoreEdit,      setScoreEdit]      = useState(false)
   const [scoreA,         setScoreA]         = useState('')
   const [scoreB,         setScoreB]         = useState('')
   const [shootoutWinner, setShootoutWinner] = useState(null)
   const [saving,         setSaving]         = useState(false)
-  const [fieldEdit,      setFieldEdit]      = useState(false)
 
   async function saveResult() {
     if (scoreA === '' || scoreB === '') return
@@ -87,12 +80,6 @@ function MatchCard({ m, teamMap, fieldMap, matchMap, fields, canScore, onRefresh
       setShootoutWinner(null)
       await onRefresh()
     } finally { setSaving(false) }
-  }
-
-  async function saveField(fid) {
-    await updateMatch(m.id, { field_id: fid || null })
-    setFieldEdit(false)
-    await onRefresh()
   }
 
   async function handleDelete() {
@@ -136,25 +123,9 @@ function MatchCard({ m, teamMap, fieldMap, matchMap, fields, canScore, onRefresh
         </div>
       </div>
 
-      {/* Meta row: ronde, veld, tijd */}
+      {/* Meta row: ronde, tijd */}
       <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {m.round && <span>Ronde {m.round}</span>}
-        {fieldEdit ? (
-          <select autoFocus defaultValue={m.field_id ?? ''}
-            onChange={e => saveField(e.target.value)}
-            onBlur={() => setFieldEdit(false)}
-            style={{ ...inputStyle, fontSize: 11, padding: '2px 6px', height: 24 }}>
-            <option value="">— geen veld —</option>
-            {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        ) : (
-          <span
-            onClick={() => !structureLocked && setFieldEdit(true)}
-            style={{ cursor: structureLocked ? 'default' : 'pointer',
-              borderBottom: structureLocked ? 'none' : '1px dashed var(--color-border)' }}>
-            {m.field_id && fieldMap[m.field_id] ? fieldMap[m.field_id].name : '—'}
-          </span>
-        )}
         {m.scheduled_at && (
           <span>{new Date(m.scheduled_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>
         )}
@@ -195,7 +166,7 @@ function MatchCard({ m, teamMap, fieldMap, matchMap, fields, canScore, onRefresh
 }
 
 /* ── Compact score row for round entry view ── */
-function ScoreRow({ m, teamMap, fields, tournamentDate, onRefresh }) {
+function ScoreRow({ m, teamMap, tournamentDate, onRefresh }) {
   const [scoreA,         setScoreA]         = useState(m.status === 'finished' ? String(m.score_a) : '0')
   const [scoreB,         setScoreB]         = useState(m.status === 'finished' ? String(m.score_b) : '0')
   const [shootoutWinner, setShootoutWinner] = useState(m.shootout_winner ?? null)
@@ -203,7 +174,6 @@ function ScoreRow({ m, teamMap, fields, tournamentDate, onRefresh }) {
   const [saved,          setSaved]          = useState(m.status === 'finished')
   const [saveError,      setSaveError]      = useState('')
   const [matchTime,      setMatchTime]      = useState(m.scheduled_at ? m.scheduled_at.slice(11, 16) : '')
-  const [matchField,     setMatchField]     = useState(m.field_id ?? '')
 
   useEffect(() => {
     if (m.status === 'finished') {
@@ -214,13 +184,12 @@ function ScoreRow({ m, teamMap, fields, tournamentDate, onRefresh }) {
 
   useEffect(() => {
     setMatchTime(m.scheduled_at ? m.scheduled_at.slice(11, 16) : '')
-    setMatchField(m.field_id ?? '')
-  }, [m.scheduled_at, m.field_id])
+  }, [m.scheduled_at])
 
-  async function saveSchedule(time, fieldId) {
+  async function saveSchedule(time) {
     const base = tournamentDate ? tournamentDate.split('T')[0] : new Date().toISOString().split('T')[0]
     const scheduled_at = time ? `${base}T${time}:00` : null
-    try { await updateMatch(m.id, { scheduled_at, field_id: fieldId || null }) }
+    try { await updateMatch(m.id, { scheduled_at }) }
     catch (e) { /* silent — niet kritisch */ }
   }
 
@@ -293,20 +262,12 @@ function ScoreRow({ m, teamMap, fields, tournamentDate, onRefresh }) {
         {saving ? '…' : saved && !dirty ? '✓ Opgeslagen' : 'Opslaan'}
       </button>
       {saveError && <div style={{ fontSize: 10, color: 'var(--color-danger)' }}>{saveError}</div>}
-      {/* Tijd + veld */}
+      {/* Tijd */}
       <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
         <input type="time" value={matchTime}
           onChange={e => setMatchTime(e.target.value)}
-          onBlur={e => saveSchedule(e.target.value, matchField)}
+          onBlur={e => saveSchedule(e.target.value)}
           style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '2px 4px', textAlign: 'center' }} />
-        {fields && fields.length > 0 && (
-          <select value={matchField}
-            onChange={e => { setMatchField(e.target.value); saveSchedule(matchTime, e.target.value) }}
-            style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '2px 4px' }}>
-            <option value="">— veld —</option>
-            {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        )}
       </div>
     </div>
   )
@@ -320,7 +281,6 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
 
   const [matches,    setMatches]    = useState([])
   const [localTeams, setLocalTeams] = useState([])
-  const [fields,     setFields]     = useState([])
   const [phases,     setPhases]     = useState([])
   const [snapshots,  setSnapshots]  = useState([])
   const [snapSaving, setSnapSaving] = useState(null)
@@ -333,13 +293,12 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
 
   async function load() {
     if (!tid) return
-    const [m, t, f, p] = await Promise.all([
+    const [m, t, p] = await Promise.all([
       getMatches(tid).catch(() => []),
       getTeams(tid).catch(() => []),
-      getFields(tid).catch(() => []),
       getPhases(tid).catch(() => []),
     ])
-    setMatches(m); setLocalTeams(t); setFields(f); setPhases(p)
+    setMatches(m); setLocalTeams(t); setPhases(p)
     getSnapshots(tid).then(setSnapshots).catch(() => {})
   }
 
@@ -347,7 +306,6 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
 
   const teams    = localTeams.length ? localTeams : (teamsFromParent ?? [])
   const teamMap  = Object.fromEntries(teams.map(t => [t.id, t]))
-  const fieldMap = Object.fromEntries(fields.map(f => [f.id, f]))
   const rounds   = [...new Set(matches.map(m => m.round).filter(r => r != null))].sort((a, b) => a - b)
   const savedRounds = new Set(snapshots.map(s => s.round))
 
@@ -394,7 +352,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
   }
 
   const matchMap  = Object.fromEntries(matches.map(m => [m.id, m]))
-  const cardProps = { teamMap, fieldMap, matchMap, fields, canScore, onRefresh: load, structureLocked }
+  const cardProps = { teamMap, matchMap, canScore, onRefresh: load, structureLocked }
 
   if (!tid) return <p style={noTid}>Selecteer eerst een toernooi.</p>
 
@@ -516,7 +474,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
                 {/* Score rows */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, padding: '8px 10px' }}>
                   {roundMatches.map(m => (
-                    <ScoreRow key={m.id} m={m} teamMap={teamMap} fields={fields} tournamentDate={active?.date} onRefresh={load} />
+                    <ScoreRow key={m.id} m={m} teamMap={teamMap} tournamentDate={active?.date} onRefresh={load} />
                   ))}
                 </div>
               </div>
@@ -530,7 +488,7 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
                 letterSpacing: '0.06em', textTransform: 'uppercase' }}>Zonder ronde</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, padding: '8px 10px' }}>
                 {matches.filter(m => m.round == null && m.match_type !== 'ko').map(m => (
-                  <ScoreRow key={m.id} m={m} teamMap={teamMap} fields={fields} tournamentDate={active?.date} onRefresh={load} />
+                  <ScoreRow key={m.id} m={m} teamMap={teamMap} tournamentDate={active?.date} onRefresh={load} />
                 ))}
               </div>
             </div>
@@ -564,7 +522,6 @@ export default function MatchesTab({ tid, tournament, pools, teams: teamsFromPar
         <AddMatchPopup
           tid={tid}
           teams={teams}
-          fields={fields}
           onClose={() => setShowAdd(false)}
           onCreated={async () => { setShowAdd(false); await load() }}
         />
