@@ -349,9 +349,9 @@ export default function App() {
     })
   }, [shortToken])
 
-  // Fetch standings when view switches
+  // Fetch standings on mount (needed for logo map in matches view) + when switching to standings tab
   useEffect(() => {
-    if (view !== 'standings' || standings.length > 0) return
+    if (standings.length > 0) return
     setStandingsLoading(true)
     fetch(API_STANDINGS)
       .then(r => r.json())
