@@ -101,24 +101,35 @@ function applyPastFilter(list, pastFilter) {
 
 // ── Match team helpers ─────────────────────────────────────────────────────
 
-const SUFFIX_RE       = /\s+[WM]\d+(?:\/\d+)?$/i
-const WHOLE_SUFFIX_RE = /\s*\([WM]\d+(?:\/\d+)?\)\s*$/i
+const SUFFIX_RE = /\s+[WM]\d+(?:\/\d+)?$/i
 
 function stripSuffix(name) {
   return name.replace(SUFFIX_RE, '').trim()
 }
 
 function isPlaceholderDetails(details) {
-  // Only ordinals like "14th A v 15th A" are real placeholders — "(W50)" is a category suffix, not a placeholder
+  // Only ordinals like "14th A v 15th A" are real placeholders
   return /\b\d+(?:st|nd|rd|th)\b/i.test(details)
 }
 
 function parseMatchTeams(details) {
   if (!details || isPlaceholderDetails(details)) return null
-  const cleaned = details.replace(WHOLE_SUFFIX_RE, '')  // strip "(W50)" from end of whole string
+  // Strip any trailing parenthesised group: "(W50)", "(MIMC50 B)", etc.
+  const cleaned = details.replace(/\s*\([^)]*\)\s*$/, '')
   const parts = cleaned.split(' v ')
   if (parts.length !== 2) return null
   return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()) }
+}
+
+function lookupLogo(map, teamCode) {
+  const key = teamCode.toUpperCase()
+  if (map[key]) return map[key]
+  // Strip trailing team-variant letter: "ENGB" → "ENG", "IRLA" → "IRL"
+  if (key.length > 3) {
+    const base = key.slice(0, -1)
+    if (map[base]) return map[base]
+  }
+  return null
 }
 
 function parseScore(scoreline) {
@@ -160,15 +171,15 @@ function MatchRow({ match, logoByTeamName, highlight }) {
         {teams ? (
           <div className="match-teams">
             <span className={`team-name${highlight?.side === 'home' ? ' team-scored' : ''}`}>
-              {logoByTeamName[teams.home.toUpperCase()] && (
-                <img src={logoByTeamName[teams.home.toUpperCase()]} className="team-flag" alt="" loading="lazy" />
+              {lookupLogo(logoByTeamName, teams.home) && (
+                <img src={lookupLogo(logoByTeamName, teams.home)} className="team-flag" alt="" loading="lazy" />
               )}
               {teams.home}
             </span>
             <span className="vs-sep">v</span>
             <span className={`team-name${highlight?.side === 'away' ? ' team-scored' : ''}`}>
-              {logoByTeamName[teams.away.toUpperCase()] && (
-                <img src={logoByTeamName[teams.away.toUpperCase()]} className="team-flag" alt="" loading="lazy" />
+              {lookupLogo(logoByTeamName, teams.away) && (
+                <img src={lookupLogo(logoByTeamName, teams.away)} className="team-flag" alt="" loading="lazy" />
               )}
               {teams.away}
             </span>
