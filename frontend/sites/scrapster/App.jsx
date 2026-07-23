@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const API_URL = '/api/scrapster/matches'
-const SESSION_KEY = 'scrapster_filters'
 const DEFAULT_REFRESH = 60 // seconds
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -33,22 +32,22 @@ function formatDatetime(str) {
   return `${day} ${month} ${hh}:${mm}`
 }
 
-function loadSavedFilters() {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
+function readFiltersFromUrl() {
+  const p = new URLSearchParams(window.location.search)
+  return {
+    venues: p.getAll('venue'),
+    sources: p.getAll('source'),
+    pastFilter: p.get('past') || 'laatste3',
   }
-  return { venues: [], sources: [], pastFilter: 'laatste3' }
 }
 
-function saveFilters(filters) {
-  try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(filters))
-  } catch {
-    // ignore
-  }
+function writeFiltersToUrl(venues, sources, pastFilter) {
+  const p = new URLSearchParams()
+  venues.forEach(v => p.append('venue', v))
+  sources.forEach(s => p.append('source', s))
+  if (pastFilter && pastFilter !== 'laatste3') p.set('past', pastFilter)
+  const qs = p.toString()
+  history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
 }
 
 function applyPastFilter(list, pastFilter) {
@@ -146,10 +145,11 @@ export default function App() {
   const [lastFetched, setLastFetched] = useState(null)
   const [cacheAge, setCacheAge] = useState(null)
 
-  const savedFilters = loadSavedFilters()
-  const [selectedVenues, setSelectedVenues] = useState(savedFilters.venues)
-  const [selectedSources, setSelectedSources] = useState(savedFilters.sources)
-  const [pastFilter, setPastFilter] = useState(savedFilters.pastFilter ?? 'laatste3')
+  const initFilters = readFiltersFromUrl()
+  const [selectedVenues, setSelectedVenues] = useState(initFilters.venues)
+  const [selectedSources, setSelectedSources] = useState(initFilters.sources)
+  const [pastFilter, setPastFilter] = useState(initFilters.pastFilter)
+  const [copied, setCopied] = useState(false)
 
   const [refreshInterval, setRefreshInterval] = useState(DEFAULT_REFRESH)
   const [countdown, setCountdown] = useState(DEFAULT_REFRESH)
@@ -196,10 +196,17 @@ export default function App() {
     return () => clearInterval(tick)
   }, [fetchMatches])
 
-  // Persist filters
+  // Sync filters to URL
   useEffect(() => {
-    saveFilters({ venues: selectedVenues, sources: selectedSources, pastFilter })
+    writeFiltersToUrl(selectedVenues, selectedSources, pastFilter)
   }, [selectedVenues, selectedSources, pastFilter])
+
+  function copyUrl() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   // Unique filter options derived from data
   const allVenues = [...new Set(matches.map(m => m.venue).filter(Boolean))].sort()
@@ -313,6 +320,9 @@ export default function App() {
                 Filters wissen
               </button>
             )}
+            <button className="btn-copy-url" onClick={copyUrl}>
+              {copied ? '✓ Gekopieerd!' : '🔗 Kopieer link'}
+            </button>
           </section>
         )}
 
@@ -540,10 +550,23 @@ const CSS = `
     padding: 0.3rem 0.75rem;
     font-size: 0.75rem;
     cursor: pointer;
-    margin-left: auto;
     transition: color 0.15s, border-color 0.15s;
   }
   .btn-clear:hover { color: #d1d5db; border-color: #6b7280; }
+
+  .btn-copy-url {
+    background: #1e3a5f;
+    color: #93c5fd;
+    border: 1px solid #2563eb;
+    border-radius: 6px;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    margin-left: auto;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .btn-copy-url:hover { background: #1e40af; color: #bfdbfe; }
 
   /* ── Main / Table ── */
   .main {
