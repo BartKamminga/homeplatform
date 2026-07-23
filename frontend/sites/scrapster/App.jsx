@@ -101,19 +101,22 @@ function applyPastFilter(list, pastFilter) {
 
 // ── Match team helpers ─────────────────────────────────────────────────────
 
-const SUFFIX_RE = /\s+[WM]\d+(?:\/\d+)?$/i
+const SUFFIX_RE       = /\s+[WM]\d+(?:\/\d+)?$/i
+const WHOLE_SUFFIX_RE = /\s*\([WM]\d+(?:\/\d+)?\)\s*$/i
 
 function stripSuffix(name) {
   return name.replace(SUFFIX_RE, '').trim()
 }
 
 function isPlaceholderDetails(details) {
-  return /\b\d+(?:st|nd|rd|th)\b/i.test(details) || /\(/.test(details)
+  // Only ordinals like "14th A v 15th A" are real placeholders — "(W50)" is a category suffix, not a placeholder
+  return /\b\d+(?:st|nd|rd|th)\b/i.test(details)
 }
 
 function parseMatchTeams(details) {
   if (!details || isPlaceholderDetails(details)) return null
-  const parts = details.split(' v ')
+  const cleaned = details.replace(WHOLE_SUFFIX_RE, '')  // strip "(W50)" from end of whole string
+  const parts = cleaned.split(' v ')
   if (parts.length !== 2) return null
   return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()) }
 }
