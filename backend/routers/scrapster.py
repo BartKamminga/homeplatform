@@ -13,10 +13,18 @@ logger = logging.getLogger("homeplatform")
 router = APIRouter(prefix="/api/scrapster", tags=["scrapster"])
 
 COMPETITION_URLS = [
-    "https://masters.altiusrt.com/competitions/485/matches",
-    "https://masters.altiusrt.com/competitions/484/matches",
-    "https://masters.altiusrt.com/competitions/483/matches",
-    "https://masters.altiusrt.com/competitions/482/matches",
+    # World Cup Rotterdam
+    "https://masters.altiusrt.com/competitions/485/matches",  # M50
+    "https://masters.altiusrt.com/competitions/484/matches",  # W50
+    "https://masters.altiusrt.com/competitions/483/matches",  # M45
+    "https://masters.altiusrt.com/competitions/482/matches",  # W45
+    # Rotterdam IMC
+    "https://masters.altiusrt.com/competitions/493/matches",  # IMC M50
+    "https://masters.altiusrt.com/competitions/492/matches",  # IMC M45
+    "https://masters.altiusrt.com/competitions/490/matches",  # IMC M35/M40
+    "https://masters.altiusrt.com/competitions/489/matches",  # IMC W50
+    "https://masters.altiusrt.com/competitions/488/matches",  # IMC W45
+    "https://masters.altiusrt.com/competitions/486/matches",  # IMC W35/40
 ]
 
 CACHE_TTL = 55  # seconds
