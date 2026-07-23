@@ -122,11 +122,17 @@ function parseMatchTeams(details) {
 }
 
 function lookupLogo(map, teamCode) {
-  const key = teamCode.toUpperCase()
+  const key = teamCode.toUpperCase().trim()
   if (map[key]) return map[key]
-  // Strip trailing team-variant letter: "ENGB" → "ENG", "IRLA" → "IRL"
-  if (key.length > 3) {
+  // Strip trailing variant letter: "ENGB" → "ENG", "AUSB" → "AUS"
+  if (key.length > 3 && !/\s/.test(key)) {
     const base = key.slice(0, -1)
+    if (map[base]) return map[base]
+  }
+  // Strip trailing word: "ARG IMC" → "ARG"
+  const lastSpace = key.lastIndexOf(' ')
+  if (lastSpace > 0) {
+    const base = key.slice(0, lastSpace)
     if (map[base]) return map[base]
   }
   return null
