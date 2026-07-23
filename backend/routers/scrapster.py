@@ -296,6 +296,8 @@ class ShortenRequest(BaseModel):
     sources: list[str] = []
     pastFilter: str = "laatste3"
     view: str = "matches"
+    statusFilter: str = "alle"
+    interval: int = 60
 
 
 @router.post("/shorten")
@@ -306,6 +308,8 @@ def shorten_url(body: ShortenRequest):
         "sources": body.sources,
         "pastFilter": body.pastFilter,
         "view": body.view,
+        "statusFilter": body.statusFilter,
+        "interval": body.interval,
     })
     token = secrets.token_urlsafe(5)  # ~7 chars
 
