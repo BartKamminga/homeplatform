@@ -163,13 +163,11 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
                   fontSize: 13, fontFamily: 'inherit', outline: 'none',
                 }}
               />
-              {isAdmin && (
-                <button onClick={() => setShowCreate(true)} style={{
-                  padding: '8px 14px', borderRadius: 9, border: 'none',
-                  background: 'var(--color-primary)', color: '#fff',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                }}>+ Nieuw</button>
-              )}
+              <button onClick={() => setShowCreate(true)} style={{
+                padding: '8px 14px', borderRadius: 9, border: 'none',
+                background: 'var(--color-primary)', color: '#fff',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              }}>+ Nieuw</button>
             </div>
             <PublicatiesTab tournaments={active} onOpen={onOpenTournament} />
           </>
