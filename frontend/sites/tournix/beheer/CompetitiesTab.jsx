@@ -3,16 +3,16 @@ import {
   getTournamentComps, addTournamentComp,
   patchTournamentComp, removeTournamentComp,
   getDiscoveryComps,
+  getTournamentFases, addTournamentFase, removeTournamentFase,
 } from '../api.js'
 import {
-  card, cardLabel, primaryBtn, ghostBtn, noTid,
+  card, cardLabel, ghostBtn, noTid,
   muted, successBanner, errorBanner, deleteBtn, inputStyle,
 } from './styles.js'
 
 const SEASON = '2026-2027'
 
-const FASE_OPTIONS = [
-  { value: '',       label: '— geen —' },
+const BASE_FASES = [
   { value: 'herfst', label: 'Herfst' },
   { value: 'lente',  label: 'Lente' },
   { value: 'nk',     label: 'NK' },
@@ -20,22 +20,32 @@ const FASE_OPTIONS = [
 ]
 
 export default function CompetitiesTab({ tid }) {
-  const [links,      setLinks]      = useState([])
-  const [allComps,   setAllComps]   = useState([])
-  const [loading,    setLoading]    = useState(false)
-  const [msg,        setMsg]        = useState('')
-  const [error,      setError]      = useState('')
-  const [showPicker, setShowPicker] = useState(false)
-  const [filterQ,    setFilterQ]    = useState('')
-  const [adding,     setAdding]     = useState(false)
+  const [links,        setLinks]        = useState([])
+  const [customFases,  setCustomFases]  = useState([])  // eigen fases
+  const [allComps,     setAllComps]     = useState([])
+  const [loading,      setLoading]      = useState(false)
+  const [msg,          setMsg]          = useState('')
+  const [error,        setError]        = useState('')
+  const [showPicker,   setShowPicker]   = useState(false)
+  const [filterQ,      setFilterQ]      = useState('')
+  const [adding,       setAdding]       = useState(false)
+  const [newFaseName,  setNewFaseName]  = useState('')
+  const [addingFase,   setAddingFase]   = useState(false)
 
-  useEffect(() => { if (tid) { loadLinks(); loadComps() } }, [tid])
+  useEffect(() => {
+    if (tid) { loadLinks(); loadFases(); loadComps() }
+  }, [tid])
 
   async function loadLinks() {
     setLoading(true)
     try { setLinks(await getTournamentComps(tid)) }
     catch (e) { flash(e.message, true) }
     finally { setLoading(false) }
+  }
+
+  async function loadFases() {
+    try { setCustomFases(await getTournamentFases(tid)) }
+    catch { /* stil */ }
   }
 
   async function loadComps() {
@@ -49,6 +59,32 @@ export default function CompetitiesTab({ tid }) {
     if (isErr) setError(text); else setMsg(text)
     setTimeout(() => { setMsg(''); setError('') }, 3500)
   }
+
+  // ── Fase-beheer ──────────────────────────────────────────────────────────────
+
+  async function handleAddFase() {
+    const name = newFaseName.trim()
+    if (!name) return
+    setAddingFase(true)
+    try {
+      const f = await addTournamentFase(tid, { name, order: customFases.length })
+      setCustomFases(prev => [...prev, f])
+      setNewFaseName('')
+    } catch (e) { flash(e.message, true) }
+    finally { setAddingFase(false) }
+  }
+
+  async function handleRemoveFase(f) {
+    // Controleer of fase nog in gebruik is
+    const inUse = links.some(l => l.fase === f.name)
+    if (inUse && !window.confirm(`"${f.name}" is nog gekoppeld aan een competitie. Toch verwijderen?`)) return
+    try {
+      await removeTournamentFase(tid, f.id)
+      setCustomFases(prev => prev.filter(x => x.id !== f.id))
+    } catch (e) { flash(e.message, true) }
+  }
+
+  // ── Competitie-koppeling ─────────────────────────────────────────────────────
 
   async function handleAdd(comp) {
     setAdding(true)
@@ -81,6 +117,28 @@ export default function CompetitiesTab({ tid }) {
   if (!tid) return <p style={noTid}>Selecteer een toernooi via de keuzelijst bovenaan.</p>
   if (loading) return <p style={muted}>Laden…</p>
 
+  // Alle beschikbare fase-opties: basis + eigen (op naam dedupliceren)
+  const baseNames = new Set(BASE_FASES.map(f => f.value))
+  const extraFases = customFases.filter(f => !baseNames.has(f.name.toLowerCase()))
+  const allFaseOptions = [
+    { value: '', label: '— geen —' },
+    ...BASE_FASES,
+    ...extraFases.map(f => ({ value: f.name, label: f.name })),
+  ]
+
+  // Groepeer gekoppelde comps per fase
+  const FASE_ORDER = ['herfst', 'lente', 'nk', 'overig', ...extraFases.map(f => f.name), '']
+  const byFase = {}
+  for (const lnk of links) {
+    const key = lnk.fase || ''
+    if (!byFase[key]) byFase[key] = []
+    byFase[key].push(lnk)
+  }
+  const faseLabel = {
+    herfst: 'Herfst', lente: 'Lente', nk: 'NK', overig: 'Overig', '': 'Geen fase',
+    ...Object.fromEntries(extraFases.map(f => [f.name, f.name])),
+  }
+
   const linkedIds = new Set(links.map(l => l.competition_id))
   const q = filterQ.trim().toLowerCase()
   const pickerComps = allComps
@@ -88,26 +146,72 @@ export default function CompetitiesTab({ tid }) {
     .filter(c => !q || c.name.toLowerCase().includes(q))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  // Groepeer gekoppelde competities per fase voor overzicht
-  const byFase = {}
-  for (const lnk of links) {
-    const key = lnk.fase || ''
-    if (!byFase[key]) byFase[key] = []
-    byFase[key].push(lnk)
-  }
-  const faseOrder = ['herfst', 'lente', 'nk', 'overig', '']
-  const faseLabel = { herfst: 'Herfst', lente: 'Lente', nk: 'NK', overig: 'Overig', '': 'Geen fase' }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {msg   && <div style={successBanner}>{msg}</div>}
       {error && <div style={errorBanner}>{error}</div>}
 
+      {/* ── Fase beheer ─────────────────────────────────────────── */}
+      <div style={card}>
+        <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-LIJST</div>
+
+        {/* Basis fases (vast) */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+          {BASE_FASES.map(f => (
+            <span key={f.value} style={{
+              fontSize: 11, padding: '2px 10px', borderRadius: 20,
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-muted)', opacity: 0.6,
+            }}>{f.label}</span>
+          ))}
+        </div>
+
+        {/* Eigen fases */}
+        {extraFases.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+            {extraFases.map(f => (
+              <span key={f.id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 11, padding: '2px 6px 2px 10px', borderRadius: 20,
+                border: '1px solid var(--color-primary)',
+                color: 'var(--color-primary)',
+              }}>
+                {f.name}
+                <button onClick={() => handleRemoveFase(f)} style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
+                }}>✕</button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Toevoegen */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            value={newFaseName}
+            onChange={e => setNewFaseName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddFase()}
+            placeholder="Eigen fase toevoegen…"
+            style={{ ...inputStyle, flex: 1, fontSize: 12 }}
+          />
+          <button
+            onClick={handleAddFase}
+            disabled={addingFase || !newFaseName.trim()}
+            style={{
+              ...ghostBtn, fontSize: 12,
+              opacity: addingFase || !newFaseName.trim() ? 0.4 : 1,
+            }}
+          >+ Toevoegen</button>
+        </div>
+      </div>
+
+      {/* ── Gekoppelde competities ───────────────────────────────── */}
       {links.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: 24 }}>
           Nog geen competities gekoppeld.
         </div>
-      ) : faseOrder.filter(k => byFase[k]).map(key => (
+      ) : FASE_ORDER.filter(k => byFase[k]).map(key => (
         <div key={key}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: 6, paddingLeft: 2 }}>
@@ -117,6 +221,7 @@ export default function CompetitiesTab({ tid }) {
             <CompetitionRow
               key={lnk.id}
               lnk={lnk}
+              faseOptions={allFaseOptions}
               onFaseChange={fase => handleFaseChange(lnk, fase)}
               onRemove={() => handleRemove(lnk)}
             />
@@ -124,7 +229,7 @@ export default function CompetitiesTab({ tid }) {
         </div>
       ))}
 
-      {/* + Koppel competitie */}
+      {/* ── Competitie koppelen ──────────────────────────────────── */}
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: showPicker ? 12 : 0 }}>
           <div style={cardLabel}>COMPETITIE KOPPELEN</div>
@@ -181,7 +286,7 @@ export default function CompetitiesTab({ tid }) {
 
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
-function CompetitionRow({ lnk, onFaseChange, onRemove }) {
+function CompetitionRow({ lnk, faseOptions, onFaseChange, onRemove }) {
   const [open, setOpen] = useState(false)
   const comp   = lnk.competition
   const poules = lnk.poules || []
@@ -189,7 +294,6 @@ function CompetitionRow({ lnk, onFaseChange, onRemove }) {
   return (
     <div style={{ ...card, marginBottom: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Naam */}
         <button onClick={() => setOpen(o => !o)}
           style={{ flex: 1, background: 'none', border: 'none', padding: 0,
             cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
@@ -204,13 +308,12 @@ function CompetitionRow({ lnk, onFaseChange, onRemove }) {
           )}
         </button>
 
-        {/* Fase-dropdown */}
         <select
           value={lnk.fase || ''}
           onChange={e => onFaseChange(e.target.value)}
           style={{ ...inputStyle, width: 'auto', fontSize: 12, padding: '3px 8px' }}
         >
-          {FASE_OPTIONS.map(o => (
+          {faseOptions.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>

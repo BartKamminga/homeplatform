@@ -80,3 +80,8 @@ export const getTournamentComps    = (tid)           => api.get(`/api/tournix/to
 export const addTournamentComp     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
 export const patchTournamentComp   = (tid, linkId, body) => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
 export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
+
+// Eigen fase-lijst per toernooi
+export const getTournamentFases    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/fases`)
+export const addTournamentFase     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/fases`, body)
+export const removeTournamentFase  = (tid, faseId)   => api.delete(`/api/tournix/tournaments/${tid}/fases/${faseId}`)

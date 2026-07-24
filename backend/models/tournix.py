@@ -196,6 +196,15 @@ class TournixSnapshot(SQLModel, table=True):
     created_at:     datetime      = Field(default_factory=datetime.utcnow)
 
 
+class TournixTournamentFase(SQLModel, table=True):
+    __tablename__ = "tournix_tournament_fases"
+
+    id:            str = Field(default_factory=new_uuid, primary_key=True)
+    tournament_id: str = Field(foreign_key="tournix_tournaments.id", index=True)
+    name:          str
+    order:         int = Field(default=0)
+
+
 class TournixTournamentCompetition(SQLModel, table=True):
     __tablename__ = "tournix_tournament_competitions"
 

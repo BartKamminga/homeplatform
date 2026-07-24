@@ -16,7 +16,7 @@ from models.tournix import (
     Tournament, TournixClub, TournixPool, TournixTeam,
     TournixField, TournixMatch, TournixPrediction, TournixSnapshot,
     TournixPhase, TournixPhaseTeam, TournixPhaseField,
-    TournixTournamentCompetition,
+    TournixTournamentCompetition, TournixTournamentFase,
 )
 from models.hockey_discovery import HockeyCompetition, HockeyPoule
 
@@ -398,6 +398,56 @@ def import_tournament_data(
         "fields": len(field_map),
         "matches": match_count,
     }
+
+
+# ── Eigen fase-lijst per toernooi ─────────────────────────────────────────────
+
+class TournamentFaseCreate(BaseModel):
+    name:  str
+    order: int = 0
+
+
+@router.get("/tournaments/{tid}/fases")
+def list_tournament_fases(
+    tid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    get_or_404(session, Tournament, tid, "Toernooi")
+    return session.exec(
+        select(TournixTournamentFase)
+        .where(TournixTournamentFase.tournament_id == tid)
+        .order_by(TournixTournamentFase.order, TournixTournamentFase.name)
+    ).all()
+
+
+@router.post("/tournaments/{tid}/fases", status_code=201)
+def add_tournament_fase(
+    tid: str,
+    body: TournamentFaseCreate,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    get_or_404(session, Tournament, tid, "Toernooi")
+    fase = TournixTournamentFase(tournament_id=tid, name=body.name.strip(), order=body.order)
+    session.add(fase)
+    session.commit()
+    session.refresh(fase)
+    return fase
+
+
+@router.delete("/tournaments/{tid}/fases/{fase_id}", status_code=204)
+def remove_tournament_fase(
+    tid: str,
+    fase_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    fase = session.get(TournixTournamentFase, fase_id)
+    if not fase or fase.tournament_id != tid:
+        raise HTTPException(404, "Fase niet gevonden")
+    session.delete(fase)
+    session.commit()
 
 
 # ── Tournament-competitie koppelingen ─────────────────────────────────────────
