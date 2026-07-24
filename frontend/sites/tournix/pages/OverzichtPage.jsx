@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getStandings, getSnapshots, getSnapshot, getMatches, getTeams, getPools, getClubs, getPhases, getPhaseStandings } from '../api.js'
+import { getStandings, getSnapshots, getSnapshot, getMatches, getTeams, getPools, getPhases, getPhaseStandings } from '../api.js'
 import { resolveTeam } from '../helpers.js'
 
 /* ── Poule card met live-voorspelling ── */
@@ -118,12 +118,10 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
   const [matches,       setMatches]       = useState([])
   const [teams,         setTeams]         = useState([])
   const [pools,         setPools]         = useState([])
-  const [clubs,         setClubs]         = useState([])
   const [phases,        setPhases]        = useState([])
   const [phaseStandings, setPhaseStandings] = useState({})
 
   useEffect(() => {
-    getClubs().then(setClubs).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -190,12 +188,8 @@ export default function OverzichtPage({ onTab, isAdmin, tournament: active }) {
           {active.status === 'active' ? 'Actief toernooi' : active.status === 'finished' ? 'Afgelopen' : 'Concept'}
         </div>
         <div style={{ fontSize: 22, fontWeight: 700 }}>{active.name}</div>
-        {(active.location_club_id || active.location) && (
-          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>
-            {active.location_club_id
-              ? clubs.find(c => c.id === active.location_club_id)?.name ?? active.location
-              : active.location}
-          </div>
+        {active.location && (
+          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>{active.location}</div>
         )}
         {active.date && (
           <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>

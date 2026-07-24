@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getTournaments, getPhases } from '../api.js'
 import { VangerButton } from '../components/VangerButton.jsx'
-import BeheerDiscoveryTab from '../beheer/DiscoveryTab.jsx'
-import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
+import BeheerDiscoveryTab        from '../beheer/DiscoveryTab.jsx'
+import CaptureArchiefTab         from '../beheer/ArchiefTab.jsx'
+import CreateTournamentPopup     from '../beheer/CreateTournamentPopup.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },
@@ -110,10 +111,11 @@ function ArchiefTab({ tournaments, onOpen }) {
 
 // ── SeizoenScreen ─────────────────────────────────────────────────────────
 
-export function SeizoenScreen({ onOpenTournament }) {
+export function SeizoenScreen({ onOpenTournament, isAdmin }) {
   const [tab,         setTab]         = useState('publicaties')
   const [tournaments, setTournaments] = useState([])
   const [search,      setSearch]      = useState('')
+  const [showCreate,  setShowCreate]  = useState(false)
 
   useEffect(() => {
     getTournaments().then(setTournaments).catch(() => {})
@@ -125,8 +127,14 @@ export function SeizoenScreen({ onOpenTournament }) {
   const active   = filtered.filter(t => t.status === 'active')
   const finished = filtered.filter(t => t.status === 'finished')
 
+  function handleCreated() {
+    setShowCreate(false)
+    getTournaments().then(setTournaments).catch(() => {})
+  }
+
   return (
     <div className="seizoen-screen">
+      {showCreate && <CreateTournamentPopup onClose={() => setShowCreate(false)} onCreated={handleCreated} />}
       <div className="sub-tabs">
         {SEIZOEN_TABS.map(t => (
           <button
@@ -142,18 +150,27 @@ export function SeizoenScreen({ onOpenTournament }) {
       <div className="seizoen-content">
         {tab === 'publicaties' && (
           <>
-            <input
-              type="search"
-              placeholder="Zoek toernooi…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                width: '100%', marginBottom: 12, padding: '8px 12px',
-                border: '1px solid var(--color-border)', borderRadius: 9,
-                background: 'var(--color-surface)', color: 'var(--color-text)',
-                fontSize: 13, fontFamily: 'inherit', outline: 'none',
-              }}
-            />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                type="search"
+                placeholder="Zoek toernooi…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{
+                  flex: 1, padding: '8px 12px',
+                  border: '1px solid var(--color-border)', borderRadius: 9,
+                  background: 'var(--color-surface)', color: 'var(--color-text)',
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none',
+                }}
+              />
+              {isAdmin && (
+                <button onClick={() => setShowCreate(true)} style={{
+                  padding: '8px 14px', borderRadius: 9, border: 'none',
+                  background: 'var(--color-primary)', color: '#fff',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                }}>+ Nieuw</button>
+              )}
+            </div>
             <PublicatiesTab tournaments={active} onOpen={onOpenTournament} />
           </>
         )}
