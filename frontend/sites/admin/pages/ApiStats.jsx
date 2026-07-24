@@ -134,8 +134,31 @@ const SITE_LABELS = {
   poulebord: 'Poulebord',
 };
 
+function buildHourlySlots(hourlyData) {
+  const dataMap = {};
+  for (const h of hourlyData) dataMap[h.hour] = h.count;
+
+  const now = new Date();
+  now.setUTCMinutes(0, 0, 0);
+  return Array.from({ length: 24 }, (_, i) => {
+    const d = new Date(now);
+    d.setUTCHours(now.getUTCHours() - (23 - i));
+    const key = [
+      d.getUTCFullYear(),
+      String(d.getUTCMonth() + 1).padStart(2, '0'),
+      String(d.getUTCDate()).padStart(2, '0'),
+    ].join('-') + ' ' + String(d.getUTCHours()).padStart(2, '0') + ':00:00';
+    return {
+      hour: key,
+      count: dataMap[key] || 0,
+      label: d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    };
+  });
+}
+
 function SitePanel({ site, s }) {
-  const maxCount = s.hourly.length ? Math.max(...s.hourly.map(h => h.count), 1) : 1;
+  const slots = buildHourlySlots(s.hourly);
+  const maxCount = Math.max(...slots.map(h => h.count), 1);
   const fmtDt = (iso) => iso
     ? new Date(iso.replace(' ', 'T') + 'Z').toLocaleString('nl-NL')
     : '—';
@@ -167,32 +190,36 @@ function SitePanel({ site, s }) {
         </p>
       )}
 
-      {/* Hourly bar chart */}
-      {s.hourly.length > 0 && (
-        <div style={{
-          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)', padding: '16px 20px',
-        }}>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '12px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Events per uur — laatste 24u
-          </p>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '60px' }}>
-            {s.hourly.map((h, i) => (
-              <div key={i} title={`${h.hour}: ${h.count}`} style={{
-                flex: 1, minWidth: 0,
-                height: `${Math.max(4, Math.round((h.count / maxCount) * 60))}px`,
-                background: 'var(--color-primary, #3b82f6)',
-                opacity: 0.7,
-                borderRadius: '2px 2px 0 0',
-              }} />
-            ))}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '10px', color: 'var(--color-text-muted)' }}>
-            <span>{s.hourly[0]?.hour?.slice(11, 16)}</span>
-            <span>{s.hourly[s.hourly.length - 1]?.hour?.slice(11, 16)}</span>
-          </div>
+      {/* Hourly bar chart — always 24 slots */}
+      <div style={{
+        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)', padding: '16px 20px',
+      }}>
+        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '12px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          Events per uur — laatste 24u
+        </p>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '60px' }}>
+          {slots.map((h, i) => (
+            <div key={i} title={`${h.label}: ${h.count}`} style={{
+              flex: 1, minWidth: 0,
+              height: h.count > 0 ? `${Math.max(4, Math.round((h.count / maxCount) * 60))}px` : '2px',
+              background: h.count > 0 ? 'var(--color-primary, #3b82f6)' : 'var(--color-border)',
+              opacity: h.count > 0 ? 0.75 : 0.4,
+              borderRadius: '2px 2px 0 0',
+            }} />
+          ))}
         </div>
-      )}
+        <div style={{ display: 'flex', marginTop: '6px', fontSize: '10px', color: 'var(--color-text-muted)' }}>
+          {slots.map((h, i) => {
+            const show = i === 0 || i === 6 || i === 12 || i === 18 || i === 23;
+            return (
+              <div key={i} style={{ flex: 1, textAlign: i === 23 ? 'right' : i === 0 ? 'left' : 'center' }}>
+                {show ? h.label : ''}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
