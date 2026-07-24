@@ -5,10 +5,11 @@ import random
 import string
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from core.analytics import client_ip, hash_ip, log_site_event
 from core.database import get_session
 from core.auth import get_current_user, require_admin
 from models.core import User
@@ -122,9 +123,21 @@ def list_clubs_public(session: Session = Depends(get_session)):
     return [c.name for c in session.exec(select(TournixClub).order_by(TournixClub.name)).all()]
 
 
+@router.post("/public/beacon")
+def poulebord_beacon(request: Request):
+    """Log a page view from the poulebord frontend."""
+    log_site_event(
+        "poulebord", "page_view",
+        ip_hash=hash_ip(client_ip(request)),
+        user_agent=request.headers.get("User-Agent", ""),
+    )
+    return {"ok": True}
+
+
 @router.get("/public/board")
 def get_board(
     club: str,
+    request: Request,
     stage: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
@@ -167,7 +180,15 @@ def get_board(
             "team_name": team.name,
         })
 
-    return sorted(result, key=lambda x: (x["category"] or "ZZ", x["tournament_name"]))
+    sorted_result = sorted(result, key=lambda x: (x["category"] or "ZZ", x["tournament_name"]))
+    log_site_event(
+        "poulebord", "api_call",
+        ip_hash=hash_ip(client_ip(request)),
+        user_agent=request.headers.get("User-Agent", ""),
+        endpoint="/api/tournix/public/board",
+        result_count=len(sorted_result),
+    )
+    return sorted_result
 
 
 # ── Poulebord boards ──────────────────────────────────────────────────────────

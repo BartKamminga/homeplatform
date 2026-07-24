@@ -868,6 +868,11 @@ export default function App() {
   const [copied, setCopied]             = useState(false)
   const saveNameRef = useRef(null)
 
+  // Beacon: log page view for admin analytics (fire-and-forget)
+  useEffect(() => {
+    fetch('/api/tournix/public/beacon', { method: 'POST' }).catch(() => {})
+  }, [])
+
   // Load shared board from URL ?b=code
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('b')

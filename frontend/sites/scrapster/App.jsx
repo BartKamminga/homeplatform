@@ -405,6 +405,16 @@ export default function App() {
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
 
+  // Beacon: log page view for admin analytics (fire-and-forget)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    fetch('/api/scrapster/beacon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: p.get('s') || null, kiosk: p.has('kiosk') }),
+    }).catch(() => {})
+  }, [])
+
   // Countdown + auto-refresh + highlight expiry
   useEffect(() => {
     const tick = setInterval(() => {

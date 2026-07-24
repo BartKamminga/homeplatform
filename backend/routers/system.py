@@ -260,6 +260,81 @@ def get_api_stats(_: User = Depends(require_admin)):
     }
 
 
+# ── Admin: Site analytics ─────────────────────────────────────────────────────
+
+@router.get("/admin/site-stats")
+def get_site_stats(_: User = Depends(require_admin)):
+    """Return aggregated analytics per public site from site_events."""
+    from core.analytics import log_site_event  # noqa: F401 — ensures module is importable
+    from sqlmodel import Session as _Session
+    from core.database import engine as _engine
+    from sqlalchemy import text as _text
+
+    with _Session(_engine) as session:
+        sites_rows = session.exec(_text("SELECT DISTINCT site FROM site_events")).all()
+        sites = [r[0] for r in sites_rows]
+
+        result = {}
+        for site in sites:
+            today = session.exec(_text("""
+                SELECT
+                    SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END),
+                    COUNT(DISTINCT CASE WHEN event_type = 'page_view' THEN ip_hash END),
+                    SUM(CASE WHEN event_type = 'api_call' THEN 1 ELSE 0 END)
+                FROM site_events
+                WHERE site = :site AND ts >= date('now')
+            """), params={"site": site}).first()
+
+            week = session.exec(_text("""
+                SELECT
+                    SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END),
+                    COUNT(DISTINCT CASE WHEN event_type = 'page_view' THEN ip_hash END)
+                FROM site_events
+                WHERE site = :site AND ts >= datetime('now', '-7 days')
+            """), params={"site": site}).first()
+
+            source = session.exec(_text("""
+                SELECT
+                    ROUND(AVG(duration_ms)),
+                    ROUND(
+                        100.0 * SUM(CASE WHEN status_code > 0 AND status_code < 400 THEN 1 ELSE 0 END)
+                        / NULLIF(COUNT(*), 0)
+                    , 1),
+                    MAX(ts)
+                FROM site_events
+                WHERE site = :site AND event_type = 'source_call'
+                AND ts >= datetime('now', '-24 hours')
+            """), params={"site": site}).first()
+
+            hourly_rows = session.exec(_text("""
+                SELECT strftime('%Y-%m-%d %H:00:00', ts), COUNT(*)
+                FROM site_events
+                WHERE site = :site AND ts >= datetime('now', '-24 hours')
+                GROUP BY strftime('%Y-%m-%d %H:00:00', ts)
+                ORDER BY 1
+            """), params={"site": site}).all()
+
+            result[site] = {
+                "today": {
+                    "page_views": today[0] or 0,
+                    "unique_visitors": today[1] or 0,
+                    "api_calls": today[2] or 0,
+                },
+                "week": {
+                    "page_views": week[0] or 0,
+                    "unique_visitors": week[1] or 0,
+                },
+                "source": {
+                    "avg_duration_ms": (source[0] or 0) if source else 0,
+                    "success_rate": (source[1] or 0) if source else 0,
+                    "last_fetch_at": source[2] if source else None,
+                },
+                "hourly": [{"hour": r[0], "count": r[1]} for r in hourly_rows],
+            }
+
+    return {"sites": result}
+
+
 # ── Admin: Audit log ──────────────────────────────────────────────────────────
 
 @router.get("/admin/audit-log")

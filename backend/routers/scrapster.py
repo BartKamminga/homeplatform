@@ -10,11 +10,12 @@ from typing import Optional
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Session
 
+from core.analytics import client_ip, hash_ip, log_site_event
 from core.database import engine
 
 logger = logging.getLogger("homeplatform")
@@ -42,6 +43,9 @@ _cache: dict = {"data": None, "ts": 0}
 _standings_cache: dict = {"data": None, "ts": 0}
 
 
+# ── Scraping ───────────────────────────────────────────────────────────────
+
+
 def _extract_competition_name(soup: BeautifulSoup, url: str) -> str:
     """Extract competition name from page heading or URL."""
     for tag in ("h1", "h2", "h3"):
@@ -51,7 +55,6 @@ def _extract_competition_name(soup: BeautifulSoup, url: str) -> str:
             if text and len(text) < 80:
                 return text
 
-    # Fallback: competition ID from URL
     comp_id = url.rstrip("/").split("/")[-2]
     return f"Competition {comp_id}"
 
@@ -66,7 +69,6 @@ def _parse_matches(html: str, url: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     competition_name = _extract_competition_name(soup, url)
 
-    # Build is_live lookup from panels (panel-live CSS class is reliable for live state)
     is_live_map: dict[str, bool] = {}
     listing = soup.find("div", id="match-listing")
     if listing:
@@ -83,9 +85,6 @@ def _parse_matches(html: str, url: str) -> list[dict]:
             if mid:
                 is_live_map[mid] = "panel-live" in panel_classes
 
-    # Parse the match table for full data (venue, datetime, match#, details, score, status)
-    # The matches table lives inside a .table-responsive wrapper inside the blue portlet.
-    # There are other table-condensed tables on the page (e.g. help FAQ), so scope the search.
     matches = []
     table_wrap = soup.find("div", class_="table-responsive")
     table = table_wrap.find("table") if table_wrap else None
@@ -104,7 +103,6 @@ def _parse_matches(html: str, url: str) -> list[dict]:
 
         match_num = cells[0].get_text(strip=True)
 
-        # Prefer machine-readable UTC datetime from data attribute
         dt_span = cells[1].find("span", attrs={"data-datetimelocal__notimechange": True})
         datetime_str = dt_span["data-datetimelocal__notimechange"] if dt_span else cells[1].get_text(strip=True)
 
@@ -141,14 +139,26 @@ async def _fetch_all_matches() -> list[dict]:
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         for url in COMPETITION_URLS:
+            t0 = time.time()
+            status_code = 0
+            n_results = 0
             try:
                 response = await client.get(url)
+                status_code = response.status_code
                 response.raise_for_status()
-                matches = _parse_matches(response.text, url)
-                all_matches.extend(matches)
-                logger.info("scrapster: fetched %d matches from %s", len(matches), url)
+                fetched = _parse_matches(response.text, url)
+                n_results = len(fetched)
+                all_matches.extend(fetched)
+                logger.info("scrapster: fetched %d matches from %s", n_results, url)
             except Exception as exc:
                 logger.warning("scrapster: failed to fetch %s — %s", url, exc)
+            log_site_event(
+                "scrapster", "source_call",
+                source_url=url,
+                duration_ms=int((time.time() - t0) * 1000),
+                status_code=status_code,
+                result_count=n_results,
+            )
 
     return all_matches
 
@@ -171,8 +181,6 @@ def _parse_standings(html: str, url: str, logo_map: dict[str, str]) -> list[dict
     soup = BeautifulSoup(html, "html.parser")
     competition_name = _extract_competition_name(soup, url)
 
-    # There are multiple portlet-body divs on the page (e.g. FAQ dropdown first).
-    # Pick the one that actually contains an <h4> (the pool standings portlet).
     portlet_body = next(
         (pb for pb in soup.find_all("div", class_="portlet-body") if pb.find("h4")),
         None,
@@ -182,7 +190,6 @@ def _parse_standings(html: str, url: str, logo_map: dict[str, str]) -> list[dict
         return []
 
     results = []
-    # Each <h4> is followed by a <div class="table-responsive"> containing the pool table
     for h4 in portlet_body.find_all("h4"):
         pool_name = h4.get_text(strip=True) or competition_name
         table_wrap = h4.find_next_sibling("div", class_="table-responsive")
@@ -246,6 +253,9 @@ async def _fetch_all_standings() -> list[dict]:
         for matches_url in COMPETITION_URLS:
             pools_url = matches_url.replace("/matches", "/pools")
             teams_url = matches_url.replace("/matches", "/teams")
+            t0 = time.time()
+            status_code = 0
+            n_results = 0
             try:
                 teams_resp, pools_resp = await asyncio.gather(
                     client.get(teams_url),
@@ -253,41 +263,91 @@ async def _fetch_all_standings() -> list[dict]:
                 )
                 teams_resp.raise_for_status()
                 pools_resp.raise_for_status()
+                status_code = pools_resp.status_code
                 logo_map = _parse_team_logos(teams_resp.text)
                 standings = _parse_standings(pools_resp.text, matches_url, logo_map)
+                n_results = len(standings)
                 all_standings.extend(standings)
             except Exception as exc:
                 logger.warning("scrapster: failed to fetch standings for %s — %s", matches_url, exc)
+            log_site_event(
+                "scrapster", "source_call",
+                source_url=pools_url,
+                duration_ms=int((time.time() - t0) * 1000),
+                status_code=status_code,
+                result_count=n_results,
+            )
 
     return all_standings
 
 
+# ── Public endpoints ───────────────────────────────────────────────────────
+
+
 @router.get("/standings")
-async def get_standings():
+async def get_standings(request: Request):
     """Return pool standings for all competitions. Cached for 55 seconds."""
     now = time.time()
+    ip_hash = hash_ip(client_ip(request))
+    ua = request.headers.get("User-Agent", "")
+
     if _standings_cache["data"] is not None and (now - _standings_cache["ts"]) < CACHE_TTL:
+        log_site_event("scrapster", "api_call", ip_hash=ip_hash, user_agent=ua,
+                       endpoint="/api/scrapster/standings", cache_hit=True,
+                       result_count=len(_standings_cache["data"]))
         return {"standings": _standings_cache["data"], "cached": True, "cache_age": int(now - _standings_cache["ts"])}
 
     standings = await _fetch_all_standings()
     _standings_cache["data"] = standings
     _standings_cache["ts"] = now
 
+    log_site_event("scrapster", "api_call", ip_hash=ip_hash, user_agent=ua,
+                   endpoint="/api/scrapster/standings", cache_hit=False,
+                   result_count=len(standings))
     return {"standings": standings, "cached": False, "cache_age": 0}
 
 
 @router.get("/matches")
-async def get_matches():
+async def get_matches(request: Request):
     """Return combined match list from all competition URLs. Cached for 55 seconds."""
     now = time.time()
+    ip_hash = hash_ip(client_ip(request))
+    ua = request.headers.get("User-Agent", "")
+
     if _cache["data"] is not None and (now - _cache["ts"]) < CACHE_TTL:
+        log_site_event("scrapster", "api_call", ip_hash=ip_hash, user_agent=ua,
+                       endpoint="/api/scrapster/matches", cache_hit=True,
+                       result_count=len(_cache["data"]))
         return {"matches": _cache["data"], "cached": True, "cache_age": int(now - _cache["ts"])}
 
     matches = await _fetch_all_matches()
     _cache["data"] = matches
     _cache["ts"] = now
 
+    log_site_event("scrapster", "api_call", ip_hash=ip_hash, user_agent=ua,
+                   endpoint="/api/scrapster/matches", cache_hit=False,
+                   result_count=len(matches))
     return {"matches": matches, "cached": False, "cache_age": 0}
+
+
+# ── Beacon ─────────────────────────────────────────────────────────────────
+
+
+class BeaconBody(BaseModel):
+    token: Optional[str] = None
+    kiosk: bool = False
+
+
+@router.post("/beacon")
+async def post_beacon(body: BeaconBody, request: Request):
+    """Log a page view from the scrapster frontend."""
+    log_site_event(
+        "scrapster", "page_view",
+        ip_hash=hash_ip(client_ip(request)),
+        user_agent=request.headers.get("User-Agent", ""),
+        token=body.token,
+    )
+    return {"ok": True}
 
 
 # ── URL shortener ──────────────────────────────────────────────────────────
@@ -317,7 +377,6 @@ def shorten_url(body: ShortenRequest):
     token = secrets.token_urlsafe(5)  # ~7 chars
 
     with Session(engine) as session:
-        # Collision retry (extremely unlikely)
         for _ in range(5):
             existing = session.exec(
                 text("SELECT id FROM scrapster_short_urls WHERE token = :t"),
