@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode, searchPools, getPoolMatches } from './api.js'
+import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode, searchPools, getPoolMatches, getTournamentCompetitionStandings } from './api.js'
 
 const _standingsCache = {}
 function useStandings(phaseId) {
@@ -577,12 +577,26 @@ function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
 // ── Pinned tournament card (board) ────────────────────────────────────────────
 
 function CompactPinnedCard({ tournament, club, onUnpin }) {
-  const [phases, setPhases] = useState(null)
-  const [open, setOpen] = useState(true)
+  const [phases, setPhases]             = useState(null)
+  const [fasesData, setFasesData]       = useState(null)
+  const [useDiscovery, setUseDiscovery] = useState(null)
+  const [open, setOpen]                 = useState(true)
 
   useEffect(() => {
-    getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
+    getTournamentCompetitionStandings(tournament.id)
+      .then(data => {
+        const hasFases = data.fases && data.fases.some(f => f.competitions.length > 0)
+        if (hasFases) { setFasesData(data.fases); setUseDiscovery(true) }
+        else setUseDiscovery(false)
+      })
+      .catch(() => setUseDiscovery(false))
   }, [tournament.id])
+
+  useEffect(() => {
+    if (useDiscovery === false) {
+      getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
+    }
+  }, [useDiscovery, tournament.id])
 
   const poolPhases = phases?.filter(p =>
     p.phase_type === 'pool' && (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
@@ -611,14 +625,121 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
       </div>
       {open && (
         <div style={{ padding: '0 12px 12px' }}>
-          {phases === null
-            ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
-            : poolPhases.length === 0
-              ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8, fontStyle: 'italic' }}>Geen poulefases</div>
-              : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} tournamentName={tournament.name} />)
-          }
+          {useDiscovery === null && (
+            <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
+          )}
+          {useDiscovery === true && fasesData && (
+            <CompetitionStandingsView fasesData={fasesData} club={club} />
+          )}
+          {useDiscovery === false && (
+            phases === null
+              ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
+              : poolPhases.length === 0
+                ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8, fontStyle: 'italic' }}>
+                    Geen poulefases
+                  </div>
+                : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} tournamentName={tournament.name} />)
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Discovery standings (competition-gebaseerd) ───────────────────────────────
+
+function DiscPouleTable({ poule, club }) {
+  const rows = poule.standings || []
+  const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
+          letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
+          {poule.name}
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, textAlign: 'center',
+          padding: '8px 0', fontStyle: 'italic' }}>Nog geen stand</div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
+        letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
+        {poule.name}
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ color: C.muted, fontSize: 10 }}>
+            <th style={{ padding: '4px 3px 4px 10px', textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
+            <th style={{ padding: '4px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+            <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
+            <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
+            <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
+            <th style={{ padding: '4px 10px 4px 3px', textAlign: 'center', fontWeight: 600, width: 30, color: C.chalk }}>Pt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const my = isMyClub(r.team_name)
+            return (
+              <tr key={i} style={{
+                borderTop: `1px solid ${C.border}`,
+                background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
+              }}>
+                <td style={{ padding: '5px 3px 5px 10px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                <td style={{ padding: '5px 3px', color: my ? C.goldBr : C.chalk,
+                  fontWeight: my || i === 0 ? 600 : 400,
+                  maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
+                  {r.team_name}
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.won}</td>
+                <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.drawn}</td>
+                <td style={{ padding: '5px 6px', textAlign: 'center', color: C.muted }}>{r.lost}</td>
+                <td style={{ padding: '5px 10px 5px 3px', textAlign: 'center',
+                  color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CompetitionStandingsView({ fasesData, club }) {
+  return (
+    <div>
+      {fasesData.map(fase => (
+        <div key={fase.fase} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '8px 0 6px', fontWeight: 600 }}>{fase.label}</div>
+          {fase.competitions.map(comp => (
+            <div key={comp.link_id} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: C.chalk, fontWeight: 600, marginBottom: 6 }}>
+                {comp.hockey_type === 'ZA' ? '🏒 ' : '🏑 '}{comp.name}
+              </div>
+              {comp.poules.length === 0 ? (
+                <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', paddingLeft: 4 }}>
+                  Geen poules gevonden
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {comp.poules.map(poule => (
+                    <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                      <DiscPouleTable poule={poule} club={club} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
@@ -626,12 +747,30 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
 // ── Tournament card (browse mode) ─────────────────────────────────────────────
 
 function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }) {
-  const [phases, setPhases] = useState(null)
-  const [open, setOpen] = useState(true)
+  const [phases, setPhases]           = useState(null)
+  const [fasesData, setFasesData]     = useState(null)
+  const [useDiscovery, setUseDiscovery] = useState(null) // null=loading, true/false
+  const [open, setOpen]               = useState(true)
 
   useEffect(() => {
-    getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
+    getTournamentCompetitionStandings(tournament.id)
+      .then(data => {
+        const hasFases = data.fases && data.fases.some(f => f.competitions.length > 0)
+        if (hasFases) {
+          setFasesData(data.fases)
+          setUseDiscovery(true)
+        } else {
+          setUseDiscovery(false)
+        }
+      })
+      .catch(() => setUseDiscovery(false))
   }, [tournament.id])
+
+  useEffect(() => {
+    if (useDiscovery === false) {
+      getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
+    }
+  }, [useDiscovery, tournament.id])
 
   const poolPhases = phases?.filter(p =>
     p.phase_type === 'pool' && (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
@@ -662,18 +801,25 @@ function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }
 
       {open && (
         <div style={{ padding: '0 12px 12px' }}>
-          {phases === null
-            ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
-            : poolPhases.length === 0
-              ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center', fontStyle: 'italic' }}>
-                  Geen poulefases gevonden
-                </div>
-              : poolPhases.map(p => (
-                  <PhaseCard key={p.id} phase={p} club={club}
-                    poolPins={poolPins} onPoolPin={onPoolPin}
-                    tournamentName={tournament.name} />
-                ))
-          }
+          {useDiscovery === null && (
+            <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
+          )}
+          {useDiscovery === true && fasesData && (
+            <CompetitionStandingsView fasesData={fasesData} club={club} />
+          )}
+          {useDiscovery === false && (
+            phases === null
+              ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
+              : poolPhases.length === 0
+                ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center', fontStyle: 'italic' }}>
+                    Geen poulefases gevonden
+                  </div>
+                : poolPhases.map(p => (
+                    <PhaseCard key={p.id} phase={p} club={club}
+                      poolPins={poolPins} onPoolPin={onPoolPin}
+                      tournamentName={tournament.name} />
+                  ))
+          )}
         </div>
       )}
     </div>

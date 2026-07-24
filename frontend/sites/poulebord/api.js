@@ -12,3 +12,5 @@ export const getPoolMatches    = (phaseId, poolName) =>
   api.get(`/api/tournix/public/phases/${phaseId}/pool-matches?pool=${encodeURIComponent(poolName)}`)
 export const searchPools       = (q, season = '2026-2027') =>
   api.get(`/api/tournix/public/search?q=${encodeURIComponent(q)}&season=${encodeURIComponent(season)}`)
+export const getTournamentCompetitionStandings = (tid) =>
+  api.get(`/api/tournix/public/tournaments/${tid}/competition-standings`)

@@ -448,6 +448,31 @@ def list_tournament_competitions(
     return result
 
 
+class CompetitionLinkUpdate(BaseModel):
+    fase:  Optional[str] = None
+    label: Optional[str] = None
+    order: Optional[int] = None
+
+
+@router.patch("/tournaments/{tid}/competitions/{link_id}")
+def update_tournament_competition(
+    tid: str,
+    link_id: str,
+    body: CompetitionLinkUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    lnk = session.get(TournixTournamentCompetition, link_id)
+    if not lnk or lnk.tournament_id != tid:
+        raise HTTPException(404, "Koppeling niet gevonden")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(lnk, k, v)
+    session.add(lnk)
+    session.commit()
+    session.refresh(lnk)
+    return lnk
+
+
 @router.post("/tournaments/{tid}/competitions", status_code=201)
 def add_tournament_competition(
     tid: str,

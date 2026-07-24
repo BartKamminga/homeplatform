@@ -78,5 +78,5 @@ export const importPoule = (data)          => api.post('/api/tournix/discovery/i
 // Tournament-competitie koppelingen
 export const getTournamentComps    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/competitions`)
 export const addTournamentComp     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
+export const patchTournamentComp   = (tid, linkId, body) => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
 export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
-export const createPhasesFromComp  = (tid, linkId)   => api.post(`/api/tournix/tournaments/${tid}/competitions/${linkId}/phases`)

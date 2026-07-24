@@ -204,3 +204,4 @@ class TournixTournamentCompetition(SQLModel, table=True):
     competition_id: int           = Field(foreign_key="hockey_competitions.id")
     order:          int           = Field(default=0)
     label:          Optional[str] = Field(default=None)
+    fase:           Optional[str] = Field(default=None)  # herfst | lente | nk | overig
