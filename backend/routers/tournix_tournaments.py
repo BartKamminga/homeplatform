@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
 class TournamentCreate(BaseModel):
     name:             str
+    status:           Optional[str]      = None
     date:             Optional[datetime] = None
     location:         Optional[str]      = None
     location_club_id: Optional[str]      = None

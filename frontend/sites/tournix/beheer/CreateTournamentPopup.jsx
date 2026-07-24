@@ -12,7 +12,7 @@ export default function CreateTournamentPopup({ onClose, onCreated }) {
     if (!name.trim()) return
     setSaving(true); setError('')
     try {
-      await createTournament({ name: name.trim() })
+      await createTournament({ name: name.trim(), status: 'active' })
       onCreated()
     } catch (err) { setError(err.message) }
     finally { setSaving(false) }
