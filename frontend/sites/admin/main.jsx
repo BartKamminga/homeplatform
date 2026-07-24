@@ -13,6 +13,7 @@ import AuditLog from "./pages/AuditLog.jsx";
 import Changelog from "./pages/Changelog.jsx";
 import System from "./pages/System.jsx";
 import ApiStats from "./pages/ApiStats.jsx";
+import SiteMonitoring from "./pages/SiteMonitoring.jsx";
 import Monitoring from "./pages/Monitoring.jsx";
 import Todo from "./pages/Todo.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
@@ -52,6 +53,7 @@ createRoot(document.getElementById("root")).render(
                 <Route path="changelog" element={<Changelog />} />
                 <Route path="system" element={<System />} />
                 <Route path="api-stats" element={<ApiStats />} />
+                <Route path="site-monitoring" element={<SiteMonitoring />} />
                 <Route path="monitoring" element={<Monitoring />} />
                 <Route path="backup" element={<Backup />} />
                 <Route path="todo" element={<Todo />} />

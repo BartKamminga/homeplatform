@@ -11,19 +11,15 @@ const METHOD_COLORS = {
 };
 
 export default function ApiStats() {
-  const [data, setData]             = useState(null);
-  const [error, setError]           = useState('');
-  const [autoRefresh, setAuto]      = useState(false);
-  const [scrapster, setScrapster]   = useState(null);
+  const [data, setData]         = useState(null);
+  const [error, setError]       = useState('');
+  const [autoRefresh, setAuto]  = useState(false);
   const intervalRef = useRef(null);
 
   const load = useCallback(() => {
     api.get('/api/admin/api-stats')
       .then(setData)
       .catch(e => setError(e.message));
-    api.get('/api/admin/site-stats')
-      .then(d => setScrapster(d.sites || {}))
-      .catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -122,121 +118,7 @@ export default function ApiStats() {
           </table>
         </div>
       )}
-      {scrapster && Object.keys(scrapster).map(site => (
-        <SitePanel key={site} site={site} s={scrapster[site]} />
-      ))}
     </AdminLayout>
-  );
-}
-
-const SITE_LABELS = {
-  scrapster: 'Scrapster',
-  poulebord: 'Poulebord',
-};
-
-function buildHourlySlots(hourlyData) {
-  const dataMap = {};
-  for (const h of hourlyData) dataMap[h.hour] = h.count;
-
-  const now = new Date();
-  now.setUTCMinutes(0, 0, 0);
-  return Array.from({ length: 24 }, (_, i) => {
-    const d = new Date(now);
-    d.setUTCHours(now.getUTCHours() - (23 - i));
-    const key = [
-      d.getUTCFullYear(),
-      String(d.getUTCMonth() + 1).padStart(2, '0'),
-      String(d.getUTCDate()).padStart(2, '0'),
-    ].join('-') + ' ' + String(d.getUTCHours()).padStart(2, '0') + ':00:00';
-    return {
-      hour: key,
-      count: dataMap[key] || 0,
-      label: d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false }),
-    };
-  });
-}
-
-function SitePanel({ site, s }) {
-  const slots = buildHourlySlots(s.hourly);
-  const maxCount = Math.max(...slots.map(h => h.count), 1);
-  const fmtDt = (iso) => iso
-    ? new Date(iso.replace(' ', 'T') + 'Z').toLocaleString('nl-NL')
-    : '—';
-
-  return (
-    <div style={{ marginTop: '40px' }}>
-      <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
-        {SITE_LABELS[site] || site} — monitoring
-      </h2>
-
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-        <StatCard label="Bezoekers vandaag"   value={s.today.unique_visitors} />
-        <StatCard label="Paginabezoeken"       value={s.today.page_views} sub="vandaag" />
-        <StatCard label="Paginabezoeken"       value={s.week.page_views} sub="7 dagen" />
-        <StatCard label="API-calls"            value={s.today.api_calls} sub="vandaag" />
-        {s.source.last_fetch_at && (
-          <StatCard label="Gem. brontijd"      value={`${s.source.avg_duration_ms || 0} ms`} raw />
-        )}
-        {s.source.last_fetch_at && (
-          <StatCard label="Bron succesratio"   value={`${s.source.success_rate || 0}%`} raw />
-        )}
-      </div>
-
-      {/* Last fetch — only when source calls are tracked */}
-      {s.source.last_fetch_at && (
-        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
-          Laatste ophaalmoment bron: <strong>{fmtDt(s.source.last_fetch_at)}</strong>
-        </p>
-      )}
-
-      {/* Hourly bar chart — always 24 slots */}
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)', padding: '16px 20px',
-      }}>
-        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '12px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-          Events per uur — laatste 24u
-        </p>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '60px' }}>
-          {slots.map((h, i) => (
-            <div key={i} title={`${h.label}: ${h.count}`} style={{
-              flex: 1, minWidth: 0,
-              height: h.count > 0 ? `${Math.max(4, Math.round((h.count / maxCount) * 60))}px` : '2px',
-              background: h.count > 0 ? 'var(--color-primary, #3b82f6)' : 'var(--color-border)',
-              opacity: h.count > 0 ? 0.75 : 0.4,
-              borderRadius: '2px 2px 0 0',
-            }} />
-          ))}
-        </div>
-        <div style={{ display: 'flex', marginTop: '6px', fontSize: '10px', color: 'var(--color-text-muted)' }}>
-          {slots.map((h, i) => {
-            const show = i === 0 || i === 6 || i === 12 || i === 18 || i === 23;
-            return (
-              <div key={i} style={{ flex: 1, textAlign: i === 23 ? 'right' : i === 0 ? 'left' : 'center' }}>
-                {show ? h.label : ''}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, sub, raw }) {
-  return (
-    <div style={{
-      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)', padding: '14px 16px',
-    }}>
-      <div style={{ fontSize: '22px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
-        {raw ? value : (typeof value === 'number' ? value.toLocaleString('nl-NL') : value)}
-      </div>
-      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-        {label}{sub ? ` (${sub})` : ''}
-      </div>
-    </div>
   );
 }
 

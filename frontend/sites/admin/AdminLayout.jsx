@@ -11,6 +11,7 @@ const NAV = [
   { to: "/admin/changelog", icon: "◷", label: "Changelog" },
   { to: "/admin/system", icon: "⚙", label: "Systeem" },
   { to: "/admin/api-stats", icon: "▤", label: "API stats" },
+  { to: "/admin/site-monitoring", icon: "◉", label: "Site monitoring" },
   { to: "/admin/monitoring", icon: "🔗", label: "Beheer & links" },
   { to: "/admin/workflows", icon: "⟳", label: "Workflows" },
   { to: "/admin/data-storage", icon: "◈", label: "Data & instellingen" },
