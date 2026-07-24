@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import TournamentTab from '../beheer/TournamentTab.jsx'
-import FasesTab      from '../beheer/FasesTab.jsx'
+import TournamentTab  from '../beheer/TournamentTab.jsx'
+import FasesTab       from '../beheer/FasesTab.jsx'
+import CompetitiesTab from '../beheer/CompetitiesTab.jsx'
 
-const TABS = ['Toernooi', 'Fases']
+const TABS = ['Toernooi', 'Competities', 'Fases']
 
 export default function BeheerPage({ tournament }) {
   const [tab, setTab] = useState('Toernooi')
@@ -28,8 +29,9 @@ export default function BeheerPage({ tournament }) {
         ))}
       </div>
 
-      {tab === 'Toernooi' && <TournamentTab active={tournament} onRefresh={() => {}} />}
-      {tab === 'Fases'    && <FasesTab tid={tid} stage={stage} />}
+      {tab === 'Toernooi'    && <TournamentTab active={tournament} onRefresh={() => {}} />}
+      {tab === 'Competities' && <CompetitiesTab tid={tid} />}
+      {tab === 'Fases'       && <FasesTab tid={tid} stage={stage} />}
     </div>
   )
 }

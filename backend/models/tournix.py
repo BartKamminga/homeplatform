@@ -194,3 +194,13 @@ class TournixSnapshot(SQLModel, table=True):
     round:          int
     snapshot_json:  str
     created_at:     datetime      = Field(default_factory=datetime.utcnow)
+
+
+class TournixTournamentCompetition(SQLModel, table=True):
+    __tablename__ = "tournix_tournament_competitions"
+
+    id:             str           = Field(default_factory=new_uuid, primary_key=True)
+    tournament_id:  str           = Field(foreign_key="tournix_tournaments.id", index=True)
+    competition_id: int           = Field(foreign_key="hockey_competitions.id")
+    order:          int           = Field(default=0)
+    label:          Optional[str] = Field(default=None)

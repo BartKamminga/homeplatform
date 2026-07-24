@@ -74,3 +74,9 @@ export const getVangerQueue    = (status) =>
 // Discovery → Tournix import
 export const getTournamentsForImport = () => api.get('/api/tournix/discovery/tournaments-for-import')
 export const importPoule = (data)          => api.post('/api/tournix/discovery/import-poule', data)
+
+// Tournament-competitie koppelingen
+export const getTournamentComps    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/competitions`)
+export const addTournamentComp     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
+export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
+export const createPhasesFromComp  = (tid, linkId)   => api.post(`/api/tournix/tournaments/${tid}/competitions/${linkId}/phases`)

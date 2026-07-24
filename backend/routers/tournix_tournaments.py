@@ -16,7 +16,9 @@ from models.tournix import (
     Tournament, TournixClub, TournixPool, TournixTeam,
     TournixField, TournixMatch, TournixPrediction, TournixSnapshot,
     TournixPhase, TournixPhaseTeam, TournixPhaseField,
+    TournixTournamentCompetition,
 )
+from models.hockey_discovery import HockeyCompetition, HockeyPoule
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -396,3 +398,151 @@ def import_tournament_data(
         "fields": len(field_map),
         "matches": match_count,
     }
+
+
+# ── Tournament-competitie koppelingen ─────────────────────────────────────────
+
+class CompetitionLinkCreate(BaseModel):
+    competition_id: int
+    order:          int = 0
+    label:          Optional[str] = None
+
+
+@router.get("/tournaments/{tid}/competitions")
+def list_tournament_competitions(
+    tid: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    get_or_404(session, Tournament, tid, "Toernooi")
+    links = session.exec(
+        select(TournixTournamentCompetition)
+        .where(TournixTournamentCompetition.tournament_id == tid)
+        .order_by(TournixTournamentCompetition.order)
+    ).all()
+    result = []
+    for lnk in links:
+        comp = session.get(HockeyCompetition, lnk.competition_id)
+        poules = session.exec(
+            select(HockeyPoule)
+            .where(HockeyPoule.competition_id == lnk.competition_id)
+            .order_by(HockeyPoule.name)
+        ).all()
+        result.append({
+            "id":             lnk.id,
+            "tournament_id":  lnk.tournament_id,
+            "competition_id": lnk.competition_id,
+            "order":          lnk.order,
+            "label":          lnk.label,
+            "competition":    {
+                "id":          comp.id,
+                "name":        comp.name,
+                "hockey_type": comp.hockey_type,
+                "season":      comp.season,
+            } if comp else None,
+            "poules": [
+                {"id": p.id, "name": p.name, "poule_id": p.poule_id}
+                for p in poules
+            ],
+        })
+    return result
+
+
+@router.post("/tournaments/{tid}/competitions", status_code=201)
+def add_tournament_competition(
+    tid: str,
+    body: CompetitionLinkCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_admin),
+):
+    get_or_404(session, Tournament, tid, "Toernooi")
+    comp = session.get(HockeyCompetition, body.competition_id)
+    if not comp:
+        raise HTTPException(404, "Competitie niet gevonden")
+    existing = session.exec(
+        select(TournixTournamentCompetition)
+        .where(TournixTournamentCompetition.tournament_id == tid)
+        .where(
+            TournixTournamentCompetition.competition_id == body.competition_id
+        )
+    ).first()
+    if existing:
+        raise HTTPException(409, "Competitie al gekoppeld aan dit toernooi")
+    lnk = TournixTournamentCompetition(
+        tournament_id=tid,
+        competition_id=body.competition_id,
+        order=body.order,
+        label=body.label,
+    )
+    session.add(lnk)
+    session.commit()
+    session.refresh(lnk)
+    return lnk
+
+
+@router.delete("/tournaments/{tid}/competitions/{link_id}", status_code=204)
+def remove_tournament_competition(
+    tid: str,
+    link_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    lnk = session.get(TournixTournamentCompetition, link_id)
+    if not lnk or lnk.tournament_id != tid:
+        raise HTTPException(404, "Koppeling niet gevonden")
+    session.delete(lnk)
+    session.commit()
+
+
+@router.post("/tournaments/{tid}/competitions/{link_id}/phases", status_code=201)
+def create_phases_from_competition(
+    tid: str,
+    link_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_admin),
+):
+    """Maak TournixPhase aan voor elke poule in de gekoppelde competitie."""
+    lnk = session.get(TournixTournamentCompetition, link_id)
+    if not lnk or lnk.tournament_id != tid:
+        raise HTTPException(404, "Koppeling niet gevonden")
+    get_or_404(session, Tournament, tid, "Toernooi")
+
+    poules = session.exec(
+        select(HockeyPoule)
+        .where(HockeyPoule.competition_id == lnk.competition_id)
+        .order_by(HockeyPoule.name)
+    ).all()
+
+    existing_poule_ids = set(
+        row.hockey_poule_id
+        for row in session.exec(
+            select(TournixPhase)
+            .where(TournixPhase.tournament_id == tid)
+            .where(TournixPhase.hockey_poule_id.is_not(None))  # type: ignore[attr-defined]
+        ).all()
+        if row.hockey_poule_id is not None
+    )
+
+    current_count = session.exec(
+        select(TournixPhase).where(TournixPhase.tournament_id == tid)
+    ).all()
+    base_order = len(current_count)
+
+    created = 0
+    for i, poule in enumerate(poules):
+        if poule.id in existing_poule_ids:
+            continue
+        comp = session.get(HockeyCompetition, lnk.competition_id)
+        phase_name = lnk.label or (comp.name if comp else "Competitie")
+        phase = TournixPhase(
+            tournament_id=tid,
+            name=f"{phase_name} · {poule.name}",
+            order=base_order + i,
+            phase_type="pool",
+            hockey_poule_id=poule.id,
+        )
+        session.add(phase)
+        created += 1
+
+    session.commit()
+    return {"created": created, "skipped": len(poules) - created}
