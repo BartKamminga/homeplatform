@@ -4,7 +4,6 @@ import { inputStyle, primaryBtn, ghostBtn } from './styles.js'
 
 export default function CreateTournamentPopup({ onClose, onCreated }) {
   const [name,   setName]   = useState('')
-  const [date,   setDate]   = useState('')
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
@@ -13,7 +12,7 @@ export default function CreateTournamentPopup({ onClose, onCreated }) {
     if (!name.trim()) return
     setSaving(true); setError('')
     try {
-      await createTournament({ name: name.trim(), date: date || null })
+      await createTournament({ name: name.trim() })
       onCreated()
     } catch (err) { setError(err.message) }
     finally { setSaving(false) }
@@ -31,7 +30,6 @@ export default function CreateTournamentPopup({ onClose, onCreated }) {
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input value={name} onChange={e => setName(e.target.value)}
             placeholder="Naam *" style={inputStyle} required autoFocus />
-          <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ ...ghostBtn, flex: 1 }}>Annuleer</button>
             <button type="submit" disabled={saving} style={{ ...primaryBtn, flex: 1 }}>
