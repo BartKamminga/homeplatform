@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react'
-import { getTournaments, getPhases, getClubs } from '../api.js'
+import { getTournaments, getPhases } from '../api.js'
 import { VangerButton } from '../components/VangerButton.jsx'
 import BeheerDiscoveryTab from '../beheer/DiscoveryTab.jsx'
-import ClubsTab           from '../beheer/ClubsTab.jsx'
 import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },
   { id: 'archief',     label: 'Archief'     },
-  { id: 'clubs',       label: 'Clubs'       },
   { id: 'vanger',      label: 'Vanger'      },
   { id: 'discovery',   label: 'Discovery'   },
 ]
@@ -115,15 +113,11 @@ function ArchiefTab({ tournaments, onOpen }) {
 export function SeizoenScreen({ onOpenTournament }) {
   const [tab,         setTab]         = useState('publicaties')
   const [tournaments, setTournaments] = useState([])
-  const [clubs,       setClubs]       = useState([])
   const [search,      setSearch]      = useState('')
 
   useEffect(() => {
     getTournaments().then(setTournaments).catch(() => {})
-    getClubs().then(setClubs).catch(() => {})
   }, [])
-
-  function loadClubs() { getClubs().then(setClubs).catch(() => {}) }
 
   const q       = search.trim().toLowerCase()
   const filtered = q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments
@@ -171,9 +165,6 @@ export function SeizoenScreen({ onOpenTournament }) {
             </div>
             <CaptureArchiefTab />
           </>
-        )}
-        {tab === 'clubs' && (
-          <ClubsTab clubs={clubs} onRefresh={loadClubs} />
         )}
         {tab === 'vanger' && (
           <BeheerDiscoveryTab view="vanger" />

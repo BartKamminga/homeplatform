@@ -39,10 +39,7 @@ export async function updateTournamentKnockout(tid, knockout_type, knockout_adva
   return api.patch(`/api/tournix/tournaments/${tid}`, { knockout_type, knockout_advance })
 }
 
-export const getClubs    = ()          => api.get('/api/tournix/clubs')
-export const createClub  = (data)      => api.post('/api/tournix/clubs', data)
-export const updateClub  = (id, data)  => api.patch(`/api/tournix/clubs/${id}`, data)
-export const deleteClub  = (id)        => api.delete(`/api/tournix/clubs/${id}`)
+export const getClubs = () => api.get('/api/tournix/clubs')
 
 export const importTournament = (data) => api.post('/api/tournix/import', data)
 export const copyTournament   = (tid)  => api.post(`/api/tournix/tournaments/${tid}/copy`)

@@ -33,21 +33,6 @@ class TeamUpdate(BaseModel):
     color:      Optional[str] = None
     club_id:    Optional[str] = None
 
-class ClubCreate(BaseModel):
-    name:                    str
-    abbreviation:            Optional[str] = None
-    city:                    Optional[str] = None
-    color:                   Optional[str] = None
-    federation_reference_id: Optional[str] = None
-    logo_url:                Optional[str] = None
-
-class ClubUpdate(BaseModel):
-    name:                    Optional[str] = None
-    abbreviation:            Optional[str] = None
-    city:                    Optional[str] = None
-    color:                   Optional[str] = None
-    federation_reference_id: Optional[str] = None
-    logo_url:                Optional[str] = None
 
 
 # ── Teams ─────────────────────────────────────────────────────────────────────
@@ -455,55 +440,3 @@ def list_clubs(session: Session = Depends(get_session), _: User = Depends(get_cu
     return session.exec(select(TournixClub).order_by(TournixClub.name)).all()
 
 
-@router.post("/clubs", status_code=201)
-def create_club(
-    body: ClubCreate,
-    session: Session = Depends(get_session),
-    _: User = Depends(require_admin),
-):
-    existing = session.exec(select(TournixClub).where(TournixClub.name == body.name)).first()
-    if existing:
-        raise HTTPException(409, f"Er bestaat al een club met de naam '{body.name}'")
-    club = TournixClub(**body.model_dump())
-    session.add(club)
-    session.commit()
-    session.refresh(club)
-    return club
-
-
-@router.patch("/clubs/{club_id}")
-def update_club(
-    club_id: str,
-    body: ClubUpdate,
-    session: Session = Depends(get_session),
-    _: User = Depends(require_admin),
-):
-    club = session.get(TournixClub, club_id)
-    if not club:
-        raise HTTPException(404, "Club niet gevonden")
-    data = body.model_dump(exclude_none=True)
-    if "name" in data:
-        dup = session.exec(
-            select(TournixClub).where(TournixClub.name == data["name"], TournixClub.id != club_id)
-        ).first()
-        if dup:
-            raise HTTPException(409, f"Er bestaat al een club met de naam '{data['name']}'")
-    for k, v in data.items():
-        setattr(club, k, v)
-    session.add(club)
-    session.commit()
-    session.refresh(club)
-    return club
-
-
-@router.delete("/clubs/{club_id}", status_code=204)
-def delete_club(
-    club_id: str,
-    session: Session = Depends(get_session),
-    _: User = Depends(require_admin),
-):
-    club = session.get(TournixClub, club_id)
-    if not club:
-        raise HTTPException(404, "Club niet gevonden")
-    session.delete(club)
-    session.commit()

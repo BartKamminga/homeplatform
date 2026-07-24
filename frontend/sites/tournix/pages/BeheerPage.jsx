@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import TournamentTab from '../beheer/TournamentTab.jsx'
 import FasesTab      from '../beheer/FasesTab.jsx'
-import DiscoveryTab  from '../beheer/DiscoveryTab.jsx'
 
-const TABS_TOURNAMENT = ['Toernooi', 'Fases']
-const TABS_GLOBAL     = ['Discovery', 'Vanger']
+const TABS = ['Toernooi', 'Fases']
 
 export default function BeheerPage({ tournament }) {
   const [tab, setTab] = useState('Toernooi')
@@ -24,25 +22,14 @@ export default function BeheerPage({ tournament }) {
 
   return (
     <div style={{ padding: '16px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2, whiteSpace: 'nowrap' }}>Toernooi</span>
-          {TABS_TOURNAMENT.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={tabBtn(t)}>{t}</button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2, whiteSpace: 'nowrap' }}>Algemeen</span>
-          {TABS_GLOBAL.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={tabBtn(t)}>{t}</button>
-          ))}
-        </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 20 }}>
+        {TABS.map(t => (
+          <button key={t} onClick={() => setTab(t)} style={tabBtn(t)}>{t}</button>
+        ))}
       </div>
 
-      {tab === 'Toernooi'  && <TournamentTab active={tournament} onRefresh={() => {}} />}
-      {tab === 'Fases'     && <FasesTab tid={tid} stage={stage} />}
-      {tab === 'Discovery' && <DiscoveryTab view="resultaten" />}
-      {tab === 'Vanger'    && <DiscoveryTab view="vanger" />}
+      {tab === 'Toernooi' && <TournamentTab active={tournament} onRefresh={() => {}} />}
+      {tab === 'Fases'    && <FasesTab tid={tid} stage={stage} />}
     </div>
   )
 }
