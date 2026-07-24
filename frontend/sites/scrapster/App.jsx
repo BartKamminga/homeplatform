@@ -115,11 +115,13 @@ function isPlaceholderDetails(details) {
 
 function parseMatchTeams(details) {
   if (!details || isPlaceholderDetails(details)) return null
-  // Strip any trailing parenthesised group: "(W50)", "(MIMC50 B)", etc.
-  const cleaned = details.replace(/\s*\([^)]*\)\s*$/, '')
+  // Extract and strip trailing parenthesised group: "(W50)", "(MIMC50 B)", etc.
+  const labelMatch = details.match(/\s*\(([^)]*)\)\s*$/)
+  const label = labelMatch ? labelMatch[1] : null
+  const cleaned = labelMatch ? details.slice(0, labelMatch.index) : details
   const parts = cleaned.split(' v ')
   if (parts.length !== 2) return null
-  return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()) }
+  return { home: stripSuffix(parts[0].trim()), away: stripSuffix(parts[1].trim()), label }
 }
 
 // For team codes not matching standard ISO: override with base code or full standings name
@@ -212,6 +214,7 @@ function MatchRow({ match, logoByTeamName, highlight }) {
               )}
               {displayTeamName(teams.away)}
             </span>
+            {teams.label && <span className="match-cat">{teams.label}</span>}
           </div>
         ) : (match.details || '—')}
       </td>
@@ -1057,6 +1060,7 @@ const CSS = `
 
   /* ── Match teams (col-details) ── */
   .match-teams { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .match-cat   { font-size: 0.7rem; color: var(--text-3); opacity: 0.6; margin-left: 0.15rem; }
   .team-name   { display: flex; align-items: center; gap: 0.35rem; }
   .vs-sep      { color: var(--text-5); font-size: 0.85rem; font-weight: 500; flex-shrink: 0; }
   .team-scored { color: var(--accent); font-weight: 800; }
