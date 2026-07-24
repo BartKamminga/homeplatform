@@ -1,26 +1,16 @@
-import { useState, useEffect } from 'react'
-import { getPools, getTeams } from '../api.js'
+import { useState } from 'react'
 import TournamentTab from '../beheer/TournamentTab.jsx'
-import MatchesTab    from '../beheer/MatchesTab.jsx'
 import FasesTab      from '../beheer/FasesTab.jsx'
 import DiscoveryTab  from '../beheer/DiscoveryTab.jsx'
 
-const TABS_TOURNAMENT = ['Toernooi', 'Fases', 'Wedstrijden']
+const TABS_TOURNAMENT = ['Toernooi', 'Fases']
 const TABS_GLOBAL     = ['Discovery', 'Vanger']
 
-export default function BeheerPage({ tournament, isAdmin }) {
-  const [tab,   setTab]   = useState('Toernooi')
-  const [pools, setPools] = useState([])
-  const [teams, setTeams] = useState([])
+export default function BeheerPage({ tournament }) {
+  const [tab, setTab] = useState('Toernooi')
 
   const tid   = tournament?.id ?? null
   const stage = tournament?.stage ?? null
-
-  useEffect(() => {
-    if (!tid) { setPools([]); setTeams([]); return }
-    getPools(tid).then(setPools).catch(() => {})
-    getTeams(tid).then(setTeams).catch(() => {})
-  }, [tid])
 
   function tabBtn(t) {
     return {
@@ -49,11 +39,10 @@ export default function BeheerPage({ tournament, isAdmin }) {
         </div>
       </div>
 
-      {tab === 'Toernooi'    && <TournamentTab active={tournament} onRefresh={() => {}} onSelect={() => {}} />}
-      {tab === 'Fases'       && <FasesTab tid={tid} stage={stage} />}
-      {tab === 'Wedstrijden' && <MatchesTab tid={tid} tournament={tournament} pools={pools} teams={teams} stage={stage} />}
-      {tab === 'Discovery'   && <DiscoveryTab view="resultaten" />}
-      {tab === 'Vanger'      && <DiscoveryTab view="vanger" />}
+      {tab === 'Toernooi'  && <TournamentTab active={tournament} onRefresh={() => {}} />}
+      {tab === 'Fases'     && <FasesTab tid={tid} stage={stage} />}
+      {tab === 'Discovery' && <DiscoveryTab view="resultaten" />}
+      {tab === 'Vanger'    && <DiscoveryTab view="vanger" />}
     </div>
   )
 }

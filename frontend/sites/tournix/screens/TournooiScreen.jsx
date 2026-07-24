@@ -95,7 +95,7 @@ export function TournooiScreen({ tournament, onBack, isAdmin }) {
         {tab === 'stand'     && <OverzichtPage  tournament={tournament} phaseId={selectedFase} isAdmin={isAdmin} onTab={setTab} />}
         {tab === 'programma' && <ProgrammaPage  tournament={tournament} phaseId={selectedFase} stage={stage}    />}
         {tab === 'uitslagen' && <UitslagenPage   tournament={tournament} phaseId={selectedFase}                  />}
-        {tab === 'beheer'    && <BeheerPage      tournament={tournament} isAdmin={isAdmin} onStageChange={() => {}} />}
+        {tab === 'beheer'    && <BeheerPage      tournament={tournament} />}
       </div>
     </div>
   )
