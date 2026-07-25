@@ -5,7 +5,7 @@ export const getTournament          = (id)        => api.get(`/api/tournix/tourn
 export const createTournament       = (data)      => api.post('/api/tournix/tournaments', data)
 export const updateTournament       = (id, data)  => api.patch(`/api/tournix/tournaments/${id}`, data)
 export const deleteTournament       = (id)        => api.delete(`/api/tournix/tournaments/${id}`)
-export const getMe                  = ()          => api.get('/api/me')
+export const getMe                  = ()          => api.get('/api/auth/me')
 
 export const getTeams               = (tid)       => api.get(`/api/tournix/tournaments/${tid}/teams`)
 export const createTeam             = (tid, data) => api.post(`/api/tournix/tournaments/${tid}/teams`, data)
