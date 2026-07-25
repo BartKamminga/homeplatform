@@ -14,7 +14,7 @@ export default function App() {
   const [isAdmin,    setIsAdmin]    = useState(false)
 
   useEffect(() => {
-    getMe().then(me => setIsAdmin(!!me?.is_admin)).catch(() => {})
+    getMe().then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
   }, [])
 
   async function openTournament(t) {
