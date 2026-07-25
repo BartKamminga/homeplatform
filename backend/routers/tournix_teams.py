@@ -3,11 +3,12 @@
 import json
 import random
 import string
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from core.analytics import client_ip, hash_ip, log_site_event
 from core.database import get_session
@@ -16,7 +17,10 @@ from models.core import User
 from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
 from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, PoulebordBoard
 from models.tournix import TournixTournamentCompetition
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleStanding
+from models.hockey_discovery import (
+    HockeyCompetition, HockeyPoule, HockeyPouleStanding,
+    HockeyPouleMatch, VangerCmd,
+)
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -523,5 +527,97 @@ def get_tournament_competition_standings(
 
     ordered = [fases[k] for k in _FASE_ORDER if k in fases]
     return {"tournament_id": tid, "fases": ordered}
+
+
+@router.get("/public/competitions/{cid}/matches")
+def get_competition_matches(cid: int, session: Session = Depends(get_session)):
+    """Wedstrijden per poule voor een discovery-competitie."""
+    comp = session.get(HockeyCompetition, cid)
+    if not comp:
+        raise HTTPException(404, "Competitie niet gevonden")
+    poules = session.exec(
+        select(HockeyPoule)
+        .where(HockeyPoule.competition_id == cid)
+        .order_by(HockeyPoule.name)
+    ).all()
+    result = []
+    for poule in poules:
+        matches = session.exec(
+            select(HockeyPouleMatch)
+            .where(HockeyPouleMatch.poule_id == poule.id)
+            .order_by(HockeyPouleMatch.match_date, HockeyPouleMatch.match_id)
+        ).all()
+        finished  = [m for m in matches if m.status == "finished"]
+        scheduled = [m for m in matches if m.status != "finished"]
+        result.append({
+            "id":        poule.id,
+            "name":      poule.name,
+            "poule_id":  poule.poule_id,
+            "finished": [
+                {
+                    "match_id":        m.match_id,
+                    "home":            m.home_team_name,
+                    "away":            m.away_team_name,
+                    "home_score":      m.home_score,
+                    "away_score":      m.away_score,
+                    "date":            m.match_date,
+                    "round":           m.round,
+                }
+                for m in finished
+            ],
+            "scheduled": [
+                {
+                    "match_id":  m.match_id,
+                    "home":      m.home_team_name,
+                    "away":      m.away_team_name,
+                    "date":      m.match_date,
+                    "round":     m.round,
+                }
+                for m in scheduled
+            ],
+        })
+    return {"competition_id": cid, "name": comp.name, "poules": result}
+
+
+@router.post("/competitions/{cid}/sync")
+def sync_competition(
+    cid: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Voeg alle poules van een discovery-competitie toe aan de vanger-wachtrij."""
+    comp = session.get(HockeyCompetition, cid)
+    if not comp:
+        raise HTTPException(404, "Competitie niet gevonden")
+    poules = session.exec(
+        select(HockeyPoule).where(HockeyPoule.competition_id == cid)
+    ).all()
+    if not poules:
+        return {"added": 0, "skipped": 0}
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    pending = session.exec(
+        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all()
+    pending_ids = {
+        json.loads(c.params).get("poule_id")
+        for c in pending if c.cmd_type == "get_poule"
+    }
+
+    added = skipped = 0
+    for p in poules:
+        if p.poule_id in pending_ids:
+            skipped += 1
+        else:
+            session.add(VangerCmd(
+                cmd_type="get_poule",
+                params=json.dumps({"poule_id": p.poule_id, "label": p.name}),
+                created_at=now,
+            ))
+            pending_ids.add(p.poule_id)
+            added += 1
+
+    session.commit()
+    return {"added": added, "skipped": skipped}
 
 

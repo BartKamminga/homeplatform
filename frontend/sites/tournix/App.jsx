@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import GroupChip from '@components/GroupChip.jsx'
-import { getMe } from './api.js'
-import { SeizoenScreen }  from './screens/SeizoenScreen.jsx'
-import { TournooiScreen } from './screens/TournooiScreen.jsx'
-import { VangerButton }   from './components/VangerButton.jsx'
+import { getMe, getTournamentCompetitionStandings } from './api.js'
+import { SeizoenScreen }    from './screens/SeizoenScreen.jsx'
+import { TournooiScreen }   from './screens/TournooiScreen.jsx'
+import { CompetitieScreen } from './screens/CompetitieScreen.jsx'
+import { VangerButton }     from './components/VangerButton.jsx'
+
+// 'seizoen' | 'tournooi' | 'competitie'
 
 export default function App() {
-  const [screen,     setScreen]     = useState('seizoen') // 'seizoen' | 'tournooi'
+  const [screen,     setScreen]     = useState('seizoen')
   const [tournament, setTournament] = useState(null)
   const [isAdmin,    setIsAdmin]    = useState(false)
 
@@ -14,27 +17,39 @@ export default function App() {
     getMe().then(me => setIsAdmin(!!me?.is_admin)).catch(() => {})
   }, [])
 
-  function openTournament(t) {
+  async function openTournament(t) {
     setTournament(t)
-    setScreen('tournooi')
+    // Kijk of dit toernooi gekoppelde competities heeft → CompetitieScreen
+    try {
+      const data = await getTournamentCompetitionStandings(t.id)
+      const hasComps = data.fases && data.fases.some(f => f.competitions.length > 0)
+      setScreen(hasComps ? 'competitie' : 'tournooi')
+    } catch {
+      setScreen('tournooi')
+    }
   }
 
   function goBack() {
     setScreen('seizoen')
+    setTournament(null)
   }
 
-  const isTournooi = screen === 'tournooi' && tournament
+  function goToBeheer() {
+    setScreen('tournooi')
+  }
+
+  const showBack = screen !== 'seizoen' && tournament
 
   return (
     <div className="app-root">
       {/* ── Header ──────────────────────────────────────────────────── */}
       <header className="app-header">
-        {isTournooi ? (
+        {showBack ? (
           <>
             <button className="back-btn" onClick={goBack}>← Terug</button>
             <span className="header-tournament-name">{tournament.name}</span>
             <div className="header-right">
-              <VangerButton tournamentId={tournament.id} />
+              {screen === 'tournooi' && <VangerButton tournamentId={tournament.id} />}
               <GroupChip app="tournix" />
             </div>
           </>
@@ -44,20 +59,22 @@ export default function App() {
             <span className="app-title">Tournix</span>
             <div className="header-right">
               <GroupChip app="tournix" />
-              <a
-                href="/account/groups?back=/tournix/"
-                className="icon-btn"
-                title="Account"
-              >
-                👤
-              </a>
+              <a href="/account/groups?back=/tournix/" className="icon-btn" title="Account">👤</a>
             </div>
           </>
         )}
       </header>
 
       {/* ── Screens ─────────────────────────────────────────────────── */}
-      {isTournooi ? (
+      {screen === 'competitie' && tournament ? (
+        <div className="main-content">
+          <CompetitieScreen
+            tournament={tournament}
+            isAdmin={isAdmin}
+            onBeheer={goToBeheer}
+          />
+        </div>
+      ) : screen === 'tournooi' && tournament ? (
         <TournooiScreen
           tournament={tournament}
           onBack={goBack}

@@ -85,3 +85,8 @@ export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix
 export const getTournamentFases    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/fases`)
 export const addTournamentFase     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/fases`, body)
 export const removeTournamentFase  = (tid, faseId)   => api.delete(`/api/tournix/tournaments/${tid}/fases/${faseId}`)
+
+// Discovery competitie detail
+export const getTournamentCompetitionStandings = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/competition-standings`)
+export const getCompetitionMatches = (cid)             => api.get(`/api/tournix/public/competitions/${cid}/matches`)
+export const syncCompetition       = (cid)             => api.post(`/api/tournix/competitions/${cid}/sync`)
