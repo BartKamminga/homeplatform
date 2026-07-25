@@ -34,10 +34,6 @@ export default function App() {
     setTournament(null)
   }
 
-  function goToBeheer() {
-    setScreen('tournooi')
-  }
-
   const showBack = screen !== 'seizoen' && tournament
 
   return (
@@ -71,7 +67,6 @@ export default function App() {
           <CompetitieScreen
             tournament={tournament}
             isAdmin={isAdmin}
-            onBeheer={goToBeheer}
           />
         </div>
       ) : screen === 'tournooi' && tournament ? (

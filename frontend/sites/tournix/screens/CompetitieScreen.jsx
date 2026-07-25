@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTournamentCompetitionStandings, getCompetitionMatches, syncCompetition } from '../api.js'
+import CompetitiesTab from '../beheer/CompetitiesTab.jsx'
 
 // ── Hulpfuncties ──────────────────────────────────────────────────────────────
 
@@ -222,13 +223,13 @@ function CompetitieDetail({ comp, isAdmin, onBack }) {
 
 // ── Competitie lijst view ─────────────────────────────────────────────────────
 
-function CompetitieList({ fasesData, onSelect }) {
+function CompetitieList({ fasesData, onSelect, isAdmin }) {
   if (fasesData.length === 0) {
     return (
       <div style={{ textAlign: 'center', color: 'var(--color-text-muted)',
         padding: '40px 0', fontSize: 13, fontStyle: 'italic' }}>
-        Nog geen competities gekoppeld aan dit toernooi.<br />
-        Gebruik de Beheer-tab om competities te koppelen.
+        Nog geen competities gekoppeld aan dit toernooi.
+        {isAdmin && <><br />Gebruik "+ Koppelen" hierboven om competities toe te voegen.</>}
       </div>
     )
   }
@@ -275,19 +276,27 @@ function CompetitieList({ fasesData, onSelect }) {
 
 // ── CompetitieScreen ──────────────────────────────────────────────────────────
 
-export function CompetitieScreen({ tournament, isAdmin, onBeheer }) {
+export function CompetitieScreen({ tournament, isAdmin }) {
+  const [view,         setView]         = useState('overzicht') // 'overzicht' | 'koppelen'
   const [fasesData,    setFasesData]    = useState(null)
   const [selectedComp, setSelectedComp] = useState(null)
 
-  useEffect(() => {
-    setSelectedComp(null)
+  function reload() {
     getTournamentCompetitionStandings(tournament.id)
       .then(data => setFasesData(data.fases || []))
       .catch(() => setFasesData([]))
+  }
+
+  useEffect(() => {
+    setSelectedComp(null)
+    setView('overzicht')
+    reload()
   }, [tournament.id])
 
-  if (fasesData === null) {
-    return <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40 }}>Laden…</div>
+  // Terug van detail → herlaad standen
+  function handleBack() {
+    setSelectedComp(null)
+    reload()
   }
 
   if (selectedComp) {
@@ -295,29 +304,52 @@ export function CompetitieScreen({ tournament, isAdmin, onBeheer }) {
       <CompetitieDetail
         comp={selectedComp}
         isAdmin={isAdmin}
-        onBack={() => setSelectedComp(null)}
+        onBack={handleBack}
       />
     )
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{tournament.name}</div>
+      {/* Header + tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {tournament.name}
+          </div>
           {tournament.season && (
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{tournament.season}</div>
           )}
         </div>
         {isAdmin && (
-          <button onClick={onBeheer} style={{
-            background: 'none', border: '1px solid var(--color-border)',
-            borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
-            fontSize: 12, color: 'var(--color-text-muted)', fontFamily: 'inherit',
-          }}>⚙ Beheer</button>
+          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+            {['overzicht', 'koppelen'].map(v => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '5px 12px', borderRadius: 20, fontSize: 12,
+                fontFamily: 'inherit', cursor: 'pointer', fontWeight: view === v ? 600 : 400,
+                border: `1px solid ${view === v ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                background: view === v ? 'var(--color-primary)' : 'var(--color-surface)',
+                color: view === v ? '#fff' : 'var(--color-text)',
+              }}>
+                {v === 'overzicht' ? 'Overzicht' : '+ Koppelen'}
+              </button>
+            ))}
+          </div>
         )}
       </div>
-      <CompetitieList fasesData={fasesData} onSelect={setSelectedComp} />
+
+      {/* Koppelen (admin) */}
+      {view === 'koppelen' && isAdmin && (
+        <CompetitiesTab tid={tournament.id} />
+      )}
+
+      {/* Overzicht */}
+      {view === 'overzicht' && (
+        fasesData === null
+          ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40 }}>Laden…</div>
+          : <CompetitieList fasesData={fasesData} onSelect={setSelectedComp} isAdmin={isAdmin} />
+      )}
     </div>
   )
 }
