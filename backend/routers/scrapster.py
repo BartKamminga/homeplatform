@@ -44,7 +44,7 @@ IDLE_TIMEOUT = 600       # stop refreshen na 10 minuten zonder clients
 _cache: dict = {"data": None, "ts": 0}
 _standings_cache: dict = {"data": None, "ts": 0}
 _activity: dict = {"ts": 0.0}  # tijdstip laatste client-request
-_refresh_ctrl: dict = {"enabled": True}  # handmatig aan/uitzetten via admin
+_refresh_ctrl: dict = {"enabled": True, "interval": REFRESH_INTERVAL}  # instelbaar via admin
 _sem: asyncio.Semaphore | None = None  # lazy init — pas aanmaken als event loop actief is
 
 
@@ -451,9 +451,14 @@ async def _background_refresh_loop() -> None:
     try:
         from routers.app_settings import get_setting
         _refresh_ctrl["enabled"] = get_setting("scrapster.refresh_enabled", "1") != "0"
-        logger.info("scrapster: refresh_enabled geladen uit DB: %s", _refresh_ctrl["enabled"])
+        interval_raw = get_setting("scrapster.refresh_interval", str(REFRESH_INTERVAL))
+        _refresh_ctrl["interval"] = max(10, int(interval_raw))
+        logger.info(
+            "scrapster: refresh_enabled=%s interval=%ds geladen uit DB",
+            _refresh_ctrl["enabled"], _refresh_ctrl["interval"],
+        )
     except Exception as exc:
-        logger.warning("scrapster: kon refresh_enabled niet laden — %s", exc)
+        logger.warning("scrapster: kon refresh-instellingen niet laden — %s", exc)
     while True:
         now = time.time()
         idle_secs = now - _activity["ts"]
@@ -462,7 +467,7 @@ async def _background_refresh_loop() -> None:
                 logger.info("scrapster: background refresh uitgeschakeld door admin")
             elif _activity["ts"] > 0:
                 logger.info("scrapster: idle %.0fs, background refresh gepauzeerd", idle_secs)
-            await asyncio.sleep(REFRESH_INTERVAL)
+            await asyncio.sleep(_refresh_ctrl["interval"])
             continue
 
         try:
@@ -481,4 +486,4 @@ async def _background_refresh_loop() -> None:
             logger.info("scrapster: background standings refresh — %d pools", len(standings))
         except Exception as exc:
             logger.warning("scrapster: background standings refresh failed — %s", exc)
-        await asyncio.sleep(REFRESH_INTERVAL)
+        await asyncio.sleep(_refresh_ctrl["interval"])

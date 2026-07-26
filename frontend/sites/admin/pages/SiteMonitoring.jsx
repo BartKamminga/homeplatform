@@ -100,10 +100,21 @@ function ScrapsterCachePanel({ status, onRefresh }) {
   const bgEnabled = background.enabled;
   const idleMin   = background.idle_s != null ? Math.floor(background.idle_s / 60) : null;
 
+  const [intervalVal, setIntervalVal] = useState(background.refresh_interval_s);
+  const [saving, setSaving] = useState(false);
+
   function handleToggle() {
     api.post('/api/admin/scrapster-cache-status/toggle', {})
       .then(() => onRefresh())
       .catch(() => {});
+  }
+
+  function handleIntervalSave() {
+    const v = Math.max(10, Number(intervalVal) || 30);
+    setSaving(true);
+    api.patch('/api/admin/scrapster-cache-status/interval', { interval: v })
+      .then(() => { onRefresh(); setSaving(false); })
+      .catch(() => setSaving(false));
   }
 
   return (
@@ -141,9 +152,32 @@ function ScrapsterCachePanel({ status, onRefresh }) {
           {bgEnabled ? '⏸ Uitzetten' : '▶ Aanzetten'}
         </button>
       </div>
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
         <CacheChip label="Wedstrijden" age={fmtAge(matches.age_s)} count={matches.count} ttl={background.cache_ttl_s} ageS={matches.age_s} />
         <CacheChip label="Standen"     age={fmtAge(standings.age_s)} count={standings.count} ttl={background.cache_ttl_s} ageS={standings.age_s} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Refresh-interval:</span>
+        <input
+          type="number" min="10" step="10"
+          value={intervalVal}
+          onChange={e => setIntervalVal(e.target.value)}
+          style={{
+            width: '70px', padding: '3px 8px', fontSize: '12px',
+            border: '1px solid var(--color-border)', borderRadius: '6px',
+            background: 'var(--color-bg)', color: 'var(--color-text)',
+            fontFamily: 'inherit',
+          }}
+        />
+        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>seconden</span>
+        <button onClick={handleIntervalSave} disabled={saving} style={{
+          fontSize: '12px', padding: '3px 12px', borderRadius: '6px',
+          cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit',
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface)', color: 'var(--color-text)',
+        }}>
+          {saving ? 'Opslaan…' : 'Opslaan'}
+        </button>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy import inspect as sa_inspect, text, update as sa_update
@@ -266,7 +267,9 @@ def get_api_stats(_: User = Depends(require_admin)):
 def get_scrapster_cache_status(_: User = Depends(require_admin)):
     """Realtime cache- en achtergrond-refresh status van Scrapster."""
     import time as _time
-    from routers.scrapster import _cache, _standings_cache, _activity, _refresh_ctrl, CACHE_TTL, REFRESH_INTERVAL, IDLE_TIMEOUT
+    from routers.scrapster import (
+        _cache, _standings_cache, _activity, _refresh_ctrl, CACHE_TTL, IDLE_TIMEOUT,
+    )
     now = _time.time()
     idle_secs = now - _activity["ts"] if _activity["ts"] > 0 else None
     enabled = _refresh_ctrl["enabled"]
@@ -283,7 +286,7 @@ def get_scrapster_cache_status(_: User = Depends(require_admin)):
             "enabled": enabled,
             "active": enabled and idle_secs is not None and idle_secs < IDLE_TIMEOUT,
             "idle_s": int(idle_secs) if idle_secs is not None else None,
-            "refresh_interval_s": REFRESH_INTERVAL,
+            "refresh_interval_s": _refresh_ctrl["interval"],
             "idle_timeout_s": IDLE_TIMEOUT,
             "cache_ttl_s": CACHE_TTL,
         },
@@ -306,6 +309,29 @@ def toggle_scrapster_refresh(_: User = Depends(require_admin)):
             s.add(AppSetting(key="scrapster.refresh_enabled", value="1" if _refresh_ctrl["enabled"] else "0"))
         s.commit()
     return {"enabled": _refresh_ctrl["enabled"]}
+
+
+class ScrapsterIntervalIn(BaseModel):
+    interval: int
+
+
+@router.patch("/admin/scrapster-cache-status/interval")
+def set_scrapster_interval(body: ScrapsterIntervalIn, _: User = Depends(require_admin)):
+    """Stel de refresh-interval in (minimaal 10 seconden) en sla op in DB."""
+    from routers.scrapster import _refresh_ctrl
+    from models.settings import AppSetting
+    from sqlmodel import Session as _Session
+    from core.database import engine as _engine
+    interval = max(10, body.interval)
+    _refresh_ctrl["interval"] = interval
+    with _Session(_engine) as s:
+        row = s.get(AppSetting, "scrapster.refresh_interval")
+        if row:
+            row.value = str(interval)
+        else:
+            s.add(AppSetting(key="scrapster.refresh_interval", value=str(interval)))
+        s.commit()
+    return {"interval": interval}
 
 
 @router.get("/admin/site-events")
