@@ -207,6 +207,7 @@ def list_tournament_competitions(
             "competition":    {
                 "id":          comp.id,
                 "name":        comp.name,
+                "class_name":  comp.class_name,
                 "hockey_type": comp.hockey_type,
                 "season":      comp.season,
             } if comp else None,

@@ -114,7 +114,7 @@ export default function CompetitiesTab({ tid }) {
     } catch (e) { flash(e.message, true) }
   }
 
-  if (!tid) return <p style={noTid}>Selecteer een toernooi via de keuzelijst bovenaan.</p>
+  if (!tid) return <p style={muted}>Laden…</p>
   if (loading) return <p style={muted}>Laden…</p>
 
   // Alle beschikbare fase-opties: basis + eigen (op naam dedupliceren)
@@ -269,10 +269,10 @@ export default function CompetitiesTab({ tid }) {
                     <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>
                       {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
                     </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13 }}>{comp.name}</div>
-                      {comp.class_name && <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</div>}
-                    </div>
+                    <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <span style={{ fontSize: 13 }}>{comp.name}</span>
+                      {comp.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</span>}
+                    </span>
                     <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
                       + Koppelen
                     </span>
