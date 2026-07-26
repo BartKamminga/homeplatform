@@ -242,8 +242,8 @@ function CompetitieDetail({ comp, isAdmin, onBack }) {
 
 // ── Competitie lijst view ─────────────────────────────────────────────────────
 
-function CompetitieList({ fasesData, onSelect, onRemove, isAdmin }) {
-  if (fasesData.length === 0) {
+function CompetitieList({ compsData, onSelect, onRemove, isAdmin }) {
+  if (compsData.length === 0) {
     return (
       <div style={{ textAlign: 'center', color: 'var(--color-text-muted)',
         padding: '40px 0', fontSize: 13, fontStyle: 'italic' }}>
@@ -254,55 +254,58 @@ function CompetitieList({ fasesData, onSelect, onRemove, isAdmin }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {fasesData.map(fase => (
-        <div key={fase.fase}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-            letterSpacing: '0.08em', color: 'var(--color-text-muted)',
-            marginBottom: 6, paddingLeft: 2 }}>
-            {fase.label}
-          </div>
-          {fase.competitions.map(comp => {
-            const poules = comp.poules ?? []
-            const pouleTekst = poules.length > 0
-              ? poules.map(p => p.name).join(' · ')
-              : 'Geen poules'
-            return (
-              <div key={comp.link_id} style={{ display: 'flex', alignItems: 'stretch', gap: 4, marginBottom: 6 }}>
-                <button onClick={() => onSelect(comp)}
-                  style={{
-                    flex: 1, display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 14px', borderRadius: 10,
-                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                  }}>
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>
-                    {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{comp.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {pouleTekst}
-                    </div>
-                  </span>
-                  <span style={{ color: 'var(--color-text-muted)', fontSize: 14, flexShrink: 0 }}>›</span>
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => onRemove(comp.link_id, comp.name)}
-                    title="Competitie ontkoppelen"
-                    style={{
-                      padding: '0 12px', borderRadius: 10, border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)', color: 'var(--color-text-muted)',
-                      cursor: 'pointer', fontSize: 14, fontFamily: 'inherit', flexShrink: 0,
-                    }}>✕</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {compsData.map(comp => {
+        const poules = comp.poules ?? []
+        const pouleTekst = poules.length > 0
+          ? poules.map(p => p.name).join(' · ')
+          : 'Geen poules'
+        const tags = comp.fase_tags ?? []
+        return (
+          <div key={comp.link_id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+            <button onClick={() => onSelect(comp)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px', borderRadius: 10,
+                background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+              }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>
+                {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{comp.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {pouleTekst}
+                </div>
+                {tags.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+                    {tags.map(t => (
+                      <span key={t.id} style={{
+                        fontSize: 10, padding: '1px 7px', borderRadius: 20,
+                        background: 'var(--color-primary)', color: '#fff',
+                        fontWeight: 600, letterSpacing: '0.02em',
+                      }}>{t.name}</span>
+                    ))}
+                  </div>
                 )}
-              </div>
-            )
-          })}
-        </div>
-      ))}
+              </span>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: 14, flexShrink: 0 }}>›</span>
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => onRemove(comp.link_id, comp.name)}
+                title="Competitie ontkoppelen"
+                style={{
+                  padding: '0 12px', borderRadius: 10, border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)', color: 'var(--color-text-muted)',
+                  cursor: 'pointer', fontSize: 14, fontFamily: 'inherit', flexShrink: 0,
+                }}>✕</button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -311,13 +314,13 @@ function CompetitieList({ fasesData, onSelect, onRemove, isAdmin }) {
 
 export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
   const [view,         setView]         = useState('overzicht') // 'overzicht' | 'koppelen'
-  const [fasesData,    setFasesData]    = useState(null)
+  const [compsData,    setCompsData]    = useState(null)
   const [selectedComp, setSelectedComp] = useState(null)
 
   function reload() {
     getTournamentCompetitionStandings(tournament.id)
-      .then(data => setFasesData(data.fases || []))
-      .catch(() => setFasesData([]))
+      .then(data => setCompsData(data.competitions || []))
+      .catch(() => setCompsData([]))
   }
 
   useEffect(() => {
@@ -403,9 +406,9 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
 
       {/* Overzicht */}
       {view === 'overzicht' && (
-        fasesData === null
+        compsData === null
           ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40 }}>Laden…</div>
-          : <CompetitieList fasesData={fasesData} onSelect={setSelectedComp} onRemove={handleRemoveComp} isAdmin={isAdmin} />
+          : <CompetitieList compsData={compsData} onSelect={setSelectedComp} onRemove={handleRemoveComp} isAdmin={isAdmin} />
       )}
     </div>
   )

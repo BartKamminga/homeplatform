@@ -16,7 +16,7 @@ from core.auth import get_current_user, require_admin
 from models.core import User
 from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
 from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, PoulebordBoard
-from models.tournix import TournixTournamentCompetition
+from models.tournix import TournixTournamentCompetition, TournixCompetitionFaseTag, TournixFaseTag
 from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleStanding,
     HockeyPouleMatch, HockeyTeam, VangerCmd,
@@ -448,15 +448,6 @@ def list_clubs(session: Session = Depends(get_session), _: User = Depends(get_cu
 
 # ── Publieke competition-standings (seizoenstournooien) ───────────────────────
 
-_FASE_LABELS = {
-    "herfst": "Herfst",
-    "lente":  "Lente",
-    "nk":     "NK",
-    "overig": "Overig",
-}
-_FASE_ORDER = ["herfst", "lente", "nk", "overig"]
-
-
 @router.get("/public/tournaments/{tid}/competition-standings")
 def get_tournament_competition_standings(
     tid: str,
@@ -470,20 +461,19 @@ def get_tournament_competition_standings(
     ).all()
 
     if not links:
-        return {"tournament_id": tid, "fases": []}
+        return {"tournament_id": tid, "competitions": []}
 
-    fases: dict = {}
+    competitions = []
     for lnk in links:
-        key = lnk.fase or "overig"
-        if key not in fases:
-            fases[key] = {
-                "fase":         key,
-                "label":        _FASE_LABELS.get(key, key.title()),
-                "competitions": [],
-            }
         comp = session.get(HockeyCompetition, lnk.competition_id)
         if not comp:
             continue
+        assigned_tags = session.exec(
+            select(TournixCompetitionFaseTag, TournixFaseTag)
+            .join(TournixFaseTag, TournixCompetitionFaseTag.fase_tag_id == TournixFaseTag.id)
+            .where(TournixCompetitionFaseTag.competition_link_id == lnk.id)
+            .order_by(TournixFaseTag.order, TournixFaseTag.name)
+        ).all()
         poules = session.exec(
             select(HockeyPoule)
             .where(HockeyPoule.competition_id == lnk.competition_id)
@@ -494,6 +484,7 @@ def get_tournament_competition_standings(
             "id":          comp.id,
             "name":        lnk.label or comp.name,
             "hockey_type": comp.hockey_type,
+            "fase_tags":   [{"id": ft.id, "name": ft.name} for _, ft in assigned_tags],
             "poules":      [],
         }
         for poule in poules:
@@ -532,10 +523,9 @@ def get_tournament_competition_standings(
                     for r in rows
                 ],
             })
-        fases[key]["competitions"].append(comp_entry)
+        competitions.append(comp_entry)
 
-    ordered = [fases[k] for k in _FASE_ORDER if k in fases]
-    return {"tournament_id": tid, "fases": ordered}
+    return {"tournament_id": tid, "competitions": competitions}
 
 
 @router.get("/public/competitions/{cid}/matches")
