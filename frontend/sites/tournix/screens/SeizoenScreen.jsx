@@ -5,9 +5,9 @@ import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },
-  { id: 'archief',     label: 'Archief'     },
-  { id: 'vanger',      label: 'Vanger'      },
   { id: 'discovery',   label: 'Discovery'   },
+  { id: 'vanger',      label: 'Vanger'      },
+  { id: 'archief',     label: 'Archief'     },
 ]
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────

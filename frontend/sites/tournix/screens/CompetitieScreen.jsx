@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTournamentCompetitionStandings, getCompetitionMatches, syncCompetition } from '../api.js'
+import { getTournamentCompetitionStandings, getCompetitionMatches, syncCompetition, deleteTournament, removeTournamentComp } from '../api.js'
 import CompetitiesTab from '../beheer/CompetitiesTab.jsx'
 
 // ── Hulpfuncties ──────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ function CompetitieDetail({ comp, isAdmin, onBack }) {
 
 // ── Competitie lijst view ─────────────────────────────────────────────────────
 
-function CompetitieList({ fasesData, onSelect, isAdmin }) {
+function CompetitieList({ fasesData, onSelect, onRemove, isAdmin }) {
   if (fasesData.length === 0) {
     return (
       <div style={{ textAlign: 'center', color: 'var(--color-text-muted)',
@@ -244,28 +244,42 @@ function CompetitieList({ fasesData, onSelect, isAdmin }) {
             {fase.label}
           </div>
           {fase.competitions.map(comp => {
-            const aantalPoules = comp.poules?.length ?? 0
-            const metStand = comp.poules?.filter(p => p.standings?.length > 0).length ?? 0
+            const poules = comp.poules ?? []
+            const pouleTekst = poules.length > 0
+              ? poules.map(p => p.name).join(' · ')
+              : 'Geen poules'
             return (
-              <button key={comp.link_id} onClick={() => onSelect(comp)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 14px', borderRadius: 10, marginBottom: 6,
-                  background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                }}>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>
-                  {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
-                </span>
-                <span style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{comp.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    {aantalPoules} poule{aantalPoules !== 1 ? 's' : ''}
-                    {metStand > 0 && ` · ${metStand} met stand`}
-                  </div>
-                </span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>›</span>
-              </button>
+              <div key={comp.link_id} style={{ display: 'flex', alignItems: 'stretch', gap: 4, marginBottom: 6 }}>
+                <button onClick={() => onSelect(comp)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', borderRadius: 10,
+                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>
+                    {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{comp.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pouleTekst}
+                    </div>
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: 14, flexShrink: 0 }}>›</span>
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => onRemove(comp.link_id, comp.name)}
+                    title="Competitie ontkoppelen"
+                    style={{
+                      padding: '0 12px', borderRadius: 10, border: '1px solid var(--color-border)',
+                      background: 'var(--color-surface)', color: 'var(--color-text-muted)',
+                      cursor: 'pointer', fontSize: 14, fontFamily: 'inherit', flexShrink: 0,
+                    }}>✕</button>
+                )}
+              </div>
             )
           })}
         </div>
@@ -276,7 +290,7 @@ function CompetitieList({ fasesData, onSelect, isAdmin }) {
 
 // ── CompetitieScreen ──────────────────────────────────────────────────────────
 
-export function CompetitieScreen({ tournament, isAdmin }) {
+export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
   const [view,         setView]         = useState('overzicht') // 'overzicht' | 'koppelen'
   const [fasesData,    setFasesData]    = useState(null)
   const [selectedComp, setSelectedComp] = useState(null)
@@ -293,10 +307,29 @@ export function CompetitieScreen({ tournament, isAdmin }) {
     reload()
   }, [tournament.id])
 
-  // Terug van detail → herlaad standen
   function handleBack() {
     setSelectedComp(null)
     reload()
+  }
+
+  async function handleDeletePublication() {
+    if (!window.confirm(`Publicatie "${tournament.name}" definitief verwijderen?`)) return
+    try {
+      await deleteTournament(tournament.id)
+      onDeleted?.()
+    } catch {
+      alert('Verwijderen mislukt')
+    }
+  }
+
+  async function handleRemoveComp(linkId, compName) {
+    if (!window.confirm(`"${compName}" ontkoppelen van deze publicatie?`)) return
+    try {
+      await removeTournamentComp(tournament.id, linkId)
+      reload()
+    } catch {
+      alert('Ontkoppelen mislukt')
+    }
   }
 
   if (selectedComp) {
@@ -335,6 +368,11 @@ export function CompetitieScreen({ tournament, isAdmin }) {
                 {v === 'overzicht' ? 'Overzicht' : '+ Koppelen'}
               </button>
             ))}
+            <button onClick={handleDeletePublication} style={{
+              padding: '5px 12px', borderRadius: 20, fontSize: 12,
+              fontFamily: 'inherit', cursor: 'pointer', fontWeight: 400,
+              border: '1px solid #dc2626', background: 'transparent', color: '#dc2626',
+            }}>Verwijderen</button>
           </div>
         )}
       </div>
@@ -348,7 +386,7 @@ export function CompetitieScreen({ tournament, isAdmin }) {
       {view === 'overzicht' && (
         fasesData === null
           ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40 }}>Laden…</div>
-          : <CompetitieList fasesData={fasesData} onSelect={setSelectedComp} isAdmin={isAdmin} />
+          : <CompetitieList fasesData={fasesData} onSelect={setSelectedComp} onRemove={handleRemoveComp} isAdmin={isAdmin} />
       )}
     </div>
   )

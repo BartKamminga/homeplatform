@@ -50,7 +50,7 @@ export default function App() {
 
       {screen === 'competitie' && tournament ? (
         <div className="main-content">
-          <CompetitieScreen tournament={tournament} isAdmin={isAdmin} />
+          <CompetitieScreen tournament={tournament} isAdmin={isAdmin} onDeleted={goBack} />
         </div>
       ) : (
         <SeizoenScreen onOpenTournament={openTournament} isAdmin={isAdmin} />
