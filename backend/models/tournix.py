@@ -23,22 +23,14 @@ class TournixClub(SQLModel, table=True):
 class Tournament(SQLModel, table=True):
     __tablename__ = "tournix_tournaments"
 
-    id:               str               = Field(default_factory=new_uuid, primary_key=True)
-    name:             str
-    date:             Optional[datetime] = Field(default=None)
-    location:         Optional[str]     = Field(default=None)
-    location_club_id: Optional[str]     = Field(default=None, foreign_key="tournix_clubs.id")
-    description:      Optional[str]     = Field(default=None)
-    status:           str               = Field(default="draft")  # draft | active | finished
-    group_id:         Optional[str]     = Field(default=None, foreign_key="groups.id", index=True)
-    created_by:       Optional[str]     = Field(default=None, foreign_key="users.id")
-    created_at:       datetime          = Field(default_factory=datetime.utcnow)
-    stage:            str               = Field(default="inregel")  # inregel | test | productie
-    num_pools:        int               = Field(default=1)
-    pool_type:        str               = Field(default="half")   # "half" | "vol"
-    knockout_type:    str               = Field(default="none")   # none | seeded
-    knockout_advance: int               = Field(default=2)        # teams per pool advancing to KO
-    season:           Optional[str]     = Field(default=None)     # e.g. "2026-2027"
+    id:          str           = Field(default_factory=new_uuid, primary_key=True)
+    name:        str
+    description: Optional[str] = Field(default=None)
+    status:      str           = Field(default="active")   # active | finished
+    group_id:    Optional[str] = Field(default=None, foreign_key="groups.id", index=True)
+    created_by:  Optional[str] = Field(default=None, foreign_key="users.id")
+    created_at:  datetime      = Field(default_factory=datetime.utcnow)
+    season:      Optional[str] = Field(default=None)       # e.g. "2026-2027"
 
 
 class TournixPool(SQLModel, table=True):

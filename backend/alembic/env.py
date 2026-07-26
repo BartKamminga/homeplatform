@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Importeer alle modellen zodat Alembic ze kent
 from models.core import *  # noqa
+from models.tournix import *  # noqa
+from models.hockey_discovery import *  # noqa
 
 config = context.config
 
