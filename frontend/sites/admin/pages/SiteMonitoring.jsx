@@ -63,6 +63,7 @@ export default function SiteMonitoring() {
             site={site}
             s={sites[site]}
             cacheStatus={site === 'scrapster' ? scrapsterCache : null}
+            onRefresh={load}
           />
         ))
       )}
@@ -284,7 +285,7 @@ function EventTypeBadge({ type }) {
   );
 }
 
-function SitePanel({ site, s, cacheStatus }) {
+function SitePanel({ site, s, cacheStatus, onRefresh }) {
   const slots = buildHourlySlots(s.hourly);
   const maxCount = Math.max(...slots.map(h => h.count), 1);
   const fmtDt = (iso) => iso
@@ -304,7 +305,7 @@ function SitePanel({ site, s, cacheStatus }) {
         {SITE_LABELS[site] || site}
       </h2>
 
-      {cacheStatus && <ScrapsterCachePanel status={cacheStatus} onRefresh={load} />}
+      {cacheStatus && <ScrapsterCachePanel status={cacheStatus} onRefresh={onRefresh} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px', marginBottom: '20px' }}>
         <StatCard label="Bezoekers vandaag"  value={s.today.unique_visitors} />
