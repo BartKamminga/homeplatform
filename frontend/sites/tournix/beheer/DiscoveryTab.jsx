@@ -47,7 +47,7 @@ function makeCmdConclusion(cmd, summary) {
     const parts = [`${teams_found} teams`]
     if (teams_added > 0)       parts.push(`+${teams_added} nieuw`)
     if (teams_new_poule > 0)   parts.push(`${teams_new_poule} nieuwe poule`)
-    if (teams_disappeared > 0) parts.push(`${teams_disappeared} verdwenen`)
+    if (teams_disappeared > 0) parts.push(`${teams_disappeared} niet ontvangen`)
     if (teams_added === 0 && teams_new_poule === 0 && teams_disappeared === 0) parts.push('geen wijzigingen')
     return parts.join(' · ')
   }

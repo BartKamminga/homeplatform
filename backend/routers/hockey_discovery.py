@@ -1331,10 +1331,13 @@ def _parse_raw_poule(raw: dict, params: dict) -> Optional["PouleCaptureIn"]:
 
 
 def _parse_raw_club(raw: dict, params: dict) -> Optional["ClubDetailIn"]:
-    """Zet een __hw_clubs localStorage-entry om naar ClubDetailIn."""
+    """Zet een hockey.nl club-response om naar ClubDetailIn.
+    Ondersteunt zowel {data: {...}} als het platte formaat.
+    """
     try:
+        d = raw.get("data") or raw  # unwrap {"data": {...}} indien aanwezig
         teams: List[TeamIn] = []
-        for t in raw.get("teams") or []:
+        for t in d.get("teams") or []:
             teams.append(TeamIn(
                 id=t["id"],
                 name=t.get("name", ""),
@@ -1345,21 +1348,21 @@ def _parse_raw_club(raw: dict, params: dict) -> Optional["ClubDetailIn"]:
                 recent_poule_id=t.get("recent_poule_id"),
             ))
         return ClubDetailIn(
-            federation_reference_id=raw.get("federation_reference_id") or params.get("external_id", ""),
-            name=raw.get("name", ""),
-            friendly_name=raw.get("friendly_name") or raw.get("name", ""),
-            city=raw.get("city"),
-            logo=raw.get("logo"),
-            address=raw.get("address"),
-            zipcode=raw.get("zipcode"),
-            phone=raw.get("phone"),
-            email=raw.get("email"),
-            website=raw.get("website"),
-            tenue=raw.get("tenue"),
-            district=raw.get("district"),
-            payment_options=raw.get("payment_options"),
-            parking=raw.get("parking"),
-            hockey_types=raw.get("hockey_types"),
+            federation_reference_id=d.get("federation_reference_id") or params.get("external_id", ""),
+            name=d.get("name", ""),
+            friendly_name=d.get("friendly_name") or d.get("name", ""),
+            city=d.get("city"),
+            logo=d.get("logo"),
+            address=d.get("address"),
+            zipcode=d.get("zipcode"),
+            phone=d.get("phone"),
+            email=d.get("email"),
+            website=d.get("website"),
+            tenue=d.get("tenue"),
+            district=d.get("district"),
+            payment_options=d.get("payment_options"),
+            parking=d.get("parking"),
+            hockey_types=d.get("hockey_types"),
             teams=teams,
         )
     except Exception:
