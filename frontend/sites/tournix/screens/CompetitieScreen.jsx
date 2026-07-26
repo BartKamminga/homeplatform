@@ -377,7 +377,7 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
         {isAdmin && (
           <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
             {['overzicht', 'koppelen'].map(v => (
-              <button key={v} onClick={() => setView(v)} style={{
+              <button key={v} onClick={() => { setView(v); if (v === 'overzicht') reload() }} style={{
                 padding: '5px 12px', borderRadius: 20, fontSize: 12,
                 fontFamily: 'inherit', cursor: 'pointer', fontWeight: view === v ? 600 : 400,
                 border: `1px solid ${view === v ? 'var(--color-primary)' : 'var(--color-border)'}`,
