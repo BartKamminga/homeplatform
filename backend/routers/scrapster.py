@@ -37,11 +37,13 @@ COMPETITION_URLS = [
     "https://masters.altiusrt.com/competitions/486/matches",  # IMC W35/40
 ]
 
-CACHE_TTL = 300          # seconds — cache geldig voor 5 minuten
-REFRESH_INTERVAL = 180   # achtergrond-refresh elke 3 minuten
+CACHE_TTL = 60           # seconds — safety net als background refresh faalt
+REFRESH_INTERVAL = 30    # achtergrond-refresh elke 30 seconden
+IDLE_TIMEOUT = 600       # stop refreshen na 10 minuten zonder clients
 
 _cache: dict = {"data": None, "ts": 0}
 _standings_cache: dict = {"data": None, "ts": 0}
+_activity: dict = {"ts": 0.0}  # tijdstip laatste client-request
 
 
 # ── Scraping ───────────────────────────────────────────────────────────────
@@ -295,8 +297,9 @@ async def _fetch_all_standings() -> list[dict]:
 
 @router.get("/standings")
 async def get_standings(request: Request):
-    """Return pool standings for all competitions. Cached for 55 seconds."""
+    """Return pool standings for all competitions. Cached."""
     now = time.time()
+    _activity["ts"] = now
     ip_hash = hash_ip(client_ip(request))
     ua = request.headers.get("User-Agent", "")
 
@@ -318,8 +321,9 @@ async def get_standings(request: Request):
 
 @router.get("/matches")
 async def get_matches(request: Request):
-    """Return combined match list from all competition URLs. Cached for 55 seconds."""
+    """Return combined match list from all competition URLs. Cached."""
     now = time.time()
+    _activity["ts"] = now
     ip_hash = hash_ip(client_ip(request))
     ua = request.headers.get("User-Agent", "")
 
@@ -423,9 +427,19 @@ def resolve_short_url(token: str):
 
 
 async def _background_refresh_loop() -> None:
-    """Warm the matches + standings cache every REFRESH_INTERVAL seconds."""
-    await asyncio.sleep(5)  # even wachten tot de app volledig opgestart is
+    """Warm the matches + standings cache every REFRESH_INTERVAL seconds.
+    Pauses after IDLE_TIMEOUT seconds without any client request."""
+    await asyncio.sleep(5)  # wacht tot de app opgestart is
     while True:
+        now = time.time()
+        idle_secs = now - _activity["ts"]
+        if _activity["ts"] == 0 or idle_secs >= IDLE_TIMEOUT:
+            # Geen actieve clients — sla over en wacht
+            if _activity["ts"] > 0:
+                logger.info("scrapster: idle %.0fs, background refresh gepauzeerd", idle_secs)
+            await asyncio.sleep(REFRESH_INTERVAL)
+            continue
+
         try:
             matches = await _fetch_all_matches()
             _cache["data"] = matches
