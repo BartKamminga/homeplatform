@@ -48,7 +48,7 @@ from routers import downloader  # noqa: E402
 from routers import app_settings  # noqa: E402
 from routers import capture  # noqa: E402
 from routers import hockey_discovery  # noqa: E402
-from routers.scrapster import router as scrapster_router  # noqa: E402
+from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
 
@@ -67,6 +67,8 @@ async def lifespan(_app: FastAPI):
     stale_ids = downloader.reset_stale_jobs()
     for _job_id in stale_ids:
         _asyncio.create_task(_run_download(_job_id))
+
+    _asyncio.create_task(_background_refresh_loop())
 
     yield
 

@@ -37,7 +37,8 @@ COMPETITION_URLS = [
     "https://masters.altiusrt.com/competitions/486/matches",  # IMC W35/40
 ]
 
-CACHE_TTL = 55  # seconds
+CACHE_TTL = 300          # seconds — cache geldig voor 5 minuten
+REFRESH_INTERVAL = 180   # achtergrond-refresh elke 3 minuten
 
 _cache: dict = {"data": None, "ts": 0}
 _standings_cache: dict = {"data": None, "ts": 0}
@@ -416,3 +417,27 @@ def resolve_short_url(token: str):
         raise HTTPException(status_code=404, detail="Token niet gevonden")
 
     return json.loads(row[0])
+
+
+# ── Background cache refresh ───────────────────────────────────────────────
+
+
+async def _background_refresh_loop() -> None:
+    """Warm the matches + standings cache every REFRESH_INTERVAL seconds."""
+    await asyncio.sleep(5)  # even wachten tot de app volledig opgestart is
+    while True:
+        try:
+            matches = await _fetch_all_matches()
+            _cache["data"] = matches
+            _cache["ts"] = time.time()
+            logger.info("scrapster: background matches refresh — %d matches", len(matches))
+        except Exception as exc:
+            logger.warning("scrapster: background matches refresh failed — %s", exc)
+        try:
+            standings = await _fetch_all_standings()
+            _standings_cache["data"] = standings
+            _standings_cache["ts"] = time.time()
+            logger.info("scrapster: background standings refresh — %d pools", len(standings))
+        except Exception as exc:
+            logger.warning("scrapster: background standings refresh failed — %s", exc)
+        await asyncio.sleep(REFRESH_INTERVAL)
