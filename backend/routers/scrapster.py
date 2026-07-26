@@ -133,34 +133,38 @@ def _parse_matches(html: str, url: str) -> list[dict]:
     return matches
 
 
+async def _fetch_one_matches(client: httpx.AsyncClient, url: str) -> list[dict]:
+    t0 = time.time()
+    status_code = 0
+    n_results = 0
+    result: list[dict] = []
+    try:
+        response = await client.get(url)
+        status_code = response.status_code
+        response.raise_for_status()
+        result = _parse_matches(response.text, url)
+        n_results = len(result)
+        logger.info("scrapster: fetched %d matches from %s", n_results, url)
+    except Exception as exc:
+        logger.warning("scrapster: failed to fetch %s — %s", url, exc)
+    log_site_event(
+        "scrapster", "source_call",
+        source_url=url,
+        duration_ms=int((time.time() - t0) * 1000),
+        status_code=status_code,
+        result_count=n_results,
+    )
+    return result
+
+
 async def _fetch_all_matches() -> list[dict]:
-    """Fetch and parse all competition URLs, skip failures gracefully."""
-    all_matches: list[dict] = []
-
+    """Fetch and parse all competition URLs in parallel, skip failures gracefully."""
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-        for url in COMPETITION_URLS:
-            t0 = time.time()
-            status_code = 0
-            n_results = 0
-            try:
-                response = await client.get(url)
-                status_code = response.status_code
-                response.raise_for_status()
-                fetched = _parse_matches(response.text, url)
-                n_results = len(fetched)
-                all_matches.extend(fetched)
-                logger.info("scrapster: fetched %d matches from %s", n_results, url)
-            except Exception as exc:
-                logger.warning("scrapster: failed to fetch %s — %s", url, exc)
-            log_site_event(
-                "scrapster", "source_call",
-                source_url=url,
-                duration_ms=int((time.time() - t0) * 1000),
-                status_code=status_code,
-                result_count=n_results,
-            )
-
-    return all_matches
+        results = await asyncio.gather(
+            *[_fetch_one_matches(client, url) for url in COMPETITION_URLS],
+            return_exceptions=False,
+        )
+    return [m for batch in results for m in batch]
 
 
 def _parse_team_logos(html: str) -> dict[str, str]:
@@ -245,40 +249,44 @@ def _parse_standings(html: str, url: str, logo_map: dict[str, str]) -> list[dict
     return results
 
 
+async def _fetch_one_standings(client: httpx.AsyncClient, matches_url: str) -> list[dict]:
+    pools_url = matches_url.replace("/matches", "/pools")
+    teams_url = matches_url.replace("/matches", "/teams")
+    t0 = time.time()
+    status_code = 0
+    n_results = 0
+    result: list[dict] = []
+    try:
+        teams_resp, pools_resp = await asyncio.gather(
+            client.get(teams_url),
+            client.get(pools_url),
+        )
+        teams_resp.raise_for_status()
+        pools_resp.raise_for_status()
+        status_code = pools_resp.status_code
+        logo_map = _parse_team_logos(teams_resp.text)
+        result = _parse_standings(pools_resp.text, matches_url, logo_map)
+        n_results = len(result)
+    except Exception as exc:
+        logger.warning("scrapster: failed to fetch standings for %s — %s", matches_url, exc)
+    log_site_event(
+        "scrapster", "source_call",
+        source_url=pools_url,
+        duration_ms=int((time.time() - t0) * 1000),
+        status_code=status_code,
+        result_count=n_results,
+    )
+    return result
+
+
 async def _fetch_all_standings() -> list[dict]:
-    """Fetch pool standings for all competition URLs."""
-    all_standings: list[dict] = []
-
+    """Fetch pool standings for all competition URLs in parallel."""
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-        for matches_url in COMPETITION_URLS:
-            pools_url = matches_url.replace("/matches", "/pools")
-            teams_url = matches_url.replace("/matches", "/teams")
-            t0 = time.time()
-            status_code = 0
-            n_results = 0
-            try:
-                teams_resp, pools_resp = await asyncio.gather(
-                    client.get(teams_url),
-                    client.get(pools_url),
-                )
-                teams_resp.raise_for_status()
-                pools_resp.raise_for_status()
-                status_code = pools_resp.status_code
-                logo_map = _parse_team_logos(teams_resp.text)
-                standings = _parse_standings(pools_resp.text, matches_url, logo_map)
-                n_results = len(standings)
-                all_standings.extend(standings)
-            except Exception as exc:
-                logger.warning("scrapster: failed to fetch standings for %s — %s", matches_url, exc)
-            log_site_event(
-                "scrapster", "source_call",
-                source_url=pools_url,
-                duration_ms=int((time.time() - t0) * 1000),
-                status_code=status_code,
-                result_count=n_results,
-            )
-
-    return all_standings
+        results = await asyncio.gather(
+            *[_fetch_one_standings(client, url) for url in COMPETITION_URLS],
+            return_exceptions=False,
+        )
+    return [s for batch in results for s in batch]
 
 
 # ── Public endpoints ───────────────────────────────────────────────────────
