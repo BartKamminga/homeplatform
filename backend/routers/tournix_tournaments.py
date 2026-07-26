@@ -17,6 +17,7 @@ from models.tournix import (
     TournixPrediction, TournixSnapshot, TournixPhase,
     TournixPhaseTeam, TournixPhaseField,
     TournixTournamentCompetition, TournixTournamentFase, TournixFaseTag,
+    TournixCompetitionFaseTag,
 )
 from models.hockey_discovery import HockeyCompetition, HockeyPoule
 
@@ -198,12 +199,19 @@ def list_tournament_competitions(
             .where(HockeyPoule.competition_id == lnk.competition_id)
             .order_by(HockeyPoule.name)
         ).all()
+        assigned_tags = session.exec(
+            select(TournixCompetitionFaseTag, TournixFaseTag)
+            .join(TournixFaseTag, TournixCompetitionFaseTag.fase_tag_id == TournixFaseTag.id)
+            .where(TournixCompetitionFaseTag.competition_link_id == lnk.id)
+            .order_by(TournixFaseTag.order, TournixFaseTag.name)
+        ).all()
         result.append({
             "id":             lnk.id,
             "tournament_id":  lnk.tournament_id,
             "competition_id": lnk.competition_id,
             "order":          lnk.order,
             "label":          lnk.label,
+            "fase_tags":      [{"id": ft.id, "name": ft.name} for _, ft in assigned_tags],
             "competition":    {
                 "id":          comp.id,
                 "name":        comp.name,
@@ -284,8 +292,63 @@ def remove_tournament_competition(
     lnk = session.get(TournixTournamentCompetition, link_id)
     if not lnk or lnk.tournament_id != tid:
         raise HTTPException(404, "Koppeling niet gevonden")
+    for ct in session.exec(select(TournixCompetitionFaseTag).where(TournixCompetitionFaseTag.competition_link_id == link_id)).all():
+        session.delete(ct)
     session.delete(lnk)
     session.commit()
+
+
+class CompFaseTagAssign(BaseModel):
+    fase_tag_id: str
+
+
+@router.post("/tournaments/{tid}/competitions/{link_id}/fase-tags", status_code=201)
+def assign_comp_fase_tag(
+    tid: str,
+    link_id: str,
+    body: CompFaseTagAssign,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    lnk = session.get(TournixTournamentCompetition, link_id)
+    if not lnk or lnk.tournament_id != tid:
+        raise HTTPException(404, "Koppeling niet gevonden")
+    tag = session.get(TournixFaseTag, body.fase_tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag niet gevonden")
+    existing = session.exec(
+        select(TournixCompetitionFaseTag)
+        .where(TournixCompetitionFaseTag.competition_link_id == link_id)
+        .where(TournixCompetitionFaseTag.fase_tag_id == body.fase_tag_id)
+    ).first()
+    if existing:
+        return {"id": existing.id, "fase_tag_id": tag.id, "name": tag.name}
+    ct = TournixCompetitionFaseTag(competition_link_id=link_id, fase_tag_id=body.fase_tag_id)
+    session.add(ct)
+    session.commit()
+    session.refresh(ct)
+    return {"id": ct.id, "fase_tag_id": tag.id, "name": tag.name}
+
+
+@router.delete("/tournaments/{tid}/competitions/{link_id}/fase-tags/{fase_tag_id}", status_code=204)
+def remove_comp_fase_tag(
+    tid: str,
+    link_id: str,
+    fase_tag_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    lnk = session.get(TournixTournamentCompetition, link_id)
+    if not lnk or lnk.tournament_id != tid:
+        raise HTTPException(404, "Koppeling niet gevonden")
+    ct = session.exec(
+        select(TournixCompetitionFaseTag)
+        .where(TournixCompetitionFaseTag.competition_link_id == link_id)
+        .where(TournixCompetitionFaseTag.fase_tag_id == fase_tag_id)
+    ).first()
+    if ct:
+        session.delete(ct)
+        session.commit()
 
 
 # ── Globale fase-tags ─────────────────────────────────────────────────────────

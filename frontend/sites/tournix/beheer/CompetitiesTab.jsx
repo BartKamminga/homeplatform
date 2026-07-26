@@ -1,44 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
-  getTournamentComps, addTournamentComp,
-  patchTournamentComp, removeTournamentComp,
+  getTournamentComps, addTournamentComp, removeTournamentComp,
   getDiscoveryComps,
   getFaseTags, addFaseTag, removeFaseTag,
+  assignCompFaseTag, removeCompFaseTag,
 } from '../api.js'
 import {
-  card, cardLabel, ghostBtn, noTid,
+  card, cardLabel, ghostBtn,
   muted, successBanner, errorBanner, deleteBtn, inputStyle,
 } from './styles.js'
 
 const SEASON = '2026-2027'
 
-const BASE_FASES = [
-  { value: 'herfst', label: 'Herfst' },
-  { value: 'lente',  label: 'Lente' },
-  { value: 'nk',     label: 'NK' },
-  { value: 'overig', label: 'Overig' },
-]
-
 export default function CompetitiesTab({ tid }) {
-  const [links,        setLinks]        = useState([])
-  const [customFases,  setCustomFases]  = useState([])  // eigen fases
-  const [allComps,     setAllComps]     = useState([])
-  const [loading,      setLoading]      = useState(false)
-  const [msg,          setMsg]          = useState('')
-  const [error,        setError]        = useState('')
-  const [showPicker,   setShowPicker]   = useState(false)
-  const [filterQ,      setFilterQ]      = useState('')
-  const [adding,       setAdding]       = useState(false)
-  const [newFaseName,  setNewFaseName]  = useState('')
-  const [addingFase,   setAddingFase]   = useState(false)
+  const [links,       setLinks]       = useState([])
+  const [globalTags,  setGlobalTags]  = useState([])   // globale fase-tag pool
+  const [allComps,    setAllComps]    = useState([])
+  const [loading,     setLoading]     = useState(false)
+  const [msg,         setMsg]         = useState('')
+  const [error,       setError]       = useState('')
+  const [showPicker,  setShowPicker]  = useState(false)
+  const [filterQ,     setFilterQ]     = useState('')
+  const [adding,      setAdding]      = useState(false)
+  const [newTagName,  setNewTagName]  = useState('')
+  const [addingTag,   setAddingTag]   = useState(false)
 
-  useEffect(() => {
-    loadFases()
-  }, [])
-
-  useEffect(() => {
-    if (tid) { loadLinks(); loadComps() }
-  }, [tid])
+  useEffect(() => { loadGlobalTags() }, [])
+  useEffect(() => { if (tid) { loadLinks(); loadComps() } }, [tid])
 
   async function loadLinks() {
     setLoading(true)
@@ -47,8 +35,8 @@ export default function CompetitiesTab({ tid }) {
     finally { setLoading(false) }
   }
 
-  async function loadFases() {
-    try { setCustomFases(await getFaseTags()) }
+  async function loadGlobalTags() {
+    try { setGlobalTags(await getFaseTags()) }
     catch { /* stil */ }
   }
 
@@ -64,29 +52,66 @@ export default function CompetitiesTab({ tid }) {
     setTimeout(() => { setMsg(''); setError('') }, 3500)
   }
 
-  // ── Fase-beheer ──────────────────────────────────────────────────────────────
+  // ── Globale tag-pool beheer ──────────────────────────────────────────────────
 
-  async function handleAddFase() {
-    const name = newFaseName.trim()
+  async function handleAddTag() {
+    const name = newTagName.trim()
     if (!name) return
-    setAddingFase(true)
+    setAddingTag(true)
     try {
-      const f = await addFaseTag({ name })
-      setCustomFases(prev => prev.some(x => x.id === f.id) ? prev : [...prev, f])
-      setNewFaseName('')
+      const t = await addFaseTag({ name })
+      setGlobalTags(prev => prev.some(x => x.id === t.id) ? prev : [...prev, t])
+      setNewTagName('')
     } catch (e) { flash(e.message, true) }
-    finally { setAddingFase(false) }
+    finally { setAddingTag(false) }
   }
 
-  async function handleRemoveFase(f) {
-    if (!window.confirm(`Tag "${f.name}" verwijderen? Dit geldt voor alle publicaties.`)) return
+  async function handleRemoveTag(tag) {
+    if (!window.confirm(`Tag "${tag.name}" verwijderen? Wordt ook bij alle koppelingen verwijderd.`)) return
     try {
-      await removeFaseTag(f.id)
-      setCustomFases(prev => prev.filter(x => x.id !== f.id))
+      await removeFaseTag(tag.id)
+      setGlobalTags(prev => prev.filter(x => x.id !== tag.id))
+      setLinks(prev => prev.map(l => ({
+        ...l,
+        fase_tags: (l.fase_tags || []).filter(t => t.id !== tag.id),
+      })))
     } catch (e) { flash(e.message, true) }
   }
 
-  // ── Competitie-koppeling ─────────────────────────────────────────────────────
+  // ── Tags per competitie ──────────────────────────────────────────────────────
+
+  async function handleAssignTag(lnk, tagId) {
+    const tag = globalTags.find(t => t.id === tagId)
+    if (!tag) return
+    setLinks(prev => prev.map(l => l.id === lnk.id
+      ? { ...l, fase_tags: [...(l.fase_tags || []), { id: tag.id, name: tag.name }] }
+      : l
+    ))
+    try {
+      await assignCompFaseTag(tid, lnk.id, tagId)
+    } catch (e) {
+      setLinks(prev => prev.map(l => l.id === lnk.id
+        ? { ...l, fase_tags: (l.fase_tags || []).filter(t => t.id !== tagId) }
+        : l
+      ))
+      flash(e.message, true)
+    }
+  }
+
+  async function handleRemoveCompTag(lnk, tagId) {
+    setLinks(prev => prev.map(l => l.id === lnk.id
+      ? { ...l, fase_tags: (l.fase_tags || []).filter(t => t.id !== tagId) }
+      : l
+    ))
+    try {
+      await removeCompFaseTag(tid, lnk.id, tagId)
+    } catch (e) {
+      await loadLinks()
+      flash(e.message, true)
+    }
+  }
+
+  // ── Competitie koppelen ──────────────────────────────────────────────────────
 
   async function handleAdd(comp) {
     setAdding(true)
@@ -98,17 +123,6 @@ export default function CompetitiesTab({ tid }) {
       await loadLinks()
     } catch (e) { flash(e.message, true) }
     finally { setAdding(false) }
-  }
-
-  async function handleFaseChange(lnk, fase) {
-    const newVal = fase || null
-    setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, fase: newVal } : l))
-    try {
-      await patchTournamentComp(tid, lnk.id, { fase: newVal })
-    } catch (e) {
-      setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, fase: lnk.fase } : l))
-      flash(e.message, true)
-    }
   }
 
   async function handleRemove(lnk) {
@@ -123,28 +137,6 @@ export default function CompetitiesTab({ tid }) {
   if (!tid) return <p style={muted}>Laden…</p>
   if (loading) return <p style={muted}>Laden…</p>
 
-  // Alle beschikbare fase-opties: basis + eigen (op naam dedupliceren)
-  const baseNames = new Set(BASE_FASES.map(f => f.value))
-  const extraFases = customFases.filter(f => !baseNames.has(f.name.toLowerCase()))
-  const allFaseOptions = [
-    { value: '', label: '— geen —' },
-    ...BASE_FASES,
-    ...extraFases.map(f => ({ value: f.name, label: f.name })),
-  ]
-
-  // Groepeer gekoppelde comps per fase
-  const FASE_ORDER = ['herfst', 'lente', 'nk', 'overig', ...extraFases.map(f => f.name), '']
-  const byFase = {}
-  for (const lnk of links) {
-    const key = lnk.fase || ''
-    if (!byFase[key]) byFase[key] = []
-    byFase[key].push(lnk)
-  }
-  const faseLabel = {
-    herfst: 'Herfst', lente: 'Lente', nk: 'NK', overig: 'Overig', '': 'Geen fase',
-    ...Object.fromEntries(extraFases.map(f => [f.name, f.name])),
-  }
-
   const linkedIds = new Set(links.map(l => l.competition_id))
   const q = filterQ.trim().toLowerCase()
   const pickerComps = allComps
@@ -157,57 +149,40 @@ export default function CompetitiesTab({ tid }) {
       {msg   && <div style={successBanner}>{msg}</div>}
       {error && <div style={errorBanner}>{error}</div>}
 
-      {/* ── Fase beheer ─────────────────────────────────────────── */}
+      {/* ── Globale fase-tag pool ────────────────────────────────── */}
       <div style={card}>
-        <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-LIJST</div>
-
-        {/* Basis fases (vast) */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-          {BASE_FASES.map(f => (
-            <span key={f.value} style={{
-              fontSize: 11, padding: '2px 10px', borderRadius: 20,
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)', opacity: 0.6,
-            }}>{f.label}</span>
+        <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-TAGS (globaal)</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+          {globalTags.length === 0 && (
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen tags aangemaakt.</span>
+          )}
+          {globalTags.map(tag => (
+            <span key={tag.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
+              border: '1px solid var(--color-primary)',
+              color: 'var(--color-primary)',
+            }}>
+              {tag.name}
+              <button onClick={() => handleRemoveTag(tag)} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
+              }}>✕</button>
+            </span>
           ))}
         </div>
-
-        {/* Eigen fases */}
-        {extraFases.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-            {extraFases.map(f => (
-              <span key={f.id} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 11, padding: '2px 6px 2px 10px', borderRadius: 20,
-                border: '1px solid var(--color-primary)',
-                color: 'var(--color-primary)',
-              }}>
-                {f.name}
-                <button onClick={() => handleRemoveFase(f)} style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
-                }}>✕</button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Toevoegen */}
         <div style={{ display: 'flex', gap: 6 }}>
           <input
-            value={newFaseName}
-            onChange={e => setNewFaseName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddFase()}
-            placeholder="Eigen fase toevoegen…"
+            value={newTagName}
+            onChange={e => setNewTagName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+            placeholder="Nieuwe tag…"
             style={{ ...inputStyle, flex: 1, fontSize: 12 }}
           />
           <button
-            onClick={handleAddFase}
-            disabled={addingFase || !newFaseName.trim()}
-            style={{
-              ...ghostBtn, fontSize: 12,
-              opacity: addingFase || !newFaseName.trim() ? 0.4 : 1,
-            }}
+            onClick={handleAddTag}
+            disabled={addingTag || !newTagName.trim()}
+            style={{ ...ghostBtn, fontSize: 12, opacity: addingTag || !newTagName.trim() ? 0.4 : 1 }}
           >+ Toevoegen</button>
         </div>
       </div>
@@ -217,22 +192,15 @@ export default function CompetitiesTab({ tid }) {
         <div style={{ ...card, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: 24 }}>
           Nog geen competities gekoppeld.
         </div>
-      ) : FASE_ORDER.filter(k => byFase[k]).map(key => (
-        <div key={key}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-            letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: 6, paddingLeft: 2 }}>
-            {faseLabel[key]}
-          </div>
-          {byFase[key].map(lnk => (
-            <CompetitionRow
-              key={lnk.id}
-              lnk={lnk}
-              faseOptions={allFaseOptions}
-              onFaseChange={fase => handleFaseChange(lnk, fase)}
-              onRemove={() => handleRemove(lnk)}
-            />
-          ))}
-        </div>
+      ) : links.map(lnk => (
+        <CompetitionRow
+          key={lnk.id}
+          lnk={lnk}
+          globalTags={globalTags}
+          onAssignTag={tagId => handleAssignTag(lnk, tagId)}
+          onRemoveTag={tagId => handleRemoveCompTag(lnk, tagId)}
+          onRemove={() => handleRemove(lnk)}
+        />
       ))}
 
       {/* ── Competitie koppelen ──────────────────────────────────── */}
@@ -246,7 +214,6 @@ export default function CompetitiesTab({ tid }) {
             {showPicker ? 'Sluiten' : '+ Koppelen'}
           </button>
         </div>
-
         {showPicker && (
           <>
             <input
@@ -279,9 +246,7 @@ export default function CompetitiesTab({ tid }) {
                       <span style={{ fontSize: 13 }}>{comp.name}</span>
                       {comp.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</span>}
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
-                      + Koppelen
-                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>+ Koppelen</span>
                   </button>
                 ))}
               </div>
@@ -295,14 +260,29 @@ export default function CompetitiesTab({ tid }) {
 
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
-function CompetitionRow({ lnk, faseOptions, onFaseChange, onRemove }) {
-  const [open, setOpen] = useState(false)
-  const comp   = lnk.competition
-  const poules = lnk.poules || []
+function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onRemove }) {
+  const [open,       setOpen]       = useState(false)
+  const [showTagPicker, setShowTagPicker] = useState(false)
+  const pickerRef = useRef(null)
+  const comp      = lnk.competition
+  const poules    = lnk.poules || []
+  const assigned  = lnk.fase_tags || []
+  const assignedIds = new Set(assigned.map(t => t.id))
+  const available = globalTags.filter(t => !assignedIds.has(t.id))
+
+  useEffect(() => {
+    if (!showTagPicker) return
+    function onClickOut(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowTagPicker(false)
+    }
+    document.addEventListener('mousedown', onClickOut)
+    return () => document.removeEventListener('mousedown', onClickOut)
+  }, [showTagPicker])
 
   return (
     <div style={{ ...card, marginBottom: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        {/* naam + poules toggle */}
         <button onClick={() => setOpen(o => !o)}
           style={{ flex: 1, background: 'none', border: 'none', padding: 0,
             cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
@@ -316,18 +296,63 @@ function CompetitionRow({ lnk, faseOptions, onFaseChange, onRemove }) {
             </span>
           )}
         </button>
-
-        <select
-          value={lnk.fase || ''}
-          onChange={e => onFaseChange(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', fontSize: 12, padding: '3px 8px' }}
-        >
-          {faseOptions.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-
         <button onClick={onRemove} style={deleteBtn} title="Verwijder koppeling">✕</button>
+      </div>
+
+      {/* tag chips + toevoegen */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8, alignItems: 'center', position: 'relative' }}>
+        {assigned.map(tag => (
+          <span key={tag.id} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: 11, padding: '2px 6px 2px 8px', borderRadius: 20,
+            background: 'var(--color-primary)', color: '#fff',
+          }}>
+            {tag.name}
+            <button onClick={() => onRemoveTag(tag.id)} style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'rgba(255,255,255,0.8)', fontSize: 10, lineHeight: 1, padding: 0,
+            }}>✕</button>
+          </span>
+        ))}
+
+        {available.length > 0 && (
+          <div ref={pickerRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowTagPicker(p => !p)}
+              style={{
+                fontSize: 11, padding: '2px 8px', borderRadius: 20,
+                border: '1px dashed var(--color-primary)',
+                color: 'var(--color-primary)', background: 'none',
+                cursor: 'pointer',
+              }}
+            >+ tag</button>
+            {showTagPicker && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, zIndex: 50, marginTop: 4,
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.15)',
+                padding: '6px 0', minWidth: 140,
+              }}>
+                {available.map(tag => (
+                  <button key={tag.id}
+                    onClick={() => { onAssignTag(tag.id); setShowTagPicker(false) }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '6px 14px', fontSize: 12,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--color-text)',
+                    }}
+                  >{tag.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {assigned.length === 0 && available.length === 0 && (
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>geen tags</span>
+        )}
       </div>
 
       {open && poules.length > 0 && (

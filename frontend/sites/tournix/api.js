@@ -91,6 +91,12 @@ export const getFaseTags    = ()        => api.get('/api/tournix/fase-tags')
 export const addFaseTag     = (body)    => api.post('/api/tournix/fase-tags', body)
 export const removeFaseTag  = (tagId)   => api.delete(`/api/tournix/fase-tags/${tagId}`)
 
+// Fase-tags per competitie-koppeling
+export const assignCompFaseTag = (tid, linkId, faseTagId) =>
+  api.post(`/api/tournix/tournaments/${tid}/competitions/${linkId}/fase-tags`, { fase_tag_id: faseTagId })
+export const removeCompFaseTag = (tid, linkId, faseTagId) =>
+  api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}/fase-tags/${faseTagId}`)
+
 // Discovery competitie detail
 export const getTournamentCompetitionStandings = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/competition-standings`)
 export const getCompetitionMatches = (cid)             => api.get(`/api/tournix/public/competitions/${cid}/matches`)

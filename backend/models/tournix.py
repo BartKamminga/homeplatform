@@ -213,4 +213,12 @@ class TournixTournamentCompetition(SQLModel, table=True):
     competition_id: int           = Field(foreign_key="hockey_competitions.id")
     order:          int           = Field(default=0)
     label:          Optional[str] = Field(default=None)
-    fase:           Optional[str] = Field(default=None)  # herfst | lente | nk | overig
+    fase:           Optional[str] = Field(default=None)  # legacy — vervangen door TournixCompetitionFaseTag
+
+
+class TournixCompetitionFaseTag(SQLModel, table=True):
+    __tablename__ = "tournix_competition_fase_tags"
+
+    id:                  str = Field(default_factory=new_uuid, primary_key=True)
+    competition_link_id: str = Field(foreign_key="tournix_tournament_competitions.id", index=True)
+    fase_tag_id:         str = Field(foreign_key="tournix_fase_tags.id")
