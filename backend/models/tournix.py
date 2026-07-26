@@ -197,6 +197,14 @@ class TournixTournamentFase(SQLModel, table=True):
     order:         int = Field(default=0)
 
 
+class TournixFaseTag(SQLModel, table=True):
+    __tablename__ = "tournix_fase_tags"
+
+    id:   str = Field(default_factory=new_uuid, primary_key=True)
+    name: str = Field(unique=True)
+    order: int = Field(default=0)
+
+
 class TournixTournamentCompetition(SQLModel, table=True):
     __tablename__ = "tournix_tournament_competitions"
 

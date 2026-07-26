@@ -3,7 +3,7 @@ import {
   getTournamentComps, addTournamentComp,
   patchTournamentComp, removeTournamentComp,
   getDiscoveryComps,
-  getTournamentFases, addTournamentFase, removeTournamentFase,
+  getFaseTags, addFaseTag, removeFaseTag,
 } from '../api.js'
 import {
   card, cardLabel, ghostBtn, noTid,
@@ -33,7 +33,11 @@ export default function CompetitiesTab({ tid }) {
   const [addingFase,   setAddingFase]   = useState(false)
 
   useEffect(() => {
-    if (tid) { loadLinks(); loadFases(); loadComps() }
+    loadFases()
+  }, [])
+
+  useEffect(() => {
+    if (tid) { loadLinks(); loadComps() }
   }, [tid])
 
   async function loadLinks() {
@@ -44,7 +48,7 @@ export default function CompetitiesTab({ tid }) {
   }
 
   async function loadFases() {
-    try { setCustomFases(await getTournamentFases(tid)) }
+    try { setCustomFases(await getFaseTags()) }
     catch { /* stil */ }
   }
 
@@ -67,19 +71,17 @@ export default function CompetitiesTab({ tid }) {
     if (!name) return
     setAddingFase(true)
     try {
-      const f = await addTournamentFase(tid, { name, order: customFases.length })
-      setCustomFases(prev => [...prev, f])
+      const f = await addFaseTag({ name })
+      setCustomFases(prev => prev.some(x => x.id === f.id) ? prev : [...prev, f])
       setNewFaseName('')
     } catch (e) { flash(e.message, true) }
     finally { setAddingFase(false) }
   }
 
   async function handleRemoveFase(f) {
-    // Controleer of fase nog in gebruik is
-    const inUse = links.some(l => l.fase === f.name)
-    if (inUse && !window.confirm(`"${f.name}" is nog gekoppeld aan een competitie. Toch verwijderen?`)) return
+    if (!window.confirm(`Tag "${f.name}" verwijderen? Dit geldt voor alle publicaties.`)) return
     try {
-      await removeTournamentFase(tid, f.id)
+      await removeFaseTag(f.id)
       setCustomFases(prev => prev.filter(x => x.id !== f.id))
     } catch (e) { flash(e.message, true) }
   }
@@ -99,10 +101,14 @@ export default function CompetitiesTab({ tid }) {
   }
 
   async function handleFaseChange(lnk, fase) {
+    const newVal = fase || null
+    setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, fase: newVal } : l))
     try {
-      await patchTournamentComp(tid, lnk.id, { fase: fase || null })
-      setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, fase: fase || null } : l))
-    } catch (e) { flash(e.message, true) }
+      await patchTournamentComp(tid, lnk.id, { fase: newVal })
+    } catch (e) {
+      setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, fase: lnk.fase } : l))
+      flash(e.message, true)
+    }
   }
 
   async function handleRemove(lnk) {

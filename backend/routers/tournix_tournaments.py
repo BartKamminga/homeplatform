@@ -16,7 +16,7 @@ from models.tournix import (
     TournixPool, TournixTeam, TournixField, TournixMatch,
     TournixPrediction, TournixSnapshot, TournixPhase,
     TournixPhaseTeam, TournixPhaseField,
-    TournixTournamentCompetition, TournixTournamentFase,
+    TournixTournamentCompetition, TournixTournamentFase, TournixFaseTag,
 )
 from models.hockey_discovery import HockeyCompetition, HockeyPoule
 
@@ -285,4 +285,40 @@ def remove_tournament_competition(
     if not lnk or lnk.tournament_id != tid:
         raise HTTPException(404, "Koppeling niet gevonden")
     session.delete(lnk)
+    session.commit()
+
+
+# ── Globale fase-tags ─────────────────────────────────────────────────────────
+
+class FaseTagCreate(BaseModel):
+    name: str
+
+
+@router.get("/fase-tags")
+def list_fase_tags(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    return session.exec(select(TournixFaseTag).order_by(TournixFaseTag.order, TournixFaseTag.name)).all()
+
+
+@router.post("/fase-tags", status_code=201)
+def create_fase_tag(body: FaseTagCreate, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Naam is verplicht")
+    existing = session.exec(select(TournixFaseTag).where(TournixFaseTag.name == name)).first()
+    if existing:
+        return existing
+    count = len(session.exec(select(TournixFaseTag)).all())
+    tag = TournixFaseTag(name=name, order=count)
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    return tag
+
+
+@router.delete("/fase-tags/{tag_id}", status_code=204)
+def delete_fase_tag(tag_id: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    tag = session.get(TournixFaseTag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag niet gevonden")
+    session.delete(tag)
     session.commit()

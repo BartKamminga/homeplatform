@@ -81,10 +81,15 @@ export const addTournamentComp     = (tid, body)     => api.post(`/api/tournix/t
 export const patchTournamentComp   = (tid, linkId, body) => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
 export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
 
-// Eigen fase-lijst per toernooi
+// Eigen fase-lijst per toernooi (legacy — vervangen door globale tags)
 export const getTournamentFases    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/fases`)
 export const addTournamentFase     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/fases`, body)
 export const removeTournamentFase  = (tid, faseId)   => api.delete(`/api/tournix/tournaments/${tid}/fases/${faseId}`)
+
+// Globale fase-tags (gedeeld over alle publicaties)
+export const getFaseTags    = ()        => api.get('/api/tournix/fase-tags')
+export const addFaseTag     = (body)    => api.post('/api/tournix/fase-tags', body)
+export const removeFaseTag  = (tagId)   => api.delete(`/api/tournix/fase-tags/${tagId}`)
 
 // Discovery competitie detail
 export const getTournamentCompetitionStandings = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/competition-standings`)
