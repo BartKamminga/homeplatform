@@ -130,6 +130,8 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [cmdFilling,   setCmdFilling]   = useState(null)  // 'poules'|'clubs'|null
   const [cmdOpen,      setCmdOpen]      = useState(true)
   const [cmdAdding,    setCmdAdding]    = useState({})    // {key: 'adding'|'added'|'exists'}
+  const [fillMsg,      setFillMsg]      = useState('')
+  const [clubSearch,   setClubSearch]   = useState('')
 
   const [season,          setSeason]          = useState('2026-2027')
   const [importTourneys,  setImportTourneys]  = useState([])
@@ -150,7 +152,12 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   function fillCmdQueue(type) {
     setCmdFilling(type)
     api.post('/api/tournix/discovery/vanger/cmd-queue/fill', { type })
-      .then(() => loadCmdQueue())
+      .then(r => {
+        loadCmdQueue()
+        const count = r?.added ?? 0
+        setFillMsg(count > 0 ? `+${count} toegevoegd` : 'Niets toegevoegd (al in wachtrij of filter leeg)')
+        setTimeout(() => setFillMsg(''), 4000)
+      })
       .catch(() => {})
       .finally(() => setCmdFilling(null))
   }
@@ -383,6 +390,33 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     return (a.friendly_name || a.name).localeCompare(b.friendly_name || b.name, 'nl')
   })
 
+  const clubSearchLower = clubSearch.trim().toLowerCase()
+  const visibleClubs = clubSearchLower
+    ? sortedClubs.filter(c =>
+        (c.friendly_name || c.name).toLowerCase().includes(clubSearchLower) ||
+        (c.city || '').toLowerCase().includes(clubSearchLower) ||
+        (c.district || '').toLowerCase().includes(clubSearchLower)
+      )
+    : sortedClubs
+
+  const clubRenderItems = (() => {
+    if (clubSearchLower) return visibleClubs.map(c => ({ type: 'club', club: c }))
+    const byDist = {}
+    for (const c of sortedClubs) {
+      const d = c.district || 'Onbekend'
+      if (!byDist[d]) byDist[d] = []
+      byDist[d].push(c)
+    }
+    const items = []
+    Object.keys(byDist)
+      .sort((a, b) => a === 'Onbekend' ? 1 : b === 'Onbekend' ? -1 : a.localeCompare(b, 'nl'))
+      .forEach(d => {
+        items.push({ type: 'header', district: d, count: byDist[d].length })
+        byDist[d].forEach(c => items.push({ type: 'club', club: c }))
+      })
+    return items
+  })()
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
@@ -561,8 +595,25 @@ export default function DiscoveryTab({ view = 'vanger' }) {
             </div>
           )}
 
+          {/* Clubs zoekfilter */}
+          <input
+            type="search"
+            value={clubSearch}
+            onChange={e => setClubSearch(e.target.value)}
+            placeholder={`Zoek in ${clubs.length} clubs…`}
+            style={{ width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
+          />
+
           {/* Clublijst */}
-          {sortedClubs.map(c => {
+          {clubRenderItems.map(item => {
+            if (item.type === 'header') {
+              return (
+                <div key={'h-' + item.district} style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '6px 2px 2px', marginTop: 2 }}>
+                  {item.district} <span style={{ fontWeight: 400 }}>({item.count})</span>
+                </div>
+              )
+            }
+            const c = item.club
             const teams   = teamsByClub[c.external_id] || []
             const pStats  = poulesByClub[c.external_id]
             const cap     = pStats ? pStats.captured : 0
@@ -761,6 +812,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                       </button>
                       {cmdBtn('get_clubs',       { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md')}
                       {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md')}
+                      {fillMsg && (
+                        <span style={{ fontSize: 11, color: 'var(--color-success)', fontWeight: 600 }}>{fillMsg}</span>
+                      )}
                       {failed > 0 && (
                         <button onClick={retryAllFailed}
                           style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit' }}>

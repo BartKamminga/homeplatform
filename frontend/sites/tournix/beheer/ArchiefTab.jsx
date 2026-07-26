@@ -47,6 +47,7 @@ function SessionRow({ s, onSelect, selected }) {
 function ItemDetail({ item }) {
   const [open,    setOpen]    = useState(false)
   const [rawOpen, setRawOpen] = useState(false)
+  const [copied,  setCopied]  = useState(false)
   const m = item.meta
 
   // Parse standings and matches from payload
@@ -160,14 +161,29 @@ function ItemDetail({ item }) {
               id: {item.external_id} · vastgelegd {fmt(item.captured_at)}
             </span>
             {item.payload && (
-              <button
-                onClick={e => { e.stopPropagation(); setRawOpen(o => !o) }}
-                style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
-                  border: '1px solid var(--color-border)', background: rawOpen ? 'var(--color-surface-2)' : 'transparent',
-                  color: rawOpen ? 'var(--color-text)' : 'var(--color-text-muted)' }}
-              >
-                {rawOpen ? '▲ raw' : '▶ raw'}
-              </button>
+              <>
+                {copied && <span style={{ fontSize: 10, color: 'var(--color-success)' }}>✓</span>}
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    navigator.clipboard.writeText(JSON.stringify(item.payload, null, 2))
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  }}
+                  style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
+                    border: '1px solid var(--color-border)', background: 'transparent',
+                    color: 'var(--color-text-muted)' }}
+                  title="Kopieer JSON naar klembord"
+                >📋</button>
+                <button
+                  onClick={e => { e.stopPropagation(); setRawOpen(o => !o) }}
+                  style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
+                    border: '1px solid var(--color-border)', background: rawOpen ? 'var(--color-surface-2)' : 'transparent',
+                    color: rawOpen ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+                >
+                  {rawOpen ? '▲ raw' : '▶ raw'}
+                </button>
+              </>
             )}
           </div>
           {rawOpen && item.payload && (

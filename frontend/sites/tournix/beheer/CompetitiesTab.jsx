@@ -269,7 +269,10 @@ export default function CompetitiesTab({ tid }) {
                     <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>
                       {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
                     </span>
-                    <span style={{ flex: 1, fontSize: 13 }}>{comp.name}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13 }}>{comp.name}</div>
+                      {comp.class_name && <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</div>}
+                    </div>
                     <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
                       + Koppelen
                     </span>
@@ -299,7 +302,7 @@ function CompetitionRow({ lnk, faseOptions, onFaseChange, onRemove }) {
             cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>
             {comp?.hockey_type === 'ZA' ? '🏒 ' : '🏑 '}
-            {lnk.label || comp?.name || '—'}
+            {lnk.label || [comp?.name, comp?.class_name].filter(Boolean).join(' | ') || '—'}
           </span>
           {poules.length > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8 }}>
