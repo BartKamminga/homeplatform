@@ -44,6 +44,14 @@ IDLE_TIMEOUT = 600       # stop refreshen na 10 minuten zonder clients
 _cache: dict = {"data": None, "ts": 0}
 _standings_cache: dict = {"data": None, "ts": 0}
 _activity: dict = {"ts": 0.0}  # tijdstip laatste client-request
+_sem: asyncio.Semaphore | None = None  # lazy init — pas aanmaken als event loop actief is
+
+
+def _get_sem() -> asyncio.Semaphore:
+    global _sem
+    if _sem is None:
+        _sem = asyncio.Semaphore(3)  # max 3 gelijktijdige verbindingen naar altiusrt.com
+    return _sem
 
 
 # ── Scraping ───────────────────────────────────────────────────────────────
@@ -141,33 +149,37 @@ async def _fetch_one_matches(client: httpx.AsyncClient, url: str) -> list[dict]:
     status_code = 0
     n_results = 0
     result: list[dict] = []
+    async with _get_sem():
+        try:
+            response = await client.get(url)
+            status_code = response.status_code
+            response.raise_for_status()
+            result = _parse_matches(response.text, url)
+            n_results = len(result)
+            logger.info("scrapster: fetched %d matches from %s", n_results, url)
+        except Exception as exc:
+            logger.warning("scrapster: failed to fetch %s — %s", url, exc)
     try:
-        response = await client.get(url)
-        status_code = response.status_code
-        response.raise_for_status()
-        result = _parse_matches(response.text, url)
-        n_results = len(result)
-        logger.info("scrapster: fetched %d matches from %s", n_results, url)
-    except Exception as exc:
-        logger.warning("scrapster: failed to fetch %s — %s", url, exc)
-    log_site_event(
-        "scrapster", "source_call",
-        source_url=url,
-        duration_ms=int((time.time() - t0) * 1000),
-        status_code=status_code,
-        result_count=n_results,
-    )
+        log_site_event(
+            "scrapster", "source_call",
+            source_url=url,
+            duration_ms=int((time.time() - t0) * 1000),
+            status_code=status_code,
+            result_count=n_results,
+        )
+    except Exception:
+        pass
     return result
 
 
 async def _fetch_all_matches() -> list[dict]:
-    """Fetch and parse all competition URLs in parallel, skip failures gracefully."""
+    """Fetch and parse all competition URLs in parallel (max 3 concurrent), skip failures gracefully."""
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         results = await asyncio.gather(
             *[_fetch_one_matches(client, url) for url in COMPETITION_URLS],
-            return_exceptions=False,
+            return_exceptions=True,
         )
-    return [m for batch in results for m in batch]
+    return [m for batch in results if isinstance(batch, list) for m in batch]
 
 
 def _parse_team_logos(html: str) -> dict[str, str]:
@@ -259,37 +271,41 @@ async def _fetch_one_standings(client: httpx.AsyncClient, matches_url: str) -> l
     status_code = 0
     n_results = 0
     result: list[dict] = []
+    async with _get_sem():
+        try:
+            teams_resp, pools_resp = await asyncio.gather(
+                client.get(teams_url),
+                client.get(pools_url),
+            )
+            teams_resp.raise_for_status()
+            pools_resp.raise_for_status()
+            status_code = pools_resp.status_code
+            logo_map = _parse_team_logos(teams_resp.text)
+            result = _parse_standings(pools_resp.text, matches_url, logo_map)
+            n_results = len(result)
+        except Exception as exc:
+            logger.warning("scrapster: failed to fetch standings for %s — %s", matches_url, exc)
     try:
-        teams_resp, pools_resp = await asyncio.gather(
-            client.get(teams_url),
-            client.get(pools_url),
+        log_site_event(
+            "scrapster", "source_call",
+            source_url=pools_url,
+            duration_ms=int((time.time() - t0) * 1000),
+            status_code=status_code,
+            result_count=n_results,
         )
-        teams_resp.raise_for_status()
-        pools_resp.raise_for_status()
-        status_code = pools_resp.status_code
-        logo_map = _parse_team_logos(teams_resp.text)
-        result = _parse_standings(pools_resp.text, matches_url, logo_map)
-        n_results = len(result)
-    except Exception as exc:
-        logger.warning("scrapster: failed to fetch standings for %s — %s", matches_url, exc)
-    log_site_event(
-        "scrapster", "source_call",
-        source_url=pools_url,
-        duration_ms=int((time.time() - t0) * 1000),
-        status_code=status_code,
-        result_count=n_results,
-    )
+    except Exception:
+        pass
     return result
 
 
 async def _fetch_all_standings() -> list[dict]:
-    """Fetch pool standings for all competition URLs in parallel."""
+    """Fetch pool standings for all competition URLs in parallel (max 3 concurrent)."""
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         results = await asyncio.gather(
             *[_fetch_one_standings(client, url) for url in COMPETITION_URLS],
-            return_exceptions=False,
+            return_exceptions=True,
         )
-    return [s for batch in results for s in batch]
+    return [s for batch in results if isinstance(batch, list) for s in batch]
 
 
 # ── Public endpoints ───────────────────────────────────────────────────────
@@ -442,15 +458,17 @@ async def _background_refresh_loop() -> None:
 
         try:
             matches = await _fetch_all_matches()
-            _cache["data"] = matches
-            _cache["ts"] = time.time()
+            if matches:
+                _cache["data"] = matches
+                _cache["ts"] = time.time()
             logger.info("scrapster: background matches refresh — %d matches", len(matches))
         except Exception as exc:
             logger.warning("scrapster: background matches refresh failed — %s", exc)
         try:
             standings = await _fetch_all_standings()
-            _standings_cache["data"] = standings
-            _standings_cache["ts"] = time.time()
+            if standings:
+                _standings_cache["data"] = standings
+                _standings_cache["ts"] = time.time()
             logger.info("scrapster: background standings refresh — %d pools", len(standings))
         except Exception as exc:
             logger.warning("scrapster: background standings refresh failed — %s", exc)
