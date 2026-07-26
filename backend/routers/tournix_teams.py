@@ -19,7 +19,7 @@ from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, Poulebord
 from models.tournix import TournixTournamentCompetition
 from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleStanding,
-    HockeyPouleMatch, VangerCmd,
+    HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
@@ -505,10 +505,19 @@ def get_tournament_competition_standings(
                     HockeyPouleStanding.points.desc(),  # type: ignore[attr-defined]
                 )
             ).all()
+            teams_pending = []
+            if not rows:
+                pending_teams = session.exec(
+                    select(HockeyTeam)
+                    .where(HockeyTeam.recent_poule_id == poule.poule_id)
+                    .order_by(HockeyTeam.name)
+                ).all()
+                teams_pending = [t.name for t in pending_teams]
             comp_entry["poules"].append({
-                "id":       poule.id,
-                "name":     poule.name,
-                "poule_id": poule.poule_id,
+                "id":            poule.id,
+                "name":          poule.name,
+                "poule_id":      poule.poule_id,
+                "teams_pending": teams_pending,
                 "standings": [
                     {
                         "team_name": r.team_name,

@@ -20,11 +20,30 @@ function fmtDate(d) {
 
 function DiscStandingsTable({ poule }) {
   const rows = poule.standings || []
-  if (rows.length === 0) return (
-    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '4px 0' }}>
-      Nog geen stand
-    </div>
-  )
+  const pending = poule.teams_pending || []
+
+  if (rows.length === 0) {
+    if (pending.length === 0) return (
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '6px 10px' }}>
+        Nog geen stand
+      </div>
+    )
+    return (
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '5px 10px 3px' }}>
+          Nog geen stand — deelnemende teams:
+        </div>
+        {pending.map((name, i) => (
+          <div key={i} style={{
+            fontSize: 12, padding: '4px 10px',
+            borderTop: '1px solid var(--color-border)',
+            color: 'var(--color-text)',
+          }}>{name}</div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
       <thead>
