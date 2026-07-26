@@ -262,6 +262,78 @@ def get_api_stats(_: User = Depends(require_admin)):
 
 # ── Admin: Site analytics ─────────────────────────────────────────────────────
 
+@router.get("/admin/scrapster-cache-status")
+def get_scrapster_cache_status(_: User = Depends(require_admin)):
+    """Realtime cache- en achtergrond-refresh status van Scrapster."""
+    import time as _time
+    from routers.scrapster import _cache, _standings_cache, _activity, CACHE_TTL, REFRESH_INTERVAL, IDLE_TIMEOUT
+    now = _time.time()
+    idle_secs = now - _activity["ts"] if _activity["ts"] > 0 else None
+    return {
+        "matches": {
+            "age_s": int(now - _cache["ts"]) if _cache["data"] is not None else None,
+            "count": len(_cache["data"]) if _cache["data"] is not None else None,
+        },
+        "standings": {
+            "age_s": int(now - _standings_cache["ts"]) if _standings_cache["data"] is not None else None,
+            "count": len(_standings_cache["data"]) if _standings_cache["data"] is not None else None,
+        },
+        "background": {
+            "active": idle_secs is not None and idle_secs < IDLE_TIMEOUT,
+            "idle_s": int(idle_secs) if idle_secs is not None else None,
+            "refresh_interval_s": REFRESH_INTERVAL,
+            "idle_timeout_s": IDLE_TIMEOUT,
+            "cache_ttl_s": CACHE_TTL,
+        },
+    }
+
+
+@router.get("/admin/site-events")
+def get_site_events(
+    site: str,
+    hour: Optional[str] = None,
+    event_type: Optional[str] = None,
+    limit: int = 100,
+    _: User = Depends(require_admin),
+):
+    """Gedetailleerde events voor een site, optioneel gefilterd op uur en type."""
+    from sqlmodel import Session as _Session
+    from core.database import engine as _engine
+    from sqlalchemy import text as _text
+
+    where = ["site = :site"]
+    params: dict = {"site": site, "limit": limit}
+
+    if hour:
+        where.append("strftime('%Y-%m-%d %H:00:00', ts) = :hour")
+        params["hour"] = hour
+    if event_type:
+        where.append("event_type = :event_type")
+        params["event_type"] = event_type
+
+    where_sql = " AND ".join(where)
+
+    with _Session(_engine) as session:
+        rows = session.exec(_text(f"""
+            SELECT ts, event_type, ip_hash, user_agent, source_url,
+                   duration_ms, status_code, result_count, endpoint, token
+            FROM site_events
+            WHERE {where_sql}
+            ORDER BY ts DESC
+            LIMIT :limit
+        """), params=params).all()
+
+    return {"events": [
+        {
+            "ts": r[0], "event_type": r[1], "ip_hash": r[2],
+            "user_agent": r[3], "source_url": r[4],
+            "duration_ms": r[5], "status_code": r[6],
+            "result_count": r[7], "endpoint": r[8], "token": r[9],
+        }
+        for r in rows
+    ]}
+
+
 @router.get("/admin/site-stats")
 def get_site_stats(_: User = Depends(require_admin)):
     """Return aggregated analytics per public site from site_events."""
