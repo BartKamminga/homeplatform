@@ -44,6 +44,7 @@ IDLE_TIMEOUT = 600       # stop refreshen na 10 minuten zonder clients
 _cache: dict = {"data": None, "ts": 0}
 _standings_cache: dict = {"data": None, "ts": 0}
 _activity: dict = {"ts": 0.0}  # tijdstip laatste client-request
+_refresh_ctrl: dict = {"enabled": True}  # handmatig aan/uitzetten via admin
 _sem: asyncio.Semaphore | None = None  # lazy init — pas aanmaken als event loop actief is
 
 
@@ -446,12 +447,20 @@ async def _background_refresh_loop() -> None:
     """Warm the matches + standings cache every REFRESH_INTERVAL seconds.
     Pauses after IDLE_TIMEOUT seconds without any client request."""
     await asyncio.sleep(5)  # wacht tot de app opgestart is
+    # Herstel persistente refresh-instelling uit DB
+    try:
+        from routers.app_settings import get_setting
+        _refresh_ctrl["enabled"] = get_setting("scrapster.refresh_enabled", "1") != "0"
+        logger.info("scrapster: refresh_enabled geladen uit DB: %s", _refresh_ctrl["enabled"])
+    except Exception as exc:
+        logger.warning("scrapster: kon refresh_enabled niet laden — %s", exc)
     while True:
         now = time.time()
         idle_secs = now - _activity["ts"]
-        if _activity["ts"] == 0 or idle_secs >= IDLE_TIMEOUT:
-            # Geen actieve clients — sla over en wacht
-            if _activity["ts"] > 0:
+        if not _refresh_ctrl["enabled"] or _activity["ts"] == 0 or idle_secs >= IDLE_TIMEOUT:
+            if not _refresh_ctrl["enabled"]:
+                logger.info("scrapster: background refresh uitgeschakeld door admin")
+            elif _activity["ts"] > 0:
                 logger.info("scrapster: idle %.0fs, background refresh gepauzeerd", idle_secs)
             await asyncio.sleep(REFRESH_INTERVAL)
             continue

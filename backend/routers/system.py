@@ -266,9 +266,10 @@ def get_api_stats(_: User = Depends(require_admin)):
 def get_scrapster_cache_status(_: User = Depends(require_admin)):
     """Realtime cache- en achtergrond-refresh status van Scrapster."""
     import time as _time
-    from routers.scrapster import _cache, _standings_cache, _activity, CACHE_TTL, REFRESH_INTERVAL, IDLE_TIMEOUT
+    from routers.scrapster import _cache, _standings_cache, _activity, _refresh_ctrl, CACHE_TTL, REFRESH_INTERVAL, IDLE_TIMEOUT
     now = _time.time()
     idle_secs = now - _activity["ts"] if _activity["ts"] > 0 else None
+    enabled = _refresh_ctrl["enabled"]
     return {
         "matches": {
             "age_s": int(now - _cache["ts"]) if _cache["data"] is not None else None,
@@ -279,13 +280,32 @@ def get_scrapster_cache_status(_: User = Depends(require_admin)):
             "count": len(_standings_cache["data"]) if _standings_cache["data"] is not None else None,
         },
         "background": {
-            "active": idle_secs is not None and idle_secs < IDLE_TIMEOUT,
+            "enabled": enabled,
+            "active": enabled and idle_secs is not None and idle_secs < IDLE_TIMEOUT,
             "idle_s": int(idle_secs) if idle_secs is not None else None,
             "refresh_interval_s": REFRESH_INTERVAL,
             "idle_timeout_s": IDLE_TIMEOUT,
             "cache_ttl_s": CACHE_TTL,
         },
     }
+
+
+@router.post("/admin/scrapster-cache-status/toggle")
+def toggle_scrapster_refresh(_: User = Depends(require_admin)):
+    """Zet de automatische achtergrond-refresh aan of uit en sla op in DB."""
+    from routers.scrapster import _refresh_ctrl
+    from models.settings import AppSetting
+    from sqlmodel import Session as _Session
+    from core.database import engine as _engine
+    _refresh_ctrl["enabled"] = not _refresh_ctrl["enabled"]
+    with _Session(_engine) as s:
+        row = s.get(AppSetting, "scrapster.refresh_enabled")
+        if row:
+            row.value = "1" if _refresh_ctrl["enabled"] else "0"
+        else:
+            s.add(AppSetting(key="scrapster.refresh_enabled", value="1" if _refresh_ctrl["enabled"] else "0"))
+        s.commit()
+    return {"enabled": _refresh_ctrl["enabled"]}
 
 
 @router.get("/admin/site-events")

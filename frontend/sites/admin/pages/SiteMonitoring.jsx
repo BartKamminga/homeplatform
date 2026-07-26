@@ -92,12 +92,19 @@ function buildHourlySlots(hourlyData) {
   });
 }
 
-function ScrapsterCachePanel({ status }) {
+function ScrapsterCachePanel({ status, onRefresh }) {
   if (!status) return null;
   const { matches, standings, background } = status;
   const fmtAge = s => s == null ? '—' : s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${s % 60}s`;
-  const bgActive = background.active;
-  const idleMin  = background.idle_s != null ? Math.floor(background.idle_s / 60) : null;
+  const bgActive  = background.active;
+  const bgEnabled = background.enabled;
+  const idleMin   = background.idle_s != null ? Math.floor(background.idle_s / 60) : null;
+
+  function handleToggle() {
+    api.post('/api/admin/scrapster-cache-status/toggle', {})
+      .then(() => onRefresh())
+      .catch(() => {});
+  }
 
   return (
     <div style={{
@@ -109,21 +116,30 @@ function ScrapsterCachePanel({ status }) {
           letterSpacing: '0.04em', color: 'var(--color-text-muted)' }}>Cache & Background refresh</span>
         <span style={{
           fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px',
-          background: bgActive ? '#d1fae5' : '#fee2e2',
-          color: bgActive ? '#065f46' : '#991b1b',
+          background: !bgEnabled ? '#f3f4f6' : bgActive ? '#d1fae5' : '#fef3c7',
+          color: !bgEnabled ? '#6b7280' : bgActive ? '#065f46' : '#92400e',
         }}>
-          {bgActive ? '● Actief' : '○ Gepauzeerd'}
+          {!bgEnabled ? '○ Uitgeschakeld' : bgActive ? '● Actief' : '◐ Gepauzeerd (idle)'}
         </span>
-        {!bgActive && idleMin != null && (
+        {bgEnabled && !bgActive && idleMin != null && (
           <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-            idle {idleMin}m — hervat bij eerste client
+            {idleMin}m zonder clients — hervat bij eerste bezoeker
           </span>
         )}
-        {bgActive && (
+        {bgEnabled && bgActive && (
           <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
             elke {background.refresh_interval_s}s
           </span>
         )}
+        <button onClick={handleToggle} style={{
+          marginLeft: 'auto', fontSize: '12px', padding: '3px 12px',
+          borderRadius: '6px', cursor: 'pointer', fontFamily: 'inherit',
+          border: `1px solid ${bgEnabled ? '#fca5a5' : '#86efac'}`,
+          background: bgEnabled ? '#fef2f2' : '#f0fdf4',
+          color: bgEnabled ? '#b91c1c' : '#15803d', fontWeight: 600,
+        }}>
+          {bgEnabled ? '⏸ Uitzetten' : '▶ Aanzetten'}
+        </button>
       </div>
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
         <CacheChip label="Wedstrijden" age={fmtAge(matches.age_s)} count={matches.count} ttl={background.cache_ttl_s} ageS={matches.age_s} />
@@ -254,7 +270,7 @@ function SitePanel({ site, s, cacheStatus }) {
         {SITE_LABELS[site] || site}
       </h2>
 
-      {cacheStatus && <ScrapsterCachePanel status={cacheStatus} />}
+      {cacheStatus && <ScrapsterCachePanel status={cacheStatus} onRefresh={load} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px', marginBottom: '20px' }}>
         <StatCard label="Bezoekers vandaag"  value={s.today.unique_visitors} />
