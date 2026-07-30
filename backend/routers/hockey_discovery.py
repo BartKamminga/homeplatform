@@ -725,6 +725,7 @@ class PouleCaptureIn(BaseModel):
     poule_name:       str
     competition_name: str
     class_name:       str
+    district:         str = ""
     hockey_type:      str = ""
     season:           str = "2026-2027"
     session_id:       Optional[str] = None
@@ -742,12 +743,13 @@ def upsert_poule_capture(
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Competition upsert
-    ext_id = body.competition_name + "|" + body.season
+    ext_id = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|" + body.season
     comp = session.exec(
         select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)
     ).first()
     if comp:
         comp.class_name  = body.class_name
+        comp.district    = body.district or comp.district
         comp.updated_at  = now
         if body.hockey_type:
             comp.hockey_type = body.hockey_type
@@ -757,6 +759,7 @@ def upsert_poule_capture(
             external_id  = ext_id,
             name         = body.competition_name,
             class_name   = body.class_name,
+            district     = body.district or None,
             hockey_type  = body.hockey_type,
             season       = body.season,
             discovered_at = now,
@@ -1320,6 +1323,7 @@ def _parse_raw_poule(raw: dict, params: dict) -> Optional["PouleCaptureIn"]:
             poule_name=poule_data.get("name", ""),
             competition_name=comp.get("name", ""),
             class_name=subcomp.get("class") or comp.get("class_name", ""),
+            district=comp.get("district_name") or comp.get("district") or "",
             hockey_type=hockey_type,
             season=raw.get("seizoen", "2026-2027"),
             teams_in_poule=teams_list,
@@ -1732,10 +1736,11 @@ def post_cmd_result(
 def _call_poule_capture(body: PouleCaptureIn, session: Session):
     """Direct de poule-capture logica aanroepen zonder HTTP-laag."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    ext_id = body.competition_name + "|" + body.season
+    ext_id = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|" + body.season
     comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
     if comp:
         comp.class_name = body.class_name
+        comp.district   = body.district or comp.district
         comp.updated_at = now
         if body.hockey_type:
             comp.hockey_type = body.hockey_type
@@ -1743,6 +1748,7 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
     else:
         comp = HockeyCompetition(
             external_id=ext_id, name=body.competition_name, class_name=body.class_name,
+            district=body.district or None,
             hockey_type=body.hockey_type, season=body.season, discovered_at=now, updated_at=now,
         )
         session.add(comp)
@@ -1946,6 +1952,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         poule_name = poule_data.get("name", "")
         comp_info = poule_data.get("competition") or {}
         class_name = comp_info.get("class_name", "Landelijk")
+        district   = comp_info.get("district_name") or comp_info.get("district") or ""
 
         matches = poule_data.get("matches") or []
         season = ""
@@ -1960,11 +1967,12 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                     pass
 
         # HockeyCompetition upsert
-        ext_id  = comp_name + "|" + (season or "onbekend")
+        ext_id  = comp_name + "|" + (class_name or "") + "|" + (district or "") + "|" + (season or "onbekend")
         hl_cid  = params.get("comp_id")
         comp_row = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
         if comp_row:
             comp_row.class_name = class_name or comp_row.class_name
+            comp_row.district   = district or comp_row.district
             if hl_cid:
                 comp_row.hl_comp_id = hl_cid
             comp_row.updated_at = now
@@ -1972,6 +1980,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         else:
             comp_row = HockeyCompetition(
                 external_id=ext_id, name=comp_name, class_name=class_name,
+                district=district or None,
                 hockey_type="VE", season=season or "onbekend",
                 hl_comp_id=hl_cid, discovered_at=now, updated_at=now,
             )

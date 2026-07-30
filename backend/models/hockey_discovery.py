@@ -52,7 +52,7 @@ class HockeyCompetition(SQLModel, table=True):
     __tablename__ = "hockey_competitions"
 
     id:           int           = Field(default=None, primary_key=True)
-    external_id:  str           = Field(unique=True, index=True)  # "{name}|{season}"
+    external_id:  str           = Field(unique=True, index=True)  # "{name}|{class_name}|{district}|{season}"
     name:         str
     class_name:   str                    # Gewest / District / Landelijk
     district:     Optional[str] = None
