@@ -1943,6 +1943,22 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
     if not isinstance(poules_list, list) or not poules_list:
         return None
 
+    # Eerste pass: bepaal fallback-seizoen uit eerste poule met matchdatums
+    fallback_season = ""
+    for _pd in poules_list:
+        for _m in (_pd.get("matches") or []):
+            _d = ((_m.get("date") or ""))[:10]
+            if len(_d) >= 7:
+                try:
+                    _y, _mo = int(_d[:4]), int(_d[5:7])
+                    fallback_season = f"{_y}-{_y+1}" if _mo >= 8 else f"{_y-1}-{_y}"
+                except Exception:
+                    pass
+            if fallback_season:
+                break
+        if fallback_season:
+            break
+
     poules_processed = 0
     teams_found_set: set = set()
     current_poule_map: Dict[int, int] = {}  # recent_poule_id → een team_id
@@ -1965,6 +1981,9 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                     break
                 except Exception:
                     pass
+
+        if not season:
+            season = fallback_season
 
         # HockeyCompetition upsert
         ext_id  = comp_name + "|" + (class_name or "") + "|" + (district or "") + "|" + (season or "onbekend")
