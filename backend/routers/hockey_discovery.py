@@ -875,12 +875,14 @@ def upsert_poule_capture(
         ).all():
             session.delete(old)
         for md in body.matches_data:
+            is_fin = md.status == "finished"
             session.add(HockeyPouleMatch(
                 poule_id=body.poule_id, match_id=md.match_id,
                 home_team_id=md.home_team_id, home_team_name=md.home_team_name,
                 away_team_id=md.away_team_id, away_team_name=md.away_team_name,
                 match_date=md.match_date, status=md.status,
-                home_score=md.home_score, away_score=md.away_score,
+                home_score=md.home_score if is_fin else None,
+                away_score=md.away_score if is_fin else None,
                 round=md.round, updated_at=now,
             ))
 
@@ -1913,12 +1915,14 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
         for old in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)).all():
             session.delete(old)
         for md in body.matches_data:
+            is_fin = md.status == "finished"
             session.add(HockeyPouleMatch(
                 poule_id=body.poule_id, match_id=md.match_id,
                 home_team_id=md.home_team_id, home_team_name=md.home_team_name,
                 away_team_id=md.away_team_id, away_team_name=md.away_team_name,
                 match_date=md.match_date, status=md.status,
-                home_score=md.home_score, away_score=md.away_score,
+                home_score=md.home_score if is_fin else None,
+                away_score=md.away_score if is_fin else None,
                 round=md.round, updated_at=now,
             ))
 
@@ -1949,7 +1953,7 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
             t.season_pending = True
             session.add(t)
 
-    matches_played = sum(1 for m in (body.matches_data or []) if m.home_score is not None)
+    matches_played = sum(1 for m in (body.matches_data or []) if m.status == "finished")
     return {
         "teams":          len(body.teams_in_poule),
         "standings":      len(body.standings_data or []),
