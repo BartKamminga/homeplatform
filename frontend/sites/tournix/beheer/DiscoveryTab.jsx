@@ -257,6 +257,16 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
             <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities</span>
             <span style={pill('muted')}>{competitions.length} gevonden</span>
             <button
+              onClick={e => {
+                e.stopPropagation()
+                competitions.filter(c => c.hl_comp_id).forEach(c =>
+                  addSingleCmd('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name })
+                )
+              }}
+              style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px' }}
+              title="Zet alle competities in de herscan-queue"
+            >⟳ Herscan alle</button>
+            <button
               onClick={e => { e.stopPropagation(); handleCleanupEmpty() }}
               style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px' }}
               title="Verwijder competities zonder poules"
