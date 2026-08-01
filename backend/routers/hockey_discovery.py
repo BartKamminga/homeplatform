@@ -1575,7 +1575,7 @@ def fill_cmd_queue(
     elif body.type == "poules_refresh":
         # Haal alle bekende poules op die ouder zijn dan max_age_days of nooit gescand
         from datetime import timedelta
-        max_age = body.max_age_days or 7
+        max_age = body.max_age_days if body.max_age_days is not None else 7
         cutoff = now - timedelta(days=max_age)
 
         target_season = _get_target_season(session)

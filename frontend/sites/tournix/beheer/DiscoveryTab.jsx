@@ -161,9 +161,11 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     api.get('/api/tournix/discovery/vanger/cmd-queue').then(setCmdQueue).catch(() => {})
   }
 
-  function fillCmdQueue(type) {
+  function fillCmdQueue(type, maxAgeDays) {
     setCmdFilling(type)
-    api.post('/api/tournix/discovery/vanger/cmd-queue/fill', { type })
+    const body = { type }
+    if (maxAgeDays !== undefined) body.max_age_days = maxAgeDays
+    api.post('/api/tournix/discovery/vanger/cmd-queue/fill', body)
       .then(r => {
         loadCmdQueue()
         const count = r?.added ?? 0
@@ -782,6 +784,10 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                       <button onClick={() => fillCmdQueue('poules_refresh')} disabled={!!cmdFilling}
                         style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-primary)', background: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules_refresh' ? 0.6 : 1 }}>
                         {cmdFilling === 'poules_refresh' ? '…' : '⟳ Stands refreshen'}
+                      </button>
+                      <button onClick={() => fillCmdQueue('poules_refresh', 1)} disabled={!!cmdFilling}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-primary)', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules_refresh' ? 0.6 : 1 }}>
+                        {cmdFilling === 'poules_refresh' ? '…' : '📡 Alles pollen'}
                       </button>
                       <button onClick={runGapFill} disabled={gapFilling || !!cmdFilling}
                         style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit', opacity: gapFilling ? 0.6 : 1 }}>
