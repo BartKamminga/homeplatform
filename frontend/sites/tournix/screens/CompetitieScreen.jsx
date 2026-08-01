@@ -127,11 +127,13 @@ function CompetitieDetail({ comp, isAdmin, onBack }) {
         }}>← Terug</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>{comp.name}</div>
-          {comp.hockey_type && (
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-              {comp.hockey_type === 'ZA' ? '🏒 Zaal' : '🏑 Veld'}
-            </div>
-          )}
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+            {[
+              comp.hockey_type === 'ZA' ? '🏒 Zaal' : comp.hockey_type === 'VE' ? '🏑 Veld' : null,
+              comp.class_name,
+              comp.district,
+            ].filter(Boolean).join(' · ')}
+          </div>
         </div>
         {isAdmin && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -318,6 +320,8 @@ function CompetitieList({ compsData, onSelect, onRemove, isAdmin }) {
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{comp.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {[comp.class_name, comp.district].filter(Boolean).join(' · ')}
+                  {(comp.class_name || comp.district) && pouleTekst ? ' — ' : ''}
                   {pouleTekst}
                 </div>
                 {tags.length > 0 && (

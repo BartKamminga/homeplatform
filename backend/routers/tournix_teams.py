@@ -484,6 +484,9 @@ def get_tournament_competition_standings(
             "id":          comp.id,
             "name":        lnk.label or comp.name,
             "hockey_type": comp.hockey_type,
+            "class_name":  comp.class_name,
+            "district":    comp.district,
+            "season":      comp.season,
             "fase_tags":   [{"id": ft.id, "name": ft.name} for _, ft in assigned_tags],
             "poules":      [],
         }
