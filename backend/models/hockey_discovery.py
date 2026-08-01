@@ -28,6 +28,7 @@ class HockeyClub(SQLModel, table=True):
     detail_loaded:   bool          = Field(default=False)
     discovered_at:   datetime      = Field(default_factory=datetime.utcnow)
     updated_at:      datetime      = Field(default_factory=datetime.utcnow)
+    last_scanned_at: Optional[datetime] = None
 
 
 class HockeyTeam(SQLModel, table=True):
@@ -46,6 +47,7 @@ class HockeyTeam(SQLModel, table=True):
     season_pending:           bool          = Field(default=False)
     discovered_at:            datetime      = Field(default_factory=datetime.utcnow)
     updated_at:               datetime      = Field(default_factory=datetime.utcnow)
+    last_scanned_at:          Optional[datetime] = None
 
 
 class HockeyCompetition(SQLModel, table=True):
@@ -66,13 +68,14 @@ class HockeyCompetition(SQLModel, table=True):
 class HockeyPoule(SQLModel, table=True):
     __tablename__ = "hockey_poules"
 
-    id:             int      = Field(default=None, primary_key=True)
-    poule_id:       int      = Field(unique=True, index=True)  # hockey.nl poule id
-    name:           str
-    competition_id: int      = Field(index=True)               # → hockey_competitions.id
-    season:         str
-    discovered_at:  datetime = Field(default_factory=datetime.utcnow)
-    updated_at:     datetime = Field(default_factory=datetime.utcnow)
+    id:              int            = Field(default=None, primary_key=True)
+    poule_id:        int            = Field(unique=True, index=True)  # hockey.nl poule id
+    name:            str
+    competition_id:  int            = Field(index=True)               # → hockey_competitions.id
+    season:          str
+    discovered_at:   datetime       = Field(default_factory=datetime.utcnow)
+    updated_at:      datetime       = Field(default_factory=datetime.utcnow)
+    last_scanned_at: Optional[datetime] = None
 
 
 class HockeyPouleStanding(SQLModel, table=True):

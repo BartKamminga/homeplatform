@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import { getTournamentsForImport, importPoule as doImportPoule } from '../api.js'
 import { ghostBtn } from './styles.js'
 
 const statBox = { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, minWidth: 60 }
@@ -134,12 +133,25 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [clubSearch,   setClubSearch]   = useState('')
 
   const [season,          setSeason]          = useState('2026-2027')
-  const [importTourneys,  setImportTourneys]  = useState([])
-  const [importOpen,      setImportOpen]      = useState(null)  // poule_id being imported
-  const [importTid,       setImportTid]       = useState('')
-  const [importPid,       setImportPid]       = useState('')
-  const [importBusy,      setImportBusy]      = useState(false)
-  const [importResult,    setImportResult]    = useState({})    // keyed by poule_id
+  const [gapData,         setGapData]         = useState(null)
+  const [gapFilling,      setGapFilling]      = useState(false)
+
+  function loadGapAnalysis() {
+    api.get('/api/tournix/discovery/gap-analysis').then(setGapData).catch(() => {})
+  }
+
+  function runGapFill() {
+    setGapFilling(true)
+    api.post('/api/tournix/discovery/gap-analysis/fill-queue')
+      .then(r => {
+        loadCmdQueue()
+        loadGapAnalysis()
+        setFillMsg(`Gap-fill: +${r.total} cmds (${r.added_poules} poules, ${r.added_clubs} clubs)`)
+        setTimeout(() => setFillMsg(''), 5000)
+      })
+      .catch(() => {})
+      .finally(() => setGapFilling(false))
+  }
 
   function loadRanges() {
     api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {})
@@ -187,22 +199,6 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     api.delete('/api/tournix/discovery/vanger/cmd-queue?scope=done')
       .then(() => loadCmdQueue())
       .catch(() => {})
-  }
-
-  function loadImportTourneys() {
-    getTournamentsForImport().then(r => setImportTourneys(r.tournaments || [])).catch(() => {})
-  }
-
-  function doImport(pouleId) {
-    if (!importTid) return
-    setImportBusy(true)
-    doImportPoule({ poule_id: pouleId, tournament_id: importTid, phase_id: importPid || undefined })
-      .then(r => {
-        setImportResult(prev => ({ ...prev, [pouleId]: r }))
-        setImportOpen(null)
-      })
-      .catch(e => alert('Import mislukt: ' + (e.message || 'onbekende fout')))
-      .finally(() => setImportBusy(false))
   }
 
   function addSingleCmd(type, params) {
@@ -332,7 +328,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
     }).catch(() => {})
   }
 
-  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadImportTourneys() }, [season])
+  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadGapAnalysis() }, [season])
 
   useEffect(() => {
     if (view !== 'vanger') return
@@ -354,7 +350,11 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   }
 
   const clubMap = {}
-  for (const c of clubs) clubMap[c.external_id] = c.friendly_name || c.name
+  const clubLogoMap = {}
+  for (const c of clubs) {
+    clubMap[c.external_id] = c.friendly_name || c.name
+    if (c.logo_url) clubLogoMap[c.external_id] = c.logo_url
+  }
 
   const teamsByClub = {}
   for (const t of allTeams) {
@@ -533,41 +533,7 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                                           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
                                           {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
                                           {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
-                                          <button onClick={e => { e.stopPropagation(); setImportOpen(importOpen === p.poule_id ? null : p.poule_id); setImportResult(prev => { const n = { ...prev }; delete n[p.poule_id]; return n }) }}
-                                            style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, border: `1px solid ${importResult[p.poule_id] ? 'var(--color-success)' : 'var(--color-primary)'}`, color: importResult[p.poule_id] ? 'var(--color-success)' : 'var(--color-primary)', background: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
-                                            title="Importeer naar Tournix">
-                                            {importResult[p.poule_id] ? '✓' : '→ Tournix'}
-                                          </button>
                                         </div>
-                                        {importOpen === p.poule_id && (
-                                          <div style={{ marginLeft: 18, marginBottom: 4, padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-primary)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)' }}>→ Importeer "{p.name}" naar Tournix</div>
-                                            <select value={importTid} onChange={e => { setImportTid(e.target.value); setImportPid('') }}
-                                              style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'inherit' }}>
-                                              <option value="">Kies toernooi…</option>
-                                              {importTourneys.map(t => <option key={t.id} value={t.id}>{t.name} ({t.season})</option>)}
-                                            </select>
-                                            {importTid && (
-                                              <select value={importPid} onChange={e => setImportPid(e.target.value)}
-                                                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'inherit' }}>
-                                                <option value="">Automatisch (eerste pool-fase)</option>
-                                                {(importTourneys.find(t => t.id === importTid)?.phases || []).map(ph => (
-                                                  <option key={ph.id} value={ph.id}>{ph.name || ph.phase_label || 'Fase'}</option>
-                                                ))}
-                                              </select>
-                                            )}
-                                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                              <button onClick={() => doImport(p.poule_id)} disabled={!importTid || importBusy}
-                                                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, border: 'none', background: !importTid || importBusy ? 'var(--color-border)' : 'var(--color-primary)', color: '#fff', cursor: importTid && !importBusy ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-                                                {importBusy ? '…bezig' : 'Importeer'}
-                                              </button>
-                                              <button onClick={() => setImportOpen(null)}
-                                                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                                                Annuleer
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )}
                                         {pOpen && (
                                           <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
                                             {pTeams.map(t => (
@@ -635,6 +601,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
               <div key={c.external_id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
                 <div onClick={() => toggle(c.external_id)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
                   <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, flexShrink: 0 }}>{isOpen ? '▾' : '▸'}</span>
+                  {c.logo_url && (
+                    <img src={c.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0, borderRadius: 3 }} />
+                  )}
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 80 }}>{c.friendly_name || c.name}</span>
                   {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
                   <span style={pill(c.detail_loaded ? 'ok' : 'muted')}>{c.detail_loaded ? '✓ detail' : '– geen detail'}</span>
@@ -810,6 +779,14 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                         style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
                         {cmdFilling === 'clubs' ? '…' : '+ Clubs vullen'}
                       </button>
+                      <button onClick={() => fillCmdQueue('poules_refresh')} disabled={!!cmdFilling}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-primary)', background: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules_refresh' ? 0.6 : 1 }}>
+                        {cmdFilling === 'poules_refresh' ? '…' : '⟳ Stands refreshen'}
+                      </button>
+                      <button onClick={runGapFill} disabled={gapFilling || !!cmdFilling}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit', opacity: gapFilling ? 0.6 : 1 }}>
+                        {gapFilling ? '…' : '🔍 Gap-fill auto'}
+                      </button>
                       {cmdBtn('get_clubs',       { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md')}
                       {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md')}
                       {fillMsg && (
@@ -834,6 +811,23 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                         </button>
                       )}
                     </div>
+
+                    {/* Gap-analyse samenvatting */}
+                    {gapData && (
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '6px 8px', background: 'color-mix(in srgb, var(--color-primary) 5%, var(--color-surface))', borderRadius: 6, border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)', fontSize: 11 }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>Gap {gapData.season}:</span>
+                        <span style={{ color: gapData.poules.stale > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+                          {gapData.poules.stale} poules verouderd
+                        </span>
+                        <span style={{ color: gapData.clubs.unscanned > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+                          {gapData.clubs.unscanned} clubs onbekend
+                        </span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>
+                          → {gapData.queue_recommendation.get_poule_cmds} poule + {gapData.queue_recommendation.scan_club_cmds} club cmds aanbevolen
+                        </span>
+                        <button onClick={loadGapAnalysis} style={{ fontSize: 10, padding: '0 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>↺</button>
+                      </div>
+                    )}
 
                     {/* Voortgang samenvatting */}
                     {isRunning && total > 0 && (
@@ -963,6 +957,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
                     const addState = cmdAdding[addKey]
                     return (
                       <div key={c.club_external_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                        {clubLogoMap[c.club_external_id] && (
+                          <img src={clubLogoMap[c.club_external_id]} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0, borderRadius: 2 }} />
+                        )}
                         <span style={{ flex: 1 }}>{c.friendly_name || c.name}</span>
                         {c.city && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.city}</span>}
                         <span style={{ ...pill('partial'), fontSize: 10 }}>{c.pending_teams} teams</span>

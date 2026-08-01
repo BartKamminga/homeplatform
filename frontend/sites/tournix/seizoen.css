@@ -167,7 +167,6 @@
 .seizoen-screen {
   display: flex;
   flex-direction: column;
-  height: 100%;
   overflow: hidden;
 }
 
@@ -373,7 +372,6 @@
 .tournooi-screen {
   display: flex;
   flex-direction: column;
-  height: 100%;
   overflow: hidden;
 }
 
@@ -481,6 +479,15 @@
 
 .icon-btn:hover { background: var(--color-background); }
 
+/* ── Main content (competitie-scherm wrapper) ────────────────────────────── */
+
+.main-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
 /* ── App root ────────────────────────────────────────────────────────────── */
 
 .app-root {
@@ -495,6 +502,7 @@
 .seizoen-screen,
 .tournooi-screen {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 

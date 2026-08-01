@@ -490,7 +490,7 @@ def get_tournament_competition_standings(
         for poule in poules:
             rows = session.exec(
                 select(HockeyPouleStanding)
-                .where(HockeyPouleStanding.poule_id == poule.id)
+                .where(HockeyPouleStanding.poule_id == poule.poule_id)
                 .order_by(
                     HockeyPouleStanding.position,
                     HockeyPouleStanding.points.desc(),  # type: ignore[attr-defined]
@@ -543,7 +543,7 @@ def get_competition_matches(cid: int, session: Session = Depends(get_session)):
     for poule in poules:
         matches = session.exec(
             select(HockeyPouleMatch)
-            .where(HockeyPouleMatch.poule_id == poule.id)
+            .where(HockeyPouleMatch.poule_id == poule.poule_id)
             .order_by(HockeyPouleMatch.match_date, HockeyPouleMatch.match_id)
         ).all()
         finished  = [m for m in matches if m.status == "finished"]

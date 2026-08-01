@@ -85,6 +85,12 @@ function CompetitieDetail({ comp, isAdmin, onBack }) {
   const [matchData,   setMatchData]   = useState(null)
   const [syncing,     setSyncing]     = useState(false)
   const [syncMsg,     setSyncMsg]     = useState('')
+  const [teamFilter,  setTeamFilter]  = useState('')
+
+  useEffect(() => {
+    setTeamFilter('')
+    setMatchData(null)
+  }, [comp.id])
 
   useEffect(() => {
     if (matchTab === 'wedstrijden' && matchData === null) {
@@ -182,59 +188,94 @@ function CompetitieDetail({ comp, isAdmin, onBack }) {
       {matchTab === 'wedstrijden' && (
         matchData === null ? (
           <div style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>Laden…</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {(matchData.poules || []).map(poule => (
-              <div key={poule.id}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: '0.06em', color: 'var(--color-text-muted)',
-                  marginBottom: 6, paddingLeft: 2 }}>{poule.name}</div>
+        ) : (() => {
+          const allTeams = [...new Set(
+            (matchData.poules || []).flatMap(p => [
+              ...(p.finished || []).flatMap(m => [m.home, m.away]),
+              ...(p.scheduled || []).flatMap(m => [m.home, m.away]),
+            ]).filter(Boolean)
+          )].sort()
 
-                {poule.finished.length === 0 && poule.scheduled.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                    Geen wedstrijden
-                  </div>
-                )}
+          const matchesTeam = (m) => !teamFilter ||
+            m.home === teamFilter || m.away === teamFilter
 
-                {poule.finished.map((m, i) => (
-                  <div key={m.match_id ?? i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '7px 12px', borderRadius: 8, marginBottom: 4,
-                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                    fontSize: 12,
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {allTeams.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <select value={teamFilter} onChange={e => setTeamFilter(e.target.value)} style={{
+                    flex: 1, padding: '6px 10px', borderRadius: 8, fontSize: 12,
+                    border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+                    color: 'var(--color-text)', fontFamily: 'inherit', cursor: 'pointer',
                   }}>
-                    {m.date && <span style={{ fontSize: 10, color: 'var(--color-text-muted)',
-                      flexShrink: 0, width: 70 }}>{fmtDate(m.date)}</span>}
-                    <span style={{ flex: 1, textAlign: 'right',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
-                    <span style={{ fontWeight: 700, flexShrink: 0, minWidth: 40, textAlign: 'center',
-                      color: 'var(--color-primary)' }}>{fmtScore(m.home_score, m.away_score)}</span>
-                    <span style={{ flex: 1, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away}</span>
-                  </div>
-                ))}
+                    <option value="">Alle teams</option>
+                    {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  {teamFilter && (
+                    <button onClick={() => setTeamFilter('')} style={{
+                      padding: '5px 10px', borderRadius: 8, fontSize: 11,
+                      border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+                      color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit',
+                    }}>✕</button>
+                  )}
+                </div>
+              )}
 
-                {poule.scheduled.map((m, i) => (
-                  <div key={m.match_id ?? i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '7px 12px', borderRadius: 8, marginBottom: 4,
-                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                    fontSize: 12, opacity: 0.7,
-                  }}>
-                    {m.date && <span style={{ fontSize: 10, color: 'var(--color-text-muted)',
-                      flexShrink: 0, width: 70 }}>{fmtDate(m.date)}</span>}
-                    <span style={{ flex: 1, textAlign: 'right',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
-                    <span style={{ color: 'var(--color-text-muted)', flexShrink: 0,
-                      minWidth: 40, textAlign: 'center', fontSize: 11 }}>vs</span>
-                    <span style={{ flex: 1, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away}</span>
+              {(matchData.poules || []).map(poule => {
+                const fin  = (poule.finished  || []).filter(matchesTeam)
+                const sched = (poule.scheduled || []).filter(matchesTeam)
+                if (fin.length === 0 && sched.length === 0) return null
+                return (
+                  <div key={poule.id}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.06em', color: 'var(--color-text-muted)',
+                      marginBottom: 6, paddingLeft: 2 }}>{poule.name}</div>
+
+                    {fin.map((m, i) => (
+                      <div key={m.match_id ?? i} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 12px', borderRadius: 8, marginBottom: 4,
+                        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                        fontSize: 12,
+                      }}>
+                        {m.date && <span style={{ fontSize: 10, color: 'var(--color-text-muted)',
+                          flexShrink: 0, width: 70 }}>{fmtDate(m.date)}</span>}
+                        <span style={{ flex: 1, textAlign: 'right', overflow: 'hidden',
+                          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          fontWeight: teamFilter === m.home ? 700 : 400 }}>{m.home}</span>
+                        <span style={{ fontWeight: 700, flexShrink: 0, minWidth: 40, textAlign: 'center',
+                          color: 'var(--color-primary)' }}>{fmtScore(m.home_score, m.away_score)}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontWeight: teamFilter === m.away ? 700 : 400 }}>{m.away}</span>
+                      </div>
+                    ))}
+
+                    {sched.map((m, i) => (
+                      <div key={m.match_id ?? i} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 12px', borderRadius: 8, marginBottom: 4,
+                        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                        fontSize: 12,
+                      }}>
+                        {m.date && <span style={{ fontSize: 10, color: 'var(--color-text-muted)',
+                          flexShrink: 0, width: 70 }}>{fmtDate(m.date)}</span>}
+                        <span style={{ flex: 1, textAlign: 'right', overflow: 'hidden',
+                          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          fontWeight: teamFilter === m.home ? 700 : 400 }}>{m.home}</span>
+                        <span style={{ color: 'var(--color-text-muted)', flexShrink: 0,
+                          minWidth: 40, textAlign: 'center', fontSize: 11 }}>vs</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontWeight: teamFilter === m.away ? 700 : 400 }}>{m.away}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )
+                )
+              })}
+            </div>
+          )
+        })()
       )}
     </div>
   )

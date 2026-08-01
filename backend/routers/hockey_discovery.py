@@ -194,6 +194,7 @@ def upsert_club_detail(
     )
     club.detail_loaded = True
     club.updated_at = now
+    club.last_scanned_at = now
     session.add(club)
 
     teams_created = 0
@@ -216,6 +217,7 @@ def upsert_club_detail(
                 existing_team.no_new_poule_confirmed = False
                 existing_team.season_pending = False
             existing_team.updated_at = now
+            existing_team.last_scanned_at = now
             session.add(existing_team)
             teams_updated += 1
         else:
@@ -230,6 +232,7 @@ def upsert_club_detail(
                 recent_poule_id=team_in.recent_poule_id,
                 discovered_at=now,
                 updated_at=now,
+                last_scanned_at=now,
             )
             session.add(team)
             teams_created += 1
@@ -755,39 +758,76 @@ def upsert_poule_capture(
             comp.hockey_type = body.hockey_type
         session.add(comp)
     else:
-        comp = HockeyCompetition(
-            external_id  = ext_id,
-            name         = body.competition_name,
-            class_name   = body.class_name,
-            district     = body.district or None,
-            hockey_type  = body.hockey_type,
-            season       = body.season,
-            discovered_at = now,
-            updated_at   = now,
-        )
-        session.add(comp)
+        # Dedupliceer over seizoenen: zelfde naam/klasse/district → update bestaand record
+        base_prefix = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|"
+        prev_comp = session.exec(
+            select(HockeyCompetition)
+            .where(HockeyCompetition.external_id.like(base_prefix + "%"))
+            .where(HockeyCompetition.season != body.season)
+            .order_by(HockeyCompetition.season.desc())
+        ).first()
+        if prev_comp:
+            prev_comp.external_id = ext_id
+            prev_comp.season      = body.season
+            prev_comp.updated_at  = now
+            if body.hockey_type:
+                prev_comp.hockey_type = body.hockey_type
+            if body.district:
+                prev_comp.district = body.district
+            comp = prev_comp
+            session.add(comp)
+        else:
+            comp = HockeyCompetition(
+                external_id  = ext_id,
+                name         = body.competition_name,
+                class_name   = body.class_name,
+                district     = body.district or None,
+                hockey_type  = body.hockey_type,
+                season       = body.season,
+                discovered_at = now,
+                updated_at   = now,
+            )
+            session.add(comp)
     session.flush()
 
     # Poule upsert
     poule = session.exec(
         select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
     ).first()
-    status = "updated" if poule else "created"
     if poule:
+        status = "updated"
         poule.name           = body.poule_name
         poule.competition_id = comp.id
         poule.updated_at     = now
+        poule.last_scanned_at = now
         session.add(poule)
     else:
-        poule = HockeyPoule(
-            poule_id       = body.poule_id,
-            name           = body.poule_name,
-            competition_id = comp.id,
-            season         = body.season,
-            discovered_at  = now,
-            updated_at     = now,
-        )
-        session.add(poule)
+        # Dedupliceer over seizoenen: zelfde naam binnen zelfde competition → update poule_id
+        prev_poule = session.exec(
+            select(HockeyPoule)
+            .where(HockeyPoule.name == body.poule_name)
+            .where(HockeyPoule.competition_id == comp.id)
+        ).first()
+        if prev_poule:
+            prev_poule.poule_id        = body.poule_id
+            prev_poule.season          = body.season
+            prev_poule.updated_at      = now
+            prev_poule.last_scanned_at = now
+            poule = prev_poule
+            status = "deduped"
+            session.add(poule)
+        else:
+            status = "created"
+            poule = HockeyPoule(
+                poule_id       = body.poule_id,
+                name           = body.poule_name,
+                competition_id = comp.id,
+                season         = body.season,
+                discovered_at  = now,
+                updated_at     = now,
+                last_scanned_at = now,
+            )
+            session.add(poule)
 
     # DataCapture per sessie (idempotent)
     if body.session_id:
@@ -1380,7 +1420,8 @@ class CmdResultIn(BaseModel):
 
 
 class CmdFillIn(BaseModel):
-    type: str  # "poules" | "clubs"
+    type: str  # "poules" | "clubs" | "poules_refresh"
+    max_age_days: Optional[int] = 7  # voor poules_refresh: poules ouder dan X dagen
 
 
 @router.get("/vanger/cmd-queue")
@@ -1506,8 +1547,17 @@ def fill_cmd_queue(
         for t in teams:
             counts_by_club[t.club_external_id] = counts_by_club.get(t.club_external_id, 0) + 1
 
+        # Voeg ook clubs toe die nog nooit gescand zijn (detail_loaded=False)
+        unscanned = session.exec(
+            select(HockeyClub).where(HockeyClub.detail_loaded == False)  # noqa: E712
+        ).all()
+        for c in unscanned:
+            if c.external_id not in counts_by_club:
+                counts_by_club[c.external_id] = 0
+
+        all_club_ids = list(counts_by_club.keys())
         club_rows = session.exec(
-            select(HockeyClub).where(col(HockeyClub.external_id).in_(list(counts_by_club.keys())))
+            select(HockeyClub).where(col(HockeyClub.external_id).in_(all_club_ids))
         ).all()
         club_map = {c.external_id: c for c in club_rows}
 
@@ -1521,6 +1571,59 @@ def fill_cmd_queue(
                     created_at=now,
                 ))
                 added += 1
+
+    elif body.type == "poules_refresh":
+        # Haal alle bekende poules op die ouder zijn dan max_age_days of nooit gescand
+        from datetime import timedelta
+        max_age = body.max_age_days or 7
+        cutoff = now - timedelta(days=max_age)
+
+        target_season = _get_target_season(session)
+        _, _, cats, hts, genders = _get_queue_filter(session)
+
+        q = (
+            select(HockeyPoule)
+            .where(HockeyPoule.season == target_season)
+            .where(
+                (HockeyPoule.last_scanned_at == None)  # noqa: E711
+                | (HockeyPoule.last_scanned_at < cutoff)
+            )
+        )
+        poules = session.exec(q).all()
+
+        # Bouw team-lookup op (poule_id → team) voor de get_poule cmd
+        team_by_poule: dict = {}
+        for t in session.exec(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))).all():
+            if t.recent_poule_id and t.recent_poule_id not in team_by_poule:
+                team_by_poule[t.recent_poule_id] = t
+
+        # Filter op categorie / hockey_type / geslacht via team
+        for poule in poules:
+            t = team_by_poule.get(poule.poule_id)
+            if cats and (not t or t.category_group_name not in cats):
+                continue
+            if hts and (not t or t.hockey_type not in hts):
+                continue
+            if genders and t:
+                prefixes = {_GENDER_PREFIX[g] for g in genders if g in _GENDER_PREFIX}
+                if not any((t.short_name or "").startswith(p) for p in prefixes):
+                    continue
+
+            pid_str = str(poule.poule_id)
+            if pid_str in pending_params or poule.poule_id in pending_params:
+                continue
+
+            team_id = t.team_id if t else None
+            label = poule.name or f"poule #{poule.poule_id}"
+            if t:
+                label = t.name + " — " + label
+
+            session.add(VangerCmd(
+                cmd_type="get_poule",
+                params=json.dumps({"poule_id": poule.poule_id, "team_id": team_id, "label": label}),
+                created_at=now,
+            ))
+            added += 1
 
     session.commit()
     return {"added": added, "type": body.type}
@@ -1746,23 +1849,54 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
             comp.hockey_type = body.hockey_type
         session.add(comp)
     else:
-        comp = HockeyCompetition(
-            external_id=ext_id, name=body.competition_name, class_name=body.class_name,
-            district=body.district or None,
-            hockey_type=body.hockey_type, season=body.season, discovered_at=now, updated_at=now,
-        )
-        session.add(comp)
+        base_prefix = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|"
+        prev_comp = session.exec(
+            select(HockeyCompetition)
+            .where(HockeyCompetition.external_id.like(base_prefix + "%"))
+            .where(HockeyCompetition.season != body.season)
+            .order_by(HockeyCompetition.season.desc())
+        ).first()
+        if prev_comp:
+            prev_comp.external_id = ext_id
+            prev_comp.season      = body.season
+            prev_comp.updated_at  = now
+            if body.hockey_type:
+                prev_comp.hockey_type = body.hockey_type
+            if body.district:
+                prev_comp.district = body.district
+            comp = prev_comp
+            session.add(comp)
+        else:
+            comp = HockeyCompetition(
+                external_id=ext_id, name=body.competition_name, class_name=body.class_name,
+                district=body.district or None,
+                hockey_type=body.hockey_type, season=body.season, discovered_at=now, updated_at=now,
+            )
+            session.add(comp)
     session.flush()
 
     poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)).first()
     if poule:
-        poule.name = body.poule_name; poule.competition_id = comp.id; poule.updated_at = now
+        poule.name = body.poule_name; poule.competition_id = comp.id
+        poule.updated_at = now; poule.last_scanned_at = now
         session.add(poule)
     else:
-        session.add(HockeyPoule(
-            poule_id=body.poule_id, name=body.poule_name, competition_id=comp.id,
-            season=body.season, discovered_at=now, updated_at=now,
-        ))
+        prev_poule = session.exec(
+            select(HockeyPoule)
+            .where(HockeyPoule.name == body.poule_name)
+            .where(HockeyPoule.competition_id == comp.id)
+        ).first()
+        if prev_poule:
+            prev_poule.poule_id        = body.poule_id
+            prev_poule.season          = body.season
+            prev_poule.updated_at      = now
+            prev_poule.last_scanned_at = now
+            session.add(prev_poule)
+        else:
+            session.add(HockeyPoule(
+                poule_id=body.poule_id, name=body.poule_name, competition_id=comp.id,
+                season=body.season, discovered_at=now, updated_at=now, last_scanned_at=now,
+            ))
 
     if body.standings_data:
         for old in session.exec(select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == body.poule_id)).all():
@@ -1840,7 +1974,7 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
     club.payment_options = json.dumps(body.payment_options, ensure_ascii=False) if isinstance(body.payment_options, list) else body.payment_options
     club.parking = body.parking
     club.hockey_types = json.dumps(body.hockey_types, ensure_ascii=False) if isinstance(body.hockey_types, list) else body.hockey_types
-    club.detail_loaded = True; club.updated_at = now
+    club.detail_loaded = True; club.updated_at = now; club.last_scanned_at = now
     session.add(club)
 
     known_team_ids = {
@@ -1865,6 +1999,7 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
                 existing_team.season_pending = False
                 teams_new_poule += 1
             existing_team.updated_at = now
+            existing_team.last_scanned_at = now
             session.add(existing_team)
         else:
             teams_added += 1
@@ -1874,7 +2009,7 @@ def _call_club_detail(body: "ClubDetailIn", session: Session):
                 logo_url=team_in.logo, hockey_type=team_in.hockey_type,
                 category_group_name=team_in.category_group_name,
                 recent_poule_id=team_in.recent_poule_id,
-                discovered_at=now, updated_at=now,
+                discovered_at=now, updated_at=now, last_scanned_at=now,
             ))
 
     teams_disappeared = len(known_team_ids - incoming_team_ids)
@@ -2212,6 +2347,135 @@ def retry_cmd(
     return {"ok": True}
 
 
+# ── Gap-analyse ───────────────────────────────────────────────────────────────
+
+@router.get("/gap-analysis")
+def gap_analysis(
+    season: Optional[str] = None,
+    stale_days: int = 7,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Analyse welke data ontbreekt of verouderd is; geeft queue-aanbeveling."""
+    from datetime import timedelta
+    target = season or _get_target_season(session)
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=stale_days)
+
+    poules = session.exec(select(HockeyPoule).where(HockeyPoule.season == target)).all()
+    poule_ids = {p.poule_id for p in poules}
+
+    standing_ids = {
+        r[0] for r in session.exec(
+            select(HockeyPouleStanding.poule_id).where(col(HockeyPouleStanding.poule_id).in_(list(poule_ids)))
+        ).all()
+    }
+    match_ids = {
+        r[0] for r in session.exec(
+            select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(list(poule_ids)))
+        ).all()
+    }
+
+    stale = [p for p in poules if p.last_scanned_at is None or p.last_scanned_at < cutoff]
+    no_standings = [p for p in poules if p.poule_id not in standing_ids]
+    no_matches = [p for p in poules if p.poule_id not in match_ids]
+
+    season_pending_teams = session.exec(
+        select(HockeyTeam).where(HockeyTeam.season_pending == True)  # noqa: E712
+    ).all()
+    clubs_pending = {t.club_external_id for t in season_pending_teams}
+
+    unscanned_clubs = session.exec(
+        select(HockeyClub).where(HockeyClub.detail_loaded == False)  # noqa: E712
+    ).all()
+
+    return {
+        "season": target,
+        "stale_days": stale_days,
+        "poules": {
+            "total":        len(poules),
+            "stale":        len(stale),
+            "no_standings": len(no_standings),
+            "no_matches":   len(no_matches),
+        },
+        "clubs": {
+            "total":     session.exec(select(HockeyClub)).all().__len__(),
+            "unscanned": len(unscanned_clubs),
+            "needs_rescan_for_new_poule": len(clubs_pending),
+        },
+        "queue_recommendation": {
+            "get_poule_cmds":   len(stale) + len(no_standings),
+            "scan_club_cmds":   len(unscanned_clubs) + len(clubs_pending),
+        },
+    }
+
+
+@router.post("/gap-analysis/fill-queue")
+def gap_fill_queue(
+    season: Optional[str] = None,
+    stale_days: int = 7,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Vul de queue automatisch op basis van de gap-analyse."""
+    target = season or _get_target_season(session)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    pending_cmds = session.exec(
+        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all()
+    pending_params = {json.loads(c.params).get("poule_id") or json.loads(c.params).get("external_id") for c in pending_cmds}
+
+    added_poules = 0
+    added_clubs = 0
+
+    # Voeg stale poules toe
+    from datetime import timedelta
+    cutoff = now - timedelta(days=stale_days)
+    stale_poules = session.exec(
+        select(HockeyPoule)
+        .where(HockeyPoule.season == target)
+        .where(
+            (HockeyPoule.last_scanned_at == None)  # noqa: E711
+            | (HockeyPoule.last_scanned_at < cutoff)
+        )
+    ).all()
+
+    team_by_poule: dict = {}
+    for t in session.exec(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))).all():
+        if t.recent_poule_id and t.recent_poule_id not in team_by_poule:
+            team_by_poule[t.recent_poule_id] = t
+
+    for poule in stale_poules:
+        pid_str = str(poule.poule_id)
+        if pid_str in pending_params or poule.poule_id in pending_params:
+            continue
+        t = team_by_poule.get(poule.poule_id)
+        team_id = t.team_id if t else None
+        label = (t.name + " — " if t else "") + (poule.name or f"poule #{poule.poule_id}")
+        session.add(VangerCmd(
+            cmd_type="get_poule",
+            params=json.dumps({"poule_id": poule.poule_id, "team_id": team_id, "label": label}),
+            created_at=now,
+        ))
+        added_poules += 1
+
+    # Voeg unscanned clubs toe
+    unscanned = session.exec(
+        select(HockeyClub).where(HockeyClub.detail_loaded == False)  # noqa: E712
+    ).all()
+    for c in unscanned:
+        if c.external_id not in pending_params:
+            session.add(VangerCmd(
+                cmd_type="scan_club",
+                params=json.dumps({"external_id": c.external_id, "label": c.friendly_name or c.name}),
+                created_at=now,
+            ))
+            added_clubs += 1
+
+    session.commit()
+    return {"added_poules": added_poules, "added_clubs": added_clubs, "total": added_poules + added_clubs}
+
+
 # ── Seizoensplanner: competities met koppelstatus ────────────────────────────
 
 @router.get("/competitions")
@@ -2278,243 +2542,3 @@ def list_competitions_with_coupling(
         result.append(entry)
 
     return result
-
-
-# ── Discovery → Tournix import ────────────────────────────────────────────────
-
-from fastapi import HTTPException as _HTTPException
-
-
-@router.get("/tournaments-for-import")
-def get_tournaments_for_import(
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
-    """Actieve toernooien + pool-fases voor de Discovery import-selector."""
-    from models.tournix import Tournament, TournixPhase
-
-    tournaments = session.exec(
-        select(Tournament)
-        .where(Tournament.status == "active")
-        .order_by(col(Tournament.created_at).desc())
-    ).all()
-
-    result = []
-    for t in tournaments:
-        phases = session.exec(
-            select(TournixPhase)
-            .where(TournixPhase.tournament_id == t.id, TournixPhase.phase_type == "pool")
-            .order_by(TournixPhase.order)
-        ).all()
-        result.append({
-            "id":     t.id,
-            "name":   t.name,
-            "season": t.season,
-            "phases": [
-                {"id": p.id, "name": p.name, "phase_label": p.phase_label}
-                for p in phases
-            ],
-        })
-    return {"tournaments": result}
-
-
-class ImportPouleBody(BaseModel):
-    poule_id:      int
-    tournament_id: str
-    phase_id:      Optional[str] = None
-
-
-@router.post("/import-poule")
-def import_discovery_poule(
-    body: ImportPouleBody,
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
-    """
-    Importeer een gevangen hockey poule (standings + matches) naar een Tournix-fase.
-    Maakt teams en wedstrijden aan; koppelt hockey_poule_id + hockey_team_id.
-    """
-    from models.tournix import (
-        Tournament, TournixPhase, TournixPool, TournixTeam,
-        TournixMatch, TournixPhaseTeam,
-    )
-
-    hl_poule = session.exec(
-        select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
-    ).first()
-    if not hl_poule:
-        raise _HTTPException(404, "Poule niet gevonden in discovery data")
-
-    standings = session.exec(
-        select(HockeyPouleStanding)
-        .where(HockeyPouleStanding.poule_id == body.poule_id)
-        .order_by(HockeyPouleStanding.position)
-    ).all()
-    if not standings:
-        raise _HTTPException(404, "Geen standen beschikbaar — vang de poule eerst via de vanger")
-
-    hl_matches = session.exec(
-        select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)
-    ).all()
-
-    tournament = session.get(Tournament, body.tournament_id)
-    if not tournament:
-        raise _HTTPException(404, "Toernooi niet gevonden")
-
-    phase_created = False
-    if body.phase_id:
-        phase = session.get(TournixPhase, body.phase_id)
-        if not phase or phase.tournament_id != body.tournament_id:
-            raise _HTTPException(404, "Fase niet gevonden in dit toernooi")
-    else:
-        phase = session.exec(
-            select(TournixPhase)
-            .where(
-                TournixPhase.tournament_id == body.tournament_id,
-                TournixPhase.phase_type == "pool",
-            )
-            .order_by(TournixPhase.order)
-        ).first()
-        if not phase:
-            phase = TournixPhase(
-                tournament_id=body.tournament_id,
-                name=hl_poule.name,
-                order=0,
-                phase_type="pool",
-            )
-            session.add(phase)
-            session.flush()
-            phase_created = True
-
-    phase.hockey_poule_id = hl_poule.id
-    session.add(phase)
-
-    existing_pool = session.exec(
-        select(TournixPool).where(TournixPool.phase_id == phase.id)
-    ).first()
-    if not existing_pool:
-        pool = TournixPool(
-            tournament_id=body.tournament_id,
-            name=hl_poule.name,
-            order=0,
-            phase_id=phase.id,
-        )
-        session.add(pool)
-        session.flush()
-    else:
-        pool = existing_pool
-
-    # hockey_team_id lookup: HockeyPouleStanding.team_id → HockeyTeam.id (intern PK)
-    hl_team_ext_ids = {s.team_id for s in standings}
-    hl_teams_db = session.exec(
-        select(HockeyTeam).where(HockeyTeam.team_id.in_(list(hl_team_ext_ids)))
-    ).all()
-    hl_team_internal = {ht.team_id: ht.id for ht in hl_teams_db}
-
-    existing_by_name = {
-        t.name: t for t in session.exec(
-            select(TournixTeam).where(TournixTeam.tournament_id == body.tournament_id)
-        ).all()
-    }
-
-    team_map: Dict[str, Any] = {}
-    teams_created = 0
-
-    for s in sorted(standings, key=lambda x: (x.position or 99)):
-        t = existing_by_name.get(s.team_name)
-        internal_id = hl_team_internal.get(s.team_id)
-        if not t:
-            t = TournixTeam(
-                tournament_id=body.tournament_id,
-                name=s.team_name,
-                pool_id=pool.id,
-                hockey_team_id=internal_id,
-            )
-            session.add(t)
-            session.flush()
-            existing_by_name[s.team_name] = t
-            teams_created += 1
-        else:
-            changed = False
-            if t.pool_id != pool.id:
-                t.pool_id = pool.id; changed = True
-            if internal_id and t.hockey_team_id != internal_id:
-                t.hockey_team_id = internal_id; changed = True
-            if changed:
-                session.add(t)
-        team_map[s.team_name] = t
-
-    # Voeg extra teams toe die alleen in matches voorkomen
-    for m in hl_matches:
-        for name in [m.home_team_name, m.away_team_name]:
-            if name and name not in team_map:
-                t = existing_by_name.get(name)
-                if not t:
-                    t = TournixTeam(
-                        tournament_id=body.tournament_id,
-                        name=name,
-                        pool_id=pool.id,
-                    )
-                    session.add(t)
-                    session.flush()
-                    existing_by_name[name] = t
-                    teams_created += 1
-                team_map[name] = t
-
-    existing_pt = {pt.team_id for pt in session.exec(
-        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == phase.id)
-    ).all()}
-    for t in team_map.values():
-        if t.id not in existing_pt:
-            session.add(TournixPhaseTeam(phase_id=phase.id, team_id=t.id))
-
-    existing_matches = session.exec(
-        select(TournixMatch).where(TournixMatch.phase_id == phase.id)
-    ).all()
-    match_keys = {(m.team_a_id, m.team_b_id, m.round): m for m in existing_matches}
-
-    matches_created = 0
-    for m in hl_matches:
-        ta = team_map.get(m.home_team_name)
-        tb = team_map.get(m.away_team_name)
-        if not ta or not tb:
-            continue
-        key = (ta.id, tb.id, m.round)
-        if key in match_keys:
-            ex = match_keys[key]
-            if m.status == "final" and ex.status != "finished":
-                ex.status  = "finished"
-                ex.score_a = m.home_score
-                ex.score_b = m.away_score
-                session.add(ex)
-            continue
-        status = "finished" if m.status == "final" else "scheduled"
-        sched = None
-        if m.match_date:
-            try:
-                sched = datetime.fromisoformat(m.match_date)
-            except Exception:
-                pass
-        session.add(TournixMatch(
-            tournament_id=body.tournament_id,
-            phase_id=phase.id,
-            team_a_id=ta.id,
-            team_b_id=tb.id,
-            score_a=m.home_score if status == "finished" else None,
-            score_b=m.away_score if status == "finished" else None,
-            status=status,
-            match_type="pool",
-            round=m.round,
-            scheduled_at=sched,
-        ))
-        matches_created += 1
-
-    session.commit()
-    return {
-        "phase_id":       phase.id,
-        "phase_created":  phase_created,
-        "pool_id":        pool.id,
-        "teams_imported": len(team_map),
-        "teams_created":  teams_created,
-        "matches_created": matches_created,
-    }
