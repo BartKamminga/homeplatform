@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
@@ -1836,6 +1837,85 @@ def post_cmd_result(
     session.add(cmd)
     session.commit()
     return {"ok": True, "status": "done", "label": result_label}
+
+
+@router.get("/capture-sessions")
+def get_capture_sessions(session: Session = Depends(get_session), _=Depends(get_current_user)):
+    """Recente poule_capture sessies uit het archief."""
+    rows = session.execute(text("""
+        SELECT session_id, COUNT(*) as cnt,
+               MIN(captured_at) as first_at, MAX(captured_at) as last_at
+        FROM data_captures
+        WHERE capture_type = 'poule_capture'
+        GROUP BY session_id
+        ORDER BY MAX(captured_at) DESC
+        LIMIT 20
+    """)).fetchall()
+    return [{"session_id": r.session_id, "count": r.cnt, "first_at": r.first_at, "last_at": r.last_at} for r in rows]
+
+
+@router.get("/capture-sessions/{session_id}/captures")
+def get_session_captures(session_id: str, session: Session = Depends(get_session), _=Depends(get_current_user)):
+    """Individuele captures binnen een sessie."""
+    captures = session.exec(
+        select(DataCapture)
+        .where(DataCapture.session_id == session_id)
+        .where(DataCapture.capture_type == "poule_capture")
+        .order_by(DataCapture.captured_at)
+    ).all()
+    return [
+        {
+            "id":          c.id,
+            "external_id": c.external_id,
+            "label":       (json.loads(c.meta).get("label", "") if c.meta else ""),
+            "captured_at": str(c.captured_at),
+        }
+        for c in captures
+    ]
+
+
+class ReprocessIn(BaseModel):
+    session_id: Optional[str] = None
+    capture_id: Optional[str] = None
+
+
+@router.post("/reprocess-captures")
+def reprocess_captures(body: ReprocessIn, session: Session = Depends(get_session), _=Depends(get_current_user)):
+    """Herverwerk gearchiveerde poule-captures op basis van sessie of één capture."""
+    if body.session_id:
+        captures = session.exec(
+            select(DataCapture)
+            .where(DataCapture.session_id == body.session_id)
+            .where(DataCapture.capture_type == "poule_capture")
+        ).all()
+    elif body.capture_id:
+        cap = session.get(DataCapture, body.capture_id)
+        captures = [cap] if cap and cap.capture_type == "poule_capture" else []
+    else:
+        return {"ok": 0, "failed": 0, "errors": []}
+
+    ok = 0
+    failed = 0
+    errors: List[str] = []
+    for capture in captures:
+        try:
+            raw = json.loads(capture.payload)
+            poule_id = int(capture.external_id.replace("poule_capture_", ""))
+            params = {"poule_id": poule_id}
+            capture_body = _parse_raw_poule(raw, params)
+            if not capture_body:
+                failed += 1
+                errors.append(f"{capture.external_id}: parse mislukt")
+                continue
+            _call_poule_capture(capture_body, session)
+            session.commit()
+            ok += 1
+        except Exception as e:
+            session.rollback()
+            failed += 1
+            errors.append(f"{capture.external_id}: {str(e)}")
+
+    return {"ok": ok, "failed": failed, "errors": errors[:10]}
 
 
 def _call_poule_capture(body: PouleCaptureIn, session: Session):
