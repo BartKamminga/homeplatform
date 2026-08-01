@@ -150,20 +150,23 @@ class ReprocessBody(BaseModel):
     capture_id: Optional[str] = None
 
 
+REPROCESSABLE = ("poule_capture", "comp_detail")
+
+
 @router.post("/reprocess")
 def reprocess(body: ReprocessBody, session: Session = Depends(get_session), _=Depends(get_current_user)):
-    """Herverwerk gearchiveerde poule-captures via de discovery-parser."""
-    from routers.hockey_discovery import _parse_raw_poule, _call_poule_capture
+    """Herverwerk gearchiveerde captures (poule_capture en comp_detail) via de discovery-parser."""
+    from routers.hockey_discovery import _parse_raw_poule, _call_poule_capture, _call_competition_detail
 
     if body.session_id:
         captures = session.exec(
             select(DataCapture)
             .where(DataCapture.session_id == body.session_id)
-            .where(DataCapture.capture_type == "poule_capture")
+            .where(DataCapture.capture_type.in_(REPROCESSABLE))
         ).all()
     elif body.capture_id:
         cap = session.get(DataCapture, body.capture_id)
-        captures = [cap] if cap and cap.capture_type == "poule_capture" else []
+        captures = [cap] if cap and cap.capture_type in REPROCESSABLE else []
     else:
         return {"ok": 0, "failed": 0, "errors": []}
 
@@ -173,14 +176,21 @@ def reprocess(body: ReprocessBody, session: Session = Depends(get_session), _=De
     for capture in captures:
         try:
             raw = json.loads(capture.payload)
-            poule_id = int(capture.external_id.replace("poule_capture_", ""))
-            params = {"poule_id": poule_id}
-            capture_body = _parse_raw_poule(raw, params)
-            if not capture_body:
-                failed += 1
-                errors.append(f"{capture.external_id}: parse mislukt")
-                continue
-            _call_poule_capture(capture_body, session)
+            if capture.capture_type == "poule_capture":
+                poule_id = int(capture.external_id.replace("poule_capture_", ""))
+                capture_body = _parse_raw_poule(raw, {"poule_id": poule_id})
+                if not capture_body:
+                    failed += 1
+                    errors.append(f"{capture.external_id}: parse mislukt")
+                    continue
+                _call_poule_capture(capture_body, session)
+            elif capture.capture_type == "comp_detail":
+                comp_id = int(capture.external_id.replace("comp_detail_", ""))
+                result = _call_competition_detail(raw, session, {"comp_id": comp_id})
+                if not result:
+                    failed += 1
+                    errors.append(f"{capture.external_id}: parse mislukt")
+                    continue
             session.commit()
             ok += 1
         except Exception as e:

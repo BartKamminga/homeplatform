@@ -77,8 +77,16 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
   }
   const sortedRounds = Object.keys(rounds).sort((a, b) => Number(a) - Number(b))
 
-  const title = [m.competition, m.poule_name].filter(Boolean).join(' — ')
-  const subtitle = [m.class_name, m.via_team ? `via ${m.via_team}` : null].filter(Boolean).join(' · ')
+  const isCompDetail = item.capture_type === 'comp_detail'
+  const compDetailData = isCompDetail ? (item.payload?.data?.data ?? {}) : null
+  const compDetailPoules = compDetailData?.poules ?? []
+
+  const title = isCompDetail
+    ? (compDetailData?.name || m.competition || item.external_id)
+    : ([m.competition, m.poule_name].filter(Boolean).join(' — ') || item.external_id)
+  const subtitle = isCompDetail
+    ? (m.class_name || '')
+    : [m.class_name, m.via_team ? `via ${m.via_team}` : null].filter(Boolean).join(' · ')
 
   return (
     <div style={{
@@ -103,9 +111,12 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>{subtitle}</div>
           )}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>
-          👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}
-        </span>
+        {isCompDetail
+          ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>🏆 {compDetailPoules.length} poules</span>
+          : item.capture_type === 'poule_capture'
+            ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}</span>
+            : null
+        }
       </div>
 
       {open && (
@@ -164,7 +175,28 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
             </div>
           )}
 
-          {standings.length === 0 && sortedRounds.length === 0 && (
+          {isCompDetail && compDetailPoules.length > 0 && (
+            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                Poules ({compDetailPoules.length})
+              </div>
+              {compDetailPoules.map(p => {
+                const cls = p.competition?.class_name
+                const nTeams = p.standings?.length ?? '?'
+                const nMatches = p.matches?.length ?? '?'
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, padding: '2px 0', borderBottom: '1px solid color-mix(in srgb, var(--color-border) 40%, transparent)' }}>
+                    <span style={{ flex: 1, fontWeight: 500 }}>{p.name}</span>
+                    {cls && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{cls}</span>}
+                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.id}</span>
+                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{nTeams} teams · {nMatches} wed.</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {standings.length === 0 && sortedRounds.length === 0 && !isCompDetail && (
             <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
               Geen detail-data beschikbaar voor dit item.
             </div>
@@ -174,7 +206,7 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
             <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace', flex: 1 }}>
               id: {item.external_id} · vastgelegd {fmt(item.captured_at)}
             </span>
-            {item.capture_type === 'poule_capture' && (
+            {(item.capture_type === 'poule_capture' || item.capture_type === 'comp_detail') && (
               <button
                 onClick={e => { e.stopPropagation(); onReprocess(item.id) }}
                 disabled={reprocessing}
