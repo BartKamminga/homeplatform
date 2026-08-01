@@ -1,20 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import { deleteEmptyCompetitions } from '../api.js'
-
-const statBox = { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, minWidth: 60 }
-const statNum = { fontSize: 20, fontWeight: 700, lineHeight: 1 }
-const statLbl = { fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2, textAlign: 'center' }
-
-const VARIANT = {
-  ok:      { bg: 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))', fg: 'var(--color-success)', border: 'var(--color-success)' },
-  partial: { bg: 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))', fg: 'var(--color-warning)', border: 'var(--color-warning)' },
-  muted:   { bg: 'var(--color-surface)', fg: 'var(--color-text-muted)', border: 'var(--color-border)' },
-}
-function pill(variant) {
-  const c = VARIANT[variant] || VARIANT.muted
-  return { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, padding: '2px 8px', borderRadius: 99, background: c.bg, color: c.fg, border: `1px solid ${c.border}`, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
-}
+import { pill, statBox, statNum, statLbl, useQueueCmd } from './queueShared.jsx'
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {
@@ -57,7 +44,7 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
   const [compOpen,       setCompOpen]       = useState(false)
   const [cleanupMsg,     setCleanupMsg]     = useState('')
   const [clubSearch,     setClubSearch]     = useState('')
-  const [cmdAdding,      setCmdAdding]      = useState({})
+  const { addSingleCmd, cmdAdding, cmdBtn } = useQueueCmd()
 
   async function handleCleanupEmpty() {
     try {
@@ -66,36 +53,6 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
       setTimeout(() => setCleanupMsg(''), 4000)
       load()
     } catch (e) { setCleanupMsg('Fout: ' + e.message) }
-  }
-
-  function addSingleCmd(type, params) {
-    const key = type + '_' + (params.poule_id || params.external_id || params.comp_id || 'global')
-    setCmdAdding(prev => ({ ...prev, [key]: 'adding' }))
-    api.post('/api/tournix/discovery/vanger/cmd-queue/add', { cmd_type: type, params })
-      .then(r => {
-        setCmdAdding(prev => ({ ...prev, [key]: r.added ? 'added' : 'exists' }))
-        setTimeout(() => setCmdAdding(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
-      })
-      .catch(() => setCmdAdding(prev => { const n = { ...prev }; delete n[key]; return n }))
-  }
-
-  function cmdBtn(type, params, label, color, sz = 'sm') {
-    const key = type + '_' + (params.poule_id || params.external_id || params.comp_id || 'global')
-    const s   = cmdAdding[key]
-    const base = sz === 'md'
-      ? { fontSize: 11, padding: '4px 10px', borderRadius: 6 }
-      : { fontSize: 10, padding: '1px 7px', borderRadius: 4 }
-    return (
-      <button
-        disabled={!!s}
-        onClick={e => { e.stopPropagation(); addSingleCmd(type, params) }}
-        style={{ ...base, border: `1px solid ${s === 'added' ? 'var(--color-success)' : s === 'exists' ? 'var(--color-warning)' : color}`,
-          color: s === 'added' ? 'var(--color-success)' : s === 'exists' ? 'var(--color-warning)' : color,
-          background: 'none', cursor: s ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
-          transition: 'color .2s, border-color .2s' }}>
-        {s === 'adding' ? '…' : s === 'added' ? '✓' : s === 'exists' ? '⚠' : label}
-      </button>
-    )
   }
 
   function load() {
