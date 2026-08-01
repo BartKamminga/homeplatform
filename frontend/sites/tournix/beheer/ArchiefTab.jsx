@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getCaptureSessions, getCaptureSessionItems } from '../api.js'
+import { getCaptureSessions, getCaptureSessionItems, reprocessCaptures } from '../api.js'
 import { muted, ghostBtn } from './styles.js'
 
 function fmt(iso) {
@@ -10,7 +10,7 @@ function fmt(iso) {
   })
 }
 
-function SessionRow({ s, onSelect, selected }) {
+function SessionRow({ s, onSelect, selected, onReprocess, reprocessing }) {
   return (
     <div
       onClick={() => onSelect(s.session_id)}
@@ -27,13 +27,27 @@ function SessionRow({ s, onSelect, selected }) {
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
           {fmt(s.captured_at)}
         </span>
-        <span style={{
-          fontSize: 11, padding: '2px 8px', borderRadius: 99,
-          background: 'var(--color-surface-2)', color: 'var(--color-text-muted)',
-          border: '1px solid var(--color-border)',
-        }}>
-          {s.item_count} poules
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={e => { e.stopPropagation(); onReprocess(s.session_id) }}
+            disabled={reprocessing}
+            title="Herverwerk alle poule-captures in deze sessie"
+            style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 5, cursor: reprocessing ? 'default' : 'pointer',
+              border: '1px solid var(--color-border)', background: 'transparent',
+              color: 'var(--color-text-muted)', fontFamily: 'inherit', opacity: reprocessing ? 0.5 : 1,
+            }}
+          >
+            🔄 herverwerk
+          </button>
+          <span style={{
+            fontSize: 11, padding: '2px 8px', borderRadius: 99,
+            background: 'var(--color-surface-2)', color: 'var(--color-text-muted)',
+            border: '1px solid var(--color-border)',
+          }}>
+            {s.item_count} poules
+          </span>
+        </div>
       </div>
       {s.competitions.length > 0 && (
         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
@@ -44,7 +58,7 @@ function SessionRow({ s, onSelect, selected }) {
   )
 }
 
-function ItemDetail({ item }) {
+function ItemDetail({ item, onReprocess, reprocessing }) {
   const [open,    setOpen]    = useState(false)
   const [rawOpen, setRawOpen] = useState(false)
   const [copied,  setCopied]  = useState(false)
@@ -160,6 +174,16 @@ function ItemDetail({ item }) {
             <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace', flex: 1 }}>
               id: {item.external_id} · vastgelegd {fmt(item.captured_at)}
             </span>
+            {item.capture_type === 'poule_capture' && (
+              <button
+                onClick={e => { e.stopPropagation(); onReprocess(item.id) }}
+                disabled={reprocessing}
+                title="Herverwerk deze capture"
+                style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, cursor: reprocessing ? 'default' : 'pointer',
+                  fontFamily: 'inherit', border: '1px solid var(--color-border)', background: 'transparent',
+                  color: 'var(--color-text-muted)', opacity: reprocessing ? 0.5 : 1 }}
+              >↺ herverwerk</button>
+            )}
             {item.payload && (
               <>
                 {copied && <span style={{ fontSize: 10, color: 'var(--color-success)' }}>✓</span>}
@@ -201,12 +225,14 @@ function ItemDetail({ item }) {
 }
 
 export default function ArchiefTab() {
-  const [sessions,    setSessions]    = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [selectedSid, setSelectedSid] = useState(null)
-  const [items,       setItems]       = useState([])
+  const [sessions,     setSessions]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [selectedSid,  setSelectedSid]  = useState(null)
+  const [items,        setItems]        = useState([])
   const [itemsLoading, setItemsLoading] = useState(false)
-  const [error,       setError]       = useState(null)
+  const [error,        setError]        = useState(null)
+  const [reprocessing, setReprocessing] = useState(false)
+  const [reprocessMsg, setReprocessMsg] = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -229,6 +255,34 @@ export default function ArchiefTab() {
     }
   }
 
+  async function handleReprocessSession(sid) {
+    setReprocessing(true)
+    setReprocessMsg(null)
+    try {
+      const r = await reprocessCaptures({ session_id: sid })
+      setReprocessMsg(`✓ ${r.ok} verwerkt${r.failed ? `, ${r.failed} mislukt` : ''}`)
+    } catch (e) {
+      setReprocessMsg(`Fout: ${e.message}`)
+    } finally {
+      setReprocessing(false)
+      setTimeout(() => setReprocessMsg(null), 5000)
+    }
+  }
+
+  async function handleReprocessCapture(captureId) {
+    setReprocessing(true)
+    setReprocessMsg(null)
+    try {
+      const r = await reprocessCaptures({ capture_id: captureId })
+      setReprocessMsg(`✓ ${r.ok} verwerkt${r.failed ? `, ${r.failed} mislukt` : ''}`)
+    } catch (e) {
+      setReprocessMsg(`Fout: ${e.message}`)
+    } finally {
+      setReprocessing(false)
+      setTimeout(() => setReprocessMsg(null), 5000)
+    }
+  }
+
   if (loading) return <div style={muted}>Laden…</div>
   if (error)   return <div style={{ ...muted, color: 'var(--color-danger)' }}>Fout: {error}</div>
   if (sessions.length === 0) return (
@@ -242,41 +296,62 @@ export default function ArchiefTab() {
   )
 
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
-      {/* Sessie lijst */}
-      <div style={{ flex: '0 0 260px', minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-          Sessies ({sessions.length})
+    <div>
+      {reprocessMsg && (
+        <div style={{
+          marginBottom: 12, padding: '8px 14px', borderRadius: 7, fontSize: 12,
+          background: reprocessMsg.startsWith('✓') ? 'color-mix(in srgb, var(--color-success) 12%, var(--color-surface))' : 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))',
+          border: `1px solid ${reprocessMsg.startsWith('✓') ? 'var(--color-success)' : 'var(--color-danger)'}`,
+          color: 'var(--color-text)',
+        }}>
+          {reprocessMsg}
         </div>
-        {sessions.map(s => (
-          <SessionRow
-            key={s.session_id}
-            s={s}
-            selected={selectedSid === s.session_id}
-            onSelect={selectSession}
-          />
-        ))}
-      </div>
+      )}
+      <div style={{ display: 'flex', gap: 16 }}>
+        {/* Sessie lijst */}
+        <div style={{ flex: '0 0 260px', minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+            Sessies ({sessions.length})
+          </div>
+          {sessions.map(s => (
+            <SessionRow
+              key={s.session_id}
+              s={s}
+              selected={selectedSid === s.session_id}
+              onSelect={selectSession}
+              onReprocess={handleReprocessSession}
+              reprocessing={reprocessing}
+            />
+          ))}
+        </div>
 
-      {/* Detail */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {!selectedSid && (
-          <div style={muted}>Klik op een sessie om de gevangen poules te zien.</div>
-        )}
-        {selectedSid && itemsLoading && (
-          <div style={muted}>Laden…</div>
-        )}
-        {selectedSid && !itemsLoading && items.length === 0 && (
-          <div style={muted}>Geen items gevonden.</div>
-        )}
-        {selectedSid && !itemsLoading && items.length > 0 && (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-              {items.length} poules in deze sessie
-            </div>
-            {items.map(item => <ItemDetail key={item.id} item={item} />)}
-          </>
-        )}
+        {/* Detail */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {!selectedSid && (
+            <div style={muted}>Klik op een sessie om de gevangen poules te zien.</div>
+          )}
+          {selectedSid && itemsLoading && (
+            <div style={muted}>Laden…</div>
+          )}
+          {selectedSid && !itemsLoading && items.length === 0 && (
+            <div style={muted}>Geen items gevonden.</div>
+          )}
+          {selectedSid && !itemsLoading && items.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                {items.length} poules in deze sessie
+              </div>
+              {items.map(item => (
+                <ItemDetail
+                  key={item.id}
+                  item={item}
+                  onReprocess={handleReprocessCapture}
+                  reprocessing={reprocessing}
+                />
+              ))}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -61,6 +61,7 @@ export const planPhaseSchedule        = (pid, startTime) => api.post(`/api/tourn
 
 export const getCaptureSessions       = ()        => api.get('/api/capture/sessions')
 export const getCaptureSessionItems   = (sid)     => api.get(`/api/capture/sessions/${sid}/items`)
+export const reprocessCaptures        = (body)    => api.post('/api/capture/reprocess', body)
 
 // Seizoensplanner
 export const syncPhase         = (pid)  => api.post(`/api/tournix/phases/${pid}/sync`)

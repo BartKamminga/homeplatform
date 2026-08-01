@@ -103,34 +103,6 @@ function resolveHockeyType(t) {
 
 const HT_BADGE = { VE: { bg: '#e8f5e9', fg: '#2e7d32', dark: '#1b5e20' }, ZA: { bg: '#ede9fe', fg: '#7c3aed', dark: '#6d28d9' } }
 
-function ArchiveCaptureList({ sessionId, reprocessing, onReprocess }) {
-  const [captures, setCaptures] = useState(null)
-  useEffect(() => {
-    api.get('/api/tournix/discovery/capture-sessions/' + encodeURIComponent(sessionId) + '/captures')
-      .then(setCaptures).catch(() => setCaptures([]))
-  }, [sessionId])
-  if (captures === null) return <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 16px' }}>laden…</div>
-  if (captures.length === 0) return <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 16px', fontStyle: 'italic' }}>geen captures</div>
-  return (
-    <div style={{ paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
-      {captures.map(c => {
-        const isBusy = reprocessing === c.id
-        return (
-          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 10 }}>
-            <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>{c.external_id.replace('poule_capture_', '#')}</span>
-            <span style={{ color: 'var(--color-text-muted)' }}>{c.label || ''}</span>
-            <button
-              disabled={isBusy || reprocessing !== null}
-              onClick={() => onReprocess(c.id)}
-              style={{ fontSize: 9, padding: '1px 6px', background: 'none', border: '1px solid var(--color-border)', borderRadius: 4, cursor: 'pointer', color: 'var(--color-text-muted)', opacity: isBusy ? 0.6 : 1 }}
-            >{isBusy ? '⏳' : '↺'}</button>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 export default function DiscoveryTab({ view = 'vanger' }) {
   const [clubs,          setClubs]          = useState([])
   const [allTeams,       setAllTeams]       = useState([])
@@ -160,41 +132,9 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   const [fillMsg,      setFillMsg]      = useState('')
   const [clubSearch,   setClubSearch]   = useState('')
 
-  const [archiveSessions,  setArchiveSessions]  = useState([])
-  const [archiveOpen,      setArchiveOpen]      = useState(false)
-  const [archiveExpanded,  setArchiveExpanded]  = useState(new Set())
-  const [reprocessing,     setReprocessing]     = useState(null)   // session_id of capture_id
-
   const [season,          setSeason]          = useState('2026-2027')
   const [gapData,         setGapData]         = useState(null)
   const [gapFilling,      setGapFilling]      = useState(false)
-
-  function loadArchiveSessions() {
-    api.get('/api/tournix/discovery/capture-sessions').then(setArchiveSessions).catch(() => {})
-  }
-
-  function reprocessSession(session_id) {
-    setReprocessing(session_id)
-    api.post('/api/tournix/discovery/reprocess-captures', { session_id })
-      .then(r => {
-        setFillMsg(`✓ ${r.ok} poules herverwerkt${r.failed ? `, ${r.failed} mislukt` : ''}`)
-        setTimeout(() => setFillMsg(''), 6000)
-        loadArchiveSessions()
-      })
-      .catch(() => {})
-      .finally(() => setReprocessing(null))
-  }
-
-  function reprocessCapture(capture_id) {
-    setReprocessing(capture_id)
-    api.post('/api/tournix/discovery/reprocess-captures', { capture_id })
-      .then(r => {
-        setFillMsg(`✓ ${r.ok} capture herverwerkt${r.failed ? ` (${r.failed} mislukt)` : ''}`)
-        setTimeout(() => setFillMsg(''), 6000)
-      })
-      .catch(() => {})
-      .finally(() => setReprocessing(null))
-  }
 
   function loadGapAnalysis() {
     api.get('/api/tournix/discovery/gap-analysis').then(setGapData).catch(() => {})
@@ -1433,57 +1373,6 @@ export default function DiscoveryTab({ view = 'vanger' }) {
           )}
         </>
       )}
-
-      {/* Archief herverwerken */}
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-        <div
-          onClick={() => {
-            const next = !archiveOpen
-            setArchiveOpen(next)
-            if (next && archiveSessions.length === 0) loadArchiveSessions()
-          }}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}
-        >
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{archiveOpen ? '▾' : '▸'}</span>
-          <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🗄 Archief herverwerken</span>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>captures opnieuw parsen zonder vanger</span>
-        </div>
-        {archiveOpen && (
-          <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {archiveSessions.length === 0 && (
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '4px 2px' }}>Geen captures gevonden</div>
-            )}
-            {archiveSessions.map(s => {
-              const isExpanded = archiveExpanded.has(s.session_id)
-              const isBusy = reprocessing === s.session_id
-              const dt = new Date(s.last_at + (s.last_at.includes('T') ? '' : 'Z'))
-              const dtLabel = dt.toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-              return (
-                <div key={s.session_id} style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-border) 40%, transparent)', paddingBottom: 2 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 2px', fontSize: 11 }}>
-                    <span
-                      onClick={() => setArchiveExpanded(prev => { const n = new Set(prev); n.has(s.session_id) ? n.delete(s.session_id) : n.add(s.session_id); return n })}
-                      style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, cursor: 'pointer' }}
-                    >{isExpanded ? '▾' : '▸'}</span>
-                    <span style={{ flex: 1 }}>
-                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{dtLabel}</span>
-                      <span style={{ color: 'var(--color-text-muted)', marginLeft: 6 }}>{s.count} capture{s.count !== 1 ? 's' : ''}</span>
-                    </span>
-                    <button
-                      disabled={isBusy || reprocessing !== null}
-                      onClick={() => reprocessSession(s.session_id)}
-                      style={{ ...ghostBtn, fontSize: 10, padding: '2px 8px', opacity: isBusy ? 0.6 : 1 }}
-                    >{isBusy ? '⏳ bezig…' : '🔄 Herverwerk sessie'}</button>
-                  </div>
-                  {isExpanded && (
-                    <ArchiveCaptureList sessionId={s.session_id} reprocessing={reprocessing} onReprocess={reprocessCapture} />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
 
     </div>
   )
