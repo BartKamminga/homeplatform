@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getTournaments, createTournament } from '../api.js'
 import BeheerDiscoveryTab from '../beheer/DiscoveryTab.jsx'
+import VangerTab from '../beheer/VangerTab.jsx'
 import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
@@ -211,7 +212,7 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
           </>
         )}
         {tab === 'vanger' && (
-          <BeheerDiscoveryTab view="vanger" />
+          <VangerTab />
         )}
         {tab === 'discovery' && (
           <BeheerDiscoveryTab view="resultaten" />

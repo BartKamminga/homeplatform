@@ -67,7 +67,8 @@ export const reprocessCaptures        = (body)    => api.post('/api/capture/repr
 export const syncPhase         = (pid)  => api.post(`/api/tournix/phases/${pid}/sync`)
 export const syncTournament    = (tid)  => api.post(`/api/tournix/tournaments/${tid}/sync`)
 export const autoMatchTournament = (tid) => api.post(`/api/tournix/tournaments/${tid}/auto-match`)
-export const getDiscoveryComps  = (season)   => api.get(`/api/tournix/discovery/competitions${season ? `?season=${season}` : ''}`)
+export const getDiscoveryComps        = (season)   => api.get(`/api/tournix/discovery/competitions${season ? `?season=${season}` : ''}`)
+export const deleteEmptyCompetitions  = (season)   => api.delete(`/api/tournix/discovery/competitions/empty${season ? `?season=${season}` : ''}`)
 export const getDiscoveryPoules = (season)   => api.get(`/api/tournix/discovery/poules?season=${season || '2026-2027'}`)
 export const getVangerQueue    = (status) =>
   api.get(`/api/tournix/discovery/vanger/cmd-queue${status ? `?status=${status}` : ''}`)

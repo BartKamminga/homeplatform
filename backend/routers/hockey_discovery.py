@@ -1014,6 +1014,28 @@ def list_competitions(
     }
 
 
+# ── Cleanup lege competities ─────────────────────────────
+@router.delete("/competitions/empty")
+def delete_empty_competitions(
+    season: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Verwijder HockeyCompetition-records zonder gekoppelde poules."""
+    q = select(HockeyCompetition).where(
+        ~HockeyCompetition.id.in_(
+            select(col(HockeyPoule.competition_id)).where(col(HockeyPoule.competition_id).isnot(None))
+        )
+    )
+    if season:
+        q = q.where(HockeyCompetition.season == season)
+    empty = session.exec(q).all()
+    for c in empty:
+        session.delete(c)
+    session.commit()
+    return {"deleted": len(empty)}
+
+
 # ── Poules query ─────────────────────────────────────────
 @router.get("/poules")
 def list_poules(
@@ -2098,6 +2120,17 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         if fallback_season:
             break
 
+    # Bepaal canonical class_name/district uit de eerste poule met niet-lege waarden.
+    # Alle poules in één comp_detail horen bij dezelfde competitie — gebruik één ext_id.
+    _canonical_class = ""
+    _canonical_district = ""
+    for _pd in poules_list:
+        _ci = _pd.get("competition") or {}
+        if _ci.get("class_name"):
+            _canonical_class    = _ci.get("class_name", "")
+            _canonical_district = _ci.get("district_name") or _ci.get("district") or ""
+            break
+
     poules_processed = 0
     teams_found_set: set = set()
     current_poule_map: Dict[int, int] = {}  # recent_poule_id → een team_id
@@ -2105,9 +2138,8 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
     for poule_data in poules_list:
         poule_id = poule_data.get("id")
         poule_name = poule_data.get("name", "")
-        comp_info = poule_data.get("competition") or {}
-        class_name = comp_info.get("class_name", "Landelijk")
-        district   = comp_info.get("district_name") or comp_info.get("district") or ""
+        class_name = _canonical_class or "Landelijk"
+        district   = _canonical_district
 
         matches = poule_data.get("matches") or []
         season = ""
@@ -2306,6 +2338,111 @@ def _call_competitions_list(raw: dict, session: Session):
         "competitions_found": len(competitions),
         "upserted":           upserted,
     }
+
+
+def _call_clubs_list_raw(raw_list: list, session: Session):
+    """Herverwerk clubs_list capture: upsert alle clubs."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    created = updated = 0
+    for club_in in raw_list:
+        if not isinstance(club_in, dict):
+            continue
+        ref_id = club_in.get("federation_reference_id") or club_in.get("external_id")
+        if not ref_id:
+            continue
+        existing = session.exec(select(HockeyClub).where(HockeyClub.external_id == ref_id)).first()
+        if existing:
+            if club_in.get("name"):        existing.name          = club_in["name"]
+            if club_in.get("friendly_name"): existing.friendly_name = club_in["friendly_name"]
+            existing.city     = club_in.get("city")
+            existing.logo_url = club_in.get("logo") or club_in.get("logo_url")
+            existing.club_type = club_in.get("type") or club_in.get("club_type")
+            existing.updated_at = now
+            session.add(existing)
+            updated += 1
+        else:
+            session.add(HockeyClub(
+                external_id=ref_id,
+                name=club_in.get("name", ""),
+                friendly_name=club_in.get("friendly_name"),
+                city=club_in.get("city"),
+                logo_url=club_in.get("logo") or club_in.get("logo_url"),
+                club_type=club_in.get("type") or club_in.get("club_type"),
+                discovered_at=now,
+                updated_at=now,
+            ))
+            created += 1
+    return {"created": created, "updated": updated}
+
+
+def _call_club_detail_raw(raw: dict, session: Session):
+    """Herverwerk club_detail capture: upsert club + teams."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    ref_id = raw.get("federation_reference_id")
+    if not ref_id:
+        return None
+
+    existing = session.exec(select(HockeyClub).where(HockeyClub.external_id == ref_id)).first()
+    club = existing or HockeyClub(external_id=ref_id, discovered_at=now)
+    if raw.get("name"):          club.name          = raw["name"]
+    if raw.get("friendly_name"): club.friendly_name = raw["friendly_name"]
+    club.city     = raw.get("city")
+    club.logo_url = raw.get("logo")
+    club.address  = raw.get("address")
+    club.zipcode  = raw.get("zipcode")
+    club.phone    = raw.get("phone")
+    club.email    = raw.get("email")
+    club.website  = raw.get("website")
+    club.tenue    = raw.get("tenue")
+    club.district = raw.get("district")
+    club.detail_loaded = True
+    club.updated_at = now
+    club.last_scanned_at = now
+    _po = raw.get("payment_options")
+    club.payment_options = json.dumps(_po, ensure_ascii=False) if isinstance(_po, list) else _po
+    _ht = raw.get("hockey_types")
+    club.hockey_types = json.dumps(_ht, ensure_ascii=False) if isinstance(_ht, list) else _ht
+    session.add(club)
+
+    teams_created = teams_updated = 0
+    for team_in in (raw.get("teams") or []):
+        if not isinstance(team_in, dict):
+            continue
+        tid = team_in.get("id")
+        if not tid:
+            continue
+        existing_team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == tid)).first()
+        if existing_team:
+            if team_in.get("name"):       existing_team.name       = team_in["name"]
+            if team_in.get("short_name"): existing_team.short_name = team_in["short_name"]
+            existing_team.logo_url             = team_in.get("logo")
+            existing_team.hockey_type          = team_in.get("hockey_type", "")
+            existing_team.category_group_name  = team_in.get("category_group_name", "")
+            if team_in.get("recent_poule_id") != existing_team.recent_poule_id:
+                existing_team.recent_poule_id         = team_in.get("recent_poule_id")
+                existing_team.no_new_poule_confirmed  = False
+                existing_team.season_pending          = False
+            existing_team.updated_at     = now
+            existing_team.last_scanned_at = now
+            session.add(existing_team)
+            teams_updated += 1
+        else:
+            session.add(HockeyTeam(
+                team_id=tid,
+                club_external_id=ref_id,
+                name=team_in.get("name", ""),
+                short_name=team_in.get("short_name", ""),
+                logo_url=team_in.get("logo"),
+                hockey_type=team_in.get("hockey_type", ""),
+                category_group_name=team_in.get("category_group_name", ""),
+                recent_poule_id=team_in.get("recent_poule_id"),
+                discovered_at=now,
+                updated_at=now,
+                last_scanned_at=now,
+            ))
+            teams_created += 1
+
+    return {"club": ref_id, "teams_created": teams_created, "teams_updated": teams_updated}
 
 
 @router.delete("/vanger/cmd-queue")
