@@ -422,6 +422,19 @@ export default function DiscoveryTab({ view = 'vanger' }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
+      {/* Seizoen selector — altijd zichtbaar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>Seizoen:</span>
+        {['2024-2025', '2025-2026', '2026-2027'].map(s => (
+          <button key={s} onClick={() => setSeason(s)} style={{
+            fontSize: 11, padding: '3px 10px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
+            border: `1px solid ${season === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
+            background: season === s ? 'var(--color-primary)' : 'var(--color-surface)',
+            color: season === s ? '#fff' : 'var(--color-text)',
+          }}>{s}</button>
+        ))}
+      </div>
+
       {/* Stats — altijd zichtbaar */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
         <div style={statBox}><span style={statNum}>{clubs.length}</span><span style={statLbl}>clubs</span></div>
@@ -461,19 +474,6 @@ export default function DiscoveryTab({ view = 'vanger' }) {
       {/* ── RESULTATEN ── */}
       {view === 'resultaten' && (
         <>
-          {/* Seizoen filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Seizoen:</span>
-            {['2024-2025', '2025-2026', '2026-2027'].map(s => (
-              <button key={s} onClick={() => setSeason(s)} style={{
-                fontSize: 11, padding: '3px 10px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
-                border: `1px solid ${season === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                background: season === s ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: season === s ? '#fff' : 'var(--color-text)',
-              }}>{s}</button>
-            ))}
-          </div>
-
           {/* Competities */}
           {competitions.length > 0 && (
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>

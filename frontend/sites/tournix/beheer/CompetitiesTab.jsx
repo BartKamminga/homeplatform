@@ -10,9 +10,7 @@ import {
   muted, successBanner, errorBanner, deleteBtn, inputStyle,
 } from './styles.js'
 
-const SEASON = '2026-2027'
-
-export default function CompetitiesTab({ tid }) {
+export default function CompetitiesTab({ tid, season = '2026-2027' }) {
   const [links,       setLinks]       = useState([])
   const [globalTags,  setGlobalTags]  = useState([])   // globale fase-tag pool
   const [allComps,    setAllComps]    = useState([])
@@ -42,8 +40,8 @@ export default function CompetitiesTab({ tid }) {
 
   async function loadComps() {
     try {
-      const r = await getDiscoveryComps()
-      setAllComps((r.competitions || []).filter(c => c.season === SEASON))
+      const r = await getDiscoveryComps(season)
+      setAllComps(r.competitions || [])
     } catch { /* stil */ }
   }
 
@@ -207,6 +205,7 @@ export default function CompetitiesTab({ tid }) {
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: showPicker ? 12 : 0 }}>
           <div style={cardLabel}>COMPETITIE KOPPELEN</div>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 4 }}>{season}</span>
           <button
             onClick={() => { setShowPicker(p => !p); setFilterQ('') }}
             style={{ ...ghostBtn, fontSize: 12, marginLeft: 'auto' }}

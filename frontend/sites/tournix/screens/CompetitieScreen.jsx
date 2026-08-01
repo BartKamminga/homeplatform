@@ -451,7 +451,7 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
 
       {/* Koppelen (admin) */}
       {view === 'koppelen' && isAdmin && (
-        <CompetitiesTab tid={tournament.id} />
+        <CompetitiesTab tid={tournament.id} season={tournament.season || '2026-2027'} />
       )}
 
       {/* Overzicht */}
