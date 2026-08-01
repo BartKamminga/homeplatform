@@ -1337,8 +1337,8 @@ def _parse_raw_poule(raw: dict, params: dict) -> Optional["PouleCaptureIn"]:
             ))
 
         for m in poule_data.get("matches") or []:
-            ht = m.get("home_team") or m.get("homeTeam") or {}
-            at = m.get("away_team") or m.get("awayTeam") or {}
+            ht = m.get("home_team") or m.get("homeTeam") or m.get("home") or {}
+            at = m.get("away_team") or m.get("awayTeam") or m.get("away") or {}
             sc = m.get("score") or {}
             home_score = m["home_score"] if m.get("home_score") is not None else sc.get("home")
             away_score = m["away_score"] if m.get("away_score") is not None else sc.get("away")
