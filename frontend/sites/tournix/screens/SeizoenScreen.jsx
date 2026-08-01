@@ -6,9 +6,9 @@ import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },
+  { id: 'archief',     label: 'Archief'     },
   { id: 'discovery',   label: 'Discovery'   },
   { id: 'vanger',      label: 'Vanger'      },
-  { id: 'archief',     label: 'Archief'     },
 ]
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
@@ -31,9 +31,11 @@ function PublicatieCard({ tournament, onOpen }) {
 
 // ── Nieuwe publicatie popup ───────────────────────────────────────────────────
 
+const KNOWN_SEASONS = ['2024-2025', '2025-2026', '2026-2027']
+
 function CreatePublicatiePopup({ onClose, onCreated }) {
   const [name,   setName]   = useState('')
-  const [season, setSeason] = useState('')
+  const [season, setSeason] = useState('2026-2027')
   const [saving, setSaving] = useState(false)
   const [err,    setErr]    = useState('')
 
@@ -43,7 +45,7 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
     setSaving(true)
     setErr('')
     try {
-      const t = await createTournament({ name: name.trim(), season: season.trim() || undefined })
+      const t = await createTournament({ name: name.trim(), season: season || undefined })
       onCreated(t)
     } catch {
       setErr('Opslaan mislukt')
@@ -75,12 +77,21 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
           <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4, marginTop: 12 }}>
             Seizoen
           </label>
-          <input
-            value={season}
-            onChange={e => setSeason(e.target.value)}
-            placeholder="bijv. 2026-2027"
-            style={inputStyle}
-          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {KNOWN_SEASONS.map(s => (
+              <button
+                key={s} type="button"
+                onClick={() => setSeason(s)}
+                style={{
+                  flex: 1, padding: '7px 4px', borderRadius: 7, fontSize: 12,
+                  border: season === s ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                  background: season === s ? 'var(--color-primary)' : 'var(--color-bg)',
+                  color: season === s ? '#fff' : 'var(--color-text)',
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: season === s ? 700 : 400,
+                }}
+              >{s}</button>
+            ))}
+          </div>
           {err && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 8 }}>{err}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
             <button type="button" onClick={onClose} style={btnOutlineStyle}>Annuleren</button>
@@ -114,26 +125,6 @@ function PublicatiesTab({ tournaments, onOpen }) {
   )
 }
 
-// ── Archief tab ───────────────────────────────────────────────────────────────
-
-function ArchiefTab({ tournaments, onOpen }) {
-  if (tournaments.length === 0) {
-    return (
-      <div className="empty-state">
-        <div className="empty-state-icon">📦</div>
-        Geen gearchiveerde publicaties
-      </div>
-    )
-  }
-  return (
-    <div>
-      {tournaments.map(t => (
-        <PublicatieCard key={t.id} tournament={t} onOpen={onOpen} />
-      ))}
-    </div>
-  )
-}
-
 // ── SeizoenScreen ─────────────────────────────────────────────────────────────
 
 export function SeizoenScreen({ onOpenTournament, isAdmin }) {
@@ -149,7 +140,6 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
   const q        = search.trim().toLowerCase()
   const filtered = q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments
   const active   = filtered.filter(t => t.status === 'active')
-  const finished = filtered.filter(t => t.status === 'finished')
 
   function handleCreated(t) {
     setShowCreate(false)
@@ -203,13 +193,7 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
           </>
         )}
         {tab === 'archief' && (
-          <>
-            <ArchiefTab tournaments={finished} onOpen={onOpenTournament} />
-            <div className="section-header" style={{ marginTop: 16 }}>
-              <span className="section-title">Capture-sessies</span>
-            </div>
-            <CaptureArchiefTab />
-          </>
+          <CaptureArchiefTab />
         )}
         {tab === 'vanger' && (
           <VangerTab />

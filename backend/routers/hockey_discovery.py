@@ -995,23 +995,31 @@ def list_competitions(
     for p in poules_all:
         poule_counts[p.competition_id] = poule_counts.get(p.competition_id, 0) + 1
 
-    return {
-        "total": len(comps),
-        "competitions": [
-            {
-                "id":           c.id,
-                "name":         c.name,
-                "class_name":   c.class_name,
-                "district":     c.district,
-                "hockey_type":  c.hockey_type,
-                "season":       c.season,
-                "hl_comp_id":   c.hl_comp_id,
-                "poule_count":  poule_counts.get(c.id, 0),
-                "updated_at":   c.updated_at.isoformat(),
-            }
-            for c in comps
-        ],
+    # Dedupliceer op hl_comp_id: als er meerdere records zijn voor dezelfde hl_comp_id,
+    # verberg de 0-poule varianten als er al een met poules bestaat.
+    hl_with_poules: set = {
+        c.hl_comp_id for c in comps
+        if c.hl_comp_id and poule_counts.get(c.id, 0) > 0
     }
+
+    result = []
+    for c in comps:
+        pc = poule_counts.get(c.id, 0)
+        if pc == 0 and c.hl_comp_id and c.hl_comp_id in hl_with_poules:
+            continue  # sla lege duplicaat over
+        result.append({
+            "id":           c.id,
+            "name":         c.name,
+            "class_name":   c.class_name,
+            "district":     c.district,
+            "hockey_type":  c.hockey_type,
+            "season":       c.season,
+            "hl_comp_id":   c.hl_comp_id,
+            "poule_count":  pc,
+            "updated_at":   c.updated_at.isoformat(),
+        })
+
+    return {"total": len(result), "competitions": result}
 
 
 # ── Cleanup lege competities ─────────────────────────────

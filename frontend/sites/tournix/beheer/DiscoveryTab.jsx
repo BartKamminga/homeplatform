@@ -28,6 +28,12 @@ function sortCats(cats) {
 const HT_LABEL = { VE: '🏑 Veldhockey', ZA: '🏒 Zaalhockey' }
 const HT_ORDER = ['VE', 'ZA']
 
+function isJeugd(comp) {
+  return /O\d+/i.test(comp.name)
+}
+
+const AGE_GROUP_ORDER = ['Senioren', 'Jeugd']
+
 function resolveHockeyType(t) {
   if (t.hockey_type === 'VE' || t.hockey_type === 'ZA') return t.hockey_type
   if (t.short_name && t.short_name[0] === 'z') return 'ZA'
@@ -262,69 +268,86 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
                 const group = competitions.filter(c => (ht === '' ? !c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA') : c.hockey_type === ht))
                 if (!group.length) return null
                 const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Onbekend type'
+
+                const byAge = {
+                  Senioren: group.filter(c => !isJeugd(c)),
+                  Jeugd:    group.filter(c =>  isJeugd(c)),
+                }
+
                 return (
                   <div key={ht || 'other'}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
                       {htLabel}
                     </div>
-                    {group.map(c => {
-                      const cKey    = 'comp_' + c.id
-                      const cOpen   = expanded.has(cKey)
-                      const cPoules = capturedPoules
-                        .filter(p => p.competition_id === c.id)
-                        .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+                    {AGE_GROUP_ORDER.map(ag => {
+                      const ageGroup = byAge[ag]
+                      if (!ageGroup.length) return null
                       return (
-                        <div key={c.id}>
-                          <div
-                            onClick={() => cPoules.length > 0 && toggle(cKey)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: cPoules.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
-                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
-                              {cPoules.length > 0 ? (cOpen ? '▾' : '▸') : ''}
-                            </span>
-                            <span style={{ flex: 1 }}>{c.name}</span>
-                            {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
-                            {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
-                            {c.hl_comp_id && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>#{c.hl_comp_id}</span>}
-                            <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
-                            {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
+                        <div key={ag}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '4px 2px 2px', opacity: 0.7 }}>
+                            {ag} ({ageGroup.length})
                           </div>
-                          {cOpen && (
-                            <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
-                              {cPoules.map(p => {
-                                const pKey   = 'poule_' + p.poule_id
-                                const pOpen  = expanded.has(pKey)
-                                const pTeams = allTeams
-                                  .filter(t => t.recent_poule_id === p.poule_id)
-                                  .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
-                                return (
-                                  <div key={p.poule_id}>
-                                    <div
-                                      onClick={() => pTeams.length > 0 && toggle(pKey)}
-                                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, cursor: pTeams.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
-                                      <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
-                                        {pTeams.length > 0 ? (pOpen ? '▾' : '▸') : '·'}
-                                      </span>
-                                      <span style={{ flex: 1, color: 'var(--color-text)' }}>{p.name}</span>
-                                      <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
-                                      {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
-                                      {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
-                                    </div>
-                                    {pOpen && (
-                                      <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
-                                        {pTeams.map(t => (
-                                          <div key={t.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px', fontSize: 11 }}>
-                                            <span style={{ width: 80, flexShrink: 0, fontWeight: 500 }}>{t.short_name}</span>
-                                            <span style={{ flex: 1, color: 'var(--color-text-muted)', fontSize: 10 }}>{clubMap[t.club_external_id] || t.club_external_id}</span>
-                                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{t.team_id}</span>
+                          {ageGroup.map(c => {
+                            const cKey    = 'comp_' + c.id
+                            const cOpen   = expanded.has(cKey)
+                            const cPoules = capturedPoules
+                              .filter(p => p.competition_id === c.id)
+                              .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+                            return (
+                              <div key={c.id}>
+                                <div
+                                  onClick={() => cPoules.length > 0 && toggle(cKey)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: cPoules.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
+                                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
+                                    {cPoules.length > 0 ? (cOpen ? '▾' : '▸') : ''}
+                                  </span>
+                                  <span style={{ flex: 1 }}>{c.name}</span>
+                                  {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
+                                  {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
+                                  {c.hl_comp_id && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>#{c.hl_comp_id}</span>}
+                                  <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
+                                  {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
+                                </div>
+                                {cOpen && (
+                                  <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
+                                    {cPoules.map(p => {
+                                      const pKey   = 'poule_' + p.poule_id
+                                      const pOpen  = expanded.has(pKey)
+                                      const pTeams = allTeams
+                                        .filter(t => t.recent_poule_id === p.poule_id)
+                                        .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                                      return (
+                                        <div key={p.poule_id}>
+                                          <div
+                                            onClick={() => pTeams.length > 0 && toggle(pKey)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, cursor: pTeams.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
+                                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
+                                              {pTeams.length > 0 ? (pOpen ? '▾' : '▸') : '·'}
+                                            </span>
+                                            <span style={{ flex: 1, color: 'var(--color-text)' }}>{p.name}</span>
+                                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
+                                            {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
+                                            {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
+                                          {pOpen && (
+                                            <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
+                                              {pTeams.map(t => (
+                                                <div key={t.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px', fontSize: 11 }}>
+                                                  <span style={{ width: 80, flexShrink: 0, fontWeight: 500 }}>{t.short_name}</span>
+                                                  <span style={{ flex: 1, color: 'var(--color-text-muted)', fontSize: 10 }}>{clubMap[t.club_external_id] || t.club_external_id}</span>
+                                                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{t.team_id}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
                                   </div>
-                                )
-                              })}
-                            </div>
-                          )}
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     })}
