@@ -11,9 +11,14 @@ function fmtScore(home, away) {
 
 function fmtDate(d) {
   if (!d) return ''
-  // d kan "2026-09-13" of "2026-09-13 14:00" zijn
-  const parts = d.split(' ')
-  return parts[0]
+  // d kan "2026-09-13", "2026-09-13 14:00" of ISO "2026-09-13T14:00:00+02:00" zijn
+  const clean = d.replace('T', ' ')
+  const [date, timeFull] = clean.split(' ')
+  if (timeFull) {
+    const t = timeFull.substring(0, 5)
+    if (t !== '00:00') return date + ' ' + t
+  }
+  return date
 }
 
 // ── Standings tabel (discovery-data) ─────────────────────────────────────────
