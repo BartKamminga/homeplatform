@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getTournaments, createTournament } from '../api.js'
-import BeheerDiscoveryTab from '../beheer/DiscoveryTab.jsx'
-import VangerTab          from '../beheer/VangerTab.jsx'
-import StatsTab           from '../beheer/StatsTab.jsx'
-import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
+import BeheerDiscoveryTab from './DiscoveryTab.jsx'
+import VangerTab          from './VangerTab.jsx'
+import StatsTab           from './StatsTab.jsx'
+import CaptureArchiefTab  from './ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },

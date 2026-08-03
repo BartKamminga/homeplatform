@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTournamentCompetitionStandings, deleteTournament, removeTournamentComp } from '../api.js'
-import CompetitiesTab    from '../beheer/CompetitiesTab.jsx'
+import CompetitiesTab    from './CompetitiesTab.jsx'
 import CompetitieDetail  from './competitie/CompetitieDetail.jsx'
 import CompetitieList    from './competitie/CompetitieList.jsx'
 
