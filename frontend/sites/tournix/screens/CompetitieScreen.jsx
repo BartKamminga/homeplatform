@@ -4,12 +4,38 @@ import CompetitiesTab    from './CompetitiesTab.jsx'
 import CompetitieDetail  from './competitie/CompetitieDetail.jsx'
 import CompetitieList    from './competitie/CompetitieList.jsx'
 
+function InlineConfirm({ msg, onConfirm, onCancel }) {
+  return (
+    <div style={{
+      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+      borderRadius: 8, padding: '10px 14px', marginBottom: 12,
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    }}>
+      <span style={{ flex: 1, fontSize: 13, minWidth: 120 }}>{msg}</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={onCancel} style={{
+          padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+          border: '1px solid var(--color-border)', background: 'var(--color-bg)',
+          color: 'var(--color-text)', fontFamily: 'inherit',
+        }}>Nee</button>
+        <button onClick={onConfirm} style={{
+          padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+          border: 'none', background: '#dc2626', color: '#fff',
+          fontFamily: 'inherit', fontWeight: 600,
+        }}>Ja, verwijderen</button>
+      </div>
+    </div>
+  )
+}
+
 export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
   const [view,         setView]         = useState('overzicht')
   const [compsData,    setCompsData]    = useState(null)
   const [selectedComp, setSelectedComp] = useState(null)
   const [rescanning,   setRescanning]   = useState(false)
   const [rescanMsg,    setRescanMsg]    = useState('')
+  const [confirmPub,   setConfirmPub]   = useState(false)
+  const [confirmComp,  setConfirmComp]  = useState(null)
 
   function reload() {
     getTournamentCompetitionStandings(tournament.id)
@@ -21,9 +47,9 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
 
   function handleBack() { setSelectedComp(null); reload() }
 
-  async function handleDeletePublication() {
-    if (!window.confirm(`Publicatie "${tournament.name}" definitief verwijderen?`)) return
-    try { await deleteTournament(tournament.id); onDeleted?.() } catch { alert('Verwijderen mislukt') }
+  async function doDeletePublication() {
+    setConfirmPub(false)
+    try { await deleteTournament(tournament.id); onDeleted?.() } catch { setRescanMsg('Verwijderen mislukt') }
   }
 
   async function handleRescanAll() {
@@ -39,9 +65,10 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
     finally { setRescanning(false) }
   }
 
-  async function handleRemoveComp(linkId, compName) {
-    if (!window.confirm(`"${compName}" ontkoppelen van deze publicatie?`)) return
-    try { await removeTournamentComp(tournament.id, linkId); reload() } catch { alert('Ontkoppelen mislukt') }
+  async function doRemoveComp(linkId) {
+    setConfirmComp(null)
+    try { await removeTournamentComp(tournament.id, linkId); reload() }
+    catch { setRescanMsg('Ontkoppelen mislukt') }
   }
 
   if (selectedComp) {
@@ -50,7 +77,7 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tournament.name}</div>
           {tournament.season && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{tournament.season}</div>}
@@ -73,11 +100,31 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
                 color: 'var(--color-text-muted)', opacity: rescanning ? 0.5 : 1,
               }}>↻ {rescanning ? 'Laden…' : 'Alles rescannen'}</button>
             )}
-            <button onClick={handleDeletePublication} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 400, border: '1px solid #dc2626', background: 'transparent', color: '#dc2626' }}>Verwijderen</button>
+            <button onClick={() => setConfirmPub(true)} style={{
+              padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit',
+              cursor: 'pointer', fontWeight: 400, border: '1px solid #dc2626',
+              background: 'transparent', color: '#dc2626',
+            }}>Verwijderen</button>
           </div>
         )}
         {rescanMsg && <div style={{ width: '100%', fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>{rescanMsg}</div>}
       </div>
+
+      {confirmPub && (
+        <InlineConfirm
+          msg={`Publicatie "${tournament.name}" definitief verwijderen?`}
+          onConfirm={doDeletePublication}
+          onCancel={() => setConfirmPub(false)}
+        />
+      )}
+
+      {confirmComp && (
+        <InlineConfirm
+          msg={`"${confirmComp.name}" ontkoppelen van deze publicatie?`}
+          onConfirm={() => doRemoveComp(confirmComp.linkId)}
+          onCancel={() => setConfirmComp(null)}
+        />
+      )}
 
       {view === 'koppelen' && isAdmin && (
         <CompetitiesTab tid={tournament.id} season={tournament.season || '2026-2027'} />
@@ -86,7 +133,12 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
       {view === 'overzicht' && (
         compsData === null
           ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40 }}>Laden…</div>
-          : <CompetitieList compsData={compsData} onSelect={setSelectedComp} onRemove={handleRemoveComp} isAdmin={isAdmin} />
+          : <CompetitieList
+              compsData={compsData}
+              onSelect={setSelectedComp}
+              onRemove={(linkId, compName) => setConfirmComp({ linkId, name: compName })}
+              isAdmin={isAdmin}
+            />
       )}
     </div>
   )

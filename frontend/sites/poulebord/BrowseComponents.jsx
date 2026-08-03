@@ -1,0 +1,217 @@
+import { useState } from 'react'
+import { getCompetitionMatches } from './api.js'
+import { C } from './constants.js'
+import { PoolTable } from './PoolTable.jsx'
+import { MatchModal } from './MatchModal.jsx'
+
+// ── Discovery poule table ─────────────────────────────────────────────────────
+
+export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) {
+  const rows = (poule.standings || []).map(r => ({
+    id: r.team_name, name: r.team_name, pts: r.pts,
+    w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
+  }))
+
+  const header = (
+    <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
+      letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
+      display: 'flex', alignItems: 'center', gap: 4 }}>
+      {onOpenMatches ? (
+        <button onClick={onOpenMatches} style={{ flex: 1, background: 'none', border: 'none',
+          padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: C.gold }}>
+          {poule.name} <span style={{ color: C.muted, fontSize: 9 }}>›</span>
+        </button>
+      ) : (
+        <span style={{ flex: 1 }}>{poule.name}</span>
+      )}
+      {onPin && (
+        <button onClick={e => { e.stopPropagation(); onPin() }} style={{
+          background: isPinned ? C.gold : 'transparent',
+          border: `1px solid ${isPinned ? C.gold : C.border}`, borderRadius: 5,
+          padding: '1px 5px', cursor: 'pointer', fontSize: 10,
+          color: isPinned ? C.deep : C.muted, lineHeight: 1.4 }}>
+          📌
+        </button>
+      )}
+    </div>
+  )
+
+  return (
+    <div style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
+      {header}
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12, color: C.muted, textAlign: 'center',
+          padding: '8px 0', fontStyle: 'italic' }}>Nog geen stand</div>
+      ) : (
+        <PoolTable rows={rows} club={club} />
+      )}
+    </div>
+  )
+}
+
+// ── Competition standings (discovery-based) ───────────────────────────────────
+
+export function CompetitionStandingsView({ fasesData, club }) {
+  return (
+    <div>
+      {fasesData.map(fase => (
+        <div key={fase.fase} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '8px 0 6px', fontWeight: 600 }}>{fase.label}</div>
+          {fase.competitions.map(comp => (
+            <div key={comp.link_id} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: C.chalk, fontWeight: 600, marginBottom: 6 }}>
+                {comp.hockey_type === 'ZA' ? '🏒 ' : '🏑 '}{comp.name}
+              </div>
+              {comp.poules.length === 0 ? (
+                <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', paddingLeft: 4 }}>
+                  Geen poules gevonden
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {comp.poules.map(poule => (
+                    <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                      <DiscPouleTable poule={poule} club={club} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Pool search result card ───────────────────────────────────────────────────
+
+export function PoolSearchCard({ result, poolPins, onPoolPin }) {
+  const key = `${result.phase_id}::${result.pool_name}`
+  const isPinned = poolPins?.has(key)
+  return (
+    <div style={{ background: C.card, borderRadius: 10,
+      border: `1px solid ${isPinned ? C.gold : C.border}`,
+      marginBottom: 6, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+      <div style={{ flex: 1, padding: '8px 12px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, letterSpacing: '0.06em' }}>
+          POULE {result.pool_name}
+        </div>
+        <div style={{ fontSize: 11, color: C.chalk, marginTop: 2 }}>{result.tournament_name}</div>
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{result.matched_team}</div>
+      </div>
+      <button
+        onClick={() => onPoolPin(result.phase_id, result.pool_name, result.tournament_name)}
+        title={isPinned ? 'Verwijder van board' : 'Pin deze poule op je board'}
+        style={{
+          background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+          border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
+          borderRadius: 4, padding: '4px 8px', fontSize: 12,
+          color: isPinned ? C.gold : C.muted, cursor: 'pointer',
+          margin: '0 12px', flexShrink: 0,
+        }}
+      >📌</button>
+    </div>
+  )
+}
+
+// ── Browse: expandable competition item ───────────────────────────────────────
+
+export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoolPin }) {
+  const [matchesPoule, setMatchesPoule] = useState(null)
+  const [matchesData,  setMatchesData]  = useState(null)
+
+  function openMatches(poule) {
+    setMatchesPoule(poule)
+    setMatchesData(null)
+    getCompetitionMatches(comp.id)
+      .then(data => {
+        const found = (data.poules || []).find(p => p.id === poule.id)
+        const raw   = found || { finished: [], scheduled: [] }
+        // Normalize to MatchModal format
+        setMatchesData({
+          finished: raw.finished.map(m => ({
+            id: m.match_id, teamA: m.home, scoreA: m.home_score, scoreB: m.away_score, teamB: m.away,
+          })),
+          scheduled: raw.scheduled.map(m => ({
+            id: m.match_id, teamA: m.home, teamB: m.away,
+          })),
+        })
+      })
+      .catch(() => setMatchesData({ finished: [], scheduled: [] }))
+  }
+
+  const tags = [
+    ...(comp.class_name ? [comp.class_name] : []),
+    ...(comp.fase_tags || []).map(t => t.name),
+  ]
+
+  // Normalize discovery standings for MatchModal
+  const modalRows = matchesPoule
+    ? (matchesPoule.standings || []).map(r => ({
+        id: r.team_name, name: r.team_name, pts: r.pts,
+        w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
+      }))
+    : []
+
+  return (
+    <>
+      {matchesPoule && (
+        <MatchModal
+          title={matchesPoule.name}
+          subtitle={comp.name}
+          rows={modalRows}
+          matches={matchesData}
+          onClose={() => setMatchesPoule(null)}
+        />
+      )}
+      <div style={{ background: C.card, borderRadius: 12, marginBottom: 8,
+        overflow: 'hidden', border: `1px solid ${C.border}` }}>
+        <button onClick={onToggle} style={{
+          width: '100%', padding: '12px 16px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>{comp.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.04em',
+              fontSize: 15, color: C.chalk, lineHeight: 1.2 }}>{comp.name}</div>
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+                {tags.map((tag, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                    background: 'rgba(207,159,63,0.10)', color: C.gold,
+                    border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
+                ))}
+              </div>
+            )}
+          </span>
+          <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+        </button>
+        {expanded && (
+          <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${C.border}` }}>
+            {(comp.poules ?? []).length === 0 ? (
+              <div style={{ color: C.muted, fontSize: 12, fontStyle: 'italic',
+                padding: '10px 0', textAlign: 'center' }}>Geen poules gevonden</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {comp.poules.map(poule => (
+                  <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                    <DiscPouleTable
+                      poule={poule}
+                      club={club}
+                      onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name) : undefined}
+                      isPinned={poolPins?.has('disc_' + poule.id + '::' + poule.name)}
+                      onOpenMatches={() => openMatches(poule)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}

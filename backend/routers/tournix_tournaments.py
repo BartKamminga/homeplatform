@@ -30,15 +30,14 @@ class TournamentCreate(BaseModel):
     name:        str
     season:      Optional[str] = None
     description: Optional[str] = None
-    group_id:    Optional[str] = None
-    status:      Optional[str] = None
 
 class TournamentUpdate(BaseModel):
-    name:        Optional[str] = None
-    season:      Optional[str] = None
-    description: Optional[str] = None
-    status:      Optional[str] = None
-    order:       Optional[int] = None
+    name:        Optional[str]  = None
+    season:      Optional[str]  = None
+    description: Optional[str]  = None
+    status:      Optional[str]  = None
+    order:       Optional[int]  = None
+    published:   Optional[bool] = None
 
 class TournamentsReorder(BaseModel):
     ids: list
@@ -51,7 +50,19 @@ def list_tournaments(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    return session.exec(select(Tournament).order_by(Tournament.order, Tournament.created_at.desc())).all()
+    tournaments = session.exec(
+        select(Tournament).order_by(Tournament.order, Tournament.created_at.desc())
+    ).all()
+    result = []
+    for t in tournaments:
+        count = len(session.exec(
+            select(TournixTournamentCompetition)
+            .where(TournixTournamentCompetition.tournament_id == t.id)
+        ).all())
+        d = t.model_dump()
+        d["competition_count"] = count
+        result.append(d)
+    return result
 
 
 @router.get("/tournaments/{tid}")

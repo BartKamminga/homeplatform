@@ -30,7 +30,7 @@ function resolveHockeyType(t) {
 // ghostBtn-stijl lokaal voor de cleanup-knop
 const _ghostBtn = { fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }
 
-export default function DiscoveryTab({ view = 'resultaten' }) {
+export default function DiscoveryTab() {
   const [clubs,          setClubs]          = useState([])
   const [allTeams,       setAllTeams]       = useState([])
   const [queue,          setQueue]          = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })

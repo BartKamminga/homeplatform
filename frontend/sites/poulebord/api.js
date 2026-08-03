@@ -1,6 +1,6 @@
 import { api } from '../../core/api.js'
 
-export const getTournaments    = ()    => api.get('/api/tournix/tournaments?stage=productie')
+export const getTournaments    = ()    => api.get('/api/tournix/public/tournaments')
 export const getPhases         = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/phases`)
 export const getPhaseStandings = (pid) => api.get(`/api/tournix/public/phases/${pid}/standings`)
 export const getClubs          = ()    => api.get('/api/tournix/public/clubs')

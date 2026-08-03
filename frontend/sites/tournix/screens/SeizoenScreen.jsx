@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTournaments, createTournament, reorderTournaments } from '../api.js'
+import { getTournaments, createTournament, updateTournament, reorderTournaments, KNOWN_SEASONS } from '../api.js'
 import BeheerDiscoveryTab from './DiscoveryTab.jsx'
 import VangerTab          from './VangerTab.jsx'
 import StatsTab           from './StatsTab.jsx'
@@ -15,11 +15,11 @@ const SEIZOEN_TABS = [
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
 
-function PublicatieCard({ tournament, onOpen, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
+function PublicatieCard({ tournament: t, onOpen, isAdmin, onTogglePublished, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
   return (
     <div
       className="t-card"
-      onClick={() => onOpen(tournament)}
+      onClick={() => onOpen(t)}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={e => { e.preventDefault(); onDragOver && onDragOver() }}
@@ -27,21 +27,43 @@ function PublicatieCard({ tournament, onOpen, draggable, onDragStart, onDragOver
       style={{ opacity: isDragOver ? 0.5 : 1, cursor: draggable ? 'grab' : 'pointer' }}
     >
       <div className="t-card-body">
-        <div className="t-card-name">{tournament.name}</div>
-        {tournament.season && (
-          <div className="t-card-meta">{tournament.season}</div>
-        )}
-        {tournament.description && (
-          <div className="t-card-meta" style={{ fontStyle: 'italic' }}>{tournament.description}</div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="t-card-name">{t.name}</div>
+            {t.season && <div className="t-card-meta">{t.season}</div>}
+            {t.description && <div className="t-card-meta" style={{ fontStyle: 'italic' }}>{t.description}</div>}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+            {isAdmin ? (
+              <button
+                onClick={e => { e.stopPropagation(); onTogglePublished(t) }}
+                title={t.published ? 'Klik om te verbergen' : 'Klik om te publiceren'}
+                style={{
+                  fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
+                  fontFamily: 'inherit', fontWeight: 600, border: 'none',
+                  background: t.published ? '#16a34a22' : '#f97316' + '22',
+                  color: t.published ? '#16a34a' : '#f97316',
+                }}
+              >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
+            ) : !t.published ? (
+              <span style={{
+                fontSize: 10, padding: '2px 7px', borderRadius: 99,
+                background: '#f9731622', color: '#f97316', fontWeight: 600,
+              }}>Concept</span>
+            ) : null}
+            {t.competition_count > 0 && (
+              <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                {t.competition_count} comp.
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
 // ── Nieuwe publicatie popup ───────────────────────────────────────────────────
-
-const KNOWN_SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
 function CreatePublicatiePopup({ onClose, onCreated }) {
   const [name,   setName]   = useState('')
@@ -117,7 +139,7 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
 
 // ── Publicaties tab ───────────────────────────────────────────────────────────
 
-function PublicatiesTab({ tournaments, onOpen, isAdmin, onReorder }) {
+function PublicatiesTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReorder }) {
   const dragIdx = useRef(null)
   const [overIdx, setOverIdx] = useState(null)
 
@@ -147,6 +169,8 @@ function PublicatiesTab({ tournaments, onOpen, isAdmin, onReorder }) {
           key={t.id}
           tournament={t}
           onOpen={onOpen}
+          isAdmin={isAdmin}
+          onTogglePublished={onTogglePublished}
           draggable={isAdmin}
           onDragStart={() => { dragIdx.current = i }}
           onDragOver={() => setOverIdx(i)}
@@ -163,11 +187,13 @@ function PublicatiesTab({ tournaments, onOpen, isAdmin, onReorder }) {
 export function SeizoenScreen({ onOpenTournament, isAdmin }) {
   const [tab,         setTab]         = useState('publicaties')
   const [tournaments, setTournaments] = useState([])
+  const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
   const [showCreate,  setShowCreate]  = useState(false)
 
   useEffect(() => {
-    getTournaments().then(setTournaments).catch(() => {})
+    setLoading(true)
+    getTournaments().then(setTournaments).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const q        = search.trim().toLowerCase()
@@ -182,12 +208,21 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
 
   function handleReorder(newList) {
     setTournaments(prev => {
-      const reordered = [...prev]
       const activeIds = new Set(newList.map(t => t.id))
       const others = prev.filter(t => !activeIds.has(t.id))
       return [...newList, ...others]
     })
     reorderTournaments(newList.map(t => t.id)).catch(() => {})
+  }
+
+  async function handleTogglePublished(t) {
+    const next = !t.published
+    setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, published: next } : x))
+    try {
+      await updateTournament(t.id, { published: next })
+    } catch {
+      setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, published: t.published } : x))
+    }
   }
 
   return (
@@ -232,11 +267,23 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
                 }}>+ Nieuw</button>
               )}
             </div>
-            <PublicatiesTab tournaments={active} onOpen={onOpenTournament} isAdmin={isAdmin} onReorder={handleReorder} />
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)', fontSize: 13 }}>
+                Laden…
+              </div>
+            ) : (
+              <PublicatiesTab
+                tournaments={active}
+                onOpen={onOpenTournament}
+                isAdmin={isAdmin}
+                onTogglePublished={handleTogglePublished}
+                onReorder={handleReorder}
+              />
+            )}
           </>
         )}
         {tab === 'discovery' && (
-          <BeheerDiscoveryTab view="resultaten" />
+          <BeheerDiscoveryTab />
         )}
         {tab === 'vanger' && (
           <VangerTab />

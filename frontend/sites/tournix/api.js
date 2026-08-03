@@ -1,5 +1,7 @@
 import { api } from '@core/api.js'
 
+export const KNOWN_SEASONS = ['2024-2025', '2025-2026', '2026-2027']
+
 export const getTournaments         = ()          => api.get('/api/tournix/tournaments')
 export const getTournament          = (id)        => api.get(`/api/tournix/tournaments/${id}`)
 export const createTournament       = (data)      => api.post('/api/tournix/tournaments', data)
@@ -21,30 +23,6 @@ export const setResult              = (mid, data) => api.patch(`/api/tournix/mat
 
 export const getStandings           = (tid)       => api.get(`/api/tournix/tournaments/${tid}/standings`)
 
-export const updateTournamentStage  = (tid, stage)  => api.patch(`/api/tournix/tournaments/${tid}`, { stage })
-export const saveSnapshot           = (tid, round)   => api.post(`/api/tournix/tournaments/${tid}/snapshots?round=${round}`)
-export const getSnapshots           = (tid)          => api.get(`/api/tournix/tournaments/${tid}/snapshots`)
-export const getSnapshot            = (tid, round)   => api.get(`/api/tournix/tournaments/${tid}/snapshots/${round}`)
-
-export const getPools               = (tid)          => api.get(`/api/tournix/tournaments/${tid}/pools`)
-export const createPool             = (tid, body)    => api.post(`/api/tournix/tournaments/${tid}/pools`, body)
-export const deletePool             = (pid)          => api.delete(`/api/tournix/pools/${pid}`)
-export const assignTeamPool         = (teamId, poolId) => api.patch(`/api/tournix/teams/${teamId}/pool`, { pool_id: poolId })
-export const autoAssignPools        = (tid)          => api.post(`/api/tournix/tournaments/${tid}/auto-assign`)
-export const updateTournamentPools  = (tid, num_pools, pool_type) => api.patch(`/api/tournix/tournaments/${tid}`, { num_pools, pool_type })
-
-export async function generateKnockout(tid) {
-  return api.post(`/api/tournix/tournaments/${tid}/generate-knockout`)
-}
-export async function updateTournamentKnockout(tid, knockout_type, knockout_advance) {
-  return api.patch(`/api/tournix/tournaments/${tid}`, { knockout_type, knockout_advance })
-}
-
-export const getClubs = () => api.get('/api/tournix/clubs')
-
-export const importTournament = (data) => api.post('/api/tournix/import', data)
-export const copyTournament   = (tid)  => api.post(`/api/tournix/tournaments/${tid}/copy`)
-
 export const getPhases              = (tid)        => api.get(`/api/tournix/tournaments/${tid}/phases`)
 export const createPhase            = (tid, data)  => api.post(`/api/tournix/tournaments/${tid}/phases`, data)
 export const updatePhase            = (pid, data)  => api.patch(`/api/tournix/phases/${pid}`, data)
@@ -60,30 +38,25 @@ export const preAllocatePhaseTeams  = (pid, positions) => api.post(`/api/tournix
 export const resolvePhaseplaceholders = (pid)      => api.post(`/api/tournix/phases/${pid}/resolve-placeholders`)
 export const planPhaseSchedule        = (pid, startTime) => api.post(`/api/tournix/phases/${pid}/plan-schedule`, { start_time: startTime || null })
 
+export const getClubs = () => api.get('/api/tournix/clubs')
+
+export const importTournament = (data) => api.post('/api/tournix/import', data)
+export const copyTournament   = (tid)  => api.post(`/api/tournix/tournaments/${tid}/copy`)
+
 export const getCaptureSessions       = ()        => api.get('/api/capture/sessions')
 export const getCaptureSessionItems   = (sid)     => api.get(`/api/capture/sessions/${sid}/items`)
 export const reprocessCaptures        = (body)    => api.post('/api/capture/reprocess', body)
 
 // Seizoensplanner
-export const syncPhase         = (pid)  => api.post(`/api/tournix/phases/${pid}/sync`)
-export const syncTournament    = (tid)  => api.post(`/api/tournix/tournaments/${tid}/sync`)
-export const autoMatchTournament = (tid) => api.post(`/api/tournix/tournaments/${tid}/auto-match`)
 export const getDiscoveryComps        = (season)   => api.get(`/api/tournix/discovery/competitions${season ? `?season=${season}` : ''}`)
 export const deleteEmptyCompetitions  = (season)   => api.delete(`/api/tournix/discovery/competitions/empty${season ? `?season=${season}` : ''}`)
-export const getDiscoveryPoules = (season)   => api.get(`/api/tournix/discovery/poules?season=${season || '2026-2027'}`)
 export const getVangerQueue    = (status) =>
   api.get(`/api/tournix/discovery/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
 
 // Tournament-competitie koppelingen
 export const getTournamentComps    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/competitions`)
 export const addTournamentComp     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
-export const patchTournamentComp   = (tid, linkId, body) => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
 export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
-
-// Eigen fase-lijst per toernooi (legacy — vervangen door globale tags)
-export const getTournamentFases    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/fases`)
-export const addTournamentFase     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/fases`, body)
-export const removeTournamentFase  = (tid, faseId)   => api.delete(`/api/tournix/tournaments/${tid}/fases/${faseId}`)
 
 // Globale fase-tags (gedeeld over alle publicaties)
 export const getFaseTags    = ()        => api.get('/api/tournix/fase-tags')

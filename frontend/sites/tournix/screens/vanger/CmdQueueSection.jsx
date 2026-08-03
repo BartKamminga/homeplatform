@@ -39,13 +39,13 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
       {cmdOpen && (
         <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button onClick={() => onFill('poules')} disabled={!!cmdFilling}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules' ? 0.6 : 1 }}>
-              {cmdFilling === 'poules' ? '…' : '+ Poules vullen'}
-            </button>
             <button onClick={() => onFill('clubs')} disabled={!!cmdFilling}
               style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
-              {cmdFilling === 'clubs' ? '…' : '+ Clubs vullen'}
+              {cmdFilling === 'clubs' ? '…' : '1. Clubs vullen'}
+            </button>
+            <button onClick={() => onFill('poules')} disabled={!!cmdFilling}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules' ? 0.6 : 1 }}>
+              {cmdFilling === 'poules' ? '…' : '2. Poules vullen'}
             </button>
             <button onClick={() => onFill('poules_refresh')} disabled={!!cmdFilling}
               style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-primary)', background: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules_refresh' ? 0.6 : 1 }}>

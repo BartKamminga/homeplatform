@@ -1,21 +1,44 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   getTournamentComps, addTournamentComp, removeTournamentComp,
-  getDiscoveryComps,
+  getDiscoveryComps, syncCompetition,
   getFaseTags, addFaseTag, removeFaseTag,
   assignCompFaseTag, removeCompFaseTag,
+  KNOWN_SEASONS,
 } from '../api.js'
 import {
   card, cardLabel, ghostBtn,
   muted, successBanner, errorBanner, deleteBtn, inputStyle,
 } from './styles.js'
 
-const KNOWN_SEASONS = ['2024-2025', '2025-2026', '2026-2027']
-
 function normalizeSeason(s) {
   if (!s) return '2026-2027'
   const clean = s.trim().replace(/\s*-\s*/, '-')
   return KNOWN_SEASONS.includes(clean) ? clean : '2026-2027'
+}
+
+function InlineConfirm({ msg, onConfirm, onCancel }) {
+  return (
+    <div style={{
+      background: 'var(--color-surface)', border: '1px solid #dc262633',
+      borderRadius: 8, padding: '10px 14px', marginBottom: 10,
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    }}>
+      <span style={{ flex: 1, fontSize: 12, minWidth: 120 }}>{msg}</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={onCancel} style={{
+          padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
+          border: '1px solid var(--color-border)', background: 'var(--color-bg)',
+          color: 'var(--color-text)', fontFamily: 'inherit',
+        }}>Nee</button>
+        <button onClick={onConfirm} style={{
+          padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
+          border: 'none', background: '#dc2626', color: '#fff',
+          fontFamily: 'inherit', fontWeight: 600,
+        }}>Ja</button>
+      </div>
+    </div>
+  )
 }
 
 export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }) {
@@ -31,6 +54,9 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
   const [newTagName,  setNewTagName]  = useState('')
   const [addingTag,   setAddingTag]   = useState(false)
   const [season,      setSeason]      = useState(() => normalizeSeason(seasonProp))
+  const [selectedComps, setSelectedComps] = useState(new Set())
+  const [confirmTag,  setConfirmTag]  = useState(null)
+  const [confirmLink, setConfirmLink] = useState(null)
 
   useEffect(() => { loadGlobalTags() }, [])
   useEffect(() => { if (tid) { loadLinks() } }, [tid])
@@ -74,14 +100,13 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     finally { setAddingTag(false) }
   }
 
-  async function handleRemoveTag(tag) {
-    if (!window.confirm(`Tag "${tag.name}" verwijderen? Wordt ook bij alle koppelingen verwijderd.`)) return
+  async function doRemoveTag(tag) {
+    setConfirmTag(null)
     try {
       await removeFaseTag(tag.id)
       setGlobalTags(prev => prev.filter(x => x.id !== tag.id))
       setLinks(prev => prev.map(l => ({
-        ...l,
-        fase_tags: (l.fase_tags || []).filter(t => t.id !== tag.id),
+        ...l, fase_tags: (l.fase_tags || []).filter(t => t.id !== tag.id),
       })))
     } catch (e) { flash(e.message, true) }
   }
@@ -125,16 +150,36 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     setAdding(true)
     try {
       await addTournamentComp(tid, { competition_id: comp.id, order: links.length })
+      syncCompetition(comp.id).catch(() => {})
       flash(`${comp.name} gekoppeld`)
       setShowPicker(false)
       setFilterQ('')
+      setSelectedComps(new Set())
       await loadLinks()
     } catch (e) { flash(e.message, true) }
     finally { setAdding(false) }
   }
 
-  async function handleRemove(lnk) {
-    if (!window.confirm(`Koppeling met "${lnk.competition?.name}" verwijderen?`)) return
+  async function handleBulkAdd() {
+    if (!selectedComps.size) return
+    setAdding(true)
+    const comps = allComps.filter(c => selectedComps.has(c.id))
+    try {
+      for (let i = 0; i < comps.length; i++) {
+        await addTournamentComp(tid, { competition_id: comps[i].id, order: links.length + i })
+        syncCompetition(comps[i].id).catch(() => {})
+      }
+      flash(`${comps.length} competities gekoppeld`)
+      setShowPicker(false)
+      setFilterQ('')
+      setSelectedComps(new Set())
+      await loadLinks()
+    } catch (e) { flash(e.message, true) }
+    finally { setAdding(false) }
+  }
+
+  async function doRemoveLink(lnk) {
+    setConfirmLink(null)
     try {
       await removeTournamentComp(tid, lnk.id)
       flash('Koppeling verwijderd')
@@ -157,6 +202,21 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
       {msg   && <div style={successBanner}>{msg}</div>}
       {error && <div style={errorBanner}>{error}</div>}
 
+      {confirmTag && (
+        <InlineConfirm
+          msg={`Tag "${confirmTag.name}" verwijderen? Wordt ook bij alle koppelingen verwijderd.`}
+          onConfirm={() => doRemoveTag(confirmTag)}
+          onCancel={() => setConfirmTag(null)}
+        />
+      )}
+      {confirmLink && (
+        <InlineConfirm
+          msg={`Koppeling met "${confirmLink.competition?.name}" verwijderen?`}
+          onConfirm={() => doRemoveLink(confirmLink)}
+          onCancel={() => setConfirmLink(null)}
+        />
+      )}
+
       {/* ── Globale fase-tag pool ────────────────────────────────── */}
       <div style={card}>
         <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-TAGS (globaal)</div>
@@ -172,7 +232,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
               color: 'var(--color-primary)',
             }}>
               {tag.name}
-              <button onClick={() => handleRemoveTag(tag)} style={{
+              <button onClick={() => setConfirmTag(tag)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
               }}>✕</button>
@@ -207,7 +267,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
           globalTags={globalTags}
           onAssignTag={tagId => handleAssignTag(lnk, tagId)}
           onRemoveTag={tagId => handleRemoveCompTag(lnk, tagId)}
-          onRemove={() => handleRemove(lnk)}
+          onRemove={() => setConfirmLink(lnk)}
         />
       ))}
 
@@ -228,8 +288,17 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: showPicker ? 12 : 0 }}>
           <div style={cardLabel}>COMPETITIE KOPPELEN</div>
+          {showPicker && selectedComps.size > 0 && (
+            <button
+              onClick={handleBulkAdd}
+              disabled={adding}
+              style={{ ...ghostBtn, fontSize: 12, color: 'var(--color-primary)', borderColor: 'var(--color-primary)', opacity: adding ? 0.5 : 1 }}
+            >
+              {adding ? 'Bezig…' : `+ Koppel ${selectedComps.size} geselecteerde`}
+            </button>
+          )}
           <button
-            onClick={() => { setShowPicker(p => !p); setFilterQ('') }}
+            onClick={() => { setShowPicker(p => !p); setFilterQ(''); setSelectedComps(new Set()) }}
             style={{ ...ghostBtn, fontSize: 12, marginLeft: 'auto' }}
           >
             {showPicker ? 'Sluiten' : '+ Koppelen'}
@@ -250,26 +319,46 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
-                {pickerComps.map(comp => (
-                  <button key={comp.id} onClick={() => !adding && handleAdd(comp)} disabled={adding}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
+                {pickerComps.map(comp => {
+                  const checked = selectedComps.has(comp.id)
+                  return (
+                    <div key={comp.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
                       padding: '8px 12px', borderRadius: 8,
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)', color: 'var(--color-text)',
-                      cursor: adding ? 'default' : 'pointer', fontFamily: 'inherit',
-                      textAlign: 'left', opacity: adding ? 0.7 : 1,
+                      border: `1px solid ${checked ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      background: checked ? 'var(--color-primary)11' : 'var(--color-surface)',
+                      cursor: adding ? 'default' : 'pointer',
+                    }} onClick={() => {
+                      if (adding) return
+                      setSelectedComps(prev => {
+                        const n = new Set(prev)
+                        if (n.has(comp.id)) n.delete(comp.id); else n.add(comp.id)
+                        return n
+                      })
                     }}>
-                    <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>
-                      {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
-                    </span>
-                    <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <span style={{ fontSize: 13 }}>{comp.name}</span>
-                      {comp.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</span>}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>+ Koppelen</span>
-                  </button>
-                ))}
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {}}
+                        onClick={e => e.stopPropagation()}
+                        style={{ flexShrink: 0, accentColor: 'var(--color-primary)' }}
+                      />
+                      <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>
+                        {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
+                      </span>
+                      <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{comp.name}</span>
+                        {comp.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</span>}
+                      </span>
+                      {!checked && (
+                        <button onClick={e => { e.stopPropagation(); if (!adding) handleAdd(comp) }} disabled={adding}
+                          style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          + Direct
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </>

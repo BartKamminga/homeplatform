@@ -114,6 +114,31 @@ def list_clubs_public(session: Session = Depends(get_session)):
     return [c.name for c in session.exec(select(TournixClub).order_by(TournixClub.name)).all()]
 
 
+@router.get("/public/tournaments")
+def list_public_tournaments(
+    season: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    stmt = select(Tournament).where(Tournament.published == True)
+    if season:
+        stmt = stmt.where(Tournament.season == season)
+    tournaments = session.exec(
+        stmt.order_by(Tournament.order, Tournament.created_at.desc())
+    ).all()
+    result = []
+    for t in tournaments:
+        count = len(session.exec(
+            select(TournixTournamentCompetition)
+            .where(TournixTournamentCompetition.tournament_id == t.id)
+        ).all())
+        result.append({
+            "id": t.id, "name": t.name, "season": t.season,
+            "description": t.description, "status": t.status,
+            "competition_count": count,
+        })
+    return result
+
+
 @router.post("/public/beacon")
 def poulebord_beacon(request: Request):
     """Log a page view from the poulebord frontend."""
