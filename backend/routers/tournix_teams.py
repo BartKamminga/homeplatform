@@ -596,6 +596,27 @@ def get_competition_matches(cid: int, session: Session = Depends(get_session)):
     return {"competition_id": cid, "name": comp.name, "poules": result}
 
 
+@router.get("/public/hockey-poules/{pid}/standings")
+def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)):
+    """Standings voor één discovery-poule (voor gepinde poules op het board)."""
+    poule = session.get(HockeyPoule, pid)
+    if not poule:
+        raise HTTPException(404, "Poule niet gevonden")
+    rows = session.exec(
+        select(HockeyPouleStanding)
+        .where(HockeyPouleStanding.poule_id == poule.poule_id)
+        .order_by(HockeyPouleStanding.position, HockeyPouleStanding.points.desc())  # type: ignore[attr-defined]
+    ).all()
+    return {
+        "pool_name": poule.name,
+        "standings": [
+            {"team_name": r.team_name, "pts": r.points, "won": r.won,
+             "drawn": r.drawn, "lost": r.lost, "gf": r.goals_for, "ga": r.goals_against}
+            for r in rows
+        ],
+    }
+
+
 @router.post("/competitions/{cid}/sync")
 def sync_competition(
     cid: int,

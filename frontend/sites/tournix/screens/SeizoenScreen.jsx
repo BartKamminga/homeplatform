@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { getTournaments, createTournament } from '../api.js'
+import { useState, useEffect, useRef } from 'react'
+import { getTournaments, createTournament, reorderTournaments } from '../api.js'
 import BeheerDiscoveryTab from './DiscoveryTab.jsx'
 import VangerTab          from './VangerTab.jsx'
 import StatsTab           from './StatsTab.jsx'
@@ -15,9 +15,17 @@ const SEIZOEN_TABS = [
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
 
-function PublicatieCard({ tournament, onOpen }) {
+function PublicatieCard({ tournament, onOpen, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
   return (
-    <div className="t-card" onClick={() => onOpen(tournament)}>
+    <div
+      className="t-card"
+      onClick={() => onOpen(tournament)}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={e => { e.preventDefault(); onDragOver && onDragOver() }}
+      onDrop={onDrop}
+      style={{ opacity: isDragOver ? 0.5 : 1, cursor: draggable ? 'grab' : 'pointer' }}
+    >
       <div className="t-card-body">
         <div className="t-card-name">{tournament.name}</div>
         {tournament.season && (
@@ -109,7 +117,10 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
 
 // ── Publicaties tab ───────────────────────────────────────────────────────────
 
-function PublicatiesTab({ tournaments, onOpen }) {
+function PublicatiesTab({ tournaments, onOpen, isAdmin, onReorder }) {
+  const dragIdx = useRef(null)
+  const [overIdx, setOverIdx] = useState(null)
+
   if (tournaments.length === 0) {
     return (
       <div className="empty-state">
@@ -118,10 +129,30 @@ function PublicatiesTab({ tournaments, onOpen }) {
       </div>
     )
   }
+
+  function handleDrop(targetIdx) {
+    if (dragIdx.current === null || dragIdx.current === targetIdx) { setOverIdx(null); return }
+    const next = [...tournaments]
+    const [moved] = next.splice(dragIdx.current, 1)
+    next.splice(targetIdx, 0, moved)
+    dragIdx.current = null
+    setOverIdx(null)
+    onReorder(next)
+  }
+
   return (
     <div>
-      {tournaments.map(t => (
-        <PublicatieCard key={t.id} tournament={t} onOpen={onOpen} />
+      {tournaments.map((t, i) => (
+        <PublicatieCard
+          key={t.id}
+          tournament={t}
+          onOpen={onOpen}
+          draggable={isAdmin}
+          onDragStart={() => { dragIdx.current = i }}
+          onDragOver={() => setOverIdx(i)}
+          onDrop={() => handleDrop(i)}
+          isDragOver={overIdx === i && dragIdx.current !== i}
+        />
       ))}
     </div>
   )
@@ -147,6 +178,16 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
     setShowCreate(false)
     setTournaments(prev => [t, ...prev])
     onOpenTournament(t)
+  }
+
+  function handleReorder(newList) {
+    setTournaments(prev => {
+      const reordered = [...prev]
+      const activeIds = new Set(newList.map(t => t.id))
+      const others = prev.filter(t => !activeIds.has(t.id))
+      return [...newList, ...others]
+    })
+    reorderTournaments(newList.map(t => t.id)).catch(() => {})
   }
 
   return (
@@ -191,7 +232,7 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
                 }}>+ Nieuw</button>
               )}
             </div>
-            <PublicatiesTab tournaments={active} onOpen={onOpenTournament} />
+            <PublicatiesTab tournaments={active} onOpen={onOpenTournament} isAdmin={isAdmin} onReorder={handleReorder} />
           </>
         )}
         {tab === 'discovery' && (

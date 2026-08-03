@@ -38,6 +38,10 @@ class TournamentUpdate(BaseModel):
     season:      Optional[str] = None
     description: Optional[str] = None
     status:      Optional[str] = None
+    order:       Optional[int] = None
+
+class TournamentsReorder(BaseModel):
+    ids: list
 
 
 # ── Tournament endpoints ──────────────────────────────────────────────────────
@@ -47,7 +51,7 @@ def list_tournaments(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    return session.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
+    return session.exec(select(Tournament).order_by(Tournament.order, Tournament.created_at.desc())).all()
 
 
 @router.get("/tournaments/{tid}")
@@ -71,6 +75,21 @@ def create_tournament(
     session.refresh(t)
     log_action(session, "tournix.tournament.create", user_id=user.id, payload={"name": t.name})
     return t
+
+
+@router.patch("/tournaments/reorder")
+def reorder_tournaments(
+    body: TournamentsReorder,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    for i, tid in enumerate(body.ids):
+        t = session.get(Tournament, tid)
+        if t:
+            t.order = i
+            session.add(t)
+    session.commit()
+    return {"ok": True}
 
 
 @router.patch("/tournaments/{tid}")
@@ -279,6 +298,25 @@ def add_tournament_competition(
     session.add(lnk)
     session.commit()
     session.refresh(lnk)
+
+    # Auto-assign tags for class_name and district
+    auto_tag_names = [v for v in [comp.class_name, comp.district] if v and v.strip()]
+    for tag_name in auto_tag_names:
+        tag = session.exec(select(TournixFaseTag).where(TournixFaseTag.name == tag_name)).first()
+        if not tag:
+            count = len(session.exec(select(TournixFaseTag)).all())
+            tag = TournixFaseTag(name=tag_name, order=count)
+            session.add(tag)
+            session.flush()
+        existing_ct = session.exec(
+            select(TournixCompetitionFaseTag)
+            .where(TournixCompetitionFaseTag.competition_link_id == lnk.id)
+            .where(TournixCompetitionFaseTag.fase_tag_id == tag.id)
+        ).first()
+        if not existing_ct:
+            session.add(TournixCompetitionFaseTag(competition_link_id=lnk.id, fase_tag_id=tag.id))
+    session.commit()
+
     return lnk
 
 

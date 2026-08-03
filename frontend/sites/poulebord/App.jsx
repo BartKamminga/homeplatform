@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode, searchPools, getPoolMatches, getTournamentCompetitionStandings } from './api.js'
+import { getTournaments, getPhases, getPhaseStandings, getClubs, getBoard, saveBoard, getBoardByCode, searchPools, getPoolMatches, getTournamentCompetitionStandings, getHockeyPouleStandings, getCompetitionMatches } from './api.js'
 
 const _standingsCache = {}
 function useStandings(phaseId) {
@@ -7,9 +7,23 @@ function useStandings(phaseId) {
   useEffect(() => {
     if (!phaseId) return
     if (_standingsCache[phaseId]) { setData(_standingsCache[phaseId]); return }
-    getPhaseStandings(phaseId)
-      .then(rows => { _standingsCache[phaseId] = rows; setData(rows) })
-      .catch(() => setData([]))
+    if (String(phaseId).startsWith('disc_')) {
+      const pid = parseInt(String(phaseId).replace('disc_', ''), 10)
+      getHockeyPouleStandings(pid)
+        .then(d => {
+          const rows = (d.standings || []).map((r, i) => ({
+            id: i, name: r.team_name, pts: r.pts,
+            w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
+          }))
+          _standingsCache[phaseId] = rows
+          setData(rows)
+        })
+        .catch(() => setData([]))
+    } else {
+      getPhaseStandings(phaseId)
+        .then(rows => { _standingsCache[phaseId] = rows; setData(rows) })
+        .catch(() => setData([]))
+    }
   }, [phaseId])
   return data
 }
@@ -495,7 +509,10 @@ function PhaseCard({ phase, club, poolPins, onPoolPin, tournamentName }) {
 
 function PinnedPoolSlot({ pin, isMyClub, onUnpin, idx }) {
   const standings = useStandings(pin.phaseId)
-  const poolRows = standings ? standings.filter(r => r.pool_name === pin.poolName) : null
+  const isDisc = pin.phaseId?.startsWith?.('disc_')
+  const poolRows = standings
+    ? (isDisc ? standings : standings.filter(r => r.pool_name === pin.poolName))
+    : null
   return (
     <div style={{ flex: '1 1 180px', borderLeft: idx > 0 ? `1px solid ${C.border}` : 'none' }}>
       <div style={{ padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
@@ -654,17 +671,39 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
 
 // ── Discovery standings (competition-gebaseerd) ───────────────────────────────
 
-function DiscPouleTable({ poule, club }) {
+function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) {
   const rows = poule.standings || []
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
+
+  const header = (
+    <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
+      letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
+      display: 'flex', alignItems: 'center', gap: 4 }}>
+      {onOpenMatches ? (
+        <button onClick={onOpenMatches} style={{ flex: 1, background: 'none', border: 'none',
+          padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: C.gold }}>
+          {poule.name} <span style={{ color: C.muted, fontSize: 9 }}>›</span>
+        </button>
+      ) : (
+        <span style={{ flex: 1 }}>{poule.name}</span>
+      )}
+      {onPin && (
+        <button onClick={e => { e.stopPropagation(); onPin() }} style={{
+          background: isPinned ? C.gold : 'transparent',
+          border: `1px solid ${isPinned ? C.gold : C.border}`, borderRadius: 5,
+          padding: '1px 5px', cursor: 'pointer', fontSize: 10,
+          color: isPinned ? C.deep : C.muted, lineHeight: 1.4 }}>
+          📌
+        </button>
+      )}
+    </div>
+  )
 
   if (rows.length === 0) {
     return (
       <div style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
-          letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
-          {poule.name}
-        </div>
+        {header}
         <div style={{ fontSize: 12, color: C.muted, textAlign: 'center',
           padding: '8px 0', fontStyle: 'italic' }}>Nog geen stand</div>
       </div>
@@ -673,10 +712,7 @@ function DiscPouleTable({ poule, club }) {
 
   return (
     <div style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-      <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
-        letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
-        {poule.name}
-      </div>
+      {header}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ color: C.muted, fontSize: 10 }}>
@@ -746,6 +782,134 @@ function CompetitionStandingsView({ fasesData, club }) {
           ))}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Discovery match modal ─────────────────────────────────────────────────────
+
+function DiscMatchModal({ pouleName, compName, standings, matches, onClose }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'flex-end' }}
+      onClick={onClose}>
+      <div style={{ background: C.deep, borderRadius: '16px 16px 0 0', width: '100%',
+        maxHeight: '82dvh', overflowY: 'auto',
+        border: `1px solid ${C.border}`, borderBottom: 'none' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'sticky', top: 0, background: C.deep,
+          padding: '14px 16px 10px', borderBottom: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24,
+              letterSpacing: '0.06em', color: C.gold, lineHeight: 1 }}>
+              {pouleName}
+            </div>
+            {compName && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{compName}</div>}
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent',
+            border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: '6px 12px', color: C.muted, fontSize: 13,
+            cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '14px 14px 32px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+            textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Stand</div>
+          <div style={{ background: C.card, borderRadius: 10, overflow: 'hidden', marginBottom: 18 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: C.muted, fontSize: 10 }}>
+                  <th style={{ padding: '5px 3px 5px 12px', textAlign: 'left', fontWeight: 500, width: 20 }}>#</th>
+                  <th style={{ padding: '5px 3px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 26 }}>W</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 26 }}>G</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 26 }}>V</th>
+                  <th style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 500, width: 44, whiteSpace: 'nowrap' }}>GV–GT</th>
+                  <th style={{ padding: '5px 12px 5px 3px', textAlign: 'center', fontWeight: 600,
+                    width: 32, color: C.chalk }}>Pt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {standings.map((r, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${C.border}`,
+                    background: i === 0 ? 'rgba(207,159,63,0.07)' : 'transparent' }}>
+                    <td style={{ padding: '6px 3px 6px 12px', color: C.muted, fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ padding: '6px 3px', color: C.chalk, fontWeight: i === 0 ? 600 : 400,
+                      maxWidth: 0, width: '100%', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.team_name}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted }}>{r.won}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted }}>{r.drawn}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted }}>{r.lost}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', color: C.muted, fontSize: 11 }}>
+                      {r.gf ?? 0}–{r.ga ?? 0}
+                    </td>
+                    <td style={{ padding: '6px 12px 6px 3px', textAlign: 'center',
+                      color: C.goldBr, fontWeight: 700, fontSize: 14 }}>{r.pts}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {matches === null ? (
+            <div style={{ textAlign: 'center', color: C.muted, padding: '12px 0', fontSize: 13 }}>Laden…</div>
+          ) : (
+            <>
+              {matches.finished.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Gespeeld</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 18 }}>
+                    {matches.finished.map(m => (
+                      <div key={m.match_id} style={{ background: C.card, borderRadius: 8,
+                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: C.gold,
+                          letterSpacing: '0.04em', flexShrink: 0, minWidth: 44, textAlign: 'center' }}>
+                          {m.home_score}–{m.away_score}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {matches.scheduled.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Nog te spelen</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {matches.scheduled.map(m => (
+                      <div key={m.match_id} style={{ background: C.card, borderRadius: 8,
+                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
+                        <span style={{ fontSize: 12, color: C.muted, flexShrink: 0,
+                          minWidth: 44, textAlign: 'center' }}>vs</span>
+                        <span style={{ flex: 1, fontSize: 12, color: C.chalk,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {matches.finished.length === 0 && matches.scheduled.length === 0 && (
+                <div style={{ textAlign: 'center', color: C.muted, fontSize: 12,
+                  fontStyle: 'italic', padding: '8px 0' }}>Geen wedstrijden gevonden</div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -987,53 +1151,86 @@ function PoolSearchCard({ result, poolPins, onPoolPin }) {
 
 // ── Browse: competition item (expandable) ─────────────────────────────────────
 
-function CompBrowseItem({ comp, club, expanded, onToggle }) {
+function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoolPin }) {
+  const [matchesPoule, setMatchesPoule] = useState(null)
+  const [matchesData,  setMatchesData]  = useState(null)
+
+  function openMatches(poule) {
+    setMatchesPoule(poule)
+    setMatchesData(null)
+    getCompetitionMatches(comp.id)
+      .then(data => {
+        const found = (data.poules || []).find(p => p.id === poule.id)
+        setMatchesData(found
+          ? { finished: found.finished, scheduled: found.scheduled }
+          : { finished: [], scheduled: [] })
+      })
+      .catch(() => setMatchesData({ finished: [], scheduled: [] }))
+  }
+
   const tags = [
     ...(comp.class_name ? [comp.class_name] : []),
     ...(comp.fase_tags || []).map(t => t.name),
   ]
 
   return (
-    <div style={{ background: C.card, borderRadius: 12, marginBottom: 8,
-      overflow: 'hidden', border: `1px solid ${C.border}` }}>
-      <button onClick={onToggle} style={{
-        width: '100%', padding: '12px 16px', background: 'transparent', border: 'none',
-        cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <span style={{ fontSize: 16, flexShrink: 0 }}>{comp.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.04em',
-            fontSize: 15, color: C.chalk, lineHeight: 1.2 }}>{comp.name}</div>
-          {tags.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
-              {tags.map((tag, i) => (
-                <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
-                  background: 'rgba(207,159,63,0.10)', color: C.gold,
-                  border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
-              ))}
-            </div>
-          )}
-        </span>
-        <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
-      </button>
-      {expanded && (
-        <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${C.border}` }}>
-          {(comp.poules ?? []).length === 0 ? (
-            <div style={{ color: C.muted, fontSize: 12, fontStyle: 'italic',
-              padding: '10px 0', textAlign: 'center' }}>Geen poules gevonden</div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-              {comp.poules.map(poule => (
-                <div key={poule.id} style={{ flex: '1 1 240px' }}>
-                  <DiscPouleTable poule={poule} club={club} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+    <>
+      {matchesPoule && (
+        <DiscMatchModal
+          pouleName={matchesPoule.name}
+          compName={comp.name}
+          standings={matchesPoule.standings || []}
+          matches={matchesData}
+          onClose={() => setMatchesPoule(null)}
+        />
       )}
-    </div>
+      <div style={{ background: C.card, borderRadius: 12, marginBottom: 8,
+        overflow: 'hidden', border: `1px solid ${C.border}` }}>
+        <button onClick={onToggle} style={{
+          width: '100%', padding: '12px 16px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>{comp.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.04em',
+              fontSize: 15, color: C.chalk, lineHeight: 1.2 }}>{comp.name}</div>
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+                {tags.map((tag, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                    background: 'rgba(207,159,63,0.10)', color: C.gold,
+                    border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
+                ))}
+              </div>
+            )}
+          </span>
+          <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+        </button>
+        {expanded && (
+          <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${C.border}` }}>
+            {(comp.poules ?? []).length === 0 ? (
+              <div style={{ color: C.muted, fontSize: 12, fontStyle: 'italic',
+                padding: '10px 0', textAlign: 'center' }}>Geen poules gevonden</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {comp.poules.map(poule => (
+                  <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                    <DiscPouleTable
+                      poule={poule}
+                      club={club}
+                      onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name) : undefined}
+                      isPinned={poolPins?.has('disc_' + poule.id + '::' + poule.name)}
+                      onOpenMatches={() => openMatches(poule)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -1623,6 +1820,8 @@ export default function App() {
                     club={club}
                     expanded={expandedCompId === comp.link_id}
                     onToggle={() => setExpandedCompId(id => id === comp.link_id ? null : comp.link_id)}
+                    poolPins={poolPins}
+                    onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, selectedPub?.name)}
                   />
                 ))
               )}

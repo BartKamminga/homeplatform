@@ -31,6 +31,7 @@ class Tournament(SQLModel, table=True):
     created_by:  Optional[str] = Field(default=None, foreign_key="users.id")
     created_at:  datetime      = Field(default_factory=datetime.utcnow)
     season:      Optional[str] = Field(default=None)       # e.g. "2026-2027"
+    order:       int           = Field(default=0)
 
 
 class TournixPool(SQLModel, table=True):
