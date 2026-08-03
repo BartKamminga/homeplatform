@@ -479,6 +479,18 @@ def get_tournament_competition_standings(
             .where(HockeyPoule.competition_id == lnk.competition_id)
             .order_by(HockeyPoule.name)
         ).all()
+        # Batch-load match counts for all poules in this competition
+        match_counts: dict = {}
+        if poules:
+            ext_ids = [p.poule_id for p in poules]
+            for m in session.exec(
+                select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(ext_ids))
+            ).all():
+                mc = match_counts.setdefault(m.poule_id, {"total": 0, "played": 0})
+                mc["total"] += 1
+                if m.status == "finished":
+                    mc["played"] += 1
+
         comp_entry = {
             "link_id":     lnk.id,
             "id":          comp.id,
@@ -507,11 +519,14 @@ def get_tournament_competition_standings(
                     .order_by(HockeyTeam.name)
                 ).all()
                 teams_pending = [t.name for t in pending_teams]
+            mc = match_counts.get(poule.poule_id, {"total": 0, "played": 0})
             comp_entry["poules"].append({
-                "id":            poule.id,
-                "name":          poule.name,
-                "poule_id":      poule.poule_id,
-                "teams_pending": teams_pending,
+                "id":              poule.id,
+                "name":            poule.name,
+                "poule_id":        poule.poule_id,
+                "teams_pending":   teams_pending,
+                "matches_total":   mc["total"],
+                "matches_played":  mc["played"],
                 "standings": [
                     {
                         "team_name": r.team_name,

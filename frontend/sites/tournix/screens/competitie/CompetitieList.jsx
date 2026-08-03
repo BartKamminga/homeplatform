@@ -12,7 +12,8 @@ export default function CompetitieList({ compsData, onSelect, onRemove, isAdmin 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {compsData.map(comp => {
         const poules         = comp.poules ?? []
-        const withStandings  = poules.filter(p => p.standings?.length > 0).length
+        const matchesPlayed  = poules.reduce((s, p) => s + (p.matches_played ?? 0), 0)
+        const matchesTotal   = poules.reduce((s, p) => s + (p.matches_total  ?? 0), 0)
         const pouleTekst = poules.length > 0 ? poules.map(p => p.name).join(' · ') : 'Geen poules'
         const tags      = comp.fase_tags ?? []
         return (
@@ -36,15 +37,15 @@ export default function CompetitieList({ compsData, onSelect, onRemove, isAdmin 
                     ))}
                   </div>
                 )}
-                {poules.length > 1 && (
+                {matchesTotal > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
                     <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--color-border)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', background: 'var(--color-success)', width: `${poules.length > 0 ? Math.round(withStandings / poules.length * 100) : 0}%` }} />
+                      <div style={{ height: '100%', background: 'var(--color-success)', width: `${Math.round(matchesPlayed / matchesTotal * 100)}%` }} />
                     </div>
                     <span style={{ fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                      {withStandings}/{poules.length}
+                      {matchesPlayed}/{matchesTotal}
                     </span>
-                    {withStandings > 0 && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0, display: 'inline-block' }} />}
+                    {matchesPlayed > 0 && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0, display: 'inline-block' }} />}
                   </div>
                 )}
               </span>
