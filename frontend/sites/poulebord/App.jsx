@@ -585,9 +585,19 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
   useEffect(() => {
     getTournamentCompetitionStandings(tournament.id)
       .then(data => {
-        const hasFases = data.fases && data.fases.some(f => f.competitions.length > 0)
-        if (hasFases) { setFasesData(data.fases); setUseDiscovery(true) }
-        else setUseDiscovery(false)
+        const comps = data.competitions || []
+        if (comps.length > 0) {
+          const byLabel = {}
+          for (const comp of comps) {
+            const label = comp.fase_tags?.[0]?.name || 'Competitie'
+            if (!byLabel[label]) byLabel[label] = []
+            byLabel[label].push(comp)
+          }
+          setFasesData(Object.entries(byLabel).map(([label, competitions]) => ({ fase: label, label, competitions })))
+          setUseDiscovery(true)
+        } else {
+          setUseDiscovery(false)
+        }
       })
       .catch(() => setUseDiscovery(false))
   }, [tournament.id])
@@ -755,9 +765,15 @@ function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }
   useEffect(() => {
     getTournamentCompetitionStandings(tournament.id)
       .then(data => {
-        const hasFases = data.fases && data.fases.some(f => f.competitions.length > 0)
-        if (hasFases) {
-          setFasesData(data.fases)
+        const comps = data.competitions || []
+        if (comps.length > 0) {
+          const byLabel = {}
+          for (const comp of comps) {
+            const label = comp.fase_tags?.[0]?.name || 'Competitie'
+            if (!byLabel[label]) byLabel[label] = []
+            byLabel[label].push(comp)
+          }
+          setFasesData(Object.entries(byLabel).map(([label, competitions]) => ({ fase: label, label, competitions })))
           setUseDiscovery(true)
         } else {
           setUseDiscovery(false)

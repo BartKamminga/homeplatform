@@ -26,9 +26,10 @@ export default function CompetitieDetail({ comp, isAdmin, onBack }) {
   const [teamFilter, setTeamFilter] = useState('')
 
   useEffect(() => { setTeamFilter(''); setMatchData(null) }, [comp.id])
+  useEffect(() => { setTeamFilter('') }, [matchTab])
 
   useEffect(() => {
-    if (matchTab === 'wedstrijden' && matchData === null) {
+    if ((matchTab === 'programma' || matchTab === 'uitslagen') && matchData === null) {
       getCompetitionMatches(comp.id)
         .then(setMatchData)
         .catch(() => setMatchData({ poules: [] }))
@@ -72,13 +73,13 @@ export default function CompetitieDetail({ comp, isAdmin, onBack }) {
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        {['standen', 'wedstrijden'].map(t => (
-          <button key={t} onClick={() => setMatchTab(t)} style={{
-            padding: '5px 14px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: matchTab === t ? 600 : 400,
-            border: `1px solid ${matchTab === t ? 'var(--color-primary)' : 'var(--color-border)'}`,
-            background: matchTab === t ? 'var(--color-primary)' : 'var(--color-surface)',
-            color: matchTab === t ? '#fff' : 'var(--color-text)',
-          }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
+        {[['standen', 'Standen'], ['programma', 'Programma'], ['uitslagen', 'Uitslagen']].map(([id, label]) => (
+          <button key={id} onClick={() => setMatchTab(id)} style={{
+            padding: '5px 14px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: matchTab === id ? 600 : 400,
+            border: `1px solid ${matchTab === id ? 'var(--color-primary)' : 'var(--color-border)'}`,
+            background: matchTab === id ? 'var(--color-primary)' : 'var(--color-surface)',
+            color: matchTab === id ? '#fff' : 'var(--color-text)',
+          }}>{label}</button>
         ))}
       </div>
 
@@ -98,17 +99,19 @@ export default function CompetitieDetail({ comp, isAdmin, onBack }) {
         </div>
       )}
 
-      {matchTab === 'wedstrijden' && (
+      {(matchTab === 'programma' || matchTab === 'uitslagen') && (
         matchData === null ? (
           <div style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 24 }}>Laden…</div>
         ) : (() => {
-          const allTeams = [...new Set(
-            (matchData.poules || []).flatMap(p => [
-              ...(p.finished  || []).flatMap(m => [m.home, m.away]),
-              ...(p.scheduled || []).flatMap(m => [m.home, m.away]),
-            ]).filter(Boolean)
-          )].sort()
+          const isUitslagen = matchTab === 'uitslagen'
+          const allTeamsSrc = (matchData.poules || []).flatMap(p =>
+            (isUitslagen ? (p.finished || []) : (p.scheduled || [])).flatMap(m => [m.home, m.away])
+          )
+          const allTeams   = [...new Set(allTeamsSrc.filter(Boolean))].sort()
           const matchesTeam = m => !teamFilter || m.home === teamFilter || m.away === teamFilter
+          const anyVisible  = (matchData.poules || []).some(p =>
+            (isUitslagen ? (p.finished || []) : (p.scheduled || [])).some(matchesTeam)
+          )
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {allTeams.length > 0 && (
@@ -122,26 +125,26 @@ export default function CompetitieDetail({ comp, isAdmin, onBack }) {
                   )}
                 </div>
               )}
+              {!anyVisible && (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: 13, fontStyle: 'italic', textAlign: 'center', padding: 24 }}>
+                  {isUitslagen ? 'Geen gespeelde wedstrijden' : 'Geen wedstrijden gepland'}
+                </div>
+              )}
               {(matchData.poules || []).map(poule => {
-                const fin   = (poule.finished  || []).filter(matchesTeam)
-                const sched = (poule.scheduled || []).filter(matchesTeam)
-                if (fin.length === 0 && sched.length === 0) return null
+                const items    = isUitslagen ? (poule.finished || []) : (poule.scheduled || [])
+                const filtered = items.filter(matchesTeam)
+                if (filtered.length === 0) return null
                 return (
                   <div key={poule.id}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: 6, paddingLeft: 2 }}>{poule.name}</div>
-                    {fin.map((m, i) => (
+                    {filtered.map((m, i) => (
                       <div key={m.match_id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 12 }}>
                         {m.date && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0, width: 70 }}>{fmtDate(m.date)}</span>}
                         <span style={{ flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: teamFilter === m.home ? 700 : 400 }}>{m.home}</span>
-                        <span style={{ fontWeight: 700, flexShrink: 0, minWidth: 40, textAlign: 'center', color: 'var(--color-primary)' }}>{fmtScore(m.home_score, m.away_score)}</span>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: teamFilter === m.away ? 700 : 400 }}>{m.away}</span>
-                      </div>
-                    ))}
-                    {sched.map((m, i) => (
-                      <div key={m.match_id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 12 }}>
-                        {m.date && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0, width: 70 }}>{fmtDate(m.date)}</span>}
-                        <span style={{ flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: teamFilter === m.home ? 700 : 400 }}>{m.home}</span>
-                        <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 40, textAlign: 'center', fontSize: 11 }}>vs</span>
+                        {isUitslagen
+                          ? <span style={{ fontWeight: 700, flexShrink: 0, minWidth: 40, textAlign: 'center', color: 'var(--color-primary)' }}>{fmtScore(m.home_score, m.away_score)}</span>
+                          : <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 40, textAlign: 'center', fontSize: 11 }}>vs</span>
+                        }
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: teamFilter === m.away ? 700 : 400 }}>{m.away}</span>
                       </div>
                     ))}

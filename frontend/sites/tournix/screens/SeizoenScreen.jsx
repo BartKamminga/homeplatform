@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { getTournaments, createTournament } from '../api.js'
 import BeheerDiscoveryTab from '../beheer/DiscoveryTab.jsx'
-import VangerTab from '../beheer/VangerTab.jsx'
+import VangerTab          from '../beheer/VangerTab.jsx'
+import StatsTab           from '../beheer/StatsTab.jsx'
 import CaptureArchiefTab  from '../beheer/ArchiefTab.jsx'
 
 const SEIZOEN_TABS = [
   { id: 'publicaties', label: 'Publicaties' },
-  { id: 'archief',     label: 'Archief'     },
   { id: 'discovery',   label: 'Discovery'   },
   { id: 'vanger',      label: 'Vanger'      },
+  { id: 'stats',       label: 'Stats'       },
+  { id: 'archief',     label: 'Archief'     },
 ]
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
@@ -192,14 +194,17 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
             <PublicatiesTab tournaments={active} onOpen={onOpenTournament} />
           </>
         )}
-        {tab === 'archief' && (
-          <CaptureArchiefTab />
+        {tab === 'discovery' && (
+          <BeheerDiscoveryTab view="resultaten" />
         )}
         {tab === 'vanger' && (
           <VangerTab />
         )}
-        {tab === 'discovery' && (
-          <BeheerDiscoveryTab view="resultaten" />
+        {tab === 'stats' && (
+          <StatsTab />
+        )}
+        {tab === 'archief' && (
+          <CaptureArchiefTab />
         )}
       </div>
     </div>

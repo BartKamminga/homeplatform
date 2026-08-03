@@ -1,17 +1,11 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import { useQueueCmd, statBox, statNum, statLbl } from './queueShared.jsx'
+import { useQueueCmd } from './queueShared.jsx'
 import VangerStatusCard   from './vanger/VangerStatusCard.jsx'
 import CmdQueueSection    from './vanger/CmdQueueSection.jsx'
 import QueueFilterBar     from './vanger/QueueFilterBar.jsx'
 import PouleQueueSection  from './vanger/PouleQueueSection.jsx'
 import QueuesPanel        from './vanger/QueuesPanel.jsx'
-
-function resolveHockeyType(t) {
-  if (t.hockey_type === 'VE' || t.hockey_type === 'ZA') return t.hockey_type
-  if (t.short_name && t.short_name[0] === 'z') return 'ZA'
-  return 'VE'
-}
 
 export default function VangerTab() {
   const [clubs,         setClubs]         = useState([])
@@ -175,39 +169,10 @@ export default function VangerTab() {
     )
   }
 
-  const clubLogoMap   = Object.fromEntries(clubs.filter(c => c.logo_url).map(c => [c.external_id, c.logo_url]))
-  const youthCount    = allTeams.filter(t => t.category_group_name === 'Junioren').length
-  const veldCount     = allTeams.filter(t => resolveHockeyType(t) === 'VE').length
-  const zaalCount     = allTeams.filter(t => resolveHockeyType(t) === 'ZA').length
-  const detailLoaded  = clubs.filter(c => c.detail_loaded).length
-  const noDetail      = clubs.length - detailLoaded
+  const clubLogoMap = Object.fromEntries(clubs.filter(c => c.logo_url).map(c => [c.external_id, c.logo_url]))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-        <div style={statBox}><span style={statNum}>{clubs.length}</span><span style={statLbl}>clubs</span></div>
-        <div style={statBox}><span style={statNum}>{detailLoaded}</span><span style={statLbl}>detail geladen</span></div>
-        <div style={statBox}><span style={statNum}>{youthCount}</span><span style={statLbl}>jeugdteams</span></div>
-        <div style={statBox}><span style={statNum}>{veldCount}</span><span style={statLbl}>🏑 veld</span></div>
-        <div style={statBox}><span style={statNum}>{zaalCount}</span><span style={statLbl}>🏒 zaal</span></div>
-        <div style={{ ...statBox, borderColor: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-border)' }}>
-          <span style={{ ...statNum, color: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-text)' }}>{queue.captured}/{queue.total}</span>
-          <span style={statLbl}>poules {queue.target_season || '2026-2027'}</span>
-        </div>
-        {queue.stale > 0 && (
-          <div style={statBox}><span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.stale}</span><span style={statLbl}>oud seizoen</span></div>
-        )}
-        {queue.waiting > 0 && (
-          <div style={statBox}><span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.waiting}</span><span style={statLbl}>⏳ wacht</span></div>
-        )}
-        {pluginErrors.length > 0 && (
-          <div style={{ ...statBox, borderColor: 'var(--color-danger)', cursor: 'pointer' }} onClick={() => setErrOpen(true)}>
-            <span style={{ ...statNum, color: 'var(--color-danger)' }}>{pluginErrors.length}</span>
-            <span style={statLbl}>plugin fouten</span>
-          </div>
-        )}
-      </div>
-
       {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
       {loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
 
@@ -223,12 +188,6 @@ export default function VangerTab() {
         onRetrySingle={retryCmdQueue}
         cmdOps={cmdOps}
       />
-
-      {noDetail > 0 && !loading && (
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 10px', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
-          ⚠️ {noDetail} clubs zonder detail — scan via de vanger op www.hockey.nl
-        </div>
-      )}
 
       <QueuesPanel
         pluginErrors={pluginErrors} setPluginErrors={setPluginErrors}
