@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import { deleteEmptyCompetitions } from '../api.js'
-import { pill, statBox, statNum, statLbl, useQueueCmd } from './queueShared.jsx'
+import { pill, useQueueCmd } from './queueShared.jsx'
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {
@@ -36,7 +36,6 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
   const [queue,          setQueue]          = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
   const [capturedPoules, setCapturedPoules] = useState([])
   const [competitions,   setCompetitions]   = useState([])
-  const [pluginErrors,   setPluginErrors]   = useState([])
   const [season,         setSeason]         = useState('2026-2027')
   const [loading,        setLoading]        = useState(true)
   const [error,          setError]          = useState('')
@@ -62,14 +61,12 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
       api.get('/api/tournix/discovery/teams'),
       api.get('/api/tournix/discovery/poule-queue'),
       api.get(`/api/tournix/discovery/competitions?season=${season}`),
-      api.get('/api/tournix/discovery/plugin-errors?limit=30'),
       api.get(`/api/tournix/discovery/poules?season=${season}`),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, poulesRes]) => {
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes, poulesRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setCompetitions(compsRes.competitions || [])
-      setPluginErrors(errRes.errors || [])
       setCapturedPoules(poulesRes.poules || [])
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
@@ -111,11 +108,6 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
     poulesByClub[t.club_external_id].total++
     if (qp.captured && !qp.stale) poulesByClub[t.club_external_id].captured++
   }
-
-  const youthCount   = allTeams.filter(t => t.category_group_name === 'Junioren').length
-  const veldCount    = allTeams.filter(t => resolveHockeyType(t) === 'VE').length
-  const zaalCount    = allTeams.filter(t => resolveHockeyType(t) === 'ZA').length
-  const detailLoaded = clubs.filter(c => c.detail_loaded).length
 
   const sortedClubs = [...clubs].sort((a, b) => {
     const aLen = (teamsByClub[a.external_id] || []).length
@@ -165,39 +157,6 @@ export default function DiscoveryTab({ view = 'resultaten' }) {
             color: season === s ? '#fff' : 'var(--color-text)',
           }}>{s}</button>
         ))}
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-        <div style={statBox}><span style={statNum}>{clubs.length}</span><span style={statLbl}>clubs</span></div>
-        <div style={statBox}><span style={statNum}>{detailLoaded}</span><span style={statLbl}>detail geladen</span></div>
-        <div style={statBox}><span style={statNum}>{youthCount}</span><span style={statLbl}>jeugdteams</span></div>
-        <div style={statBox}><span style={statNum}>{veldCount}</span><span style={statLbl}>🏑 veld</span></div>
-        <div style={statBox}><span style={statNum}>{zaalCount}</span><span style={statLbl}>🏒 zaal</span></div>
-        <div style={{ ...statBox, borderColor: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-border)' }}>
-          <span style={{ ...statNum, color: queue.captured === queue.total && queue.total > 0 ? 'var(--color-success)' : 'var(--color-text)' }}>
-            {queue.captured}/{queue.total}
-          </span>
-          <span style={statLbl}>poules {queue.target_season || '2026-2027'}</span>
-        </div>
-        {queue.stale > 0 && (
-          <div style={statBox}>
-            <span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.stale}</span>
-            <span style={statLbl}>oud seizoen</span>
-          </div>
-        )}
-        {queue.waiting > 0 && (
-          <div style={statBox}>
-            <span style={{ ...statNum, color: 'var(--color-text-muted)' }}>{queue.waiting}</span>
-            <span style={statLbl}>⏳ wacht</span>
-          </div>
-        )}
-        {pluginErrors.length > 0 && (
-          <div style={{ ...statBox, borderColor: 'var(--color-danger)' }}>
-            <span style={{ ...statNum, color: 'var(--color-danger)' }}>{pluginErrors.length}</span>
-            <span style={statLbl}>plugin fouten</span>
-          </div>
-        )}
       </div>
 
       {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}

@@ -14,7 +14,7 @@ export default function CompetitieList({ compsData, onSelect, onRemove, isAdmin 
         const poules         = comp.poules ?? []
         const matchesPlayed  = poules.reduce((s, p) => s + (p.matches_played ?? 0), 0)
         const matchesTotal   = poules.reduce((s, p) => s + (p.matches_total  ?? 0), 0)
-        const pouleTekst = poules.length > 0 ? poules.map(p => p.name).join(' · ') : 'Geen poules'
+        const pouleTekst = poules.length > 0 ? `${poules.length} poule${poules.length !== 1 ? 's' : ''}` : 'Geen poules'
         const tags      = comp.fase_tags ?? []
         return (
           <div key={comp.link_id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
