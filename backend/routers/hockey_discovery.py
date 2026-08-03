@@ -1022,6 +1022,43 @@ def list_competitions(
     return {"total": len(result), "competitions": result}
 
 
+# ── Stats per seizoen ────────────────────────────────────
+@router.get("/stats/by-season")
+def get_stats_by_season(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    from collections import defaultdict
+
+    comps  = session.exec(select(HockeyCompetition)).all()
+    poules = session.exec(select(HockeyPoule)).all()
+    captured_ids = set(session.exec(
+        select(HockeyPouleStanding.poule_id).distinct()
+    ).all())
+
+    comp_by_season: dict = defaultdict(list)
+    for c in comps:
+        comp_by_season[c.season or "onbekend"].append(c)
+
+    poule_by_comp: dict = defaultdict(list)
+    for p in poules:
+        poule_by_comp[p.competition_id].append(p)
+
+    result = []
+    for season in sorted(comp_by_season.keys(), reverse=True):
+        season_comps  = comp_by_season[season]
+        season_poules = [p for c in season_comps for p in poule_by_comp.get(c.id, [])]
+        captured = sum(1 for p in season_poules if p.poule_id in captured_ids)
+        result.append({
+            "season":          season,
+            "competitions":    len(season_comps),
+            "total_poules":    len(season_poules),
+            "captured_poules": captured,
+        })
+
+    return {"stats": result}
+
+
 # ── Cleanup lege competities ─────────────────────────────
 @router.delete("/competitions/empty")
 def delete_empty_competitions(
@@ -1523,9 +1560,13 @@ def fill_cmd_queue(
         q = q.order_by(col(HockeyTeam.short_name))
         teams = session.exec(q).all()
 
-        skip_ids = {
+        stale_poule_ids = {
             t.recent_poule_id for t in teams
-            if t.recent_poule_id and (t.no_new_poule_confirmed or t.season_pending)
+            if t.recent_poule_id and t.season_pending
+        }
+        skip_ids = stale_poule_ids | {
+            t.recent_poule_id for t in teams
+            if t.recent_poule_id and t.no_new_poule_confirmed
         }
 
         seen: set = set()
@@ -1658,7 +1699,10 @@ def fill_cmd_queue(
             added += 1
 
     session.commit()
-    return {"added": added, "type": body.type}
+    extra: Dict[str, Any] = {}
+    if body.type == "poules":
+        extra["stale_skip"] = len(stale_poule_ids)
+    return {"added": added, "type": body.type, **extra}
 
 
 class CmdAddIn(BaseModel):

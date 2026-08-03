@@ -9,11 +9,12 @@ function resolveHockeyType(t) {
 }
 
 export default function StatsTab() {
-  const [clubs,   setClubs]   = useState([])
-  const [teams,   setTeams]   = useState([])
-  const [queue,   setQueue]   = useState(null)
-  const [errors,  setErrors]  = useState([])
-  const [loading, setLoading] = useState(true)
+  const [clubs,       setClubs]       = useState([])
+  const [teams,       setTeams]       = useState([])
+  const [queue,       setQueue]       = useState(null)
+  const [errors,      setErrors]      = useState([])
+  const [seasonStats, setSeasonStats] = useState([])
+  const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
     setLoading(true)
@@ -22,11 +23,13 @@ export default function StatsTab() {
       api.get('/api/tournix/discovery/teams'),
       api.get('/api/tournix/discovery/poule-queue'),
       api.get('/api/tournix/discovery/plugin-errors?limit=5'),
-    ]).then(([clubsRes, teamsRes, queueRes, errRes]) => {
+      api.get('/api/tournix/discovery/stats/by-season'),
+    ]).then(([clubsRes, teamsRes, queueRes, errRes, seasonRes]) => {
       setClubs(clubsRes.clubs || [])
       setTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setErrors(errRes.errors || [])
+      setSeasonStats(seasonRes.stats || [])
     }).finally(() => setLoading(false))
   }, [])
 
@@ -107,6 +110,42 @@ export default function StatsTab() {
           {section(`Plugin fouten (${errors.length})`)}
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '8px 12px', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-danger)' }}>
             Bekijk details in de Vanger tab.
+          </div>
+        </div>
+      )}
+
+      {seasonStats.length > 0 && (
+        <div>
+          {section('Seizoen coverage')}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', fontWeight: 600 }}>Seizoen</th>
+                  <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Comp.</th>
+                  <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Poules</th>
+                  <th style={{ textAlign: 'right', padding: '4px 0 4px 4px', fontWeight: 600 }}>Gevangen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonStats.map(s => {
+                  const pct = s.total_poules > 0 ? Math.round(s.captured_poules / s.total_poules * 100) : 0
+                  return (
+                    <tr key={s.season} style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                      <td style={{ padding: '5px 8px 5px 0', fontWeight: s.season === queue?.target_season ? 700 : 400 }}>{s.season}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{s.competitions}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{s.total_poules}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 0 5px 4px' }}>
+                        <span style={{ color: pct === 100 && s.total_poules > 0 ? 'var(--color-success)' : pct > 50 ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                          {s.captured_poules}/{s.total_poules}
+                          <span style={{ fontSize: 10, color: 'var(--color-text-muted)', marginLeft: 4 }}>({pct}%)</span>
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

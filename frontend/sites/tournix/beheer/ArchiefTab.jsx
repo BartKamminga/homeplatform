@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react'
 import { getCaptureSessions, getCaptureSessionItems, reprocessCaptures } from '../api.js'
 import { muted, ghostBtn } from './styles.js'
 
+function captureLabel(captureType) {
+  if (captureType === 'poule_capture') return 'Poule capture'
+  if (captureType === 'club_detail')   return 'Club detail'
+  if (captureType === 'comp_detail')   return 'Competitie detail'
+  return 'Capture'
+}
+
 function fmt(iso) {
   if (!iso) return '?'
   return new Date(iso).toLocaleString('nl-NL', {
@@ -82,8 +89,8 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
   const compDetailPoules = compDetailData?.poules ?? []
 
   const title = isCompDetail
-    ? (compDetailData?.name || m.competition || item.external_id)
-    : ([m.competition, m.poule_name].filter(Boolean).join(' — ') || item.external_id)
+    ? (compDetailData?.name || m.competition || captureLabel(item.capture_type))
+    : ([m.competition, m.poule_name].filter(Boolean).join(' — ') || captureLabel(item.capture_type))
   const subtitle = isCompDetail
     ? (m.class_name || '')
     : [m.class_name, m.via_team ? `via ${m.via_team}` : null].filter(Boolean).join(' · ')
@@ -339,9 +346,9 @@ export default function ArchiefTab() {
           {reprocessMsg}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 16 }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {/* Sessie lijst */}
-        <div style={{ flex: '0 0 260px', minWidth: 0 }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
             Sessies ({sessions.length})
           </div>

@@ -11,7 +11,8 @@ export default function CompetitieList({ compsData, onSelect, onRemove, isAdmin 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {compsData.map(comp => {
-        const poules    = comp.poules ?? []
+        const poules         = comp.poules ?? []
+        const withStandings  = poules.filter(p => p.standings?.length > 0).length
         const pouleTekst = poules.length > 0 ? poules.map(p => p.name).join(' · ') : 'Geen poules'
         const tags      = comp.fase_tags ?? []
         return (
@@ -33,6 +34,17 @@ export default function CompetitieList({ compsData, onSelect, onRemove, isAdmin 
                     {tags.map(t => (
                       <span key={t.id} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: 'var(--color-primary)', color: '#fff', fontWeight: 600, letterSpacing: '0.02em' }}>{t.name}</span>
                     ))}
+                  </div>
+                )}
+                {poules.length > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                    <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--color-border)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', background: 'var(--color-success)', width: `${poules.length > 0 ? Math.round(withStandings / poules.length * 100) : 0}%` }} />
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                      {withStandings}/{poules.length}
+                    </span>
+                    {withStandings > 0 && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0, display: 'inline-block' }} />}
                   </div>
                 )}
               </span>

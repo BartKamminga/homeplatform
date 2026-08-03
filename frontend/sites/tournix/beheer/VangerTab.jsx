@@ -56,7 +56,20 @@ export default function VangerTab() {
     const body = { type }
     if (maxAgeDays !== undefined) body.max_age_days = maxAgeDays
     api.post('/api/tournix/discovery/vanger/cmd-queue/fill', body)
-      .then(r => { loadCmdQueue(); const c = r?.added ?? 0; setFillMsg(c > 0 ? `+${c} toegevoegd` : 'Niets toegevoegd (al in wachtrij of filter leeg)'); setTimeout(() => setFillMsg(''), 4000) })
+      .then(r => {
+        loadCmdQueue()
+        const c = r?.added ?? 0
+        let msg
+        if (c > 0) {
+          msg = `+${c} toegevoegd`
+        } else if (r?.stale_skip > 0) {
+          msg = `${r.stale_skip} ploegen zitten in oud-seizoenpoules — gebruik eerst 'Clubs vullen' om nieuwe te ontdekken`
+        } else {
+          msg = 'Niets toegevoegd (al in wachtrij of filter leeg)'
+        }
+        setFillMsg(msg)
+        setTimeout(() => setFillMsg(''), 6000)
+      })
       .catch(() => {})
       .finally(() => setCmdFilling(null))
   }
