@@ -84,16 +84,23 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
   }
   const sortedRounds = Object.keys(rounds).sort((a, b) => Number(a) - Number(b))
 
-  const isCompDetail = item.capture_type === 'comp_detail'
-  const compDetailData = isCompDetail ? (item.payload?.data?.data ?? {}) : null
+  const isCompDetail  = item.capture_type === 'comp_detail'
+  const isClubDetail  = item.capture_type === 'club_detail'
+  const compDetailData   = isCompDetail ? (item.payload?.data?.data ?? {}) : null
   const compDetailPoules = compDetailData?.poules ?? []
+  const clubPayload   = isClubDetail ? item.payload : null
+  const clubTeams     = clubPayload?.teams ?? []
 
   const title = isCompDetail
     ? (compDetailData?.name || m.competition || captureLabel(item.capture_type))
-    : ([m.competition, m.poule_name].filter(Boolean).join(' — ') || captureLabel(item.capture_type))
+    : isClubDetail
+      ? (m.name || m.club || captureLabel(item.capture_type))
+      : ([m.competition, m.poule_name].filter(Boolean).join(' — ') || captureLabel(item.capture_type))
   const subtitle = isCompDetail
     ? (m.class_name || '')
-    : [m.class_name, m.via_team ? `via ${m.via_team}` : null].filter(Boolean).join(' · ')
+    : isClubDetail
+      ? [clubPayload?.city, clubPayload?.district].filter(Boolean).join(' · ')
+      : [m.class_name, m.via_team ? `via ${m.via_team}` : null].filter(Boolean).join(' · ')
 
   return (
     <div style={{
@@ -120,9 +127,11 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
         </div>
         {isCompDetail
           ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>🏆 {compDetailPoules.length} poules</span>
-          : item.capture_type === 'poule_capture'
-            ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}</span>
-            : null
+          : isClubDetail
+            ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.teams ?? '?'} teams</span>
+            : item.capture_type === 'poule_capture'
+              ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}</span>
+              : null
         }
       </div>
 
@@ -203,7 +212,59 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
             </div>
           )}
 
-          {standings.length === 0 && sortedRounds.length === 0 && !isCompDetail && (
+          {isClubDetail && (clubPayload?.city || clubPayload?.district || clubPayload?.website || clubTeams.length > 0) && (
+            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--color-border)' }}>
+              {(clubPayload?.city || clubPayload?.district || clubPayload?.website) && (
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+                  {clubPayload.city     && <span>📍 {clubPayload.city}</span>}
+                  {clubPayload.district && <span>🗺 {clubPayload.district}</span>}
+                  {clubPayload.website  && (
+                    <a href={clubPayload.website} target="_blank" rel="noreferrer"
+                       style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>🌐 Website</a>
+                  )}
+                </div>
+              )}
+              {clubTeams.length > 0 && (() => {
+                const byCategory = {}
+                for (const t of clubTeams) {
+                  const cat = t.category_group_name || 'Overig'
+                  if (!byCategory[cat]) byCategory[cat] = []
+                  byCategory[cat].push(t)
+                }
+                return (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                      Teams ({clubTeams.length})
+                    </div>
+                    {Object.entries(byCategory).map(([cat, teams]) => (
+                      <div key={cat} style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>{cat}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {teams.map(t => (
+                            <div key={t.id} style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 3,
+                              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                              borderRadius: 5, padding: '2px 7px', fontSize: 11,
+                            }}>
+                              <span style={{ fontSize: 10 }}>{t.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
+                              <span>{t.short_name || t.name}</span>
+                              {t.recent_poule_id && (
+                                <span style={{ fontSize: 9, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                  #{t.recent_poule_id}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {standings.length === 0 && sortedRounds.length === 0 && !isCompDetail && !isClubDetail && (
             <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
               Geen detail-data beschikbaar voor dit item.
             </div>

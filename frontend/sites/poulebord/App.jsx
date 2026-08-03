@@ -1103,7 +1103,8 @@ export default function App() {
   useEffect(() => {
     getTournaments()
       .then(data => {
-        const filtered = data.filter(t => t.season === SEASON)
+        const normSeason = s => (s || '').replace(/\s*-\s*/g, '-')
+        const filtered = data.filter(t => normSeason(t.season) === normSeason(SEASON))
         setAll(filtered)
         if (filtered.length) setSelectedPub(filtered[0])
       })
