@@ -291,6 +291,13 @@ function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onRemove })
   const assignedIds = new Set(assigned.map(t => t.id))
   const available = globalTags.filter(t => !assignedIds.has(t.id))
 
+  const suggestedTags = globalTags.filter(gt =>
+    !assignedIds.has(gt.id) &&
+    [comp?.class_name, comp?.district].some(s =>
+      s && gt.name.toLowerCase() === s.toLowerCase()
+    )
+  )
+
   useEffect(() => {
     if (!showTagPicker) return
     function onClickOut(e) {
@@ -371,7 +378,17 @@ function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onRemove })
           </div>
         )}
 
-        {assigned.length === 0 && available.length === 0 && (
+        {suggestedTags.map(tag => (
+          <button key={`sug-${tag.id}`} onClick={() => { onAssignTag(tag.id); setShowTagPicker(false) }} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: 11, padding: '2px 8px', borderRadius: 20,
+            border: '1px dashed var(--color-text-muted)',
+            color: 'var(--color-text-muted)', background: 'none', cursor: 'pointer',
+          }} title={`Suggestie op basis van ${comp?.class_name === tag.name ? 'klasse' : 'district'}`}>
+            + {tag.name}
+          </button>
+        ))}
+        {assigned.length === 0 && available.length === 0 && suggestedTags.length === 0 && (
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>geen tags</span>
         )}
       </div>

@@ -4,7 +4,7 @@ import { pill } from '../queueShared.jsx'
 const AGE_RE = /[JMjm][OZoz](\d+)-/
 const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }
 
-export default function PouleQueueSection({ queue, qFilter, allTeams, showWaiting, expanded, queueOpen, setQueueOpen, toggle, onResetPoule, cmdOps }) {
+export default function PouleQueueSection({ queue, qFilter, allTeams, showWaiting, expanded, queueOpen, setQueueOpen, toggle, onResetPoule, cmdOps, onFillClubs, clubsFilling }) {
   const { addSingleCmd, cmdAdding } = cmdOps
 
   const allAgesInQueue = [...new Set(
@@ -45,6 +45,19 @@ export default function PouleQueueSection({ queue, qFilter, allTeams, showWaitin
 
       {queueOpen && (
         <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {queue.waiting > 0 && onFillClubs && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px 10px',
+              borderBottom: '1px solid var(--color-border)', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flex: 1 }}>
+                ⏳ {queue.waiting} teams wachten op club-scan
+              </span>
+              <button onClick={onFillClubs} disabled={clubsFilling} style={{
+                fontSize: 11, padding: '3px 10px', borderRadius: 6, fontFamily: 'inherit', cursor: clubsFilling ? 'default' : 'pointer',
+                border: '1px solid var(--color-primary)', background: 'transparent',
+                color: 'var(--color-primary)', opacity: clubsFilling ? 0.5 : 1,
+              }}>{clubsFilling ? 'Bezig…' : '+ Clubs scannen'}</button>
+            </div>
+          )}
           {allAges.map(ag => {
             const g      = byAge[ag]
             const agOpen = expanded.has('q_' + ag)

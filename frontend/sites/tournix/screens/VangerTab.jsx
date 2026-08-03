@@ -226,6 +226,8 @@ export default function VangerTab() {
           queueOpen={queueOpen} setQueueOpen={setQueueOpen}
           toggle={toggle} onResetPoule={resetPoule}
           cmdOps={cmdOps}
+          onFillClubs={() => fillCmdQueue('clubs')}
+          clubsFilling={cmdFilling === 'clubs'}
         />
       )}
 

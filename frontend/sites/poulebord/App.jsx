@@ -82,10 +82,6 @@ function categoryOf(name = '') {
   return CATEGORIES.find(c => u.includes(c)) ?? null
 }
 
-function sublabelOf(name = '', cat = '') {
-  return name.replace(new RegExp(cat, 'i'), '').trim()
-}
-
 // ── Empty board ────────────────────────────────────────────────────────────────
 
 function EmptyBoard() {
@@ -989,13 +985,67 @@ function PoolSearchCard({ result, poolPins, onPoolPin }) {
   )
 }
 
+// ── Browse: competition item (expandable) ─────────────────────────────────────
+
+function CompBrowseItem({ comp, club, expanded, onToggle }) {
+  const tags = [
+    ...(comp.class_name ? [comp.class_name] : []),
+    ...(comp.fase_tags || []).map(t => t.name),
+  ]
+
+  return (
+    <div style={{ background: C.card, borderRadius: 12, marginBottom: 8,
+      overflow: 'hidden', border: `1px solid ${C.border}` }}>
+      <button onClick={onToggle} style={{
+        width: '100%', padding: '12px 16px', background: 'transparent', border: 'none',
+        cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>{comp.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.04em',
+            fontSize: 15, color: C.chalk, lineHeight: 1.2 }}>{comp.name}</div>
+          {tags.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+              {tags.map((tag, i) => (
+                <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                  background: 'rgba(207,159,63,0.10)', color: C.gold,
+                  border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
+              ))}
+            </div>
+          )}
+        </span>
+        <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${C.border}` }}>
+          {(comp.poules ?? []).length === 0 ? (
+            <div style={{ color: C.muted, fontSize: 12, fontStyle: 'italic',
+              padding: '10px 0', textAlign: 'center' }}>Geen poules gevonden</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+              {comp.poules.map(poule => (
+                <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                  <DiscPouleTable poule={poule} club={club} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [all, setAll]             = useState(null)
-  const [cat, setCat]             = useState(null)
-  const [subFilter, setSubFilter] = useState(null)
-  const [club, setClub]           = useState(() => localStorage.getItem(CLUB_KEY) || '')
+  const [all, setAll]               = useState(null)
+  const [selectedPub, setSelectedPub]   = useState(null)
+  const [tagFilter, setTagFilter]       = useState(null)
+  const [pubComps, setPubComps]         = useState(null)
+  const [expandedCompId, setExpandedCompId] = useState(null)
+  const [club, setClub]             = useState(() => localStorage.getItem(CLUB_KEY) || '')
   const [clubEdit, setClubEdit]   = useState(false)
   const [clubInput, setClubInput] = useState('')
   const [clubs, setClubs]         = useState([])
@@ -1055,11 +1105,20 @@ export default function App() {
       .then(data => {
         const filtered = data.filter(t => t.season === SEASON)
         setAll(filtered)
-        const avail = CATEGORIES.filter(c => filtered.some(t => categoryOf(t.name) === c))
-        if (avail.length) setCat(avail[0])
+        if (filtered.length) setSelectedPub(filtered[0])
       })
       .catch(() => setError('Kon toernooien niet laden'))
   }, [])
+
+  useEffect(() => {
+    if (!selectedPub) { setPubComps(null); return }
+    setPubComps(null)
+    setTagFilter(null)
+    setExpandedCompId(null)
+    getTournamentCompetitionStandings(selectedPub.id)
+      .then(data => setPubComps(data.competitions || []))
+      .catch(() => setPubComps([]))
+  }, [selectedPub])
 
   useEffect(() => {
     if (!searchMode || searchQ.length < 2) { setSearchResults(null); return }
@@ -1070,7 +1129,7 @@ export default function App() {
     return () => clearTimeout(searchTimerRef.current)
   }, [searchQ, searchMode])
 
-  function handleCatChange(c) { setCat(c); setSubFilter(null); setInfoOpen(false) }
+  function handlePubChange(t) { setSelectedPub(t); setInfoOpen(false) }
 
   function saveClub() {
     const val = clubInput.trim()
@@ -1172,14 +1231,23 @@ export default function App() {
   }
 
   const totalPins    = pins.size + poolPins.size
-  const available    = all ? CATEGORIES.filter(c => all.some(t => categoryOf(t.name) === c)) : []
-  const catTournaments = all ? all.filter(t => categoryOf(t.name) === cat) : []
-  const subOptions   = [...new Set(catTournaments.map(t => sublabelOf(t.name, cat)).filter(Boolean))]
+  const allTags      = pubComps
+    ? [...new Set(pubComps.flatMap(c => {
+        const tags = []
+        if (c.class_name) tags.push(c.class_name)
+        ;(c.fase_tags || []).forEach(t => tags.push(t.name))
+        return tags
+      }))]
+    : []
+  const filteredComps = !pubComps ? [] : !tagFilter ? pubComps
+    : pubComps.filter(c => {
+        const tags = (c.fase_tags || []).map(t => t.name)
+        if (c.class_name) tags.push(c.class_name)
+        return tags.includes(tagFilter)
+      })
   const visible      = searchMode
     ? (all || []).filter(t => t.name.toLowerCase().includes(searchQ.toLowerCase()))
-    : subFilter
-      ? catTournaments.filter(t => sublabelOf(t.name, cat) === subFilter)
-      : catTournaments
+    : []
 
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, fontFamily: "'Inter', sans-serif", color: C.chalk }}>
@@ -1276,16 +1344,16 @@ export default function App() {
           </div>
         )}
 
-        {!boardOn && !myBoardsView && !searchMode && available.length > 0 && (
+        {!boardOn && !myBoardsView && !searchMode && all?.length > 0 && (
           <div style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 8px' }}>
-            {available.map(c => (
-              <button key={c} onClick={() => handleCatChange(c)} style={{
+            {all.map(t => (
+              <button key={t.id} onClick={() => handlePubChange(t)} style={{
                 padding: '8px 14px', background: 'transparent', border: 'none', cursor: 'pointer',
                 fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: '0.05em',
-                color: cat === c ? C.gold : C.muted,
-                borderBottom: cat === c ? `2px solid ${C.gold}` : '2px solid transparent',
+                color: selectedPub?.id === t.id ? C.gold : C.muted,
+                borderBottom: selectedPub?.id === t.id ? `2px solid ${C.gold}` : '2px solid transparent',
                 whiteSpace: 'nowrap', flexShrink: 0,
-              }}>{c}</button>
+              }}>{t.name}</button>
             ))}
           </div>
         )}
@@ -1510,7 +1578,7 @@ export default function App() {
           {all === null && !error && (
             <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
           )}
-          {all !== null && available.length === 0 && (
+          {all !== null && all.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 24px' }}>
               <div style={{ fontSize: 40, marginBottom: 16 }}>🏒</div>
               <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22,
@@ -1521,37 +1589,42 @@ export default function App() {
               </div>
             </div>
           )}
-          {cat && all !== null && (
+          {selectedPub && all !== null && (
             <>
-              {subOptions.length > 1 && (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => setSubFilter(null)} style={{
+              <SeizoenInfo cat={categoryOf(selectedPub.name)} open={infoOpen} onToggle={() => setInfoOpen(o => !o)} />
+              {allTags.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <button onClick={() => setTagFilter(null)} style={{
                     padding: '4px 12px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                    background: !subFilter ? C.gold : 'transparent',
-                    color: !subFilter ? C.deep : C.muted,
-                    border: `1px solid ${!subFilter ? C.gold : C.border}`,
-                    fontWeight: !subFilter ? 700 : 400,
-                  }}>Alles</button>
-                  {subOptions.map(opt => (
-                    <button key={opt} onClick={() => setSubFilter(subFilter === opt ? null : opt)} style={{
+                    background: !tagFilter ? C.gold : 'transparent', color: !tagFilter ? C.deep : C.muted,
+                    border: `1px solid ${!tagFilter ? C.gold : C.border}`, fontWeight: !tagFilter ? 700 : 400,
+                  }}>Alle</button>
+                  {allTags.map(tag => (
+                    <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? null : tag)} style={{
                       padding: '4px 12px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                      background: subFilter === opt ? C.gold : 'transparent',
-                      color: subFilter === opt ? C.deep : C.muted,
-                      border: `1px solid ${subFilter === opt ? C.gold : C.border}`,
-                      fontWeight: subFilter === opt ? 700 : 400,
-                    }}>{opt}</button>
+                      background: tagFilter === tag ? C.gold : 'transparent', color: tagFilter === tag ? C.deep : C.muted,
+                      border: `1px solid ${tagFilter === tag ? C.gold : C.border}`, fontWeight: tagFilter === tag ? 700 : 400,
+                    }}>{tag}</button>
                   ))}
                 </div>
               )}
-              <SeizoenInfo cat={cat} open={infoOpen} onToggle={() => setInfoOpen(o => !o)} />
-              {visible.map(t => (
-                <TournamentCard
-                  key={t.id} tournament={t} club={club}
-                  pinned={pins.has(t.id)} onPin={() => togglePin(t.id)}
-                  poolPins={poolPins}
-                  onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, t.name)}
-                />
-              ))}
+              {pubComps === null ? (
+                <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
+              ) : filteredComps.length === 0 ? (
+                <div style={{ textAlign: 'center', color: C.muted, padding: '24px 0', fontStyle: 'italic', fontSize: 13 }}>
+                  Geen competities{tagFilter ? ` voor "${tagFilter}"` : ''}
+                </div>
+              ) : (
+                filteredComps.map(comp => (
+                  <CompBrowseItem
+                    key={comp.link_id}
+                    comp={comp}
+                    club={club}
+                    expanded={expandedCompId === comp.link_id}
+                    onToggle={() => setExpandedCompId(id => id === comp.link_id ? null : comp.link_id)}
+                  />
+                ))
+              )}
             </>
           )}
         </div>
