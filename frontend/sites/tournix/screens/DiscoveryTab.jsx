@@ -43,6 +43,8 @@ export default function DiscoveryTab() {
   const [compOpen,       setCompOpen]       = useState(false)
   const [cleanupMsg,     setCleanupMsg]     = useState('')
   const [clubSearch,     setClubSearch]     = useState('')
+  const [herscanMsg,     setHerscanMsg]     = useState('')
+  const [herscanBusy,    setHerscanBusy]    = useState(false)
   const { addSingleCmd, cmdAdding, cmdBtn } = useQueueCmd()
 
   async function handleCleanupEmpty() {
@@ -162,7 +164,8 @@ export default function DiscoveryTab() {
       {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
       {loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
 
-      {cleanupMsg && <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{cleanupMsg}</p>}
+      {cleanupMsg  && <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{cleanupMsg}</p>}
+      {herscanMsg  && <p style={{ fontSize: 12, color: 'var(--color-success)',    fontWeight: 600 }}>{herscanMsg}</p>}
 
       {/* Competities */}
       {competitions.length > 0 && (
@@ -173,15 +176,22 @@ export default function DiscoveryTab() {
             <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities</span>
             <span style={pill('muted')}>{competitions.length} gevonden</span>
             <button
-              onClick={e => {
+              onClick={async e => {
                 e.stopPropagation()
-                competitions.filter(c => c.hl_comp_id).forEach(c =>
-                  addSingleCmd('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name })
-                )
+                const toScan = competitions.filter(c => c.hl_comp_id)
+                if (!toScan.length) return
+                setHerscanBusy(true); setHerscanMsg('')
+                for (const c of toScan) {
+                  await addSingleCmd('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name })
+                }
+                setHerscanBusy(false)
+                setHerscanMsg(`⟳ ${toScan.length} competities in herscan-queue gezet`)
+                setTimeout(() => setHerscanMsg(''), 5000)
               }}
-              style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px' }}
+              disabled={herscanBusy}
+              style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px', opacity: herscanBusy ? 0.5 : 1 }}
               title="Zet alle competities in de herscan-queue"
-            >⟳ Herscan alle</button>
+            >{herscanBusy ? '…' : '⟳ Herscan alle'}</button>
             <button
               onClick={e => { e.stopPropagation(); handleCleanupEmpty() }}
               style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px' }}

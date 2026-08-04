@@ -134,6 +134,7 @@ def list_public_tournaments(
         result.append({
             "id": t.id, "name": t.name, "season": t.season,
             "description": t.description, "status": t.status,
+            "info": t.info,
             "competition_count": count,
         })
     return result
@@ -482,6 +483,7 @@ def get_tournament_competition_standings(
     links = session.exec(
         select(TournixTournamentCompetition)
         .where(TournixTournamentCompetition.tournament_id == tid)
+        .where(TournixTournamentCompetition.visible == True)
         .order_by(TournixTournamentCompetition.order)
     ).all()
 

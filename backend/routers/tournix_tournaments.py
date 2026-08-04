@@ -38,6 +38,7 @@ class TournamentUpdate(BaseModel):
     status:      Optional[str]  = None
     order:       Optional[int]  = None
     published:   Optional[bool] = None
+    info:        Optional[str]  = None
 
 class TournamentsReorder(BaseModel):
     ids: list
@@ -241,6 +242,7 @@ def list_tournament_competitions(
             "competition_id": lnk.competition_id,
             "order":          lnk.order,
             "label":          lnk.label,
+            "visible":        lnk.visible,
             "fase_tags":      [{"id": ft.id, "name": ft.name} for _, ft in assigned_tags],
             "competition":    {
                 "id":          comp.id,
@@ -258,9 +260,10 @@ def list_tournament_competitions(
 
 
 class CompetitionLinkUpdate(BaseModel):
-    fase:  Optional[str] = None
-    label: Optional[str] = None
-    order: Optional[int] = None
+    fase:    Optional[str]  = None
+    label:   Optional[str]  = None
+    order:   Optional[int]  = None
+    visible: Optional[bool] = None
 
 
 @router.patch("/tournaments/{tid}/competitions/{link_id}")

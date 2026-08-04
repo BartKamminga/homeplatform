@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  getTournamentComps, addTournamentComp, removeTournamentComp,
+  getTournamentComps, addTournamentComp, updateTournamentComp, removeTournamentComp,
   getDiscoveryComps, syncCompetition,
   getFaseTags, addFaseTag, removeFaseTag,
   assignCompFaseTag, removeCompFaseTag,
@@ -178,6 +178,17 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     finally { setAdding(false) }
   }
 
+  async function handleToggleVisible(lnk) {
+    const next = !lnk.visible
+    setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, visible: next } : l))
+    try {
+      await updateTournamentComp(tid, lnk.id, { visible: next })
+    } catch (e) {
+      setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, visible: !next } : l))
+      flash(e.message, true)
+    }
+  }
+
   async function doRemoveLink(lnk) {
     setConfirmLink(null)
     try {
@@ -255,22 +266,6 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
         </div>
       </div>
 
-      {/* ── Gekoppelde competities ───────────────────────────────── */}
-      {links.length === 0 ? (
-        <div style={{ ...card, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: 24 }}>
-          Nog geen competities gekoppeld.
-        </div>
-      ) : links.map(lnk => (
-        <CompetitionRow
-          key={lnk.id}
-          lnk={lnk}
-          globalTags={globalTags}
-          onAssignTag={tagId => handleAssignTag(lnk, tagId)}
-          onRemoveTag={tagId => handleRemoveCompTag(lnk, tagId)}
-          onRemove={() => setConfirmLink(lnk)}
-        />
-      ))}
-
       {/* ── Seizoen filter ───────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>Seizoen:</span>
@@ -283,6 +278,23 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
           }}>{s}</button>
         ))}
       </div>
+
+      {/* ── Gekoppelde competities ───────────────────────────────── */}
+      {links.length === 0 ? (
+        <div style={{ ...card, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: 24 }}>
+          Nog geen competities gekoppeld.
+        </div>
+      ) : links.map(lnk => (
+        <CompetitionRow
+          key={lnk.id}
+          lnk={lnk}
+          globalTags={globalTags}
+          onAssignTag={tagId => handleAssignTag(lnk, tagId)}
+          onRemoveTag={tagId => handleRemoveCompTag(lnk, tagId)}
+          onToggleVisible={() => handleToggleVisible(lnk)}
+          onRemove={() => setConfirmLink(lnk)}
+        />
+      ))}
 
       {/* ── Competitie koppelen ──────────────────────────────────── */}
       <div style={card}>
@@ -370,7 +382,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
 
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
-function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onRemove }) {
+function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onRemove }) {
   const [open,       setOpen]       = useState(false)
   const [showTagPicker, setShowTagPicker] = useState(false)
   const pickerRef = useRef(null)
@@ -413,6 +425,14 @@ function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onRemove })
             </span>
           )}
         </button>
+        <button
+          onClick={onToggleVisible}
+          title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
+            opacity: lnk.visible ? 1 : 0.35, padding: '0 2px',
+          }}
+        >{lnk.visible ? '👁' : '🚫'}</button>
         <button onClick={onRemove} style={deleteBtn} title="Verwijder koppeling">✕</button>
       </div>
 

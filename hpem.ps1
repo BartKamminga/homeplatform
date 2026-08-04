@@ -363,15 +363,26 @@ Write-Host "  HomePlatformEnvironmentManager" -ForegroundColor Cyan
 Info "Build=$Build | Push=$Push | Deploy=$Deploy"
 
 # ---------------------------------------------------------------------------
-# Frontend bouwen
+# Frontend wijzigingen controleren bij backend-only build
+# ---------------------------------------------------------------------------
+if ($Build -in @("be", "be_db")) {
+    $feChanges = & git status --porcelain 2>$null | Where-Object { $_ -match "frontend/" }
+    if ($feChanges) {
+        Warn "Frontend heeft ongebouwde wijzigingen (gebruik -Build all of -Build fe om mee te bouwen):"
+        $feChanges | ForEach-Object { Info "  $_" }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Frontend valideren + bouwen
 # ---------------------------------------------------------------------------
 if ($Build -in @("all","fe")) {
-    Step "Bouwen: Frontend (alle sites)"
+    Step "Frontend valideren + bouwen"
     Set-Location "$Root\frontend\sites"
     npm run build
-    if ($LASTEXITCODE -ne 0) { Fail "Frontend build mislukt" }
+    if ($LASTEXITCODE -ne 0) { Fail "Frontend build mislukt - deploy gestopt voor git push" }
     Set-Location $Root
-    Ok "Frontend gebouwd"
+    Ok "Frontend gebouwd en gevalideerd"
 }
 
 # ---------------------------------------------------------------------------

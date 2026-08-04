@@ -244,23 +244,17 @@ export default function App() {
     setDraggingRack(null); setDragOver(null)
   }
 
-  // ── Section drag-drop (reorder) ──
+  // ── Section drag-drop (merge) ──
   const onSectionDragStart = (e, id) => { setDraggingSection(id); e.dataTransfer.effectAllowed = 'move' }
   const onSectionDragEnd   = ()      => { setDraggingSection(null); setDragOver(null) }
   const onSectionMergeDragOver = (e, sectionId) => {
     if (!draggingSection || draggingSection === sectionId) return
-    e.preventDefault(); setDragOver({ kind: 'section-reorder', id: sectionId })
+    e.preventDefault(); setDragOver({ kind: 'section-merge', id: sectionId })
   }
   const onSectionMergeDrop = async (e, targetId) => {
     e.preventDefault()
     if (draggingSection && draggingSection !== targetId) {
-      const ids = tree.sections.map(s => s.id)
-      const fromIdx = ids.indexOf(draggingSection)
-      const toIdx   = ids.indexOf(targetId)
-      if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-        const newIds = [...ids]; newIds.splice(fromIdx, 1); newIds.splice(toIdx, 0, draggingSection)
-        await reorderSections(newIds); await load()
-      }
+      await mergeSection(draggingSection, targetId)
     }
     setDraggingSection(null); setDragOver(null)
   }
@@ -412,7 +406,7 @@ export default function App() {
             onDrop={e => { onSectionDrop(e, section.id); onSectionMergeDrop(e, section.id) }}
             onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null) }}>
 
-            <div className={`bc-section-head${dragOver?.kind === 'section-reorder' && dragOver.id === section.id ? ' bc-section-head--merge-over' : ''}`}>
+            <div className={`bc-section-head${dragOver?.kind === 'section-merge' && dragOver.id === section.id ? ' bc-section-head--merge-over' : ''}`}>
               <span className="bc-drag" title="Section slepen om samen te voegen"
                 draggable
                 onDragStart={e => { e.stopPropagation(); onSectionDragStart(e, section.id) }}

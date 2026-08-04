@@ -33,6 +33,7 @@ class Tournament(SQLModel, table=True):
     season:      Optional[str] = Field(default=None)       # e.g. "2026-2027"
     order:       int           = Field(default=0)
     published:   bool          = Field(default=False)      # zichtbaar op Poulebord
+    info:        Optional[str] = Field(default=None)       # admin-editable seizoensstructuur tekst
 
 
 class TournixPool(SQLModel, table=True):
@@ -216,6 +217,7 @@ class TournixTournamentCompetition(SQLModel, table=True):
     order:          int           = Field(default=0)
     label:          Optional[str] = Field(default=None)
     fase:           Optional[str] = Field(default=None)  # legacy — vervangen door TournixCompetitionFaseTag
+    visible:        bool          = Field(default=True)   # zichtbaar op Poulebord
 
 
 class TournixCompetitionFaseTag(SQLModel, table=True):

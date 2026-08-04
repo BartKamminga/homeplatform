@@ -5,8 +5,9 @@
 #   .\roadmap.ps1 -List -Status idea                 # filter op status
 #   .\roadmap.ps1 -List -Site tournix                # filter op site
 #   .\roadmap.ps1 -Add -Site tournix -Title "..." -Priority high   # nieuw item
-#   .\roadmap.ps1 -Close -Id 8 -Version 0.4          # afsluiten + changelog
-#   .\roadmap.ps1 -CloseMany -Ids "8,11,12" -Version 0.4           # meerdere tegelijk
+#   .\roadmap.ps1 -Close -Id 8 -Version 0.4            # afsluiten + changelog
+#   .\roadmap.ps1 -Close -Ids "8,11,12" -Version 0.4   # meerdere tegelijk (via -Close)
+#   .\roadmap.ps1 -CloseMany -Ids "8,11,12" -Version 0.4           # idem (alias)
 #   .\roadmap.ps1 -Update -Id 8 -Status in_progress  # status wijzigen
 #   .\roadmap.ps1 -Get -Id 8                         # volledig item tonen (incl. description + notes)
 #   .\roadmap.ps1 -Changelog                         # toon recente changelog
@@ -83,12 +84,18 @@ if ($Add) {
 }
 
 # ---------------------------------------------------------------------------
-# Close (single)
+# Close (enkel of batch via -Ids)
 # ---------------------------------------------------------------------------
 if ($Close) {
-    if ($Id -eq 0)     { Write-Host "Geef -Id op";      exit 1 }
     if (-not $Version) { Write-Host "Geef -Version op"; exit 1 }
-    NasRun @("close", "--id", $Id, "--version", $Version)
+    if ($Ids) {
+        $idList = ($Ids -split "," | ForEach-Object { $_.Trim() }) -join ","
+        NasRun @("closemany", "--ids", $idList, "--version", $Version)
+    } elseif ($Id -ne 0) {
+        NasRun @("close", "--id", $Id, "--version", $Version)
+    } else {
+        Write-Host "Geef -Id (enkel) of -Ids (komma-gescheiden) op"; exit 1
+    }
     exit 0
 }
 

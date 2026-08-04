@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { getTournamentCompetitionStandings, deleteTournament, removeTournamentComp, syncCompetition } from '../api.js'
+import { useState, useEffect, useRef } from 'react'
+import { getTournamentCompetitionStandings, deleteTournament, removeTournamentComp, syncCompetition, updateTournament } from '../api.js'
 import CompetitiesTab    from './CompetitiesTab.jsx'
 import CompetitieDetail  from './competitie/CompetitieDetail.jsx'
 import CompetitieList    from './competitie/CompetitieList.jsx'
@@ -36,6 +36,9 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
   const [rescanMsg,    setRescanMsg]    = useState('')
   const [confirmPub,   setConfirmPub]   = useState(false)
   const [confirmComp,  setConfirmComp]  = useState(null)
+  const [infoText,     setInfoText]     = useState(tournament.info || '')
+  const [infoSaving,   setInfoSaving]   = useState(false)
+  const infoTimer = useRef(null)
 
   function reload() {
     getTournamentCompetitionStandings(tournament.id)
@@ -43,7 +46,7 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
       .catch(() => setCompsData([]))
   }
 
-  useEffect(() => { setSelectedComp(null); setView('overzicht'); reload() }, [tournament.id])
+  useEffect(() => { setSelectedComp(null); setView('overzicht'); reload(); setInfoText(tournament.info || '') }, [tournament.id])
 
   function handleBack() { setSelectedComp(null); reload() }
 
@@ -127,7 +130,35 @@ export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
       )}
 
       {view === 'koppelen' && isAdmin && (
-        <CompetitiesTab tid={tournament.id} season={tournament.season || '2026-2027'} />
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+              INFO-TEKST (zichtbaar op Poulebord)
+              {infoSaving && <span style={{ marginLeft: 6, fontWeight: 400, opacity: 0.6 }}>Opslaan…</span>}
+            </div>
+            <textarea
+              value={infoText}
+              onChange={e => {
+                setInfoText(e.target.value)
+                clearTimeout(infoTimer.current)
+                infoTimer.current = setTimeout(() => {
+                  setInfoSaving(true)
+                  updateTournament(tournament.id, { info: e.target.value })
+                    .finally(() => setInfoSaving(false))
+                }, 800)
+              }}
+              placeholder="Bijv. structuur van het seizoen, speeldata, bijzonderheden…"
+              rows={4}
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '8px 10px',
+                borderRadius: 8, border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)', color: 'var(--color-text)',
+                fontSize: 12, fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+              }}
+            />
+          </div>
+          <CompetitiesTab tid={tournament.id} season={tournament.season || '2026-2027'} />
+        </>
       )}
 
       {view === 'overzicht' && (

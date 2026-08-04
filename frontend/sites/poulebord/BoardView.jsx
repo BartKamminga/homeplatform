@@ -402,6 +402,14 @@ export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPo
       </div>
       {open && (
         <div style={{ padding: '0 12px 12px' }}>
+          {tournament.info && (
+            <div style={{
+              fontSize: 12, color: C.muted, lineHeight: 1.55,
+              padding: '8px 10px', marginBottom: 10,
+              background: 'rgba(255,255,255,0.04)', borderRadius: 8,
+              borderLeft: `3px solid ${C.gold}`, whiteSpace: 'pre-wrap',
+            }}>{tournament.info}</div>
+          )}
           {useDiscovery === null && (
             <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
           )}

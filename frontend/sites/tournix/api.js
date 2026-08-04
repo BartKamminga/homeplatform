@@ -54,9 +54,10 @@ export const getVangerQueue    = (status) =>
   api.get(`/api/tournix/discovery/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
 
 // Tournament-competitie koppelingen
-export const getTournamentComps    = (tid)           => api.get(`/api/tournix/tournaments/${tid}/competitions`)
-export const addTournamentComp     = (tid, body)     => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
-export const removeTournamentComp  = (tid, linkId)   => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
+export const getTournamentComps    = (tid)                  => api.get(`/api/tournix/tournaments/${tid}/competitions`)
+export const addTournamentComp     = (tid, body)            => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
+export const updateTournamentComp  = (tid, linkId, body)    => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
+export const removeTournamentComp  = (tid, linkId)          => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
 
 // Globale fase-tags (gedeeld over alle publicaties)
 export const getFaseTags    = ()        => api.get('/api/tournix/fase-tags')

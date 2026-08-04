@@ -29,6 +29,7 @@ De **NAS-database is de centrale backlog**. Todos en changelog werken samen via 
   6. Deploy gestart → status `deploying`
   7. Na succesvolle deploy naar NAS → status `done` + versienummer → changelog-entry automatisch aangemaakt
 - **Versienummer onduidelijk**: eerst vragen aan de gebruiker.
+- **Meerdere items afsluiten**: gebruik `.\roadmap.ps1 -Close -Ids "534,535,536" -Version v3.33` — één commando voor alle items in dezelfde deploy.
 - Handmatige alembic-migraties voor changelog zijn niet meer nodig bij items die via de roadmap lopen.
 - Voor infrastructurele DB-wijzigingen (nieuwe tabellen, kolommen) blijft de alembic-migratie vereist:
   - Geen apostrofs in SQL-strings — gebruik dubbele aanhalingstekens of schrijf ze weg.
@@ -55,6 +56,7 @@ De **NAS-database is de centrale backlog**. Todos en changelog werken samen via 
 - Vite MPA — elke site heeft eigen `index.html` onder `frontend/sites/<site>/`.
 - SPA-routes (bijv. `/admin/login`) werken in dev via de `spaFallback`-plugin in `vite.config.js`.
 - `<img src>` stuurt geen Authorization-header — GET-endpoints voor uploads zijn zonder auth.
+- **Bestandsgrens**: bestanden >300 regels altijd aankaarten — dit is een signaal dat opsplitsing nodig is.
 
 ### Sentry / GlitchTip
 - `await Sentry.flush(1500)` aanroepen vóór `window.location.href`-redirects, anders gaan events verloren.
