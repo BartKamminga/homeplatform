@@ -2604,14 +2604,19 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
         elif c.cmd_type == "scan_club":
             queued_club_ext_ids.add(p.get("external_id"))
 
-    # 1. Missing poules for clubs already scanned this session
+    # 1. Missing poules for clubs already scanned this session.
+    # Alleen teams meenemen waar de club-scan een NIEUW recent_poule_id heeft opgeleverd:
+    # die teams hebben no_new_poule_confirmed=False en season_pending=False.
+    # Teams die nog steeds no_new_poule_confirmed/season_pending hebben, kregen geen
+    # nieuwe poule-ID → hun old poule-ID niet opnieuw queuen.
     if scanned_ext_ids:
-        captured_ids = {p.poule_id for p in session.exec(
-            select(HockeyPoule).where(HockeyPoule.season == target_season)
-        ).all()}
+        # Alle ooit-gecaptured poule_ids (alle seizoenen), zodat oude IDs niet opnieuw gescand worden
+        captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
 
         tq = select(HockeyTeam).where(col(HockeyTeam.club_external_id).in_(scanned_ext_ids))
         tq = tq.where(col(HockeyTeam.recent_poule_id).is_not(None))
+        tq = tq.where(HockeyTeam.no_new_poule_confirmed == False)  # noqa: E712
+        tq = tq.where(HockeyTeam.season_pending == False)  # noqa: E712
         if cats:
             tq = tq.where(col(HockeyTeam.category_group_name).in_(cats))
         if hts:
