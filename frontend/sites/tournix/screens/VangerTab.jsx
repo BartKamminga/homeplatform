@@ -40,6 +40,8 @@ export default function VangerTab() {
         onGapFill={s.runGapFill} onGapRefresh={s.loadGapAnalysis}
         onRetrySingle={s.retryCmdQueue}
         cmdOps={s.cmdOps}
+        smartScan={s.smartScan} smartBusy={s.smartBusy}
+        onStartSmartScan={s.startSmartScan} onStopSmartScan={s.stopSmartScan}
       />
 
       <QueuesPanel

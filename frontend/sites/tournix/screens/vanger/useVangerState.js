@@ -28,10 +28,13 @@ export function useVangerState() {
   const [fillMsg,       setFillMsg]       = useState('')
   const [gapData,       setGapData]       = useState(null)
   const [gapFilling,    setGapFilling]    = useState(false)
+  const [smartScan,     setSmartScan]     = useState({ active: false, mode: null, cmd_count: 0 })
+  const [smartBusy,     setSmartBusy]     = useState(false)
 
   function loadCmdQueue()    { api.get('/api/tournix/discovery/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
   function loadGapAnalysis() { api.get('/api/tournix/discovery/gap-analysis').then(setGapData).catch(() => {}) }
   function loadRanges()      { api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {}) }
+  function loadSmartScan()   { api.get('/api/tournix/discovery/smart-scan/status').then(setSmartScan).catch(() => {}) }
 
   const cmdOps = useQueueCmd({ onAdded: loadCmdQueue })
 
@@ -157,6 +160,18 @@ export function useVangerState() {
       .finally(() => setGapFilling(false))
   }
 
+  function startSmartScan() {
+    setSmartBusy(true)
+    api.post('/api/tournix/discovery/smart-scan/start', {})
+      .then(r => { loadSmartScan(); loadCmdQueue(); setFillMsg(r.added > 0 ? `Slim scannen gestart: ${r.type === 'scan_club' ? 'club ' + r.club : r.added + ' poules'} toegevoegd` : 'Niets te scannen'); setTimeout(() => setFillMsg(''), 6000) })
+      .catch(() => {})
+      .finally(() => setSmartBusy(false))
+  }
+
+  function stopSmartScan() {
+    api.post('/api/tournix/discovery/smart-scan/stop', {}).then(() => setSmartScan(s => ({ ...s, active: false, mode: null }))).catch(() => {})
+  }
+
   function runInfer() {
     setIsInferring(true); setInferResult(null)
     api.post('/api/tournix/discovery/infer-season-pending', {})
@@ -165,10 +180,14 @@ export function useVangerState() {
       .finally(() => setIsInferring(false))
   }
 
-  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadGapAnalysis() }, [])
+  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadGapAnalysis(); loadSmartScan() }, [])
 
   useEffect(() => {
-    function pollVanger() { api.get('/api/tournix/discovery/vanger/status').then(setVangerStatus).catch(() => {}); loadCmdQueue() }
+    function pollVanger() {
+      api.get('/api/tournix/discovery/vanger/status').then(setVangerStatus).catch(() => {})
+      loadCmdQueue()
+      loadSmartScan()
+    }
     pollVanger()
     const t = setInterval(pollVanger, 8000)
     return () => clearInterval(t)
@@ -194,11 +213,13 @@ export function useVangerState() {
     cmdOpen, setCmdOpen,
     fillMsg,
     gapData, gapFilling,
+    smartScan, smartBusy,
     cmdOps,
     // functions
     load, loadCmdQueue, loadGapAnalysis, loadRanges,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
     toggle, resetPoule, runGapFill, runInfer,
+    startSmartScan, stopSmartScan,
   }
 }

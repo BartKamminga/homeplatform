@@ -1,10 +1,45 @@
-import { pill, fmtDuration, fmtBytes, makeCmdConclusion, TYPE_BADGE } from '../queueShared.jsx'
+import { useState } from 'react'
+import { pill, fmtDuration, fmtBytes, makeCmdConclusion, TYPE_BADGE, InfoTooltip } from '../queueShared.jsx'
 
 const STATUS_COLOR = { pending: 'var(--color-text-muted)', in_progress: 'var(--color-warning)', done: 'var(--color-success)', failed: 'var(--color-danger)', skipped: 'var(--color-text-muted)' }
 const STATUS_ICON  = { pending: '⏳', in_progress: '🔄', done: '✓', failed: '✗', skipped: '⏭' }
 
-export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData, gapFilling, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onGapFill, onGapRefresh, onRetrySingle, cmdOps }) {
+const TOOLTIPS = {
+  slimScannen:      'Start een gecoördineerde scan: begint bij de club met de meeste missende poules, scant die door, voegt de gevonden poules toe, en gaat dan verder met de volgende club. Stopt automatisch als er niets meer te doen valt.',
+  slimRefreshen:    'Herscant verouderde poules op prioriteit (nog niet beschikbaar).',
+  clubsSync:        'Haalt de volledige clublijst op van de bond (hockey.nl). Gebruik dit als je nieuwe clubs verwacht die nog niet in het systeem staan.',
+  competities:      'Haalt de nationale competitie-structuur op van de bond. Nodig als er nieuwe competities zijn bijgekomen.',
+  clubsVullen:      'Zet alle clubs in de wachtrij voor een herscanning (scan_club cmds). Gebruik dit als je van alle clubs tegelijk nieuwe poule-ID\'s wilt ophalen.',
+  poulesVullen:     'Zet alle missende poules in de wachtrij (get_poule cmds). Gebruik dit als de teams al bekende poule-ID\'s hebben maar de standen nog niet zijn opgehaald.',
+  standsRefreshen:  'Zet alle verouderde poules in de wachtrij om standen en uitslagen bij te werken.',
+  allesPollen:      'Zet alle poules ouder dan 1 dag in de wachtrij. Gebruik dit voor een volledige refresh van alle standen.',
+  gapFill:          'Analyseert de bekende ID-reeks en voegt ontbrekende poule-ID\'s toe aan de wachtrij. Handig om gaten op te sporen die de normale scan mist.',
+}
+
+
+function Btn({ onClick, disabled, color, filled, children, tooltip, style: extraStyle }) {
+  const base = {
+    fontSize: 11, padding: '4px 10px', borderRadius: 6, fontFamily: 'inherit',
+    cursor: disabled ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+    transition: 'opacity .15s',
+    ...(filled
+      ? { border: 'none', background: color || 'var(--color-primary)', color: '#fff' }
+      : { border: `1px solid ${color || 'var(--color-border)'}`, background: 'none', color: color || 'var(--color-text)' }
+    ),
+    opacity: disabled ? 0.5 : 1,
+    ...extraStyle,
+  }
+  return (
+    <button onClick={onClick} disabled={disabled} style={base}>
+      {children}
+      {tooltip && <InfoTooltip text={tooltip} />}
+    </button>
+  )
+}
+
+export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData, gapFilling, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onGapFill, onGapRefresh, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
   const { cmdBtn } = cmdOps
+  const [advOpen, setAdvOpen] = useState(false)
   const counts     = cmdQueue?.counts || {}
   const recent     = cmdQueue?.recent || []
   const pending    = counts.pending     || 0
@@ -18,8 +53,10 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
   const progress   = total > 0 ? Math.round((finished / total) * 100) : 0
   const isRunning  = inProgress > 0 || pending > 0
 
+  const borderColor = failed > 0 && !isRunning ? 'var(--color-danger)' : isRunning ? 'var(--color-warning)' : done > 0 ? 'var(--color-success)' : 'var(--color-border)'
+
   return (
-    <div style={{ background: 'var(--color-surface)', border: `1px solid ${failed > 0 && !isRunning ? 'var(--color-danger)' : isRunning ? 'var(--color-warning)' : done > 0 ? 'var(--color-success)' : 'var(--color-border)'}`, borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--color-surface)', border: `1px solid ${borderColor}`, borderRadius: 10, overflow: 'hidden' }}>
       <div onClick={() => setCmdOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
         <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{cmdOpen ? '▾' : '▸'}</span>
         <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>⚡ Cmd queue</span>
@@ -37,47 +74,87 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
       )}
 
       {cmdOpen && (
-        <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Primair */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button onClick={() => onFill('clubs')} disabled={!!cmdFilling}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'clubs' ? 0.6 : 1 }}>
-              {cmdFilling === 'clubs' ? '…' : '1. Clubs vullen'}
-            </button>
-            <button onClick={() => onFill('poules')} disabled={!!cmdFilling}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules' ? 0.6 : 1 }}>
-              {cmdFilling === 'poules' ? '…' : '2. Poules vullen'}
-            </button>
-            <button onClick={() => onFill('poules_refresh')} disabled={!!cmdFilling}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-primary)', background: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules_refresh' ? 0.6 : 1 }}>
-              {cmdFilling === 'poules_refresh' ? '…' : '⟳ Stands refreshen'}
-            </button>
-            <button onClick={() => onFill('poules_refresh', 1)} disabled={!!cmdFilling}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-primary)', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: cmdFilling === 'poules_refresh' ? 0.6 : 1 }}>
-              {cmdFilling === 'poules_refresh' ? '…' : '📡 Alles pollen'}
-            </button>
-            <button onClick={onGapFill} disabled={gapFilling || !!cmdFilling}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit', opacity: gapFilling ? 0.6 : 1 }}>
-              {gapFilling ? '…' : '🔍 Gap-fill auto'}
-            </button>
-            {cmdBtn('get_clubs',       { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md')}
-            {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md')}
-            {fillMsg && <span style={{ fontSize: 11, color: 'var(--color-success)', fontWeight: 600 }}>{fillMsg}</span>}
-            {failed > 0 && (
-              <button onClick={onRetryAll} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-warning)', background: 'none', color: 'var(--color-warning)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                ↺ Retry alle ({failed})
-              </button>
+            {smartScan?.active ? (
+              <Btn onClick={onStopSmartScan} color='var(--color-warning)' filled tooltip={TOOLTIPS.slimScannen}>
+                ⏹ Stop slim scannen ({smartScan.cmd_count}/{smartScan.max_cmds})
+              </Btn>
+            ) : (
+              <Btn onClick={onStartSmartScan} disabled={smartBusy || !!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.slimScannen}>
+                {smartBusy ? '…' : '🎯 Slim scannen'}
+              </Btn>
             )}
-            {(pending + inProgress) > 0 && (
-              <button onClick={onClear} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-danger)', background: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                🗑 Pending leeg
-              </button>
-            )}
-            {(done + skipped) > 0 && !(pending + inProgress) && (
-              <button onClick={onClearDone} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                🗑 Done wissen
-              </button>
+            <Btn disabled tooltip={TOOLTIPS.slimRefreshen} color='var(--color-text-muted)'>
+              🔄 Slim refreshen
+            </Btn>
+          </div>
+
+          {/* Infra */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 40 }}>INFRA</span>
+            {cmdBtn('get_clubs',        { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md', TOOLTIPS.clubsSync)}
+            {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md', TOOLTIPS.competities)}
+          </div>
+
+          {/* Geavanceerd (inklapbaar) */}
+          <div>
+            <div
+              onClick={() => setAdvOpen(o => !o)}
+              style={{ fontSize: 11, color: 'var(--color-text-muted)', cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <span>{advOpen ? '▾' : '▸'}</span>
+              <span>Geavanceerd (bulk)</span>
+            </div>
+            {advOpen && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+                <Btn onClick={() => onFill('clubs')} disabled={!!cmdFilling} tooltip={TOOLTIPS.clubsVullen}>
+                  {cmdFilling === 'clubs' ? '…' : '1. Clubs vullen'}
+                </Btn>
+                <Btn onClick={() => onFill('poules')} disabled={!!cmdFilling} tooltip={TOOLTIPS.poulesVullen}>
+                  {cmdFilling === 'poules' ? '…' : '2. Poules vullen'}
+                </Btn>
+                <Btn onClick={() => onFill('poules_refresh')} disabled={!!cmdFilling} color='var(--color-primary)' tooltip={TOOLTIPS.standsRefreshen}>
+                  {cmdFilling === 'poules_refresh' ? '…' : '⟳ Stands refreshen'}
+                </Btn>
+                <Btn onClick={() => onFill('poules_refresh', 1)} disabled={!!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.allesPollen}>
+                  {cmdFilling === 'poules_refresh' ? '…' : '📡 Alles pollen'}
+                </Btn>
+                <Btn onClick={onGapFill} disabled={gapFilling || !!cmdFilling} color='var(--color-warning)' tooltip={TOOLTIPS.gapFill}>
+                  {gapFilling ? '…' : '🔍 Gap-fill auto'}
+                </Btn>
+              </div>
             )}
           </div>
+
+          {/* Feedback / status */}
+          {(fillMsg || smartScan?.active) && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {fillMsg && <span style={{ fontSize: 11, color: 'var(--color-success)', fontWeight: 600 }}>{fillMsg}</span>}
+              {smartScan?.active && (
+                <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
+                  🎯 Slim scannen actief — {smartScan.cmd_count} cmds verwerkt
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Beheer (conditioneel) */}
+          {(failed > 0 || (pending + inProgress) > 0 || (done + skipped) > 0) && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingTop: 2, borderTop: '1px solid var(--color-border)' }}>
+              {failed > 0 && (
+                <Btn onClick={onRetryAll} color='var(--color-warning)'>↺ Retry alle ({failed})</Btn>
+              )}
+              {(pending + inProgress) > 0 && (
+                <Btn onClick={onClear} color='var(--color-danger)'>🗑 Pending leeg</Btn>
+              )}
+              {(done + skipped) > 0 && !(pending + inProgress) && (
+                <Btn onClick={onClearDone}>🗑 Done wissen</Btn>
+              )}
+            </div>
+          )}
 
           {gapData && (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '6px 8px', background: 'color-mix(in srgb, var(--color-primary) 5%, var(--color-surface))', borderRadius: 6, border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)', fontSize: 11 }}>
@@ -144,7 +221,7 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
 
           {!hasAny && (
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-              Queue leeg — vul met poules of clubs, of voeg individuele items toe via de queues hieronder
+              Queue leeg — gebruik Slim scannen, of vul handmatig via Geavanceerd
             </div>
           )}
         </div>
