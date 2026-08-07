@@ -70,13 +70,6 @@ export default function Monitoring() {
             href="http://192.168.30.232:9091"
           />
           <LinkCard
-            icon="🗄"
-            title="NAS — Synology DSM"
-            description="Beheerpaneel van de NAS (legacy — GlitchTip draait hier nog)."
-            href={links.nas}
-            placeholder="Stel NAS_URL in .env in"
-          />
-          <LinkCard
             icon="📄"
             title="API documentatie"
             description="Interactieve Swagger UI voor alle backend endpoints (alleen development)."
@@ -147,7 +140,7 @@ export default function Monitoring() {
             <EnvRow label="DB revisie"            value={overview.db_revision} mono />
             <EnvRow label="Database"              value={overview.database_file} mono />
             <EnvRow label="Extern"                value={links.external_url || '—'} />
-            <EnvRow label="GlitchTip"             value={overview.sentry_enabled ? `actief (${overview.sentry_min_level}+)` : 'uitgeschakeld'} />
+            <EnvRow label="Bugsink"               value={overview.sentry_enabled ? `actief (${overview.sentry_min_level}+)` : 'uitgeschakeld'} />
             <EnvRow label="Download map"          value={overview.download_dir || '—'} mono />
             {overview.beatportdl_config_dir && (
               <EnvRow label="beatportdl config"   value={overview.beatportdl_config_dir} mono />
