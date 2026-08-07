@@ -289,7 +289,7 @@ export default function DataStorage() {
       {/* ── Deploy-omgevingen ───────────────────────────────────────────── */}
       <SectionCard
         title="Deploy-omgevingen"
-        subtitle="Lokale ontwikkeling (Windows) en productie op de NAS (Docker op Synology)."
+        subtitle="Lokale ontwikkeling (Windows) en productie op de G4 (HP ProDesk 600 G4 — Ubuntu + Docker)."
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
           <div>
@@ -300,19 +300,21 @@ export default function DataStorage() {
             <EnvRow label="FastAPI uvicorn"  note="Backend op :8000 — F5 launch config in .venv" />
             <EnvRow label="SQLite"           note="C:\Projects\homeplatform\db\homeplatform.sqlite" />
             <EnvRow label="Alembic"          note="Migraties lokaal via absolute DATABASE_URL" />
-            <EnvRow label="hpem.ps1"         note="Build + upload naar NAS" />
+            <EnvRow label="hpem.ps1"         note="Build + upload naar G4" />
           </div>
 
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
-              NAS — productie (192.168.30.193)
+              G4 — productie (192.168.1.232)
             </div>
             <EnvRow label="Caddy"            note="Reverse proxy + static files (poort 8080 / 8443)" />
             <EnvRow label="Backend (Docker)" note="FastAPI container — Dockerfile in /backend" />
-            <EnvRow label="SQLite"           note="/volume1/homeplatform/db/homeplatform.sqlite" />
-            <EnvRow label="Downloads"        note="/volume1/Music/downloads — beatportdl + yt-dlp output" />
-            <EnvRow label="GlitchTip"        note="Fout-tracking, Sentry-compatibel (poort 8090)" />
-            <EnvRow label="Gitea"            note="Git server (poort 3000)" />
+            <EnvRow label="SQLite"           note="/home/bart/homeplatform/db/homeplatform.sqlite" />
+            <EnvRow label="Downloads"        note="/home/bart/homeplatform/downloads — beatportdl + yt-dlp output" />
+            <EnvRow label="Portainer"        note="Docker beheer UI (poort 9000)" />
+            <EnvRow label="Cockpit"          note="Serverbeheer UI (poort 9091)" />
+            <EnvRow label="Prometheus"       note="Metrics collector (poort 9090)" />
+            <EnvRow label="GlitchTip"        note="Fout-tracking — draait nog op NAS (poort 8090)" />
             <EnvRow label="Cloudflare Tunnel" note="Externe toegang via cloudflared" />
           </div>
         </div>

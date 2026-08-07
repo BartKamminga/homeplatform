@@ -59,9 +59,21 @@ export default function Monitoring() {
             placeholder="Stel SENTRY_DSN in .env in"
           />
           <LinkCard
+            icon="🐳"
+            title="Portainer"
+            description="Docker beheer UI op de G4. Containers, images, volumes en logs."
+            href="http://192.168.1.232:9000"
+          />
+          <LinkCard
             icon="🖥"
+            title="Cockpit"
+            description="Serverbeheer UI op de G4. CPU, geheugen, netwerk en services."
+            href="http://192.168.1.232:9091"
+          />
+          <LinkCard
+            icon="🗄"
             title="NAS — Synology DSM"
-            description="Beheerpaneel van de NAS waar WebHeaven op draait."
+            description="Beheerpaneel van de NAS (legacy — GlitchTip draait hier nog)."
             href={links.nas}
             placeholder="Stel NAS_URL in .env in"
           />
