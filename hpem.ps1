@@ -83,18 +83,18 @@ if ($Build -ne "" -and $Build -notin $validBuilds) {
 # ---------------------------------------------------------------------------
 $Root    = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# NAS IP: lees uit .env als NAS_IP= aanwezig is, anders fallback
-$NasIp   = "192.168.30.193"
+# G4 IP: lees uit .env als G4_IP= aanwezig is, anders fallback
+$NasIp   = "192.168.1.232"
 $EnvFile = "$Root\.env"
 if (Test-Path $EnvFile) {
-    $envLine = Get-Content $EnvFile | Where-Object { $_ -match "^NAS_IP\s*=" } | Select-Object -First 1
+    $envLine = Get-Content $EnvFile | Where-Object { $_ -match "^G4_IP\s*=" } | Select-Object -First 1
     if ($envLine) { $NasIp = ($envLine -split "=", 2)[1].Trim() }
 }
 
-$NasUser = "admin"
+$NasUser = "bart"
 $NasHost = "${NasUser}@${NasIp}"
 $NasKey  = "$env:USERPROFILE\.ssh\homeplatform"
-$NasPath = "/volume1/homeplatform"
+$NasPath = "/home/bart/homeplatform-repo"
 $NasPort = "8080"
 $ErrorActionPreference = "Stop"
 
@@ -123,14 +123,14 @@ function NasOut($cmd) {
 }
 
 function DistUpload {
-    Info "Frontend dist uploaden naar NAS..."
+    Info "Frontend dist uploaden naar G4..."
     $distPath = "$Root\frontend\dist"
     if (-not (Test-Path $distPath)) { Fail "frontend\dist niet gevonden - run eerst de build stap" }
-    NasSsh "sudo mkdir -p $NasPath/frontend/dist; sudo chmod 777 $NasPath/frontend/dist"
-    $cmdStr = 'tar -czf - -C "' + $distPath + '" . | ssh -i "' + $NasKey + '" -o StrictHostKeyChecking=no ' + $NasHost + ' "sudo tar -xzf - -C ' + $NasPath + '/frontend/dist"'
+    NasSsh "mkdir -p $NasPath/frontend/dist"
+    $cmdStr = 'tar -czf - -C "' + $distPath + '" . | ssh -i "' + $NasKey + '" -o StrictHostKeyChecking=no ' + $NasHost + ' "tar -xzf - -C ' + $NasPath + '/frontend/dist"'
     cmd /c $cmdStr
     if ($LASTEXITCODE -ne 0) { Fail "Upload van dist mislukt" }
-    Ok "Dist geüpload naar NAS"
+    Ok "Dist geüpload naar G4"
 }
 
 function LocalAlembic($alembicArgs) {
@@ -202,9 +202,9 @@ if ($NasSetup) {
 # ---------------------------------------------------------------------------
 if ($CaddyReset) {
     Step "Caddy reset"
-    NasRun "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml down" "Containers stoppen..."
-    NasRun "sudo /usr/local/bin/docker volume rm homeplatform_caddy_config" "Caddy config cache verwijderen..."
-    NasRun "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml up -d" "Alles opstarten..."
+    NasRun "docker compose -f $NasPath/docker-compose.g4.yml down" "Containers stoppen..."
+    NasRun "docker volume rm homeplatform-repo_caddy_config" "Caddy config cache verwijderen..."
+    NasRun "docker compose -f $NasPath/docker-compose.g4.yml up -d" "Alles opstarten..."
     Ok "Caddy reset klaar"
     exit 0
 }
@@ -215,8 +215,8 @@ if ($CaddyReset) {
 if ($ImportTournix) {
     Step "Tournix 2026-2027 data importeren"
     NasRun "cd $NasPath && git pull origin main" "Laatste script ophalen van GitHub..."
-    NasRun "sudo /usr/local/bin/docker cp $NasPath/backend/import_tournix_2026.py homeplatform_backend:/app/" "Script naar container kopiëren..."
-    NasRun "sudo /usr/local/bin/docker exec homeplatform_backend python import_tournix_2026.py" "Import uitvoeren..."
+    NasRun "docker cp $NasPath/backend/import_tournix_2026.py homeplatform_backend:/app/" "Script naar container kopiëren..."
+    NasRun "docker exec homeplatform_backend python import_tournix_2026.py" "Import uitvoeren..."
     Ok "Tournix 2026-2027 data geimporteerd"
     exit 0
 }
@@ -280,11 +280,11 @@ if ($Status) {
     Label "DB revisie"  $localRevision
     Write-Host ""
 
-    # NAS
-    Write-Host "  NAS" -ForegroundColor Cyan
+    # G4
+    Write-Host "  G4" -ForegroundColor Cyan
     $nasCommit   = NasOut "cd $NasPath && git log -1 --format='%h - %s'"
-    $nasRevision = NasOut "sudo /usr/local/bin/docker exec homeplatform_backend alembic current 2>/dev/null | tail -1"
-    $nasPs       = NasOut "sudo /usr/local/bin/docker ps"
+    $nasRevision = NasOut "docker exec homeplatform_backend alembic current 2>/dev/null | tail -1"
+    $nasPs       = NasOut "docker ps"
 
     Label "Last commit" $nasCommit
     Label "DB revisie"  $nasRevision
@@ -414,7 +414,7 @@ if ($Push -eq "yes") {
 # NAS deploy
 # ---------------------------------------------------------------------------
 if ($Deploy -eq "nas") {
-    Step "NAS deploy"
+    Step "G4 deploy"
 
     if ($Push -eq "yes") {
         NasRun "cd $NasPath && git pull origin main" "Git pull..."
@@ -422,10 +422,9 @@ if ($Deploy -eq "nas") {
         Warn "Geen git pull (Push=no)"
     }
 
-    $dcCmd       = "sudo docker-compose -f $NasPath/docker-compose.nas.yml up --build --force-recreate -d backend"
-    $dcCaddy     = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml restart caddy"
-    $dcGlitchtip = "sudo /usr/local/bin/docker-compose -f $NasPath/docker-compose.nas.yml up -d glitchtip-db glitchtip-redis glitchtip glitchtip-worker"
-    $docker      = "sudo /usr/local/bin/docker"
+    $dcCmd   = "docker compose -f $NasPath/docker-compose.g4.yml up --build --force-recreate -d backend"
+    $dcCaddy = "docker compose -f $NasPath/docker-compose.g4.yml restart caddy"
+    $docker  = "docker"
 
     switch ($Build) {
         "fe" {
@@ -441,9 +440,6 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
-            NasRun $dcGlitchtip "GlitchTip starten..."
-            Start-Sleep -Seconds 8
-            NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             NasRun "$docker restart homeplatform_backend" "Backend herstarten..."
             Step "Lokale database upgraden"
             LocalAlembic "upgrade head"
@@ -453,9 +449,6 @@ if ($Deploy -eq "nas") {
             NasRun $dcCmd "Backend rebuilden..."
             NasRun "$docker exec homeplatform_backend alembic upgrade head" "Migraties uitvoeren..."
             NasRun "$docker exec homeplatform_backend python seed.py" "Seed uitvoeren..."
-            NasRun $dcGlitchtip "GlitchTip starten..."
-            Start-Sleep -Seconds 8
-            NasRun "$docker exec homeplatform_glitchtip python manage.py migrate --no-input" "GlitchTip migraties..."
             Step "Lokale database upgraden"
             LocalAlembic "upgrade head"
             DistUpload
@@ -464,8 +457,8 @@ if ($Deploy -eq "nas") {
         }
     }
 
-    Step "NAS status"
-    NasSsh "sudo /usr/local/bin/docker ps"
+    Step "G4 status"
+    NasSsh "docker ps"
 }
 
 # ---------------------------------------------------------------------------

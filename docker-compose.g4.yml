@@ -1,0 +1,64 @@
+# docker-compose.g4.yml
+# HP ProDesk G4 configuratie
+# Gebruik: docker compose -f docker-compose.g4.yml up --build -d
+
+services:
+  caddy:
+    image: caddy:latest
+    container_name: homeplatform_caddy
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./Caddyfile.nas:/etc/caddy/Caddyfile
+      - ./frontend/dist:/srv/www
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: homeplatform_backend
+    volumes:
+      - /home/bart/homeplatform/db:/app/db
+      - /home/bart/homeplatform/uploads:/app/uploads
+      - /home/bart/homeplatform/nas-files:/app/nas-files
+      - /home/bart/homeplatform/music:/app/music
+      - /home/bart/homeplatform/downloads:/app/downloads
+      - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
+      - /home/bart/homeplatform/plugins:/app/plugins
+    environment:
+      - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
+      - MUSIC_DIR=/app/music
+      - DOWNLOAD_DIR=/app/downloads
+      - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - NAS_URL=${NAS_URL:-}
+      - EXTERNAL_URL=${EXTERNAL_URL:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: homeplatform_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
+volumes:
+  caddy_data:
+  caddy_config:
