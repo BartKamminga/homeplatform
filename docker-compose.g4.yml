@@ -35,7 +35,7 @@ services:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=production
-      - MUSIC_DIR=/app/music
+      - MUSIC_DIR=/app/music/music/mixes
       - DOWNLOAD_DIR=/app/downloads
       - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
       - SENTRY_DSN=${SENTRY_DSN:-}
