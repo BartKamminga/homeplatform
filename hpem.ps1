@@ -272,7 +272,10 @@ if ($Status) {
     Set-Location "$Root\backend"
     $localBranch   = git branch --show-current
     $localCommit   = git log -1 --format="%h - %s"
-    $localRevision = (& "$Root\.venv\Scripts\python.exe" -m alembic current 2>$null) | Select-Object -Last 1
+    $env:DATABASE_URL = "sqlite:///$Root/db/homeplatform.sqlite"
+    $pyExe = "$Root\.venv\Scripts\python.exe"
+    $localRevision = cmd /c ('"' + $pyExe + '" -m alembic current 2>NUL') | Select-Object -Last 1
+    Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
     Set-Location $prev
 
     Label "Branch"      $localBranch
