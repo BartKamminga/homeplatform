@@ -2648,9 +2648,10 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
             _smart_scan_set_state(session, "discovery", started_at, cmd_count + added)
             return {"added": added, "type": "get_poule"}
 
-    # 2. Next club with most pending teams not yet scanned this session
+    # 2. Next club with most unconfirmed teams not yet scanned this session
     cq = select(HockeyTeam).where(
-        (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
+        HockeyTeam.no_new_poule_confirmed == False,  # noqa: E712
+        HockeyTeam.season_pending == False,  # noqa: E712
     )
     if cats:
         cq = cq.where(col(HockeyTeam.category_group_name).in_(cats))
