@@ -51,24 +51,23 @@ export default function Monitoring() {
           />
           <LinkCard
             icon="🐛"
-            title="GlitchTip"
-            description="Fout- en crash-monitoring. Bekijk exceptions, traces en releases."
-            href={links.glitchtip}
+            title="Bugsink"
+            description="Fout- en crash-monitoring. Sentry-compatible drop-in, draait op de G4."
+            href="http://192.168.30.232:8090"
             badge={overview?.sentry_enabled ? `actief · ${overview.sentry_min_level}+` : null}
             badgeColor={overview?.sentry_enabled ? '#22c55e' : null}
-            placeholder="Stel SENTRY_DSN in .env in"
           />
           <LinkCard
             icon="🐳"
             title="Portainer"
             description="Docker beheer UI op de G4. Containers, images, volumes en logs."
-            href="http://192.168.1.232:9000"
+            href="http://192.168.30.232:9000"
           />
           <LinkCard
             icon="🖥"
             title="Cockpit"
             description="Serverbeheer UI op de G4. CPU, geheugen, netwerk en services."
-            href="http://192.168.1.232:9091"
+            href="http://192.168.30.232:9091"
           />
           <LinkCard
             icon="🗄"
