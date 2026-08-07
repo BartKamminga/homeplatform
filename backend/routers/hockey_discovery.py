@@ -2631,7 +2631,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
             if pid in captured_ids or pid in queued_poule_ids or pid in seen_pids:
                 continue
             seen_pids.add(pid)
-            to_add.append({"poule_id": pid, "label": t.name})
+            to_add.append({"poule_id": pid, "team_id": t.team_id, "label": t.name})
 
         if to_add:
             batch = to_add[:15]
