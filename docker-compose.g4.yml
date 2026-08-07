@@ -28,7 +28,7 @@ services:
       - /home/bart/homeplatform/uploads:/app/uploads
       - /home/bart/homeplatform/nas-files:/app/nas-files
       - /home/bart/homeplatform/music:/app/music
-      - /home/bart/homeplatform/downloads:/app/downloads
+      - /home/bart/homeplatform/music/downloads:/app/downloads
       - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
       - /home/bart/homeplatform/plugins:/app/plugins
     environment:
