@@ -2641,7 +2641,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
                     break
                 session.add(VangerCmd(
                     cmd_type="get_poule",
-                    params=json.dumps({"poule_id": item["poule_id"], "label": item["label"]}),
+                    params=json.dumps({"poule_id": item["poule_id"], "team_id": item["team_id"], "label": item["label"]}),
                     status="pending",
                 ))
                 added += 1
