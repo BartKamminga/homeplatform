@@ -109,7 +109,10 @@ function Info($msg)        { Write-Host "   $msg" -ForegroundColor Gray }
 function Label($key, $val) { Write-Host ("   {0,-18} {1}" -f $key, $val) }
 
 function NasSsh($cmd) {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     ssh -i $NasKey -o StrictHostKeyChecking=no $NasHost $cmd
+    $ErrorActionPreference = $prevEAP
 }
 
 function NasRun($cmd, $desc = "") {
