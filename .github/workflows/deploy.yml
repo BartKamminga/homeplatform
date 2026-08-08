@@ -59,8 +59,13 @@ jobs:
 
       - name: Migraties + seed (acc)
         run: |
-          docker exec homeplatform_backend_acc alembic upgrade head
-          docker exec homeplatform_backend_acc python seed.py
+          docker exec homeplatform_backend_acc sh -c "
+            if ! alembic current 2>/dev/null | grep -q '.'; then
+              alembic stamp head
+            fi
+            alembic upgrade head
+            python seed.py
+          "
 
       - name: Frontend bouwen (acc)
         working-directory: ${{ env.ACC_REPO }}/frontend/sites
