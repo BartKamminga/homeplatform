@@ -1,0 +1,52 @@
+# Acceptatie-stack — develop branch, poort 8081
+# Start vanuit /home/bart/homeplatform-repo-acc
+
+services:
+  caddy_acc:
+    image: caddy:latest
+    container_name: homeplatform_caddy_acc
+    ports:
+      - "8081:80"
+    volumes:
+      - ./Caddyfile.acc:/etc/caddy/Caddyfile
+      - ./frontend/dist:/srv/www
+      - caddy_acc_data:/data
+      - caddy_acc_config:/config
+    depends_on:
+      - backend_acc
+    restart: unless-stopped
+
+  backend_acc:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: homeplatform_backend_acc
+    volumes:
+      - /home/bart/homeplatform-acc/db:/app/db
+      - /home/bart/homeplatform-acc/uploads:/app/uploads
+      - /home/bart/homeplatform-acc/nas-files:/app/nas-files
+      - /home/bart/homeplatform/music:/app/music
+      - /home/bart/homeplatform/music/downloads:/app/downloads
+      - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
+      - /home/bart/homeplatform/plugins:/app/plugins
+    environment:
+      - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=acceptatie
+      - MUSIC_DIR=/app/music/music/mixes
+      - DOWNLOAD_DIR=/app/downloads
+      - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - NAS_URL=${NAS_URL:-}
+      - EXTERNAL_URL=${EXTERNAL_URL:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  caddy_acc_data:
+  caddy_acc_config:

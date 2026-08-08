@@ -184,7 +184,8 @@ if ($List) {
     if ($Status)   { $qs += "status=$Status" }
     if ($Site)     { $qs += "site=$Site" }
     if ($Priority) { $qs += "priority=$Priority" }
-    $path = "/roadmap" + (if ($qs) { "?" + ($qs -join "&") } else { "" })
+    $qstr = if ($qs) { "?" + ($qs -join "&") } else { "" }
+    $path = "/roadmap" + $qstr
     $items = ApiGet $path
     FormatList $items
     exit 0

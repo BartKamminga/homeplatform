@@ -1,0 +1,93 @@
+{
+    auto_https off
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy backend_acc:8000
+    }
+
+    handle /admin/* {
+        root * /srv/www
+        try_files {path} /admin/index.html
+        file_server
+    }
+
+    handle /landing/* {
+        root * /srv/www
+        try_files {path} /landing/index.html
+        file_server
+    }
+
+    handle /nkhockey/* {
+        root * /srv/www
+        try_files {path} /nkhockey/index.html
+        file_server
+    }
+
+    handle /mixmusic/* {
+        root * /srv/www
+        try_files {path} /mixmusic/index.html
+        file_server
+    }
+
+    handle /dontforget/* {
+        root * /srv/www
+        try_files {path} /dontforget/index.html
+        file_server
+    }
+
+    handle /account/* {
+        root * /srv/www
+        try_files {path} /account/index.html
+        file_server
+    }
+
+    handle /tournix/* {
+        root * /srv/www
+        try_files {path} /tournix/index.html
+        file_server
+    }
+
+    handle /fiets/* {
+        root * /srv/www
+        try_files {path} /fiets/index.html
+        file_server
+    }
+
+    handle /poulebord/* {
+        root * /srv/www
+        try_files {path} /poulebord/index.html
+        file_server
+    }
+
+    handle /beatcrades/* {
+        root * /srv/www
+        try_files {path} /beatcrades/index.html
+        file_server
+    }
+
+    handle /scrapster/* {
+        root * /srv/www
+        try_files {path} /scrapster/index.html
+        file_server
+    }
+
+    handle /assets/* {
+        root * /srv/www
+        file_server
+    }
+
+    handle /favicon.svg {
+        root * /srv/www
+        file_server
+    }
+
+    handle / {
+        root * /srv/www
+        try_files {path} /landing/index.html
+        file_server
+    }
+
+    respond 404
+}
