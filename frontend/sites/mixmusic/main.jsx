@@ -7,6 +7,7 @@ import AuthGate from "@components/AuthGate.jsx";
 import ErrorBoundary from "@components/ErrorBoundary.jsx";
 import { trackEvent, loadTheme } from "@core/api.js";
 import { initSentry } from "@core/sentry.js";
+import EnvBanner from "@core/EnvBanner.jsx";
 
 initSentry();
 trackEvent("mixmusic", "page.view", { path: window.location.pathname });
@@ -20,6 +21,7 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
+    <EnvBanner />
     <ErrorBoundary label="Mix Music">
       <AuthGate site="mixmusic" siteName="Mix Music">
         <App />
