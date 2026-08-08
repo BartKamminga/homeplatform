@@ -411,7 +411,10 @@ if ($Push -eq "yes") {
     } else {
         Warn "Niets te committen"
     }
+    $prevEAP2 = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     git push origin main
+    $ErrorActionPreference = $prevEAP2
     if ($LASTEXITCODE -ne 0) { Fail "Git push mislukt" }
     Ok "Gepusht naar GitHub"
 }
