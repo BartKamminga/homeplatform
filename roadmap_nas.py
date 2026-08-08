@@ -14,7 +14,7 @@ Arguments: cmd [options]
 import sqlite3, uuid, sys, argparse
 from datetime import datetime
 
-DB = "/volume1/homeplatform/db/homeplatform.sqlite"
+DB = "/home/bart/homeplatform/db/homeplatform.sqlite"
 
 
 def _con():

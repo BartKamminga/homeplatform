@@ -36,7 +36,7 @@ param(
 )
 
 $NasKey  = "$env:USERPROFILE\.ssh\homeplatform"
-$NasHost = "admin@192.168.30.193"
+$NasHost = "bart@192.168.30.232"
 $Script  = Join-Path $PSScriptRoot "roadmap_nas.py"
 
 function NasRun([string[]]$ArgList) {
