@@ -131,7 +131,10 @@ function DistUpload {
     if (-not (Test-Path $distPath)) { Fail "frontend\dist niet gevonden - run eerst de build stap" }
     NasSsh "mkdir -p $NasPath/frontend/dist"
     $cmdStr = 'tar -czf - -C "' + $distPath + '" . | ssh -i "' + $NasKey + '" -o StrictHostKeyChecking=no ' + $NasHost + ' "tar -xzf - --overwrite -C ' + $NasPath + '/frontend/dist"'
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     cmd /c $cmdStr
+    $ErrorActionPreference = $prevEAP
     if ($LASTEXITCODE -ne 0) { Fail "Upload van dist mislukt" }
     Ok "Dist geüpload naar G4"
 }
