@@ -53,6 +53,9 @@ jobs:
       - name: Backend bouwen en herstarten (acc)
         run: |
           mkdir -p $ACC_REPO/frontend/dist
+          mkdir -p /home/bart/homeplatform-acc/db
+          mkdir -p /home/bart/homeplatform-acc/uploads
+          mkdir -p /home/bart/homeplatform-acc/nas-files
           cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc
           cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d
           sleep 5
