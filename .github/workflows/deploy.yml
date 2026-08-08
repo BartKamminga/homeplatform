@@ -29,8 +29,10 @@ jobs:
           docker exec homeplatform_backend python seed.py
 
       - name: Frontend bouwen
-        working-directory: ${{ env.PROD_REPO }}/frontend
-        run: npm ci --prefer-offline && npm run build
+        working-directory: ${{ env.PROD_REPO }}/frontend/sites
+        run: |
+          chmod -R u+w $PROD_REPO/frontend/dist 2>/dev/null || true
+          npm ci --prefer-offline && npm run build
 
       - name: Caddy reload
         run: docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile
@@ -61,8 +63,10 @@ jobs:
           docker exec homeplatform_backend_acc python seed.py
 
       - name: Frontend bouwen (acc)
-        working-directory: ${{ env.ACC_REPO }}/frontend
-        run: npm ci --prefer-offline && npm run build
+        working-directory: ${{ env.ACC_REPO }}/frontend/sites
+        run: |
+          chmod -R u+w $ACC_REPO/frontend/dist 2>/dev/null || true
+          npm ci --prefer-offline && npm run build
 
       - name: Caddy reload (acc)
         run: docker exec homeplatform_caddy_acc caddy reload --config /etc/caddy/Caddyfile
