@@ -33,8 +33,9 @@ const DB_GROUP_ROWS = [
 ];
 
 const DB_GLOBAL_ROWS = [
-  { label: 'site, version, title, description',            where: 'changelog',      note: 'Platform changelog' },
-  { label: 'title, status, priority, notes',               where: 'roadmap_items',  note: 'Roadmap backlog' },
+  { label: 'site, version, title, description',            where: 'changelog',        note: 'Platform changelog' },
+  { label: 'title, status, priority, owner, notes',        where: 'roadmap_items',    note: 'Roadmap backlog' },
+  { label: 'item_id, username, action, changes',           where: 'roadmap_history',  note: 'Roadmap wijzigingshistorie' },
   { label: 'name, abbreviation, city, color',              where: 'tournix_clubs',  note: 'Tournix clubreferentie' },
   { label: 'name',                                         where: 'mixmusic_genres', note: 'MixMusic genres' },
   { label: 'url, title, status, progress_log, output_path', where: 'download_jobs', note: 'BeatCrades — download queue' },
@@ -282,7 +283,7 @@ export default function DataStorage() {
 
         <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '14px', textAlign: 'center' }}>
           Actieve Beatport-provider: <strong style={{ fontFamily: 'var(--font-mono)' }}>{beatportProvider ?? '…'}</strong>
-          {' '}— instelbaar via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in docker-compose.nas.yml
+          {' '}— instelbaar via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in docker-compose.g4.yml
         </p>
       </SectionCard>
 
@@ -291,51 +292,55 @@ export default function DataStorage() {
         title="Deploy-omgevingen"
         subtitle="Lokale ontwikkeling (Windows) en productie op de G4 (HP ProDesk 600 G4 — Ubuntu + Docker)."
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
               Lokaal — ontwikkeling
             </div>
             <EnvRow label="Vite dev server"  note="Frontend MPA — elke site eigen port" />
             <EnvRow label="FastAPI uvicorn"  note="Backend op :8000 — F5 launch config in .venv" />
-            <EnvRow label="SQLite"           note="C:\Projects\homeplatform\db\homeplatform.sqlite" />
-            <EnvRow label="Alembic"          note="Migraties lokaal via absolute DATABASE_URL" />
-            <EnvRow label="hpem.ps1"         note="Build + upload naar G4" />
+            <EnvRow label="Git branch"       note="develop voor feature-werk, main voor productie" />
           </div>
 
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
-              G4 — productie (192.168.1.232)
+              G4 — acceptatie (192.168.30.232:8081)
             </div>
-            <EnvRow label="Caddy"            note="Reverse proxy + static files (poort 8080 / 8443)" />
+            <EnvRow label="Branch"           note="develop → automatisch via GitHub Actions" />
+            <EnvRow label="Caddy (Docker)"   note="Poort 8081 — docker-compose.acc.yml" />
+            <EnvRow label="Backend (Docker)" note="FastAPI container — homeplatform_backend_acc" />
+            <EnvRow label="SQLite"           note="/home/bart/homeplatform-acc/db/homeplatform.sqlite" />
+          </div>
+
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
+              G4 — productie (192.168.30.232:8080)
+            </div>
+            <EnvRow label="Branch"           note="main → automatisch via GitHub Actions" />
+            <EnvRow label="Caddy (Docker)"   note="Poort 8080 / 8443 — docker-compose.g4.yml" />
             <EnvRow label="Backend (Docker)" note="FastAPI container — Dockerfile in /backend" />
             <EnvRow label="SQLite"           note="/home/bart/homeplatform/db/homeplatform.sqlite" />
             <EnvRow label="Downloads"        note="/home/bart/homeplatform/downloads — beatportdl + yt-dlp output" />
-            <EnvRow label="Portainer"        note="Docker beheer UI (poort 9000)" />
-            <EnvRow label="Cockpit"          note="Serverbeheer UI (poort 9091)" />
-            <EnvRow label="Prometheus"       note="Metrics collector (poort 9090)" />
-            <EnvRow label="GlitchTip"        note="Fout-tracking — draait nog op NAS (poort 8090)" />
+            <EnvRow label="Bugsink"          note="Fout-tracking op G4 (poort 8090)" />
             <EnvRow label="Cloudflare Tunnel" note="Externe toegang via cloudflared" />
           </div>
         </div>
 
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-light)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-            Deploy-flow — hpem.ps1
+            Deploy-flow — GitHub Actions
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
             {[
-              { flag: 'fe',    desc: 'Vite build → dist upload → Caddy reload' },
-              { flag: 'be',    desc: 'Docker rebuild (geen migraties)' },
-              { flag: 'be_db', desc: 'Docker rebuild + Alembic migraties + seed' },
-              { flag: 'all',   desc: 'fe + be_db — volledige deploy (standaard)' },
+              { branch: 'develop', desc: 'push → acc (8081): Vite build + Docker rebuild + migraties' },
+              { branch: 'main',    desc: 'push → prod (8080): zelfde flow, live op webheaven.nl' },
             ].map((item) => (
-              <div key={item.flag} style={{
+              <div key={item.branch} style={{
                 background: 'var(--color-background)', border: '1px solid var(--color-border)',
                 borderRadius: '6px', padding: '8px 10px',
               }}>
                 <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-text)' }}>
-                  -Build {item.flag}
+                  {item.branch}
                 </span>
                 <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{item.desc}</div>
               </div>

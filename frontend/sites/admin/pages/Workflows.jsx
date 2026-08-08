@@ -45,9 +45,9 @@ export default function Workflows() {
               { status: 'analyzed',    color: '#8b5cf6',                 desc: 'Impact, risk en scope zijn ingevuld — klaar voor verdere prioritering.' },
               { status: 'pick_up',     color: '#0ea5e9',                 desc: 'Expliciet geprioriteerd — wordt als eerste opgepakt in de volgende sessie.' },
               { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
-              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gedeployed naar de NAS.' },
-              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Deploy bezig via hpem.ps1 — platform herstart.' },
-              { status: 'done',        color: 'var(--color-success)',    desc: 'Live op de NAS — changelog-entry is automatisch aangemaakt.' },
+              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gemerged naar main.' },
+              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Merge naar main bezig — GitHub Actions pipeline actief.' },
+              { status: 'done',        color: 'var(--color-success)',    desc: 'Live op de G4 — changelog-entry is automatisch aangemaakt.' },
             ].map(({ status, color, desc }) => (
               <div key={status} style={{ display: 'flex', alignItems: 'baseline', gap: '12px', fontSize: '13px' }}>
                 <span style={{
@@ -66,37 +66,22 @@ export default function Workflows() {
       {/* ── Deploy workflow ── */}
       <Section title="Deploy workflow">
         <div style={{ display: 'grid', gap: '12px' }}>
-          <WorkflowStep step={1} title="Wijzigingen maken" color="var(--color-primary)">
-            Pas code aan in <code>backend/</code> of <code>frontend/sites/</code>.
+          <WorkflowStep step={1} title="Wijzigingen maken op develop" color="var(--color-primary)">
+            Werk op de <code>develop</code> branch. Pas code aan in <code>backend/</code> of <code>frontend/sites/</code>.
             Test lokaal via de dev-server (<code>vite dev</code>) of de lokale backend (<code>F5</code>).
           </WorkflowStep>
           <WorkflowStep step={2} title="Migratie aanmaken (alleen bij DB-wijziging)" color="var(--color-primary)">
             Voeg een nieuw bestand toe in <code>backend/alembic/versions/</code> met de juiste
-            <code> down_revision</code>. Draai lokaal: <code>python -m alembic upgrade head</code>
+            <code> down_revision</code>. De G4 draait de migratie automatisch via de pipeline.
           </WorkflowStep>
-          <WorkflowStep step={3} title="Deployen" color="#22c55e">
-            Draai vanuit de projectroot:
-            <div style={{ display: 'grid', gap: '6px', marginTop: '10px' }}>
-              {[
-                ['hpem.ps1 -Build all',   'Alles — frontend + backend + migraties (standaard)'],
-                ['hpem.ps1 -Build fe',    'Alleen frontend — sneller bij puur UI-wijzigingen'],
-                ['hpem.ps1 -Build be',    'Alleen backend — geen DB-wijzigingen'],
-                ['hpem.ps1 -Build be_db', 'Backend + alembic migraties + seed'],
-              ].map(([cmd, desc]) => (
-                <div key={cmd} style={{
-                  display: 'flex', gap: '12px', alignItems: 'baseline',
-                  background: 'var(--color-background)', borderRadius: 'var(--radius-sm)',
-                  padding: '8px 12px',
-                }}>
-                  <code style={{ fontSize: '12px', color: 'var(--color-primary)', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>{cmd}</code>
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{desc}</span>
-                </div>
-              ))}
-            </div>
+          <WorkflowStep step={3} title="Push naar develop → test op acc" color="#f59e0b">
+            <code>git push origin develop</code> — GitHub Actions bouwt en deployt automatisch naar de
+            acceptatie-omgeving op <strong>192.168.30.232:8081</strong>.
+            Test hier de wijzigingen voor je naar productie gaat.
           </WorkflowStep>
-          <WorkflowStep step={4} title="Resultaat" color="#22c55e">
-            Script commit + push naar GitHub → NAS pull → Docker rebuild → migraties → dist upload → Caddy herstart.
-            Na ±30 seconden is alles live op <strong>webheaven.nl</strong>.
+          <WorkflowStep step={4} title="Merge naar main → live op prod" color="#22c55e">
+            <code>git merge develop &amp;&amp; git push origin main</code> — pipeline deployt automatisch naar productie.
+            Na ±60 seconden is alles live op <strong>webheaven.nl</strong>.
           </WorkflowStep>
         </div>
       </Section>
