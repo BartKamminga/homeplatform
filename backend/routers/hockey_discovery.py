@@ -2510,7 +2510,7 @@ def clear_cmd_queue(
     _=Depends(get_current_user),
 ):
     if scope == "done":
-        statuses = ["done", "skipped"]
+        statuses = ["done", "skipped", "failed"]
     elif scope == "all":
         statuses = ["pending", "in_progress", "done", "failed", "skipped"]
     else:
