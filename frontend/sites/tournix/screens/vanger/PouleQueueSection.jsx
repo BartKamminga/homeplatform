@@ -98,7 +98,7 @@ export default function PouleQueueSection({ queue, qFilter, allTeams, showWaitin
                         <button onClick={() => onResetPoule(p.poule_id)}
                           style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>reset</button>
                       )}
-                      {!p.captured && p.poule_id && (
+                      {!p.captured && p.poule_id && p.team_id && (
                         <button
                           disabled={!!addState}
                           onClick={() => addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: p.team_id, label: p.team_name || p.short_name })}

@@ -27,8 +27,17 @@ function resolveHockeyType(t) {
   return 'VE'
 }
 
-// ghostBtn-stijl lokaal voor de cleanup-knop
 const _ghostBtn = { fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }
+
+function tabStyle(active) {
+  return {
+    fontSize: 12, padding: '5px 14px', borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer',
+    border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+    background: active ? 'var(--color-primary)' : 'transparent',
+    color: active ? '#fff' : 'var(--color-text)',
+    fontWeight: active ? 600 : 400,
+  }
+}
 
 export default function DiscoveryTab() {
   const [clubs,          setClubs]          = useState([])
@@ -40,12 +49,12 @@ export default function DiscoveryTab() {
   const [loading,        setLoading]        = useState(true)
   const [error,          setError]          = useState('')
   const [expanded,       setExpanded]       = useState(new Set())
-  const [compOpen,       setCompOpen]       = useState(false)
   const [cleanupMsg,     setCleanupMsg]     = useState('')
   const [clubSearch,     setClubSearch]     = useState('')
   const [herscanMsg,     setHerscanMsg]     = useState('')
   const [herscanBusy,    setHerscanBusy]    = useState(false)
-  const { addSingleCmd, cmdAdding, cmdBtn } = useQueueCmd()
+  const [discTab,        setDiscTab]        = useState('competities')
+  const { addSingleCmd, cmdBtn } = useQueueCmd()
 
   async function handleCleanupEmpty() {
     try {
@@ -84,10 +93,8 @@ export default function DiscoveryTab() {
   }
 
   const clubMap = {}
-  const clubLogoMap = {}
   for (const c of clubs) {
     clubMap[c.external_id] = c.friendly_name || c.name
-    if (c.logo_url) clubLogoMap[c.external_id] = c.logo_url
   }
 
   const teamsByClub = {}
@@ -148,7 +155,7 @@ export default function DiscoveryTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-      {/* Seizoen selector — altijd zichtbaar */}
+      {/* Seizoen selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>Seizoen:</span>
         {['2024-2025', '2025-2026', '2026-2027'].map(s => (
@@ -161,23 +168,29 @@ export default function DiscoveryTab() {
         ))}
       </div>
 
-      {error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
-      {loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => setDiscTab('competities')} style={tabStyle(discTab === 'competities')}>
+          🏆 Competities{competitions.length > 0 ? ` (${competitions.length})` : ''}
+        </button>
+        <button onClick={() => setDiscTab('clubs')} style={tabStyle(discTab === 'clubs')}>
+          🏑 Clubs{clubs.length > 0 ? ` (${clubs.length})` : ''}
+        </button>
+      </div>
 
-      {cleanupMsg  && <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{cleanupMsg}</p>}
-      {herscanMsg  && <p style={{ fontSize: 12, color: 'var(--color-success)',    fontWeight: 600 }}>{herscanMsg}</p>}
+      {error      && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{error}</p>}
+      {loading    && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
+      {cleanupMsg && <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{cleanupMsg}</p>}
+      {herscanMsg && <p style={{ fontSize: 12, color: 'var(--color-success)', fontWeight: 600 }}>{herscanMsg}</p>}
 
-      {/* Competities */}
-      {competitions.length > 0 && (
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-          <div onClick={() => setCompOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{compOpen ? '▾' : '▸'}</span>
-            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities</span>
-            <span style={pill('muted')}>{competitions.length} gevonden</span>
+      {/* ===== COMPETITIES ===== */}
+      {discTab === 'competities' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+          {/* Toolbar */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button
-              onClick={async e => {
-                e.stopPropagation()
+              onClick={async () => {
                 const toScan = competitions.filter(c => c.hl_comp_id)
                 if (!toScan.length) return
                 setHerscanBusy(true); setHerscanMsg('')
@@ -189,242 +202,271 @@ export default function DiscoveryTab() {
                 setTimeout(() => setHerscanMsg(''), 5000)
               }}
               disabled={herscanBusy}
-              style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px', opacity: herscanBusy ? 0.5 : 1 }}
-              title="Zet alle competities in de herscan-queue"
+              style={{ ..._ghostBtn, opacity: herscanBusy ? 0.5 : 1 }}
             >{herscanBusy ? '…' : '⟳ Herscan alle'}</button>
-            <button
-              onClick={e => { e.stopPropagation(); handleCleanupEmpty() }}
-              style={{ ..._ghostBtn, fontSize: 11, padding: '2px 8px' }}
-              title="Verwijder competities zonder poules"
-            >🗑 Lege opruimen</button>
+            <button onClick={handleCleanupEmpty} style={_ghostBtn}>🗑 Lege opruimen</button>
           </div>
-          {compOpen && (
-            <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {['VE', 'ZA', ''].map(ht => {
-                const group = competitions.filter(c => (ht === '' ? !c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA') : c.hockey_type === ht))
-                if (!group.length) return null
-                const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Onbekend type'
 
-                const byAge = {
-                  Senioren: group.filter(c => !isJeugd(c)),
-                  Jeugd:    group.filter(c =>  isJeugd(c)),
-                }
+          {/* Boom: VE/ZA → Senioren/Jeugd → District → competities */}
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {['VE', 'ZA', ''].map(ht => {
+              const htGroup = competitions.filter(c =>
+                ht === '' ? (!c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA')) : c.hockey_type === ht
+              )
+              if (!htGroup.length) return null
+              const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Onbekend type'
 
-                return (
-                  <div key={ht || 'other'}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
-                      {htLabel}
-                    </div>
-                    {AGE_GROUP_ORDER.map(ag => {
-                      const ageGroup = byAge[ag]
-                      if (!ageGroup.length) return null
-                      return (
-                        <div key={ag}>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '4px 2px 2px', opacity: 0.7 }}>
-                            {ag} ({ageGroup.length})
-                          </div>
-                          {ageGroup.map(c => {
-                            const cKey    = 'comp_' + c.id
-                            const cOpen   = expanded.has(cKey)
-                            const cPoules = capturedPoules
-                              .filter(p => p.competition_id === c.id)
-                              .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
-                            return (
-                              <div key={c.id}>
-                                <div
-                                  onClick={() => cPoules.length > 0 && toggle(cKey)}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: cPoules.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
-                                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
-                                    {cPoules.length > 0 ? (cOpen ? '▾' : '▸') : ''}
-                                  </span>
-                                  <span style={{ flex: 1 }}>{c.name}</span>
-                                  {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
-                                  {c.district   && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.district}</span>}
-                                  {c.hl_comp_id && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>#{c.hl_comp_id}</span>}
-                                  <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
-                                  {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
-                                </div>
-                                {cOpen && (
-                                  <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
-                                    {cPoules.map(p => {
-                                      const pKey   = 'poule_' + p.poule_id
-                                      const pOpen  = expanded.has(pKey)
-                                      const pTeams = allTeams
-                                        .filter(t => t.recent_poule_id === p.poule_id)
-                                        .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
-                                      return (
-                                        <div key={p.poule_id}>
-                                          <div
-                                            onClick={() => pTeams.length > 0 && toggle(pKey)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, cursor: pTeams.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
-                                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
-                                              {pTeams.length > 0 ? (pOpen ? '▾' : '▸') : '·'}
-                                            </span>
-                                            <span style={{ flex: 1, color: 'var(--color-text)' }}>{p.name}</span>
-                                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
-                                            {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
-                                            {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
-                                          </div>
-                                          {pOpen && (
-                                            <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
-                                              {pTeams.map(t => (
-                                                <div key={t.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px', fontSize: 11 }}>
-                                                  <span style={{ width: 80, flexShrink: 0, fontWeight: 500 }}>{t.short_name}</span>
-                                                  <span style={{ flex: 1, color: 'var(--color-text-muted)', fontSize: 10 }}>{clubMap[t.club_external_id] || t.club_external_id}</span>
-                                                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{t.team_id}</span>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )
-                                    })}
+              const byAge = {
+                Senioren: htGroup.filter(c => !isJeugd(c)),
+                Jeugd:    htGroup.filter(c =>  isJeugd(c)),
+              }
+
+              return (
+                <div key={ht || 'other'}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 4, marginTop: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
+                    {htLabel}
+                  </div>
+
+                  {AGE_GROUP_ORDER.map(ag => {
+                    const ageGroup = byAge[ag]
+                    if (!ageGroup.length) return null
+
+                    const byDist = {}
+                    for (const c of ageGroup) {
+                      const d = c.district || 'Onbekend'
+                      if (!byDist[d]) byDist[d] = []
+                      byDist[d].push(c)
+                    }
+                    const districts = Object.keys(byDist).sort((a, b) =>
+                      a === 'Onbekend' ? 1 : b === 'Onbekend' ? -1 : a.localeCompare(b, 'nl')
+                    )
+
+                    return (
+                      <div key={ag}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '4px 2px 2px', opacity: 0.7 }}>
+                          {ag} ({ageGroup.length})
+                        </div>
+
+                        {districts.map(dist => (
+                          <div key={dist} style={{ marginBottom: 6 }}>
+                            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', padding: '3px 2px 2px', marginBottom: 1, display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid var(--color-border)' }}>
+                              <span style={{ opacity: 0.5 }}>📍</span>
+                              <span style={{ fontStyle: 'italic' }}>{dist}</span>
+                              <span style={{ opacity: 0.45 }}>({byDist[dist].length})</span>
+                            </div>
+
+                            {byDist[dist].map(c => {
+                              const cKey    = 'comp_' + c.id
+                              const cOpen   = expanded.has(cKey)
+                              const cPoules = capturedPoules
+                                .filter(p => p.competition_id === c.id)
+                                .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+                              return (
+                                <div key={c.id}>
+                                  <div
+                                    onClick={() => cPoules.length > 0 && toggle(cKey)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: cPoules.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
+                                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
+                                      {cPoules.length > 0 ? (cOpen ? '▾' : '▸') : ''}
+                                    </span>
+                                    <span style={{ flex: 1 }}>{c.name}</span>
+                                    {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
+                                    {c.hl_comp_id && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>#{c.hl_comp_id}</span>}
+                                    <span style={pill(cPoules.length > 0 ? 'partial' : 'muted')}>{cPoules.length}/{c.poule_count} poules</span>
+                                    {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
                                   </div>
-                                )}
+
+                                  {cOpen && (
+                                    <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 4 }}>
+                                      {cPoules.map(p => {
+                                        const pKey   = 'poule_' + p.poule_id
+                                        const pOpen  = expanded.has(pKey)
+                                        const pTeams = allTeams
+                                          .filter(t => t.recent_poule_id === p.poule_id)
+                                          .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                                        return (
+                                          <div key={p.poule_id}>
+                                            <div
+                                              onClick={() => pTeams.length > 0 && toggle(pKey)}
+                                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 2px', fontSize: 11, cursor: pTeams.length > 0 ? 'pointer' : 'default', userSelect: 'none' }}>
+                                              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>
+                                                {pTeams.length > 0 ? (pOpen ? '▾' : '▸') : '·'}
+                                              </span>
+                                              <span style={{ flex: 1, color: 'var(--color-text)' }}>{p.name}</span>
+                                              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
+                                              {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
+                                              {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
+                                            </div>
+                                            {pOpen && (
+                                              <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
+                                                {pTeams.map(t => (
+                                                  <div key={t.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px', fontSize: 11 }}>
+                                                    <span style={{ width: 80, flexShrink: 0, fontWeight: 500 }}>{t.short_name}</span>
+                                                    <span style={{ flex: 1, color: 'var(--color-text-muted)', fontSize: 10 }}>{clubMap[t.club_external_id] || t.club_external_id}</span>
+                                                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{t.team_id}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+
+            {!loading && competitions.length === 0 && (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                Geen competities gevonden voor {season}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== CLUBS ===== */}
+      {discTab === 'clubs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input
+            type="search"
+            value={clubSearch}
+            onChange={e => setClubSearch(e.target.value)}
+            placeholder={`Zoek in ${clubs.length} clubs…`}
+            style={{ width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
+          />
+
+          {clubRenderItems.map(item => {
+            if (item.type === 'header') {
+              return (
+                <div key={'h-' + item.district} style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '6px 2px 2px', marginTop: 2 }}>
+                  {item.district} <span style={{ fontWeight: 400 }}>({item.count})</span>
+                </div>
+              )
+            }
+            const c = item.club
+            const teams   = teamsByClub[c.external_id] || []
+            const pStats  = poulesByClub[c.external_id]
+            const cap     = pStats ? pStats.captured : 0
+            const tot     = pStats ? pStats.total    : 0
+            const pVar    = tot === 0 ? 'muted' : cap === tot ? 'ok' : cap > 0 ? 'partial' : 'muted'
+            const isOpen  = expanded.has(c.external_id)
+
+            const byType = {}
+            for (const t of teams) {
+              const ht = resolveHockeyType(t)
+              if (!byType[ht]) byType[ht] = {}
+              if (!byType[ht][t.category_group_name]) byType[ht][t.category_group_name] = []
+              byType[ht][t.category_group_name].push(t)
+            }
+            const types = HT_ORDER.filter(ht => byType[ht])
+            const multiType = types.length > 1
+
+            return (
+              <div key={c.external_id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+                <div onClick={() => toggle(c.external_id)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, flexShrink: 0 }}>{isOpen ? '▾' : '▸'}</span>
+                  {c.logo_url && (
+                    <img src={c.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0, borderRadius: 3 }} />
+                  )}
+                  <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 80 }}>{c.friendly_name || c.name}</span>
+                  {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
+                  <span style={pill(c.detail_loaded ? 'ok' : 'muted')}>{c.detail_loaded ? '✓ detail' : '– geen detail'}</span>
+                  {teams.filter(t => resolveHockeyType(t) === 'VE').length > 0 && (
+                    <span style={pill('muted')}>🏑 {teams.filter(t => resolveHockeyType(t) === 'VE').length}</span>
+                  )}
+                  {teams.filter(t => resolveHockeyType(t) === 'ZA').length > 0 && (
+                    <span style={pill('muted')}>🏒 {teams.filter(t => resolveHockeyType(t) === 'ZA').length}</span>
+                  )}
+                  {pStats && <span style={pill(pVar)}>{cap}/{tot} poules</span>}
+                </div>
+
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {(c.district || c.address || c.phone || c.email || c.website) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 16px', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        {c.district && <span>📍 {c.district}</span>}
+                        {c.address  && <span>{c.address}{c.zipcode ? ', ' + c.zipcode : ''}</span>}
+                        {c.phone    && <span>📞 {c.phone}</span>}
+                        {c.email    && <span>✉ {c.email}</span>}
+                        {c.website  && (
+                          <a href={c.website} target="_blank" rel="noreferrer"
+                            style={{ color: 'var(--color-primary)', fontSize: 12 }}
+                            onClick={e => e.stopPropagation()}>
+                            🌐 {c.website.replace(/^https?:\/\//, '')}
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {types.length > 0 ? types.map(ht => {
+                      const catMap = byType[ht]
+                      const cats = sortCats(Object.keys(catMap))
+                      return (
+                        <div key={ht}>
+                          {multiType && (
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
+                              {HT_LABEL[ht]}
+                            </div>
+                          )}
+                          {cats.map(cat => {
+                            const catTeams = [...catMap[cat]].sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                            return (
+                              <div key={cat} style={{ marginBottom: 8 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                                  {cat} <span style={{ fontWeight: 400 }}>({catTeams.length})</span>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                  {catTeams.map(t => {
+                                    const qp          = t.recent_poule_id ? (queueByPouleId[t.recent_poule_id] ?? null) : null
+                                    const hasCaptured = qp && qp.captured && !qp.stale
+                                    const isStale     = qp && qp.stale
+                                    const hasPoule    = !!t.recent_poule_id
+                                    const v           = hasCaptured ? 'ok' : isStale ? 'muted' : hasPoule ? 'partial' : 'muted'
+                                    const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : hasPoule ? ' · wacht op scan' : ' · geen poule'
+                                    return (
+                                      <span key={t.team_id} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
+                                        title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule') + titleSuffix}>
+                                        {t.short_name}
+                                        {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
+                                        {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
+                                        {!isStale && !hasCaptured && hasPoule && <span style={{ opacity: 0.65 }}>○</span>}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
                               </div>
                             )
                           })}
                         </div>
                       )
-                    })}
+                    }) : (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
+                        Geen teams geladen — scan deze club via de vanger
+                      </p>
+                    )}
+
+                    <div style={{ fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.5 }}>{c.external_id}</div>
                   </div>
-                )
-              })}
+                )}
+              </div>
+            )
+          })}
+
+          {!loading && clubs.length === 0 && (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+              Geen clubs — surf naar www.hockey.nl met de hockey-vanger actief
             </div>
           )}
-        </div>
-      )}
-
-      {/* Clubs zoekfilter */}
-      <input
-        type="search"
-        value={clubSearch}
-        onChange={e => setClubSearch(e.target.value)}
-        placeholder={`Zoek in ${clubs.length} clubs…`}
-        style={{ width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
-      />
-
-      {/* Clublijst */}
-      {clubRenderItems.map(item => {
-        if (item.type === 'header') {
-          return (
-            <div key={'h-' + item.district} style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', padding: '6px 2px 2px', marginTop: 2 }}>
-              {item.district} <span style={{ fontWeight: 400 }}>({item.count})</span>
-            </div>
-          )
-        }
-        const c = item.club
-        const teams   = teamsByClub[c.external_id] || []
-        const pStats  = poulesByClub[c.external_id]
-        const cap     = pStats ? pStats.captured : 0
-        const tot     = pStats ? pStats.total    : 0
-        const pVar    = tot === 0 ? 'muted' : cap === tot ? 'ok' : cap > 0 ? 'partial' : 'muted'
-        const isOpen  = expanded.has(c.external_id)
-
-        const byType = {}
-        for (const t of teams) {
-          const ht = resolveHockeyType(t)
-          if (!byType[ht]) byType[ht] = {}
-          if (!byType[ht][t.category_group_name]) byType[ht][t.category_group_name] = []
-          byType[ht][t.category_group_name].push(t)
-        }
-        const types = HT_ORDER.filter(ht => byType[ht])
-        const multiType = types.length > 1
-
-        return (
-          <div key={c.external_id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div onClick={() => toggle(c.external_id)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, flexShrink: 0 }}>{isOpen ? '▾' : '▸'}</span>
-              {c.logo_url && (
-                <img src={c.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0, borderRadius: 3 }} />
-              )}
-              <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 80 }}>{c.friendly_name || c.name}</span>
-              {c.city && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{c.city}</span>}
-              <span style={pill(c.detail_loaded ? 'ok' : 'muted')}>{c.detail_loaded ? '✓ detail' : '– geen detail'}</span>
-              {teams.filter(t => resolveHockeyType(t) === 'VE').length > 0 && (
-                <span style={pill('muted')}>🏑 {teams.filter(t => resolveHockeyType(t) === 'VE').length}</span>
-              )}
-              {teams.filter(t => resolveHockeyType(t) === 'ZA').length > 0 && (
-                <span style={pill('muted')}>🏒 {teams.filter(t => resolveHockeyType(t) === 'ZA').length}</span>
-              )}
-              {pStats && <span style={pill(pVar)}>{cap}/{tot} poules</span>}
-            </div>
-
-            {isOpen && (
-              <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(c.district || c.address || c.phone || c.email || c.website) && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 16px', fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    {c.district && <span>📍 {c.district}</span>}
-                    {c.address  && <span>{c.address}{c.zipcode ? ', ' + c.zipcode : ''}</span>}
-                    {c.phone    && <span>📞 {c.phone}</span>}
-                    {c.email    && <span>✉ {c.email}</span>}
-                    {c.website  && (
-                      <a href={c.website} target="_blank" rel="noreferrer"
-                        style={{ color: 'var(--color-primary)', fontSize: 12 }}
-                        onClick={e => e.stopPropagation()}>
-                        🌐 {c.website.replace(/^https?:\/\//, '')}
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                {types.length > 0 ? types.map(ht => {
-                  const catMap = byType[ht]
-                  const cats = sortCats(Object.keys(catMap))
-                  return (
-                    <div key={ht}>
-                      {multiType && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid var(--color-border)', paddingBottom: 3 }}>
-                          {HT_LABEL[ht]}
-                        </div>
-                      )}
-                      {cats.map(cat => {
-                        const catTeams = [...catMap[cat]].sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
-                        return (
-                          <div key={cat} style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                              {cat} <span style={{ fontWeight: 400 }}>({catTeams.length})</span>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {catTeams.map(t => {
-                                const qp          = t.recent_poule_id ? (queueByPouleId[t.recent_poule_id] ?? null) : null
-                                const hasCaptured = qp && qp.captured && !qp.stale
-                                const isStale     = qp && qp.stale
-                                const hasPoule    = !!t.recent_poule_id
-                                const v           = hasCaptured ? 'ok' : isStale ? 'muted' : hasPoule ? 'partial' : 'muted'
-                                const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : hasPoule ? ' · wacht op scan' : ' · geen poule'
-                                return (
-                                  <span key={t.team_id} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
-                                    title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule') + titleSuffix}>
-                                    {t.short_name}
-                                    {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
-                                    {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
-                                    {!isStale && !hasCaptured && hasPoule && <span style={{ opacity: 0.65 }}>○</span>}
-                                  </span>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                }) : (
-                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
-                    Geen teams geladen — scan deze club via de vanger
-                  </p>
-                )}
-
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.5 }}>{c.external_id}</div>
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      {!loading && clubs.length === 0 && (
-        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
-          Geen clubs — surf naar www.hockey.nl met de hockey-vanger actief
         </div>
       )}
 

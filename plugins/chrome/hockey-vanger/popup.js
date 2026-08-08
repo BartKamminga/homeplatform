@@ -345,6 +345,11 @@ function executeCmd(cmd) {
 
   var hash, lsKey, lsId;
   if (cmd.cmd_type === 'get_poule') {
+    if (!cmd.params.team_id) {
+      addLog('warn', '⚠ get_poule zonder team_id — poule ' + cmd.params.poule_id + ' overgeslagen');
+      reportResult(cmd.id, null, 'team_id ontbreekt');
+      return;
+    }
     hash  = '/team/' + cmd.params.team_id + '|' + cmd.params.poule_id + '/standings';
     lsKey = '__hw_poules';
     lsId  = String(cmd.params.poule_id);

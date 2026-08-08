@@ -1691,10 +1691,10 @@ def fill_cmd_queue(
             if pid_str in pending_params or poule.poule_id in pending_params:
                 continue
 
-            team_id = t.team_id if t else None
-            label = poule.name or f"poule #{poule.poule_id}"
-            if t:
-                label = t.name + " — " + label
+            if not t:
+                continue  # geen team gelinkt aan poule, kan niet gescand worden
+            team_id = t.team_id
+            label = t.name + " — " + (poule.name or f"poule #{poule.poule_id}")
 
             session.add(VangerCmd(
                 cmd_type="get_poule",
@@ -2843,11 +2843,12 @@ def gap_fill_queue(
         if pid_str in pending_params or poule.poule_id in pending_params:
             continue
         t = team_by_poule.get(poule.poule_id)
-        team_id = t.team_id if t else None
-        label = (t.name + " — " if t else "") + (poule.name or f"poule #{poule.poule_id}")
+        if not t:
+            continue  # geen team gelinkt aan poule, kan niet gescand worden
+        label = t.name + " — " + (poule.name or f"poule #{poule.poule_id}")
         session.add(VangerCmd(
             cmd_type="get_poule",
-            params=json.dumps({"poule_id": poule.poule_id, "team_id": team_id, "label": label}),
+            params=json.dumps({"poule_id": poule.poule_id, "team_id": t.team_id, "label": label}),
             created_at=now,
         ))
         added_poules += 1
