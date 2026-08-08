@@ -353,7 +353,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
                         checked={checked}
                         onChange={() => {}}
                         onClick={e => e.stopPropagation()}
-                        style={{ flexShrink: 0, accentColor: 'var(--color-primary)' }}
+                        style={{ flexShrink: 0, width: 'auto', accentColor: 'var(--color-primary)' }}
                       />
                       <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>
                         {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}

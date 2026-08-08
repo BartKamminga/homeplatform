@@ -382,8 +382,11 @@ if ($Build -in @("be", "be_db")) {
 if ($Build -in @("all","fe")) {
     Step "Frontend valideren + bouwen"
     Set-Location "$Root\frontend\sites"
+    $prevPref = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     npm run build
-    if ($LASTEXITCODE -ne 0) { Fail "Frontend build mislukt - deploy gestopt voor git push" }
+    $ErrorActionPreference = $prevPref
+    if ($LASTEXITCODE -ne 0) { Set-Location $Root; Fail "Frontend build mislukt - deploy gestopt voor git push" }
     Set-Location $Root
     Ok "Frontend gebouwd en gevalideerd"
 }
