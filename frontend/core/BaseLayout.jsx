@@ -16,8 +16,10 @@ export default function BaseLayout({
     () => document.documentElement.getAttribute("data-theme") || "light",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [env, setEnv] = useState(null);
 
   useEffect(() => {
+    fetch("/api/config").then(r => r.json()).then(d => setEnv(d.environment)).catch(() => {});
     loadTheme();
 
     const observer = new MutationObserver(() => {
@@ -35,8 +37,23 @@ export default function BaseLayout({
     await logout();
   }
 
+  const isAcc = env && env !== "production";
+
   return (
-    <div key={theme} style={{ display: "flex", minHeight: "100vh" }}>
+    <div key={theme} style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      {isAcc && (
+        <div style={{
+          width: "100%", background: "#ea580c", color: "#fff",
+          fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em",
+          textAlign: "center", padding: "6px 16px",
+          fontFamily: "var(--font-mono, monospace)",
+          flexShrink: 0, zIndex: 300,
+          textTransform: "uppercase",
+        }}>
+          ⚠ Acceptatie-omgeving · :8081 · wijzigingen hier zijn niet live
+        </div>
+      )}
+    <div style={{ display: "flex", flex: 1 }}>
       <style>{`
         @media (max-width: 767px) {
           .bl-sidebar {
@@ -225,6 +242,7 @@ export default function BaseLayout({
         </button>
         {children}
       </main>
+    </div>
     </div>
   );
 }
