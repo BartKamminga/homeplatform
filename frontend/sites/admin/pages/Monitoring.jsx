@@ -98,6 +98,19 @@ export default function Monitoring() {
             href={links.github}
           />
           <LinkCard
+            icon="⚙"
+            title="GitHub Actions"
+            description="CI/CD pipelines: deploy naar acc (develop) en prod (main). DB snapshot prod→acc handmatig triggeren."
+            href={links.github ? links.github + '/actions' : null}
+            placeholder="Stel GITHUB_URL in .env in"
+          />
+          <LinkCard
+            icon="🧪"
+            title="Acceptatie-omgeving"
+            description="Develop branch — test nieuwe features vóór ze naar prod gaan. Zelfde stack als prod, eigen database."
+            href="http://192.168.30.232:8081"
+          />
+          <LinkCard
             icon="◈"
             title="Roadmap"
             description="Ideeën, lopende taken en voltooide items. De centrale backlog van het platform."

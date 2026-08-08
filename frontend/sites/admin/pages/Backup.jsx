@@ -40,6 +40,7 @@ export default function Backup() {
         </div>
 
         <SnapshotCard />
+        <AccSnapshotCard />
       </div>
     </AdminLayout>
   )
@@ -226,6 +227,42 @@ function SnapshotCard() {
           {status.msg}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Acc snapshot card ─────────────────────────────────────────────────────────
+
+function AccSnapshotCard() {
+  return (
+    <div style={{
+      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+      borderRadius: 14, padding: '18px 20px', marginTop: 16,
+      borderTop: '3px solid #8b5cf6',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 20 }}>🧪</span>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>Prod → Acceptatie snapshot</span>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
+            Kopieert de productie-database naar de acceptatie-omgeving (poort 8081).
+            Handig om features te testen met echte data. Triggeren via GitHub Actions.
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            <strong>GitHub → Actions → "DB snapshot prod naar acc" → Run workflow → typ "ja"</strong>
+          </p>
+        </div>
+        <a
+          href="https://github.com/BartKamminga/homeplatform/actions/workflows/db-snapshot.yml"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ ...btnPrimary, flexShrink: 0, textDecoration: 'none', background: '#8b5cf6' }}
+        >
+          Openen ↗
+        </a>
+      </div>
     </div>
   )
 }
