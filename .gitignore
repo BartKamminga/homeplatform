@@ -1,3 +1,6 @@
+# Roadmap CLI config (bevat API key)
+.roadmap.config.ps1
+
 # Python
 .venv/
 __pycache__/

@@ -160,5 +160,16 @@ class RoadmapItem(SQLModel, table=True):
     impact: Optional[str] = Field(default=None)   # low/medium/high — impact op de gebruiker
     risk: Optional[str] = Field(default=None)     # low/medium/high
     scope: Optional[str] = Field(default=None)    # frontend/backend/beide
+    owner: Optional[str] = Field(default=None)   # verantwoordelijke (username)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RoadmapHistory(SQLModel, table=True):
+    __tablename__ = "roadmap_history"
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    item_id: int = Field(foreign_key="roadmap_items.id", index=True)
+    username: Optional[str] = None
+    action: str  # created / updated / closed
+    changes: Optional[str] = None  # JSON: {"field": {"from": x, "to": y}}
+    created_at: datetime = Field(default_factory=datetime.utcnow)

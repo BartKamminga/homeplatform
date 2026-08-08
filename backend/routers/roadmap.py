@@ -1,14 +1,15 @@
+import json
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from core.database import get_session
 from core.auth import get_current_user
 from core.crud import get_or_404
-from models.core import RoadmapItem, User
+from models.core import RoadmapItem, RoadmapHistory, User
 from models.changelog import ChangelogEntry
 
 router = APIRouter(prefix="/api/roadmap", tags=["roadmap"])
@@ -25,6 +26,7 @@ class RoadmapItemCreate(BaseModel):
     impact: Optional[str] = None
     risk: Optional[str] = None
     scope: Optional[str] = None
+    owner: Optional[str] = None
 
 
 class RoadmapItemUpdate(BaseModel):
@@ -38,10 +40,10 @@ class RoadmapItemUpdate(BaseModel):
     impact: Optional[str] = None
     risk: Optional[str] = None
     scope: Optional[str] = None
+    owner: Optional[str] = None
 
 
 def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:
-    """Auto-create a changelog entry when an item is marked klaar with a version."""
     if item.status != "done" or not item.version:
         return
     existing = session.exec(
@@ -63,6 +65,16 @@ def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:
     session.add(entry)
 
 
+def _log_history(item: RoadmapItem, action: str, changes: dict, user: User, session: Session) -> None:
+    record = RoadmapHistory(
+        item_id=item.id,
+        username=user.username,
+        action=action,
+        changes=json.dumps(changes, ensure_ascii=False) if changes else None,
+    )
+    session.add(record)
+
+
 @router.get("", response_model=List[RoadmapItem])
 def list_items(
     site: Optional[str] = None,
@@ -82,15 +94,40 @@ def list_items(
     return session.exec(q).all()
 
 
+@router.get("/{item_id}", response_model=RoadmapItem)
+def get_item(
+    item_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    return get_or_404(session, RoadmapItem, item_id, "RoadmapItem")
+
+
+@router.get("/{item_id}/history", response_model=List[RoadmapHistory])
+def get_item_history(
+    item_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    get_or_404(session, RoadmapItem, item_id, "RoadmapItem")
+    return session.exec(
+        select(RoadmapHistory)
+        .where(RoadmapHistory.item_id == item_id)
+        .order_by(RoadmapHistory.created_at.asc())
+    ).all()
+
+
 @router.post("", response_model=RoadmapItem)
 def create_item(
     body: RoadmapItemCreate,
     session: Session = Depends(get_session),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     item = RoadmapItem(**body.model_dump())
     session.add(item)
+    session.flush()
     _maybe_create_changelog(item, session)
+    _log_history(item, "created", {k: {"from": None, "to": v} for k, v in body.model_dump().items() if v is not None}, user, session)
     session.commit()
     session.refresh(item)
     return item
@@ -101,15 +138,19 @@ def update_item(
     item_id: int,
     body: RoadmapItemUpdate,
     session: Session = Depends(get_session),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     item = get_or_404(session, RoadmapItem, item_id, "RoadmapItem")
     data = body.model_dump(exclude_unset=True)
+    changes = {k: {"from": getattr(item, k), "to": v} for k, v in data.items() if getattr(item, k) != v}
     for k, v in data.items():
         setattr(item, k, v)
     item.updated_at = datetime.utcnow()
     session.add(item)
     _maybe_create_changelog(item, session)
+    action = "closed" if data.get("status") == "done" else "updated"
+    if changes:
+        _log_history(item, action, changes, user, session)
     session.commit()
     session.refresh(item)
     return item
