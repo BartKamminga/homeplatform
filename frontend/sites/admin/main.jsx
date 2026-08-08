@@ -20,6 +20,7 @@ import Roadmap from "./pages/Roadmap.jsx";
 import Backup from "./pages/Backup.jsx";
 import DataStorage from "./pages/DataStorage.jsx";
 import Workflows from "./pages/Workflows.jsx";
+import Infrastructure from "./pages/Infrastructure.jsx";
 import ErrorBoundary from "@components/ErrorBoundary.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
@@ -60,6 +61,7 @@ createRoot(document.getElementById("root")).render(
                 <Route path="roadmap" element={<Roadmap />} />
                 <Route path="data-storage" element={<DataStorage />} />
                 <Route path="workflows" element={<Workflows />} />
+                <Route path="infrastructure" element={<Infrastructure />} />
               </Routes>
             </PrivateRoute>
           }

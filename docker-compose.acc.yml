@@ -29,6 +29,7 @@ services:
       - /home/bart/homeplatform/music/downloads:/app/downloads
       - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
       - /home/bart/homeplatform/plugins:/app/plugins
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}

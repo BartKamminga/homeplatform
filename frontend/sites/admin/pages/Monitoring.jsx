@@ -85,6 +85,13 @@ export default function Monitoring() {
             internal
           />
           <LinkCard
+            icon="🖥"
+            title="Admin — Infrastructuur"
+            description="Live overzicht van alle G4-containers: images, status, poorten en volumes."
+            href="/admin/infrastructure"
+            internal
+          />
+          <LinkCard
             icon="📈"
             title="Admin — API stats"
             description="Live overzicht van hoeveel elke backend-endpoint wordt aangeroepen."

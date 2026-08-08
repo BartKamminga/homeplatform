@@ -47,6 +47,7 @@ from routers import downloader  # noqa: E402
 from routers import app_settings  # noqa: E402
 from routers import capture  # noqa: E402
 from routers import hockey_discovery  # noqa: E402
+from routers import infra  # noqa: E402
 from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
@@ -156,6 +157,7 @@ app.include_router(app_settings.router)
 app.include_router(capture.router)
 app.include_router(hockey_discovery.router)
 app.include_router(scrapster_router)
+app.include_router(infra.router)
 
 
 @app.get("/")
