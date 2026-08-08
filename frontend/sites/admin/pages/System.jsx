@@ -30,6 +30,7 @@ export default function System() {
       ) : (
         <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
           <EnvironmentCard data={data} />
+          <HardwareCard data={data} />
           <UsersCard data={data} />
           <GroupsCard data={data} />
           <SitesCard data={data} />
@@ -98,6 +99,61 @@ function EnvironmentCard({ data }) {
       <Row label="Music map"       value={data.music_dir}     mono where=".env → MUSIC_DIR" />
       <Row label="Sentry"          value={data.sentry_enabled ? `actief (${data.sentry_min_level}+)` : 'uitgeschakeld'} where=".env → SENTRY_DSN" />
     </Card>
+  );
+}
+
+function HardwareCard({ data }) {
+  const hw = data.hardware;
+  if (!hw || !hw.available) return null;
+
+  function fmtUptime(s) {
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}u ${m}m`;
+    if (h > 0) return `${h}u ${m}m`;
+    return `${m}m`;
+  }
+
+  return (
+    <Card title="Hardware" icon="◉">
+      <MetricBar label="CPU" value={hw.cpu_percent} unit="%" color="var(--color-primary)" />
+      {hw.cpu_temp !== null && hw.cpu_temp !== undefined && (
+        <Row label="CPU temp" value={`${hw.cpu_temp} °C`} />
+      )}
+      <MetricBar
+        label="RAM"
+        value={hw.memory.percent}
+        unit="%"
+        sub={`${hw.memory.used_gb} / ${hw.memory.total_gb} GB`}
+        color="#8b5cf6"
+      />
+      <MetricBar
+        label="Schijf"
+        value={hw.disk.percent}
+        unit="%"
+        sub={`${hw.disk.used_gb} / ${hw.disk.total_gb} GB`}
+        color={hw.disk.percent > 85 ? 'var(--color-danger)' : 'var(--color-success)'}
+      />
+      <Row label="Uptime" value={fmtUptime(hw.uptime_s)} />
+    </Card>
+  );
+}
+
+function MetricBar({ label, value, unit, sub, color }) {
+  return (
+    <div style={{ padding: '6px 0', borderBottom: '1px solid var(--color-border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+        <span style={{ color: 'var(--color-text-muted)' }}>{label}{sub ? <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-text-light)' }}>{sub}</span> : null}</span>
+        <span style={{ fontWeight: 600 }}>{value}{unit}</span>
+      </div>
+      <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
+        <div style={{
+          height: '100%', borderRadius: 2, background: color,
+          width: `${Math.min(value, 100)}%`, transition: 'width 0.4s ease',
+        }} />
+      </div>
+    </div>
   );
 }
 

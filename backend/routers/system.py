@@ -184,7 +184,47 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "nas_path": settings.NAS_PATH or None,
         "nas_url":  settings.NAS_URL  or None,
         "links": _build_links(),
+        "hardware": _get_hardware_info(),
     }
+
+
+def _get_hardware_info() -> dict:
+    try:
+        import psutil, time as _t
+        cpu_pct = psutil.cpu_percent(interval=0.3)
+        mem  = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        uptime_s = int(_t.time() - psutil.boot_time())
+
+        cpu_temp = None
+        try:
+            temps = psutil.sensors_temperatures()
+            if temps:
+                for key in ("coretemp", "cpu_thermal", "k10temp", "acpitz"):
+                    if key in temps and temps[key]:
+                        cpu_temp = round(temps[key][0].current, 1)
+                        break
+        except (AttributeError, Exception):
+            pass
+
+        return {
+            "available": True,
+            "cpu_percent": cpu_pct,
+            "cpu_temp": cpu_temp,
+            "memory": {
+                "total_gb": round(mem.total / 1024 ** 3, 1),
+                "used_gb":  round(mem.used  / 1024 ** 3, 1),
+                "percent":  mem.percent,
+            },
+            "disk": {
+                "total_gb": round(disk.total / 1024 ** 3, 1),
+                "used_gb":  round(disk.used  / 1024 ** 3, 1),
+                "percent":  disk.percent,
+            },
+            "uptime_s": uptime_s,
+        }
+    except Exception:
+        return {"available": False}
 
 
 def _active_beatport_provider() -> str:
