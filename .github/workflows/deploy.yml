@@ -29,10 +29,10 @@ jobs:
           docker exec homeplatform_backend python seed.py
 
       - name: Frontend bouwen
-        working-directory: ${{ env.PROD_REPO }}/frontend/sites
         run: |
           chmod -R u+w $PROD_REPO/frontend/dist 2>/dev/null || true
-          npm ci --prefer-offline && npm run build
+          cd $PROD_REPO/frontend && npm ci --prefer-offline
+          cd $PROD_REPO/frontend/sites && npm ci --prefer-offline && npm run build
 
       - name: Caddy reload
         run: docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile
@@ -51,10 +51,10 @@ jobs:
           fi
 
       - name: Backend bouwen en herstarten (acc)
-        working-directory: ${{ env.ACC_REPO }}
         run: |
-          docker compose -f docker-compose.acc.yml build backend_acc
-          docker compose -f docker-compose.acc.yml up -d
+          mkdir -p $ACC_REPO/frontend/dist
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d
           sleep 5
 
       - name: Migraties + seed (acc)
@@ -68,10 +68,10 @@ jobs:
           "
 
       - name: Frontend bouwen (acc)
-        working-directory: ${{ env.ACC_REPO }}/frontend/sites
         run: |
           chmod -R u+w $ACC_REPO/frontend/dist 2>/dev/null || true
-          npm ci --prefer-offline && npm run build
+          cd $ACC_REPO/frontend && npm ci --prefer-offline
+          cd $ACC_REPO/frontend/sites && npm ci --prefer-offline && npm run build
 
       - name: Caddy reload (acc)
         run: docker exec homeplatform_caddy_acc caddy reload --config /etc/caddy/Caddyfile
