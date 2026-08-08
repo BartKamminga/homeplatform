@@ -257,19 +257,10 @@ export default function App() {
 
   const totalPins = pins.size + poolPins.size
   const allTags   = pubComps
-    ? [...new Set(pubComps.flatMap(c => {
-        const tags = []
-        if (c.class_name) tags.push(c.class_name)
-        ;(c.fase_tags || []).forEach(t => tags.push(t.name))
-        return tags
-      }))]
+    ? [...new Set(pubComps.flatMap(c => (c.fase_tags || []).map(t => t.name)))]
     : []
   const filteredComps = !pubComps ? [] : !tagFilter ? pubComps
-    : pubComps.filter(c => {
-        const tags = (c.fase_tags || []).map(t => t.name)
-        if (c.class_name) tags.push(c.class_name)
-        return tags.includes(tagFilter)
-      })
+    : pubComps.filter(c => (c.fase_tags || []).some(t => t.name === tagFilter))
   const visible = searchMode
     ? (all || []).filter(t => t.name.toLowerCase().includes(searchQ.toLowerCase()))
     : []

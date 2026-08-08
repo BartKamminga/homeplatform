@@ -142,10 +142,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
       .catch(() => setMatchesData({ finished: [], scheduled: [] }))
   }
 
-  const tags = [
-    ...(comp.class_name ? [comp.class_name] : []),
-    ...(comp.fase_tags || []).map(t => t.name),
-  ]
+  const tags = (comp.fase_tags || []).map(t => t.name)
 
   // Normalize discovery standings for MatchModal
   const modalRows = matchesPoule
