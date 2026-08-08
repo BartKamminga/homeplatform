@@ -1,0 +1,41 @@
+name: DB snapshot prod naar acc
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Overschrijft de acc database met een kopie van prod. Typ 'ja' om te bevestigen."
+        required: true
+        default: ""
+
+env:
+  PROD_DB: /home/bart/homeplatform/db/homeplatform.sqlite
+  ACC_DB:  /home/bart/homeplatform-acc/db/homeplatform.sqlite
+
+jobs:
+  snapshot:
+    if: github.event.inputs.confirm == 'ja'
+    runs-on: [self-hosted, g4]
+    steps:
+      - name: Controleer bevestiging
+        run: echo "Bevestigd — snapshot wordt gemaakt"
+
+      - name: Acc backend stoppen
+        run: docker stop homeplatform_backend_acc || true
+
+      - name: DB kopiëren van prod naar acc
+        run: |
+          mkdir -p $(dirname $ACC_DB)
+          cp $PROD_DB $ACC_DB
+          echo "Snapshot klaar: $(du -sh $ACC_DB | cut -f1)"
+
+      - name: Acc backend starten
+        run: docker start homeplatform_backend_acc
+
+      - name: Migraties draaien op acc
+        run: |
+          sleep 3
+          docker exec homeplatform_backend_acc alembic upgrade head
+
+      - name: Klaar
+        run: echo "Acc draait nu op een snapshot van prod"
