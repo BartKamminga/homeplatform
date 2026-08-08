@@ -188,6 +188,65 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
     }
 
 
+# ── Admin: Deploy-status ──────────────────────────────────────────────────────
+
+class DeployVersionIn(BaseModel):
+    version: str
+    commit: str
+    short: str = ""
+
+
+@router.get("/admin/deploy-status")
+def get_deploy_status(_: User = Depends(require_admin)):
+    import json as _json, os as _os
+    def read_info(path):
+        try:
+            with open(path) as f:
+                return _json.load(f)
+        except Exception:
+            return None
+
+    from models.settings import AppSetting
+    versions = []
+    with engine.connect() as conn:
+        try:
+            rows = conn.execute(text("SELECT value FROM app_settings WHERE key = 'deploy.versions'")).fetchone()
+            if rows:
+                versions = _json.loads(rows[0])
+        except Exception:
+            pass
+
+    return {
+        "current": read_info("/app/db/deploy_info.json"),
+        "versions": versions,
+    }
+
+
+@router.post("/admin/deploy-versions")
+def post_deploy_version(body: DeployVersionIn, _: User = Depends(require_admin)):
+    import json as _json
+    from models.settings import AppSetting
+    from sqlmodel import Session as _Session
+    with _Session(engine) as s:
+        row = s.get(AppSetting, "deploy.versions")
+        versions = _json.loads(row.value) if row else []
+        if not any(v["version"] == body.version for v in versions):
+            import datetime as _dt
+            versions.insert(0, {
+                "version": body.version,
+                "commit": body.commit,
+                "short": body.short or body.commit[:7],
+                "recorded_at": _dt.datetime.utcnow().isoformat() + "Z",
+            })
+            versions = versions[:50]
+        if row:
+            row.value = _json.dumps(versions)
+        else:
+            s.add(AppSetting(key="deploy.versions", value=_json.dumps(versions)))
+        s.commit()
+    return {"ok": True, "version": body.version}
+
+
 def _get_hardware_info() -> dict:
     try:
         import psutil, time as _t

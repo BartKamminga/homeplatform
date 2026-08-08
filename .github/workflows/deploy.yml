@@ -37,6 +37,13 @@ jobs:
       - name: Caddy reload
         run: docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile
 
+      - name: Deploy-info schrijven
+        run: |
+          COMMIT=$(git -C $PROD_REPO rev-parse HEAD)
+          SHORT=${COMMIT:0:7}
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "{\"commit\":\"$COMMIT\",\"short\":\"$SHORT\",\"deployed_at\":\"$TS\",\"env\":\"prod\"}" > /home/bart/homeplatform/db/deploy_info.json
+
   deploy-acc:
     if: github.ref == 'refs/heads/develop'
     runs-on: [self-hosted, g4]
@@ -78,3 +85,10 @@ jobs:
 
       - name: Caddy reload (acc)
         run: docker exec homeplatform_caddy_acc caddy reload --config /etc/caddy/Caddyfile
+
+      - name: Deploy-info schrijven (acc)
+        run: |
+          COMMIT=$(git -C $ACC_REPO rev-parse HEAD)
+          SHORT=${COMMIT:0:7}
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "{\"commit\":\"$COMMIT\",\"short\":\"$SHORT\",\"deployed_at\":\"$TS\",\"env\":\"acceptatie\"}" > /home/bart/homeplatform-acc/db/deploy_info.json

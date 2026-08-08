@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { s, STATUS_LABEL, STATUS_COLOR, PRIORITY_LABEL, PRIORITY_STYLE, METER_COLOR } from "./roadmapConstants.js";
 
-export default function RoadmapItemRow({ item, onStatusCycle, onEdit, onDelete }) {
+function deployBadge(item, deployStatus) {
+  if (!item.version || !deployStatus) return null;
+  const ver = deployStatus.versions?.find(v => v.version === item.version);
+  if (!ver) return null;
+  const prodCommit  = deployStatus.current?.short;
+  const onProd = prodCommit && ver.short && prodCommit === ver.short;
+  return { commit: ver.short, onProd };
+}
+
+export default function RoadmapItemRow({ item, deployStatus, onStatusCycle, onEdit, onDelete }) {
   const [hovering, setHovering] = useState(false);
 
   return (
@@ -50,9 +59,18 @@ export default function RoadmapItemRow({ item, onStatusCycle, onEdit, onDelete }
               )}
               {item.version && (
                 <span style={s.badge({ background: "var(--color-success-light)", color: "var(--color-success)", fontFamily: "var(--font-mono)" })}>
-                  v{item.version}
+                  {item.version}
                 </span>
               )}
+              {(() => {
+                const db = deployBadge(item, deployStatus);
+                if (!db) return null;
+                return (
+                  <span title={`commit ${db.commit}`} style={s.badge({ background: db.onProd ? "#22c55e22" : "#3b82f622", color: db.onProd ? "#22c55e" : "#3b82f6", fontFamily: "var(--font-mono)" })}>
+                    {db.onProd ? "✓ prod" : "✓ acc"} {db.commit}
+                  </span>
+                );
+              })()}
             </div>
             {item.description && (
               <div style={s.desc}>{item.description}</div>

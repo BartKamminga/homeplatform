@@ -8,6 +8,7 @@ import { s, SITES, STATUSES, PRIORITIES, PRIORITY_LABEL, STATUS_CYCLE, STATUS_LA
 
 export default function Roadmap() {
   const [items, setItems] = useState([]);
+  const [deployStatus, setDeployStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -24,9 +25,14 @@ export default function Roadmap() {
 
   function load() {
     setLoading(true);
-    api.get("/api/roadmap")
-      .then((data) => { setItems(data); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
+    Promise.all([
+      api.get("/api/roadmap"),
+      api.get("/api/admin/deploy-status").catch(() => null),
+    ]).then(([data, ds]) => {
+      setItems(data);
+      setDeployStatus(ds);
+      setLoading(false);
+    }).catch((e) => { setError(e.message); setLoading(false); });
   }
 
   async function handleCreate(form) {
@@ -171,6 +177,7 @@ export default function Roadmap() {
               <RoadmapItemRow
                 key={item.id}
                 item={item}
+                deployStatus={deployStatus}
                 onStatusCycle={handleStatusCycle}
                 onEdit={(it) => { setEditingId(it.id); setShowNewForm(false); }}
                 onDelete={handleDelete}

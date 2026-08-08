@@ -238,6 +238,19 @@ if ($Close -or $CloseMany) {
         $item = ApiPatch "/roadmap/$closeId" @{ status = "done"; version = $Version }
         Write-Host "[OK] $($item.site) $($item.version) - $($item.title)"
     }
+
+    # Versie + commit registreren voor deploy-status
+    try {
+        $commit = & git rev-parse HEAD 2>$null
+        $short  = & git rev-parse --short HEAD 2>$null
+        if ($commit) {
+            $vbody = [PSCustomObject]@{ version = $Version; commit = $commit.Trim(); short = $short.Trim() } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Uri "$HP_API_BASE/admin/deploy-versions" -Method POST `
+                -Headers @{ Authorization = "Bearer $HP_API_KEY"; "Content-Type" = "application/json" } `
+                -Body $vbody -ErrorAction SilentlyContinue | Out-Null
+            Write-Host "[OK] Versie $Version geregistreerd (commit $($short.Trim()))"
+        }
+    } catch {}
     exit 0
 }
 
