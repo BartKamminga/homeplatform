@@ -24,6 +24,7 @@ export default function Workflows() {
               { status: 'pick_up',     color: '#0ea5e9',                 label: 'pick_up' },
               { status: 'in_progress', color: 'var(--color-primary)',    label: 'in_progress' },
               { status: 'ready',       color: 'var(--color-warning)',    label: 'ready' },
+              { status: 'on_acc',      color: '#f97316',                 label: 'on_acc' },
               { status: 'deploying',   color: 'var(--color-danger)',     label: 'deploying' },
               { status: 'done',        color: 'var(--color-success)',    label: 'done' },
             ].map(({ status, color, label }, i, arr) => (
@@ -45,9 +46,10 @@ export default function Workflows() {
               { status: 'analyzed',    color: '#8b5cf6',                 desc: 'Impact, risk en scope zijn ingevuld — klaar voor verdere prioritering.' },
               { status: 'pick_up',     color: '#0ea5e9',                 desc: 'Expliciet geprioriteerd — wordt als eerste opgepakt in de volgende sessie.' },
               { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
-              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is klaar en getest, nog niet gemerged naar main.' },
-              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Merge naar main bezig — GitHub Actions pipeline actief.' },
-              { status: 'done',        color: 'var(--color-success)',    desc: 'Live op de G4 — changelog-entry is automatisch aangemaakt.' },
+              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is klaar — gepusht naar develop, nog niet getest op acc.' },
+              { status: 'on_acc',      color: '#f97316',                 desc: 'Live op de acceptatie-omgeving (:8081) — getest, wacht op deploy naar prod.' },
+              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Merge naar main bezig — GitHub Actions pipeline deployt naar prod.' },
+              { status: 'done',        color: 'var(--color-success)',    desc: 'Live op prod (webheaven.nl) — changelog-entry automatisch aangemaakt.' },
             ].map(({ status, color, desc }) => (
               <div key={status} style={{ display: 'flex', alignItems: 'baseline', gap: '12px', fontSize: '13px' }}>
                 <span style={{
