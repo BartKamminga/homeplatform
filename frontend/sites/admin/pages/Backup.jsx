@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { api } from '@core/api.js'
 import AdminLayout from '../AdminLayout.jsx'
+import DailyBackupsCard from './DailyBackupsCard.jsx'
 
 const APPS = [
   {
@@ -39,6 +40,7 @@ export default function Backup() {
           {APPS.map(app => <AppCard key={app.id} app={app} />)}
         </div>
 
+        <DailyBackupsCard />
         <SnapshotCard />
         <AccSnapshotCard />
       </div>

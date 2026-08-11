@@ -2,6 +2,8 @@
 
 import json
 import os
+import re
+import sqlite3 as _sqlite3
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
@@ -167,6 +169,80 @@ def download_snapshot(_user=Depends(require_admin)):
         filename=f"homeplatform-snapshot-{stamp}.sqlite",
         media_type="application/octet-stream",
     )
+
+
+# ---------------------------------------------------------------------------
+# Dagelijkse backups — lijst, trigger, restore
+# ---------------------------------------------------------------------------
+
+_BACKUP_RE = re.compile(r'^homeplatform-\d{4}-\d{2}-\d{2}\.sqlite$')
+
+
+def _backup_dir() -> str:
+    return os.path.join(os.path.dirname(_resolve_db_path()), "backups")
+
+
+@router.get("/daily")
+def list_daily_backups(_user=Depends(require_admin)):
+    bdir = _backup_dir()
+    os.makedirs(bdir, exist_ok=True)
+
+    pending = None
+    flag = os.path.join(bdir, "pending_restore")
+    if os.path.exists(flag):
+        with open(flag) as f:
+            pending = f.read().strip()
+
+    backups = []
+    for fname in os.listdir(bdir):
+        if not _BACKUP_RE.match(fname):
+            continue
+        fpath = os.path.join(bdir, fname)
+        stat = os.stat(fpath)
+        backups.append({
+            "filename": fname,
+            "date": fname[len("homeplatform-"):-len(".sqlite")],
+            "size_mb": round(stat.st_size / 1024 / 1024, 1),
+            "modified_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        })
+
+    backups.sort(key=lambda x: x["date"], reverse=True)
+    return {"backups": backups, "pending_restore": pending}
+
+
+@router.post("/daily/trigger")
+def trigger_backup(_user=Depends(require_admin)):
+    db_path = _resolve_db_path()
+    bdir = _backup_dir()
+    os.makedirs(bdir, exist_ok=True)
+
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    target = os.path.join(bdir, f"homeplatform-{date_str}.sqlite")
+
+    src = _sqlite3.connect(db_path)
+    dst = _sqlite3.connect(target)
+    src.backup(dst)
+    dst.close()
+    src.close()
+
+    size_mb = round(os.path.getsize(target) / 1024 / 1024, 1)
+    return {"filename": f"homeplatform-{date_str}.sqlite", "size_mb": size_mb, "status": "ok"}
+
+
+@router.post("/daily/restore/{filename}")
+def request_restore(filename: str, _user=Depends(require_admin)):
+    if not _BACKUP_RE.match(filename):
+        raise AppError(400, "Ongeldig bestandsnaam")
+
+    bdir = _backup_dir()
+    if not os.path.exists(os.path.join(bdir, filename)):
+        raise AppError(404, "Backup niet gevonden")
+
+    flag = os.path.join(bdir, "pending_restore")
+    with open(flag, "w") as f:
+        f.write(filename)
+
+    return {"status": "pending", "filename": filename}
 
 
 # ---------------------------------------------------------------------------
