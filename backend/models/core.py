@@ -154,7 +154,7 @@ class RoadmapItem(SQLModel, table=True):
     description: Optional[str] = None
     site: str = Field(default="platform")  # landing/admin/account/dontforget/mixmusic/nkhockey/tournix/fiets/platform
     priority: str = Field(default="medium")  # high/medium/low
-    status: str = Field(default="idea")    # idea/analyzed/pick_up/in_progress/ready/deploying/done
+    status: str = Field(default="idea")    # idea/analyzed/pick_up/in_progress/ready/on_acc/deploying/done
     notes: Optional[str] = None
     version: Optional[str] = Field(default=None)  # versienummer bij afsluiten, triggert changelog
     impact: Optional[str] = Field(default=None)   # low/medium/high — impact op de gebruiker

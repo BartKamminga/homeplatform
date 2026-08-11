@@ -1,20 +1,21 @@
 import { adminStyles } from "../adminStyles.js";
 
 export const SITES = ["alle", "platform", "landing", "admin", "account", "dontforget", "mixmusic", "nkhockey", "tournix", "fiets", "poulebord", "beatcrades", "scrapster"];
-export const STATUSES = ["alle", "idea", "analyzed", "pick_up", "in_progress", "ready", "deploying", "done"];
+export const STATUSES = ["alle", "idea", "analyzed", "pick_up", "in_progress", "ready", "on_acc", "deploying", "done"];
 export const PRIORITIES = ["alle", "high", "medium", "low"];
 export const SCOPES = ["frontend", "backend", "beide", "infra", "database", "platform"];
-export const STATUS_ORDER = ["deploying", "in_progress", "ready", "pick_up", "analyzed", "idea", "done"];
+export const STATUS_ORDER = ["deploying", "on_acc", "in_progress", "ready", "pick_up", "analyzed", "idea", "done"];
 
-export const STATUS_CYCLE = { idea: "analyzed", analyzed: "pick_up", pick_up: "in_progress", in_progress: "ready", ready: "deploying", deploying: "done", done: "idea" };
+export const STATUS_CYCLE = { idea: "analyzed", analyzed: "pick_up", pick_up: "in_progress", in_progress: "ready", ready: "on_acc", on_acc: "deploying", deploying: "done", done: "idea" };
 
-export const STATUS_LABEL = { idea: "Idea", analyzed: "Analyzed", pick_up: "Pick up", in_progress: "In progress", ready: "Ready to deploy", deploying: "Deploying", done: "Done" };
+export const STATUS_LABEL = { idea: "Idea", analyzed: "Analyzed", pick_up: "Pick up", in_progress: "In progress", ready: "Ready to deploy", on_acc: "On acc", deploying: "Deploying", done: "Done" };
 export const STATUS_COLOR = {
   idea: "var(--color-text-muted)",
   analyzed: "#8b5cf6",
   pick_up: "#0ea5e9",
   in_progress: "var(--color-primary)",
   ready: "var(--color-warning)",
+  on_acc: "#f97316",
   deploying: "var(--color-danger)",
   done: "var(--color-success)",
 };

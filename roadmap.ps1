@@ -94,7 +94,7 @@ function ApiPatch([string]$Path, [hashtable]$Body) {
     }
 }
 
-$STATUS_ORDER = @("in_progress","pick_up","analyzed","idea","ready","deploying","done","cancelled")
+$STATUS_ORDER = @("in_progress","pick_up","analyzed","idea","ready","on_acc","deploying","done","cancelled")
 $PRIORITY_ORDER = @("high","medium","low")
 
 function FormatList([object[]]$Items) {

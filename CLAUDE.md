@@ -26,8 +26,9 @@ De **NAS-database is de centrale backlog**. Todos en changelog werken samen via 
   3. Begin → status `in_progress`
   4. Tijdens werken → notities bijhouden in het `notes`-veld (gaan later naar changelog)
   5. Code klaar, nog niet gedeployed → status `ready`
-  6. Deploy gestart → status `deploying`
-  7. Na succesvolle deploy naar NAS → status `done` + versienummer → changelog-entry automatisch aangemaakt
+  6. Gedeployed op acceptatie, nog niet op prod → status `on_acc`
+  7. Deploy naar prod gestart → status `deploying`
+  8. Na succesvolle deploy naar prod → status `done` + versienummer → changelog-entry automatisch aangemaakt
 - **Versienummer onduidelijk**: eerst vragen aan de gebruiker.
 - **Meerdere items afsluiten**: gebruik `.\roadmap.ps1 -Close -Ids "534,535,536" -Version v3.33` — één commando voor alle items in dezelfde deploy.
 - Handmatige alembic-migraties voor changelog zijn niet meer nodig bij items die via de roadmap lopen.
