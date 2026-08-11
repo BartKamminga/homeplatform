@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import PhotoLightbox from './PhotoLightbox.jsx'
 
 export default function TaskItem({ task, onToggle, onEdit, onSendToRoadmap }) {
   const [roadmapState, setRoadmapState] = useState(null) // null | 'loading' | 'ok' | 'error'
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   if (!task) return null
 
@@ -54,9 +56,11 @@ export default function TaskItem({ task, onToggle, onEdit, onSendToRoadmap }) {
           loading="lazy"
           width={36}
           height={36}
-          style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)' }}
+          onClick={e => { e.stopPropagation(); setLightboxSrc(`/api/uploads/${task.photo_path}`) }}
+          style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)', cursor: 'zoom-in' }}
         />
       )}
+      {lightboxSrc && <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
       {task.audio_path && !task.photo_path && (
         <div style={{ width:36, height:36, borderRadius:6, flexShrink:0, border:'0.5px solid var(--border)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'center' }}>
           <i className="ti ti-microphone" style={{ fontSize:16, color:'var(--text-faint)' }} aria-hidden="true" />

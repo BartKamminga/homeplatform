@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import TopBar from '../components/TopBar.jsx'
 import { listTasks } from '../api.js'
+import PhotoLightbox from '../components/PhotoLightbox.jsx'
 
 const REPEAT_LABEL = { daily: 'Dagelijks', weekly: 'Wekelijks', monthly: 'Maandelijks' }
 const WHEN_LABEL   = { morning: 'Ochtend', afternoon: 'Middag', allday: 'Heledag' }
@@ -14,9 +15,10 @@ function routineSubtitle(r) {
 }
 
 export default function RoutinesPage({ onAdd, onEdit, refreshKey }) {
-  const [routines, setRoutines] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState(null)
+  const [routines, setRoutines]   = useState([])
+  const [loading,  setLoading]    = useState(true)
+  const [error,    setError]      = useState(null)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -39,6 +41,7 @@ export default function RoutinesPage({ onAdd, onEdit, refreshKey }) {
 
   return (
     <div>
+      {lightboxSrc && <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
       <TopBar title="Routines" onAdd={onAdd} />
 
       {loading && (
@@ -71,7 +74,7 @@ export default function RoutinesPage({ onAdd, onEdit, refreshKey }) {
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}
             >
               {r.photo_path
-                ? <img src={`/api/uploads/${r.photo_path}`} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                ? <img src={`/api/uploads/${r.photo_path}`} alt="" onClick={e => { e.stopPropagation(); setLightboxSrc(`/api/uploads/${r.photo_path}`) }} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0, cursor: 'zoom-in' }} />
                 : <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className="ti ti-repeat" style={{ fontSize: 16, color: 'var(--accent-text)' }} aria-hidden="true" />
                   </div>

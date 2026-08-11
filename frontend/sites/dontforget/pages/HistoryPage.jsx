@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import TopBar from '../components/TopBar.jsx'
 import { listTasks } from '../api.js'
 import { api } from '@core/api.js'
+import PhotoLightbox from '../components/PhotoLightbox.jsx'
 
 const HISTORY_DAYS = { '7 dagen': 7, '30 dagen': 30, 'Altijd': null }
 
@@ -32,10 +33,11 @@ function timeStr(dateStr) {
 }
 
 export default function HistoryPage() {
-  const [items,   setItems]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
-  const [me,      setMe]      = useState(null)
+  const [items,   setItems]       = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [error,   setError]       = useState(null)
+  const [me,      setMe]          = useState(null)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,6 +77,7 @@ export default function HistoryPage() {
 
   return (
     <div>
+      {lightboxSrc && <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
       <TopBar title="Geschiedenis" />
 
       {loading && (
@@ -103,7 +106,7 @@ export default function HistoryPage() {
           {g.tasks.map(t => (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '0.5px solid var(--border)' }}>
               {t.photo_path
-                ? <img src={`/api/uploads/${t.photo_path}`} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                ? <img src={`/api/uploads/${t.photo_path}`} onClick={() => setLightboxSrc(`/api/uploads/${t.photo_path}`)} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0, cursor: 'zoom-in' }} alt="" />
                 : (
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--done, #34c759)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className="ti ti-check" style={{ fontSize: 14, color: '#fff' }} aria-hidden="true" />

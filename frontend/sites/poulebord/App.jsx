@@ -99,6 +99,7 @@ export default function App() {
   const [searchResults, setSearchResults]     = useState(null)
   const searchTimerRef                        = useRef(null)
   const [sharedBoard, setSharedBoard]         = useState(null)
+  const [filtersOpen, setFiltersOpen]         = useState(() => localStorage.getItem('pb_filters') !== '0')
   const [saveDialog, setSaveDialog]           = useState(false)
   const [saveName, setSaveName]               = useState('')
   const [saving, setSaving]                   = useState(false)
@@ -612,20 +613,47 @@ export default function App() {
             <>
               <SeizoenInfo cat={categoryOf(selectedPub.name)} open={infoOpen} onToggle={() => setInfoOpen(o => !o)} />
               {allTags.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <button onClick={() => setTagFilter(null)} style={{
-                    padding: '4px 12px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                    background: !tagFilter ? C.gold : 'transparent', color: !tagFilter ? C.deep : C.muted,
-                    border: `1px solid ${!tagFilter ? C.gold : C.border}`, fontWeight: !tagFilter ? 700 : 400,
-                  }}>Alle</button>
-                  {allTags.map(tag => (
-                    <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? null : tag)} style={{
-                      padding: '4px 12px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                      background: tagFilter === tag ? C.gold : 'transparent', color: tagFilter === tag ? C.deep : C.muted,
-                      border: `1px solid ${tagFilter === tag ? C.gold : C.border}`, fontWeight: tagFilter === tag ? 700 : 400,
-                    }}>{tag}</button>
-                  ))}
-                </div>
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: filtersOpen ? 6 : 12 }}>
+                    <button
+                      onClick={() => {
+                        const next = !filtersOpen
+                        setFiltersOpen(next)
+                        if (next) localStorage.removeItem('pb_filters')
+                        else localStorage.setItem('pb_filters', '0')
+                      }}
+                      style={{
+                        padding: '3px 10px', borderRadius: 12, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit',
+                        background: 'transparent', color: tagFilter ? C.gold : C.muted,
+                        border: `1px solid ${tagFilter ? C.gold : C.border}`,
+                      }}
+                    >
+                      {filtersOpen ? '▲ Filter' : `▼ Filter${tagFilter ? ` · ${tagFilter}` : ''}`}
+                    </button>
+                    {!filtersOpen && tagFilter && (
+                      <button onClick={() => setTagFilter(null)} style={{
+                        padding: '3px 8px', borderRadius: 12, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit',
+                        background: 'transparent', color: C.muted, border: `1px solid ${C.border}`,
+                      }}>✕</button>
+                    )}
+                  </div>
+                  {filtersOpen && (
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                      <button onClick={() => setTagFilter(null)} style={{
+                        padding: '4px 12px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                        background: !tagFilter ? C.gold : 'transparent', color: !tagFilter ? C.deep : C.muted,
+                        border: `1px solid ${!tagFilter ? C.gold : C.border}`, fontWeight: !tagFilter ? 700 : 400,
+                      }}>Alle</button>
+                      {allTags.map(tag => (
+                        <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? null : tag)} style={{
+                          padding: '4px 12px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                          background: tagFilter === tag ? C.gold : 'transparent', color: tagFilter === tag ? C.deep : C.muted,
+                          border: `1px solid ${tagFilter === tag ? C.gold : C.border}`, fontWeight: tagFilter === tag ? 700 : 400,
+                        }}>{tag}</button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
               {pubComps === null ? (
                 <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
