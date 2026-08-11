@@ -3,10 +3,11 @@ import AdminLayout from '../AdminLayout.jsx';
 import { api } from '@core/api.js';
 
 const KNOWN_URLS = {
-  homeplatform_caddy:     [{ label: ':8080', href: 'http://192.168.30.232:8080', cls: 'prod' }, { label: 'webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
-  homeplatform_caddy_acc: [{ label: ':8081', href: 'http://192.168.30.232:8081', cls: 'acc' }],
-  bugsink:                [{ label: ':8090', href: 'http://192.168.30.232:8090', cls: 'ext' }],
-  portainer:              [{ label: ':9000', href: 'http://192.168.30.232:9000', cls: 'ext' }],
+  homeplatform_caddy:       [{ label: ':8080', href: 'http://192.168.30.232:8080', cls: 'prod' }, { label: 'webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
+  homeplatform_caddy_acc:   [{ label: ':8081', href: 'http://192.168.30.232:8081', cls: 'acc' }],
+  homeplatform_cloudflared: [{ label: 'tunnel → webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
+  bugsink:                  [{ label: ':8090', href: 'http://192.168.30.232:8090', cls: 'ext' }],
+  portainer:                [{ label: ':9000', href: 'http://192.168.30.232:9000', cls: 'ext' }, { label: ':9443', href: 'https://192.168.30.232:9443', cls: 'ext' }],
 };
 
 const COCKPIT = { name: 'cockpit', image: 'system service', status: 'running', health: null, ports: [{ public: 9091 }], mounts: [], _cockpit: true };
@@ -18,11 +19,13 @@ function envOf(name) {
 }
 
 export default function Infrastructure() {
-  const [data, setData]   = useState(null);
-  const [error, setError] = useState('');
+  const [data,    setData]    = useState(null);
+  const [backups, setBackups] = useState(null);
+  const [error,   setError]   = useState('');
 
   useEffect(() => {
     api.get('/api/admin/infrastructure').then(setData).catch(e => setError(e.message));
+    api.get('/api/admin/backup/daily').then(setBackups).catch(() => {});
   }, []);
 
   const hw = data?.hardware;
@@ -42,6 +45,7 @@ export default function Infrastructure() {
       {!data && !error && <p style={{ color: 'var(--color-text-muted)' }}>Laden…</p>}
 
       {hw && <HwStrip hw={hw} />}
+      {backups && <BackupStrip backups={backups} />}
 
       {!data?.available && data && (
         <div style={{ padding: '16px 20px', borderRadius: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 13, marginBottom: 24 }}>
@@ -171,6 +175,30 @@ function HealthBadge({ status, health }) {
   return null;
 }
 
+/* ── Backup status strip ── */
+function BackupStrip({ backups }) {
+  const latest = backups.backups?.[0];
+  const pending = backups.pending_restore;
+  const cells = [
+    { label: 'Schema', value: 'Dagelijks 03:00' },
+    { label: 'Laatste backup', value: latest ? latest.date : '—', accent: !!latest },
+    { label: 'Grootte', value: latest ? `${latest.size_mb} MB` : '—' },
+    { label: 'Bewaard', value: `${backups.backups?.length ?? 0} snapshots` },
+    { label: 'NAS kopie', value: 'Music/.hp_backups/', note: true },
+    { label: 'Restore', value: pending ? `⏳ ${pending}` : '—', warn: !!pending },
+  ];
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: 'var(--color-border)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden', marginBottom: 28 }}>
+      {cells.map(c => (
+        <div key={c.label} style={{ background: 'var(--color-surface)', padding: '12px 18px', flex: '1 1 140px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4 }}>{c.label}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: c.warn ? '#ea580c' : c.accent ? '#22c55e' : c.note ? 'var(--color-text-muted)' : 'var(--color-text)' }}>{c.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── Port table ── */
 function PortTable({ containers }) {
   const rows = [
@@ -178,6 +206,7 @@ function PortTable({ containers }) {
     { port: 8081, service: 'HomePlatform acc (Caddy)', url: 'http://192.168.30.232:8081', env: 'acc' },
     { port: 8090, service: 'Bugsink (foutmonitoring)', url: 'http://192.168.30.232:8090', env: 'ext' },
     { port: 9000, service: 'Portainer', url: 'http://192.168.30.232:9000', env: 'ext' },
+    { port: 9443, service: 'Portainer (HTTPS)', url: 'https://192.168.30.232:9443', env: 'ext' },
     { port: 9091, service: 'Cockpit (systeemdienst)', url: 'http://192.168.30.232:9091', env: 'ext' },
     { port: '443 / 80', service: 'Cloudflare Tunnel → extern', url: 'https://webheaven.nl', env: 'green' },
   ];
