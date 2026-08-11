@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '../AdminLayout.jsx';
 import { api } from '@core/api.js';
+import InfraServicesStrip from './InfraServicesStrip.jsx';
 
 const KNOWN_URLS = {
   homeplatform_caddy:       [{ label: ':8080', href: 'http://192.168.30.232:8080', cls: 'prod' }, { label: 'webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
@@ -46,6 +47,7 @@ export default function Infrastructure() {
 
       {hw && <HwStrip hw={hw} />}
       {backups && <BackupStrip backups={backups} />}
+      <InfraServicesStrip />
 
       {!data?.available && data && (
         <div style={{ padding: '16px 20px', borderRadius: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 13, marginBottom: 24 }}>
