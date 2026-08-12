@@ -5,6 +5,7 @@ import { api } from '@core/api.js';
 const SITE_LABELS = {
   scrapster: 'Scrapster',
   poulebord: 'Poulebord',
+  'hockey-inside': 'Hockey Inside',
 };
 
 export default function SiteMonitoring() {

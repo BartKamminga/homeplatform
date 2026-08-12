@@ -184,27 +184,6 @@ function Section({ title, children }) {
   );
 }
 
-function WorkflowStep({ step, title, color, children }) {
-  return (
-    <div style={{
-      display: 'flex', gap: '16px',
-      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)', padding: '16px 20px',
-    }}>
-      <div style={{
-        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        background: color + '22', border: `1px solid ${color}44`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '13px', fontWeight: 700, color,
-      }}>{step}</div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>{title}</div>
-        <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>{children}</div>
-      </div>
-    </div>
-  );
-}
-
 function LinkCard({ icon, title, description, href, badge, badgeColor, placeholder, internal }) {
   const available = Boolean(href);
   return (
