@@ -39,11 +39,6 @@ function TournooiCard({ tournament: t, onOpen, isAdmin, onTogglePublished, dragg
                 background: '#f9731622', color: '#f97316', fontWeight: 600,
               }}>Concept</span>
             ) : null}
-            {t.competition_count > 0 && (
-              <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                {t.competition_count} comp.
-              </span>
-            )}
           </div>
         </div>
       </div>
