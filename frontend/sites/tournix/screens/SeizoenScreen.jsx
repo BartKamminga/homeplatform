@@ -1,17 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { getTournaments, createTournament, updateTournament, reorderTournaments, KNOWN_SEASONS } from '../api.js'
-import BeheerDiscoveryTab from './DiscoveryTab.jsx'
-import VangerTab          from './VangerTab.jsx'
-import StatsTab           from './StatsTab.jsx'
-import CaptureArchiefTab  from './ArchiefTab.jsx'
-
-const SEIZOEN_TABS = [
-  { id: 'publicaties', label: 'Publicaties' },
-  { id: 'discovery',   label: 'Discovery'   },
-  { id: 'vanger',      label: 'Vanger'      },
-  { id: 'stats',       label: 'Stats'       },
-  { id: 'archief',     label: 'Archief'     },
-]
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
 
@@ -41,7 +29,7 @@ function PublicatieCard({ tournament: t, onOpen, isAdmin, onTogglePublished, dra
                 style={{
                   fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
                   fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                  background: t.published ? '#16a34a22' : '#f97316' + '22',
+                  background: t.published ? '#16a34a22' : '#f9731622',
                   color: t.published ? '#16a34a' : '#f97316',
                 }}
               >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
@@ -137,7 +125,7 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
   )
 }
 
-// ── Publicaties tab ───────────────────────────────────────────────────────────
+// ── Publicaties lijst ─────────────────────────────────────────────────────────
 
 function PublicatiesTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReorder }) {
   const dragIdx = useRef(null)
@@ -185,7 +173,6 @@ function PublicatiesTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReo
 // ── SeizoenScreen ─────────────────────────────────────────────────────────────
 
 export function SeizoenScreen({ onOpenTournament, isAdmin }) {
-  const [tab,         setTab]         = useState('publicaties')
   const [tournaments, setTournaments] = useState([])
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
@@ -196,9 +183,9 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
     getTournaments().then(setTournaments).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  const q        = search.trim().toLowerCase()
-  const filtered = q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments
-  const active   = filtered.filter(t => t.status === 'active')
+  const q      = search.trim().toLowerCase()
+  const active = (q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments)
+    .filter(t => t.status === 'active')
 
   function handleCreated(t) {
     setShowCreate(false)
@@ -209,8 +196,7 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
   function handleReorder(newList) {
     setTournaments(prev => {
       const activeIds = new Set(newList.map(t => t.id))
-      const others = prev.filter(t => !activeIds.has(t.id))
-      return [...newList, ...others]
+      return [...newList, ...prev.filter(t => !activeIds.has(t.id))]
     })
     reorderTournaments(newList.map(t => t.id)).catch(() => {})
   }
@@ -231,68 +217,41 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
         <CreatePublicatiePopup onClose={() => setShowCreate(false)} onCreated={handleCreated} />
       )}
 
-      <div className="sub-tabs">
-        {SEIZOEN_TABS.map(t => (
-          <button
-            key={t.id}
-            className={`sub-tab${tab === t.id ? ' active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       <div className="seizoen-content">
-        {tab === 'publicaties' && (
-          <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                type="search"
-                placeholder="Zoek publicatie…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{
-                  flex: 1, padding: '8px 12px',
-                  border: '1px solid var(--color-border)', borderRadius: 9,
-                  background: 'var(--color-surface)', color: 'var(--color-text)',
-                  fontSize: 13, fontFamily: 'inherit', outline: 'none',
-                }}
-              />
-              {isAdmin && (
-                <button onClick={() => setShowCreate(true)} style={{
-                  padding: '8px 14px', borderRadius: 9, border: 'none',
-                  background: 'var(--color-primary)', color: '#fff',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                }}>+ Nieuw</button>
-              )}
-            </div>
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)', fontSize: 13 }}>
-                Laden…
-              </div>
-            ) : (
-              <PublicatiesTab
-                tournaments={active}
-                onOpen={onOpenTournament}
-                isAdmin={isAdmin}
-                onTogglePublished={handleTogglePublished}
-                onReorder={handleReorder}
-              />
-            )}
-          </>
-        )}
-        {tab === 'discovery' && (
-          <BeheerDiscoveryTab />
-        )}
-        {tab === 'vanger' && (
-          <VangerTab />
-        )}
-        {tab === 'stats' && (
-          <StatsTab />
-        )}
-        {tab === 'archief' && (
-          <CaptureArchiefTab />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input
+            type="search"
+            placeholder="Zoek publicatie…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              flex: 1, padding: '8px 12px',
+              border: '1px solid var(--color-border)', borderRadius: 9,
+              background: 'var(--color-surface)', color: 'var(--color-text)',
+              fontSize: 13, fontFamily: 'inherit', outline: 'none',
+            }}
+          />
+          {isAdmin && (
+            <button onClick={() => setShowCreate(true)} style={{
+              padding: '8px 14px', borderRadius: 9, border: 'none',
+              background: 'var(--color-primary)', color: '#fff',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+            }}>+ Nieuw</button>
+          )}
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)', fontSize: 13 }}>
+            Laden…
+          </div>
+        ) : (
+          <PublicatiesTab
+            tournaments={active}
+            onOpen={onOpenTournament}
+            isAdmin={isAdmin}
+            onTogglePublished={handleTogglePublished}
+            onReorder={handleReorder}
+          />
         )}
       </div>
     </div>

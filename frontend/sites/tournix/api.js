@@ -48,10 +48,8 @@ export const getCaptureSessionItems   = (sid)     => api.get(`/api/capture/sessi
 export const reprocessCaptures        = (body)    => api.post('/api/capture/reprocess', body)
 
 // Seizoensplanner
-export const getDiscoveryComps        = (season)   => api.get(`/api/hockey/competitions${season ? `?season=${season}` : ''}`)
-export const deleteEmptyCompetitions  = (season)   => api.delete(`/api/hockey/competitions/empty${season ? `?season=${season}` : ''}`)
-export const getVangerQueue    = (status) =>
-  api.get(`/api/hockey/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
+export const getDiscoveryComps = (season) =>
+  api.get(`/api/hockey/competitions${season ? `?season=${season}` : ''}`)
 
 // Tournament-competitie koppelingen
 export const getTournamentComps    = (tid)                  => api.get(`/api/tournix/tournaments/${tid}/competitions`)
