@@ -1,176 +1,50 @@
-import { useState, useEffect, useRef } from 'react'
-import { getTournamentCompetitionStandings, deleteTournament, removeTournamentComp, syncCompetition, updateTournament } from '../api.js'
-import CompetitiesTab    from './CompetitiesTab.jsx'
-import CompetitieDetail  from './competitie/CompetitieDetail.jsx'
-import CompetitieList    from './competitie/CompetitieList.jsx'
+import { useState, useEffect } from 'react'
+import { getTournament } from '../api.js'
+import TournamentTab  from './beheer/TournamentTab.jsx'
+import TeamsTab       from './beheer/TeamsTab.jsx'
+import FasesTab       from './beheer/FasesTab.jsx'
+import WedstrijdenTab from './beheer/WedstrijdenTab.jsx'
+import StandenTab     from './beheer/StandenTab.jsx'
 
-function InlineConfirm({ msg, onConfirm, onCancel }) {
-  return (
-    <div style={{
-      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-      borderRadius: 8, padding: '10px 14px', marginBottom: 12,
-      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-    }}>
-      <span style={{ flex: 1, fontSize: 13, minWidth: 120 }}>{msg}</span>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={onCancel} style={{
-          padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-          border: '1px solid var(--color-border)', background: 'var(--color-bg)',
-          color: 'var(--color-text)', fontFamily: 'inherit',
-        }}>Nee</button>
-        <button onClick={onConfirm} style={{
-          padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-          border: 'none', background: '#dc2626', color: '#fff',
-          fontFamily: 'inherit', fontWeight: 600,
-        }}>Ja, verwijderen</button>
-      </div>
-    </div>
-  )
-}
+const TABS_ADMIN  = ['Toernooi', 'Teams', 'Fases', 'Wedstrijden', 'Standen']
+const TABS_PUBLIC = ['Standen']
 
-export function CompetitieScreen({ tournament, isAdmin, onDeleted }) {
-  const [view,         setView]         = useState('overzicht')
-  const [compsData,    setCompsData]    = useState(null)
-  const [selectedComp, setSelectedComp] = useState(null)
-  const [rescanning,   setRescanning]   = useState(false)
-  const [rescanMsg,    setRescanMsg]    = useState('')
-  const [confirmPub,   setConfirmPub]   = useState(false)
-  const [confirmComp,  setConfirmComp]  = useState(null)
-  const [infoText,     setInfoText]     = useState(tournament.info || '')
-  const [infoSaving,   setInfoSaving]   = useState(false)
-  const infoTimer = useRef(null)
+export function CompetitieScreen({ tournament: initial, isAdmin, onDeleted }) {
+  const [tournament, setTournament] = useState(initial)
+  const [tab,        setTab]        = useState(isAdmin ? 'Toernooi' : 'Standen')
 
-  function reload() {
-    getTournamentCompetitionStandings(tournament.id)
-      .then(data => setCompsData(data.competitions || []))
-      .catch(() => setCompsData([]))
-  }
+  useEffect(() => {
+    setTournament(initial)
+    getTournament(initial.id).then(setTournament).catch(() => {})
+  }, [initial.id])
 
-  useEffect(() => { setSelectedComp(null); setView('overzicht'); reload(); setInfoText(tournament.info || '') }, [tournament.id])
-
-  function handleBack() { setSelectedComp(null); reload() }
-
-  async function doDeletePublication() {
-    setConfirmPub(false)
-    try { await deleteTournament(tournament.id); onDeleted?.() } catch { setRescanMsg('Verwijderen mislukt') }
-  }
-
-  async function handleRescanAll() {
-    if (!compsData?.length) return
-    setRescanning(true)
-    setRescanMsg('')
-    try {
-      await Promise.all(compsData.map(c => syncCompetition(c.id)))
-      setRescanMsg(`${compsData.length} competities herladen`)
-      setTimeout(() => setRescanMsg(''), 4000)
-      reload()
-    } catch { setRescanMsg('Rescan mislukt'); setTimeout(() => setRescanMsg(''), 3000) }
-    finally { setRescanning(false) }
-  }
-
-  async function doRemoveComp(linkId) {
-    setConfirmComp(null)
-    try { await removeTournamentComp(tournament.id, linkId); reload() }
-    catch { setRescanMsg('Ontkoppelen mislukt') }
-  }
-
-  if (selectedComp) {
-    return <CompetitieDetail comp={selectedComp} isAdmin={isAdmin} onBack={handleBack} />
-  }
+  const tabs = isAdmin ? TABS_ADMIN : TABS_PUBLIC
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tournament.name}</div>
-          {tournament.season && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{tournament.season}</div>}
-        </div>
-        {isAdmin && (
-          <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {['overzicht', 'koppelen'].map(v => (
-              <button key={v} onClick={() => { setView(v); if (v === 'overzicht') reload() }} style={{
-                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', fontWeight: view === v ? 600 : 400,
-                border: `1px solid ${view === v ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                background: view === v ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: view === v ? '#fff' : 'var(--color-text)',
-              }}>{v === 'overzicht' ? 'Overzicht' : '+ Koppelen'}</button>
-            ))}
-            {view === 'overzicht' && compsData?.length > 0 && (
-              <button onClick={handleRescanAll} disabled={rescanning} style={{
-                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit',
-                cursor: rescanning ? 'default' : 'pointer', fontWeight: 400,
-                border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-                color: 'var(--color-text-muted)', opacity: rescanning ? 0.5 : 1,
-              }}>↻ {rescanning ? 'Laden…' : 'Alles rescannen'}</button>
-            )}
-            <button onClick={() => setConfirmPub(true)} style={{
-              padding: '5px 12px', borderRadius: 20, fontSize: 12, fontFamily: 'inherit',
-              cursor: 'pointer', fontWeight: 400, border: '1px solid #dc2626',
-              background: 'transparent', color: '#dc2626',
-            }}>Verwijderen</button>
-          </div>
-        )}
-        {rescanMsg && <div style={{ width: '100%', fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>{rescanMsg}</div>}
+      {/* tab-balk */}
+      <div style={{
+        display: 'flex', gap: 0, marginBottom: 16,
+        borderBottom: '1px solid var(--color-border)',
+        overflowX: 'auto',
+      }}>
+        {tabs.map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontFamily: 'inherit', fontSize: 13, fontWeight: tab === t ? 700 : 400,
+            whiteSpace: 'nowrap', padding: '8px 14px',
+            color: tab === t ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            borderBottom: tab === t ? '2px solid var(--color-primary)' : '2px solid transparent',
+            marginBottom: -1,
+          }}>{t}</button>
+        ))}
       </div>
 
-      {confirmPub && (
-        <InlineConfirm
-          msg={`Publicatie "${tournament.name}" definitief verwijderen?`}
-          onConfirm={doDeletePublication}
-          onCancel={() => setConfirmPub(false)}
-        />
-      )}
-
-      {confirmComp && (
-        <InlineConfirm
-          msg={`"${confirmComp.name}" ontkoppelen van deze publicatie?`}
-          onConfirm={() => doRemoveComp(confirmComp.linkId)}
-          onCancel={() => setConfirmComp(null)}
-        />
-      )}
-
-      {view === 'koppelen' && isAdmin && (
-        <>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>
-              INFO-TEKST (zichtbaar op Poulebord)
-              {infoSaving && <span style={{ marginLeft: 6, fontWeight: 400, opacity: 0.6 }}>Opslaan…</span>}
-            </div>
-            <textarea
-              value={infoText}
-              onChange={e => {
-                setInfoText(e.target.value)
-                clearTimeout(infoTimer.current)
-                infoTimer.current = setTimeout(() => {
-                  setInfoSaving(true)
-                  updateTournament(tournament.id, { info: e.target.value })
-                    .finally(() => setInfoSaving(false))
-                }, 800)
-              }}
-              placeholder="Bijv. structuur van het seizoen, speeldata, bijzonderheden…"
-              rows={4}
-              style={{
-                width: '100%', boxSizing: 'border-box', padding: '8px 10px',
-                borderRadius: 8, border: '1px solid var(--color-border)',
-                background: 'var(--color-surface)', color: 'var(--color-text)',
-                fontSize: 12, fontFamily: 'inherit', resize: 'vertical', outline: 'none',
-              }}
-            />
-          </div>
-          <CompetitiesTab tid={tournament.id} season={tournament.season || '2026-2027'} />
-        </>
-      )}
-
-      {view === 'overzicht' && (
-        compsData === null
-          ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 40 }}>Laden…</div>
-          : <CompetitieList
-              compsData={compsData}
-              onSelect={setSelectedComp}
-              onRemove={(linkId, compName) => setConfirmComp({ linkId, name: compName })}
-              isAdmin={isAdmin}
-            />
-      )}
+      {tab === 'Toernooi'    && <TournamentTab  tournament={tournament} onDeleted={onDeleted} onUpdated={setTournament} />}
+      {tab === 'Teams'       && <TeamsTab       tournament={tournament} isAdmin={isAdmin} />}
+      {tab === 'Fases'       && <FasesTab       tournament={tournament} isAdmin={isAdmin} />}
+      {tab === 'Wedstrijden' && <WedstrijdenTab tournament={tournament} isAdmin={isAdmin} />}
+      {tab === 'Standen'     && <StandenTab     tournament={tournament} />}
     </div>
   )
 }

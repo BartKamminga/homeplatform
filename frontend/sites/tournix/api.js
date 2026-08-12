@@ -46,29 +46,3 @@ export const copyTournament   = (tid)  => api.post(`/api/tournix/tournaments/${t
 export const getCaptureSessions       = ()        => api.get('/api/capture/sessions')
 export const getCaptureSessionItems   = (sid)     => api.get(`/api/capture/sessions/${sid}/items`)
 export const reprocessCaptures        = (body)    => api.post('/api/capture/reprocess', body)
-
-// Seizoensplanner
-export const getDiscoveryComps = (season) =>
-  api.get(`/api/hockey/competitions${season ? `?season=${season}` : ''}`)
-
-// Tournament-competitie koppelingen
-export const getTournamentComps    = (tid)                  => api.get(`/api/tournix/tournaments/${tid}/competitions`)
-export const addTournamentComp     = (tid, body)            => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
-export const updateTournamentComp  = (tid, linkId, body)    => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
-export const removeTournamentComp  = (tid, linkId)          => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
-
-// Globale fase-tags (gedeeld over alle publicaties)
-export const getFaseTags    = ()        => api.get('/api/tournix/fase-tags')
-export const addFaseTag     = (body)    => api.post('/api/tournix/fase-tags', body)
-export const removeFaseTag  = (tagId)   => api.delete(`/api/tournix/fase-tags/${tagId}`)
-
-// Fase-tags per competitie-koppeling
-export const assignCompFaseTag = (tid, linkId, faseTagId) =>
-  api.post(`/api/tournix/tournaments/${tid}/competitions/${linkId}/fase-tags`, { fase_tag_id: faseTagId })
-export const removeCompFaseTag = (tid, linkId, faseTagId) =>
-  api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}/fase-tags/${faseTagId}`)
-
-// Discovery competitie detail
-export const getTournamentCompetitionStandings = (tid) => api.get(`/api/hockey/public/tournaments/${tid}/competition-standings`)
-export const getCompetitionMatches = (cid)             => api.get(`/api/hockey/public/competitions/${cid}/matches`)
-export const syncCompetition       = (cid)             => api.post(`/api/tournix/competitions/${cid}/sync`)
