@@ -1,0 +1,299 @@
+import { useState, useEffect, useRef } from 'react'
+import {
+  getTournaments, createTournament, updateTournament,
+  reorderTournaments, deleteTournament, getMe,
+  KNOWN_SEASONS,
+} from '../api.js'
+import CompetitiesTab from './CompetitiesTab.jsx'
+import { ghostBtn, primaryBtn, inputStyle, errorBanner } from './styles.js'
+
+// ── Aanmaken popup ────────────────────────────────────────────────────────────
+
+function CreatePopup({ onClose, onCreated }) {
+  const [name,   setName]   = useState('')
+  const [season, setSeason] = useState('2026-2027')
+  const [saving, setSaving] = useState(false)
+  const [err,    setErr]    = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim()) return setErr('Naam is verplicht')
+    setSaving(true)
+    setErr('')
+    try {
+      const t = await createTournament({ name: name.trim(), season: season || undefined })
+      onCreated(t)
+    } catch {
+      setErr('Opslaan mislukt')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ background: 'var(--color-surface)', borderRadius: 14, padding: '24px 28px', width: '100%', maxWidth: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 18, margin: '0 0 18px' }}>Nieuwe publicatie</h2>
+        <form onSubmit={handleSubmit}>
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Naam *</label>
+          <input
+            autoFocus
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="bijv. NK Zaalhockey 2027"
+            style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', marginBottom: 14 }}
+          />
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Seizoen</label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {KNOWN_SEASONS.map(s => (
+              <button key={s} type="button" onClick={() => setSeason(s)} style={{
+                flex: 1, padding: '7px 4px', borderRadius: 7, fontSize: 11,
+                border: season === s ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                background: season === s ? 'var(--color-primary)' : 'var(--color-bg)',
+                color: season === s ? '#fff' : 'var(--color-text)',
+                cursor: 'pointer', fontFamily: 'inherit', fontWeight: season === s ? 700 : 400,
+              }}>{s}</button>
+            ))}
+          </div>
+          {err && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={onClose} style={ghostBtn}>Annuleren</button>
+            <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+              {saving ? 'Opslaan…' : 'Aanmaken'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Publicatie kaart ──────────────────────────────────────────────────────────
+
+function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
+  return (
+    <div
+      onClick={() => onOpen(t)}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={e => { e.preventDefault(); onDragOver?.() }}
+      onDrop={onDrop}
+      style={{
+        padding: '14px 16px', background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)', borderRadius: 10,
+        cursor: draggable ? 'grab' : 'pointer', marginBottom: 8,
+        opacity: isDragOver ? 0.5 : 1, transition: 'opacity 0.15s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{t.name}</div>
+          {t.season && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.season}</div>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+          {isAdmin ? (
+            <button
+              onClick={e => { e.stopPropagation(); onTogglePublished(t) }}
+              style={{
+                fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
+                fontFamily: 'inherit', fontWeight: 600, border: 'none',
+                background: t.published ? '#16a34a22' : '#f9731622',
+                color: t.published ? '#16a34a' : '#f97316',
+              }}
+            >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
+          ) : !t.published ? (
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, background: '#f9731622', color: '#f97316', fontWeight: 600 }}>Concept</span>
+          ) : null}
+          {t.competition_count > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.competition_count} comp.</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Publicatie detail ─────────────────────────────────────────────────────────
+
+function PublicatieDetail({ tournament, isAdmin, onBack, onDeleted, onUpdated }) {
+  const [t,             setT]             = useState(tournament)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting,      setDeleting]      = useState(false)
+  const [errMsg,        setErrMsg]        = useState('')
+
+  async function handleDelete() {
+    setDeleting(true)
+    try { await deleteTournament(t.id); onDeleted() }
+    catch { setErrMsg('Verwijderen mislukt'); setDeleting(false) }
+  }
+
+  async function handleTogglePublished() {
+    const next = !t.published
+    const updated = { ...t, published: next }
+    setT(updated)
+    try { await updateTournament(t.id, { published: next }); onUpdated(updated) }
+    catch { setT(t); setErrMsg('Opslaan mislukt') }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button onClick={onBack} style={{ ...ghostBtn, padding: '6px 10px' }}>← Terug</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
+          {t.season && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.season}</div>}
+        </div>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+            <button
+              onClick={handleTogglePublished}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
+                fontFamily: 'inherit', fontWeight: 600, border: 'none',
+                background: t.published ? '#16a34a22' : '#f9731622',
+                color: t.published ? '#16a34a' : '#f97316',
+              }}
+            >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
+            {confirmDelete ? (
+              <>
+                <button onClick={() => setConfirmDelete(false)} style={ghostBtn}>Nee</button>
+                <button onClick={handleDelete} disabled={deleting}
+                  style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', opacity: deleting ? 0.5 : 1 }}
+                >{deleting ? 'Bezig…' : 'Ja, verwijderen'}</button>
+              </>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)}
+                style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', fontSize: 11 }}
+              >Verwijderen</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {errMsg && <div style={{ ...errorBanner, marginBottom: 14 }}>{errMsg}</div>}
+
+      <CompetitiesTab tid={t.id} season={t.season} />
+    </div>
+  )
+}
+
+// ── PublicatieTab (root) ──────────────────────────────────────────────────────
+
+export default function PublicatieTab() {
+  const [tournaments, setTournaments] = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [selected,    setSelected]    = useState(null)
+  const [isAdmin,     setIsAdmin]     = useState(false)
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [search,      setSearch]      = useState('')
+  const dragIdx = useRef(null)
+  const [overIdx, setOverIdx] = useState(null)
+
+  useEffect(() => {
+    getMe().then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
+    load()
+  }, [])
+
+  function load() {
+    setLoading(true)
+    getTournaments().then(setTournaments).catch(() => {}).finally(() => setLoading(false))
+  }
+
+  function handleCreated(t) {
+    setShowCreate(false)
+    setTournaments(prev => [t, ...prev])
+    setSelected(t)
+  }
+
+  async function handleTogglePublished(t) {
+    const next = !t.published
+    setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, published: next } : x))
+    try { await updateTournament(t.id, { published: next }) }
+    catch { setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, published: t.published } : x)) }
+  }
+
+  function handleReorder(newList) {
+    setTournaments(prev => {
+      const ids = new Set(newList.map(t => t.id))
+      return [...newList, ...prev.filter(t => !ids.has(t.id))]
+    })
+    reorderTournaments(newList.map(t => t.id)).catch(() => {})
+  }
+
+  function handleDrop(targetIdx, list) {
+    if (dragIdx.current === null || dragIdx.current === targetIdx) { setOverIdx(null); return }
+    const next = [...list]
+    const [moved] = next.splice(dragIdx.current, 1)
+    next.splice(targetIdx, 0, moved)
+    dragIdx.current = null
+    setOverIdx(null)
+    handleReorder(next)
+  }
+
+  if (selected) {
+    return (
+      <PublicatieDetail
+        tournament={selected}
+        isAdmin={isAdmin}
+        onBack={() => { setSelected(null); load() }}
+        onDeleted={() => { setSelected(null); load() }}
+        onUpdated={t => {
+          setTournaments(prev => prev.map(x => x.id === t.id ? t : x))
+          setSelected(t)
+        }}
+      />
+    )
+  }
+
+  const q = search.trim().toLowerCase()
+  const filtered = (q
+    ? tournaments.filter(t => t.name.toLowerCase().includes(q))
+    : tournaments
+  ).filter(t => t.status === 'active')
+
+  return (
+    <div>
+      {showCreate && (
+        <CreatePopup onClose={() => setShowCreate(false)} onCreated={handleCreated} />
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input
+          type="search"
+          placeholder="Zoek publicatie…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        {isAdmin && (
+          <button onClick={() => setShowCreate(true)} style={primaryBtn}>+ Nieuw</button>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-muted)', fontSize: 13 }}>
+          {search ? 'Geen resultaten.' : 'Nog geen publicaties aangemaakt.'}
+        </div>
+      ) : (
+        filtered.map((t, i) => (
+          <PublicatieCard
+            key={t.id}
+            t={t}
+            isAdmin={isAdmin}
+            onOpen={setSelected}
+            onTogglePublished={handleTogglePublished}
+            draggable={isAdmin && !q}
+            onDragStart={() => { dragIdx.current = i }}
+            onDragOver={() => setOverIdx(i)}
+            onDrop={() => handleDrop(i, filtered)}
+            isDragOver={overIdx === i && dragIdx.current !== i}
+          />
+        ))
+      )}
+    </div>
+  )
+}

@@ -1,18 +1,20 @@
 import { useState } from 'react'
-import DiscoveryTab from './screens/DiscoveryTab.jsx'
-import VangerTab    from './screens/VangerTab.jsx'
-import StatsTab     from './screens/StatsTab.jsx'
-import ArchiefTab   from './screens/ArchiefTab.jsx'
+import PublicatieTab from './screens/PublicatieTab.jsx'
+import DiscoveryTab  from './screens/DiscoveryTab.jsx'
+import VangerTab     from './screens/VangerTab.jsx'
+import StatsTab      from './screens/StatsTab.jsx'
+import ArchiefTab    from './screens/ArchiefTab.jsx'
 
 const TABS = [
-  { key: 'discovery', label: 'Discovery' },
-  { key: 'vanger',    label: 'Vanger' },
-  { key: 'stats',     label: 'Statistieken' },
-  { key: 'archief',   label: 'Archief' },
+  { key: 'publicaties', label: 'Publicaties' },
+  { key: 'discovery',   label: 'Discovery' },
+  { key: 'vanger',      label: 'Vanger' },
+  { key: 'stats',       label: 'Statistieken' },
+  { key: 'archief',     label: 'Archief' },
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('discovery')
+  const [tab, setTab] = useState('publicaties')
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '16px 16px 60px' }}>
@@ -39,10 +41,11 @@ export default function App() {
         ))}
       </div>
 
-      {tab === 'discovery' && <DiscoveryTab />}
-      {tab === 'vanger'    && <VangerTab />}
-      {tab === 'stats'     && <StatsTab />}
-      {tab === 'archief'   && <ArchiefTab />}
+      {tab === 'publicaties' && <PublicatieTab />}
+      {tab === 'discovery'   && <DiscoveryTab />}
+      {tab === 'vanger'      && <VangerTab />}
+      {tab === 'stats'       && <StatsTab />}
+      {tab === 'archief'     && <ArchiefTab />}
     </div>
   )
 }
