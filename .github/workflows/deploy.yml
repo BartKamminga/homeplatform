@@ -36,7 +36,7 @@ jobs:
 
       - name: Caddy reload
         run: |
-          cd $PROD_REPO && docker compose -f docker-compose.g4.yml restart caddy
+          cd $PROD_REPO && docker compose -f docker-compose.g4.yml up -d --force-recreate caddy
 
       - name: Deploy-info schrijven
         run: |
@@ -86,7 +86,7 @@ jobs:
 
       - name: Caddy reload (acc)
         run: |
-          cd $ACC_REPO && docker compose -f docker-compose.acc.yml restart caddy_acc
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d --force-recreate caddy_acc
 
       - name: Deploy-info schrijven (acc)
         run: |
