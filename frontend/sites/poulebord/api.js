@@ -13,8 +13,8 @@ export const getPoolMatches    = (phaseId, poolName) =>
 export const searchPools       = (q, season = '2026-2027') =>
   api.get(`/api/tournix/public/search?q=${encodeURIComponent(q)}&season=${encodeURIComponent(season)}`)
 export const getTournamentCompetitionStandings = (tid) =>
-  api.get(`/api/tournix/public/tournaments/${tid}/competition-standings`)
+  api.get(`/api/hockey/public/tournaments/${tid}/competition-standings`)
 export const getHockeyPouleStandings = (pid) =>
-  api.get(`/api/tournix/public/hockey-poules/${pid}/standings`)
+  api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
 export const getCompetitionMatches = (cid) =>
-  api.get(`/api/tournix/public/competitions/${cid}/matches`)
+  api.get(`/api/hockey/public/competitions/${cid}/matches`)

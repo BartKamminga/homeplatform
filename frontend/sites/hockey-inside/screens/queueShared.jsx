@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { api } from '@core/api.js'
 
 // ── InfoTooltip ───────────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ export function useQueueCmd({ onAdded } = {}) {
   function addSingleCmd(type, params) {
     const key = type + '_' + (params.poule_id || params.external_id || params.comp_id || 'global')
     setCmdAdding(prev => ({ ...prev, [key]: 'adding' }))
-    api.post('/api/tournix/discovery/vanger/cmd-queue/add', { cmd_type: type, params })
+    api.post('/api/hockey/vanger/cmd-queue/add', { cmd_type: type, params })
       .then(r => {
         setCmdAdding(prev => ({ ...prev, [key]: r.added ? 'added' : 'exists' }))
         onAdded?.()

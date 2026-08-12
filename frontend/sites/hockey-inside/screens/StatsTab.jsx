@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import { statBox, statNum, statLbl } from './queueShared.jsx'
 
@@ -19,11 +19,11 @@ export default function StatsTab() {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      api.get('/api/tournix/discovery/clubs'),
-      api.get('/api/tournix/discovery/teams'),
-      api.get('/api/tournix/discovery/poule-queue'),
-      api.get('/api/tournix/discovery/plugin-errors?limit=5'),
-      api.get('/api/tournix/discovery/stats/by-season'),
+      api.get('/api/hockey/clubs'),
+      api.get('/api/hockey/teams'),
+      api.get('/api/hockey/poule-queue'),
+      api.get('/api/hockey/plugin-errors?limit=5'),
+      api.get('/api/hockey/stats/by-season'),
     ]).then(([clubsRes, teamsRes, queueRes, errRes, seasonRes]) => {
       setClubs(clubsRes.clubs || [])
       setTeams(teamsRes.teams || [])

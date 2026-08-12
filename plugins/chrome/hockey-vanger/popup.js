@@ -56,7 +56,7 @@ function addLog(type, msg) {
   if (LOG.length > 200) LOG.pop();
   if (!$('logPane').classList.contains('hidden')) renderLog();
   if (type === 'err' && HP.url && HP.key) {
-    fetch(HP.url + '/api/tournix/discovery/plugin-error', {
+    fetch(HP.url + '/api/hockey/plugin-error', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: msg, context: null, session_id: null })
@@ -128,7 +128,7 @@ function renderSettings() {
 function sendHeartbeat() {
   if (!HP.url || !HP.key) return;
   var cmd = _vanger.currentCmd;
-  fetch(HP.url + '/api/tournix/discovery/vanger/heartbeat', {
+  fetch(HP.url + '/api/hockey/vanger/heartbeat', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -150,7 +150,7 @@ function startHeartbeat() {
 function stopHeartbeat() {
   if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
   if (HP.url && HP.key) {
-    fetch(HP.url + '/api/tournix/discovery/vanger/heartbeat', {
+    fetch(HP.url + '/api/hockey/vanger/heartbeat', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ running: false, mode: 'idle', task: null, cmd_id: null, done_count: 0, fail_count: 0, queue_total: 0 })
@@ -228,7 +228,7 @@ function stopVanger() {
 function pollNextCmd() {
   if (!_vanger.running) return;
   cockpitPollPing();
-  fetch(HP.url + '/api/tournix/discovery/vanger/cmd-queue/next', {
+  fetch(HP.url + '/api/hockey/vanger/cmd-queue/next', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   })
     .then(function(r) { return r.ok ? r.json() : null; })
@@ -464,7 +464,7 @@ function readAndReport(cmd, lsKey, lsId) {
 
 function reportResult(cmdId, raw, error) {
   setFlowStep('post');
-  fetch(HP.url + '/api/tournix/discovery/vanger/cmd-queue/' + cmdId + '/result', {
+  fetch(HP.url + '/api/hockey/vanger/cmd-queue/' + cmdId + '/result', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
     body: JSON.stringify({ raw: raw || null, error: error || null, session_id: _vanger.sessionId || null })

@@ -4,7 +4,7 @@ export const KNOWN_SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
 export const getMe = () => api.get('/api/auth/me')
 
-// Publicaties (tournament model)  — TODO TS-01: prefix wordt /api/hockey/ na prefix-rename
+// Publicaties (tournament model)
 export const getTournaments     = ()         => api.get('/api/tournix/tournaments')
 export const createTournament   = (data)     => api.post('/api/tournix/tournaments', data)
 export const updateTournament   = (id, data) => api.patch(`/api/tournix/tournaments/${id}`, data)
@@ -32,7 +32,11 @@ export const getCaptureSessions     = ()     => api.get('/api/capture/sessions')
 export const getCaptureSessionItems = (sid)  => api.get(`/api/capture/sessions/${sid}/items`)
 export const reprocessCaptures      = (body) => api.post('/api/capture/reprocess', body)
 
-// Discovery + Vanger — TODO TS-01: prefix wordt /api/hockey/ na prefix-rename
-export const getDiscoveryComps       = (season) => api.get(`/api/tournix/discovery/competitions${season ? `?season=${season}` : ''}`)
-export const deleteEmptyCompetitions = (season) => api.delete(`/api/tournix/discovery/competitions/empty${season ? `?season=${season}` : ''}`)
-export const getVangerQueue          = (status) => api.get(`/api/tournix/discovery/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
+// Discovery + Vanger
+export const getDiscoveryComps       = (season) => api.get(`/api/hockey/competitions${season ? `?season=${season}` : ''}`)
+export const deleteEmptyCompetitions = (season) => api.delete(`/api/hockey/competitions/empty${season ? `?season=${season}` : ''}`)
+export const getVangerQueue          = (status) => api.get(`/api/hockey/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
+
+// Publieke detail-endpoints (wedstrijden + stand per poule)
+export const getCompetitionMatches   = (cid)    => api.get(`/api/hockey/public/competitions/${cid}/matches`)
+export const getHockeyPouleStandings = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)

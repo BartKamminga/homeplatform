@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import { useQueueCmd } from '../queueShared.jsx'
 
@@ -31,23 +31,23 @@ export function useVangerState() {
   const [smartScan,     setSmartScan]     = useState({ active: false, mode: null, cmd_count: 0 })
   const [smartBusy,     setSmartBusy]     = useState(false)
 
-  function loadCmdQueue()    { api.get('/api/tournix/discovery/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
-  function loadGapAnalysis() { api.get('/api/tournix/discovery/gap-analysis').then(setGapData).catch(() => {}) }
-  function loadRanges()      { api.get('/api/tournix/discovery/poule-ranges').then(setRangeData).catch(() => {}) }
-  function loadSmartScan()   { api.get('/api/tournix/discovery/smart-scan/status').then(setSmartScan).catch(() => {}) }
+  function loadCmdQueue()    { api.get('/api/hockey/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
+  function loadGapAnalysis() { api.get('/api/hockey/gap-analysis').then(setGapData).catch(() => {}) }
+  function loadRanges()      { api.get('/api/hockey/poule-ranges').then(setRangeData).catch(() => {}) }
+  function loadSmartScan()   { api.get('/api/hockey/smart-scan/status').then(setSmartScan).catch(() => {}) }
 
   const cmdOps = useQueueCmd({ onAdded: loadCmdQueue })
 
   function load() {
     setLoading(true); setError('')
     Promise.all([
-      api.get('/api/tournix/discovery/clubs'),
-      api.get('/api/tournix/discovery/teams'),
-      api.get('/api/tournix/discovery/poule-queue'),
-      api.get('/api/tournix/discovery/competitions'),
-      api.get('/api/tournix/discovery/plugin-errors?limit=30'),
-      api.get('/api/tournix/discovery/queue-filter'),
-      api.get('/api/tournix/discovery/club-scan-queue'),
+      api.get('/api/hockey/clubs'),
+      api.get('/api/hockey/teams'),
+      api.get('/api/hockey/poule-queue'),
+      api.get('/api/hockey/competitions'),
+      api.get('/api/hockey/plugin-errors?limit=30'),
+      api.get('/api/hockey/queue-filter'),
+      api.get('/api/hockey/club-scan-queue'),
     ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes, clubScanRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
@@ -67,10 +67,10 @@ export function useVangerState() {
 
   function refreshQuiet() {
     Promise.all([
-      api.get('/api/tournix/discovery/poule-queue'),
-      api.get('/api/tournix/discovery/club-scan-queue'),
-      api.get('/api/tournix/discovery/teams'),
-      api.get('/api/tournix/discovery/competitions'),
+      api.get('/api/hockey/poule-queue'),
+      api.get('/api/hockey/club-scan-queue'),
+      api.get('/api/hockey/teams'),
+      api.get('/api/hockey/competitions'),
     ]).then(([queueRes, clubScanRes, teamsRes, compsRes]) => {
       setQueue(queueRes); setClubScanQueue(clubScanRes)
       setAllTeams(teamsRes.teams || []); setCompetitions(compsRes.competitions || [])
@@ -79,13 +79,13 @@ export function useVangerState() {
 
   function saveFilter(next) {
     setQFilter(next)
-    api.patch('/api/tournix/discovery/queue-filter', {
+    api.patch('/api/hockey/queue-filter', {
       age_groups:       next.age_groups,
       club_external_id: next.club_external_id || null,
       categories:       next.categories?.length   ? next.categories   : ['Junioren'],
       hockey_types:     next.hockey_types?.length ? next.hockey_types : ['VE'],
       genders:          next.genders || [],
-    }).then(() => api.get('/api/tournix/discovery/poule-queue'))
+    }).then(() => api.get('/api/hockey/poule-queue'))
       .then(q => setQueue(q)).catch(() => {})
   }
 
@@ -99,7 +99,7 @@ export function useVangerState() {
   }
 
   function resetPoule(poule_id) {
-    api.delete('/api/tournix/discovery/poules/' + poule_id).then(() =>
+    api.delete('/api/hockey/poules/' + poule_id).then(() =>
       setQueue(q => {
         const poules  = q.poules.map(x => x.poule_id === poule_id ? { ...x, captured: false, stale: false } : x)
         const n_cap   = poules.filter(x => x.captured && !x.stale).length
@@ -113,7 +113,7 @@ export function useVangerState() {
     setCmdFilling(type)
     const body = { type }
     if (maxAgeDays !== undefined) body.max_age_days = maxAgeDays
-    api.post('/api/tournix/discovery/vanger/cmd-queue/fill', body)
+    api.post('/api/hockey/vanger/cmd-queue/fill', body)
       .then(r => {
         loadCmdQueue()
         const c = r?.added ?? 0
@@ -134,27 +134,27 @@ export function useVangerState() {
 
   function clearCmdQueue() {
     if (!window.confirm('Alle pending cmds wissen?')) return
-    api.delete('/api/tournix/discovery/vanger/cmd-queue').then(() => loadCmdQueue()).catch(() => {})
+    api.delete('/api/hockey/vanger/cmd-queue').then(() => loadCmdQueue()).catch(() => {})
   }
 
   function retryCmdQueue(id) {
-    api.post('/api/tournix/discovery/vanger/cmd-queue/' + id + '/retry', {}).then(() => loadCmdQueue()).catch(() => {})
+    api.post('/api/hockey/vanger/cmd-queue/' + id + '/retry', {}).then(() => loadCmdQueue()).catch(() => {})
   }
 
   function retryAllFailed() {
     const failed = cmdQueue?.recent?.filter(c => c.status === 'failed') || []
     if (!failed.length) return
-    Promise.all(failed.map(c => api.post('/api/tournix/discovery/vanger/cmd-queue/' + c.id + '/retry', {})))
+    Promise.all(failed.map(c => api.post('/api/hockey/vanger/cmd-queue/' + c.id + '/retry', {})))
       .then(() => loadCmdQueue()).catch(() => {})
   }
 
   function clearDoneCmds() {
-    api.delete('/api/tournix/discovery/vanger/cmd-queue?scope=done').then(() => loadCmdQueue()).catch(() => {})
+    api.delete('/api/hockey/vanger/cmd-queue?scope=done').then(() => loadCmdQueue()).catch(() => {})
   }
 
   function runGapFill() {
     setGapFilling(true)
-    api.post('/api/tournix/discovery/gap-analysis/fill-queue')
+    api.post('/api/hockey/gap-analysis/fill-queue')
       .then(r => { loadCmdQueue(); loadGapAnalysis(); setFillMsg(`Gap-fill: +${r.total} cmds (${r.added_poules} poules, ${r.added_clubs} clubs)`); setTimeout(() => setFillMsg(''), 5000) })
       .catch(() => {})
       .finally(() => setGapFilling(false))
@@ -162,19 +162,19 @@ export function useVangerState() {
 
   function startSmartScan() {
     setSmartBusy(true)
-    api.post('/api/tournix/discovery/smart-scan/start', {})
+    api.post('/api/hockey/smart-scan/start', {})
       .then(r => { loadSmartScan(); loadCmdQueue(); setFillMsg(r.added > 0 ? `Slim scannen gestart: ${r.type === 'scan_club' ? 'club ' + r.club : r.added + ' poules'} toegevoegd` : 'Niets te scannen'); setTimeout(() => setFillMsg(''), 6000) })
       .catch(() => {})
       .finally(() => setSmartBusy(false))
   }
 
   function stopSmartScan() {
-    api.post('/api/tournix/discovery/smart-scan/stop', {}).then(() => setSmartScan(s => ({ ...s, active: false, mode: null }))).catch(() => {})
+    api.post('/api/hockey/smart-scan/stop', {}).then(() => setSmartScan(s => ({ ...s, active: false, mode: null }))).catch(() => {})
   }
 
   function runInfer() {
     setIsInferring(true); setInferResult(null)
-    api.post('/api/tournix/discovery/infer-season-pending', {})
+    api.post('/api/hockey/infer-season-pending', {})
       .then(r => { setInferResult(r); loadRanges(); refreshQuiet() })
       .catch(() => {})
       .finally(() => setIsInferring(false))
@@ -184,7 +184,7 @@ export function useVangerState() {
 
   useEffect(() => {
     function pollVanger() {
-      api.get('/api/tournix/discovery/vanger/status').then(setVangerStatus).catch(() => {})
+      api.get('/api/hockey/vanger/status').then(setVangerStatus).catch(() => {})
       loadCmdQueue()
       loadSmartScan()
     }

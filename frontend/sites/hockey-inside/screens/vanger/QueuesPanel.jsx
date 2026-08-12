@@ -1,4 +1,4 @@
-import { api } from '@core/api.js'
+﻿import { api } from '@core/api.js'
 import { pill } from '../queueShared.jsx'
 import { ghostBtn } from '../styles.js'
 
@@ -15,7 +15,7 @@ export default function QueuesPanel({ pluginErrors, setPluginErrors, clubScanQue
             <span onClick={() => setErrOpen(o => !o)} style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)', cursor: 'pointer' }}>⚠️ Plugin fouten</span>
             <span style={pill('muted')}>{pluginErrors.length} recent</span>
             <button
-              onClick={() => { if (window.confirm('Alle plugin fouten wissen?')) api.delete('/api/tournix/discovery/plugin-errors').then(() => setPluginErrors([])) }}
+              onClick={() => { if (window.confirm('Alle plugin fouten wissen?')) api.delete('/api/hockey/plugin-errors').then(() => setPluginErrors([])) }}
               style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 4, cursor: 'pointer' }}>
               legen
             </button>

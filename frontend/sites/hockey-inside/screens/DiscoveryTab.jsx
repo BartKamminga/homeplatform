@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import { deleteEmptyCompetitions } from '../api.js'
 import { pill, useQueueCmd } from './queueShared.jsx'
@@ -68,11 +68,11 @@ export default function DiscoveryTab() {
   function load() {
     setLoading(true); setError('')
     Promise.all([
-      api.get('/api/tournix/discovery/clubs'),
-      api.get('/api/tournix/discovery/teams'),
-      api.get('/api/tournix/discovery/poule-queue'),
-      api.get(`/api/tournix/discovery/competitions?season=${season}`),
-      api.get(`/api/tournix/discovery/poules?season=${season}`),
+      api.get('/api/hockey/clubs'),
+      api.get('/api/hockey/teams'),
+      api.get('/api/hockey/poule-queue'),
+      api.get(`/api/hockey/competitions?season=${season}`),
+      api.get(`/api/hockey/poules?season=${season}`),
     ]).then(([clubsRes, teamsRes, queueRes, compsRes, poulesRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
