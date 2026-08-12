@@ -3,8 +3,11 @@
 ## Deployen
 
 - **Nooit deployen zonder expliciete opdracht van de gebruiker.**
-- Gebruik altijd `hpem.ps1` voor deployments, nooit handmatig.
-- Build-keuze:
+- Deploy verloopt via **GitHub Actions** — push naar de juiste branch:
+  - `develop` → acceptatie (poort 8081)
+  - `main` → productie (poort 8080)
+- Workflow: altijd eerst naar `develop`, testen op acc, dan mergen naar `main`.
+- Build-keuze (in de Actions workflow):
   - `fe` — alleen frontend (Vite build + dist upload + Caddy reload)
   - `be` — alleen backend (Docker rebuild)
   - `be_db` — backend + alembic migraties + seed
@@ -12,7 +15,7 @@
 
 ## Roadmap en changelog
 
-De **NAS-database is de centrale backlog**. Todos en changelog werken samen via de `roadmap_items` tabel:
+De **centrale database (via API op de G4)** is de backlog. Todos en changelog werken samen via de `roadmap_items` tabel:
 
 - **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) of `.\roadmap.ps1` — niet in conversatienotities.
 - **Aan het begin van een sessie**:
@@ -71,13 +74,22 @@ homeplatform/
   frontend/
     core/           Gedeelde helpers (api.js, sentry.js, theme.css)
     sites/          Vite MPA: landing, admin, dontforget, tournix, nkhockey, mixmusic
-  hpem.ps1          Deploy-script (HomePlatformEnvironmentManager)
-  docker-compose.nas.yml
+  docker-compose.g4.yml
+  docker-compose.acc.yml
 ```
 
-## NAS
+## G4 (productieserver)
 
-- IP: `192.168.30.193`, poort `8080`
+- IP: `192.168.30.232`, prod poort `8080`, acc poort `8081`
 - SSH-key: `%USERPROFILE%\.ssh\homeplatform`
-- Pad: `/volume1/homeplatform`
-- Synology ACL-problemen: `synoacltool -del <pad>` gevolgd door `chmod 755`.
+- Pad prod: `/home/bart/homeplatform-repo`
+- Pad acc: `/home/bart/homeplatform-acc`
+
+### Caddy reset (bij crash of config-probleem)
+
+```bash
+ssh -i %USERPROFILE%\.ssh\homeplatform bart@192.168.30.232
+docker compose -f /home/bart/homeplatform-repo/docker-compose.g4.yml down
+docker volume rm homeplatform-repo_caddy_config
+docker compose -f /home/bart/homeplatform-repo/docker-compose.g4.yml up -d
+```
