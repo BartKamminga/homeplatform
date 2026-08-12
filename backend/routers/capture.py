@@ -156,7 +156,7 @@ REPROCESSABLE = ("poule_capture", "comp_detail", "clubs_list", "club_detail")
 @router.post("/reprocess")
 def reprocess(body: ReprocessBody, session: Session = Depends(get_session), _=Depends(get_current_user)):
     """Herverwerk gearchiveerde captures (poule_capture en comp_detail) via de discovery-parser."""
-    from routers.hockey_discovery import (
+    from routers.hockey_vanger import (
         _parse_raw_poule, _call_poule_capture, _call_competition_detail,
         _call_clubs_list_raw, _call_club_detail_raw,
     )

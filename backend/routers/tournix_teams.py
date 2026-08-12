@@ -16,7 +16,6 @@ from core.auth import get_current_user, require_admin
 from models.core import User
 from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
 from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, PoulebordBoard
-from models.tournix import TournixTournamentCompetition, TournixCompetitionFaseTag, TournixFaseTag
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -121,19 +120,11 @@ def list_public_tournaments(
     tournaments = session.exec(
         stmt.order_by(Tournament.order, Tournament.created_at.desc())
     ).all()
-    result = []
-    for t in tournaments:
-        count = len(session.exec(
-            select(TournixTournamentCompetition)
-            .where(TournixTournamentCompetition.tournament_id == t.id)
-        ).all())
-        result.append({
-            "id": t.id, "name": t.name, "season": t.season,
-            "description": t.description, "status": t.status,
-            "info": t.info,
-            "competition_count": count,
-        })
-    return result
+    return [
+        {"id": t.id, "name": t.name, "season": t.season,
+         "description": t.description, "status": t.status, "info": t.info}
+        for t in tournaments
+    ]
 
 
 @router.post("/public/beacon")
