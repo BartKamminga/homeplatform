@@ -105,9 +105,10 @@ class BinaryBeatportProvider(DownloadProvider):
         filename_template: str = "{title} - {artist}",
     ) -> DownloadResult:
         self._stalled = False
+        self._prepare_error: Optional[str] = None
         ctx = self._prepare(url, download_dir, job_id, fmt, filename_template)
         if ctx is None:
-            return DownloadResult(success=False, error="Config voorbereiding mislukt.")
+            return DownloadResult(success=False, error=self._prepare_error or "Config voorbereiding mislukt.")
 
         try:
             self._proc = await asyncio.create_subprocess_exec(
@@ -177,13 +178,15 @@ class BinaryBeatportProvider(DownloadProvider):
     def _prepare(self, url: str, download_dir: str, job_id: str, fmt: str = "", filename_template: str = "{title} - {artist}") -> Optional[_PrepContext]:
         config_dir = settings.BEATPORTDL_CONFIG_DIR
         if not config_dir:
-            update_job(job_id, status="error", error="BEATPORTDL_CONFIG_DIR niet geconfigureerd.")
+            self._prepare_error = "BEATPORTDL_CONFIG_DIR niet geconfigureerd."
             return None
 
         base_config = os.path.join(config_dir, "beatportdl-config.yml")
         if not os.path.exists(base_config):
-            update_job(job_id, status="error",
-                       error=f"Hernoem je config naar 'beatportdl-config.yml' in {config_dir}")
+            self._prepare_error = (
+                f"beatportdl-config.yml ontbreekt in {config_dir}. "
+                "Zet je beatportdl config-bestand in de beatportdl-config map op de host."
+            )
             return None
 
         work_dir = None
@@ -220,7 +223,7 @@ class BinaryBeatportProvider(DownloadProvider):
         except Exception as e:
             if work_dir:
                 shutil.rmtree(work_dir, ignore_errors=True)
-            update_job(job_id, status="error", error=f"Kan beatportdl config niet laden: {e}")
+            self._prepare_error = f"Kan beatportdl config niet laden: {e}"
             return None
 
         before_dirs: set = set()
