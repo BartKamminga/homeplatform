@@ -118,12 +118,28 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
 
     # Tabeltellingen via inspect (valideert tabelnamen via DB-metadata)
     tables = [
-        "users", "groups", "user_groups", "themes", "user_preferences",
-        "sites", "site_access", "invite_tokens", "audit_log",
-        "roadmap_items", "changelog",
-        "tasks", "mixmusic_genres", "mixmusic_track_meta", "mixmusic_track_hearts",
+        # Platform / core
+        "users", "groups", "user_groups", "user_api_keys", "themes", "user_preferences",
+        "sites", "site_access", "invite_tokens", "audit_log", "app_settings",
+        "roadmap_items", "roadmap_history", "changelog",
+        # DontForget
+        "tasks",
+        # MixMusic
+        "mixmusic_genres", "mixmusic_track_meta", "mixmusic_track_hearts", "mixmusic_excluded_tracks",
+        # Tournix / Poulebord
         "tournix_clubs", "tournix_tournaments", "tournix_pools", "tournix_teams",
         "tournix_fields", "tournix_matches", "tournix_predictions", "tournix_snapshots",
+        "tournix_phases", "tournix_phase_teams", "tournix_phase_fields",
+        "tournix_fase_tags", "tournix_competition_fase_tags",
+        "tournix_tournament_fases", "tournix_tournament_competitions", "tournix_import_log",
+        "poulebord_boards",
+        # Hockey
+        "hockey_clubs", "hockey_competitions", "hockey_poules", "hockey_teams",
+        "hockey_poule_matches", "hockey_poule_standings", "vanger_cmd_queue",
+        # BeatCrades / downloader
+        "download_jobs", "download_crades", "download_crade_groups", "download_sections",
+        # Overig
+        "data_captures",
     ]
     inspector = sa_inspect(engine)
     available_tables = set(inspector.get_table_names())
