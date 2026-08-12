@@ -73,6 +73,12 @@
         file_server
     }
 
+    handle /hockey-inside/* {
+        root * /srv/www
+        try_files {path} /hockey-inside/index.html
+        file_server
+    }
+
     handle /assets/* {
         root * /srv/www
         file_server
