@@ -35,7 +35,8 @@ jobs:
           cd $PROD_REPO/frontend/sites && npm ci --prefer-offline && npm run build
 
       - name: Caddy reload
-        run: docker exec homeplatform_caddy caddy reload --config /etc/caddy/Caddyfile
+        run: |
+          cd $PROD_REPO && docker compose -f docker-compose.g4.yml restart caddy
 
       - name: Deploy-info schrijven
         run: |
@@ -84,7 +85,8 @@ jobs:
           cd $ACC_REPO/frontend/sites && npm ci --prefer-offline && npm run build
 
       - name: Caddy reload (acc)
-        run: docker exec homeplatform_caddy_acc caddy reload --config /etc/caddy/Caddyfile
+        run: |
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml restart caddy_acc
 
       - name: Deploy-info schrijven (acc)
         run: |
