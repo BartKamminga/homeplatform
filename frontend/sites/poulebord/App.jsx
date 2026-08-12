@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { getTournaments, getClubs, saveBoard, getBoardByCode, searchPools, getTournamentCompetitionStandings } from './api.js'
+import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, getTournamentCompetitionStandings } from './api.js'
 import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, categoryOf } from './constants.js'
 import { BoardView, SeizoenInfo, TournamentCard } from './BoardView.jsx'
 import { PoolSearchCard, CompBrowseItem } from './BrowseComponents.jsx'
@@ -126,14 +126,16 @@ export default function App() {
   useEffect(() => { getClubs().then(setClubs).catch(() => {}) }, [])
 
   useEffect(() => {
-    getTournaments()
-      .then(data => {
-        const normSeason = s => (s || '').replace(/\s*-\s*/g, '-')
-        const filtered = data.filter(t => normSeason(t.season) === normSeason(SEASON))
-        setAll(filtered)
-        if (filtered.length) setSelectedPub(filtered[0])
-      })
-      .catch(() => setError('Kon toernooien niet laden'))
+    Promise.all([
+      getTournaments().catch(() => []),
+      getHockeyPublications().catch(() => []),
+    ]).then(([tournix, hockey]) => {
+      const normSeason = s => (s || '').replace(/\s*-\s*/g, '-')
+      const combined = [...hockey, ...tournix]
+      const filtered = combined.filter(t => normSeason(t.season) === normSeason(SEASON))
+      setAll(filtered)
+      if (filtered.length) setSelectedPub(filtered[0])
+    }).catch(() => setError('Kon publicaties niet laden'))
   }, [])
 
   useEffect(() => {

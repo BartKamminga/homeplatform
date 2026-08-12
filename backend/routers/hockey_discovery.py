@@ -2940,6 +2940,21 @@ def list_competitions_with_coupling(
 
 # ── Publieke endpoints (Poulebord + Hockey Inside) ─────────────────────────────
 
+@router.get("/public/publications")
+def list_public_publications(session: Session = Depends(get_session)):
+    """Lijst van gepubliceerde hockey-inside publicaties voor Poulebord."""
+    from models.hockey import HockeyPublication
+    pubs = session.exec(
+        select(HockeyPublication)
+        .where(HockeyPublication.published == True)
+        .order_by(HockeyPublication.season.desc(), HockeyPublication.order, HockeyPublication.name)
+    ).all()
+    return [
+        {"id": p.id, "name": p.name, "season": p.season, "published": p.published}
+        for p in pubs
+    ]
+
+
 @router.get("/public/tournaments/{tid}/competition-standings")
 def get_tournament_competition_standings(
     tid: str,

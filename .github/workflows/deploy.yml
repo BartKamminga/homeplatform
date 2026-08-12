@@ -72,7 +72,7 @@ jobs:
         run: |
           docker exec homeplatform_backend_acc sh -c "
             if ! alembic current 2>/dev/null | grep -q '.'; then
-              alembic stamp head
+              alembic stamp fade12ab34cd
             fi
             alembic upgrade head
             python seed.py
