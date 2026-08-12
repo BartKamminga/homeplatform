@@ -3,7 +3,7 @@ import { getTournaments, createTournament, updateTournament, reorderTournaments,
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
 
-function PublicatieCard({ tournament: t, onOpen, isAdmin, onTogglePublished, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
+function TournooiCard({ tournament: t, onOpen, isAdmin, onTogglePublished, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
   return (
     <div
       className="t-card"
@@ -51,9 +51,9 @@ function PublicatieCard({ tournament: t, onOpen, isAdmin, onTogglePublished, dra
   )
 }
 
-// ── Nieuwe publicatie popup ───────────────────────────────────────────────────
+// ── Nieuw toernooi popup ──────────────────────────────────────────────────────
 
-function CreatePublicatiePopup({ onClose, onCreated }) {
+function CreateTournooiPopup({ onClose, onCreated }) {
   const [name,   setName]   = useState('')
   const [season, setSeason] = useState('2026-2027')
   const [saving, setSaving] = useState(false)
@@ -82,7 +82,7 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
         background: 'var(--color-surface)', borderRadius: 14, padding: '24px 28px',
         width: '100%', maxWidth: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
       }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>Nieuwe publicatie</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>Nieuw toernooi</h2>
         <form onSubmit={handleSubmit}>
           <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>
             Naam *
@@ -125,9 +125,9 @@ function CreatePublicatiePopup({ onClose, onCreated }) {
   )
 }
 
-// ── Publicaties lijst ─────────────────────────────────────────────────────────
+// ── Toernooien lijst ──────────────────────────────────────────────────────────
 
-function PublicatiesTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReorder }) {
+function TournooienTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReorder }) {
   const dragIdx = useRef(null)
   const [overIdx, setOverIdx] = useState(null)
 
@@ -135,7 +135,7 @@ function PublicatiesTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReo
     return (
       <div className="empty-state">
         <div className="empty-state-icon">🏑</div>
-        Geen actieve publicaties
+        Geen actieve toernooien
       </div>
     )
   }
@@ -153,7 +153,7 @@ function PublicatiesTab({ tournaments, onOpen, isAdmin, onTogglePublished, onReo
   return (
     <div>
       {tournaments.map((t, i) => (
-        <PublicatieCard
+        <TournooiCard
           key={t.id}
           tournament={t}
           onOpen={onOpen}
@@ -214,14 +214,14 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
   return (
     <div className="seizoen-screen">
       {showCreate && (
-        <CreatePublicatiePopup onClose={() => setShowCreate(false)} onCreated={handleCreated} />
+        <CreateTournooiPopup onClose={() => setShowCreate(false)} onCreated={handleCreated} />
       )}
 
       <div className="seizoen-content">
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input
             type="search"
-            placeholder="Zoek publicatie…"
+            placeholder="Zoek toernooi…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
@@ -236,7 +236,7 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
               padding: '8px 14px', borderRadius: 9, border: 'none',
               background: 'var(--color-primary)', color: '#fff',
               fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-            }}>+ Nieuw</button>
+            }}>+ Toernooi</button>
           )}
         </div>
 
@@ -245,7 +245,7 @@ export function SeizoenScreen({ onOpenTournament, isAdmin }) {
             Laden…
           </div>
         ) : (
-          <PublicatiesTab
+          <TournooienTab
             tournaments={active}
             onOpen={onOpenTournament}
             isAdmin={isAdmin}
