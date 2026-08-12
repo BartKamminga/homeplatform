@@ -6,8 +6,8 @@
 #   .\roadmap.ps1 -List -Status idea -Priority high                  # filter
 #   .\roadmap.ps1 -List -Site tournix                                # filter op site
 #   .\roadmap.ps1 -Add -Site tournix -Title "..." -Priority high     # nieuw item
-#   .\roadmap.ps1 -Close -Id 8 -Version v3.40                        # afsluiten + changelog
-#   .\roadmap.ps1 -Close -Ids "8,11,12" -Version v3.40              # batch sluiten
+#   .\roadmap.ps1 -Close -Id 8 -Version v4.1                         # afsluiten + changelog + git tag + GitHub Release
+#   .\roadmap.ps1 -Close -Ids "8,11,12" -Version v4.1               # batch sluiten
 #   .\roadmap.ps1 -Update -Id 8 -Status in_progress                  # veld bijwerken
 #   .\roadmap.ps1 -Get -Id 8                                         # volledig item tonen
 #   .\roadmap.ps1 -History -Id 8                                     # wijzigingshistorie
@@ -234,23 +234,69 @@ if ($Close -or $CloseMany) {
     elseif ($Id -ne 0) { $idList = @($Id) }
     else { Write-Host "Geef -Id of -Ids op"; exit 1 }
 
+    $closedItems = @()
     foreach ($closeId in $idList) {
         $item = ApiPatch "/roadmap/$closeId" @{ status = "done"; version = $Version }
         Write-Host "[OK] $($item.site) $($item.version) - $($item.title)"
+        $closedItems += $item
     }
 
     # Versie + commit registreren voor deploy-status
+    $commit = $null; $short = $null
     try {
-        $commit = & git rev-parse HEAD 2>$null
-        $short  = & git rev-parse --short HEAD 2>$null
+        $commit = (& git rev-parse HEAD 2>$null).Trim()
+        $short  = (& git rev-parse --short HEAD 2>$null).Trim()
         if ($commit) {
-            $vbody = [PSCustomObject]@{ version = $Version; commit = $commit.Trim(); short = $short.Trim() } | ConvertTo-Json -Compress
+            $vbody = [PSCustomObject]@{ version = $Version; commit = $commit; short = $short } | ConvertTo-Json -Compress
             Invoke-RestMethod -Uri "$HP_API_BASE/admin/deploy-versions" -Method POST `
                 -Headers @{ Authorization = "Bearer $HP_API_KEY"; "Content-Type" = "application/json" } `
                 -Body $vbody -ErrorAction SilentlyContinue | Out-Null
-            Write-Host "[OK] Versie $Version geregistreerd (commit $($short.Trim()))"
+            Write-Host "[OK] Versie $Version geregistreerd (commit $short)"
         }
     } catch {}
+
+    # Git tag aanmaken en pushen
+    $tagExists = (& git tag -l $Version 2>$null)
+    if ($tagExists) {
+        Write-Host "[INFO] Git tag $Version bestaat al, overgeslagen"
+    } else {
+        & git tag -a $Version -m "Release $Version" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+            & git push origin $Version 2>$null
+            $ErrorActionPreference = $prevEAP
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "[OK] Git tag $Version aangemaakt en gepusht"
+            } else {
+                Write-Host "[WARN] Tag lokaal aangemaakt maar push mislukt"
+            }
+        }
+    }
+
+    # GitHub Release aanmaken
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        # Release notes — gegroepeerd per site
+        $bySite = $closedItems | Group-Object { $_.site } | Sort-Object Name
+        $lines  = @()
+        foreach ($group in $bySite) {
+            $lines += "### $($group.Name)"
+            foreach ($i in $group.Group) { $lines += "- $($i.title)" }
+            $lines += ""
+        }
+        $notes = $lines -join "`n"
+
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+        & gh release create $Version --title $Version --notes $notes --target main 2>$null
+        $ErrorActionPreference = $prevEAP
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[OK] GitHub Release $Version aangemaakt"
+        } else {
+            Write-Host "[WARN] GitHub Release aanmaken mislukt (bestaat al, of gh niet geauthenticeerd)"
+        }
+    } else {
+        Write-Host "[INFO] gh CLI niet gevonden — GitHub Release overgeslagen"
+    }
+
     exit 0
 }
 

@@ -39,6 +39,21 @@ De **centrale database (via API op de G4)** is de backlog. Todos en changelog we
   - Geen apostrofs in SQL-strings — gebruik dubbele aanhalingstekens of schrijf ze weg.
   - `down_revision` moet wijzen naar de vorige migratie in de keten.
 
+## Versiestrategie
+
+Gebruik **MAJOR.MINOR.PATCH** semantisch versionnummer:
+
+| Level | Wanneer | Voorbeeld |
+|---|---|---|
+| **MAJOR** | Nieuwe site live, infra-migratie, architectuurwijziging | Hockey Inside launch → `v4.0` |
+| **MINOR** | Significante feature in één of meer sites, admin uitbreiding | Poulebord pins → `v4.1` |
+| **PATCH** | Bugfix, kleine tweak, deploy-fix | Caddy config fix → `v4.0.1` |
+
+Bij `.\roadmap.ps1 -Close -Ids "..." -Version v4.1`:
+1. Items worden gesloten + changelog aangemaakt
+2. Git tag `v4.1` wordt aangemaakt en gepusht
+3. GitHub Release `v4.1` wordt aangemaakt met release notes per site
+
 ## Technische afspraken
 
 ### PowerShell
