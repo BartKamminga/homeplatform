@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  getTournaments, createTournament, updateTournament,
-  reorderTournaments, deleteTournament, getMe,
+  getPublications, createPublication, updatePublication,
+  reorderPublications, deletePublication, getMe,
   KNOWN_SEASONS,
 } from '../api.js'
 import CompetitiesTab from './CompetitiesTab.jsx'
@@ -21,7 +21,7 @@ function CreatePopup({ onClose, onCreated }) {
     setSaving(true)
     setErr('')
     try {
-      const t = await createTournament({ name: name.trim(), season: season || undefined })
+      const t = await createPublication({ name: name.trim(), season: season || undefined })
       onCreated(t)
     } catch {
       setErr('Opslaan mislukt')
@@ -125,7 +125,7 @@ function PublicatieDetail({ tournament, isAdmin, onBack, onDeleted, onUpdated })
 
   async function handleDelete() {
     setDeleting(true)
-    try { await deleteTournament(t.id); onDeleted() }
+    try { await deletePublication(t.id); onDeleted() }
     catch { setErrMsg('Verwijderen mislukt'); setDeleting(false) }
   }
 
@@ -133,7 +133,7 @@ function PublicatieDetail({ tournament, isAdmin, onBack, onDeleted, onUpdated })
     const next = !t.published
     const updated = { ...t, published: next }
     setT(updated)
-    try { await updateTournament(t.id, { published: next }); onUpdated(updated) }
+    try { await updatePublication(t.id, { published: next }); onUpdated(updated) }
     catch { setT(t); setErrMsg('Opslaan mislukt') }
   }
 
@@ -198,7 +198,7 @@ export default function PublicatieTab() {
 
   function load() {
     setLoading(true)
-    getTournaments().then(setTournaments).catch(() => {}).finally(() => setLoading(false))
+    getPublications().then(setTournaments).catch(() => {}).finally(() => setLoading(false))
   }
 
   function handleCreated(t) {
@@ -210,7 +210,7 @@ export default function PublicatieTab() {
   async function handleTogglePublished(t) {
     const next = !t.published
     setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, published: next } : x))
-    try { await updateTournament(t.id, { published: next }) }
+    try { await updatePublication(t.id, { published: next }) }
     catch { setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, published: t.published } : x)) }
   }
 
@@ -219,7 +219,7 @@ export default function PublicatieTab() {
       const ids = new Set(newList.map(t => t.id))
       return [...newList, ...prev.filter(t => !ids.has(t.id))]
     })
-    reorderTournaments(newList.map(t => t.id)).catch(() => {})
+    reorderPublications(newList.map(t => t.id)).catch(() => {})
   }
 
   function handleDrop(targetIdx, list) {

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  getTournamentComps, addTournamentComp, updateTournamentComp, removeTournamentComp,
+  getPublicationComps, addPublicationComp, updatePublicationComp, removePublicationComp,
   getDiscoveryComps, syncCompetition,
-  getFaseTags, addFaseTag, removeFaseTag,
-  assignCompFaseTag, removeCompFaseTag,
+  getPublicationTags, addPublicationTag, removePublicationTag,
+  assignCompTag, removeCompTag,
   getCompetitionMatches, getHockeyPouleStandings,
   KNOWN_SEASONS,
 } from '../api.js'
@@ -58,6 +58,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
   const [selectedComps, setSelectedComps] = useState(new Set())
   const [confirmTag,  setConfirmTag]  = useState(null)
   const [confirmLink, setConfirmLink] = useState(null)
+  const [selectedLnk, setSelectedLnk] = useState(null)
 
   useEffect(() => { loadGlobalTags() }, [])
   useEffect(() => { if (tid) { loadLinks() } }, [tid])
@@ -65,13 +66,13 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
 
   async function loadLinks() {
     setLoading(true)
-    try { setLinks(await getTournamentComps(tid)) }
+    try { setLinks(await getPublicationComps(tid)) }
     catch (e) { flash(e.message, true) }
     finally { setLoading(false) }
   }
 
   async function loadGlobalTags() {
-    try { setGlobalTags(await getFaseTags()) }
+    try { setGlobalTags(await getPublicationTags()) }
     catch { /* stil */ }
   }
 
@@ -94,7 +95,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     if (!name) return
     setAddingTag(true)
     try {
-      const t = await addFaseTag({ name })
+      const t = await addPublicationTag({ name })
       setGlobalTags(prev => prev.some(x => x.id === t.id) ? prev : [...prev, t])
       setNewTagName('')
     } catch (e) { flash(e.message, true) }
@@ -104,7 +105,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
   async function doRemoveTag(tag) {
     setConfirmTag(null)
     try {
-      await removeFaseTag(tag.id)
+      await removePublicationTag(tag.id)
       setGlobalTags(prev => prev.filter(x => x.id !== tag.id))
       setLinks(prev => prev.map(l => ({
         ...l, fase_tags: (l.fase_tags || []).filter(t => t.id !== tag.id),
@@ -122,7 +123,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
       : l
     ))
     try {
-      await assignCompFaseTag(tid, lnk.id, tagId)
+      await assignCompTag(tid, lnk.id, tagId)
     } catch (e) {
       setLinks(prev => prev.map(l => l.id === lnk.id
         ? { ...l, fase_tags: (l.fase_tags || []).filter(t => t.id !== tagId) }
@@ -138,7 +139,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
       : l
     ))
     try {
-      await removeCompFaseTag(tid, lnk.id, tagId)
+      await removeCompTag(tid, lnk.id, tagId)
     } catch (e) {
       await loadLinks()
       flash(e.message, true)
@@ -150,7 +151,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
   async function handleAdd(comp) {
     setAdding(true)
     try {
-      await addTournamentComp(tid, { competition_id: comp.id, order: links.length })
+      await addPublicationComp(tid, { competition_id: comp.id, order: links.length })
       syncCompetition(comp.id).catch(() => {})
       flash(`${comp.name} gekoppeld`)
       setShowPicker(false)
@@ -167,7 +168,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     const comps = allComps.filter(c => selectedComps.has(c.id))
     try {
       for (let i = 0; i < comps.length; i++) {
-        await addTournamentComp(tid, { competition_id: comps[i].id, order: links.length + i })
+        await addPublicationComp(tid, { competition_id: comps[i].id, order: links.length + i })
         syncCompetition(comps[i].id).catch(() => {})
       }
       flash(`${comps.length} competities gekoppeld`)
@@ -183,7 +184,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     const next = !lnk.visible
     setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, visible: next } : l))
     try {
-      await updateTournamentComp(tid, lnk.id, { visible: next })
+      await updatePublicationComp(tid, lnk.id, { visible: next })
     } catch (e) {
       setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, visible: !next } : l))
       flash(e.message, true)
@@ -193,7 +194,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
   async function doRemoveLink(lnk) {
     setConfirmLink(null)
     try {
-      await removeTournamentComp(tid, lnk.id)
+      await removePublicationComp(tid, lnk.id)
       flash('Koppeling verwijderd')
       await loadLinks()
     } catch (e) { flash(e.message, true) }
@@ -201,6 +202,16 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
 
   if (!tid) return <p style={muted}>Laden…</p>
   if (loading) return <p style={muted}>Laden…</p>
+
+  if (selectedLnk) {
+    return (
+      <CompetitieDetailView
+        lnk={selectedLnk}
+        tid={tid}
+        onBack={() => setSelectedLnk(null)}
+      />
+    )
+  }
 
   const linkedIds = new Set(links.map(l => l.competition_id))
   const q = filterQ.trim().toLowerCase()
@@ -294,6 +305,7 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
           onRemoveTag={tagId => handleRemoveCompTag(lnk, tagId)}
           onToggleVisible={() => handleToggleVisible(lnk)}
           onRemove={() => setConfirmLink(lnk)}
+          onOpenDetail={() => setSelectedLnk(lnk)}
         />
       ))}
 
@@ -377,6 +389,205 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── CompetitieDetailView ──────────────────────────────────────────────────────
+
+const TABS_DETAIL = ['Standen', 'Programma', 'Uitslagen']
+
+function StandenTab({ lnk }) {
+  const poules = lnk.poules || []
+  const [data, setData] = useState({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!poules.length) { setLoading(false); return }
+    Promise.all(
+      poules.map(p => getHockeyPouleStandings(p.id).catch(() => null))
+    ).then(results => {
+      const map = {}
+      results.forEach((r, i) => { map[poules[i].id] = r?.standings || [] })
+      setData(map)
+    }).finally(() => setLoading(false))
+  }, [lnk.id])
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+  if (!poules.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Geen poules gevonden.</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {poules.map(p => {
+        const rows = data[p.id] || []
+        return (
+          <div key={p.id}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 6, letterSpacing: '.05em' }}>{p.name}</div>
+            {rows.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Geen standen beschikbaar.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ color: 'var(--color-text-muted)' }}>
+                      <th style={{ textAlign: 'left', padding: '2px 6px 4px 0', fontWeight: 400, width: 20 }}>#</th>
+                      <th style={{ textAlign: 'left', padding: '2px 6px 4px 0', fontWeight: 400 }}>Team</th>
+                      <th style={{ textAlign: 'right', padding: '2px 4px', fontWeight: 400, width: 28 }}>W</th>
+                      <th style={{ textAlign: 'right', padding: '2px 4px', fontWeight: 400, width: 28 }}>G</th>
+                      <th style={{ textAlign: 'right', padding: '2px 4px', fontWeight: 400, width: 28 }}>V</th>
+                      <th style={{ textAlign: 'right', padding: '2px 4px', fontWeight: 700, width: 32 }}>Pt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--color-border)' }}>
+                        <td style={{ padding: '3px 6px 3px 0', color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</td>
+                        <td style={{ padding: '3px 6px 3px 0', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.team_name}</td>
+                        <td style={{ textAlign: 'right', padding: '3px 4px', fontVariantNumeric: 'tabular-nums' }}>{r.won}</td>
+                        <td style={{ textAlign: 'right', padding: '3px 4px', fontVariantNumeric: 'tabular-nums' }}>{r.drawn}</td>
+                        <td style={{ textAlign: 'right', padding: '3px 4px', fontVariantNumeric: 'tabular-nums' }}>{r.lost}</td>
+                        <td style={{ textAlign: 'right', padding: '3px 4px', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{r.pts}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ProgrammaTab({ lnk }) {
+  const [matches, setMatches] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const cid = lnk.competition_id
+    if (!cid) { setLoading(false); return }
+    getCompetitionMatches(cid).catch(() => null).then(r => {
+      setMatches(r?.poules?.flatMap(p => p.scheduled || []) || [])
+    }).finally(() => setLoading(false))
+  }, [lnk.competition_id])
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+  if (!matches.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Geen geplande wedstrijden.</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {matches.map((m, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '5px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center' }}>
+          {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 72 }}>{m.date.slice(0, 10)}</span>}
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
+          <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>vs</span>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{m.away}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function UitslagenTab({ lnk }) {
+  const [matches, setMatches] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const cid = lnk.competition_id
+    if (!cid) { setLoading(false); return }
+    getCompetitionMatches(cid).catch(() => null).then(r => {
+      const all = r?.poules?.flatMap(p => p.finished || []) || []
+      setMatches([...all].reverse())
+    }).finally(() => setLoading(false))
+  }, [lnk.competition_id])
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+  if (!matches.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Geen uitslagen beschikbaar.</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {matches.map((m, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '5px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center' }}>
+          {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 72 }}>{m.date.slice(0, 10)}</span>}
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
+          <span style={{ fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+            {m.home_score ?? '?'}–{m.away_score ?? '?'}
+          </span>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{m.away}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CompetitieDetailView({ lnk, tid, onBack }) {
+  const [tab,     setTab]     = useState('Standen')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+
+  const comp = lnk.competition || {}
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      await syncCompetition(lnk.competition_id)
+      setSyncMsg('Sync gestart')
+    } catch {
+      setSyncMsg('Sync mislukt')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(''), 3000)
+    }
+  }
+
+  return (
+    <div>
+      {/* header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={onBack} style={{ ...ghostBtn, padding: '5px 10px', flexShrink: 0 }}>← Terug</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>
+            {comp.hockey_type === 'ZA' ? '🏒 ' : '🏑 '}
+            {lnk.label || comp.name || '—'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {comp.class_name && <span>{comp.class_name}</span>}
+            {comp.district   && <span>{comp.district}</span>}
+            {comp.season     && <span>{comp.season}</span>}
+            {lnk.poules?.length > 0 && (
+              <span>{lnk.poules.length} poule{lnk.poules.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {syncMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{syncMsg}</span>}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            style={{ ...ghostBtn, fontSize: 12, opacity: syncing ? 0.6 : 1 }}
+          >{syncing ? 'Bezig…' : '🔄 Sync'}</button>
+        </div>
+      </div>
+
+      {/* tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)', paddingBottom: 0 }}>
+        {TABS_DETAIL.map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 13, fontWeight: tab === t ? 700 : 400,
+            color: tab === t ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            padding: '6px 12px',
+            borderBottom: tab === t ? '2px solid var(--color-primary)' : '2px solid transparent',
+            marginBottom: -1,
+          }}>{t}</button>
+        ))}
+      </div>
+
+      {tab === 'Standen'  && <StandenTab  lnk={lnk} />}
+      {tab === 'Programma' && <ProgrammaTab lnk={lnk} />}
+      {tab === 'Uitslagen' && <UitslagenTab lnk={lnk} />}
     </div>
   )
 }
@@ -472,7 +683,7 @@ function PouleDetail({ poule }) {
 
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
-function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onRemove }) {
+function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onRemove, onOpenDetail }) {
   const [open,         setOpen]         = useState(false)
   const [openPoule,    setOpenPoule]    = useState(null)
   const [showTagPicker, setShowTagPicker] = useState(false)
@@ -520,6 +731,14 @@ function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVis
             </span>
           )}
         </button>
+        <button
+          onClick={onOpenDetail}
+          title="Open detail"
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
+            color: 'var(--color-primary)', padding: '0 2px', fontFamily: 'inherit',
+          }}
+        >→</button>
         <button
           onClick={onToggleVisible}
           title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'}

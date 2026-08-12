@@ -4,28 +4,28 @@ export const KNOWN_SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
 export const getMe = () => api.get('/api/auth/me')
 
-// Publicaties (tournament model)
-export const getTournaments     = ()         => api.get('/api/tournix/tournaments')
-export const createTournament   = (data)     => api.post('/api/tournix/tournaments', data)
-export const updateTournament   = (id, data) => api.patch(`/api/tournix/tournaments/${id}`, data)
-export const reorderTournaments = (ids)      => api.patch('/api/tournix/tournaments/reorder', { ids })
-export const deleteTournament   = (id)       => api.delete(`/api/tournix/tournaments/${id}`)
+// Publicaties
+export const getPublications     = ()         => api.get('/api/hockey/publications')
+export const createPublication   = (data)     => api.post('/api/hockey/publications', data)
+export const updatePublication   = (id, data) => api.patch(`/api/hockey/publications/${id}`, data)
+export const reorderPublications = (ids)      => api.patch('/api/hockey/publications/reorder', { ids })
+export const deletePublication   = (id)       => api.delete(`/api/hockey/publications/${id}`)
 
-// Tournament-competitie koppelingen
-export const getTournamentComps   = (tid)              => api.get(`/api/tournix/tournaments/${tid}/competitions`)
-export const addTournamentComp    = (tid, body)         => api.post(`/api/tournix/tournaments/${tid}/competitions`, body)
-export const updateTournamentComp = (tid, linkId, body) => api.patch(`/api/tournix/tournaments/${tid}/competitions/${linkId}`, body)
-export const removeTournamentComp = (tid, linkId)       => api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}`)
-export const syncCompetition      = (cid)               => api.post(`/api/tournix/competitions/${cid}/sync`)
+// Competitie-koppelingen per publicatie
+export const getPublicationComps   = (pid)              => api.get(`/api/hockey/publications/${pid}/competitions`)
+export const addPublicationComp    = (pid, body)         => api.post(`/api/hockey/publications/${pid}/competitions`, body)
+export const updatePublicationComp = (pid, linkId, body) => api.patch(`/api/hockey/publications/${pid}/competitions/${linkId}`, body)
+export const removePublicationComp = (pid, linkId)       => api.delete(`/api/hockey/publications/${pid}/competitions/${linkId}`)
+export const syncCompetition       = (cid)               => api.post(`/api/tournix/competitions/${cid}/sync`)
 
-// Fase-tags
-export const getFaseTags       = ()       => api.get('/api/tournix/fase-tags')
-export const addFaseTag        = (body)   => api.post('/api/tournix/fase-tags', body)
-export const removeFaseTag     = (tagId)  => api.delete(`/api/tournix/fase-tags/${tagId}`)
-export const assignCompFaseTag = (tid, linkId, faseTagId) =>
-  api.post(`/api/tournix/tournaments/${tid}/competitions/${linkId}/fase-tags`, { fase_tag_id: faseTagId })
-export const removeCompFaseTag = (tid, linkId, faseTagId) =>
-  api.delete(`/api/tournix/tournaments/${tid}/competitions/${linkId}/fase-tags/${faseTagId}`)
+// Publicatie-tags
+export const getPublicationTags       = ()       => api.get('/api/hockey/publications/tags')
+export const addPublicationTag        = (body)   => api.post('/api/hockey/publications/tags', body)
+export const removePublicationTag     = (tagId)  => api.delete(`/api/hockey/publications/tags/${tagId}`)
+export const assignCompTag = (pid, linkId, tagId) =>
+  api.post(`/api/hockey/publications/${pid}/competitions/${linkId}/tags`, { tag_id: tagId })
+export const removeCompTag = (pid, linkId, tagId) =>
+  api.delete(`/api/hockey/publications/${pid}/competitions/${linkId}/tags/${tagId}`)
 
 // Archief / captures
 export const getCaptureSessions     = ()     => api.get('/api/capture/sessions')

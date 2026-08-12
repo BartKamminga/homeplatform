@@ -2945,13 +2945,13 @@ def get_tournament_competition_standings(
     tid: str,
     session: Session = Depends(get_session),
 ):
-    """Lees standings per gekoppelde competitie voor een publicatie/seizoenstoernooi."""
-    from models.tournix import TournixTournamentCompetition, TournixCompetitionFaseTag, TournixFaseTag
+    """Lees standings per gekoppelde competitie voor een publicatie."""
+    from models.hockey import HockeyPublicationComp, HockeyPublicationCompTag, HockeyPublicationTag
     links = session.exec(
-        select(TournixTournamentCompetition)
-        .where(TournixTournamentCompetition.tournament_id == tid)
-        .where(TournixTournamentCompetition.visible == True)
-        .order_by(TournixTournamentCompetition.order)
+        select(HockeyPublicationComp)
+        .where(HockeyPublicationComp.publication_id == tid)
+        .where(HockeyPublicationComp.visible == True)
+        .order_by(HockeyPublicationComp.order)
     ).all()
 
     if not links:
@@ -2963,10 +2963,10 @@ def get_tournament_competition_standings(
         if not comp:
             continue
         assigned_tags = session.exec(
-            select(TournixCompetitionFaseTag, TournixFaseTag)
-            .join(TournixFaseTag, TournixCompetitionFaseTag.fase_tag_id == TournixFaseTag.id)
-            .where(TournixCompetitionFaseTag.competition_link_id == lnk.id)
-            .order_by(TournixFaseTag.order, TournixFaseTag.name)
+            select(HockeyPublicationCompTag, HockeyPublicationTag)
+            .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
+            .where(HockeyPublicationCompTag.comp_link_id == lnk.id)
+            .order_by(HockeyPublicationTag.order, HockeyPublicationTag.name)
         ).all()
         poules = session.exec(
             select(HockeyPoule)
