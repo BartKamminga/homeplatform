@@ -130,8 +130,7 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "tournix_clubs", "tournix_tournaments", "tournix_pools", "tournix_teams",
         "tournix_fields", "tournix_matches", "tournix_predictions", "tournix_snapshots",
         "tournix_phases", "tournix_phase_teams", "tournix_phase_fields",
-        "tournix_fase_tags", "tournix_competition_fase_tags",
-        "tournix_tournament_fases", "tournix_tournament_competitions", "tournix_import_log",
+        "tournix_tournament_fases", "tournix_import_log",
         "poulebord_boards",
         # Hockey
         "hockey_clubs", "hockey_competitions", "hockey_poules", "hockey_teams",

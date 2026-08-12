@@ -62,8 +62,6 @@ class TournixTeam(SQLModel, table=True):
     placeholder_source_phase_id: Optional[str] = Field(default=None, foreign_key="tournix_phases.id")
     placeholder_pool_name:       Optional[str] = Field(default=None)
     placeholder_position:        Optional[int] = Field(default=None)
-    # Seizoensplanner: koppeling naar hockey.nl team voor auto-matching
-    hockey_team_id:              Optional[int] = Field(default=None)  # → hockey_teams.id
 
 
 class TournixField(SQLModel, table=True):
@@ -98,7 +96,6 @@ class TournixPhase(SQLModel, table=True):
     surface:             Optional[str] = Field(default=None)  # "veld" | "zaal"
     period:              Optional[str] = Field(default=None)  # "herfst" | "lente" | "nk" | "overig"
     phase_label:         Optional[str] = Field(default=None)  # weergavelabel, bv. "🏑 Herfst"
-    hockey_poule_id:     Optional[int] = Field(default=None)  # → hockey_poules.id
 
 
 class TournixPhaseField(SQLModel, table=True):
@@ -200,29 +197,3 @@ class TournixTournamentFase(SQLModel, table=True):
     order:         int = Field(default=0)
 
 
-class TournixFaseTag(SQLModel, table=True):
-    __tablename__ = "tournix_fase_tags"
-
-    id:   str = Field(default_factory=new_uuid, primary_key=True)
-    name: str = Field(unique=True)
-    order: int = Field(default=0)
-
-
-class TournixTournamentCompetition(SQLModel, table=True):
-    __tablename__ = "tournix_tournament_competitions"
-
-    id:             str           = Field(default_factory=new_uuid, primary_key=True)
-    tournament_id:  str           = Field(foreign_key="tournix_tournaments.id", index=True)
-    competition_id: int           = Field(foreign_key="hockey_competitions.id")
-    order:          int           = Field(default=0)
-    label:          Optional[str] = Field(default=None)
-    fase:           Optional[str] = Field(default=None)  # legacy — vervangen door TournixCompetitionFaseTag
-    visible:        bool          = Field(default=True)   # zichtbaar op Poulebord
-
-
-class TournixCompetitionFaseTag(SQLModel, table=True):
-    __tablename__ = "tournix_competition_fase_tags"
-
-    id:                  str = Field(default_factory=new_uuid, primary_key=True)
-    competition_link_id: str = Field(foreign_key="tournix_tournament_competitions.id", index=True)
-    fase_tag_id:         str = Field(foreign_key="tournix_fase_tags.id")

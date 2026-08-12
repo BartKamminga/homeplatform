@@ -12,7 +12,7 @@ from core.database import get_session
 from core.auth import get_current_user, require_admin
 from core.crud import get_or_404
 from models.core import User
-from models.hockey_discovery import HockeyPoule, HockeyTeam as HockeyTeamHL, VangerCmd
+from models.hockey_discovery import VangerCmd
 from models.tournix import (
     Tournament, TournixClub, TournixPhase, TournixPhaseTeam, TournixTeam,
     TournixField, TournixMatch, TournixPool, TournixPhaseField,
@@ -50,7 +50,6 @@ class PhaseUpdate(BaseModel):
     surface:            Optional[str] = None  # "veld" | "zaal"
     period:             Optional[str] = None  # "herfst" | "lente" | "nk" | "overig"
     phase_label:        Optional[str] = None  # bv. "🏑 Herfst"
-    hockey_poule_id:    Optional[int] = None  # → hockey_poules.id
 
 
 class SetPhaseFieldsBody(BaseModel):
@@ -171,7 +170,6 @@ def _phase_dict(phase: TournixPhase, session: Session) -> dict:
         "surface":         phase.surface,
         "period":          phase.period,
         "phase_label":     phase.phase_label,
-        "hockey_poule_id": phase.hockey_poule_id,
     }
 
 
@@ -260,8 +258,7 @@ def list_phases(tid: str, session: Session = Depends(get_session), _: User = Dep
             "surface":         phase.surface,
             "period":          phase.period,
             "phase_label":     phase.phase_label,
-            "hockey_poule_id": phase.hockey_poule_id,
-            "matches_finished": finished_by_phase.get(phase.id, 0),
+                "matches_finished": finished_by_phase.get(phase.id, 0),
         })
     return result
 
@@ -318,13 +315,6 @@ def sync_phase_to_vanger(
                 to_queue.append({"poule_id": str(poule_id_str), "label": lbl})
         except (json.JSONDecodeError, ValueError):
             pass
-
-    if phase.hockey_poule_id:
-        poule = session.get(HockeyPoule, phase.hockey_poule_id)
-        if poule:
-            hl_str = str(poule.poule_id)
-            if not any(p["poule_id"] == hl_str for p in to_queue):
-                to_queue.append({"poule_id": hl_str, "label": label_base})
 
     if not to_queue:
         return {"added": 0, "skipped": 0, "reason": "no_poules"}
@@ -389,13 +379,6 @@ def sync_tournament_to_vanger(
             except (json.JSONDecodeError, ValueError):
                 pass
 
-        if phase.hockey_poule_id:
-            poule = session.get(HockeyPoule, phase.hockey_poule_id)
-            if poule:
-                hl_str = str(poule.poule_id)
-                if not any(p["poule_id"] == hl_str for p in to_queue):
-                    to_queue.append({"poule_id": hl_str, "label": label_base})
-
         for item in to_queue:
             if item["poule_id"] in pending_poule_ids:
                 skipped += 1
@@ -406,103 +389,6 @@ def sync_tournament_to_vanger(
 
     session.commit()
     return {"added": added, "skipped": skipped}
-
-
-@router.post("/tournaments/{tid}/auto-match")
-def auto_match_tournament(
-    tid: str,
-    session: Session = Depends(get_session),
-    _: User = Depends(require_admin),
-):
-    """
-    Koppelt automatisch:
-    - TournixPhase.hockey_poule_id via capture_ids → HockeyPoule.poule_id
-    - TournixTeam.hockey_team_id via naamvergelijking met HockeyTeam.short_name (gefilterd op club)
-    """
-    tournament = get_or_404(session, Tournament, tid, "Toernooi")
-    phases = session.exec(select(TournixPhase).where(TournixPhase.tournament_id == tid)).all()
-    teams  = session.exec(select(TournixTeam).where(TournixTeam.tournament_id == tid)).all()
-
-    # ── Fase-koppeling: capture_ids → hockey_poule_id ─────────────────
-    phases_matched  = 0
-    phases_missing  = 0
-
-    for phase in phases:
-        if not phase.capture_ids:
-            continue
-        try:
-            hl_ids = json.loads(phase.capture_ids)
-        except (json.JSONDecodeError, ValueError):
-            continue
-
-        # Gebruik het eerste capture_id als primaire poule
-        primary = int(hl_ids[0]) if hl_ids else None
-        if primary is None:
-            continue
-
-        poule = session.exec(
-            select(HockeyPoule).where(HockeyPoule.poule_id == primary)
-        ).first()
-
-        if poule:
-            phase.hockey_poule_id = poule.id
-            session.add(phase)
-            phases_matched += 1
-        else:
-            phases_missing += 1
-
-    # ── Team-koppeling: naam → HockeyTeam.short_name op club ──────────
-    teams_matched = 0
-    teams_no_match = 0
-    teams_skipped  = 0
-
-    # Bepaal club via tournament.location_club_id
-    hl_teams_for_club: list = []
-    if tournament.location_club_id:
-        club = session.get(TournixClub, tournament.location_club_id)
-        if club and club.federation_reference_id:
-            hl_teams_for_club = session.exec(
-                select(HockeyTeamHL).where(
-                    HockeyTeamHL.club_external_id == club.federation_reference_id
-                )
-            ).all()
-
-    for team in teams:
-        if team.is_placeholder:
-            teams_skipped += 1
-            continue
-        if not hl_teams_for_club:
-            teams_no_match += 1
-            continue
-
-        name_lower = team.name.lower().strip()
-        match = None
-
-        # 1. Exacte short_name match
-        for ht in hl_teams_for_club:
-            if ht.short_name.lower().strip() == name_lower:
-                match = ht
-                break
-
-        # 2. name eindigt op de team-naam (bv. "MHC Alkmaar MO14-2" → "mo14-2")
-        if not match:
-            for ht in hl_teams_for_club:
-                if ht.name.lower().strip().endswith(name_lower):
-                    match = ht
-                    break
-
-        if match:
-            team.hockey_team_id = match.id
-            session.add(team)
-            teams_matched += 1
-        else:
-            teams_no_match += 1
-
-    session.commit()
-    return {
-        "phases": {"matched": phases_matched, "not_found": phases_missing},
-        "teams":  {"matched": teams_matched,  "no_match": teams_no_match, "skipped": teams_skipped},
-    }
 
 
 @router.delete("/phases/{pid}", status_code=204)
