@@ -16,7 +16,7 @@ export const getPublicationComps   = (pid)              => api.get(`/api/hockey/
 export const addPublicationComp    = (pid, body)         => api.post(`/api/hockey/publications/${pid}/competitions`, body)
 export const updatePublicationComp = (pid, linkId, body) => api.patch(`/api/hockey/publications/${pid}/competitions/${linkId}`, body)
 export const removePublicationComp = (pid, linkId)       => api.delete(`/api/hockey/publications/${pid}/competitions/${linkId}`)
-export const syncCompetition       = (cid)               => api.post(`/api/tournix/competitions/${cid}/sync`)
+export const syncCompetition       = (cid)               => api.post(`/api/hockey/competitions/${cid}/sync`)
 
 // Publicatie-tags
 export const getPublicationTags       = ()       => api.get('/api/hockey/publications/tags')

@@ -17,10 +17,6 @@ from models.core import User
 from models.tournix import TournixTeam, TournixClub, TournixPool, TournixPhase
 from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, PoulebordBoard
 from models.tournix import TournixTournamentCompetition, TournixCompetitionFaseTag, TournixFaseTag
-from models.hockey_discovery import (
-    HockeyCompetition, HockeyPoule, HockeyPouleStanding,
-    HockeyPouleMatch, HockeyTeam, VangerCmd,
-)
 
 router = APIRouter(prefix="/api/tournix", tags=["tournix"])
 
@@ -470,48 +466,5 @@ def get_phase_standings_public(pid: str, session: Session = Depends(get_session)
 @router.get("/clubs")
 def list_clubs(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     return session.exec(select(TournixClub).order_by(TournixClub.name)).all()
-
-
-
-@router.post("/competitions/{cid}/sync")
-def sync_competition(
-    cid: int,
-    session: Session = Depends(get_session),
-    _: User = Depends(require_admin),
-):
-    """Voeg alle poules van een discovery-competitie toe aan de vanger-wachtrij."""
-    comp = session.get(HockeyCompetition, cid)
-    if not comp:
-        raise HTTPException(404, "Competitie niet gevonden")
-    poules = session.exec(
-        select(HockeyPoule).where(HockeyPoule.competition_id == cid)
-    ).all()
-    if not poules:
-        return {"added": 0, "skipped": 0}
-
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    pending = session.exec(
-        select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
-    ).all()
-    pending_ids = {
-        json.loads(c.params).get("poule_id")
-        for c in pending if c.cmd_type == "get_poule"
-    }
-
-    added = skipped = 0
-    for p in poules:
-        if p.poule_id in pending_ids:
-            skipped += 1
-        else:
-            session.add(VangerCmd(
-                cmd_type="get_poule",
-                params=json.dumps({"poule_id": p.poule_id, "label": p.name}),
-                created_at=now,
-            ))
-            pending_ids.add(p.poule_id)
-            added += 1
-
-    session.commit()
-    return {"added": added, "skipped": skipped}
 
 
