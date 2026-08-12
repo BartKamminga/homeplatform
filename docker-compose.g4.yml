@@ -10,7 +10,7 @@ services:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./Caddyfile.nas:/etc/caddy/Caddyfile
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile
       - ./frontend/dist:/srv/www
       - caddy_data:/data
       - caddy_config:/config
