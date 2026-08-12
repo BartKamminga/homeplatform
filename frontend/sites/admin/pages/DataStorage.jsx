@@ -39,6 +39,9 @@ const DB_GLOBAL_ROWS = [
   { label: 'name, abbreviation, city, color',              where: 'tournix_clubs',  note: 'Tournix clubreferentie' },
   { label: 'name',                                         where: 'mixmusic_genres', note: 'MixMusic genres' },
   { label: 'url, title, status, progress_log, output_path', where: 'download_jobs', note: 'BeatCrades — download queue' },
+  { label: 'name, slug, season, published',                where: 'hockey_publications',      note: 'Hockey Inside — publicaties (user-beheerd)' },
+  { label: 'name, order',                                  where: 'hockey_publication_tags',  note: 'Hockey Inside — publicatie-tags' },
+  { label: 'publication_id, competition_id, label, order', where: 'hockey_publication_comps', note: 'Hockey Inside — competitie-koppelingen' },
 ];
 
 const LS_ROWS = [

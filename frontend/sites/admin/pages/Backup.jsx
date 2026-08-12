@@ -25,6 +25,13 @@ const APPS = [
     tables: ['tournaments', 'teams', 'fields', 'matches', 'predictions'],
     description: 'Toernooien, teams, velden, wedstrijden en voorspellingen',
   },
+  {
+    id: 'hockey-inside',
+    label: 'Hockey Inside',
+    icon: '🏒',
+    tables: ['publications', 'publication_tags', 'publication_comps', 'publication_comp_tags'],
+    description: 'Publicaties, tags en competitie-koppelingen (discovery-data wordt herberekend)',
+  },
 ]
 
 export default function Backup() {

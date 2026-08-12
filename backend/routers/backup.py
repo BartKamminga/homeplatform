@@ -17,6 +17,7 @@ from core.settings import settings
 from models.changelog import ChangelogEntry
 from models.core import RoadmapItem
 from models.dontforget import Task
+from models.hockey import HockeyPublication, HockeyPublicationTag, HockeyPublicationComp, HockeyPublicationCompTag
 from models.mixmusic import Genre, TrackHeart, TrackMeta
 from models.tournix import Tournament, TournixField, TournixMatch, TournixPrediction, TournixTeam
 
@@ -40,6 +41,10 @@ APP_CONFIG = {
     "platform": {
         "tables": [RoadmapItem, ChangelogEntry],
         "keys":   ["roadmap_items", "changelog"],
+    },
+    "hockey-inside": {
+        "tables": [HockeyPublicationCompTag, HockeyPublicationComp, HockeyPublicationTag, HockeyPublication],
+        "keys":   ["publication_comp_tags", "publication_comps", "publication_tags", "publications"],
     },
 }
 
