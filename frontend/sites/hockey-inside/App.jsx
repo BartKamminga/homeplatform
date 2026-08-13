@@ -1,20 +1,28 @@
-import { useState } from 'react'
-import PublicatieTab from './screens/PublicatieTab.jsx'
-import DiscoveryTab  from './screens/DiscoveryTab.jsx'
-import VangerTab     from './screens/VangerTab.jsx'
-import StatsTab      from './screens/StatsTab.jsx'
-import ArchiefTab    from './screens/ArchiefTab.jsx'
-
-const TABS = [
-  { key: 'publicaties', label: 'Publicaties' },
-  { key: 'discovery',   label: 'Discovery' },
-  { key: 'vanger',      label: 'Vanger' },
-  { key: 'stats',       label: 'Statistieken' },
-  { key: 'archief',     label: 'Archief' },
-]
+import { useState, useEffect } from 'react'
+import PublicatieTab     from './screens/PublicatieTab.jsx'
+import DiscoveryTab      from './screens/DiscoveryTab.jsx'
+import DistrictKaartTab  from './screens/DistrictKaartTab.jsx'
+import VangerTab         from './screens/VangerTab.jsx'
+import StatsTab          from './screens/StatsTab.jsx'
+import ArchiefTab        from './screens/ArchiefTab.jsx'
+import { getMe }         from './api.js'
 
 export default function App() {
-  const [tab, setTab] = useState('publicaties')
+  const [tab,     setTab]     = useState('publicaties')
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    getMe().then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
+  }, [])
+
+  const TABS = [
+    { key: 'publicaties', label: 'Publicaties' },
+    ...(isAdmin ? [{ key: 'kaart', label: 'Kaart' }] : []),
+    { key: 'discovery',   label: 'Discovery' },
+    { key: 'vanger',      label: 'Vanger' },
+    { key: 'stats',       label: 'Statistieken' },
+    { key: 'archief',     label: 'Archief' },
+  ]
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '16px 16px 60px' }}>
@@ -42,6 +50,7 @@ export default function App() {
       </div>
 
       {tab === 'publicaties' && <PublicatieTab />}
+      {tab === 'kaart'       && <DistrictKaartTab onNavigateToDistrict={() => setTab('discovery')} />}
       {tab === 'discovery'   && <DiscoveryTab />}
       {tab === 'vanger'      && <VangerTab />}
       {tab === 'stats'       && <StatsTab />}
