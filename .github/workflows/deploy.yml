@@ -25,7 +25,7 @@ jobs:
 
       - name: Migraties + seed
         run: |
-          docker exec homeplatform_backend alembic upgrade head
+          docker exec homeplatform_backend alembic upgrade head || { echo "Alembic upgrade FAILED — deploy afgebroken"; exit 1; }
           docker exec homeplatform_backend python seed.py
 
       - name: Frontend bouwen
@@ -71,6 +71,7 @@ jobs:
       - name: Migraties + seed (acc)
         run: |
           docker exec homeplatform_backend_acc sh -c "
+            set -e
             if ! alembic current 2>/dev/null | grep -q '.'; then
               alembic stamp fade12ab34cd
             fi
