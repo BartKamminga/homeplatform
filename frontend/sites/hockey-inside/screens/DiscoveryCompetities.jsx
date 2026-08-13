@@ -7,6 +7,21 @@ const _ghostBtn = { fontSize: 11, padding: '2px 8px', background: 'none', border
 function isJeugd(comp) { return /O\d+/i.test(comp.name) }
 const AGE_GROUP_ORDER = ['Senioren', 'Jeugd']
 
+// Item 633: sortering op klasse-hiërarchie (Topklasse → ... → 7e Klasse → Afdeling)
+function classRank(name) {
+  if (/^Topklasse/i.test(name))  return 0
+  if (/^Subtop/i.test(name))     return 1
+  if (/^1e\s+Klas/i.test(name)) return 2
+  if (/^2e\s+Klas/i.test(name)) return 3
+  if (/^3e\s+Klas/i.test(name)) return 4
+  if (/^4e\s+Klas/i.test(name)) return 5
+  if (/^5e\s+Klas/i.test(name)) return 6
+  if (/^6e\s+Klas/i.test(name)) return 7
+  if (/^7e\s+Klas/i.test(name)) return 8
+  if (/^Afdeling/i.test(name))   return 9
+  return 99
+}
+
 export default function DiscoveryCompetities({ competitions, capturedPoules, allTeams, clubMap, expanded, toggle, loading, season, onReload }) {
   const [compView,    setCompView]    = useState('district')
   const [herscanBusy, setHerscanBusy] = useState(false)
@@ -109,18 +124,21 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
         ? renderCompEntry(nmComps[0], true, nmComps[0].district || 'Onbekend')
         : renderCompEntry(nmComps[0])
     }
+    const ngKey    = `${keyPrefix}_${nm}`
+    const ngOpen   = expanded.has(ngKey)
     const ngPoules = nmComps.reduce((s, c) => s + capturedPoules.filter(p => p.competition_id === c.id).length, 0)
     const ngTotal  = nmComps.reduce((s, c) => s + (c.poule_count || 0), 0)
     return (
       <div key={nm} style={{ marginBottom: 8 }}>
-        {/* Naam-header (geen toggle meer) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, fontWeight: 600 }}>
+        {/* Naam-header — item 634: inklapbaar */}
+        <div onClick={() => toggle(ngKey)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+          <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10, flexShrink: 0 }}>{ngOpen ? '▾' : '▸'}</span>
           <span style={{ flex: 1 }}>{nm}</span>
           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.6 }}>{nmComps.length}×</span>
           <span style={pill(ngPoules > 0 ? 'partial' : 'muted')}>{ngPoules}/{ngTotal} poules</span>
         </div>
         {/* Kolommen: één per district/klasse */}
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 10, marginTop: 3 }}>
+        {ngOpen && <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 10, marginTop: 3 }}>
           {nmComps.map(c => {
             const cPoules = capturedPoules
               .filter(p => p.competition_id === c.id)
@@ -185,7 +203,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
               </div>
             )
           })}
-        </div>
+        </div>}
       </div>
     )
   }
@@ -256,20 +274,28 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                     <div key={ag}>
                       {agHeader}
                       {districts.map(dist => {
+                        const distKey  = `dist_${ht}_${ag}_${dist}`
+                        const distOpen = !expanded.has(distKey)  // standaard open (toggle sluit)
                         const byName = {}
                         for (const c of byDist[dist]) {
                           if (!byName[c.name]) byName[c.name] = []
                           byName[c.name].push(c)
                         }
-                        const names = Object.keys(byName).sort((a, b) => a.localeCompare(b, 'nl'))
+                        // item 633: klasse-hiërarchie sortering
+                        const names = Object.keys(byName).sort((a, b) => {
+                          const d = classRank(a) - classRank(b)
+                          return d !== 0 ? d : a.localeCompare(b, 'nl')
+                        })
                         return (
                           <div key={dist} style={{ marginBottom: 6 }}>
-                            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', padding: '3px 2px 2px', marginBottom: 1, display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid var(--color-border)' }}>
+                            {/* item 632: district inklapbaar */}
+                            <div onClick={() => toggle(distKey)} style={{ fontSize: 10, color: 'var(--color-text-muted)', padding: '3px 2px 2px', marginBottom: 1, display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid var(--color-border)', cursor: 'pointer', userSelect: 'none' }}>
+                              <span style={{ opacity: 0.4, fontSize: 9, width: 8 }}>{distOpen ? '▾' : '▸'}</span>
                               <span style={{ opacity: 0.5 }}>📍</span>
                               <span style={{ fontStyle: 'italic' }}>{dist}</span>
                               <span style={{ opacity: 0.45 }}>({byDist[dist].length})</span>
                             </div>
-                            {names.map(nm => renderNameGroup(nm, byName[nm], `ng_${dist}`))}
+                            {distOpen && names.map(nm => renderNameGroup(nm, byName[nm], `ng_${dist}`))}
                           </div>
                         )
                       })}
@@ -283,7 +309,11 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                   if (!byName[c.name]) byName[c.name] = []
                   byName[c.name].push(c)
                 }
-                const names = Object.keys(byName).sort((a, b) => a.localeCompare(b, 'nl'))
+                // item 633: klasse-hiërarchie sortering
+                const names = Object.keys(byName).sort((a, b) => {
+                  const d = classRank(a) - classRank(b)
+                  return d !== 0 ? d : a.localeCompare(b, 'nl')
+                })
                 return (
                   <div key={ag}>
                     {agHeader}
