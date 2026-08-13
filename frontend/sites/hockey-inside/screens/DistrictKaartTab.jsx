@@ -39,14 +39,14 @@ const PROVS = [
   ['Limburg',       '268,332 302,322 328,332 335,392 320,438 298,458 278,432 268,392 272,372'],
 ]
 
-// Bounding boxes [x, y, w, h] for deterministic club dot placement
+// Bounding boxes [x, y, w, h] voor club-stippen — zo strak mogelijk binnen het districtvlak
 const BBOX = {
-  'Noord Nederland':  [155, 12, 230, 178],
-  'Noord-Holland':    [88,  28, 70,  164],
-  'Midden Nederland': [153, 134, 62,  116],
-  'Zuid-Holland':     [72,  192, 100, 112],
-  'Oost Nederland':   [248, 188, 137, 144],
-  'Zuid Nederland':   [46,  282, 292, 188],
+  'Noord Nederland':  [180, 18,  175, 160],
+  'Noord-Holland':    [90,  36,  62,  148],
+  'Midden Nederland': [158, 140, 54,  100],
+  'Zuid-Holland':     [78,  198, 66,   76],
+  'Oost Nederland':   [205, 195, 110, 118],
+  'Zuid Nederland':   [90,  300, 160,  76],  // kern van Noord-Brabant; ZN heeft complexe vorm
 }
 
 function hp(key, min, range) {
@@ -60,6 +60,18 @@ function hp(key, min, range) {
 function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
   return (
     <svg viewBox="0 0 400 470" style={{ width: '100%', maxWidth: 340 }}>
+      {/* Base-layer: zelfde polygonen met donkere stroke — alleen de buitenrand is
+          zichtbaar omdat de gekleurde laag erboven de interne grenzen afdekt */}
+      <g pointerEvents="none">
+        {PROVS.map(([id, pts]) => (
+          <polygon key={id} points={pts}
+            fill="var(--color-text-muted)" stroke="var(--color-text-muted)" strokeWidth="5"
+            style={{ opacity: 0.28 }}
+          />
+        ))}
+      </g>
+
+      {/* Gekleurde provincielaag */}
       {PROVS.map(([id, pts]) => {
         const d = P2D[id]
         const { color } = DISTRICTS[d]
