@@ -98,8 +98,28 @@ export default function Roadmap() {
 
   return (
     <AdminLayout>
-      <h1 style={s.header}>Roadmap</h1>
-      <p style={s.subtitle}>Feature-planning en ontwikkelstatus per site</p>
+      <style>{`
+        .rm-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+        .rm-filter-scroll { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 2px; }
+        .rm-filter-scroll::-webkit-scrollbar { display: none; }
+        .rm-card-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        @media (max-width: 600px) {
+          .rm-card-actions { margin-left: 0 !important; margin-top: 6px; }
+        }
+      `}</style>
+
+      <div className="rm-page-header">
+        <div>
+          <h1 style={s.header}>Roadmap</h1>
+          <p style={s.subtitle}>Feature-planning en ontwikkelstatus per site</p>
+        </div>
+        <button
+          style={s.btnPrimary}
+          onClick={() => { setShowNewForm(true); setEditingId(null); }}
+        >
+          + Nieuw item
+        </button>
+      </div>
 
       {error && (
         <div style={{
@@ -117,11 +137,13 @@ export default function Roadmap() {
       <div style={s.filterBar}>
         <div style={s.filterRow}>
           <span style={s.filterLabel}>Status</span>
-          {STATUSES.map((v) => (
-            <button key={v} style={s.filterBtn(filterStatus === v)} onClick={() => setFilterStatus(v)}>
-              {v === "alle" ? "Alle" : STATUS_LABEL[v] || v}
-            </button>
-          ))}
+          <div className="rm-filter-scroll" style={{ display: "flex", gap: "4px" }}>
+            {STATUSES.map((v) => (
+              <button key={v} style={s.filterBtn(filterStatus === v)} onClick={() => setFilterStatus(v)}>
+                {v === "alle" ? "Alle" : STATUS_LABEL[v] || v}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={s.filterRow}>
           <span style={s.filterLabel}>Prioriteit</span>
@@ -133,17 +155,13 @@ export default function Roadmap() {
         </div>
         <div style={s.filterRow}>
           <span style={s.filterLabel}>Site</span>
-          {SITES.map((v) => (
-            <button key={v} style={s.filterBtn(filterSite === v)} onClick={() => setFilterSite(v)}>
-              {v === "alle" ? "Alle" : v}
-            </button>
-          ))}
-          <button
-            style={{ ...s.btnPrimary, marginLeft: "auto" }}
-            onClick={() => { setShowNewForm(true); setEditingId(null); }}
-          >
-            + Nieuw item
-          </button>
+          <div className="rm-filter-scroll" style={{ display: "flex", gap: "4px" }}>
+            {SITES.map((v) => (
+              <button key={v} style={s.filterBtn(filterSite === v)} onClick={() => setFilterSite(v)}>
+                {v === "alle" ? "Alle" : v}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

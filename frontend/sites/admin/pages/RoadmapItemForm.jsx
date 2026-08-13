@@ -85,10 +85,11 @@ export default function RoadmapItemForm({ initial, onSave, onCancel, saving, ini
 
   return (
     <form style={s.form} onSubmit={handleSubmit} onPaste={handlePaste}>
+      <style>{`@media (max-width: 600px) { .rm-form-grid { grid-template-columns: 1fr !important; } }`}</style>
       <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "14px" }}>
         {initial ? "Item bewerken" : "Nieuw roadmap-item"}
       </div>
-      <div style={s.formGrid}>
+      <div style={s.formGrid} className="rm-form-grid">
         <InputField wide label="Titel *" name="title" value={form.title}
           onChange={handleChange} placeholder="Omschrijf het feature of de taak" autoFocus />
         <TextareaField label="Beschrijving" name="description" value={form.description}
