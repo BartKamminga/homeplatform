@@ -7,18 +7,35 @@ const _ghostBtn = { fontSize: 11, padding: '2px 8px', background: 'none', border
 function isJeugd(comp) { return /O\d+/i.test(comp.name) }
 const AGE_GROUP_ORDER = ['Senioren', 'Jeugd']
 
-// Item 633: sortering op klasse-hiërarchie (Topklasse → ... → 7e Klasse → Afdeling)
+// Normaliseer KNHB-districtnamen naar de canonieke kaart-sleutels (item 650).
+// KNHB API geeft soms koppeltekens ("Noord-Nederland") terug i.p.v. spaties.
+const _DIST_NORM = {
+  'Noord-Nederland': 'Noord Nederland',
+  'Midden-Nederland': 'Midden Nederland',
+  'Oost-Nederland': 'Oost Nederland',
+  'Zuid-Nederland': 'Zuid Nederland',
+}
+export function normalizeDistrict(d) { return _DIST_NORM[d] || d }
+
+// Sortering op klasse-hiërarchie — strip "Landelijke" / "Voorcompetitie" prefix zodat
+// "Landelijke Subtopklasse" op dezelfde plek belandt als "Subtopklasse".
 function classRank(name) {
-  if (/^Topklasse/i.test(name))  return 0
-  if (/^Subtop/i.test(name))     return 1
-  if (/^1e\s+Klas/i.test(name)) return 2
-  if (/^2e\s+Klas/i.test(name)) return 3
-  if (/^3e\s+Klas/i.test(name)) return 4
-  if (/^4e\s+Klas/i.test(name)) return 5
-  if (/^5e\s+Klas/i.test(name)) return 6
-  if (/^6e\s+Klas/i.test(name)) return 7
-  if (/^7e\s+Klas/i.test(name)) return 8
-  if (/^Afdeling/i.test(name))   return 9
+  const bare = name
+    .replace(/^Landelijk[e]?\s+/i, '')
+    .replace(/^Voorcompetitie\s+/i, '')
+    .trim()
+  if (/^Topklasse/i.test(bare))    return 0
+  if (/^Subtop/i.test(bare))       return 1
+  if (/^Hoofdklasse/i.test(bare))  return 2
+  if (/^1e\s+Klas/i.test(bare))   return 3
+  if (/^2e\s+Klas/i.test(bare))   return 4
+  if (/^3e\s+Klas/i.test(bare))   return 5
+  if (/^4e\s+Klas/i.test(bare))   return 6
+  if (/^5e\s+Klas/i.test(bare))   return 7
+  if (/^6e\s+Klas/i.test(bare))   return 8
+  if (/^7e\s+Klas/i.test(bare))   return 9
+  if (/^Afdeling/i.test(bare))    return 10
+  if (/^Voorcompetitie/i.test(name)) return 11
   return 99
 }
 
@@ -276,7 +293,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                 if (compView === 'district') {
                   const byDist = {}
                   for (const c of ageGroup) {
-                    const d = c.district || 'Onbekend'
+                    const d = normalizeDistrict(c.district || 'Onbekend')
                     if (!byDist[d]) byDist[d] = []
                     byDist[d].push(c)
                   }

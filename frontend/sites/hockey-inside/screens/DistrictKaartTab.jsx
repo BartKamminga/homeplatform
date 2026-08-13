@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
+import { normalizeDistrict } from './DiscoveryCompetities.jsx'
 
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
@@ -224,7 +225,7 @@ export default function DistrictKaartTab({ onNavigateToDistrict }) {
 
   const clubsByDistrict = {}
   for (const c of clubs) {
-    const key = c.district || '_none'
+    const key = c.district ? normalizeDistrict(c.district) : '_none'
     if (!clubsByDistrict[key]) clubsByDistrict[key] = []
     clubsByDistrict[key].push(c)
   }
