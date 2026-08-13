@@ -7,7 +7,7 @@ async function uploadImageFile(file) {
   fd.append("file", file, file.name || "paste.png");
   const res = await fetch("/api/uploads?category=roadmap", {
     method: "POST",
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    headers: { Authorization: `Bearer ${localStorage.getItem("hp_token")}` },
     body: fd,
   });
   if (!res.ok) throw new Error("Upload mislukt");
