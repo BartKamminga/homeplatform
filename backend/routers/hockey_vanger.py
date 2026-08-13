@@ -1721,9 +1721,16 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
             _smart_scan_set_state(session, "discovery", started_at, cmd_count + added)
             return {"added": added, "type": "get_poule"}
 
+    # Alleen teams tellen waarvan de poule nog niet gecaptured is voor dit seizoen,
+    # of die explicitly herscand moeten worden (season_pending). Teams waarvan de
+    # huidige-seizoen poule al in de DB staat hoeven geen club-scan meer.
+    target_season = _get_target_season(session)
+    captured_target_ids = {p.poule_id for p in session.exec(
+        select(HockeyPoule).where(HockeyPoule.season == target_season)
+    ).all()}
+
     cq = select(HockeyTeam).where(
         HockeyTeam.no_new_poule_confirmed == False,  # noqa: E712
-        HockeyTeam.season_pending == False,  # noqa: E712
     )
     if cats:
         cq = cq.where(col(HockeyTeam.category_group_name).in_(cats))
@@ -1735,6 +1742,13 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
     club_counts: Dict[str, int] = {}
     for t in pending_teams:
         if t.club_external_id in scanned_ext_ids:
+            continue
+        needs_scan = (
+            t.recent_poule_id is None
+            or t.recent_poule_id not in captured_target_ids
+            or t.season_pending
+        )
+        if not needs_scan:
             continue
         club_counts[t.club_external_id] = club_counts.get(t.club_external_id, 0) + 1
 
