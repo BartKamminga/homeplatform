@@ -219,7 +219,7 @@ export default function DistrictKaartTab({ onNavigateToDistrict }) {
 
   useEffect(() => {
     setLoading(true)
-    api.get('/api/hockey/clubs').then(r => setClubs(r.clubs || [])).finally(() => setLoading(false))
+    api.get('/api/hockey/clubs?slim=true').then(r => setClubs(r.clubs || [])).finally(() => setLoading(false))
   }, [season])
 
   const clubsByDistrict = {}

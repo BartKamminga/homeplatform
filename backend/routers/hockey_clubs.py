@@ -92,10 +92,29 @@ def upsert_clubs(
 
 @router.get("/clubs")
 def list_clubs(
+    slim: bool = False,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
     clubs = session.exec(select(HockeyClub).order_by(col(HockeyClub.name))).all()
+    if slim:
+        return {
+            "total": len(clubs),
+            "detail_loaded": sum(1 for c in clubs if c.detail_loaded),
+            "clubs": [
+                {
+                    "id": c.id,
+                    "external_id": c.external_id,
+                    "name": c.name,
+                    "friendly_name": c.friendly_name,
+                    "city": c.city,
+                    "logo_url": c.logo_url,
+                    "detail_loaded": c.detail_loaded,
+                    "district": c.district,
+                }
+                for c in clubs
+            ],
+        }
     return {
         "total": len(clubs),
         "detail_loaded": sum(1 for c in clubs if c.detail_loaded),

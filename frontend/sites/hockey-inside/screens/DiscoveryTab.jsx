@@ -67,7 +67,7 @@ export default function DiscoveryTab({ initialDistrict }) {
     setCapturedPoules([])
 
     Promise.all([
-      api.get('/api/hockey/clubs'),
+      api.get('/api/hockey/clubs?slim=true'),
       api.get(`/api/hockey/competitions?season=${season}`),
     ]).then(([clubsRes, compsRes]) => {
       setClubs(clubsRes.clubs || [])

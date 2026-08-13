@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { pill, useQueueCmd } from './queueShared.jsx'
 import { deleteEmptyCompetitions } from '../api.js'
 
@@ -29,6 +29,28 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
   const [cleanupMsg,  setCleanupMsg]  = useState('')
   const { addSingleCmd, cmdBtn } = useQueueCmd()
 
+  // Precomputed lookups — vervangen O(N) inline filters per render door O(1) lookup
+  const capturedPoulesByComp = useMemo(() => {
+    const m = {}
+    for (const p of capturedPoules) {
+      if (!m[p.competition_id]) m[p.competition_id] = []
+      m[p.competition_id].push(p)
+    }
+    for (const arr of Object.values(m)) arr.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+    return m
+  }, [capturedPoules])
+
+  const teamsByPoule = useMemo(() => {
+    const m = {}
+    for (const t of allTeams) {
+      if (!t.recent_poule_id) continue
+      if (!m[t.recent_poule_id]) m[t.recent_poule_id] = []
+      m[t.recent_poule_id].push(t)
+    }
+    for (const arr of Object.values(m)) arr.sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+    return m
+  }, [allTeams])
+
   async function handleHerscanAll() {
     const toScan = competitions.filter(c => c.hl_comp_id)
     if (!toScan.length) return
@@ -56,9 +78,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
   function renderCompEntry(c, nested = false, distBadge = null) {
     const cKey    = 'comp_' + c.id
     const cOpen   = expanded.has(cKey)
-    const cPoules = capturedPoules
-      .filter(p => p.competition_id === c.id)
-      .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+    const cPoules = capturedPoulesByComp[c.id] || []
     return (
       <div key={c.id}>
         <div
@@ -81,9 +101,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
             {cPoules.map(p => {
               const pKey   = 'poule_' + p.poule_id
               const pOpen  = expanded.has(pKey)
-              const pTeams = allTeams
-                .filter(t => t.recent_poule_id === p.poule_id)
-                .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+              const pTeams = teamsByPoule[p.poule_id] || []
               return (
                 <div key={p.poule_id}>
                   <div
@@ -125,7 +143,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
     }
     const ngKey    = `${keyPrefix}_${nm}`
     const ngOpen   = expanded.has(ngKey)
-    const ngPoules = nmComps.reduce((s, c) => s + capturedPoules.filter(p => p.competition_id === c.id).length, 0)
+    const ngPoules = nmComps.reduce((s, c) => s + (capturedPoulesByComp[c.id]?.length ?? 0), 0)
     const ngTotal  = nmComps.reduce((s, c) => s + (c.poule_count || 0), 0)
     return (
       <div key={nm} style={{ marginBottom: 8 }}>
@@ -139,9 +157,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
         {/* Kolommen: één per district/klasse */}
         {ngOpen && <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 10, marginTop: 3 }}>
           {nmComps.map(c => {
-            const cPoules = capturedPoules
-              .filter(p => p.competition_id === c.id)
-              .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+            const cPoules = capturedPoulesByComp[c.id] || []
             // per-competitie: kolom-label = district; per-district: kolom-label = class_name
             const colLabel = showDistBadge
               ? (c.district || 'Onbekend')
@@ -167,9 +183,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                 {cPoules.length > 0 ? cPoules.map(p => {
                   const pKey   = 'poule_' + p.poule_id
                   const pOpen  = expanded.has(pKey)
-                  const pTeams = allTeams
-                    .filter(t => t.recent_poule_id === p.poule_id)
-                    .sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
+                  const pTeams = teamsByPoule[p.poule_id] || []
                   return (
                     <div key={p.poule_id}>
                       <div

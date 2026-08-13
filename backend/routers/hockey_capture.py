@@ -337,7 +337,10 @@ def list_competitions(
     if season and season != "all":
         q = q.where(HockeyCompetition.season == season)
     comps = session.exec(q).all()
-    poules_all = session.exec(select(HockeyPoule)).all()
+    q_poules = select(HockeyPoule)
+    if season and season != "all":
+        q_poules = q_poules.where(HockeyPoule.season == season)
+    poules_all = session.exec(q_poules).all()
     poule_counts: Dict[int, int] = {}
     for p in poules_all:
         poule_counts[p.competition_id] = poule_counts.get(p.competition_id, 0) + 1
