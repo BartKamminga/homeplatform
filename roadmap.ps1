@@ -294,7 +294,7 @@ if ($Close -or $CloseMany) {
             Write-Host "[WARN] GitHub Release aanmaken mislukt (bestaat al, of gh niet geauthenticeerd)"
         }
     } else {
-        Write-Host "[INFO] gh CLI niet gevonden — GitHub Release overgeslagen"
+        Write-Host "[INFO] gh CLI niet gevonden - GitHub Release overgeslagen"
     }
 
     exit 0
