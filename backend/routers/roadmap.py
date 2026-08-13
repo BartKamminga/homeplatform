@@ -27,6 +27,7 @@ class RoadmapItemCreate(BaseModel):
     risk: Optional[str] = None
     scope: Optional[str] = None
     owner: Optional[str] = None
+    images: Optional[str] = None
 
 
 class RoadmapItemUpdate(BaseModel):
@@ -41,6 +42,7 @@ class RoadmapItemUpdate(BaseModel):
     risk: Optional[str] = None
     scope: Optional[str] = None
     owner: Optional[str] = None
+    images: Optional[str] = None
 
 
 def _maybe_create_changelog(item: RoadmapItem, session: Session) -> None:

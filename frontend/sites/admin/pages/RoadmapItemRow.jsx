@@ -75,6 +75,21 @@ export default function RoadmapItemRow({ item, deployStatus, onStatusCycle, onEd
             {item.description && (
               <div style={s.desc}>{item.description}</div>
             )}
+            {item.images && (() => {
+              try {
+                const imgs = JSON.parse(item.images);
+                if (!imgs.length) return null;
+                return (
+                  <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "5px" }}>
+                    {imgs.map((url, i) => (
+                      <img key={i} src={url} alt="" onClick={e => { e.stopPropagation(); window.open(url, "_blank"); }}
+                        style={{ width: 56, height: 42, objectFit: "cover", borderRadius: "4px",
+                          border: "1px solid var(--color-border)", cursor: "pointer" }} />
+                    ))}
+                  </div>
+                );
+              } catch { return null; }
+            })()}
           </div>
           <div style={s.actions}>
             <button style={s.iconBtn} onClick={() => onEdit(item)} title="Bewerken">✎</button>

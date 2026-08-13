@@ -161,6 +161,7 @@ class RoadmapItem(SQLModel, table=True):
     risk: Optional[str] = Field(default=None)     # low/medium/high
     scope: Optional[str] = Field(default=None)    # frontend/backend/beide
     owner: Optional[str] = Field(default=None)   # verantwoordelijke (username)
+    images: Optional[str] = None                 # JSON array van upload-URLs
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
