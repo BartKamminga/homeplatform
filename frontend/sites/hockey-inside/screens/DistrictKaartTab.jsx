@@ -59,46 +59,84 @@ function hp(key, min, range) {
 
 function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
   return (
-    <svg viewBox="0 0 400 470" style={{ width: '100%', maxWidth: 340 }}>
-      {/* Base-layer: zelfde polygonen met donkere stroke — alleen de buitenrand is
-          zichtbaar omdat de gekleurde laag erboven de interne grenzen afdekt */}
+    <svg viewBox="0 0 400 470" style={{ width: '100%', maxWidth: 340, borderRadius: 8, display: 'block' }}>
+
+      {/* ── 1. Zee-achtergrond ─────────────────────────────────────────── */}
+      <rect width="400" height="470" fill="#d6e8f4" rx="6" />
+
+      {/* ── 2. B&W ondergrondkaart ────────────────────────────────────────
+              paintOrder='stroke fill': de witte fill dekt de stroke op interne
+              grenzen af → alleen de buitenrand steekt zichtbaar uit in de zee. */}
       <g pointerEvents="none">
         {PROVS.map(([id, pts]) => (
-          <polygon key={id} points={pts}
-            fill="var(--color-text-muted)" stroke="var(--color-text-muted)" strokeWidth="5"
-            style={{ opacity: 0.28 }}
+          <polygon key={'land-' + id} points={pts}
+            fill="#f8f9fa" stroke="#2c3e50" strokeWidth="7"
+            style={{ paintOrder: 'stroke fill' }}
+          />
+        ))}
+        {/* Dunne provinciegrenzen */}
+        {PROVS.map(([id, pts]) => (
+          <polygon key={'prov-' + id} points={pts}
+            fill="none" stroke="#9aabb8" strokeWidth="0.9"
           />
         ))}
       </g>
 
-      {/* Gekleurde provincielaag */}
+      {/* ── 3. Gekleurde districten (semi-transparant over de kaart) ──── */}
+      <g pointerEvents="none">
+        {PROVS.map(([id, pts]) => {
+          const d = P2D[id]
+          const { color } = DISTRICTS[d]
+          return (
+            <polygon key={'col-' + id} points={pts}
+              fill={color} stroke="none"
+              style={{
+                opacity: selected ? (selected === d ? 0.80 : 0.05) : 0.65,
+                transition: 'opacity .2s',
+              }}
+            />
+          )
+        })}
+      </g>
+
+      {/* ── 4. Highlight ring voor geselecteerd district ─────────────── */}
+      {selected && (
+        <g pointerEvents="none">
+          {PROVS.filter(([id]) => P2D[id] === selected).map(([id, pts]) => (
+            <polygon key={'hl-' + id} points={pts}
+              fill="none"
+              stroke={DISTRICTS[selected].color} strokeWidth="2.8" strokeLinejoin="round"
+              style={{ filter: `drop-shadow(0 0 4px ${DISTRICTS[selected].color})` }}
+            />
+          ))}
+        </g>
+      )}
+
+      {/* ── 5. Transparante kliklaag (boven alles behalve labels/stippen) */}
       {PROVS.map(([id, pts]) => {
         const d = P2D[id]
-        const { color } = DISTRICTS[d]
         return (
-          <polygon key={id} points={pts} fill={color}
-            stroke="var(--color-bg)" strokeWidth="2.5"
-            style={{
-              cursor: 'pointer',
-              filter: selected === d ? `brightness(1.12) drop-shadow(0 0 4px ${color})` : 'none',
-              opacity: selected && selected !== d ? 0.18 : 1,
-              transition: 'opacity .15s, filter .15s',
-            }}
+          <polygon key={'click-' + id} points={pts}
+            fill="transparent" stroke="none"
+            style={{ cursor: 'pointer' }}
             onClick={() => onSelect(selected === d ? null : d)}
           />
         )
       })}
 
+      {/* ── 6. District-labels ────────────────────────────────────────── */}
       {Object.entries(DISTRICTS).map(([name, { cx, cy }]) => (
         <text key={name} x={cx} y={cy} textAnchor="middle" style={{
           fontSize: 7.5, fontWeight: 700, fill: '#fff', pointerEvents: 'none',
-          opacity: selected && selected !== name ? 0.08 : 0.9,
-          transition: 'opacity .15s', letterSpacing: '.02em',
+          textShadow: '0 1px 2px rgba(0,0,0,.4)',
+          opacity: selected && selected !== name ? 0.05 : 0.95,
+          transition: 'opacity .2s', letterSpacing: '.02em',
         }}>
           {name.replace(' Nederland', ' NL')}
         </text>
       ))}
 
+      {/* ── 7. Club-stippen ───────────────────────────────────────────── */}
       {showPins && Object.entries(BBOX).map(([dname, [bx, by, bw, bh]]) => {
         const clubs = clubsByDistrict[dname] || []
         const dim = selected && selected !== dname
@@ -107,17 +145,20 @@ function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
             cx={hp(c.external_id + 'x', bx + 4, bw - 8)}
             cy={hp(c.external_id + 'y', by + 4, bh - 8)}
             r={3} fill="#fff" stroke={DISTRICTS[dname].color} strokeWidth="1.2"
-            style={{ opacity: dim ? 0.06 : 0.85, transition: 'opacity .15s' }}>
+            style={{ opacity: dim ? 0.05 : 0.90, transition: 'opacity .15s', pointerEvents: 'none' }}>
             <title>{c.friendly_name || c.name}</title>
           </circle>
         ))
       })}
 
+      {/* ── 8. "Geen district" badge ─────────────────────────────────── */}
       {(clubsByDistrict['_none']?.length ?? 0) > 0 && (
-        <g style={{ opacity: selected ? 0.22 : 1, transition: 'opacity .15s', pointerEvents: 'none' }}>
-          <circle cx={195} cy={168} r={16} fill="var(--color-surface)" stroke="var(--color-border)" strokeWidth="1.5"/>
-          <text x={195} y={164} textAnchor="middle" style={{ fontSize: 6.5, fill: 'var(--color-text-muted)' }}>geen</text>
-          <text x={195} y={176} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700, fill: 'var(--color-text)' }}>{clubsByDistrict['_none'].length}</text>
+        <g style={{ opacity: selected ? 0.2 : 1, transition: 'opacity .15s', pointerEvents: 'none' }}>
+          <circle cx={195} cy={168} r={16} fill="#f8f9fa" stroke="#9aabb8" strokeWidth="1.5"/>
+          <text x={195} y={164} textAnchor="middle" style={{ fontSize: 6.5, fill: '#9aabb8' }}>geen</text>
+          <text x={195} y={176} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700, fill: '#2c3e50' }}>
+            {clubsByDistrict['_none'].length}
+          </text>
         </g>
       )}
     </svg>
