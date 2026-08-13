@@ -1,4 +1,4 @@
-// interceptor.js v10 — MAIN world
+// interceptor.js v11 — MAIN world
 // Intercepts fetch/XHR to app.hockeyweerelt.nl
 // Handles: poule teams, competition detail, competition list, club list, club detail
 
@@ -15,7 +15,7 @@
   // /clubs/HH11AR3 — club-id uit URL, ongeacht body-veldnamen
   const CLUB_DETAIL_RE  = /\/clubs\/([A-Za-z0-9]+)(?:\/|$)/;
 
-  console.log('[HDV] 🏑 v9 interceptor laden... target:', TARGET);
+  console.log('[HDV] 🏑 v11 interceptor laden... target:', TARGET);
 
   function writeLog(type, msg, detail) {
     try {
@@ -93,7 +93,7 @@
           if (body && body.data && !Array.isArray(body.data)) {
             if (!body.data.federation_reference_id) body.data.federation_reference_id = cdMatch[1];
             if (!Array.isArray(body.data.teams)) body.data.teams = [];
-            saveClubDetail(url, body.data);
+            saveClubDetail(url, body.data, cdMatch[1]);
           }
         } catch(e) { writeLog('err', 'Club detail parse: ' + e.message); }
         return resp;
@@ -144,7 +144,7 @@
             if (body && body.data && !Array.isArray(body.data)) {
               if (!body.data.federation_reference_id) body.data.federation_reference_id = cdMatchXhr[1];
               if (!Array.isArray(body.data.teams)) body.data.teams = [];
-              saveClubDetail(url, body.data);
+              saveClubDetail(url, body.data, cdMatchXhr[1]);
             }
           } catch(e) { writeLog('err', 'XHR club parse: ' + e.message); }
           return;
@@ -272,12 +272,19 @@
   }
 
   // ── Save club detail ─────────────────────────────────────
-  // Bewaar altijd maar één entry — pushClubDetailFromPage() leest alleen de laatste
-  function saveClubDetail(url, clubData) {
+  // Merge met bestaande store — sla op onder federation_reference_id én URL-club-id
+  // zodat de scanner altijd de juiste key vindt, ook bij ID-aliassen
+  function saveClubDetail(url, clubData, urlClubId) {
     try {
       const extId = clubData.federation_reference_id;
-      const entry = { [extId]: { ts: Date.now(), url: url, data: clubData } };
-      safeSetItem(DETAILS_KEY, JSON.stringify(entry));
+      const store = JSON.parse(localStorage.getItem(DETAILS_KEY) || '{}');
+      const entryData = { ts: Date.now(), url: url, data: clubData };
+      store[extId] = entryData;
+      if (urlClubId && urlClubId !== extId) {
+        store[urlClubId] = entryData;
+        writeLog('info', '🔗 Club alias opgeslagen: ' + urlClubId + ' → ' + extId);
+      }
+      safeSetItem(DETAILS_KEY, JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('__hw_club_detail_captured'));
       const teams = clubData.teams || [];
       const youth = teams.filter(t => t.category_group_name === 'Junioren');
@@ -303,5 +310,5 @@
   window.__hwList   = () => Object.entries(window.__hwGet()).map(([id, e]) =>
     `${id}: ${e.poule_name} · ${e.competition} · ${e.class_name} (${e.team_name})`).join('\n');
 
-  writeLog('info', '🏑 v10 actief op ' + location.hostname + ' · target: ' + TARGET);
+  writeLog('info', '🏑 v11 actief op ' + location.hostname + ' · target: ' + TARGET);
 })();
