@@ -43,7 +43,14 @@ function InlineConfirm({ msg, onConfirm, onCancel }) {
   )
 }
 
-export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }) {
+export default function CompetitiesTab({
+  tid,
+  season: seasonProp = '2026-2027',
+  isAdmin       = false,
+  published     = false,
+  onTogglePublished = null,
+  onDelete      = null,
+}) {
   const [links,       setLinks]       = useState([])
   const [globalTags,  setGlobalTags]  = useState([])
   const [allComps,    setAllComps]    = useState([])
@@ -60,6 +67,9 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
   const [confirmTag,  setConfirmTag]  = useState(null)
   const [confirmLink, setConfirmLink] = useState(null)
   const [selectedLnk, setSelectedLnk] = useState(null)
+  const [metaOpen,    setMetaOpen]    = useState(false)
+  const [confirmDel,  setConfirmDel]  = useState(false)
+  const [deleting,    setDeleting]    = useState(false)
 
   useEffect(() => { loadGlobalTags() }, [])
   useEffect(() => { if (tid) { loadLinks() } }, [tid])
@@ -89,8 +99,6 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     setTimeout(() => { setMsg(''); setError('') }, 3500)
   }
 
-  // ── Globale tag-pool beheer ──────────────────────────────────────────────────
-
   async function handleAddTag() {
     const name = newTagName.trim()
     if (!name) return
@@ -113,8 +121,6 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
       })))
     } catch (e) { flash(e.message, true) }
   }
-
-  // ── Tags per competitie ──────────────────────────────────────────────────────
 
   async function handleAssignTag(lnk, tagId) {
     const tag = globalTags.find(t => t.id === tagId)
@@ -146,8 +152,6 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
       flash(e.message, true)
     }
   }
-
-  // ── Competitie koppelen ──────────────────────────────────────────────────────
 
   async function handleAdd(comp) {
     setAdding(true)
@@ -201,6 +205,13 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     } catch (e) { flash(e.message, true) }
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    try { await onDelete?.() }
+    catch { flash('Verwijderen mislukt', true) }
+    finally { setDeleting(false); setConfirmDel(false) }
+  }
+
   if (!tid) return <p style={muted}>Laden…</p>
   if (loading) return <p style={muted}>Laden…</p>
 
@@ -235,56 +246,123 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
         />
       )}
 
-      {/* ── Globale fase-tag pool ────────────────────────────────── */}
-      <div style={card}>
-        <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-TAGS (globaal)</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
-          {globalTags.length === 0 && (
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen tags aangemaakt.</span>
-          )}
-          {globalTags.map(tag => (
-            <span key={tag.id} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
-              border: '1px solid var(--color-primary)',
-              color: 'var(--color-primary)',
-            }}>
-              {tag.name}
-              <button onClick={() => setConfirmTag(tag)} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
-              }}>✕</button>
-            </span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            value={newTagName}
-            onChange={e => setNewTagName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddTag()}
-            placeholder="Nieuwe tag…"
-            style={{ ...inputStyle, flex: 1, fontSize: 12 }}
-          />
-          <button
-            onClick={handleAddTag}
-            disabled={addingTag || !newTagName.trim()}
-            style={{ ...ghostBtn, fontSize: 12, opacity: addingTag || !newTagName.trim() ? 0.4 : 1 }}
-          >+ Toevoegen</button>
-        </div>
-      </div>
+      {/* ── ⚙ Beheer meta-paneel (item 635) ───────────────────────── */}
+      {isAdmin && (
+        <div style={card}>
+          <div
+            onClick={() => setMetaOpen(p => !p)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', flex: 1 }}>⚙ Beheer</span>
+            {!metaOpen && (
+              <>
+                <span style={{
+                  fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 600,
+                  background: published ? '#16a34a22' : '#f9731622',
+                  color: published ? '#16a34a' : '#f97316',
+                }}>
+                  {published ? '● Zichtbaar' : '○ Concept'}
+                </span>
+                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
+                  {season}
+                </span>
+                {globalTags.length > 0 && (
+                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{globalTags.length} tags</span>
+                )}
+              </>
+            )}
+            <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{metaOpen ? '▾' : '▸'}</span>
+          </div>
 
-      {/* ── Seizoen filter ───────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>Seizoen:</span>
-        {KNOWN_SEASONS.map(s => (
-          <button key={s} onClick={() => setSeason(s)} style={{
-            fontSize: 11, padding: '3px 10px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
-            border: `1px solid ${season === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
-            background: season === s ? 'var(--color-primary)' : 'var(--color-surface)',
-            color: season === s ? '#fff' : 'var(--color-text)',
-          }}>{s}</button>
-        ))}
-      </div>
+          {metaOpen && (
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Zichtbaar + verwijderen */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {onTogglePublished && (
+                  <button
+                    onClick={onTogglePublished}
+                    style={{
+                      fontSize: 11, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
+                      fontFamily: 'inherit', fontWeight: 600, border: 'none',
+                      background: published ? '#16a34a22' : '#f9731622',
+                      color: published ? '#16a34a' : '#f97316',
+                    }}
+                  >{published ? '● Zichtbaar' : '○ Concept'}</button>
+                )}
+                {onDelete && !confirmDel && (
+                  <button
+                    onClick={() => setConfirmDel(true)}
+                    style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', fontSize: 11 }}
+                  >Verwijderen</button>
+                )}
+                {confirmDel && (
+                  <>
+                    <button onClick={() => setConfirmDel(false)} style={ghostBtn}>Nee</button>
+                    <button onClick={handleDelete} disabled={deleting}
+                      style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', opacity: deleting ? 0.5 : 1 }}
+                    >{deleting ? 'Bezig…' : 'Ja, verwijderen'}</button>
+                  </>
+                )}
+              </div>
+
+              {/* Seizoenskeuze */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>Seizoen:</span>
+                {KNOWN_SEASONS.map(s => (
+                  <button key={s} onClick={() => setSeason(s)} style={{
+                    fontSize: 11, padding: '3px 10px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
+                    border: `1px solid ${season === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: season === s ? 'var(--color-primary)' : 'var(--color-surface)',
+                    color: season === s ? '#fff' : 'var(--color-text)',
+                  }}>{s}</button>
+                ))}
+              </div>
+
+              {/* FASE-TAGS */}
+              <div>
+                <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-TAGS (globaal)</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                  {globalTags.length === 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen tags aangemaakt.</span>
+                  )}
+                  {globalTags.map(tag => (
+                    <span key={tag.id} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
+                      border: '1px solid var(--color-primary)',
+                      color: 'var(--color-primary)',
+                    }}>
+                      {tag.name}
+                      <button onClick={() => setConfirmTag(tag)} style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
+                      }}>✕</button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    value={newTagName}
+                    onChange={e => setNewTagName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+                    placeholder="Nieuwe tag…"
+                    style={{ ...inputStyle, flex: 1, fontSize: 12 }}
+                  />
+                  <button
+                    onClick={handleAddTag}
+                    disabled={addingTag || !newTagName.trim()}
+                    style={{ ...ghostBtn, fontSize: 12, opacity: addingTag || !newTagName.trim() ? 0.4 : 1 }}
+                  >+ Toevoegen</button>
+                </div>
+              </div>
+
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Gekoppelde competities ───────────────────────────────── */}
       {links.length === 0 ? (
@@ -387,4 +465,3 @@ export default function CompetitiesTab({ tid, season: seasonProp = '2026-2027' }
     </div>
   )
 }
-

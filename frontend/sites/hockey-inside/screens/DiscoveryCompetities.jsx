@@ -120,9 +120,8 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
   // Groepsheader voor competities met dezelfde naam — kolom-layout (geen extra klik)
   function renderNameGroup(nm, nmComps, keyPrefix, showDistBadge = false) {
     if (nmComps.length === 1) {
-      return showDistBadge
-        ? renderCompEntry(nmComps[0], true, nmComps[0].district || 'Onbekend')
-        : renderCompEntry(nmComps[0])
+      // item 636: in per-competitie view (showDistBadge) niet nested tonen — op zelfde niveau als multi-entry headers
+      return renderCompEntry(nmComps[0], !showDistBadge, showDistBadge ? (nmComps[0].district || 'Onbekend') : null)
     }
     const ngKey    = `${keyPrefix}_${nm}`
     const ngOpen   = expanded.has(ngKey)
@@ -318,9 +317,10 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                   <div key={ag}>
                     {agHeader}
                     {names.map(nm => {
+                      // item 636: per-competitie sortering binnen groep: district primair
                       const nmComps = [...byName[nm]].sort((a, b) =>
-                        (a.class_name || '').localeCompare(b.class_name || '', 'nl') ||
-                        (a.district || '').localeCompare(b.district || '', 'nl')
+                        (a.district || '').localeCompare(b.district || '', 'nl') ||
+                        (a.class_name || '').localeCompare(b.class_name || '', 'nl')
                       )
                       return renderNameGroup(nm, nmComps, 'ngv', true)
                     })}

@@ -5,7 +5,7 @@ import {
   KNOWN_SEASONS,
 } from '../api.js'
 import CompetitiesTab from './CompetitiesTab.jsx'
-import { ghostBtn, primaryBtn, inputStyle, errorBanner } from './styles.js'
+import { ghostBtn, primaryBtn, inputStyle } from './styles.js'
 
 // ── Aanmaken popup ────────────────────────────────────────────────────────────
 
@@ -118,63 +118,39 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, draggable, onDr
 // ── Publicatie detail ─────────────────────────────────────────────────────────
 
 function PublicatieDetail({ tournament, isAdmin, onBack, onDeleted, onUpdated }) {
-  const [t,             setT]             = useState(tournament)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting,      setDeleting]      = useState(false)
-  const [errMsg,        setErrMsg]        = useState('')
-
-  async function handleDelete() {
-    setDeleting(true)
-    try { await deletePublication(t.id); onDeleted() }
-    catch { setErrMsg('Verwijderen mislukt'); setDeleting(false) }
-  }
+  const [t, setT] = useState(tournament)
 
   async function handleTogglePublished() {
     const next = !t.published
     const updated = { ...t, published: next }
     setT(updated)
     try { await updatePublication(t.id, { published: next }); onUpdated(updated) }
-    catch { setT(t); setErrMsg('Opslaan mislukt') }
+    catch { setT(t) }
+  }
+
+  async function handleDelete() {
+    await deletePublication(t.id)
+    onDeleted()
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <button onClick={onBack} style={{ ...ghostBtn, padding: '6px 10px' }}>← Terug</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
           {t.season && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.season}</div>}
         </div>
-        {isAdmin && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            <button
-              onClick={handleTogglePublished}
-              style={{
-                fontSize: 11, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
-                fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                background: t.published ? '#16a34a22' : '#f9731622',
-                color: t.published ? '#16a34a' : '#f97316',
-              }}
-            >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
-            {confirmDelete ? (
-              <>
-                <button onClick={() => setConfirmDelete(false)} style={ghostBtn}>Nee</button>
-                <button onClick={handleDelete} disabled={deleting}
-                  style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', opacity: deleting ? 0.5 : 1 }}
-                >{deleting ? 'Bezig…' : 'Ja, verwijderen'}</button>
-              </>
-            ) : (
-              <button onClick={() => setConfirmDelete(true)}
-                style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', fontSize: 11 }}
-              >Verwijderen</button>
-            )}
-          </div>
-        )}
       </div>
 
-      {errMsg && <div style={{ ...errorBanner, marginBottom: 14 }}>{errMsg}</div>}
-
-      <CompetitiesTab tid={t.id} season={t.season} />
+      <CompetitiesTab
+        tid={t.id}
+        season={t.season}
+        isAdmin={isAdmin}
+        published={t.published}
+        onTogglePublished={isAdmin ? handleTogglePublished : null}
+        onDelete={isAdmin ? handleDelete : null}
+      />
     </div>
   )
 }
