@@ -8,8 +8,9 @@ import ArchiefTab        from './screens/ArchiefTab.jsx'
 import { getMe }         from './api.js'
 
 export default function App() {
-  const [tab,     setTab]     = useState('publicaties')
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [tab,              setTab]              = useState('publicaties')
+  const [isAdmin,          setIsAdmin]          = useState(false)
+  const [selectedDistrict, setSelectedDistrict] = useState(null)
 
   useEffect(() => {
     getMe().then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
@@ -50,8 +51,8 @@ export default function App() {
       </div>
 
       {tab === 'publicaties' && <PublicatieTab />}
-      {tab === 'kaart'       && <DistrictKaartTab onNavigateToDistrict={() => setTab('discovery')} />}
-      {tab === 'discovery'   && <DiscoveryTab />}
+      {tab === 'kaart'       && <DistrictKaartTab onNavigateToDistrict={dist => { setSelectedDistrict(dist); setTab('discovery') }} />}
+      {tab === 'discovery'   && <DiscoveryTab initialDistrict={selectedDistrict} />}
       {tab === 'vanger'      && <VangerTab />}
       {tab === 'stats'       && <StatsTab />}
       {tab === 'archief'     && <ArchiefTab />}

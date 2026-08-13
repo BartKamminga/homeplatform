@@ -22,7 +22,7 @@ function classRank(name) {
   return 99
 }
 
-export default function DiscoveryCompetities({ competitions, capturedPoules, allTeams, clubMap, expanded, toggle, loading, season, onReload }) {
+export default function DiscoveryCompetities({ competitions, capturedPoules, allTeams, clubMap, expanded, toggle, loading, detailLoaded, season, onReload }) {
   const [compView,    setCompView]    = useState('district')
   const [herscanBusy, setHerscanBusy] = useState(false)
   const [herscanMsg,  setHerscanMsg]  = useState('')
@@ -274,7 +274,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                       {agHeader}
                       {districts.map(dist => {
                         const distKey  = `dist_${ht}_${ag}_${dist}`
-                        const distOpen = !expanded.has(distKey)  // standaard open (toggle sluit)
+                        const distOpen = expanded.has(distKey)
                         const byName = {}
                         for (const c of byDist[dist]) {
                           if (!byName[c.name]) byName[c.name] = []
@@ -294,7 +294,12 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                               <span style={{ fontStyle: 'italic' }}>{dist}</span>
                               <span style={{ opacity: 0.45 }}>({byDist[dist].length})</span>
                             </div>
-                            {distOpen && names.map(nm => renderNameGroup(nm, byName[nm], `ng_${dist}`))}
+                            {distOpen && !detailLoaded && (
+                              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 2px', fontStyle: 'italic' }}>
+                                Laden…
+                              </div>
+                            )}
+                            {distOpen && detailLoaded && names.map(nm => renderNameGroup(nm, byName[nm], `ng_${dist}`))}
                           </div>
                         )
                       })}

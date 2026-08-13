@@ -1,7 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '@core/api.js'
 import DiscoveryCompetities from './DiscoveryCompetities.jsx'
 import DiscoveryClubs from './DiscoveryClubs.jsx'
+
+const HOCKEY_TYPES = ['VE', 'ZA', '']
+const AGE_GROUPS   = ['Senioren', 'Jeugd']
+
+function districtKeys(dist) {
+  const keys = new Set()
+  for (const ht of HOCKEY_TYPES)
+    for (const ag of AGE_GROUPS)
+      keys.add(`dist_${ht}_${ag}_${dist}`)
+  return keys
+}
 
 function tabStyle(active) {
   return {
@@ -13,38 +24,59 @@ function tabStyle(active) {
   }
 }
 
-export default function DiscoveryTab() {
+export default function DiscoveryTab({ initialDistrict }) {
   const [clubs,          setClubs]          = useState([])
+  const [competitions,   setCompetitions]   = useState([])
   const [allTeams,       setAllTeams]       = useState([])
   const [queue,          setQueue]          = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
   const [capturedPoules, setCapturedPoules] = useState([])
-  const [competitions,   setCompetitions]   = useState([])
-  const [season,         setSeason]         = useState('2026-2027')
-  const [loading,        setLoading]        = useState(true)
-  const [error,          setError]          = useState('')
-  const [expanded,       setExpanded]       = useState(new Set())
-  const [discTab,        setDiscTab]        = useState('competities')
 
-  function load() {
-    setLoading(true); setError('')
+  const [season,       setSeason]       = useState('2026-2027')
+  const [loading,      setLoading]      = useState(true)
+  const [detailLoaded, setDetailLoaded] = useState(false)
+  const [error,        setError]        = useState('')
+  const [discTab,      setDiscTab]      = useState('competities')
+
+  // Districts open: vul vanuit initialDistrict zodat kaart-navigatie direct het juiste district opent
+  const [expanded, setExpanded] = useState(() => initialDistrict ? districtKeys(initialDistrict) : new Set())
+
+  const detailRequestedRef = useRef(false)
+
+  function loadDetail(currentSeason) {
+    if (detailRequestedRef.current) return
+    detailRequestedRef.current = true
     Promise.all([
-      api.get('/api/hockey/clubs'),
       api.get('/api/hockey/teams'),
       api.get('/api/hockey/poule-queue'),
-      api.get(`/api/hockey/competitions?season=${season}`),
-      api.get(`/api/hockey/poules?season=${season}`),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes, poulesRes]) => {
-      setClubs(clubsRes.clubs || [])
+      api.get(`/api/hockey/poules?season=${currentSeason}`),
+    ]).then(([teamsRes, queueRes, poulesRes]) => {
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
-      setCompetitions(compsRes.competitions || [])
       setCapturedPoules(poulesRes.poules || [])
-    }).catch(e => setError(e.message)).finally(() => setLoading(false))
+      setDetailLoaded(true)
+    }).catch(e => setError(e.message))
   }
 
-  useEffect(() => { load() }, [season])
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    detailRequestedRef.current = false
+    setDetailLoaded(false)
+    setAllTeams([])
+    setQueue({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
+    setCapturedPoules([])
+
+    Promise.all([
+      api.get('/api/hockey/clubs'),
+      api.get(`/api/hockey/competitions?season=${season}`),
+    ]).then(([clubsRes, compsRes]) => {
+      setClubs(clubsRes.clubs || [])
+      setCompetitions(compsRes.competitions || [])
+    }).catch(e => setError(e.message)).finally(() => setLoading(false))
+  }, [season])
 
   function toggle(key) {
+    loadDetail(season)
     setExpanded(prev => {
       const next = new Set(prev)
       next.has(key) ? next.delete(key) : next.add(key)
@@ -52,7 +84,12 @@ export default function DiscoveryTab() {
     })
   }
 
-  // Pre-computed lookups (shared between sub-views)
+  function handleDiscTab(t) {
+    if (t === 'clubs') loadDetail(season)
+    setDiscTab(t)
+  }
+
+  // Pre-computed lookups (gedeeld tussen sub-views)
   const clubMap = {}
   for (const c of clubs) clubMap[c.external_id] = c.friendly_name || c.name
 
@@ -95,10 +132,10 @@ export default function DiscoveryTab() {
 
       {/* Sub-tabs */}
       <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={() => setDiscTab('competities')} style={tabStyle(discTab === 'competities')}>
+        <button onClick={() => handleDiscTab('competities')} style={tabStyle(discTab === 'competities')}>
           🏆 Competities{competitions.length > 0 ? ` (${competitions.length})` : ''}
         </button>
-        <button onClick={() => setDiscTab('clubs')} style={tabStyle(discTab === 'clubs')}>
+        <button onClick={() => handleDiscTab('clubs')} style={tabStyle(discTab === 'clubs')}>
           🏑 Clubs{clubs.length > 0 ? ` (${clubs.length})` : ''}
         </button>
       </div>
@@ -115,8 +152,13 @@ export default function DiscoveryTab() {
           expanded={expanded}
           toggle={toggle}
           loading={loading}
+          detailLoaded={detailLoaded}
           season={season}
-          onReload={load}
+          onReload={() => {
+            detailRequestedRef.current = false
+            setDetailLoaded(false)
+            loadDetail(season)
+          }}
         />
       )}
 

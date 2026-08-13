@@ -144,7 +144,7 @@ function Sidebar({ selected, clubsByDistrict, onNavigate }) {
         ))}
       </div>
 
-      <button onClick={onNavigate} style={{
+      <button onClick={() => onNavigate(selected)} style={{
         marginTop: 'auto', padding: '9px 14px', borderRadius: 8,
         background: 'var(--color-primary)', color: '#fff', border: 'none',
         fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
