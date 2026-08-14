@@ -13,6 +13,8 @@ const _DIST_NORM = {
   'Noord-Nederland': 'Noord Nederland',
   'Midden-Nederland': 'Midden Nederland',
   'Oost-Nederland': 'Oost Nederland',
+  'Noord-Oost-Nederland': 'Oost Nederland',
+  'Noord-Oost Nederland': 'Oost Nederland',
   'Zuid-Nederland': 'Zuid Nederland',
 }
 export function normalizeDistrict(d) { return _DIST_NORM[d] || d }
@@ -167,6 +169,13 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
     const ngOpen   = expanded.has(ngKey)
     const ngPoules = nmComps.reduce((s, c) => s + (capturedPoulesByComp[c.id]?.length ?? 0), 0)
     const ngTotal  = nmComps.reduce((s, c) => s + (c.poule_count || 0), 0)
+    // item 643: kolommen sorteren op class_name hiërarchie (Topklasse < Subtopklasse < 1e klas < 2e klas …)
+    const colItems = showDistBadge
+      ? nmComps
+      : [...nmComps].sort((a, b) => {
+          const r = classRank(a.class_name) - classRank(b.class_name)
+          return r !== 0 ? r : (a.class_name || '').localeCompare(b.class_name || '', 'nl')
+        })
     return (
       <div key={nm} style={{ marginBottom: 8 }}>
         {/* Naam-header — item 634: inklapbaar */}
@@ -178,7 +187,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
         </div>
         {/* Kolommen: één per district/klasse */}
         {ngOpen && <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 10, marginTop: 3 }}>
-          {nmComps.map(c => {
+          {colItems.map(c => {
             const cPoules = capturedPoulesByComp[c.id] || []
             // per-competitie: kolom-label = district; per-district: kolom-label = class_name
             const colLabel = showDistBadge
