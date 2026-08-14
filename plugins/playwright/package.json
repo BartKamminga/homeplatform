@@ -1,0 +1,12 @@
+{
+  "name": "homeplatform-playwright",
+  "version": "1.0.0",
+  "description": "Playwright recorder/player voor externe login-flows (MVP CLI)",
+  "scripts": {
+    "record": "node record.js",
+    "play": "node play.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
