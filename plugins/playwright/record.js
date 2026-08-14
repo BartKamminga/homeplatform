@@ -3,16 +3,15 @@
  *
  * Gebruik: node record.js <naam> [start-url]
  *
- * Wat het doet:
- *   1. Opent een browser (headful) op de opgegeven URL
- *   2. Jij logt in en navigeert handmatig
- *   3. Alle XHR/fetch-calls worden gelogd (URL, method, status, JSON-body)
- *   4. Alle paginanavigaties worden bijgehouden
- *   5. Druk Enter → sessie + recipe worden opgeslagen
+ * Legt vast:
+ *   - Paginanavigaties (goto)
+ *   - Klikken op links/buttons
+ *   - Formulier-invullingen (blur op input/textarea/select)
+ *   - XHR/fetch-responses
  *
- * Output (in recipes/ en sessions/):
- *   recipes/<naam>.json  — XHR-log + navigatiepaden
- *   sessions/<naam>.json — browser-state (cookies, localStorage) voor hergebruik
+ * Output:
+ *   recipes/<naam>.json  — event-log + XHR-log (alles voor replay)
+ *   Geen sessiebestand meer — player start altijd fresh.
  */
 
 const { chromium } = require('playwright')
@@ -20,69 +19,109 @@ const fs = require('fs')
 const path = require('path')
 const readline = require('readline')
 
-const RECIPES_DIR  = path.join(__dirname, 'recipes')
-const SESSIONS_DIR = path.join(__dirname, 'sessions')
-
+const RECIPES_DIR = path.join(__dirname, 'recipes')
 fs.mkdirSync(RECIPES_DIR, { recursive: true })
-fs.mkdirSync(SESSIONS_DIR, { recursive: true })
 
 const recipeName = process.argv[2]
 if (!recipeName) {
   console.error('Gebruik: node record.js <naam> [start-url]')
-  console.error('Voorbeeld: node record.js hockey-poules https://hockey.nl')
+  console.error('Voorbeeld: node record.js hockey-poules https://hockey.nl/mijn-hockey')
   process.exit(1)
 }
 
 const startUrl = process.argv[3] || 'https://hockey.nl'
 
+// Betrouwbare selector voor een DOM-element
+function makeSelector(el) {
+  if (!el) return null
+  const id   = el.id ? `#${el.id}` : null
+  const name = el.getAttribute?.('name') ? `[name="${el.getAttribute('name')}"]` : null
+  const tid  = el.getAttribute?.('data-testid') ? `[data-testid="${el.getAttribute('data-testid')}"]` : null
+  return id || tid || name || null
+}
+
 ;(async () => {
   console.log(`\nRecorder starten — naam: ${recipeName}`)
   console.log(`Start-URL: ${startUrl}\n`)
 
-  const browser = await chromium.launch({ headless: false, slowMo: 0 })
+  const browser = await chromium.launch({ headless: false })
   const context  = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
   })
   const page = await context.newPage()
 
-  const xhrLog = []
-  const navLog = []
+  const eventLog = []   // geordend: goto + fill + click
+  const xhrLog   = []
 
-  // ── XHR/fetch responses ──────────────────────────────────────────────────────
-  page.on('response', async (response) => {
-    const req = response.request()
-    if (!['xhr', 'fetch'].includes(req.resourceType())) return
-
-    const url    = req.url()
-    const method = req.method()
-    const status = response.status()
-    let reqBody  = null
-    let body     = null
-
-    try { reqBody = req.postData() } catch {}
-
-    try {
-      const ct = response.headers()['content-type'] || ''
-      if (ct.includes('json')) body = await response.json()
-    } catch {}
-
-    xhrLog.push({ url, method, status, requestBody: reqBody, body, ts: Date.now() })
-    console.log(`  [XHR] ${method} ${status} ${url}`)
+  // ── Acties via geïnjecteerd script ────────────────────────────────────────────
+  await page.exposeFunction('__rec', (action) => {
+    eventLog.push({ ...action, ts: Date.now() })
+    if (action.type === 'fill') {
+      const masked = action.inputType === 'password' ? '••••' : action.value
+      console.log(`  [ACT] fill  ${action.selector}  "${masked}"`)
+    } else {
+      console.log(`  [ACT] click ${action.selector || ''}  ${action.text ? `"${action.text}"` : ''}`)
+    }
   })
 
-  // ── Paginanavigaties ─────────────────────────────────────────────────────────
+  await page.addInitScript(() => {
+    function sel(el) {
+      if (!el) return null
+      if (el.id)                              return '#' + el.id
+      if (el.getAttribute('name'))            return `[name="${el.getAttribute('name')}"]`
+      if (el.getAttribute('data-testid'))     return `[data-testid="${el.getAttribute('data-testid')}"]`
+      if (el.getAttribute('aria-label'))      return `[aria-label="${el.getAttribute('aria-label')}"]`
+      return null
+    }
+
+    // Klikken op interactieve elementen
+    document.addEventListener('click', e => {
+      const el = e.target.closest('a, button, input[type="submit"], input[type="button"], [role="button"]')
+      if (!el) return
+      const s = sel(el)
+      const text = el.textContent?.trim()?.slice(0, 60) || el.value || ''
+      window.__rec({ type: 'click', selector: s, text })
+    }, true)
+
+    // Invullen van formuliervelden (bij verlaten van het veld)
+    document.addEventListener('blur', e => {
+      const el = e.target
+      if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return
+      if (!el.value) return
+      const s = sel(el)
+      if (!s) return
+      window.__rec({ type: 'fill', selector: s, value: el.value, inputType: el.type || 'text' })
+    }, true)
+  })
+
+  // ── Paginanavigaties ──────────────────────────────────────────────────────────
   page.on('framenavigated', (frame) => {
     if (frame !== page.mainFrame()) return
     const url = frame.url()
     if (!url || url === 'about:blank') return
-    navLog.push({ url, ts: Date.now() })
+    eventLog.push({ type: 'goto', url, ts: Date.now() })
     console.log(`  [NAV] ${url}`)
+  })
+
+  // ── XHR/fetch responses ───────────────────────────────────────────────────────
+  page.on('response', async (response) => {
+    const req = response.request()
+    if (!['xhr', 'fetch'].includes(req.resourceType())) return
+    const url    = req.url()
+    const method = req.method()
+    const status = response.status()
+    let body = null
+    try {
+      if ((response.headers()['content-type'] || '').includes('json')) body = await response.json()
+    } catch {}
+    xhrLog.push({ url, method, status, requestBody: req.postData() || null, body, ts: Date.now() })
+    console.log(`  [XHR] ${method} ${status} ${url}`)
   })
 
   await page.goto(startUrl)
 
   console.log('\n──────────────────────────────────────────────────')
-  console.log('  Navigeer in de browser en log in.')
+  console.log('  Log in en navigeer in de browser.')
   console.log('  Druk ENTER in dit venster als je klaar bent.')
   console.log('──────────────────────────────────────────────────\n')
 
@@ -91,17 +130,11 @@ const startUrl = process.argv[3] || 'https://hockey.nl'
     rl.question('', () => { rl.close(); resolve() })
   })
 
-  // ── Opslaan ──────────────────────────────────────────────────────────────────
-  const storageState = await context.storageState()
-  const stateFile    = path.join(SESSIONS_DIR, `${recipeName}.json`)
-  fs.writeFileSync(stateFile, JSON.stringify(storageState, null, 2))
-
   const recipe = {
     name: recipeName,
     startUrl,
     created: new Date().toISOString(),
-    sessionFile: stateFile,
-    navigations: navLog,
+    events: eventLog,
     requests: xhrLog,
   }
   const recipeFile = path.join(RECIPES_DIR, `${recipeName}.json`)
@@ -109,8 +142,7 @@ const startUrl = process.argv[3] || 'https://hockey.nl'
 
   console.log(`\nKlaar.`)
   console.log(`  Recipe:     ${recipeFile}`)
-  console.log(`  Sessie:     ${stateFile}`)
-  console.log(`  Navigaties: ${navLog.length}`)
+  console.log(`  Events:     ${eventLog.length} (${eventLog.filter(e => e.type === 'goto').length} navigaties, ${eventLog.filter(e => e.type === 'fill').length} invullingen, ${eventLog.filter(e => e.type === 'click').length} klikken)`)
   console.log(`  XHR-calls:  ${xhrLog.length}`)
   console.log(`\nAfspelen: node play.js recipes/${recipeName}.json`)
 
