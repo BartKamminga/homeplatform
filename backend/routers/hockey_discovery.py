@@ -173,6 +173,14 @@ def get_competition_matches(cid: int, session: Session = Depends(get_session)):
     return {"competition_id": cid, "name": comp.name, "poules": result}
 
 
+@router.get("/public/season")
+def get_public_season(session: Session = Depends(get_session)):
+    """Huidig discovery-seizoen (disc_target_season AppSetting) voor Poulebord."""
+    from models.settings import AppSetting
+    row = session.get(AppSetting, "disc_target_season")
+    return {"season": row.value if row else "2026-2027"}
+
+
 @router.get("/public/hockey-poules/{pid}/standings")
 def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)):
     """Standings voor één discovery-poule (voor gepinde poules op het board)."""

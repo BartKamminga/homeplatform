@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, getTournamentCompetitionStandings } from './api.js'
+import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
 import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, categoryOf } from './constants.js'
 import { BoardView, SeizoenInfo, TournamentCard } from './BoardView.jsx'
 import { PoolSearchCard, CompBrowseItem } from './BrowseComponents.jsx'
@@ -67,7 +67,14 @@ function ClubDropdown({ value, clubs, onSelect, onSave, C }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [all, setAll]                         = useState(null)
+  const [season, setSeason]                    = useState(SEASON)
+  const [allRaw, setAllRaw]                   = useState(null)
+  const all = useMemo(() => {
+    if (allRaw === null) return null
+    const norm = s => (s || '').replace(/\s*-\s*/g, '-')
+    return allRaw.filter(t => norm(t.season) === norm(season))
+  }, [allRaw, season])
+
   const [selectedPub, setSelectedPub]         = useState(null)
   const [tagFilter, setTagFilter]             = useState(null)
   const [pubComps, setPubComps]               = useState(null)
@@ -112,6 +119,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    getDiscoverySeason().then(r => { if (r.season) setSeason(r.season) }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('b')
     if (!code) return
     getBoardByCode(code).then(b => {
@@ -130,13 +141,14 @@ export default function App() {
       getTournaments().catch(() => []),
       getHockeyPublications().catch(() => []),
     ]).then(([tournix, hockey]) => {
-      const normSeason = s => (s || '').replace(/\s*-\s*/g, '-')
-      const combined = [...hockey, ...tournix]
-      const filtered = combined.filter(t => normSeason(t.season) === normSeason(SEASON))
-      setAll(filtered)
-      if (filtered.length) setSelectedPub(filtered[0])
+      setAllRaw([...hockey, ...tournix])
     }).catch(() => setError('Kon publicaties niet laden'))
   }, [])
+
+  useEffect(() => {
+    if (!all) return
+    if (!all.find(t => t.id === selectedPub?.id)) setSelectedPub(all[0] || null)
+  }, [all])
 
   useEffect(() => {
     if (!selectedPub) { setPubComps(null); return }

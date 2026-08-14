@@ -122,6 +122,18 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
   const [matchesPoule, setMatchesPoule] = useState(null)
   const [matchesData,  setMatchesData]  = useState(null)
 
+  const poules = comp.poules ?? []
+  const allPinned = poules.length > 0 && poules.every(p => poolPins?.has('disc_' + p.id + '::' + p.name))
+
+  function toggleCompPin(e) {
+    e.stopPropagation()
+    if (!poules.length || !onPoolPin) return
+    poules.forEach(p => {
+      const pinned = poolPins?.has('disc_' + p.id + '::' + p.name)
+      if (allPinned ? pinned : !pinned) onPoolPin('disc_' + p.id, p.name)
+    })
+  }
+
   function openMatches(poule) {
     setMatchesPoule(poule)
     setMatchesData(null)
@@ -165,27 +177,37 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
       )}
       <div style={{ background: C.card, borderRadius: 12, marginBottom: 8,
         overflow: 'hidden', border: `1px solid ${C.border}` }}>
-        <button onClick={onToggle} style={{
-          width: '100%', padding: '12px 16px', background: 'transparent', border: 'none',
-          cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{ fontSize: 16, flexShrink: 0 }}>{comp.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.04em',
-              fontSize: 15, color: C.chalk, lineHeight: 1.2 }}>{comp.name}</div>
-            {tags.length > 0 && (
-              <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
-                {tags.map((tag, i) => (
-                  <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
-                    background: 'rgba(207,159,63,0.10)', color: C.gold,
-                    border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
-                ))}
-              </div>
-            )}
-          </span>
-          <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'stretch' }}>
+          <button onClick={onToggle} style={{
+            flex: 1, padding: '12px 16px', background: 'transparent', border: 'none',
+            cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 10, minWidth: 0,
+          }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>{comp.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.04em',
+                fontSize: 15, color: C.chalk, lineHeight: 1.2 }}>{comp.name}</div>
+              {tags.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+                  {tags.map((tag, i) => (
+                    <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                      background: 'rgba(207,159,63,0.10)', color: C.gold,
+                      border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
+                  ))}
+                </div>
+              )}
+            </span>
+            <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+          </button>
+          {onPoolPin && poules.length > 0 && (
+            <button onClick={toggleCompPin} title={allPinned ? 'Verwijder competitie van board' : 'Pin hele competitie op board'} style={{
+              background: allPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+              border: 'none', borderLeft: `1px solid ${C.border}`,
+              padding: '0 14px', cursor: 'pointer', fontSize: 13,
+              color: allPinned ? C.gold : C.muted, flexShrink: 0,
+            }}>📌</button>
+          )}
+        </div>
         {expanded && (
           <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${C.border}` }}>
             {(comp.poules ?? []).length === 0 ? (

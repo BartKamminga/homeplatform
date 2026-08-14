@@ -1,6 +1,7 @@
 import { api } from '../../core/api.js'
 
 export const getTournaments         = ()    => api.get('/api/tournix/public/tournaments')
+export const getDiscoverySeason     = ()    => api.get('/api/hockey/public/season')
 export const getHockeyPublications  = ()    => api.get('/api/hockey/public/publications')
 export const getPhases         = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/phases`)
 export const getPhaseStandings = (pid) => api.get(`/api/tournix/public/phases/${pid}/standings`)
