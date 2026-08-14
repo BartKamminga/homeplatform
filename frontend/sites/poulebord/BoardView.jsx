@@ -200,19 +200,40 @@ export function ClubPoolCard({ entry, club }) {
 
 // ── Pinned pool slot (compact, board) ─────────────────────────────────────────
 
-function PinnedPoolSlot({ pin, club, idx }) {
+function PinnedPoolSlot({ pin, club, idx, tournamentName }) {
   const standings = useStandings(pin.phaseId)
   const isDisc    = pin.phaseId?.startsWith?.('disc_')
   const poolRows  = standings
     ? (isDisc ? standings : standings.filter(r => r.pool_name === pin.poolName))
     : null
+  const [modal, setModal] = useState(false)
 
   return (
     <div style={{ flex: '1 1 180px', borderLeft: idx > 0 ? `1px solid ${C.border}` : 'none' }}>
-      <div style={{ padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
-        letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}` }}>
-        POULE {pin.poolName}
-      </div>
+      {modal && (
+        <MatchModal
+          title={pin.poolName}
+          subtitle={tournamentName || ''}
+          rows={poolRows || []}
+          matchSource={!isDisc ? { phaseId: pin.phaseId, poolName: pin.poolName } : undefined}
+          matches={isDisc ? { finished: [], scheduled: [] } : undefined}
+          onClose={() => setModal(false)}
+        />
+      )}
+      <button
+        onClick={() => poolRows?.length > 0 && setModal(true)}
+        style={{
+          width: '100%', padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
+          letterSpacing: '0.08em', color: C.gold, background: 'none',
+          borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+          borderBottom: `1px solid ${C.border}`,
+          cursor: poolRows?.length > 0 ? 'pointer' : 'default',
+          textAlign: 'left', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+        {pin.poolName}
+        {poolRows?.length > 0 && <span style={{ color: C.muted, fontSize: 9, marginLeft: 'auto' }}>›</span>}
+      </button>
       {poolRows === null ? (
         <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
       ) : poolRows.length === 0 ? (
@@ -251,7 +272,7 @@ export function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
       <div style={{ display: 'flex', flexWrap: 'wrap' }}>
         {pins.map((p, idx) => (
           <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
-            pin={p} club={club} idx={idx} />
+            pin={p} club={club} idx={idx} tournamentName={tournamentName} />
         ))}
       </div>
     </div>
