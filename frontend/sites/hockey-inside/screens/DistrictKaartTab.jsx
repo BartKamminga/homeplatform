@@ -60,17 +60,15 @@ function hp(key, min, range) {
 
 function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
   return (
-    <svg viewBox="0 0 400 470" style={{ width: '100%', maxWidth: 340, borderRadius: 8, display: 'block' }}>
-
-      {/* ── 1. Zee-achtergrond ─────────────────────────────────────────── */}
-      <rect width="400" height="470" fill="#d6e8f4" rx="6" />
-
-      {/* ── 2. NL-contour afbeelding als transparante ondergrond */}
-      <image href="/nl-contour.png" x="0" y="0" width="400" height="470"
-        preserveAspectRatio="xMidYMid meet"
-        opacity="0.3"
-        pointerEvents="none"
-      />
+    <svg viewBox="0 0 400 470" style={{
+      width: '100%', maxWidth: 340, borderRadius: 8, display: 'block',
+      backgroundColor: '#d6e8f4',
+      backgroundImage: 'url(/nl-contour.png)',
+      backgroundSize: 'contain',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'center',
+      backgroundBlendMode: 'multiply',
+    }}>
 
       {/* ── 3. Gekleurde districten (semi-transparant over de kaart) ──── */}
       <g pointerEvents="none">
