@@ -20,22 +20,27 @@ export function normalizeDistrict(d) { return _DIST_NORM[d] || d }
 // Sortering op klasse-hiërarchie — strip "Landelijke" / "Voorcompetitie" prefix zodat
 // "Landelijke Subtopklasse" op dezelfde plek belandt als "Subtopklasse".
 function classRank(name) {
-  const bare = name
-    .replace(/^Landelijk[e]?\s+/i, '')
-    .replace(/^Voorcompetitie\s+/i, '')
-    .trim()
-  if (/^Topklasse/i.test(bare))    return 0
-  if (/^Subtop/i.test(bare))       return 1
-  if (/^Hoofdklasse/i.test(bare))  return 2
-  if (/^1e\s+Klas/i.test(bare))   return 3
-  if (/^2e\s+Klas/i.test(bare))   return 4
-  if (/^3e\s+Klas/i.test(bare))   return 5
-  if (/^4e\s+Klas/i.test(bare))   return 6
-  if (/^5e\s+Klas/i.test(bare))   return 7
-  if (/^6e\s+Klas/i.test(bare))   return 8
-  if (/^7e\s+Klas/i.test(bare))   return 9
-  if (/^Afdeling/i.test(bare))    return 10
-  if (/^Voorcompetitie/i.test(name)) return 11
+  if (/^Voorcompetitie\b/i.test(name)) {
+    // Voorcompetitie met een herkenbaar niveau → op niveau sorteren maar achteraan binnen die rang
+    const suf = name.replace(/^Voorcompetitie\s+/i, '').trim()
+    const inner = classRank(suf)
+    return inner < 99 ? inner + 100 : 200
+  }
+  const bare = name.replace(/^Landelijk[e]?\s+/i, '').trim()
+  if (/^Topklasse/i.test(bare))       return 0
+  if (/^Competitie\b/i.test(bare))    return 1   // "Landelijke Competitie" → bare "Competitie"
+  if (/^Super\s+O/i.test(bare))       return 2   // "Super O18", "Super O16", "Super O14"
+  if (/^Subtop/i.test(bare))          return 3
+  if (/^Hoofdklasse/i.test(bare))     return 4
+  if (/^IDC\b/i.test(bare))           return 5   // Interdistrict Competitie
+  if (/^1e\s+Klas/i.test(bare))       return 6
+  if (/^2e\s+Klas/i.test(bare))       return 7
+  if (/^3e\s+Klas/i.test(bare))       return 8
+  if (/^4e\s+Klas/i.test(bare))       return 9
+  if (/^5e\s+Klas/i.test(bare))       return 10
+  if (/^6e\s+Klas/i.test(bare))       return 11
+  if (/^7e\s+Klas/i.test(bare))       return 12
+  if (/^Afdeling/i.test(bare))        return 13
   return 99
 }
 

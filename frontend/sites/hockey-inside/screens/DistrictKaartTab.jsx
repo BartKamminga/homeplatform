@@ -65,21 +65,13 @@ function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
       {/* ── 1. Zee-achtergrond ─────────────────────────────────────────── */}
       <rect width="400" height="470" fill="#d6e8f4" rx="6" />
 
-      {/* ── 2. B&W ondergrondkaart ────────────────────────────────────────
-              paintOrder='stroke fill': de witte fill dekt de stroke op interne
-              grenzen af → alleen de buitenrand steekt zichtbaar uit in de zee. */}
+      {/* ── 2. B&W ondergrondkaart (wit land + provinciegrenzen) ─────── */}
       <g pointerEvents="none">
         {PROVS.map(([id, pts]) => (
-          <polygon key={'land-' + id} points={pts}
-            fill="#f8f9fa" stroke="#2c3e50" strokeWidth="7"
-            style={{ paintOrder: 'stroke fill' }}
-          />
+          <polygon key={'land-' + id} points={pts} fill="#f8f9fa" stroke="none" />
         ))}
-        {/* Dunne provinciegrenzen */}
         {PROVS.map(([id, pts]) => (
-          <polygon key={'prov-' + id} points={pts}
-            fill="none" stroke="#9aabb8" strokeWidth="0.9"
-          />
+          <polygon key={'prov-' + id} points={pts} fill="none" stroke="#9aabb8" strokeWidth="0.9" />
         ))}
       </g>
 
@@ -113,7 +105,14 @@ function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
         </g>
       )}
 
-      {/* ── 5. Transparante kliklaag (boven alles behalve labels/stippen) */}
+      {/* ── 5. Buitenrand NL (aparte polygoon voor duidelijke landsgrens) */}
+      <polygon
+        points="178,22 222,12 265,18 268,75 330,68 385,72 390,120 385,188 378,248 325,308 302,322 328,332 335,392 320,438 298,458 278,432 268,392 272,372 228,385 182,388 138,375 100,354 74,330 46,350 46,335 74,296 108,296 115,282 88,280 72,264 78,258 108,192 102,164 92,132 88,84 96,44 115,28 138,38 153,68 158,110 155,92 165,50"
+        fill="none" stroke="#2c3e50" strokeWidth="2.5" strokeLinejoin="round"
+        pointerEvents="none"
+      />
+
+      {/* ── 6. Transparante kliklaag (boven alles behalve labels/stippen) */}
       {PROVS.map(([id, pts]) => {
         const d = P2D[id]
         return (
@@ -125,7 +124,7 @@ function NlMap({ selected, onSelect, clubsByDistrict, showPins }) {
         )
       })}
 
-      {/* ── 6. District-labels ────────────────────────────────────────── */}
+      {/* ── 7. District-labels ────────────────────────────────────────── */}
       {Object.entries(DISTRICTS).map(([name, { cx, cy }]) => (
         <text key={name} x={cx} y={cy} textAnchor="middle" style={{
           fontSize: 7.5, fontWeight: 700, fill: '#fff', pointerEvents: 'none',

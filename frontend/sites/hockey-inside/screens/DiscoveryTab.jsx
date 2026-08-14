@@ -72,6 +72,7 @@ export default function DiscoveryTab({ initialDistrict }) {
     ]).then(([clubsRes, compsRes]) => {
       setClubs(clubsRes.clubs || [])
       setCompetitions(compsRes.competitions || [])
+      if (initialDistrict) loadDetail(season)
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }, [season])
 
