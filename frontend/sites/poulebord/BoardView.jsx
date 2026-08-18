@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { C, SEIZOEN_INFO } from './constants.js'
+import { C, SEIZOEN_INFO, pinButtonStyle } from './constants.js'
 import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { CompetitionStandingsView } from './BrowseComponents.jsx'
@@ -188,13 +188,8 @@ export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPo
           </span>
           <span style={{ color: C.muted, fontSize: 11 }}>{open ? '▲' : '▼'}</span>
         </button>
-        <button onClick={onPin} title={pinned ? 'Verwijder competitie van board' : 'Pin competitie op board'} style={{
-          background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-          border: `1px solid ${pinned ? C.gold : 'transparent'}`,
-          borderRadius: 4, padding: '1px 5px', fontSize: 10,
-          color: pinned ? C.gold : C.muted, cursor: 'pointer',
-          lineHeight: 1.4, flexShrink: 0, marginRight: 12,
-        }}>📌</button>
+        <button onClick={onPin} title={pinned ? 'Verwijder competitie van board' : 'Pin competitie op board'}
+          style={{ ...pinButtonStyle(pinned), marginRight: 12 }}>📌</button>
       </div>
       {open && (
         <div style={{ padding: '0 12px 12px' }}>

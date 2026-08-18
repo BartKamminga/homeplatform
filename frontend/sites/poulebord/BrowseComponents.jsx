@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { getCompetitionMatches } from './api.js'
-import { C, badgeStyle } from './constants.js'
+import { C, badgeStyle, pinButtonStyle, pinRailButtonStyle } from './constants.js'
 import { MatchModal } from './MatchModal.jsx'
 import { PouleCard } from './PouleCard.jsx'
 
@@ -88,13 +88,7 @@ export function PoolSearchCard({ result, poolPins, onPoolPin, onOpen }) {
       <button
         onClick={e => { e.stopPropagation(); onPoolPin(result.phase_id, result.pool_name, result.tournament_name) }}
         title={isPinned ? 'Verwijder van board' : 'Pin deze poule op je board'}
-        style={{
-          background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-          border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
-          borderRadius: 4, padding: '4px 8px', fontSize: 12,
-          color: isPinned ? C.gold : C.muted, cursor: 'pointer',
-          margin: '0 12px', flexShrink: 0,
-        }}
+        style={{ ...pinButtonStyle(isPinned, 'sm'), margin: '0 12px' }}
       >📌</button>
     </div>
   )
@@ -182,12 +176,8 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
             <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
           </button>
           {onPoolPin && poules.length > 0 && (
-            <button onClick={toggleCompPin} title={allPinned ? 'Verwijder competitie van board' : 'Pin hele competitie op board'} style={{
-              background: allPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-              border: 'none', borderLeft: `1px solid ${C.border}`,
-              padding: '0 14px', cursor: 'pointer', fontSize: 13,
-              color: allPinned ? C.gold : C.muted, flexShrink: 0,
-            }}>📌</button>
+            <button onClick={toggleCompPin} title={allPinned ? 'Verwijder competitie van board' : 'Pin hele competitie op board'}
+              style={pinRailButtonStyle(allPinned)}>📌</button>
           )}
         </div>
         {expanded && (

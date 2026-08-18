@@ -1,4 +1,4 @@
-import { C, SEASON, categoryOf, pillStyle } from './constants.js'
+import { C, SEASON, categoryOf, pillStyle, pinButtonStyle } from './constants.js'
 import { SeizoenInfo } from './BoardView.jsx'
 import { CompBrowseItem } from './BrowseComponents.jsx'
 import { QuerySlotsSection } from './QuerySlotsSection.jsx'
@@ -52,12 +52,8 @@ export function BrowseView({
                   <button
                     onClick={onToggleFilterPin}
                     title={filterPinned ? 'Verwijder deze filter-selectie van board' : 'Pin deze filter-selectie op board'}
-                    style={{
-                      background: filterPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-                      border: `1px solid ${filterPinned ? C.gold : C.border}`, borderRadius: 12,
-                      padding: '3px 8px', fontSize: 10, color: filterPinned ? C.gold : C.muted,
-                      cursor: 'pointer', fontFamily: 'inherit', marginLeft: 'auto',
-                    }}>📌</button>
+                    style={{ ...pinButtonStyle(filterPinned, 'sm'), fontFamily: 'inherit', marginLeft: 'auto' }}
+                  >📌</button>
                 )}
               </div>
               {filtersOpen && (

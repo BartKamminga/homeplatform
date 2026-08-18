@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { C, cardStyle, badgeStyle } from './constants.js'
+import { C, cardStyle, badgeStyle, pinButtonStyle } from './constants.js'
 import { PoolTable } from './PoolTable.jsx'
 
 // Eén gedeelde kaart voor het tonen van een poulestand — gebruikt op de browse-
@@ -51,12 +51,8 @@ export function PouleCard({
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer',
             fontSize: 11, opacity: showLogos ? 1 : 0.4, flexShrink: 0, lineHeight: 1 }}>🖼</button>
         {onTogglePin && (
-          <button onClick={e => { e.stopPropagation(); onTogglePin() }} style={{
-            background: pinned ? C.gold : 'transparent',
-            border: `1px solid ${pinned ? C.gold : C.border}`, borderRadius: 5,
-            padding: '1px 5px', cursor: 'pointer', fontSize: 10,
-            color: pinned ? C.deep : C.muted, lineHeight: 1.4, flexShrink: 0,
-          }}>📌</button>
+          <button onClick={e => { e.stopPropagation(); onTogglePin() }}
+            style={pinButtonStyle(pinned)}>📌</button>
         )}
       </div>
       {tags?.length > 0 && (

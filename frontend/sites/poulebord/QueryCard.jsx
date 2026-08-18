@@ -1,4 +1,4 @@
-import { C, badgeStyle } from './constants.js'
+import { C, badgeStyle, pinButtonStyle } from './constants.js'
 import { useQueryResult } from './hooks.js'
 
 export const STATS_BY_TEMPLATE = {
@@ -180,12 +180,8 @@ export function QueryCard({ pin: rawPin, pinned, onTogglePin, onUpdate }) {
         <select value={pin.limit} onChange={e => onUpdate({ limit: parseInt(e.target.value, 10) })} style={selectStyle}>
           {[3, 5, 10].map(n => <option key={n} value={n}>Top {n}</option>)}
         </select>
-        <button onClick={onTogglePin} title={pinned ? 'Van board halen' : 'Pinnen op board'} style={{
-          background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-          border: `1px solid ${pinned ? C.gold : C.border}`, borderRadius: 4,
-          padding: '1px 5px', fontSize: 11, color: pinned ? C.gold : C.muted,
-          cursor: 'pointer', lineHeight: 1.3, flexShrink: 0,
-        }}>📌</button>
+        <button onClick={onTogglePin} title={pinned ? 'Van board halen' : 'Pinnen op board'}
+          style={pinButtonStyle(pinned)}>📌</button>
       </div>
       {rows === null ? (
         <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>

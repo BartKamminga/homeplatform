@@ -97,3 +97,38 @@ export function badgeStyle() {
     border: '1px solid rgba(207,159,63,0.22)',
   }
 }
+
+// ── Pin-knop-helpers (item 688) ─────────────────────────────────────────────
+// Vervangt de ~7 los van elkaar hand-uitgeschreven 📌-knop-stijlen (net iets
+// andere padding/border/kleur per plek). size 'xs' = compacte kaart-header-
+// knop (PouleCard/QueryCard/TournamentCard), 'sm' = groter touch-target op
+// een lijst-rij (PoolSearchCard, filter-pin).
+
+export function pinButtonStyle(pinned, size = 'xs') {
+  return {
+    background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+    border: `1px solid ${pinned ? C.gold : C.border}`,
+    borderRadius: size === 'sm' ? 12 : 4,
+    padding: size === 'sm' ? '3px 8px' : '1px 5px',
+    fontSize: size === 'sm' ? 11 : 10,
+    color: pinned ? C.gold : C.muted,
+    cursor: 'pointer',
+    lineHeight: 1.4,
+    flexShrink: 0,
+  }
+}
+
+// Flush "rail"-variant tegen de rand van een rij/kaart-header (geen radius,
+// alleen een scheidingslijn links) - CompBrowseItem's bulk-pin, PinnedFilterRow.
+export function pinRailButtonStyle(pinned) {
+  return {
+    background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+    border: 'none',
+    borderLeft: `1px solid ${C.border}`,
+    padding: '0 14px',
+    fontSize: 13,
+    color: pinned ? C.gold : C.muted,
+    cursor: 'pointer',
+    flexShrink: 0,
+  }
+}

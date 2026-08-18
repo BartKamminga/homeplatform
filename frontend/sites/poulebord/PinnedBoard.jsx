@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { C } from './constants.js'
+import { C, pinRailButtonStyle } from './constants.js'
 import { useStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { QueryCard } from './QueryCard.jsx'
@@ -111,10 +111,8 @@ function PinnedFilterRow({ pin, onOpen, onUnpin }) {
         </span>
         <span style={{ color: C.muted, fontSize: 9 }}>›</span>
       </button>
-      <button onClick={onUnpin} title="Verwijder deze filter van board" style={{
-        background: 'transparent', border: 'none', borderLeft: `1px solid ${C.border}`,
-        padding: '0 10px', fontSize: 11, color: C.muted, cursor: 'pointer', flexShrink: 0, height: '100%',
-      }}>📌</button>
+      <button onClick={onUnpin} title="Verwijder deze filter van board"
+        style={{ ...pinRailButtonStyle(true), height: '100%' }}>📌</button>
     </div>
   )
 }
