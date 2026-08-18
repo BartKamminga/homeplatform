@@ -15,12 +15,11 @@ import { PoolTable } from './PoolTable.jsx'
 //   rows:       genormaliseerde standings-rijen (zie PoolTable)
 //   club:       clubnaam voor rij-highlight
 //   density:    'full' | 'compact'
-//   showGoals:  toon GV-GT-kolom (detailweergave, bv. in MatchModal)
 //   onOpen:     fn — klik op titel opent wedstrijd-modal (optioneel)
 //   pinned:     bool — toont pin-status (optioneel, geen pin-knop als weggelaten)
 //   onTogglePin: fn
 export function PouleCard({
-  title, subtitle, tags, rows, club, density = 'full', showGoals = false, onOpen, pinned, onTogglePin,
+  title, subtitle, tags, rows, club, density = 'full', onOpen, pinned, onTogglePin,
 }) {
   const [showLogos, setShowLogos] = useState(true)
   const compact = density === 'compact'
@@ -72,7 +71,7 @@ export function PouleCard({
           Nog geen stand
         </div>
       ) : (
-        <PoolTable rows={rows} club={club} compact={compact} showGoals={showGoals} showLogos={showLogos} />
+        <PoolTable rows={rows} club={club} compact={compact} showLogos={showLogos} />
       )}
     </div>
   )

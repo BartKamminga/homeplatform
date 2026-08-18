@@ -83,7 +83,7 @@ export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchS
         <div style={{ padding: '14px 14px 32px' }}>
           {/* Standings — zelfde PouleCard als overal elders (item 667) */}
           <div style={{ marginBottom: 18 }}>
-            <PouleCard title="Stand" rows={rows} showGoals />
+            <PouleCard title="Stand" rows={rows} />
           </div>
 
           {/* Matches */}

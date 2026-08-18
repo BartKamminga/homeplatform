@@ -15,15 +15,15 @@ function TeamName({ name, logoUrl, showLogos, highlighted }) {
   )
 }
 
-// Unified pool standings table — zelfde opmaak in elke context (browse-kaart,
-// board-kaart, wedstrijd-detail-modal). Alleen het aantal kolommen verschilt
-// per context (compact/showGoals), niet de padding/font/kleuren (item 667).
+// Unified pool standings table — zelfde opmaak en kolommen in elke context
+// (browse-kaart, board-kaart, wedstrijd-detail-modal). Alle stat-kolommen
+// (W/G/V/GV-GT/DS/Pt) staan altijd aan; compact toont alleen #/Team/Pt.
+// Instelbaarheid per kaart (welke kolommen tonen) volgt later (item 667).
 // rows: [{id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?}]  (normalized format)
 // club: string for club-row highlighting
-// compact: show only #/Team/Pt without column headers (PinnedPoolSlot)
-// showGoals: add GV-GT column (modal-detailweergave)
+// compact: show only #/Team/Pt without column headers
 // showLogos: toon clublogo voor teamnaam indien beschikbaar (default aan)
-export function PoolTable({ rows, club, compact = false, showGoals = false, showLogos = true }) {
+export function PoolTable({ rows, club, compact = false, showLogos = true }) {
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
 
   const pad  = { l: '5px 3px 5px 10px', m: '5px 3px', cell: '5px 6px', right: '5px 10px 5px 3px' }
@@ -67,9 +67,7 @@ export function PoolTable({ rows, club, compact = false, showGoals = false, show
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
-          {showGoals && (
-            <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 44, whiteSpace: 'nowrap' }}>GV–GT</th>
-          )}
+          <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 44, whiteSpace: 'nowrap' }}>GV–GT</th>
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 30, whiteSpace: 'nowrap' }}>DS</th>
           <th style={{ padding: hpad.right, textAlign: 'center', fontWeight: 600,
             width: 30, color: C.chalk }}>Pt</th>
@@ -92,11 +90,9 @@ export function PoolTable({ rows, club, compact = false, showGoals = false, show
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.w}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.d}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.l}</td>
-              {showGoals && (
-                <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted, fontSize: 11 }}>
-                  {r.gf ?? 0}–{r.ga ?? 0}
-                </td>
-              )}
+              <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted, fontSize: 11 }}>
+                {r.gf ?? 0}–{r.ga ?? 0}
+              </td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted, fontSize: 11 }}>
                 {(() => { const ds = (r.gf ?? 0) - (r.ga ?? 0); return ds > 0 ? `+${ds}` : ds })()}
               </td>
