@@ -118,6 +118,43 @@ export function PhaseCard({ phase, club, poolPins, onPoolPin, tournamentName }) 
   )
 }
 
+// ── Discovery-vs-Tournix standen-body (item 687) ──────────────────────────────
+// Isoleert de branching tussen de actieve Hockey Discovery-weergave en de
+// Tournix-fallback (useDiscovery === false) - voorheen inline gedupliceerd in
+// zowel TournamentCard (hier) als CompactPinnedCard (PinnedBoard.jsx). Zolang
+// item 685's bredere Tournix-uitfaseringsvraag openstaat blijft de fallback
+// bestaan, maar nu op precies 1 plek i.p.v. 2 kopieën.
+
+export function StandingsBody({
+  useDiscovery, fasesData, phases, poolPhases, club, tournamentName,
+  poolPins, onPoolPin, dense = false,
+}) {
+  const fs  = dense ? 12 : 13
+  const pad = dense ? 8 : '10px 0'
+
+  if (useDiscovery === null) {
+    return <div style={{ color: C.muted, fontSize: fs, padding: pad, textAlign: 'center' }}>Laden…</div>
+  }
+  if (useDiscovery === true) {
+    return fasesData ? <CompetitionStandingsView fasesData={fasesData} club={club} /> : null
+  }
+  // Tournix-fallback (geen Hockey Discovery-koppeling voor deze publicatie)
+  if (phases === null) {
+    return <div style={{ color: C.muted, fontSize: fs, padding: pad, textAlign: 'center' }}>Laden…</div>
+  }
+  if (poolPhases.length === 0) {
+    return (
+      <div style={{ color: C.muted, fontSize: fs, padding: pad, textAlign: 'center', fontStyle: 'italic' }}>
+        Geen poulefases{dense ? '' : ' gevonden'}
+      </div>
+    )
+  }
+  return poolPhases.map(p => (
+    <PhaseCard key={p.id} phase={p} club={club}
+      poolPins={poolPins} onPoolPin={onPoolPin} tournamentName={tournamentName} />
+  ))
+}
+
 // ── Tournament card (browse mode) ─────────────────────────────────────────────
 
 export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }) {
@@ -151,25 +188,10 @@ export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPo
               borderLeft: `3px solid ${C.gold}`, whiteSpace: 'pre-wrap',
             }}>{tournament.info}</div>
           )}
-          {useDiscovery === null && (
-            <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
-          )}
-          {useDiscovery === true && fasesData && (
-            <CompetitionStandingsView fasesData={fasesData} club={club} />
-          )}
-          {useDiscovery === false && (
-            phases === null
-              ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Laden…</div>
-              : poolPhases.length === 0
-                ? <div style={{ color: C.muted, fontSize: 13, padding: '10px 0', textAlign: 'center', fontStyle: 'italic' }}>
-                    Geen poulefases gevonden
-                  </div>
-                : poolPhases.map(p => (
-                    <PhaseCard key={p.id} phase={p} club={club}
-                      poolPins={poolPins} onPoolPin={onPoolPin}
-                      tournamentName={tournament.name} />
-                  ))
-          )}
+          <StandingsBody
+            useDiscovery={useDiscovery} fasesData={fasesData} phases={phases} poolPhases={poolPhases}
+            club={club} tournamentName={tournament.name} poolPins={poolPins} onPoolPin={onPoolPin}
+          />
         </div>
       )}
     </div>

@@ -4,8 +4,7 @@ import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { QueryCard } from './QueryCard.jsx'
 import { PouleCard } from './PouleCard.jsx'
-import { CompetitionStandingsView } from './BrowseComponents.jsx'
-import { PhaseCard } from './TournixBrowseCards.jsx'
+import { StandingsBody } from './TournixBrowseCards.jsx'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
 
@@ -149,21 +148,10 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
       </div>
       {open && (
         <div style={{ padding: '0 12px 12px' }}>
-          {useDiscovery === null && (
-            <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
-          )}
-          {useDiscovery === true && fasesData && (
-            <CompetitionStandingsView fasesData={fasesData} club={club} />
-          )}
-          {useDiscovery === false && (
-            phases === null
-              ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
-              : poolPhases.length === 0
-                ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8, fontStyle: 'italic' }}>
-                    Geen poulefases
-                  </div>
-                : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} tournamentName={tournament.name} />)
-          )}
+          <StandingsBody
+            useDiscovery={useDiscovery} fasesData={fasesData} phases={phases} poolPhases={poolPhases}
+            club={club} tournamentName={tournament.name} dense
+          />
         </div>
       )}
     </div>
