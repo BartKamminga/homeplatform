@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, searchDiscoveryPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
+import { getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchDiscoveryPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
 import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY, FILTER_PINS_KEY } from './constants.js'
 import { BoardView } from './PinnedBoard.jsx'
 import { usePersistedState } from './hooks.js'
@@ -148,12 +148,11 @@ export default function App() {
   useEffect(() => { getClubs().then(setClubs).catch(() => {}) }, [])
 
   useEffect(() => {
-    Promise.all([
-      getTournaments().catch(() => []),
-      getHockeyPublications().catch(() => []),
-    ]).then(([tournix, hockey]) => {
-      setAllRaw([...hockey, ...tournix])
-    }).catch(() => setError('Kon publicaties niet laden'))
+    // item 684: Tournix-merge (getTournaments()) verwijderd - productie heeft
+    // 0 gepubliceerde Tournix-toernooien, alle publicaties zijn Hockey Discovery.
+    getHockeyPublications()
+      .then(setAllRaw)
+      .catch(() => setError('Kon publicaties niet laden'))
   }, [])
 
   useEffect(() => {
@@ -193,11 +192,10 @@ export default function App() {
   useEffect(() => {
     if (!searchMode || searchQ.length < 2) { setSearchResults(null); return }
     clearTimeout(searchTimerRef.current)
+    // item 684: Tournix-zoektak (searchPools) verwijderd - levert 0 resultaten
+    // op in productie (geen gepubliceerde Tournix-toernooien meer).
     searchTimerRef.current = setTimeout(() => {
-      Promise.all([
-        searchPools(searchQ, SEASON).catch(() => []),
-        searchDiscoveryPools(searchQ).catch(() => []),
-      ]).then(([tournix, discovery]) => setSearchResults([...discovery, ...tournix]))
+      searchDiscoveryPools(searchQ).catch(() => []).then(setSearchResults)
     }, 300)
     return () => clearTimeout(searchTimerRef.current)
   }, [searchQ, searchMode])

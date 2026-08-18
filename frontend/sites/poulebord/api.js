@@ -1,6 +1,5 @@
 import { api } from '../../core/api.js'
 
-export const getTournaments         = ()    => api.get('/api/tournix/public/tournaments')
 export const getDiscoverySeason     = ()    => api.get('/api/hockey/public/season')
 export const getHockeyPublications  = ()    => api.get('/api/hockey/public/publications')
 export const getPhases         = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/phases`)
@@ -10,8 +9,6 @@ export const saveBoard         = (body) => api.post('/api/tournix/public/boards'
 export const getBoardByCode    = (code) => api.get(`/api/tournix/public/boards/${code}`)
 export const getPoolMatches    = (phaseId, poolName) =>
   api.get(`/api/tournix/public/phases/${phaseId}/pool-matches?pool=${encodeURIComponent(poolName)}`)
-export const searchPools       = (q, season = '2026-2027') =>
-  api.get(`/api/tournix/public/search?q=${encodeURIComponent(q)}&season=${encodeURIComponent(season)}`)
 export const searchDiscoveryPools = (q) =>
   api.get(`/api/hockey/public/search?q=${encodeURIComponent(q)}`)
 export const getTournamentCompetitionStandings = (tid) =>
