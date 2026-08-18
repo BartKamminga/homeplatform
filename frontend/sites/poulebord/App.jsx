@@ -80,7 +80,7 @@ export default function App() {
   }, [allRaw, season])
 
   const [selectedPub, setSelectedPub]         = useState(null)
-  const [tagFilter, setTagFilter]             = useState(null)
+  const [tagFilters, setTagFilters]           = useState(() => new Set())
   const [pubComps, setPubComps]               = useState(null)
   const [expandedCompId, setExpandedCompId]   = useState(null)
   const [club, setClub]                       = useState(() => localStorage.getItem(CLUB_KEY) || '')
@@ -159,7 +159,7 @@ export default function App() {
   useEffect(() => {
     if (!selectedPub) { setPubComps(null); return }
     setPubComps(null)
-    setTagFilter(null)
+    setTagFilters(new Set())
     setExpandedCompId(null)
     getTournamentCompetitionStandings(selectedPub.id)
       .then(data => setPubComps(data.competitions || []))
@@ -179,6 +179,17 @@ export default function App() {
   }, [searchQ, searchMode])
 
   function handlePubChange(t) { setSelectedPub(t); setInfoOpen(false) }
+
+  function toggleTagFilter(tag) {
+    setTagFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
+  function clearTagFilters() { setTagFilters(new Set()) }
 
   function saveClub(val) {
     const v = (val ?? '').trim()
@@ -299,8 +310,8 @@ export default function App() {
   const allTags   = pubComps
     ? [...new Set(pubComps.flatMap(c => (c.fase_tags || []).map(t => t.name)))]
     : []
-  const filteredComps = !pubComps ? [] : !tagFilter ? pubComps
-    : pubComps.filter(c => (c.fase_tags || []).some(t => t.name === tagFilter))
+  const filteredComps = !pubComps ? [] : tagFilters.size === 0 ? pubComps
+    : pubComps.filter(c => (c.fase_tags || []).some(t => tagFilters.has(t.name)))
   const visible = searchMode
     ? (all || []).filter(t => t.name.toLowerCase().includes(searchQ.toLowerCase()))
     : []
@@ -499,8 +510,9 @@ export default function App() {
           selectedPub={selectedPub}
           infoOpen={infoOpen}
           onToggleInfo={() => setInfoOpen(o => !o)}
-          tagFilter={tagFilter}
-          onSetTagFilter={setTagFilter}
+          tagFilters={tagFilters}
+          onToggleTagFilter={toggleTagFilter}
+          onClearTagFilters={clearTagFilters}
           filtersOpen={filtersOpen}
           onToggleFiltersOpen={() => {
             const next = !filtersOpen

@@ -114,24 +114,28 @@ function getCachedQuery(key) {
 }
 
 export function useQueryResult(pin) {
-  const { tournamentId, tag, template, stat, scope, limit } = pin
-  const cacheKey = `${tournamentId}::${tag || ''}::${template}::${stat || ''}::${scope || ''}::${limit}`
+  const { tournamentId, template, stat, scope, limit } = pin
+  // pin.tag (enkelvoud) is de oude vorm van vóór multi-tag-filtering (item 669) -
+  // gepinde kaarten van vóór die wijziging hebben nog geen pin.tags in hun localStorage.
+  const tags = pin.tags ?? (pin.tag ? [pin.tag] : [])
+  const tagKey = [...tags].sort().join(',')
+  const cacheKey = `${tournamentId}::${tagKey}::${template}::${stat || ''}::${scope || ''}::${limit}`
   const [data, setData] = useState(() => getCachedQuery(cacheKey))
   useEffect(() => {
     const cached = getCachedQuery(cacheKey)
     if (cached) { setData(cached); return }
     setData(null)
     const req = template === 'round_scorers'
-      ? getTagRoundScorers(tournamentId, tag, stat, limit)
+      ? getTagRoundScorers(tournamentId, tags, stat, limit)
       : template === 'round_matches'
-        ? getTagRoundMatches(tournamentId, tag, stat, scope || 'round', limit)
+        ? getTagRoundMatches(tournamentId, tags, stat, scope || 'round', limit)
         : template === 'upcoming_matches'
-          ? getUpcomingMatches(tournamentId, tag, stat, limit)
+          ? getUpcomingMatches(tournamentId, tags, stat, limit)
           : template === 'win_streak'
-            ? getWinStreak(tournamentId, tag, limit)
+            ? getWinStreak(tournamentId, tags, limit)
             : template === 'club_ranking'
-              ? getClubRanking(tournamentId, tag, limit)
-              : getTagRanking(tournamentId, tag, stat, limit)
+              ? getClubRanking(tournamentId, tags, limit)
+              : getTagRanking(tournamentId, tags, stat, limit)
     req
       .then(d => { _queryCache[cacheKey] = { rows: d.rows || [], ts: Date.now() }; setData(d.rows || []) })
       .catch(() => setData([]))

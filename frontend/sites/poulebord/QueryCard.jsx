@@ -38,7 +38,9 @@ const selectStyle = {
 }
 
 function titleFor(pin) {
-  const tagLabel = pin.tag || 'Alle niveaus'
+  // pin.tag (enkelvoud) is de oude vorm van vóór multi-tag-filtering (item 669).
+  const tags = pin.tags ?? (pin.tag ? [pin.tag] : [])
+  const tagLabel = tags.length ? tags.join(', ') : 'Alle niveaus'
   if (pin.template === 'ranking') return `Ranglijst · ${tagLabel}`
 
   if (pin.template === 'upcoming_matches') {

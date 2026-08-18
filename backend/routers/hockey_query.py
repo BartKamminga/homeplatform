@@ -1,8 +1,8 @@
 """Poulebord — query-templates op niveau-tag (ranglijst + rondehighlights)."""
 
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, col, select
 
 from core.database import get_session
@@ -32,9 +32,9 @@ ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
 UPCOMING_STATS = {"rank_gap", "point_gap"}
 
 
-def _scoped_poules(session: Session, tid: str, tag: Optional[str]):
-    """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op tag-naam."""
-    links = get_publication_links(session, tid, tag)
+def _scoped_poules(session: Session, tid: str, tags: Optional[List[str]]):
+    """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op 1+ tags (OR)."""
+    links = get_publication_links(session, tid, tags)
     comp_ids = [lnk.competition_id for lnk in links]
     if not comp_ids:
         return []
@@ -80,19 +80,19 @@ def _scoped_matches(session: Session, poule_ext_ids: list, scope: str):
 @router.get("/public/tournaments/{tid}/query/ranking")
 def get_tag_ranking(
     tid: str,
-    tag: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
     stat: str = "points",
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Cross-poule ranglijst (top-N) voor een niveau-tag binnen een publicatie."""
+    """Cross-poule ranglijst (top-N) voor een publicatie, evt. gefilterd op 1 of meer niveau-tags (OR)."""
     if stat not in RANKING_STATS:
         raise HTTPException(400, "Onbekende stat")
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "rows": []}
+        return {"tags": tag, "stat": stat, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
@@ -121,13 +121,13 @@ def get_tag_ranking(
             "goals_against":    r.goals_against,
             "goal_diff":        r.goals_for - r.goals_against,
         })
-    return {"tag": tag, "stat": stat, "rows": rows}
+    return {"tags": tag, "stat": stat, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/round-scorers")
 def get_tag_round_scorers(
     tid: str,
-    tag: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
     stat: str = "goals_for",
     limit: int = 3,
     session: Session = Depends(get_session),
@@ -143,7 +143,7 @@ def get_tag_round_scorers(
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "rows": []}
+        return {"tags": tag, "stat": stat, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
@@ -183,13 +183,13 @@ def get_tag_round_scorers(
             "goals_against":    data["goals_against"],
             "round":            last_round.get(poule_ext_id),
         })
-    return {"tag": tag, "stat": stat, "rows": rows}
+    return {"tags": tag, "stat": stat, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/round-matches")
 def get_tag_round_matches(
     tid: str,
-    tag: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
     stat: str = "biggest_margin",
     scope: str = "round",
     limit: int = 3,
@@ -204,7 +204,7 @@ def get_tag_round_matches(
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "scope": scope, "rows": []}
+        return {"tags": tag, "stat": stat, "scope": scope, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
@@ -236,13 +236,13 @@ def get_tag_round_matches(
             "competition_name": comp.name if comp else None,
             "round":            m.round,
         })
-    return {"tag": tag, "stat": stat, "scope": scope, "rows": rows}
+    return {"tags": tag, "stat": stat, "scope": scope, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/upcoming-matches")
 def get_upcoming_matches(
     tid: str,
-    tag: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
     stat: str = "rank_gap",
     limit: int = 3,
     session: Session = Depends(get_session),
@@ -254,7 +254,7 @@ def get_upcoming_matches(
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "rows": []}
+        return {"tags": tag, "stat": stat, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
@@ -265,7 +265,7 @@ def get_upcoming_matches(
         .where(HockeyPouleMatch.status != "finished")
     ).all()
     if not scheduled:
-        return {"tag": tag, "stat": stat, "rows": []}
+        return {"tags": tag, "stat": stat, "rows": []}
 
     standings = session.exec(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
@@ -302,22 +302,22 @@ def get_upcoming_matches(
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
         })
-    return {"tag": tag, "stat": stat, "rows": rows}
+    return {"tags": tag, "stat": stat, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/win-streak")
 def get_win_streak(
     tid: str,
-    tag: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Langste actieve reeks overwinningen per team, binnen een niveau-tag."""
+    """Langste actieve reeks overwinningen per team, binnen 1 of meer niveau-tags."""
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "rows": []}
+        return {"tags": tag, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
@@ -360,22 +360,22 @@ def get_win_streak(
             "competition_name": comp.name if comp else None,
             "streak":           streak,
         })
-    return {"tag": tag, "rows": rows}
+    return {"tags": tag, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/club-ranking")
 def get_club_ranking(
     tid: str,
-    tag: Optional[str] = None,
+    tag: Optional[List[str]] = Query(None),
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Welke club heeft de meeste teams binnen een niveau-tag."""
+    """Welke club heeft de meeste teams binnen 1 of meer niveau-tags."""
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "rows": []}
+        return {"tags": tag, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     standings = session.exec(
@@ -401,4 +401,4 @@ def get_club_ranking(
             "club_logo_url": club.logo_url if club else None,
             "team_count":    count,
         })
-    return {"tag": tag, "rows": rows}
+    return {"tags": tag, "rows": rows}

@@ -6,11 +6,13 @@ import { QuerySlotsSection } from './QuerySlotsSection.jsx'
 export function BrowseView({
   all, error, selectedPub,
   infoOpen, onToggleInfo,
-  tagFilter, onSetTagFilter, filtersOpen, onToggleFiltersOpen, allTags,
+  tagFilters, onToggleTagFilter, onClearTagFilters, filtersOpen, onToggleFiltersOpen, allTags,
   pubComps, filteredComps, expandedCompId, onToggleComp,
   club, poolPins, onPoolPin,
   queryPins, queryDrafts, onSetQueryPin, onUpdateQueryPin, onRemoveQueryPin, onSetQueryDraft,
 }) {
+  const activeCount = tagFilters.size
+  const filterSummary = activeCount === 0 ? '' : activeCount === 1 ? ` · ${[...tagFilters][0]}` : ` · ${activeCount} tags`
   return (
     <div style={{ padding: '12px 10px' }}>
       {error && (
@@ -39,19 +41,19 @@ export function BrowseView({
           {allTags.length > 0 && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: filtersOpen ? 6 : 12 }}>
-                <button onClick={onToggleFiltersOpen} style={pillStyle(!!tagFilter, 'sm')}>
-                  {filtersOpen ? '▲ Filter' : `▼ Filter${tagFilter ? ` · ${tagFilter}` : ''}`}
+                <button onClick={onToggleFiltersOpen} style={pillStyle(activeCount > 0, 'sm')}>
+                  {filtersOpen ? '▲ Filter' : `▼ Filter${filterSummary}`}
                 </button>
-                {!filtersOpen && tagFilter && (
-                  <button onClick={() => onSetTagFilter(null)} style={pillStyle(false, 'sm')}>✕</button>
+                {!filtersOpen && activeCount > 0 && (
+                  <button onClick={onClearTagFilters} style={pillStyle(false, 'sm')}>✕</button>
                 )}
               </div>
               {filtersOpen && (
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <button onClick={() => onSetTagFilter(null)} style={pillStyle(!tagFilter)}>Alle</button>
+                  <button onClick={onClearTagFilters} style={pillStyle(activeCount === 0)}>Alle</button>
                   {allTags.map(tag => (
-                    <button key={tag} onClick={() => onSetTagFilter(tagFilter === tag ? null : tag)}
-                      style={pillStyle(tagFilter === tag)}>{tag}</button>
+                    <button key={tag} onClick={() => onToggleTagFilter(tag)}
+                      style={pillStyle(tagFilters.has(tag))}>{tag}</button>
                   ))}
                 </div>
               )}
@@ -61,7 +63,7 @@ export function BrowseView({
             <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
           ) : filteredComps.length === 0 ? (
             <div style={{ textAlign: 'center', color: C.muted, padding: '24px 0', fontStyle: 'italic', fontSize: 13 }}>
-              Geen competities{tagFilter ? ` voor "${tagFilter}"` : ''}
+              Geen competities{activeCount > 0 ? ` voor ${[...tagFilters].join(', ')}` : ''}
             </div>
           ) : (
             filteredComps.map(comp => (
@@ -80,7 +82,7 @@ export function BrowseView({
             <QuerySlotsSection
               tournamentId={selectedPub.id}
               tournamentName={selectedPub.name}
-              tag={tagFilter}
+              tags={[...tagFilters]}
               queryPins={queryPins}
               queryDrafts={queryDrafts}
               onSetQueryPin={onSetQueryPin}

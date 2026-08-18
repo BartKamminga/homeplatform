@@ -19,20 +19,21 @@ const QUERY_SLOTS = [
 // de standaardconfiguratie; wijzigingen daarop blijven lokaal (queryDrafts) tot
 // je 'm pint, waarna verdere wijzigingen in de echte pin belanden.
 export function QuerySlotsSection({
-  tournamentId, tournamentName, tag, queryPins, queryDrafts,
+  tournamentId, tournamentName, tags, queryPins, queryDrafts,
   onSetQueryPin, onUpdateQueryPin, onRemoveQueryPin, onSetQueryDraft,
 }) {
+  const tagKey = [...(tags || [])].sort().join(',')
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
         color: C.muted, padding: '4px 2px 8px', borderTop: `1px solid ${C.border}` }}>
-        Queries{tag ? ` · ${tag}` : ''}
+        Queries{tags?.length ? ` · ${tags.join(', ')}` : ''}
       </div>
       {QUERY_SLOTS.map(({ template, stat }) => {
-        const key = `${tournamentId}::${tag || ''}::${template}::${stat}`
+        const key = `${tournamentId}::${tagKey}::${template}::${stat}`
         const pinnedPin = queryPins.get(key)
         const pin = pinnedPin || {
-          tournamentId, tournamentName, tag: tag || null, template, stat, scope: 'round', limit: 3,
+          tournamentId, tournamentName, tags: tags || [], template, stat, scope: 'round', limit: 3,
           ...(queryDrafts[key] || {}),
         }
         return (

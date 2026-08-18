@@ -20,27 +20,22 @@ export const getHockeyPouleStandings = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
 export const getCompetitionMatches = (cid) =>
   api.get(`/api/hockey/public/competitions/${cid}/matches`)
-export const getTagRanking = (tid, tag, stat, limit) =>
-  api.get(`/api/hockey/public/tournaments/${tid}/query/ranking?${new URLSearchParams({
-    ...(tag ? { tag } : {}), stat, limit,
-  })}`)
-export const getTagRoundScorers = (tid, tag, stat, limit) =>
-  api.get(`/api/hockey/public/tournaments/${tid}/query/round-scorers?${new URLSearchParams({
-    ...(tag ? { tag } : {}), stat, limit,
-  })}`)
-export const getTagRoundMatches = (tid, tag, stat, scope, limit) =>
-  api.get(`/api/hockey/public/tournaments/${tid}/query/round-matches?${new URLSearchParams({
-    ...(tag ? { tag } : {}), stat, scope, limit,
-  })}`)
-export const getUpcomingMatches = (tid, tag, stat, limit) =>
-  api.get(`/api/hockey/public/tournaments/${tid}/query/upcoming-matches?${new URLSearchParams({
-    ...(tag ? { tag } : {}), stat, limit,
-  })}`)
-export const getWinStreak = (tid, tag, limit) =>
-  api.get(`/api/hockey/public/tournaments/${tid}/query/win-streak?${new URLSearchParams({
-    ...(tag ? { tag } : {}), limit,
-  })}`)
-export const getClubRanking = (tid, tag, limit) =>
-  api.get(`/api/hockey/public/tournaments/${tid}/query/club-ranking?${new URLSearchParams({
-    ...(tag ? { tag } : {}), limit,
-  })}`)
+// Bouwt een querystring met 0+ herhaalde tag=...-params (OR-logica op de backend) plus extra params.
+function tagQuery(tags, extra) {
+  const params = new URLSearchParams(extra)
+  for (const t of (tags || [])) params.append('tag', t)
+  return params.toString()
+}
+
+export const getTagRanking = (tid, tags, stat, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/ranking?${tagQuery(tags, { stat, limit })}`)
+export const getTagRoundScorers = (tid, tags, stat, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/round-scorers?${tagQuery(tags, { stat, limit })}`)
+export const getTagRoundMatches = (tid, tags, stat, scope, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/round-matches?${tagQuery(tags, { stat, scope, limit })}`)
+export const getUpcomingMatches = (tid, tags, stat, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/upcoming-matches?${tagQuery(tags, { stat, limit })}`)
+export const getWinStreak = (tid, tags, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/win-streak?${tagQuery(tags, { limit })}`)
+export const getClubRanking = (tid, tags, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/club-ranking?${tagQuery(tags, { limit })}`)
