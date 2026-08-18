@@ -74,7 +74,7 @@ export function BrowseView({
                 expanded={expandedCompId === comp.link_id}
                 onToggle={() => onToggleComp(comp.link_id)}
                 poolPins={poolPins}
-                onPoolPin={(phaseId, poolName) => onPoolPin(phaseId, poolName, selectedPub?.name)}
+                onPoolPin={(phaseId, poolName, compName) => onPoolPin(phaseId, poolName, selectedPub?.name, compName)}
               />
             ))
           )}

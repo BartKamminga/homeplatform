@@ -3,23 +3,7 @@ import { C, SEIZOEN_INFO } from './constants.js'
 import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { CompetitionStandingsView } from './BrowseComponents.jsx'
-import { QueryCard } from './QueryCard.jsx'
 import { PouleCard } from './PouleCard.jsx'
-
-// ── Empty board ────────────────────────────────────────────────────────────────
-
-export function EmptyBoard() {
-  return (
-    <div style={{ textAlign: 'center', padding: '52px 24px' }}>
-      <div style={{ fontSize: 36, marginBottom: 14 }}>📌</div>
-      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22,
-        letterSpacing: '0.06em', marginBottom: 10, color: C.chalk }}>JE BOARD IS LEEG</div>
-      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.7 }}>
-        Pin een competitie of poule tijdens het bladeren om 'm hier terug te zien.
-      </div>
-    </div>
-  )
-}
 
 // ── Season info ────────────────────────────────────────────────────────────────
 
@@ -134,57 +118,6 @@ export function PhaseCard({ phase, club, poolPins, onPoolPin, tournamentName }) 
   )
 }
 
-// ── Pinned pool slot (compact, board) ─────────────────────────────────────────
-
-function PinnedPoolSlot({ pin, club, tournamentName, onUnpin }) {
-  const standings = useStandings(pin.phaseId)
-  const isDisc    = pin.phaseId?.startsWith?.('disc_')
-  const poolRows  = standings
-    ? (isDisc ? standings : standings.filter(r => r.pool_name === pin.poolName))
-    : null
-  const [modal, setModal] = useState(false)
-
-  return (
-    <div style={{ marginBottom: 8 }}>
-      {modal && (
-        <MatchModal
-          title={pin.poolName}
-          subtitle={tournamentName || ''}
-          rows={poolRows || []}
-          matchSource={!isDisc ? { phaseId: pin.phaseId, poolName: pin.poolName } : undefined}
-          matches={isDisc ? { finished: [], scheduled: [] } : undefined}
-          onClose={() => setModal(false)}
-        />
-      )}
-      {poolRows === null ? (
-        <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
-      ) : (
-        <PouleCard
-          title={pin.poolName}
-          subtitle={tournamentName}
-          rows={poolRows}
-          club={club}
-          onOpen={poolRows.length > 0 ? () => setModal(true) : undefined}
-          pinned={true}
-          onTogglePin={onUnpin}
-        />
-      )}
-    </div>
-  )
-}
-
-export function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
-  return (
-    <div>
-      {pins.map(p => (
-        <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
-          pin={p} club={club} tournamentName={tournamentName}
-          onUnpin={() => onUnpin(p.phaseId, p.poolName)} />
-      ))}
-    </div>
-  )
-}
-
 // ── Compact pinned tournament card (board) ────────────────────────────────────
 
 export function CompactPinnedCard({ tournament, club, onUnpin }) {
@@ -294,82 +227,6 @@ export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPo
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-// ── Board view ────────────────────────────────────────────────────────────────
-
-export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin,
-  queryPins, onQueryUpdate, onQueryUnpin }) {
-  const pinnedTournaments = [...pins]
-    .map(id => allTournaments?.find(t => t.id === id))
-    .filter(Boolean)
-
-  const pinnedPools = [...poolPins.values()]
-
-  const queryPinList = [...(queryPins?.values() ?? [])]
-
-  const hasT         = pinnedTournaments.length > 0
-  const hasP         = pinnedPools.length > 0
-  const hasQ         = queryPinList.length > 0
-  const hasPinned    = hasT || hasP || hasQ
-  const showSubLabels = [hasT, hasP, hasQ].filter(Boolean).length > 1
-
-  if (!hasPinned) return <EmptyBoard />
-
-  return (
-    <div style={{ padding: '12px 10px' }}>
-      {showSubLabels && hasT && (
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-          textTransform: 'uppercase', color: C.muted, padding: '0 2px 6px' }}>
-          Competities
-        </div>
-      )}
-      {pinnedTournaments.map(t => (
-        <CompactPinnedCard key={t.id} tournament={t} club={club} onUnpin={() => onUnpin(t.id)} />
-      ))}
-
-      {showSubLabels && hasP && (
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-          textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
-          Poules
-        </div>
-      )}
-      {(() => {
-        const grouped = {}
-        for (const p of pinnedPools) {
-          if (!grouped[p.tournamentName]) grouped[p.tournamentName] = []
-          grouped[p.tournamentName].push(p)
-        }
-        return Object.entries(grouped)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([tn, gPins]) => (
-            <PinnedPoolGroupCard
-              key={tn}
-              tournamentName={tn}
-              pins={gPins.sort((a, b) => a.poolName.localeCompare(b.poolName, undefined, { numeric: true }))}
-              club={club}
-              onUnpin={onPoolUnpin}
-            />
-          ))
-      })()}
-
-      {showSubLabels && hasQ && (
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-          textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
-          Queries
-        </div>
-      )}
-      {[...(queryPins?.entries() ?? [])].map(([key, pin]) => (
-        <QueryCard
-          key={key}
-          pin={pin}
-          pinned={true}
-          onTogglePin={() => onQueryUnpin(key)}
-          onUpdate={patch => onQueryUpdate(key, patch)}
-        />
-      ))}
     </div>
   )
 }

@@ -114,7 +114,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
     if (!poules.length || !onPoolPin) return
     poules.forEach(p => {
       const pinned = poolPins?.has('disc_' + p.id + '::' + p.name)
-      if (allPinned ? pinned : !pinned) onPoolPin('disc_' + p.id, p.name)
+      if (allPinned ? pinned : !pinned) onPoolPin('disc_' + p.id, p.name, comp.name)
     })
   }
 
@@ -202,7 +202,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
                     <DiscPouleTable
                       poule={poule}
                       club={club}
-                      onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name) : undefined}
+                      onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name, comp.name) : undefined}
                       isPinned={poolPins?.has('disc_' + poule.id + '::' + poule.name)}
                       onOpenMatches={() => openMatches(poule)}
                     />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, searchDiscoveryPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
 import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY } from './constants.js'
-import { BoardView } from './BoardView.jsx'
+import { BoardView } from './PinnedBoard.jsx'
 import { usePersistedState } from './hooks.js'
 import { MyBoardsView } from './MyBoardsView.jsx'
 import { SearchView } from './SearchView.jsx'
@@ -261,12 +261,12 @@ export default function App() {
     })
   }
 
-  function togglePoolPin(phaseId, poolName, tournamentName) {
+  function togglePoolPin(phaseId, poolName, tournamentName, compName) {
     const key = `${phaseId}::${poolName}`
     setPoolPins(prev => {
       const next = new Map(prev)
       if (next.has(key)) next.delete(key)
-      else next.set(key, { phaseId, poolName, tournamentName })
+      else next.set(key, { phaseId, poolName, tournamentName, compName })
       return next
     })
   }
