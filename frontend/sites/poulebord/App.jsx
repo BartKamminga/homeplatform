@@ -4,6 +4,14 @@ import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY,
 import { BoardView, SeizoenInfo, TournamentCard } from './BoardView.jsx'
 import { PoolSearchCard, CompBrowseItem } from './BrowseComponents.jsx'
 
+const QUERY_PIN_BUTTONS = [
+  { template: 'ranking',        stat: 'points',         label: 'Ranglijst' },
+  { template: 'round_scorers',  stat: 'goals_for',      label: 'Topscorers' },
+  { template: 'round_scorers',  stat: 'goals_against',  label: 'Beste verdediging' },
+  { template: 'round_matches',  stat: 'biggest_margin', label: 'Grootste overwinning' },
+  { template: 'round_matches',  stat: 'closest_match',  label: 'Spannendste wedstrijd' },
+]
+
 // ── Club dropdown (item 551) ──────────────────────────────────────────────────
 
 function ClubDropdown({ value, clubs, onSelect, onSave, C }) {
@@ -227,10 +235,10 @@ export default function App() {
     })
   }
 
-  function toggleQueryPin(template) {
+  function toggleQueryPin(template, stat) {
     if (!selectedPub) return
     const tag = tagFilter || null
-    const key = `${selectedPub.id}::${tag || ''}::${template}`
+    const key = `${selectedPub.id}::${tag || ''}::${template}::${stat}`
     setQueryPins(prev => {
       const next = new Map(prev)
       if (next.has(key)) {
@@ -238,7 +246,7 @@ export default function App() {
       } else {
         next.set(key, {
           tournamentId: selectedPub.id, tournamentName: selectedPub.name,
-          tag, template, stat: 'points', limit: 3,
+          tag, template, stat, limit: 3,
         })
       }
       localStorage.setItem(QUERY_PINS_KEY, JSON.stringify([...next.entries()]))
@@ -715,28 +723,22 @@ export default function App() {
                   )}
                 </>
               )}
-              {pubComps !== null && pubComps.length > 0 && (() => {
-                const rankKey  = `${selectedPub.id}::${tagFilter || ''}::ranking`
-                const scoreKey = `${selectedPub.id}::${tagFilter || ''}::round_scorers`
-                const rankPinned  = queryPins.has(rankKey)
-                const scorePinned = queryPins.has(scoreKey)
-                return (
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <button onClick={() => toggleQueryPin('ranking')} style={{
-                      padding: '4px 10px', borderRadius: 14, fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit',
-                      background: rankPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-                      border: `1px solid ${rankPinned ? C.gold : C.border}`,
-                      color: rankPinned ? C.gold : C.muted,
-                    }}>📌 Ranglijst{tagFilter ? ` · ${tagFilter}` : ''}</button>
-                    <button onClick={() => toggleQueryPin('round_scorers')} style={{
-                      padding: '4px 10px', borderRadius: 14, fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit',
-                      background: scorePinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-                      border: `1px solid ${scorePinned ? C.gold : C.border}`,
-                      color: scorePinned ? C.gold : C.muted,
-                    }}>📌 Topscorers{tagFilter ? ` · ${tagFilter}` : ''}</button>
-                  </div>
-                )
-              })()}
+              {pubComps !== null && pubComps.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {QUERY_PIN_BUTTONS.map(({ template, stat, label }) => {
+                    const key = `${selectedPub.id}::${tagFilter || ''}::${template}::${stat}`
+                    const pinned = queryPins.has(key)
+                    return (
+                      <button key={key} onClick={() => toggleQueryPin(template, stat)} style={{
+                        padding: '4px 10px', borderRadius: 14, fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit',
+                        background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+                        border: `1px solid ${pinned ? C.gold : C.border}`,
+                        color: pinned ? C.gold : C.muted,
+                      }}>📌 {label}{tagFilter ? ` · ${tagFilter}` : ''}</button>
+                    )
+                  })}
+                </div>
+              )}
               {pubComps === null ? (
                 <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
               ) : filteredComps.length === 0 ? (

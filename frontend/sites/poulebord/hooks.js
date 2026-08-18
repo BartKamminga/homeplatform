@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getHockeyPouleStandings, getPhaseStandings, getTagRanking, getTagRoundScorers } from './api.js'
+import { getHockeyPouleStandings, getPhaseStandings, getTagRanking, getTagRoundScorers, getTagRoundMatches } from './api.js'
 
 const _standingsCache = {}
 const CACHE_TTL = 5 * 60 * 1000
@@ -56,8 +56,10 @@ export function useQueryResult(pin) {
     if (cached) { setData(cached); return }
     setData(null)
     const req = template === 'round_scorers'
-      ? getTagRoundScorers(tournamentId, tag, limit)
-      : getTagRanking(tournamentId, tag, stat, limit)
+      ? getTagRoundScorers(tournamentId, tag, stat, limit)
+      : template === 'round_matches'
+        ? getTagRoundMatches(tournamentId, tag, stat, limit)
+        : getTagRanking(tournamentId, tag, stat, limit)
     req
       .then(d => { _queryCache[cacheKey] = { rows: d.rows || [], ts: Date.now() }; setData(d.rows || []) })
       .catch(() => setData([]))
