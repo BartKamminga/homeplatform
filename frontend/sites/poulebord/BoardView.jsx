@@ -583,8 +583,9 @@ export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoo
             <QueryCard
               key={key}
               pin={pin}
+              pinned={true}
+              onTogglePin={() => onQueryUnpin(key)}
               onUpdate={patch => onQueryUpdate(key, patch)}
-              onUnpin={() => onQueryUnpin(key)}
             />
           ))}
         </BoardSection>

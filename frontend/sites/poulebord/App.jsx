@@ -3,13 +3,14 @@ import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByC
 import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY, categoryOf } from './constants.js'
 import { BoardView, SeizoenInfo, TournamentCard } from './BoardView.jsx'
 import { PoolSearchCard, CompBrowseItem } from './BrowseComponents.jsx'
+import { QueryCard } from './QueryCard.jsx'
 
-const QUERY_PIN_BUTTONS = [
-  { template: 'ranking',        stat: 'points',         label: 'Ranglijst' },
-  { template: 'round_scorers',  stat: 'goals_for',      label: 'Topscorers' },
-  { template: 'round_scorers',  stat: 'goals_against',  label: 'Beste verdediging' },
-  { template: 'round_matches',  stat: 'biggest_margin', label: 'Grootste overwinning' },
-  { template: 'round_matches',  stat: 'closest_match',  label: 'Spannendste wedstrijd' },
+const QUERY_SLOTS = [
+  { template: 'ranking',        stat: 'points' },
+  { template: 'round_scorers',  stat: 'goals_for' },
+  { template: 'round_scorers',  stat: 'goals_against' },
+  { template: 'round_matches',  stat: 'biggest_margin' },
+  { template: 'round_matches',  stat: 'closest_match' },
 ]
 
 // ── Club dropdown (item 551) ──────────────────────────────────────────────────
@@ -111,6 +112,7 @@ export default function App() {
     try { return new Map(JSON.parse(localStorage.getItem(QUERY_PINS_KEY) || '[]')) }
     catch { return new Map() }
   })
+  const [queryDrafts, setQueryDrafts]         = useState({})
   const [myBoardsView, setMyBoardsView]       = useState(false)
   const [searchMode, setSearchMode]           = useState(false)
   const [searchQ, setSearchQ]                 = useState('')
@@ -235,20 +237,10 @@ export default function App() {
     })
   }
 
-  function toggleQueryPin(template, stat) {
-    if (!selectedPub) return
-    const tag = tagFilter || null
-    const key = `${selectedPub.id}::${tag || ''}::${template}::${stat}`
+  function setQueryPin(key, cfg) {
     setQueryPins(prev => {
       const next = new Map(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.set(key, {
-          tournamentId: selectedPub.id, tournamentName: selectedPub.name,
-          tag, template, stat, scope: 'round', limit: 3,
-        })
-      }
+      next.set(key, cfg)
       localStorage.setItem(QUERY_PINS_KEY, JSON.stringify([...next.entries()]))
       return next
     })
@@ -723,22 +715,6 @@ export default function App() {
                   )}
                 </>
               )}
-              {pubComps !== null && pubComps.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                  {QUERY_PIN_BUTTONS.map(({ template, stat, label }) => {
-                    const key = `${selectedPub.id}::${tagFilter || ''}::${template}::${stat}`
-                    const pinned = queryPins.has(key)
-                    return (
-                      <button key={key} onClick={() => toggleQueryPin(template, stat)} style={{
-                        padding: '4px 10px', borderRadius: 14, fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit',
-                        background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-                        border: `1px solid ${pinned ? C.gold : C.border}`,
-                        color: pinned ? C.gold : C.muted,
-                      }}>📌 {label}{tagFilter ? ` · ${tagFilter}` : ''}</button>
-                    )
-                  })}
-                </div>
-              )}
               {pubComps === null ? (
                 <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
               ) : filteredComps.length === 0 ? (
@@ -757,6 +733,34 @@ export default function App() {
                     onPoolPin={(phaseId, poolName) => togglePoolPin(phaseId, poolName, selectedPub?.name)}
                   />
                 ))
+              )}
+              {pubComps !== null && pubComps.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                    color: C.muted, padding: '4px 2px 8px', borderTop: `1px solid ${C.border}` }}>
+                    Queries{tagFilter ? ` · ${tagFilter}` : ''}
+                  </div>
+                  {QUERY_SLOTS.map(({ template, stat }) => {
+                    const key = `${selectedPub.id}::${tagFilter || ''}::${template}::${stat}`
+                    const pinnedPin = queryPins.get(key)
+                    const pin = pinnedPin || {
+                      tournamentId: selectedPub.id, tournamentName: selectedPub.name,
+                      tag: tagFilter || null, template, stat, scope: 'round', limit: 3,
+                      ...(queryDrafts[key] || {}),
+                    }
+                    return (
+                      <QueryCard
+                        key={key}
+                        pin={pin}
+                        pinned={!!pinnedPin}
+                        onTogglePin={() => pinnedPin ? removeQueryPin(key) : setQueryPin(key, pin)}
+                        onUpdate={patch => pinnedPin
+                          ? updateQueryPin(key, patch)
+                          : setQueryDrafts(prev => ({ ...prev, [key]: { ...(prev[key] || {}), ...patch } }))}
+                      />
+                    )
+                  })}
+                </div>
               )}
             </>
           )}

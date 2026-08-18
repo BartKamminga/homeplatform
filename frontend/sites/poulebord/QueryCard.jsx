@@ -77,7 +77,7 @@ function MatchRows({ rows }) {
   ))
 }
 
-export function QueryCard({ pin, onUpdate, onUnpin }) {
+export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
   const rows = useQueryResult(pin)
   const statOptions = STATS_BY_TEMPLATE[pin.template] || []
 
@@ -106,10 +106,12 @@ export function QueryCard({ pin, onUpdate, onUnpin }) {
         <select value={pin.limit} onChange={e => onUpdate({ limit: parseInt(e.target.value, 10) })} style={selectStyle}>
           {[3, 5, 10].map(n => <option key={n} value={n}>Top {n}</option>)}
         </select>
-        <button onClick={onUnpin} style={{
-          background: 'none', border: 'none', padding: 0,
-          cursor: 'pointer', color: C.muted, fontSize: 11, lineHeight: 1,
-        }}>✕</button>
+        <button onClick={onTogglePin} title={pinned ? 'Van board halen' : 'Pinnen op board'} style={{
+          background: pinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+          border: `1px solid ${pinned ? C.gold : C.border}`, borderRadius: 4,
+          padding: '1px 5px', fontSize: 11, color: pinned ? C.gold : C.muted,
+          cursor: 'pointer', lineHeight: 1.3, flexShrink: 0,
+        }}>📌</button>
       </div>
       {rows === null ? (
         <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
