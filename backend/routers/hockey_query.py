@@ -6,15 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
 
 from core.database import get_session
-from models.hockey import HockeyPublicationComp, HockeyPublicationCompTag, HockeyPublicationTag
 from models.hockey_discovery import (
-    HockeyClub,
     HockeyCompetition,
     HockeyPoule,
     HockeyPouleMatch,
     HockeyPouleStanding,
-    HockeyTeam,
 )
+from services.hockey_scope import get_publication_links
+from services.hockey_teams import resolve_team_clubs, club_logo_for_team
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-query"])
 
@@ -30,25 +29,12 @@ RANKING_STATS = {
 
 ROUND_TEAM_STATS = {"goals_for", "goals_against"}
 ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
+UPCOMING_STATS = {"rank_gap", "point_gap"}
 
 
 def _scoped_poules(session: Session, tid: str, tag: Optional[str]):
     """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op tag-naam."""
-    links = session.exec(
-        select(HockeyPublicationComp)
-        .where(HockeyPublicationComp.publication_id == tid)
-        .where(HockeyPublicationComp.visible == True)  # noqa: E712
-    ).all()
-
-    if tag:
-        ctags = session.exec(
-            select(HockeyPublicationCompTag)
-            .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
-            .where(HockeyPublicationTag.name == tag)
-        ).all()
-        tagged_link_ids = {ct.comp_link_id for ct in ctags}
-        links = [lnk for lnk in links if lnk.id in tagged_link_ids]
-
+    links = get_publication_links(session, tid, tag)
     comp_ids = [lnk.competition_id for lnk in links]
     if not comp_ids:
         return []
@@ -61,23 +47,6 @@ def _scoped_poules(session: Session, tid: str, tag: Optional[str]):
         select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids))
     ).all()
     return [(p, comps.get(p.competition_id)) for p in poules]
-
-
-def _teams_and_clubs(session: Session, team_ids: list):
-    if not team_ids:
-        return {}, {}
-    teams = {
-        t.team_id: t for t in session.exec(
-            select(HockeyTeam).where(col(HockeyTeam.team_id).in_(team_ids))
-        ).all()
-    }
-    club_ext_ids = [t.club_external_id for t in teams.values()]
-    clubs = {
-        c.external_id: c for c in session.exec(
-            select(HockeyClub).where(col(HockeyClub.external_id).in_(club_ext_ids))
-        ).all()
-    } if club_ext_ids else {}
-    return teams, clubs
 
 
 def _finished_matches(session: Session, poule_ext_ids: list):
@@ -131,19 +100,17 @@ def get_tag_ranking(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
     ).all()
 
-    teams, clubs = _teams_and_clubs(session, [r.team_id for r in standings])
+    teams, clubs = resolve_team_clubs(session, [r.team_id for r in standings])
     key_func, reverse = RANKING_STATS[stat]
     ranked = sorted(standings, key=key_func, reverse=reverse)[:limit]
 
     rows = []
     for i, r in enumerate(ranked):
         poule, comp = poule_by_ext.get(r.poule_id, (None, None))
-        team = teams.get(r.team_id)
-        club = clubs.get(team.club_external_id) if team else None
         rows.append({
             "rank":             i + 1,
             "team_name":        r.team_name,
-            "club_logo_url":    club.logo_url if club else None,
+            "club_logo_url":    club_logo_for_team(teams, clubs, r.team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
             "points":           r.points,
@@ -198,19 +165,17 @@ def get_tag_round_scorers(
             entry["goals_for"] += m.away_score
             entry["goals_against"] += m.home_score
 
-    teams, clubs = _teams_and_clubs(session, [team_id for (_, team_id) in totals.keys()])
+    teams, clubs = resolve_team_clubs(session, [team_id for (_, team_id) in totals])
     reverse = stat == "goals_for"
     ranked = sorted(totals.items(), key=lambda kv: kv[1][stat], reverse=reverse)[:limit]
 
     rows = []
     for i, ((poule_ext_id, team_id), data) in enumerate(ranked):
         poule, comp = poule_by_ext.get(poule_ext_id, (None, None))
-        team = teams.get(team_id)
-        club = clubs.get(team.club_external_id) if team else None
         rows.append({
             "rank":             i + 1,
             "team_name":        data["team_name"],
-            "club_logo_url":    club.logo_url if club else None,
+            "club_logo_url":    club_logo_for_team(teams, clubs, team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
             "goals_for":        data["goals_for"],
@@ -271,3 +236,168 @@ def get_tag_round_matches(
             "round":            m.round,
         })
     return {"tag": tag, "stat": stat, "scope": scope, "rows": rows}
+
+
+@router.get("/public/tournaments/{tid}/query/upcoming-matches")
+def get_upcoming_matches(
+    tid: str,
+    tag: Optional[str] = None,
+    stat: str = "rank_gap",
+    limit: int = 3,
+    session: Session = Depends(get_session),
+):
+    """Belangrijke/spannende nog te spelen wedstrijd: kleinste verschil in positie of punten tussen de twee teams."""
+    if stat not in UPCOMING_STATS:
+        raise HTTPException(400, "Onbekende stat")
+    limit = max(1, min(limit, 20))
+
+    scoped = _scoped_poules(session, tid, tag)
+    if not scoped:
+        return {"tag": tag, "stat": stat, "rows": []}
+
+    poule_ext_ids = [p.poule_id for p, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+
+    scheduled = session.exec(
+        select(HockeyPouleMatch)
+        .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
+        .where(HockeyPouleMatch.status != "finished")
+    ).all()
+    if not scheduled:
+        return {"tag": tag, "stat": stat, "rows": []}
+
+    standings = session.exec(
+        select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
+    ).all()
+    standing_by_team = {(s.poule_id, s.team_id): s for s in standings}
+
+    candidates = []
+    for m in scheduled:
+        if m.home_team_id is None or m.away_team_id is None:
+            continue
+        home = standing_by_team.get((m.poule_id, m.home_team_id))
+        away = standing_by_team.get((m.poule_id, m.away_team_id))
+        if not home or not away or home.position is None or away.position is None:
+            continue
+        gap = abs(home.position - away.position) if stat == "rank_gap" else abs(home.points - away.points)
+        candidates.append((m, home, away, gap))
+
+    candidates.sort(key=lambda c: (c[3], c[0].match_date or ""))
+    ranked = candidates[:limit]
+
+    rows = []
+    for i, (m, home, away, gap) in enumerate(ranked):
+        poule, comp = poule_by_ext.get(m.poule_id, (None, None))
+        rows.append({
+            "rank":             i + 1,
+            "home_team":        m.home_team_name,
+            "away_team":        m.away_team_name,
+            "home_position":    home.position,
+            "away_position":    away.position,
+            "home_points":      home.points,
+            "away_points":      away.points,
+            "match_date":       m.match_date,
+            "gap":              gap,
+            "poule_name":       poule.name if poule else None,
+            "competition_name": comp.name if comp else None,
+        })
+    return {"tag": tag, "stat": stat, "rows": rows}
+
+
+@router.get("/public/tournaments/{tid}/query/win-streak")
+def get_win_streak(
+    tid: str,
+    tag: Optional[str] = None,
+    limit: int = 3,
+    session: Session = Depends(get_session),
+):
+    """Langste actieve reeks overwinningen per team, binnen een niveau-tag."""
+    limit = max(1, min(limit, 20))
+
+    scoped = _scoped_poules(session, tid, tag)
+    if not scoped:
+        return {"tag": tag, "rows": []}
+
+    poule_ext_ids = [p.poule_id for p, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+    matches = _finished_matches(session, poule_ext_ids)
+
+    games_by_team: dict = {}  # (poule_id, team_id) -> [(round, result, team_name), ...]
+    for m in matches:
+        if m.round is None or m.home_score is None or m.away_score is None:
+            continue
+        if m.home_team_id is not None:
+            result = "W" if m.home_score > m.away_score else ("L" if m.home_score < m.away_score else "D")
+            games_by_team.setdefault((m.poule_id, m.home_team_id), []).append((m.round, result, m.home_team_name))
+        if m.away_team_id is not None:
+            result = "W" if m.away_score > m.home_score else ("L" if m.away_score < m.home_score else "D")
+            games_by_team.setdefault((m.poule_id, m.away_team_id), []).append((m.round, result, m.away_team_name))
+
+    streaks = []
+    for (poule_id, team_id), games in games_by_team.items():
+        games.sort(key=lambda g: g[0])
+        streak = 0
+        for _, result, _ in reversed(games):
+            if result != "W":
+                break
+            streak += 1
+        if streak > 0:
+            streaks.append((poule_id, team_id, games[-1][2], streak))
+
+    streaks.sort(key=lambda s: s[3], reverse=True)
+    ranked = streaks[:limit]
+
+    teams, clubs = resolve_team_clubs(session, [team_id for (_, team_id, _, _) in ranked])
+    rows = []
+    for i, (poule_id, team_id, team_name, streak) in enumerate(ranked):
+        poule, comp = poule_by_ext.get(poule_id, (None, None))
+        rows.append({
+            "rank":             i + 1,
+            "team_name":        team_name,
+            "club_logo_url":    club_logo_for_team(teams, clubs, team_id),
+            "poule_name":       poule.name if poule else None,
+            "competition_name": comp.name if comp else None,
+            "streak":           streak,
+        })
+    return {"tag": tag, "rows": rows}
+
+
+@router.get("/public/tournaments/{tid}/query/club-ranking")
+def get_club_ranking(
+    tid: str,
+    tag: Optional[str] = None,
+    limit: int = 3,
+    session: Session = Depends(get_session),
+):
+    """Welke club heeft de meeste teams binnen een niveau-tag."""
+    limit = max(1, min(limit, 20))
+
+    scoped = _scoped_poules(session, tid, tag)
+    if not scoped:
+        return {"tag": tag, "rows": []}
+
+    poule_ext_ids = [p.poule_id for p, _ in scoped]
+    standings = session.exec(
+        select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
+    ).all()
+    team_ids = list({s.team_id for s in standings})
+    teams, clubs = resolve_team_clubs(session, team_ids)
+
+    counts: dict = {}
+    for team_id in team_ids:
+        team = teams.get(team_id)
+        if not team:
+            continue
+        counts[team.club_external_id] = counts.get(team.club_external_id, 0) + 1
+
+    ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    rows = []
+    for i, (club_ext_id, count) in enumerate(ranked):
+        club = clubs.get(club_ext_id)
+        rows.append({
+            "rank":          i + 1,
+            "club_name":     club.friendly_name if club else club_ext_id,
+            "club_logo_url": club.logo_url if club else None,
+            "team_count":    count,
+        })
+    return {"tag": tag, "rows": rows}

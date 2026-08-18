@@ -18,7 +18,17 @@ export const STATS_BY_TEMPLATE = {
     { key: 'biggest_margin', label: 'Grootste overwinning' },
     { key: 'closest_match',  label: 'Spannendste wedstrijd' },
   ],
+  upcoming_matches: [
+    { key: 'rank_gap',  label: 'Belangrijke wedstrijd (dichtbij in ranglijst)' },
+    { key: 'point_gap', label: 'Spannende wedstrijd (gelijk in punten)' },
+  ],
+  win_streak: [
+    { key: 'streak', label: 'Winstreak' },
+  ],
+  club_ranking: [],
 }
+
+const HAS_ROUND_SEASON_TOGGLE = new Set(['round_scorers', 'round_matches'])
 
 const selectStyle = {
   background: C.deep, border: `1px solid ${C.border}`, borderRadius: 5,
@@ -28,6 +38,13 @@ const selectStyle = {
 function titleFor(pin) {
   const tagLabel = pin.tag || 'Alle niveaus'
   if (pin.template === 'ranking') return `Ranglijst · ${tagLabel}`
+
+  if (pin.template === 'upcoming_matches') {
+    const base = pin.stat === 'point_gap' ? 'Spannende wedstrijd op komst' : 'Belangrijke wedstrijd op komst'
+    return `${base} · ${tagLabel}`
+  }
+  if (pin.template === 'win_streak') return `Winstreak · ${tagLabel}`
+  if (pin.template === 'club_ranking') return `Clubranglijst · ${tagLabel}`
 
   const periodLabel = pin.scope === 'season' ? 'dit seizoen' : 'laatste ronde'
   const base = pin.template === 'round_scorers'
@@ -77,6 +94,50 @@ function MatchRows({ rows }) {
   ))
 }
 
+function UpcomingMatchRows({ rows, stat }) {
+  return rows.map(r => (
+    <div key={`${r.rank}-${r.home_team}-${r.away_team}`} style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+      borderBottom: `1px solid ${C.border}`, fontSize: 12,
+    }}>
+      <span style={{ color: C.muted, width: 14, textAlign: 'right', flexShrink: 0 }}>{r.rank}</span>
+      <span style={{ flex: 1, minWidth: 0, color: C.chalk,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {r.home_team} <span style={{ color: C.muted }}>vs</span> {r.away_team}
+      </span>
+      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{r.poule_name}</span>
+      <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, fontSize: 10, whiteSpace: 'nowrap' }}>
+        {stat === 'point_gap'
+          ? `${r.home_points}p – ${r.away_points}p`
+          : `#${r.home_position} – #${r.away_position}`}
+      </span>
+    </div>
+  ))
+}
+
+function ClubRankingRows({ rows }) {
+  return rows.map(r => (
+    <div key={`${r.rank}-${r.club_name}`} style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+      borderBottom: `1px solid ${C.border}`, fontSize: 12,
+    }}>
+      <span style={{ color: C.muted, width: 14, textAlign: 'right', flexShrink: 0 }}>{r.rank}</span>
+      {r.club_logo_url && (
+        <img src={r.club_logo_url} alt="" style={{
+          width: 16, height: 16, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
+        }} />
+      )}
+      <span style={{ flex: 1, minWidth: 0, color: C.chalk,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {r.club_name}
+      </span>
+      <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap' }}>
+        {r.team_count} team{r.team_count !== 1 ? 's' : ''}
+      </span>
+    </div>
+  ))
+}
+
 export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
   const rows = useQueryResult(pin)
   const statOptions = STATS_BY_TEMPLATE[pin.template] || []
@@ -89,7 +150,7 @@ export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
         <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.04em', flex: 1 }}>
           {titleFor(pin)}
         </span>
-        {pin.template !== 'ranking' && (
+        {HAS_ROUND_SEASON_TOGGLE.has(pin.template) && (
           <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 5, overflow: 'hidden' }}>
             {[['round', 'Ronde'], ['season', 'Seizoen']].map(([s, label]) => (
               <button key={s} onClick={() => onUpdate({ scope: s })} style={{
@@ -100,9 +161,11 @@ export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
             ))}
           </div>
         )}
-        <select value={pin.stat} onChange={e => onUpdate({ stat: e.target.value })} style={selectStyle}>
-          {statOptions.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-        </select>
+        {statOptions.length > 1 && (
+          <select value={pin.stat} onChange={e => onUpdate({ stat: e.target.value })} style={selectStyle}>
+            {statOptions.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+        )}
         <select value={pin.limit} onChange={e => onUpdate({ limit: parseInt(e.target.value, 10) })} style={selectStyle}>
           {[3, 5, 10].map(n => <option key={n} value={n}>Top {n}</option>)}
         </select>
@@ -121,8 +184,12 @@ export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
         </div>
       ) : pin.template === 'round_matches' ? (
         <div><MatchRows rows={rows} /></div>
+      ) : pin.template === 'upcoming_matches' ? (
+        <div><UpcomingMatchRows rows={rows} stat={pin.stat} /></div>
+      ) : pin.template === 'club_ranking' ? (
+        <div><ClubRankingRows rows={rows} /></div>
       ) : (
-        <div><TeamRows rows={rows} stat={pin.stat} /></div>
+        <div><TeamRows rows={rows} stat={pin.stat || 'streak'} /></div>
       )}
     </div>
   )

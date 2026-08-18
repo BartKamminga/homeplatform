@@ -67,3 +67,32 @@ export function categoryOf(name = '') {
   const u = name.toUpperCase()
   return CATEGORIES.find(c => u.includes(c)) ?? null
 }
+
+// ── Gedeelde style-helpers (item 663) ───────────────────────────────────────
+// Vervangen de veelvoorkomende inline pill/badge/card-patronen die voorheen
+// apart in elk component werden uitgeschreven.
+
+export function pillStyle(active, size = 'md') {
+  return {
+    padding: size === 'sm' ? '3px 10px' : '4px 12px',
+    borderRadius: size === 'sm' ? 12 : 16,
+    fontSize: size === 'sm' ? 10 : 11,
+    cursor: 'pointer', fontFamily: 'inherit',
+    background: active ? C.gold : 'transparent',
+    color: active ? C.deep : C.muted,
+    border: `1px solid ${active ? C.gold : C.border}`,
+    fontWeight: active ? 700 : 400,
+  }
+}
+
+export function cardStyle(radius = 10) {
+  return { background: C.card, border: `1px solid ${C.border}`, borderRadius: radius, overflow: 'hidden' }
+}
+
+export function badgeStyle() {
+  return {
+    fontSize: 10, padding: '1px 7px', borderRadius: 10,
+    background: 'rgba(207,159,63,0.10)', color: C.gold,
+    border: '1px solid rgba(207,159,63,0.22)',
+  }
+}

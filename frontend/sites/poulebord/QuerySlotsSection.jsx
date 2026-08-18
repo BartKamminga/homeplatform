@@ -1,0 +1,49 @@
+import { C } from './constants.js'
+import { QueryCard } from './QueryCard.jsx'
+
+const QUERY_SLOTS = [
+  { template: 'ranking',          stat: 'points' },
+  { template: 'round_scorers',    stat: 'goals_for' },
+  { template: 'round_scorers',    stat: 'goals_against' },
+  { template: 'round_matches',    stat: 'biggest_margin' },
+  { template: 'round_matches',    stat: 'closest_match' },
+  { template: 'upcoming_matches', stat: 'rank_gap' },
+  { template: 'upcoming_matches', stat: 'point_gap' },
+  { template: 'win_streak',       stat: 'streak' },
+  { template: 'club_ranking',     stat: '' },
+]
+
+// De 5 canonieke query-kaarten voor een publicatie(+tag), altijd zichtbaar onder
+// de competitielijst (item 659). Niet-gepinde kaarten tonen een live preview met
+// de standaardconfiguratie; wijzigingen daarop blijven lokaal (queryDrafts) tot
+// je 'm pint, waarna verdere wijzigingen in de echte pin belanden.
+export function QuerySlotsSection({
+  tournamentId, tournamentName, tag, queryPins, queryDrafts,
+  onSetQueryPin, onUpdateQueryPin, onRemoveQueryPin, onSetQueryDraft,
+}) {
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+        color: C.muted, padding: '4px 2px 8px', borderTop: `1px solid ${C.border}` }}>
+        Queries{tag ? ` · ${tag}` : ''}
+      </div>
+      {QUERY_SLOTS.map(({ template, stat }) => {
+        const key = `${tournamentId}::${tag || ''}::${template}::${stat}`
+        const pinnedPin = queryPins.get(key)
+        const pin = pinnedPin || {
+          tournamentId, tournamentName, tag: tag || null, template, stat, scope: 'round', limit: 3,
+          ...(queryDrafts[key] || {}),
+        }
+        return (
+          <QueryCard
+            key={key}
+            pin={pin}
+            pinned={!!pinnedPin}
+            onTogglePin={() => pinnedPin ? onRemoveQueryPin(key) : onSetQueryPin(key, pin)}
+            onUpdate={patch => pinnedPin ? onUpdateQueryPin(key, patch) : onSetQueryDraft(key, patch)}
+          />
+        )
+      })}
+    </div>
+  )
+}

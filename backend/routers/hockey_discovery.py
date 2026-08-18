@@ -5,6 +5,8 @@ from sqlmodel import Session, col, select
 
 from core.database import get_session
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam
+from services.hockey_scope import get_comp_link_tags, get_visible_comp_links
+from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-discovery"])
 
@@ -30,13 +32,7 @@ def get_tournament_competition_standings(
     session: Session = Depends(get_session),
 ):
     """Lees standings per gekoppelde competitie voor een publicatie."""
-    from models.hockey import HockeyPublicationComp, HockeyPublicationCompTag, HockeyPublicationTag
-    links = session.exec(
-        select(HockeyPublicationComp)
-        .where(HockeyPublicationComp.publication_id == tid)
-        .where(HockeyPublicationComp.visible == True)  # noqa: E712
-        .order_by(HockeyPublicationComp.order)
-    ).all()
+    links = get_visible_comp_links(session, tid)
 
     if not links:
         return {"tournament_id": tid, "competitions": []}
@@ -46,12 +42,7 @@ def get_tournament_competition_standings(
         comp = session.get(HockeyCompetition, lnk.competition_id)
         if not comp:
             continue
-        assigned_tags = session.exec(
-            select(HockeyPublicationCompTag, HockeyPublicationTag)
-            .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
-            .where(HockeyPublicationCompTag.comp_link_id == lnk.id)
-            .order_by(HockeyPublicationTag.order, HockeyPublicationTag.name)
-        ).all()
+        assigned_tags = get_comp_link_tags(session, lnk.id)
         poules = session.exec(
             select(HockeyPoule)
             .where(HockeyPoule.competition_id == lnk.competition_id)
@@ -76,7 +67,7 @@ def get_tournament_competition_standings(
             "class_name":  comp.class_name,
             "district":    comp.district,
             "season":      comp.season,
-            "fase_tags":   [{"id": ft.id, "name": ft.name} for _, ft in assigned_tags],
+            "fase_tags":   [{"id": ft.id, "name": ft.name} for ft in assigned_tags],
             "poules":      [],
         }
         for poule in poules:
@@ -97,6 +88,7 @@ def get_tournament_competition_standings(
                 ).all()
                 teams_pending = [t.name for t in pending_teams]
             mc = match_counts.get(poule.poule_id, {"total": 0, "played": 0})
+            teams, clubs = resolve_team_clubs(session, [r.team_id for r in rows])
             comp_entry["poules"].append({
                 "id":             poule.id,
                 "name":           poule.name,
@@ -106,14 +98,15 @@ def get_tournament_competition_standings(
                 "matches_played": mc["played"],
                 "standings": [
                     {
-                        "team_name": r.team_name,
-                        "pts":       r.points,
-                        "played":    r.played,
-                        "won":       r.won,
-                        "drawn":     r.drawn,
-                        "lost":      r.lost,
-                        "gf":        r.goals_for,
-                        "ga":        r.goals_against,
+                        "team_name":     r.team_name,
+                        "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
+                        "pts":           r.points,
+                        "played":        r.played,
+                        "won":           r.won,
+                        "drawn":         r.drawn,
+                        "lost":          r.lost,
+                        "gf":            r.goals_for,
+                        "ga":            r.goals_against,
                     }
                     for r in rows
                 ],
@@ -192,10 +185,12 @@ def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)
         .where(HockeyPouleStanding.poule_id == poule.poule_id)
         .order_by(HockeyPouleStanding.position, HockeyPouleStanding.points.desc())  # type: ignore[attr-defined]
     ).all()
+    teams, clubs = resolve_team_clubs(session, [r.team_id for r in rows])
     return {
         "pool_name": poule.name,
         "standings": [
-            {"team_name": r.team_name, "pts": r.points, "won": r.won,
+            {"team_name": r.team_name, "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
+             "pts": r.points, "won": r.won,
              "drawn": r.drawn, "lost": r.lost, "gf": r.goals_for, "ga": r.goals_against}
             for r in rows
         ],

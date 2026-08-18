@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { getTournamentCompetitionStandings, getPhases, getBoard } from './api.js'
+import { getBoard } from './api.js'
 import { C, CATEGORIES, SEIZOEN_INFO } from './constants.js'
-import { useStandings } from './hooks.js'
-import { PoolTable } from './PoolTable.jsx'
+import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { CompetitionStandingsView } from './BrowseComponents.jsx'
 import { QueryCard } from './QueryCard.jsx'
+import { PouleCard } from './PouleCard.jsx'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
 
@@ -94,30 +94,15 @@ export function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin, tourn
             const pinKey   = `${phaseId}::${pname}`
             const isPinned = poolPins?.has(pinKey)
             return (
-              <div key={pname} style={{ flex: '1 1 240px', background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
-                  letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <button onClick={() => setDetailPool({ poolName: pname, rows: prows })}
-                    style={{ background: 'transparent', border: 'none', padding: 0,
-                      cursor: 'pointer', color: C.gold, fontWeight: 700, fontSize: 11,
-                      letterSpacing: '0.08em', fontFamily: 'inherit', textAlign: 'left' }}>
-                    POULE {pname} ›
-                  </button>
-                  {onPoolPin && (
-                    <button
-                      onClick={() => onPoolPin(phaseId, pname)}
-                      title={isPinned ? 'Verwijder poule van board' : 'Pin deze poule op je board'}
-                      style={{
-                        background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
-                        border: `1px solid ${isPinned ? C.gold : 'transparent'}`,
-                        borderRadius: 4, padding: '1px 5px', fontSize: 10,
-                        color: isPinned ? C.gold : C.muted, cursor: 'pointer',
-                        lineHeight: 1.4, flexShrink: 0,
-                      }}>📌</button>
-                  )}
-                </div>
-                <PoolTable rows={prows} club={club} />
+              <div key={pname} style={{ flex: '1 1 240px' }}>
+                <PouleCard
+                  title={`POULE ${pname}`}
+                  rows={prows}
+                  club={club}
+                  onOpen={() => setDetailPool({ poolName: pname, rows: prows })}
+                  pinned={onPoolPin ? isPinned : undefined}
+                  onTogglePin={onPoolPin ? () => onPoolPin(phaseId, pname) : undefined}
+                />
               </div>
             )
           })}
@@ -160,8 +145,7 @@ export function ClubPoolCard({ entry, club }) {
   const poolRows = standings ? standings.filter(r => r.pool_name === entry.pool_name) : null
 
   return (
-    <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
-      marginBottom: 8, overflow: 'hidden' }}>
+    <div style={{ marginBottom: 8 }}>
       {showDetail && poolRows?.length > 0 && (
         <MatchModal
           title={`POULE ${entry.pool_name}`}
@@ -171,29 +155,17 @@ export function ClubPoolCard({ entry, club }) {
           onClose={() => setShowDetail(false)}
         />
       )}
-      <div style={{ padding: '5px 10px', fontSize: 10, color: C.muted,
-        borderBottom: `1px solid ${C.border}`,
-        display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={() => poolRows?.length > 0 && setShowDetail(true)}
-          style={{ background: 'transparent', border: 'none', padding: 0,
-            cursor: poolRows?.length > 0 ? 'pointer' : 'default',
-            color: C.gold, fontWeight: 700, letterSpacing: '0.06em', fontSize: 11,
-            fontFamily: 'inherit', flexShrink: 0 }}>
-          POULE {entry.pool_name}{poolRows?.length > 0 ? ' ›' : ''}
-        </button>
-        <span style={{ opacity: 0.4 }}>·</span>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {entry.tournament_name}
-        </span>
-      </div>
       {poolRows === null ? (
-        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
-      ) : poolRows.length === 0 ? (
-        <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 10, fontStyle: 'italic' }}>
-          Nog geen wedstrijden gespeeld
-        </div>
+        <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
+          color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
       ) : (
-        <PoolTable rows={poolRows} club={club} />
+        <PouleCard
+          title={`POULE ${entry.pool_name}`}
+          subtitle={entry.tournament_name}
+          rows={poolRows}
+          club={club}
+          onOpen={poolRows.length > 0 ? () => setShowDetail(true) : undefined}
+        />
       )}
     </div>
   )
@@ -221,26 +193,16 @@ function PinnedPoolSlot({ pin, club, idx, tournamentName }) {
           onClose={() => setModal(false)}
         />
       )}
-      <button
-        onClick={() => poolRows?.length > 0 && setModal(true)}
-        style={{
-          width: '100%', padding: '4px 6px 4px 10px', fontSize: 10, fontWeight: 700,
-          letterSpacing: '0.08em', color: C.gold, background: 'none',
-          borderTop: 'none', borderLeft: 'none', borderRight: 'none',
-          borderBottom: `1px solid ${C.border}`,
-          cursor: poolRows?.length > 0 ? 'pointer' : 'default',
-          textAlign: 'left', fontFamily: 'inherit',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}>
-        {pin.poolName}
-        {poolRows?.length > 0 && <span style={{ color: C.muted, fontSize: 9, marginLeft: 'auto' }}>›</span>}
-      </button>
       {poolRows === null ? (
         <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
-      ) : poolRows.length === 0 ? (
-        <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center', fontStyle: 'italic' }}>Nog geen wedstrijden</div>
       ) : (
-        <PoolTable rows={poolRows} club={club} compact />
+        <PouleCard
+          title={pin.poolName}
+          rows={poolRows}
+          club={club}
+          density="compact"
+          onOpen={poolRows.length > 0 ? () => setModal(true) : undefined}
+        />
       )}
     </div>
   )
@@ -283,40 +245,8 @@ export function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
 // ── Compact pinned tournament card (board) ────────────────────────────────────
 
 export function CompactPinnedCard({ tournament, club, onUnpin }) {
-  const [phases,       setPhases]       = useState(null)
-  const [fasesData,    setFasesData]    = useState(null)
-  const [useDiscovery, setUseDiscovery] = useState(null)
-  const [open,         setOpen]         = useState(true)
-
-  useEffect(() => {
-    getTournamentCompetitionStandings(tournament.id)
-      .then(data => {
-        const comps = data.competitions || []
-        if (comps.length > 0) {
-          const byLabel = {}
-          for (const comp of comps) {
-            const label = comp.fase_tags?.[0]?.name || 'Competitie'
-            if (!byLabel[label]) byLabel[label] = []
-            byLabel[label].push(comp)
-          }
-          setFasesData(Object.entries(byLabel).map(([label, competitions]) => ({ fase: label, label, competitions })))
-          setUseDiscovery(true)
-        } else {
-          setUseDiscovery(false)
-        }
-      })
-      .catch(() => setUseDiscovery(false))
-  }, [tournament.id])
-
-  useEffect(() => {
-    if (useDiscovery === false) {
-      getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
-    }
-  }, [useDiscovery, tournament.id])
-
-  const poolPhases = phases?.filter(p =>
-    p.phase_type === 'pool' && (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
-  ) ?? []
+  const [open, setOpen] = useState(true)
+  const { fasesData, useDiscovery, phases, poolPhases } = useTournamentStandings(tournament.id)
 
   return (
     <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
@@ -365,40 +295,8 @@ export function CompactPinnedCard({ tournament, club, onUnpin }) {
 // ── Tournament card (browse mode) ─────────────────────────────────────────────
 
 export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPoolPin }) {
-  const [phases,       setPhases]       = useState(null)
-  const [fasesData,    setFasesData]    = useState(null)
-  const [useDiscovery, setUseDiscovery] = useState(null)
-  const [open,         setOpen]         = useState(true)
-
-  useEffect(() => {
-    getTournamentCompetitionStandings(tournament.id)
-      .then(data => {
-        const comps = data.competitions || []
-        if (comps.length > 0) {
-          const byLabel = {}
-          for (const comp of comps) {
-            const label = comp.fase_tags?.[0]?.name || 'Competitie'
-            if (!byLabel[label]) byLabel[label] = []
-            byLabel[label].push(comp)
-          }
-          setFasesData(Object.entries(byLabel).map(([label, competitions]) => ({ fase: label, label, competitions })))
-          setUseDiscovery(true)
-        } else {
-          setUseDiscovery(false)
-        }
-      })
-      .catch(() => setUseDiscovery(false))
-  }, [tournament.id])
-
-  useEffect(() => {
-    if (useDiscovery === false) {
-      getPhases(tournament.id).then(setPhases).catch(() => setPhases([]))
-    }
-  }, [useDiscovery, tournament.id])
-
-  const poolPhases = phases?.filter(p =>
-    p.phase_type === 'pool' && (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
-  ) ?? []
+  const [open, setOpen] = useState(true)
+  const { fasesData, useDiscovery, phases, poolPhases } = useTournamentStandings(tournament.id)
 
   return (
     <div style={{ background: C.card, borderRadius: 12, overflow: 'hidden', marginBottom: 10,

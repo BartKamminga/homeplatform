@@ -1,12 +1,28 @@
 import { C } from './constants.js'
 
+function TeamName({ name, logoUrl, showLogos, highlighted }) {
+  return (
+    <>
+      {showLogos && logoUrl && (
+        <img src={logoUrl} alt="" style={{
+          width: 14, height: 14, borderRadius: '50%', objectFit: 'cover',
+          marginRight: 4, verticalAlign: 'middle', flexShrink: 0,
+        }} />
+      )}
+      {highlighted && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
+      {name}
+    </>
+  )
+}
+
 // Unified pool standings table.
-// rows: [{id?, name, pts, w?, d?, l?, gf?, ga?}]  (normalized format)
+// rows: [{id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?}]  (normalized format)
 // club: string for club-row highlighting
 // compact: show only #/Team/Pt without column headers (PinnedPoolSlot)
 // large:   wider padding + larger font for use inside modal
 // showGoals: add GV-GT column (modal variant)
-export function PoolTable({ rows, club, compact = false, large = false, showGoals = false }) {
+// showLogos: toon clublogo voor teamnaam indien beschikbaar (default aan)
+export function PoolTable({ rows, club, compact = false, large = false, showGoals = false, showLogos = true }) {
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
 
   const pad  = large ? { l: '6px 3px 6px 12px', m: '6px 3px', cell: '6px', right: '6px 12px 6px 3px' }
@@ -31,8 +47,7 @@ export function PoolTable({ rows, club, compact = false, large = false, showGoal
                 <td style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
                   fontWeight: my || i === 0 ? 600 : 400,
                   maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {my && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
-                  {r.name}
+                  <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} />
                 </td>
                 <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
                   color: C.goldBr, fontWeight: 700, fontSize: 12, width: 26 }}>{r.pts}</td>
@@ -72,8 +87,7 @@ export function PoolTable({ rows, club, compact = false, large = false, showGoal
               <td style={{ padding: pad.m, color: my ? C.goldBr : C.chalk,
                 fontWeight: my || i === 0 ? 600 : 400,
                 maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {my && <span style={{ marginRight: 3, fontSize: 9 }}>▶</span>}
-                {r.name}
+                <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} />
               </td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.w}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.d}</td>

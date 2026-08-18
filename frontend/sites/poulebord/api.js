@@ -32,3 +32,15 @@ export const getTagRoundMatches = (tid, tag, stat, scope, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/round-matches?${new URLSearchParams({
     ...(tag ? { tag } : {}), stat, scope, limit,
   })}`)
+export const getUpcomingMatches = (tid, tag, stat, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/upcoming-matches?${new URLSearchParams({
+    ...(tag ? { tag } : {}), stat, limit,
+  })}`)
+export const getWinStreak = (tid, tag, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/win-streak?${new URLSearchParams({
+    ...(tag ? { tag } : {}), limit,
+  })}`)
+export const getClubRanking = (tid, tag, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/club-ranking?${new URLSearchParams({
+    ...(tag ? { tag } : {}), limit,
+  })}`)

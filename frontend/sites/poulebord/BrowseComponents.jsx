@@ -1,52 +1,26 @@
 import { useState } from 'react'
 import { getCompetitionMatches } from './api.js'
-import { C } from './constants.js'
-import { PoolTable } from './PoolTable.jsx'
+import { C, badgeStyle } from './constants.js'
 import { MatchModal } from './MatchModal.jsx'
+import { PouleCard } from './PouleCard.jsx'
 
 // ── Discovery poule table ─────────────────────────────────────────────────────
 
 export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) {
   const rows = (poule.standings || []).map(r => ({
-    id: r.team_name, name: r.team_name, pts: r.pts,
+    id: r.team_name, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
     w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
   }))
 
-  const header = (
-    <div style={{ padding: '5px 6px 5px 10px', fontSize: 11, fontWeight: 700,
-      letterSpacing: '0.08em', color: C.gold, borderBottom: `1px solid ${C.border}`,
-      display: 'flex', alignItems: 'center', gap: 4 }}>
-      {onOpenMatches ? (
-        <button onClick={onOpenMatches} style={{ flex: 1, background: 'none', border: 'none',
-          padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: C.gold }}>
-          {poule.name} <span style={{ color: C.muted, fontSize: 9 }}>›</span>
-        </button>
-      ) : (
-        <span style={{ flex: 1 }}>{poule.name}</span>
-      )}
-      {onPin && (
-        <button onClick={e => { e.stopPropagation(); onPin() }} style={{
-          background: isPinned ? C.gold : 'transparent',
-          border: `1px solid ${isPinned ? C.gold : C.border}`, borderRadius: 5,
-          padding: '1px 5px', cursor: 'pointer', fontSize: 10,
-          color: isPinned ? C.deep : C.muted, lineHeight: 1.4 }}>
-          📌
-        </button>
-      )}
-    </div>
-  )
-
   return (
-    <div style={{ background: C.deep, borderRadius: 10, overflow: 'hidden' }}>
-      {header}
-      {rows.length === 0 ? (
-        <div style={{ fontSize: 12, color: C.muted, textAlign: 'center',
-          padding: '8px 0', fontStyle: 'italic' }}>Nog geen stand</div>
-      ) : (
-        <PoolTable rows={rows} club={club} />
-      )}
-    </div>
+    <PouleCard
+      title={poule.name}
+      rows={rows}
+      club={club}
+      onOpen={onOpenMatches}
+      pinned={onPin ? isPinned : undefined}
+      onTogglePin={onPin}
+    />
   )
 }
 
@@ -159,7 +133,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
   // Normalize discovery standings for MatchModal
   const modalRows = matchesPoule
     ? (matchesPoule.standings || []).map(r => ({
-        id: r.team_name, name: r.team_name, pts: r.pts,
+        id: r.team_name, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
         w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
       }))
     : []
@@ -190,9 +164,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
               {tags.length > 0 && (
                 <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
                   {tags.map((tag, i) => (
-                    <span key={i} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
-                      background: 'rgba(207,159,63,0.10)', color: C.gold,
-                      border: `1px solid rgba(207,159,63,0.22)` }}>{tag}</span>
+                    <span key={i} style={badgeStyle()}>{tag}</span>
                   ))}
                 </div>
               )}
