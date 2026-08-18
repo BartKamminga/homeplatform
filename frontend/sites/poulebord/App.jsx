@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, searchDiscoveryPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
-import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY } from './constants.js'
+import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY, FILTER_PINS_KEY } from './constants.js'
 import { BoardView } from './PinnedBoard.jsx'
 import { usePersistedState } from './hooks.js'
 import { MyBoardsView } from './MyBoardsView.jsx'
@@ -106,6 +106,9 @@ export default function App() {
   const [queryPins, setQueryPins]             = usePersistedState(QUERY_PINS_KEY, {
     serialize: m => [...m.entries()], deserialize: arr => new Map(arr), initial: () => new Map(),
   })
+  const [filterPins, setFilterPins]           = usePersistedState(FILTER_PINS_KEY, {
+    serialize: m => [...m.entries()], deserialize: arr => new Map(arr), initial: () => new Map(),
+  })
   const [queryDrafts, setQueryDrafts]         = useState({})
   const [myBoardsView, setMyBoardsView]       = useState(false)
   const [searchMode, setSearchMode]           = useState(false)
@@ -169,14 +172,20 @@ export default function App() {
       .catch(() => { setPubComps([]); setPubCompsFor(selectedPub.id) })
   }, [selectedPub])
 
-  // item 676: na klik op een zoekresultaat wachten tot pubComps voor de
-  // juiste publicatie geladen is, dan de bijbehorende competitie/tags tonen.
+  // item 676/683: na klik op een zoekresultaat of gepinde filter wachten tot
+  // pubComps voor de juiste publicatie geladen is (en dus tagFilters al door
+  // het selectedPub-effect gereset is), dan pas de gewenste tags/competitie
+  // toepassen - anders overschrijft dat reset-effect onze tags weer.
   useEffect(() => {
     if (!pendingNav || pubCompsFor !== pendingNav.tournamentId || !pubComps) return
-    const comp = pubComps.find(c => (c.poules || []).some(p => p.id === pendingNav.pouleId))
-    if (comp) {
-      setExpandedCompId(comp.link_id)
-      setTagFilters(new Set((comp.fase_tags || []).map(t => t.name)))
+    if (pendingNav.pouleId != null) {
+      const comp = pubComps.find(c => (c.poules || []).some(p => p.id === pendingNav.pouleId))
+      if (comp) {
+        setExpandedCompId(comp.link_id)
+        setTagFilters(new Set((comp.fase_tags || []).map(t => t.name)))
+      }
+    } else if (pendingNav.tags) {
+      setTagFilters(new Set(pendingNav.tags))
     }
     setPendingNav(null)
   }, [pendingNav, pubComps, pubCompsFor])
@@ -289,6 +298,42 @@ export default function App() {
       next.delete(key)
       return next
     })
+  }
+
+  // item 683: publicatie+tag-filter combinatie pinnen als snelkoppeling.
+  function filterPinKey(tid, tags) {
+    return `${tid}::${[...tags].sort().join(',')}`
+  }
+
+  function toggleFilterPin() {
+    if (!selectedPub) return
+    const key = filterPinKey(selectedPub.id, tagFilters)
+    setFilterPins(prev => {
+      const next = new Map(prev)
+      if (next.has(key)) next.delete(key)
+      else next.set(key, {
+        tournamentId: selectedPub.id, tournamentName: selectedPub.name, tags: [...tagFilters],
+      })
+      return next
+    })
+  }
+
+  function removeFilterPin(key) {
+    setFilterPins(prev => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+  }
+
+  function navigateToFilterPin(pin) {
+    const t = (all || []).find(x => x.id === pin.tournamentId)
+    if (!t) return
+    setBoardOn(false)
+    setMyBoardsView(false)
+    setSearchMode(false)
+    setSelectedPub(t)
+    setPendingNav({ tournamentId: t.id, tags: pin.tags })
   }
 
   function openMyBoard(b) {
@@ -535,6 +580,9 @@ export default function App() {
             queryPins={queryPins}
             onQueryUpdate={updateQueryPin}
             onQueryUnpin={removeQueryPin}
+            filterPins={filterPins}
+            onOpenFilterPin={navigateToFilterPin}
+            onRemoveFilterPin={removeFilterPin}
           />
         </>
       ) : (
@@ -569,6 +617,8 @@ export default function App() {
           onRemoveQueryPin={removeQueryPin}
           onSetQueryDraft={(key, patch) =>
             setQueryDrafts(prev => ({ ...prev, [key]: { ...(prev[key] || {}), ...patch } }))}
+          filterPinned={!!selectedPub && filterPins.has(filterPinKey(selectedPub.id, tagFilters))}
+          onToggleFilterPin={toggleFilterPin}
         />
       )}
     </div>

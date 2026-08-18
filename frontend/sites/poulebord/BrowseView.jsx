@@ -10,6 +10,7 @@ export function BrowseView({
   pubComps, filteredComps, expandedCompId, onToggleComp,
   club, poolPins, onPoolPin,
   queryPins, queryDrafts, onSetQueryPin, onUpdateQueryPin, onRemoveQueryPin, onSetQueryDraft,
+  filterPinned, onToggleFilterPin,
 }) {
   const activeCount = tagFilters.size
   const filterSummary = activeCount === 0 ? '' : activeCount === 1 ? ` · ${[...tagFilters][0]}` : ` · ${activeCount} tags`
@@ -46,6 +47,17 @@ export function BrowseView({
                 </button>
                 {!filtersOpen && activeCount > 0 && (
                   <button onClick={onClearTagFilters} style={pillStyle(false, 'sm')}>✕</button>
+                )}
+                {onToggleFilterPin && (
+                  <button
+                    onClick={onToggleFilterPin}
+                    title={filterPinned ? 'Verwijder deze filter-selectie van board' : 'Pin deze filter-selectie op board'}
+                    style={{
+                      background: filterPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+                      border: `1px solid ${filterPinned ? C.gold : C.border}`, borderRadius: 12,
+                      padding: '3px 8px', fontSize: 10, color: filterPinned ? C.gold : C.muted,
+                      cursor: 'pointer', fontFamily: 'inherit', marginLeft: 'auto',
+                    }}>📌</button>
                 )}
               </div>
               {filtersOpen && (

@@ -93,6 +93,32 @@ function PinnedBarePools({ pins, club, onUnpin }) {
   )
 }
 
+// ── Gepinde filter-snelkoppeling (item 683) ───────────────────────────────────
+
+function PinnedFilterRow({ pin, onOpen, onUnpin }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
+      marginBottom: 6, display: 'flex', alignItems: 'center' }}>
+      <button onClick={onOpen} style={{
+        flex: 1, minWidth: 0, background: 'transparent', border: 'none', padding: '7px 10px',
+        cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <span style={{ fontSize: 11 }}>🔍</span>
+        <span style={{ fontSize: 12, color: C.chalk, flex: 1, minWidth: 0,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {pin.tags.length > 0 ? pin.tags.join(', ') : 'Alle niveaus'}
+        </span>
+        <span style={{ color: C.muted, fontSize: 9 }}>›</span>
+      </button>
+      <button onClick={onUnpin} title="Verwijder deze filter van board" style={{
+        background: 'transparent', border: 'none', borderLeft: `1px solid ${C.border}`,
+        padding: '0 10px', fontSize: 11, color: C.muted, cursor: 'pointer', flexShrink: 0, height: '100%',
+      }}>📌</button>
+    </div>
+  )
+}
+
 // ── Publicatie-groep (item 682: naam tonen, inklapbaar bij >1 publicatie) ─────
 
 function PublicationGroup({ name, collapsible, children }) {
@@ -122,27 +148,32 @@ function PublicationGroup({ name, collapsible, children }) {
 // ── Board view ────────────────────────────────────────────────────────────────
 
 export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin,
-  queryPins, onQueryUpdate, onQueryUnpin }) {
+  queryPins, onQueryUpdate, onQueryUnpin,
+  filterPins, onOpenFilterPin, onRemoveFilterPin }) {
   const pinnedTournaments = [...pins]
     .map(id => allTournaments?.find(t => t.id === id))
     .filter(Boolean)
   const pinnedPools    = [...poolPins.values()]
   const queryPinList   = [...(queryPins?.entries() ?? [])].map(([key, pin]) => ({ key, pin }))
+  const filterPinList  = [...(filterPins?.entries() ?? [])].map(([key, pin]) => ({ key, pin }))
 
-  if (!pinnedTournaments.length && !pinnedPools.length && !queryPinList.length) return <EmptyBoard />
+  if (!pinnedTournaments.length && !pinnedPools.length && !queryPinList.length && !filterPinList.length) {
+    return <EmptyBoard />
+  }
 
   // Alles groeperen per publicatie(naam) - item 682. Volgorde: eerst volledig
-  // gepinde publicaties, dan publicaties die alleen via losse poules/queries
-  // op het board staan.
+  // gepinde publicaties, dan publicaties die alleen via losse poules/queries/
+  // filters op het board staan.
   const order  = []
   const groups = {}
   function ensure(name) {
-    if (!groups[name]) { groups[name] = { tournament: null, pools: [], queries: [] }; order.push(name) }
+    if (!groups[name]) { groups[name] = { tournament: null, pools: [], queries: [], filters: [] }; order.push(name) }
     return groups[name]
   }
   pinnedTournaments.forEach(t => { ensure(t.name).tournament = t })
   pinnedPools.forEach(p => ensure(p.tournamentName || '—').pools.push(p))
   queryPinList.forEach(q => ensure(q.pin.tournamentName || '—').queries.push(q))
+  filterPinList.forEach(f => ensure(f.pin.tournamentName || '—').filters.push(f))
 
   const collapsible = order.length > 1
 
@@ -150,7 +181,7 @@ export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoo
     <div style={{ padding: '12px 10px' }}>
       {order.map(name => {
         const g = groups[name]
-        const hasExtra = g.pools.length > 0 || g.queries.length > 0
+        const hasExtra = g.pools.length > 0 || g.queries.length > 0 || g.filters.length > 0
 
         const byComp = {}
         const barePools = []
@@ -164,6 +195,11 @@ export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoo
             {g.tournament && (
               <CompactPinnedCard tournament={g.tournament} club={club} onUnpin={() => onUnpin(g.tournament.id)} />
             )}
+            {g.filters.map(({ key, pin }) => (
+              <PinnedFilterRow key={key} pin={pin}
+                onOpen={() => onOpenFilterPin(pin)}
+                onUnpin={() => onRemoveFilterPin(key)} />
+            ))}
             {Object.entries(byComp)
               .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
               .map(([compName, cPins]) => (
