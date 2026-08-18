@@ -6,14 +6,14 @@ export const getHockeyPublications  = ()    => api.get('/api/hockey/public/publi
 export const getPhases         = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/phases`)
 export const getPhaseStandings = (pid) => api.get(`/api/tournix/public/phases/${pid}/standings`)
 export const getClubs          = ()    => api.get('/api/hockey/public/clubs')
-export const getBoard          = (club, stage = 'productie') =>
-  api.get(`/api/tournix/public/board?club=${encodeURIComponent(club)}&stage=${stage}`)
 export const saveBoard         = (body) => api.post('/api/tournix/public/boards', body)
 export const getBoardByCode    = (code) => api.get(`/api/tournix/public/boards/${code}`)
 export const getPoolMatches    = (phaseId, poolName) =>
   api.get(`/api/tournix/public/phases/${phaseId}/pool-matches?pool=${encodeURIComponent(poolName)}`)
 export const searchPools       = (q, season = '2026-2027') =>
   api.get(`/api/tournix/public/search?q=${encodeURIComponent(q)}&season=${encodeURIComponent(season)}`)
+export const searchDiscoveryPools = (q) =>
+  api.get(`/api/hockey/public/search?q=${encodeURIComponent(q)}`)
 export const getTournamentCompetitionStandings = (tid) =>
   api.get(`/api/hockey/public/tournaments/${tid}/competition-standings`)
 export const getHockeyPouleStandings = (pid) =>

@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
-import { getBoard } from './api.js'
-import { C, CATEGORIES, SEIZOEN_INFO } from './constants.js'
+import { useState } from 'react'
+import { C, SEIZOEN_INFO } from './constants.js'
 import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { CompetitionStandingsView } from './BrowseComponents.jsx'
@@ -16,8 +15,7 @@ export function EmptyBoard() {
       <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22,
         letterSpacing: '0.06em', marginBottom: 10, color: C.chalk }}>JE BOARD IS LEEG</div>
       <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.7 }}>
-        Stel je club in via ⭐ om automatisch alle NK-poules te zien.<br /><br />
-        Of pin een competitie of poule tijdens het bladeren.
+        Pin een competitie of poule tijdens het bladeren om 'm hier terug te zien.
       </div>
     </div>
   )
@@ -132,41 +130,6 @@ export function PhaseCard({ phase, club, poolPins, onPoolPin, tournamentName }) 
               phaseId={phase.id} poolPins={poolPins} onPoolPin={onPoolPin}
               tournamentName={tournamentName} />
       }
-    </div>
-  )
-}
-
-// ── Club pool card (board) ────────────────────────────────────────────────────
-
-export function ClubPoolCard({ entry, club }) {
-  const standings = useStandings(entry.phase_id)
-  const [showDetail, setShowDetail] = useState(false)
-
-  const poolRows = standings ? standings.filter(r => r.pool_name === entry.pool_name) : null
-
-  return (
-    <div style={{ marginBottom: 8 }}>
-      {showDetail && poolRows?.length > 0 && (
-        <MatchModal
-          title={`POULE ${entry.pool_name}`}
-          subtitle={entry.tournament_name}
-          rows={poolRows}
-          matchSource={{ phaseId: entry.phase_id, poolName: entry.pool_name }}
-          onClose={() => setShowDetail(false)}
-        />
-      )}
-      {poolRows === null ? (
-        <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
-          color: C.muted, fontSize: 12, textAlign: 'center', padding: 10 }}>Laden…</div>
-      ) : (
-        <PouleCard
-          title={`POULE ${entry.pool_name}`}
-          subtitle={entry.tournament_name}
-          rows={poolRows}
-          club={club}
-          onOpen={poolRows.length > 0 ? () => setShowDetail(true) : undefined}
-        />
-      )}
     </div>
   )
 }
@@ -355,139 +318,78 @@ export function TournamentCard({ tournament, club, pinned, onPin, poolPins, onPo
   )
 }
 
-// ── Board section ─────────────────────────────────────────────────────────────
-
-function BoardSection({ label, children }) {
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
-        textTransform: 'uppercase', color: C.muted,
-        padding: '4px 2px 8px', borderTop: `1px solid ${C.border}` }}>
-        {label}
-      </div>
-      {children}
-    </div>
-  )
-}
-
 // ── Board view ────────────────────────────────────────────────────────────────
 
 export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin,
   queryPins, onQueryUpdate, onQueryUnpin }) {
-  const [boardData, setBoardData] = useState(null)
-
-  useEffect(() => {
-    if (!club) { setBoardData([]); return }
-    getBoard(club, 'productie').then(setBoardData).catch(() => setBoardData([]))
-  }, [club])
-
-  const clubTournamentIds = new Set((boardData || []).map(e => e.tournament_id))
-  const clubPhasePoolKeys = new Set((boardData || []).map(e => `${e.phase_id}::${e.pool_name}`))
-
   const pinnedTournaments = [...pins]
     .map(id => allTournaments?.find(t => t.id === id))
-    .filter(t => t && !clubTournamentIds.has(t.id))
+    .filter(Boolean)
 
   const pinnedPools = [...poolPins.values()]
-    .filter(p => !clubPhasePoolKeys.has(`${p.phaseId}::${p.poolName}`))
 
   const queryPinList = [...(queryPins?.values() ?? [])]
 
-  const hasClub      = club && boardData !== null && boardData.length > 0
   const hasT         = pinnedTournaments.length > 0
   const hasP         = pinnedPools.length > 0
   const hasQ         = queryPinList.length > 0
   const hasPinned    = hasT || hasP || hasQ
   const showSubLabels = [hasT, hasP, hasQ].filter(Boolean).length > 1
 
-  if (!club && !hasPinned) return <EmptyBoard />
-
-  const byCategory = {}
-  for (const entry of (boardData || [])) {
-    const cat = entry.category || '—'
-    if (!byCategory[cat]) byCategory[cat] = []
-    byCategory[cat].push(entry)
-  }
+  if (!hasPinned) return <EmptyBoard />
 
   return (
     <div style={{ padding: '12px 10px' }}>
-      {club && boardData === null && (
-        <div style={{ textAlign: 'center', color: C.muted, padding: '20px 0', fontSize: 13 }}>Laden…</div>
-      )}
-      {club && boardData !== null && boardData.length === 0 && (
-        <div style={{ background: C.card, borderRadius: 10, padding: '14px 16px',
-          color: C.muted, fontSize: 13, textAlign: 'center', marginBottom: 10,
-          border: `1px solid ${C.border}` }}>
-          Geen NK-poules gevonden voor <strong style={{ color: C.chalk }}>{club}</strong>
+      {showSubLabels && hasT && (
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+          textTransform: 'uppercase', color: C.muted, padding: '0 2px 6px' }}>
+          Competities
         </div>
       )}
-
-      {CATEGORIES.filter(c => byCategory[c]).map(cat => (
-        <div key={cat}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
-            textTransform: 'uppercase', color: C.gold, padding: '6px 2px 5px' }}>
-            {cat}
-          </div>
-          {byCategory[cat].map(entry => (
-            <ClubPoolCard key={`${entry.phase_id}-${entry.pool_name}`} entry={entry} club={club} />
-          ))}
-        </div>
+      {pinnedTournaments.map(t => (
+        <CompactPinnedCard key={t.id} tournament={t} club={club} onUnpin={() => onUnpin(t.id)} />
       ))}
 
-      {hasPinned && (
-        <BoardSection label={hasClub ? 'Gepind' : undefined}>
-          {showSubLabels && hasT && (
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-              textTransform: 'uppercase', color: C.muted, padding: '0 2px 6px' }}>
-              Competities
-            </div>
-          )}
-          {pinnedTournaments.map(t => (
-            <CompactPinnedCard key={t.id} tournament={t} club={club} onUnpin={() => onUnpin(t.id)} />
-          ))}
-
-          {showSubLabels && hasP && (
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-              textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
-              Poules
-            </div>
-          )}
-          {(() => {
-            const grouped = {}
-            for (const p of pinnedPools) {
-              if (!grouped[p.tournamentName]) grouped[p.tournamentName] = []
-              grouped[p.tournamentName].push(p)
-            }
-            return Object.entries(grouped)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([tn, gPins]) => (
-                <PinnedPoolGroupCard
-                  key={tn}
-                  tournamentName={tn}
-                  pins={gPins.sort((a, b) => a.poolName.localeCompare(b.poolName, undefined, { numeric: true }))}
-                  club={club}
-                  onUnpin={onPoolUnpin}
-                />
-              ))
-          })()}
-
-          {showSubLabels && hasQ && (
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-              textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
-              Queries
-            </div>
-          )}
-          {[...(queryPins?.entries() ?? [])].map(([key, pin]) => (
-            <QueryCard
-              key={key}
-              pin={pin}
-              pinned={true}
-              onTogglePin={() => onQueryUnpin(key)}
-              onUpdate={patch => onQueryUpdate(key, patch)}
-            />
-          ))}
-        </BoardSection>
+      {showSubLabels && hasP && (
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+          textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
+          Poules
+        </div>
       )}
+      {(() => {
+        const grouped = {}
+        for (const p of pinnedPools) {
+          if (!grouped[p.tournamentName]) grouped[p.tournamentName] = []
+          grouped[p.tournamentName].push(p)
+        }
+        return Object.entries(grouped)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([tn, gPins]) => (
+            <PinnedPoolGroupCard
+              key={tn}
+              tournamentName={tn}
+              pins={gPins.sort((a, b) => a.poolName.localeCompare(b.poolName, undefined, { numeric: true }))}
+              club={club}
+              onUnpin={onPoolUnpin}
+            />
+          ))
+      })()}
+
+      {showSubLabels && hasQ && (
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+          textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
+          Queries
+        </div>
+      )}
+      {[...(queryPins?.entries() ?? [])].map(([key, pin]) => (
+        <QueryCard
+          key={key}
+          pin={pin}
+          pinned={true}
+          onTogglePin={() => onQueryUnpin(key)}
+          onUpdate={patch => onQueryUpdate(key, patch)}
+        />
+      ))}
     </div>
   )
 }

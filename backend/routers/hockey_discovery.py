@@ -189,6 +189,62 @@ def get_public_season(session: Session = Depends(get_session)):
     return {"season": row.value if row else "2026-2027"}
 
 
+@router.get("/public/search")
+def search_discovery(q: str, session: Session = Depends(get_session)):
+    """Zoek Hockey Discovery-teams (en hun poule) op naam - publiek, geen auth vereist.
+
+    Alleen teams binnen gepubliceerde publicaties, zelfde principe als de
+    browse-lijst. Resultaatvorm is identiek aan /api/tournix/public/search
+    (phase_id/pool_name/tournament_name/tournament_id/matched_team), met
+    het bestaande disc_-prefix-patroon op phase_id zodat pinnen/openen
+    zonder aanpassingen werkt."""
+    q_norm = q.strip().lower()
+    if len(q_norm) < 2:
+        return []
+
+    from models.hockey import HockeyPublication
+
+    pubs = session.exec(
+        select(HockeyPublication).where(HockeyPublication.published == True)  # noqa: E712
+    ).all()
+    pub_by_comp_id = {}
+    for pub in pubs:
+        for lnk in get_visible_comp_links(session, pub.id):
+            pub_by_comp_id.setdefault(lnk.competition_id, pub)
+    if not pub_by_comp_id:
+        return []
+
+    poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(list(pub_by_comp_id.keys())))
+    ).all()
+    poule_by_ext_id = {p.poule_id: p for p in poules}
+
+    teams = session.exec(select(HockeyTeam)).all()
+    results, seen = [], set()
+    for team in teams:
+        if q_norm not in team.name.lower():
+            continue
+        poule = poule_by_ext_id.get(team.recent_poule_id)
+        if not poule:
+            continue
+        pub = pub_by_comp_id.get(poule.competition_id)
+        if not pub:
+            continue
+        phase_id = f"disc_{poule.id}"
+        if phase_id in seen:
+            continue
+        seen.add(phase_id)
+        results.append({
+            "phase_id":        phase_id,
+            "pool_name":       poule.name,
+            "tournament_name": pub.name,
+            "tournament_id":   pub.id,
+            "matched_team":    team.name,
+        })
+
+    return sorted(results, key=lambda x: (x["tournament_name"], x["pool_name"]))
+
+
 @router.get("/public/hockey-poules/{pid}/standings")
 def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)):
     """Standings voor één discovery-poule (voor gepinde poules op het board)."""

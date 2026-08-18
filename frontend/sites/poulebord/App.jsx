@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
+import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, searchDiscoveryPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
 import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY } from './constants.js'
 import { BoardView } from './BoardView.jsx'
 import { usePersistedState } from './hooks.js'
@@ -170,7 +170,10 @@ export default function App() {
     if (!searchMode || searchQ.length < 2) { setSearchResults(null); return }
     clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
-      searchPools(searchQ, SEASON).then(setSearchResults).catch(() => setSearchResults([]))
+      Promise.all([
+        searchPools(searchQ, SEASON).catch(() => []),
+        searchDiscoveryPools(searchQ).catch(() => []),
+      ]).then(([tournix, discovery]) => setSearchResults([...discovery, ...tournix]))
     }, 300)
     return () => clearTimeout(searchTimerRef.current)
   }, [searchQ, searchMode])
