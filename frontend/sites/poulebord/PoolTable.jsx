@@ -70,6 +70,7 @@ export function PoolTable({ rows, club, compact = false, showGoals = false, show
           {showGoals && (
             <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 44, whiteSpace: 'nowrap' }}>GV–GT</th>
           )}
+          <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 30, whiteSpace: 'nowrap' }}>DS</th>
           <th style={{ padding: hpad.right, textAlign: 'center', fontWeight: 600,
             width: 30, color: C.chalk }}>Pt</th>
         </tr>
@@ -96,6 +97,9 @@ export function PoolTable({ rows, club, compact = false, showGoals = false, show
                   {r.gf ?? 0}–{r.ga ?? 0}
                 </td>
               )}
+              <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted, fontSize: 11 }}>
+                {(() => { const ds = (r.gf ?? 0) - (r.ga ?? 0); return ds > 0 ? `+${ds}` : ds })()}
+              </td>
               <td style={{ padding: pad.right, textAlign: 'center',
                 color: C.goldBr, fontWeight: 700, fontSize: 13 }}>{r.pts}</td>
             </tr>

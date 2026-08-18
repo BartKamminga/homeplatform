@@ -136,7 +136,7 @@ export function PhaseCard({ phase, club, poolPins, onPoolPin, tournamentName }) 
 
 // ── Pinned pool slot (compact, board) ─────────────────────────────────────────
 
-function PinnedPoolSlot({ pin, club, idx, tournamentName }) {
+function PinnedPoolSlot({ pin, club, tournamentName, onUnpin }) {
   const standings = useStandings(pin.phaseId)
   const isDisc    = pin.phaseId?.startsWith?.('disc_')
   const poolRows  = standings
@@ -145,7 +145,7 @@ function PinnedPoolSlot({ pin, club, idx, tournamentName }) {
   const [modal, setModal] = useState(false)
 
   return (
-    <div style={{ flex: '1 1 180px', borderLeft: idx > 0 ? `1px solid ${C.border}` : 'none' }}>
+    <div style={{ marginBottom: 8 }}>
       {modal && (
         <MatchModal
           title={pin.poolName}
@@ -161,10 +161,12 @@ function PinnedPoolSlot({ pin, club, idx, tournamentName }) {
       ) : (
         <PouleCard
           title={pin.poolName}
+          subtitle={tournamentName}
           rows={poolRows}
           club={club}
-          density="compact"
           onOpen={poolRows.length > 0 ? () => setModal(true) : undefined}
+          pinned={true}
+          onTogglePin={onUnpin}
         />
       )}
     </div>
@@ -173,34 +175,12 @@ function PinnedPoolSlot({ pin, club, idx, tournamentName }) {
 
 export function PinnedPoolGroupCard({ tournamentName, pins, club, onUnpin }) {
   return (
-    <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`,
-      marginBottom: 8, overflow: 'hidden' }}>
-      <div style={{ padding: '5px 8px 5px 10px', borderBottom: `1px solid ${C.border}`,
-        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: C.chalk, flex: 1,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {tournamentName}
-        </span>
-        {pins.map(p => (
-          <span key={`${p.phaseId}::${p.poolName}`} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            background: 'rgba(207,159,63,0.1)', border: `1px solid ${C.gold}`,
-            borderRadius: 4, padding: '1px 4px', fontSize: 10, color: C.gold,
-          }}>
-            Poule {p.poolName}
-            <button onClick={() => onUnpin(p.phaseId, p.poolName)} style={{
-              background: 'none', border: 'none', padding: 0,
-              cursor: 'pointer', color: C.muted, fontSize: 9, lineHeight: 1,
-            }}>✕</button>
-          </span>
-        ))}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-        {pins.map((p, idx) => (
-          <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
-            pin={p} club={club} idx={idx} tournamentName={tournamentName} />
-        ))}
-      </div>
+    <div>
+      {pins.map(p => (
+        <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
+          pin={p} club={club} tournamentName={tournamentName}
+          onUnpin={() => onUnpin(p.phaseId, p.poolName)} />
+      ))}
     </div>
   )
 }
