@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   getHockeyPouleStandings, getPhaseStandings, getTagRanking, getTagRoundScorers, getTagRoundMatches,
   getUpcomingMatches, getClubRanking, getTournamentCompetitionStandings, getPhases,
+  getHockeyPublications, getDiscoverySeason,
 } from './api.js'
+import { SEASON, PINS_KEY, POOL_PINS_KEY, QUERY_PINS_KEY, FILTER_PINS_KEY } from './constants.js'
 
 // Generieke localStorage-gebonden state (Set/Map met JSON-serialisatie).
 // Bewaart het exacte opslagformaat per gebruik via serialize/deserialize, zodat
@@ -139,4 +141,195 @@ export function useQueryResult(pin) {
       .catch(() => setData([]))
   }, [cacheKey])
   return data
+}
+
+// item 692: publicatie/tag/browse-state uit App.jsx - seizoen+publicatielijst,
+// geselecteerde publicatie, tag-filters, en het pendingNav-navigatiemechanisme
+// (items 676/683: wacht tot pubComps voor de juiste publicatie geladen is
+// voordat tags/competitie worden toegepast, anders overschrijft het
+// selectedPub-reset-effect ze weer).
+export function usePublicationBrowse() {
+  const [season, setSeason]                 = useState(SEASON)
+  const [allRaw, setAllRaw]                 = useState(null)
+  const [error, setError]                   = useState(null)
+  const [selectedPub, setSelectedPub]       = useState(null)
+  const [tagFilters, setTagFilters]         = useState(() => new Set())
+  const [pubComps, setPubComps]             = useState(null)
+  const [pubCompsFor, setPubCompsFor]       = useState(null)
+  const [expandedCompId, setExpandedCompId] = useState(null)
+  const [pendingNav, setPendingNav]         = useState(null)
+
+  const all = useMemo(() => {
+    if (allRaw === null) return null
+    const norm = s => (s || '').replace(/\s*-\s*/g, '-')
+    return allRaw.filter(t => norm(t.season) === norm(season))
+  }, [allRaw, season])
+
+  useEffect(() => {
+    getDiscoverySeason().then(r => { if (r.season) setSeason(r.season) }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    getHockeyPublications().then(setAllRaw).catch(() => setError('Kon publicaties niet laden'))
+  }, [])
+
+  useEffect(() => {
+    if (!all) return
+    if (!all.find(t => t.id === selectedPub?.id)) setSelectedPub(all[0] || null)
+  }, [all])
+
+  useEffect(() => {
+    if (!selectedPub) { setPubComps(null); setPubCompsFor(null); return }
+    setPubComps(null)
+    setPubCompsFor(null)
+    setTagFilters(new Set())
+    setExpandedCompId(null)
+    getTournamentCompetitionStandings(selectedPub.id)
+      .then(data => { setPubComps(data.competitions || []); setPubCompsFor(selectedPub.id) })
+      .catch(() => { setPubComps([]); setPubCompsFor(selectedPub.id) })
+  }, [selectedPub])
+
+  useEffect(() => {
+    if (!pendingNav || pubCompsFor !== pendingNav.tournamentId || !pubComps) return
+    if (pendingNav.pouleId != null) {
+      const comp = pubComps.find(c => (c.poules || []).some(p => p.id === pendingNav.pouleId))
+      if (comp) {
+        setExpandedCompId(comp.link_id)
+        setTagFilters(new Set((comp.fase_tags || []).map(t => t.name)))
+      }
+    } else if (pendingNav.tags) {
+      setTagFilters(new Set(pendingNav.tags))
+    }
+    setPendingNav(null)
+  }, [pendingNav, pubComps, pubCompsFor])
+
+  function toggleTagFilter(tag) {
+    setTagFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
+  function clearTagFilters() { setTagFilters(new Set()) }
+
+  // Selecteert een publicatie (+ evt. specifieke poule of directe tags) op
+  // basis van een tournamentId - gebruikt door zoekresultaten (676) en gepinde
+  // filters (683). Sluiten van search/board-modi is aan de aanroeper (App.jsx),
+  // dat is UI-mode-state, geen publicatie-browse-state. Retourneert false als
+  // de publicatie niet (meer) bestaat.
+  function navigateTo({ tournamentId, tags, pouleId }) {
+    const t = (all || []).find(x => x.id === tournamentId)
+    if (!t) return false
+    setSelectedPub(t)
+    if (pouleId != null) setPendingNav({ tournamentId: t.id, pouleId })
+    else if (tags) setPendingNav({ tournamentId: t.id, tags })
+    return true
+  }
+
+  const allTags = pubComps
+    ? [...new Set(pubComps.flatMap(c => (c.fase_tags || []).map(t => t.name)))]
+    : []
+  const filteredComps = !pubComps ? [] : tagFilters.size === 0 ? pubComps
+    : pubComps.filter(c => {
+        const names = new Set((c.fase_tags || []).map(t => t.name))
+        return [...tagFilters].every(tag => names.has(tag))
+      })
+
+  return {
+    all, error, selectedPub, setSelectedPub,
+    tagFilters, toggleTagFilter, clearTagFilters,
+    pubComps, expandedCompId, setExpandedCompId,
+    allTags, filteredComps, navigateTo,
+  }
+}
+
+// item 692: alle pin-datasets (competitie/poule/query/filter) + hun CRUD uit
+// App.jsx - puur data-operaties, geen navigatie/UI-mode-logica.
+export function usePoulebordPins() {
+  const [pins, setPins, setPinsRaw] = usePersistedState(PINS_KEY, {
+    serialize: s => [...s], deserialize: arr => new Set(arr), initial: () => new Set(),
+  })
+  const [poolPins, setPoolPins, setPoolPinsRaw] = usePersistedState(POOL_PINS_KEY, {
+    serialize: m => [...m.values()],
+    deserialize: arr => new Map(arr.map(p => [`${p.phaseId}::${p.poolName}`, p])),
+    initial: () => new Map(),
+  })
+  const [queryPins, setQueryPins] = usePersistedState(QUERY_PINS_KEY, {
+    serialize: m => [...m.entries()], deserialize: arr => new Map(arr), initial: () => new Map(),
+  })
+  const [filterPins, setFilterPins] = usePersistedState(FILTER_PINS_KEY, {
+    serialize: m => [...m.entries()], deserialize: arr => new Map(arr), initial: () => new Map(),
+  })
+
+  function togglePin(tid) {
+    setPins(prev => {
+      const next = new Set(prev)
+      if (next.has(tid)) next.delete(tid)
+      else next.add(tid)
+      return next
+    })
+  }
+
+  function togglePoolPin(phaseId, poolName, tournamentName, compName) {
+    const key = `${phaseId}::${poolName}`
+    setPoolPins(prev => {
+      const next = new Map(prev)
+      if (next.has(key)) next.delete(key)
+      else next.set(key, { phaseId, poolName, tournamentName, compName })
+      return next
+    })
+  }
+
+  function setQueryPin(key, cfg) {
+    setQueryPins(prev => new Map(prev).set(key, cfg))
+  }
+
+  function updateQueryPin(key, patch) {
+    setQueryPins(prev => {
+      const cur = prev.get(key)
+      if (!cur) return prev
+      return new Map(prev).set(key, { ...cur, ...patch })
+    })
+  }
+
+  function removeQueryPin(key) {
+    setQueryPins(prev => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+  }
+
+  function filterPinKey(tid, tags) {
+    return `${tid}::${[...tags].sort().join(',')}`
+  }
+
+  function toggleFilterPin(selectedPub, tagFilters) {
+    if (!selectedPub) return
+    const key = filterPinKey(selectedPub.id, tagFilters)
+    setFilterPins(prev => {
+      const next = new Map(prev)
+      if (next.has(key)) next.delete(key)
+      else next.set(key, {
+        tournamentId: selectedPub.id, tournamentName: selectedPub.name, tags: [...tagFilters],
+      })
+      return next
+    })
+  }
+
+  function removeFilterPin(key) {
+    setFilterPins(prev => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+  }
+
+  return {
+    pins, setPins, setPinsRaw, poolPins, setPoolPins, setPoolPinsRaw, queryPins, filterPins,
+    togglePin, togglePoolPin, setQueryPin, updateQueryPin, removeQueryPin,
+    filterPinKey, toggleFilterPin, removeFilterPin,
+  }
 }
