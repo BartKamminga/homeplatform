@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { getTournaments, getHockeyPublications, getClubs, saveBoard, getBoardByCode, searchPools, getTournamentCompetitionStandings, getDiscoverySeason } from './api.js'
-import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, categoryOf } from './constants.js'
+import { C, SEASON, CLUB_KEY, BOARD_KEY, PINS_KEY, POOL_PINS_KEY, MY_BOARDS_KEY, QUERY_PINS_KEY, categoryOf } from './constants.js'
 import { BoardView, SeizoenInfo, TournamentCard } from './BoardView.jsx'
 import { PoolSearchCard, CompBrowseItem } from './BrowseComponents.jsx'
 
@@ -98,6 +98,10 @@ export default function App() {
   const [myBoards, setMyBoards]               = useState(() => {
     try { return JSON.parse(localStorage.getItem(MY_BOARDS_KEY) || '[]') }
     catch { return [] }
+  })
+  const [queryPins, setQueryPins]             = useState(() => {
+    try { return new Map(JSON.parse(localStorage.getItem(QUERY_PINS_KEY) || '[]')) }
+    catch { return new Map() }
   })
   const [myBoardsView, setMyBoardsView]       = useState(false)
   const [searchMode, setSearchMode]           = useState(false)
@@ -219,6 +223,45 @@ export default function App() {
       if (next.has(key)) next.delete(key)
       else next.set(key, { phaseId, poolName, tournamentName })
       localStorage.setItem(POOL_PINS_KEY, JSON.stringify([...next.values()]))
+      return next
+    })
+  }
+
+  function toggleQueryPin(template) {
+    if (!selectedPub) return
+    const tag = tagFilter || null
+    const key = `${selectedPub.id}::${tag || ''}::${template}`
+    setQueryPins(prev => {
+      const next = new Map(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.set(key, {
+          tournamentId: selectedPub.id, tournamentName: selectedPub.name,
+          tag, template, stat: 'points', limit: 3,
+        })
+      }
+      localStorage.setItem(QUERY_PINS_KEY, JSON.stringify([...next.entries()]))
+      return next
+    })
+  }
+
+  function updateQueryPin(key, patch) {
+    setQueryPins(prev => {
+      const cur = prev.get(key)
+      if (!cur) return prev
+      const next = new Map(prev)
+      next.set(key, { ...cur, ...patch })
+      localStorage.setItem(QUERY_PINS_KEY, JSON.stringify([...next.entries()]))
+      return next
+    })
+  }
+
+  function removeQueryPin(key) {
+    setQueryPins(prev => {
+      const next = new Map(prev)
+      next.delete(key)
+      localStorage.setItem(QUERY_PINS_KEY, JSON.stringify([...next.entries()]))
       return next
     })
   }
@@ -599,6 +642,9 @@ export default function App() {
             allTournaments={all}
             onUnpin={togglePin}
             onPoolUnpin={(phaseId, poolName) => togglePoolPin(phaseId, poolName)}
+            queryPins={queryPins}
+            onQueryUpdate={updateQueryPin}
+            onQueryUnpin={removeQueryPin}
           />
         </>
       ) : (
@@ -669,6 +715,28 @@ export default function App() {
                   )}
                 </>
               )}
+              {pubComps !== null && pubComps.length > 0 && (() => {
+                const rankKey  = `${selectedPub.id}::${tagFilter || ''}::ranking`
+                const scoreKey = `${selectedPub.id}::${tagFilter || ''}::round_scorers`
+                const rankPinned  = queryPins.has(rankKey)
+                const scorePinned = queryPins.has(scoreKey)
+                return (
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <button onClick={() => toggleQueryPin('ranking')} style={{
+                      padding: '4px 10px', borderRadius: 14, fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit',
+                      background: rankPinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+                      border: `1px solid ${rankPinned ? C.gold : C.border}`,
+                      color: rankPinned ? C.gold : C.muted,
+                    }}>📌 Ranglijst{tagFilter ? ` · ${tagFilter}` : ''}</button>
+                    <button onClick={() => toggleQueryPin('round_scorers')} style={{
+                      padding: '4px 10px', borderRadius: 14, fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit',
+                      background: scorePinned ? 'rgba(207,159,63,0.15)' : 'transparent',
+                      border: `1px solid ${scorePinned ? C.gold : C.border}`,
+                      color: scorePinned ? C.gold : C.muted,
+                    }}>📌 Topscorers{tagFilter ? ` · ${tagFilter}` : ''}</button>
+                  </div>
+                )
+              })()}
               {pubComps === null ? (
                 <div style={{ textAlign: 'center', color: C.muted, padding: 40, fontSize: 14 }}>Laden…</div>
               ) : filteredComps.length === 0 ? (

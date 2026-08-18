@@ -17,6 +17,7 @@ export const BOARD_KEY     = 'pb_board_on'
 export const PINS_KEY      = 'pb_pins'
 export const POOL_PINS_KEY = 'pb_pool_pins'
 export const MY_BOARDS_KEY = 'pb_my_boards'
+export const QUERY_PINS_KEY = 'pb_query_pins'
 
 export const SEIZOEN_INFO = {
   MO18: [

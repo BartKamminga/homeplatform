@@ -5,6 +5,7 @@ import { useStandings } from './hooks.js'
 import { PoolTable } from './PoolTable.jsx'
 import { MatchModal } from './MatchModal.jsx'
 import { CompetitionStandingsView } from './BrowseComponents.jsx'
+import { QueryCard } from './QueryCard.jsx'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
 
@@ -473,7 +474,8 @@ function BoardSection({ label, children }) {
 
 // ── Board view ────────────────────────────────────────────────────────────────
 
-export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin }) {
+export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoolUnpin,
+  queryPins, onQueryUpdate, onQueryUnpin }) {
   const [boardData, setBoardData] = useState(null)
 
   useEffect(() => {
@@ -491,11 +493,14 @@ export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoo
   const pinnedPools = [...poolPins.values()]
     .filter(p => !clubPhasePoolKeys.has(`${p.phaseId}::${p.poolName}`))
 
+  const queryPinList = [...(queryPins?.values() ?? [])]
+
   const hasClub      = club && boardData !== null && boardData.length > 0
   const hasT         = pinnedTournaments.length > 0
   const hasP         = pinnedPools.length > 0
-  const hasPinned    = hasT || hasP
-  const showSubLabels = hasT && hasP
+  const hasQ         = queryPinList.length > 0
+  const hasPinned    = hasT || hasP || hasQ
+  const showSubLabels = [hasT, hasP, hasQ].filter(Boolean).length > 1
 
   if (!club && !hasPinned) return <EmptyBoard />
 
@@ -567,6 +572,21 @@ export function BoardView({ club, pins, poolPins, allTournaments, onUnpin, onPoo
                 />
               ))
           })()}
+
+          {showSubLabels && hasQ && (
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+              textTransform: 'uppercase', color: C.muted, padding: '8px 2px 6px' }}>
+              Queries
+            </div>
+          )}
+          {[...(queryPins?.entries() ?? [])].map(([key, pin]) => (
+            <QueryCard
+              key={key}
+              pin={pin}
+              onUpdate={patch => onQueryUpdate(key, patch)}
+              onUnpin={() => onQueryUnpin(key)}
+            />
+          ))}
         </BoardSection>
       )}
     </div>

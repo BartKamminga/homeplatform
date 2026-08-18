@@ -59,6 +59,7 @@ const LS_ROWS = [
   { label: 'nk_sim_count',                       note: 'Simulatieaantal',                                scope: 'NKHockey' },
   { label: 'nk_disclaimer_seen',                 note: 'Disclaimer gezien',                              scope: 'NKHockey' },
   { label: 'rm_site / rm_status / rm_priority / rm_last_site', note: 'Roadmap filters — cache (via DB)', scope: 'Admin / Roadmap' },
+  { label: 'pb_query_pins', note: 'Gepinde query-templates (ranglijst / rondetopscorers per niveau-tag)', scope: 'Poulebord' },
 ];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */

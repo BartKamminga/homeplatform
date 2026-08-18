@@ -20,3 +20,11 @@ export const getHockeyPouleStandings = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
 export const getCompetitionMatches = (cid) =>
   api.get(`/api/hockey/public/competitions/${cid}/matches`)
+export const getTagRanking = (tid, tag, stat, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/ranking?${new URLSearchParams({
+    ...(tag ? { tag } : {}), stat, limit,
+  })}`)
+export const getTagRoundScorers = (tid, tag, limit) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/round-scorers?${new URLSearchParams({
+    ...(tag ? { tag } : {}), limit,
+  })}`)

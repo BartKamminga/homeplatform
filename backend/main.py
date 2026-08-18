@@ -52,6 +52,7 @@ from routers import hockey_capture  # noqa: E402
 from routers import hockey_vanger  # noqa: E402
 from routers import hockey_discovery  # noqa: E402
 from routers import hockey_publication  # noqa: E402
+from routers import hockey_query  # noqa: E402
 from routers import infra  # noqa: E402
 from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
@@ -166,6 +167,7 @@ app.include_router(hockey_capture.router)
 app.include_router(hockey_vanger.router)
 app.include_router(hockey_discovery.router)
 app.include_router(hockey_publication.router)
+app.include_router(hockey_query.router)
 app.include_router(scrapster_router)
 app.include_router(infra.router)
 
