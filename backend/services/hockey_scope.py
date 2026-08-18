@@ -2,7 +2,7 @@
 
 from typing import Optional, Sequence
 
-from sqlmodel import Session, col, select
+from sqlmodel import Session, select
 
 from models.hockey import HockeyPublicationComp, HockeyPublicationCompTag, HockeyPublicationTag
 
@@ -29,17 +29,22 @@ def get_comp_link_tags(session: Session, comp_link_id: str):
 
 
 def get_link_ids_for_tags(session: Session, tag_names: Sequence[str]):
-    """comp_link_id's die minstens 1 van de gegeven tag-namen hebben (OR-logica)."""
-    ctags = session.exec(
-        select(HockeyPublicationCompTag)
-        .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
-        .where(col(HockeyPublicationTag.name).in_(tag_names))
-    ).all()
-    return {ct.comp_link_id for ct in ctags}
+    """comp_link_id's die ALLE gegeven tag-namen hebben (AND-logica)."""
+    if not tag_names:
+        return set()
+    sets = []
+    for name in tag_names:
+        ctags = session.exec(
+            select(HockeyPublicationCompTag)
+            .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
+            .where(HockeyPublicationTag.name == name)
+        ).all()
+        sets.append({ct.comp_link_id for ct in ctags})
+    return set.intersection(*sets)
 
 
 def get_publication_links(session: Session, publication_id: str, tags: Optional[Sequence[str]] = None):
-    """Zichtbare competitie-koppelingen van een publicatie, evt. gefilterd op 1 of meer tag-namen (OR)."""
+    """Zichtbare competitie-koppelingen van een publicatie, evt. gefilterd op 1 of meer tag-namen (AND: moet ze allemaal hebben)."""
     links = get_visible_comp_links(session, publication_id)
     if tags:
         tagged_link_ids = get_link_ids_for_tags(session, tags)

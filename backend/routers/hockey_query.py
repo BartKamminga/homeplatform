@@ -32,7 +32,7 @@ ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
 
 
 def _scoped_poules(session: Session, tid: str, tags: Optional[List[str]]):
-    """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op 1+ tags (OR)."""
+    """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op 1+ tags (AND: moet ze allemaal hebben)."""
     links = get_publication_links(session, tid, tags)
     comp_ids = [lnk.competition_id for lnk in links]
     if not comp_ids:
@@ -84,7 +84,7 @@ def get_tag_ranking(
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Cross-poule ranglijst (top-N) voor een publicatie, evt. gefilterd op 1 of meer niveau-tags (OR)."""
+    """Cross-poule ranglijst (top-N) voor een publicatie, evt. gefilterd op 1+ niveau-tags (AND)."""
     if stat not in RANKING_STATS:
         raise HTTPException(400, "Onbekende stat")
     limit = max(1, min(limit, 20))

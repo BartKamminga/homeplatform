@@ -311,7 +311,10 @@ export default function App() {
     ? [...new Set(pubComps.flatMap(c => (c.fase_tags || []).map(t => t.name)))]
     : []
   const filteredComps = !pubComps ? [] : tagFilters.size === 0 ? pubComps
-    : pubComps.filter(c => (c.fase_tags || []).some(t => tagFilters.has(t.name)))
+    : pubComps.filter(c => {
+        const names = new Set((c.fase_tags || []).map(t => t.name))
+        return [...tagFilters].every(tag => names.has(tag))
+      })
   const visible = searchMode
     ? (all || []).filter(t => t.name.toLowerCase().includes(searchQ.toLowerCase()))
     : []

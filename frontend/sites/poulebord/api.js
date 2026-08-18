@@ -20,7 +20,7 @@ export const getHockeyPouleStandings = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
 export const getCompetitionMatches = (cid) =>
   api.get(`/api/hockey/public/competitions/${cid}/matches`)
-// Bouwt een querystring met 0+ herhaalde tag=...-params (OR-logica op de backend) plus extra params.
+// Bouwt een querystring met 0+ herhaalde tag=...-params (AND-logica op de backend) plus extra params.
 function tagQuery(tags, extra) {
   const params = new URLSearchParams(extra)
   for (const t of (tags || [])) params.append('tag', t)
