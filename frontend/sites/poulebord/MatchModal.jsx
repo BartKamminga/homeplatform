@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { C } from './constants.js'
-import { PoolTable } from './PoolTable.jsx'
+import { PouleCard } from './PouleCard.jsx'
 import { getPoolMatches } from './api.js'
 
 // Unified bottom-sheet modal for pool detail + matches (items 539 + 550).
@@ -81,11 +81,9 @@ export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchS
         </div>
 
         <div style={{ padding: '14px 14px 32px' }}>
-          {/* Standings */}
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
-            textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Stand</div>
-          <div style={{ background: C.card, borderRadius: 10, overflow: 'hidden', marginBottom: 18 }}>
-            <PoolTable rows={rows} showGoals />
+          {/* Standings — zelfde PouleCard als overal elders (item 667) */}
+          <div style={{ marginBottom: 18 }}>
+            <PouleCard title="Stand" rows={rows} showGoals />
           </div>
 
           {/* Matches */}
