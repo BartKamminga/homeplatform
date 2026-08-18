@@ -1,4 +1,5 @@
-"""Hockey — publieke endpoints (Poulebord + Hockey Inside)."""
+"""Hockey — publieke read-endpoints voor Poulebord (geen scan-/discovery-logica,
+die zit in hockey_vanger.py/hockey_capture.py)."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
@@ -15,7 +16,7 @@ from models.hockey_discovery import (
 from services.hockey_scope import get_comp_link_tags, get_visible_comp_links
 from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
-router = APIRouter(prefix="/api/hockey", tags=["hockey-discovery"])
+router = APIRouter(prefix="/api/hockey", tags=["hockey-public"])
 
 
 @router.get("/public/clubs")

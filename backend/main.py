@@ -50,7 +50,7 @@ from routers import capture  # noqa: E402
 from routers import hockey_clubs  # noqa: E402
 from routers import hockey_capture  # noqa: E402
 from routers import hockey_vanger  # noqa: E402
-from routers import hockey_discovery  # noqa: E402
+from routers import hockey_public  # noqa: E402
 from routers import hockey_publication  # noqa: E402
 from routers import hockey_query  # noqa: E402
 from routers import infra  # noqa: E402
@@ -165,7 +165,7 @@ app.include_router(capture.router)
 app.include_router(hockey_clubs.router)
 app.include_router(hockey_capture.router)
 app.include_router(hockey_vanger.router)
-app.include_router(hockey_discovery.router)
+app.include_router(hockey_public.router)
 app.include_router(hockey_publication.router)
 app.include_router(hockey_query.router)
 app.include_router(scrapster_router)
