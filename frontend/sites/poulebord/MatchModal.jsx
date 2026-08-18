@@ -85,7 +85,7 @@ export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchS
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
             textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Stand</div>
           <div style={{ background: C.card, borderRadius: 10, overflow: 'hidden', marginBottom: 18 }}>
-            <PoolTable rows={rows} large showGoals />
+            <PoolTable rows={rows} showGoals />
           </div>
 
           {/* Matches */}

@@ -4,11 +4,26 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
 
 from core.database import get_session
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam
+from models.hockey_discovery import (
+    HockeyClub,
+    HockeyCompetition,
+    HockeyPoule,
+    HockeyPouleMatch,
+    HockeyPouleStanding,
+    HockeyTeam,
+)
 from services.hockey_scope import get_comp_link_tags, get_visible_comp_links
 from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-discovery"])
+
+
+@router.get("/public/clubs")
+def list_public_clubs(session: Session = Depends(get_session)):
+    """Clubnamen voor de poulebord-clubselector (uit HockeyClub, niet tournix_clubs)."""
+    clubs = session.exec(select(HockeyClub)).all()
+    names = sorted({(c.friendly_name or c.name) for c in clubs if (c.friendly_name or c.name)})
+    return names
 
 
 @router.get("/public/publications")
