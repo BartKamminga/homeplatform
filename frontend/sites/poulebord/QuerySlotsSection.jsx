@@ -1,12 +1,13 @@
 import { C } from './constants.js'
 import { QueryCard } from './QueryCard.jsx'
 
+// round_scorers/round_matches zijn bewust weggelaten (item 668): die hebben
+// afgeronde wedstrijden nodig en tonen dus "Geen data gevonden" zolang er nog
+// niet gespeeld is, met kans op verwarrend identiek ogende kaarten omdat de
+// stat per kaart vrij instelbaar is. Kunnen terugkomen zodra er wedstrijden
+// gespeeld zijn - de templates/endpoints zelf blijven gewoon bestaan.
 const QUERY_SLOTS = [
   { template: 'ranking',          stat: 'points' },
-  { template: 'round_scorers',    stat: 'goals_for' },
-  { template: 'round_scorers',    stat: 'goals_against' },
-  { template: 'round_matches',    stat: 'biggest_margin' },
-  { template: 'round_matches',    stat: 'closest_match' },
   { template: 'upcoming_matches', stat: 'rank_gap' },
   { template: 'upcoming_matches', stat: 'point_gap' },
   { template: 'win_streak',       stat: 'streak' },
