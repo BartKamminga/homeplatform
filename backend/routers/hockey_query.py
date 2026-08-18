@@ -6,106 +6,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, col, select
 
 from core.database import get_session
-from models.hockey_discovery import (
-    HockeyCompetition,
-    HockeyPoule,
-    HockeyPouleMatch,
-    HockeyPouleStanding,
+from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
+from services.hockey_query_scope import (
+    ALL_RANKING_STATS,
+    RANKING_STATS,
+    ROUND_MATCH_STATS,
+    ROUND_TEAM_STATS,
+    compute_win_streaks,
+    finished_matches,
+    last_round_only,
+    scoped_matches,
+    scoped_poules,
 )
-from services.hockey_scope import get_publication_links
 from services.hockey_teams import resolve_team_clubs, club_logo_for_team
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-query"])
-
-# stat -> (sleutel-functie, reverse) — reverse=True is "hoogste eerst"
-# "streak" (winstreak) staat er niet in: die vergt wedstrijdgeschiedenis i.p.v.
-# een standings-veld en wordt apart afgehandeld in get_tag_ranking (item 673 -
-# was een losse win-streak-template, nu een stat-optie op de ranglijst).
-RANKING_STATS = {
-    "points":        (lambda r: r.points, True),
-    "goal_diff":     (lambda r: r.goals_for - r.goals_against, True),
-    "goals_for":     (lambda r: r.goals_for, True),
-    "goals_against": (lambda r: r.goals_against, False),
-    "won":           (lambda r: r.won, True),
-    "drawn":         (lambda r: r.drawn, True),
-}
-ALL_RANKING_STATS = set(RANKING_STATS) | {"streak"}
-
-ROUND_TEAM_STATS = {"goals_for", "goals_against"}
-ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
-
-
-def _scoped_poules(session: Session, tid: str, tags: Optional[List[str]]):
-    """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op 1+ tags (AND: moet ze allemaal hebben)."""
-    links = get_publication_links(session, tid, tags)
-    comp_ids = [lnk.competition_id for lnk in links]
-    if not comp_ids:
-        return []
-    comps = {
-        c.id: c for c in session.exec(
-            select(HockeyCompetition).where(col(HockeyCompetition.id).in_(comp_ids))
-        ).all()
-    }
-    poules = session.exec(
-        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids))
-    ).all()
-    return [(p, comps.get(p.competition_id)) for p in poules]
-
-
-def _finished_matches(session: Session, poule_ext_ids: list):
-    """Alle afgeronde wedstrijden van de gekozen poules (heel seizoen tot nu toe)."""
-    return session.exec(
-        select(HockeyPouleMatch)
-        .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
-        .where(HockeyPouleMatch.status == "finished")
-    ).all()
-
-
-def _last_round_only(matches: list):
-    """Beperk tot de laatst gespeelde ronde, per poule."""
-    last_round: dict = {}
-    for m in matches:
-        if m.round is None:
-            continue
-        if m.round > last_round.get(m.poule_id, -1):
-            last_round[m.poule_id] = m.round
-    return [m for m in matches if last_round.get(m.poule_id) == m.round], last_round
-
-
-def _scoped_matches(session: Session, poule_ext_ids: list, scope: str):
-    """Wedstrijden binnen de gekozen scope: 'round' (laatste ronde per poule) of 'season' (heel seizoen)."""
-    all_matches = _finished_matches(session, poule_ext_ids)
-    if scope == "round":
-        return _last_round_only(all_matches)
-    return all_matches, {}
-
-
-def _compute_win_streaks(session: Session, poule_ext_ids: list):
-    """Actieve overwinningsreeks per (poule_id, team_id) - alleen teams met een lopende streak > 0."""
-    matches = _finished_matches(session, poule_ext_ids)
-
-    games_by_team: dict = {}  # (poule_id, team_id) -> [(round, result), ...]
-    for m in matches:
-        if m.round is None or m.home_score is None or m.away_score is None:
-            continue
-        if m.home_team_id is not None:
-            result = "W" if m.home_score > m.away_score else ("L" if m.home_score < m.away_score else "D")
-            games_by_team.setdefault((m.poule_id, m.home_team_id), []).append((m.round, result))
-        if m.away_team_id is not None:
-            result = "W" if m.away_score > m.home_score else ("L" if m.away_score < m.home_score else "D")
-            games_by_team.setdefault((m.poule_id, m.away_team_id), []).append((m.round, result))
-
-    streaks: dict = {}
-    for key, games in games_by_team.items():
-        games.sort(key=lambda g: g[0])
-        streak = 0
-        for _, result in reversed(games):
-            if result != "W":
-                break
-            streak += 1
-        if streak > 0:
-            streaks[key] = streak
-    return streaks
 
 
 @router.get("/public/tournaments/{tid}/query/ranking")
@@ -121,7 +36,7 @@ def get_tag_ranking(
         raise HTTPException(400, "Onbekende stat")
     limit = max(1, min(limit, 20))
 
-    scoped = _scoped_poules(session, tid, tag)
+    scoped = scoped_poules(session, tid, tag)
     if not scoped:
         return {"tags": tag, "stat": stat, "rows": []}
 
@@ -134,7 +49,7 @@ def get_tag_ranking(
     teams, clubs = resolve_team_clubs(session, [r.team_id for r in standings])
 
     if stat == "streak":
-        streaks = _compute_win_streaks(session, poule_ext_ids)
+        streaks = compute_win_streaks(session, poule_ext_ids)
         ranked = sorted(
             (r for r in standings if (r.poule_id, r.team_id) in streaks),
             key=lambda r: streaks[(r.poule_id, r.team_id)],
@@ -183,13 +98,13 @@ def get_tag_round_scorers(
         raise HTTPException(400, "Onbekende stat")
     limit = max(1, min(limit, 20))
 
-    scoped = _scoped_poules(session, tid, tag)
+    scoped = scoped_poules(session, tid, tag)
     if not scoped:
         return {"tags": tag, "stat": stat, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
-    matches, last_round = _last_round_only(_finished_matches(session, poule_ext_ids))
+    matches, last_round = last_round_only(finished_matches(session, poule_ext_ids))
 
     totals: dict = {}  # (poule_ext_id, team_id) -> {team_name, goals_for, goals_against}
     for m in matches:
@@ -244,13 +159,13 @@ def get_tag_round_matches(
         raise HTTPException(400, "Onbekende scope")
     limit = max(1, min(limit, 20))
 
-    scoped = _scoped_poules(session, tid, tag)
+    scoped = scoped_poules(session, tid, tag)
     if not scoped:
         return {"tags": tag, "stat": stat, "scope": scope, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
-    matches, _ = _scoped_matches(session, poule_ext_ids, scope)
+    matches, _ = scoped_matches(session, poule_ext_ids, scope)
 
     candidates = []
     for m in matches:
@@ -297,7 +212,7 @@ def get_upcoming_matches(
     wedstrijd kan allebei zijn."""
     limit = max(1, min(limit, 20))
 
-    scoped = _scoped_poules(session, tid, tag)
+    scoped = scoped_poules(session, tid, tag)
     if not scoped:
         return {"tags": tag, "rows": []}
 
@@ -372,7 +287,7 @@ def get_club_ranking(
     """Welke club heeft de meeste teams binnen 1 of meer niveau-tags."""
     limit = max(1, min(limit, 20))
 
-    scoped = _scoped_poules(session, tid, tag)
+    scoped = scoped_poules(session, tid, tag)
     if not scoped:
         return {"tags": tag, "rows": []}
 
