@@ -61,22 +61,25 @@ export function CompetitionStandingsView({ fasesData, club }) {
 
 // ── Pool search result card ───────────────────────────────────────────────────
 
-export function PoolSearchCard({ result, poolPins, onPoolPin }) {
+export function PoolSearchCard({ result, poolPins, onPoolPin, onOpen }) {
   const key = `${result.phase_id}::${result.pool_name}`
   const isPinned = poolPins?.has(key)
+  const openable = !!onOpen
   return (
     <div style={{ background: C.card, borderRadius: 10,
       border: `1px solid ${isPinned ? C.gold : C.border}`,
       marginBottom: 6, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
-      <div style={{ flex: 1, padding: '8px 12px' }}>
+      <div
+        onClick={openable ? () => onOpen(result) : undefined}
+        style={{ flex: 1, padding: '8px 12px', cursor: openable ? 'pointer' : 'default' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, letterSpacing: '0.06em' }}>
-          POULE {result.pool_name}
+          POULE {result.pool_name}{openable && <span style={{ color: C.muted, fontSize: 9 }}> ›</span>}
         </div>
         <div style={{ fontSize: 11, color: C.chalk, marginTop: 2 }}>{result.tournament_name}</div>
         <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{result.matched_team}</div>
       </div>
       <button
-        onClick={() => onPoolPin(result.phase_id, result.pool_name, result.tournament_name)}
+        onClick={e => { e.stopPropagation(); onPoolPin(result.phase_id, result.pool_name, result.tournament_name) }}
         title={isPinned ? 'Verwijder van board' : 'Pin deze poule op je board'}
         style={{
           background: isPinned ? 'rgba(207,159,63,0.15)' : 'transparent',

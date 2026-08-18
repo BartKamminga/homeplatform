@@ -2,7 +2,7 @@ import { C } from './constants.js'
 import { TournamentCard } from './BoardView.jsx'
 import { PoolSearchCard } from './BrowseComponents.jsx'
 
-export function SearchView({ searchQ, visible, searchResults, club, pins, poolPins, onTogglePin, onTogglePoolPin }) {
+export function SearchView({ searchQ, visible, searchResults, club, pins, poolPins, onTogglePin, onTogglePoolPin, onOpenResult }) {
   return (
     <div style={{ padding: '10px 10px' }}>
       {searchQ.length < 2 ? (
@@ -44,6 +44,7 @@ export function SearchView({ searchQ, visible, searchResults, club, pins, poolPi
                   result={r}
                   poolPins={poolPins}
                   onPoolPin={(phaseId, poolName, tn) => onTogglePoolPin(phaseId, poolName, tn)}
+                  onOpen={onOpenResult}
                 />
               ))}
             </>

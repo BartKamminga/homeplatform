@@ -82,7 +82,9 @@ export default function App() {
   const [selectedPub, setSelectedPub]         = useState(null)
   const [tagFilters, setTagFilters]           = useState(() => new Set())
   const [pubComps, setPubComps]               = useState(null)
+  const [pubCompsFor, setPubCompsFor]         = useState(null)
   const [expandedCompId, setExpandedCompId]   = useState(null)
+  const [pendingNav, setPendingNav]           = useState(null)
   const [club, setClub]                       = useState(() => localStorage.getItem(CLUB_KEY) || '')
   const [clubEdit, setClubEdit]               = useState(false)
   const [clubs, setClubs]                     = useState([])
@@ -157,14 +159,27 @@ export default function App() {
   }, [all])
 
   useEffect(() => {
-    if (!selectedPub) { setPubComps(null); return }
+    if (!selectedPub) { setPubComps(null); setPubCompsFor(null); return }
     setPubComps(null)
+    setPubCompsFor(null)
     setTagFilters(new Set())
     setExpandedCompId(null)
     getTournamentCompetitionStandings(selectedPub.id)
-      .then(data => setPubComps(data.competitions || []))
-      .catch(() => setPubComps([]))
+      .then(data => { setPubComps(data.competitions || []); setPubCompsFor(selectedPub.id) })
+      .catch(() => { setPubComps([]); setPubCompsFor(selectedPub.id) })
   }, [selectedPub])
+
+  // item 676: na klik op een zoekresultaat wachten tot pubComps voor de
+  // juiste publicatie geladen is, dan de bijbehorende competitie/tags tonen.
+  useEffect(() => {
+    if (!pendingNav || pubCompsFor !== pendingNav.tournamentId || !pubComps) return
+    const comp = pubComps.find(c => (c.poules || []).some(p => p.id === pendingNav.pouleId))
+    if (comp) {
+      setExpandedCompId(comp.link_id)
+      setTagFilters(new Set((comp.fase_tags || []).map(t => t.name)))
+    }
+    setPendingNav(null)
+  }, [pendingNav, pubComps, pubCompsFor])
 
   useEffect(() => {
     if (!searchMode || searchQ.length < 2) { setSearchResults(null); return }
@@ -220,6 +235,21 @@ export default function App() {
     setSearchMode(false)
     setSearchQ('')
     setSearchResults(null)
+  }
+
+  // item 676: klik op een zoekresultaat (team/poule) opent de browse-pagina
+  // met de bijbehorende publicatie geselecteerd en (indien Hockey Discovery)
+  // de competitie uitgeklapt met de bijbehorende tags actief.
+  function navigateToSearchResult(result) {
+    const t = (all || []).find(x => x.id === result.tournament_id)
+    if (!t) return
+    closeSearch()
+    setBoardOn(false)
+    setMyBoardsView(false)
+    setSelectedPub(t)
+    if (result.phase_id?.startsWith('disc_')) {
+      setPendingNav({ tournamentId: t.id, pouleId: parseInt(result.phase_id.slice(5), 10) })
+    }
   }
 
   function togglePin(tid) {
@@ -471,6 +501,7 @@ export default function App() {
           poolPins={poolPins}
           onTogglePin={togglePin}
           onTogglePoolPin={togglePoolPin}
+          onOpenResult={navigateToSearchResult}
         />
       ) : boardOn ? (
         <>
