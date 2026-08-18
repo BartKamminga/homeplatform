@@ -48,17 +48,17 @@ function getCachedQuery(key) {
 }
 
 export function useQueryResult(pin) {
-  const { tournamentId, tag, template, stat, limit } = pin
-  const cacheKey = `${tournamentId}::${tag || ''}::${template}::${stat || ''}::${limit}`
+  const { tournamentId, tag, template, stat, scope, limit } = pin
+  const cacheKey = `${tournamentId}::${tag || ''}::${template}::${stat || ''}::${scope || ''}::${limit}`
   const [data, setData] = useState(() => getCachedQuery(cacheKey))
   useEffect(() => {
     const cached = getCachedQuery(cacheKey)
     if (cached) { setData(cached); return }
     setData(null)
     const req = template === 'round_scorers'
-      ? getTagRoundScorers(tournamentId, tag, stat, limit)
+      ? getTagRoundScorers(tournamentId, tag, stat, scope || 'round', limit)
       : template === 'round_matches'
-        ? getTagRoundMatches(tournamentId, tag, stat, limit)
+        ? getTagRoundMatches(tournamentId, tag, stat, scope || 'round', limit)
         : getTagRanking(tournamentId, tag, stat, limit)
     req
       .then(d => { _queryCache[cacheKey] = { rows: d.rows || [], ts: Date.now() }; setData(d.rows || []) })

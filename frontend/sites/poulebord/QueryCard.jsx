@@ -26,16 +26,14 @@ const selectStyle = {
 }
 
 function titleFor(pin) {
-  const scope = pin.tag || 'Alle niveaus'
-  if (pin.template === 'ranking') return `Ranglijst · ${scope}`
-  if (pin.template === 'round_scorers') {
-    return pin.stat === 'goals_against'
-      ? `Beste verdediging laatste ronde · ${scope}`
-      : `Topscorers laatste ronde · ${scope}`
-  }
-  return pin.stat === 'closest_match'
-    ? `Spannendste wedstrijd laatste ronde · ${scope}`
-    : `Grootste overwinning laatste ronde · ${scope}`
+  const tagLabel = pin.tag || 'Alle niveaus'
+  if (pin.template === 'ranking') return `Ranglijst · ${tagLabel}`
+
+  const periodLabel = pin.scope === 'season' ? 'dit seizoen' : 'laatste ronde'
+  const base = pin.template === 'round_scorers'
+    ? (pin.stat === 'goals_against' ? 'Beste verdediging' : 'Topscorers')
+    : (pin.stat === 'closest_match' ? 'Spannendste wedstrijd' : 'Grootste overwinning')
+  return `${base} ${periodLabel} · ${tagLabel}`
 }
 
 function TeamRows({ rows, stat }) {
@@ -91,6 +89,17 @@ export function QueryCard({ pin, onUpdate, onUnpin }) {
         <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.04em', flex: 1 }}>
           {titleFor(pin)}
         </span>
+        {pin.template !== 'ranking' && (
+          <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 5, overflow: 'hidden' }}>
+            {[['round', 'Ronde'], ['season', 'Seizoen']].map(([s, label]) => (
+              <button key={s} onClick={() => onUpdate({ scope: s })} style={{
+                padding: '1px 6px', fontSize: 10, fontFamily: 'inherit', cursor: 'pointer', border: 'none',
+                background: (pin.scope || 'round') === s ? C.gold : 'transparent',
+                color: (pin.scope || 'round') === s ? C.deep : C.muted,
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
         <select value={pin.stat} onChange={e => onUpdate({ stat: e.target.value })} style={selectStyle}>
           {statOptions.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>

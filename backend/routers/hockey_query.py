@@ -80,22 +80,32 @@ def _teams_and_clubs(session: Session, team_ids: list):
     return teams, clubs
 
 
-def _last_round_finished_matches(session: Session, poule_ext_ids: list):
-    """Alle afgeronde wedstrijden van de laatst gespeelde ronde, per poule."""
-    matches = session.exec(
+def _finished_matches(session: Session, poule_ext_ids: list):
+    """Alle afgeronde wedstrijden van de gekozen poules (heel seizoen tot nu toe)."""
+    return session.exec(
         select(HockeyPouleMatch)
         .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
         .where(HockeyPouleMatch.status == "finished")
     ).all()
 
+
+def _last_round_only(matches: list):
+    """Beperk tot de laatst gespeelde ronde, per poule."""
     last_round: dict = {}
     for m in matches:
         if m.round is None:
             continue
         if m.round > last_round.get(m.poule_id, -1):
             last_round[m.poule_id] = m.round
-
     return [m for m in matches if last_round.get(m.poule_id) == m.round], last_round
+
+
+def _scoped_matches(session: Session, poule_ext_ids: list, scope: str):
+    """Wedstrijden binnen de gekozen scope: 'round' (laatste ronde per poule) of 'season' (heel seizoen)."""
+    all_matches = _finished_matches(session, poule_ext_ids)
+    if scope == "round":
+        return _last_round_only(all_matches)
+    return all_matches, {}
 
 
 @router.get("/public/tournaments/{tid}/query/ranking")
@@ -152,21 +162,24 @@ def get_tag_round_scorers(
     tid: str,
     tag: Optional[str] = None,
     stat: str = "goals_for",
+    scope: str = "round",
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Team-ranglijst van de laatst afgeronde ronde (per poule): meeste doelpunten voor of tegen."""
+    """Team-ranglijst: meeste doelpunten voor of tegen, over de laatste ronde of het hele seizoen."""
     if stat not in ROUND_TEAM_STATS:
         raise HTTPException(400, "Onbekende stat")
+    if scope not in ("round", "season"):
+        raise HTTPException(400, "Onbekende scope")
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "rows": []}
+        return {"tag": tag, "stat": stat, "scope": scope, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
-    matches, last_round = _last_round_finished_matches(session, poule_ext_ids)
+    matches, last_round = _scoped_matches(session, poule_ext_ids, scope)
 
     totals: dict = {}  # (poule_ext_id, team_id) -> {team_name, goals_for, goals_against}
     for m in matches:
@@ -204,7 +217,7 @@ def get_tag_round_scorers(
             "goals_against":    data["goals_against"],
             "round":            last_round.get(poule_ext_id),
         })
-    return {"tag": tag, "stat": stat, "rows": rows}
+    return {"tag": tag, "stat": stat, "scope": scope, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/round-matches")
@@ -212,21 +225,24 @@ def get_tag_round_matches(
     tid: str,
     tag: Optional[str] = None,
     stat: str = "biggest_margin",
+    scope: str = "round",
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Match-highlights van de laatst afgeronde ronde: grootste overwinning of spannendste wedstrijd."""
+    """Match-highlights: grootste overwinning of spannendste wedstrijd, over de laatste ronde of het hele seizoen."""
     if stat not in ROUND_MATCH_STATS:
         raise HTTPException(400, "Onbekende stat")
+    if scope not in ("round", "season"):
+        raise HTTPException(400, "Onbekende scope")
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "rows": []}
+        return {"tag": tag, "stat": stat, "scope": scope, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
-    matches, last_round = _last_round_finished_matches(session, poule_ext_ids)
+    matches, _ = _scoped_matches(session, poule_ext_ids, scope)
 
     candidates = []
     for m in matches:
@@ -252,6 +268,6 @@ def get_tag_round_matches(
             "margin":           margin,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "round":            last_round.get(m.poule_id),
+            "round":            m.round,
         })
-    return {"tag": tag, "stat": stat, "rows": rows}
+    return {"tag": tag, "stat": stat, "scope": scope, "rows": rows}

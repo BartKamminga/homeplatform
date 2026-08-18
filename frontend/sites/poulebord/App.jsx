@@ -246,7 +246,7 @@ export default function App() {
       } else {
         next.set(key, {
           tournamentId: selectedPub.id, tournamentName: selectedPub.name,
-          tag, template, stat, limit: 3,
+          tag, template, stat, scope: 'round', limit: 3,
         })
       }
       localStorage.setItem(QUERY_PINS_KEY, JSON.stringify([...next.entries()]))

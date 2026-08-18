@@ -24,11 +24,11 @@ export const getTagRanking = (tid, tag, stat, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/ranking?${new URLSearchParams({
     ...(tag ? { tag } : {}), stat, limit,
   })}`)
-export const getTagRoundScorers = (tid, tag, stat, limit) =>
+export const getTagRoundScorers = (tid, tag, stat, scope, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/round-scorers?${new URLSearchParams({
-    ...(tag ? { tag } : {}), stat, limit,
+    ...(tag ? { tag } : {}), stat, scope, limit,
   })}`)
-export const getTagRoundMatches = (tid, tag, stat, limit) =>
+export const getTagRoundMatches = (tid, tag, stat, scope, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/round-matches?${new URLSearchParams({
-    ...(tag ? { tag } : {}), stat, limit,
+    ...(tag ? { tag } : {}), stat, scope, limit,
   })}`)
