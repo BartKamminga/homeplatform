@@ -1,4 +1,4 @@
-import { C } from './constants.js'
+import { C, badgeStyle } from './constants.js'
 import { useQueryResult } from './hooks.js'
 
 export const STATS_BY_TEMPLATE = {
@@ -32,23 +32,25 @@ const selectStyle = {
   color: C.muted, fontSize: 10, padding: '1px 4px', fontFamily: 'inherit',
 }
 
-function titleFor(pin) {
+// item 690: tags als badges tonen (zelfde visuele taal als browse-lijst),
+// i.p.v. als kale, komma-gescheiden tekst in de titel.
+function pinTags(pin) {
   // pin.tag (enkelvoud) is de oude vorm van vóór multi-tag-filtering (item 669).
-  const tags = pin.tags ?? (pin.tag ? [pin.tag] : [])
-  const tagLabel = tags.length ? tags.join(', ') : 'Alle niveaus'
-  if (pin.template === 'ranking') return `Ranglijst · ${tagLabel}`
+  return pin.tags ?? (pin.tag ? [pin.tag] : [])
+}
 
-  if (pin.template === 'upcoming_matches') return `Belangrijke wedstrijd op komst · ${tagLabel}`
-  if (pin.template === 'club_ranking') return `Clubranglijst · ${tagLabel}`
+function baseLabelFor(pin) {
+  if (pin.template === 'ranking') return 'Ranglijst'
+  if (pin.template === 'upcoming_matches') return 'Belangrijke wedstrijd op komst'
+  if (pin.template === 'club_ranking') return 'Clubranglijst'
 
   if (pin.template === 'round_scorers') {
-    const base = pin.stat === 'goals_against' ? 'Beste verdediging' : 'Topscorers'
-    return `${base} laatste ronde · ${tagLabel}`
+    return pin.stat === 'goals_against' ? 'Beste verdediging laatste ronde' : 'Topscorers laatste ronde'
   }
 
   const periodLabel = pin.scope === 'season' ? 'dit seizoen' : 'laatste ronde'
   const base = pin.stat === 'closest_match' ? 'Spannendste wedstrijd' : 'Grootste overwinning'
-  return `${base} ${periodLabel} · ${tagLabel}`
+  return `${base} ${periodLabel}`
 }
 
 function TeamRows({ rows, stat }) {
@@ -151,9 +153,14 @@ export function QueryCard({ pin: rawPin, pinned, onTogglePin, onUpdate }) {
       marginBottom: 8, overflow: 'hidden' }}>
       <div style={{ padding: '6px 8px 6px 10px', borderBottom: `1px solid ${C.border}`,
         display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.04em', flex: 1 }}>
-          {titleFor(pin)}
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.04em' }}>
+          {baseLabelFor(pin)}
         </span>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
+          {pinTags(pin).length > 0
+            ? pinTags(pin).map((tag, i) => <span key={i} style={badgeStyle()}>{tag}</span>)
+            : <span style={badgeStyle()}>Alle niveaus</span>}
+        </div>
         {HAS_ROUND_SEASON_TOGGLE.has(pin.template) && (
           <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 5, overflow: 'hidden' }}>
             {[['round', 'Ronde'], ['season', 'Seizoen']].map(([s, label]) => (
