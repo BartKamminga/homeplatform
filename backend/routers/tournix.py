@@ -2,7 +2,7 @@
 
 Sub-modules:
   tournix_tournaments  — tournament CRUD, stages, import
-  tournix_teams        — teams, clubs, Poulebord public endpoints
+  tournix_teams        — teams, clubs (admin + publieke clubs/tournamentlijst)
   tournix_pools        — pools, pool-team assignment
   tournix_matches      — matches, scores, standings, schedules, predictions, snapshots
   tournix_fields       — fields
