@@ -130,7 +130,7 @@ export function useQueryResult(pin) {
       : template === 'round_matches'
         ? getTagRoundMatches(tournamentId, tags, stat, scope || 'round', limit)
         : template === 'upcoming_matches'
-          ? getUpcomingMatches(tournamentId, tags, stat, limit)
+          ? getUpcomingMatches(tournamentId, tags, limit)
           : template === 'win_streak'
             ? getWinStreak(tournamentId, tags, limit)
             : template === 'club_ranking'

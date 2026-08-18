@@ -18,10 +18,7 @@ export const STATS_BY_TEMPLATE = {
     { key: 'biggest_margin', label: 'Grootste overwinning' },
     { key: 'closest_match',  label: 'Spannendste wedstrijd' },
   ],
-  upcoming_matches: [
-    { key: 'rank_gap',  label: 'Belangrijke wedstrijd (dichtbij in ranglijst)' },
-    { key: 'point_gap', label: 'Spannende wedstrijd (gelijk in punten)' },
-  ],
+  upcoming_matches: [],
   win_streak: [
     { key: 'streak', label: 'Winstreak' },
   ],
@@ -43,10 +40,7 @@ function titleFor(pin) {
   const tagLabel = tags.length ? tags.join(', ') : 'Alle niveaus'
   if (pin.template === 'ranking') return `Ranglijst · ${tagLabel}`
 
-  if (pin.template === 'upcoming_matches') {
-    const base = pin.stat === 'point_gap' ? 'Spannende wedstrijd op komst' : 'Belangrijke wedstrijd op komst'
-    return `${base} · ${tagLabel}`
-  }
+  if (pin.template === 'upcoming_matches') return `Belangrijke wedstrijd op komst · ${tagLabel}`
   if (pin.template === 'win_streak') return `Winstreak · ${tagLabel}`
   if (pin.template === 'club_ranking') return `Clubranglijst · ${tagLabel}`
 
@@ -101,7 +95,7 @@ function MatchRows({ rows }) {
   ))
 }
 
-function UpcomingMatchRows({ rows, stat }) {
+function UpcomingMatchRows({ rows }) {
   return rows.map(r => (
     <div key={`${r.rank}-${r.home_team}-${r.away_team}`} style={{
       display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
@@ -113,10 +107,12 @@ function UpcomingMatchRows({ rows, stat }) {
         {r.home_team} <span style={{ color: C.muted }}>vs</span> {r.away_team}
       </span>
       <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{r.poule_name}</span>
-      <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, fontSize: 10, whiteSpace: 'nowrap' }}>
-        {stat === 'point_gap'
-          ? `${r.home_points}p – ${r.away_points}p`
-          : `#${r.home_position} – #${r.away_position}`}
+      <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, fontSize: 9, whiteSpace: 'nowrap',
+        textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+        {r.type}
+      </span>
+      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
+        #{r.home_position}·{r.home_points}p – #{r.away_position}·{r.away_points}p
       </span>
     </div>
   ))
@@ -192,7 +188,7 @@ export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
       ) : pin.template === 'round_matches' ? (
         <div><MatchRows rows={rows} /></div>
       ) : pin.template === 'upcoming_matches' ? (
-        <div><UpcomingMatchRows rows={rows} stat={pin.stat} /></div>
+        <div><UpcomingMatchRows rows={rows} /></div>
       ) : pin.template === 'club_ranking' ? (
         <div><ClubRankingRows rows={rows} /></div>
       ) : (

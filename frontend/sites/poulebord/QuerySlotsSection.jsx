@@ -8,8 +8,7 @@ import { QueryCard } from './QueryCard.jsx'
 // gespeeld zijn - de templates/endpoints zelf blijven gewoon bestaan.
 const QUERY_SLOTS = [
   { template: 'ranking',          stat: 'points' },
-  { template: 'upcoming_matches', stat: 'rank_gap' },
-  { template: 'upcoming_matches', stat: 'point_gap' },
+  { template: 'upcoming_matches', stat: '' },
   { template: 'win_streak',       stat: 'streak' },
   { template: 'club_ranking',     stat: '' },
 ]

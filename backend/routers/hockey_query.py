@@ -29,7 +29,6 @@ RANKING_STATS = {
 
 ROUND_TEAM_STATS = {"goals_for", "goals_against"}
 ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
-UPCOMING_STATS = {"rank_gap", "point_gap"}
 
 
 def _scoped_poules(session: Session, tid: str, tags: Optional[List[str]]):
@@ -243,18 +242,21 @@ def get_tag_round_matches(
 def get_upcoming_matches(
     tid: str,
     tag: Optional[List[str]] = Query(None),
-    stat: str = "rank_gap",
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Belangrijke/spannende nog te spelen wedstrijd: kleinste verschil in positie of punten tussen de twee teams."""
-    if stat not in UPCOMING_STATS:
-        raise HTTPException(400, "Onbekende stat")
+    """Belangrijke nog te spelen wedstrijd: 1 lijst, elke rij getagd met het type belang.
+
+    Item 672: voorheen 2 losse stats (rank_gap/point_gap) die vaak identiek
+    ogende kaarten opleverden. Nu 1 gecombineerde lijst: een wedstrijd doet mee
+    als de twee teams aangrenzend staan in de ranglijst ("positie", zeker
+    zwaar wegend rond plek 1) of gelijk staan in punten ("punten") - een
+    wedstrijd kan allebei zijn."""
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tags": tag, "stat": stat, "rows": []}
+        return {"tags": tag, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
@@ -265,7 +267,7 @@ def get_upcoming_matches(
         .where(HockeyPouleMatch.status != "finished")
     ).all()
     if not scheduled:
-        return {"tags": tag, "stat": stat, "rows": []}
+        return {"tags": tag, "rows": []}
 
     standings = session.exec(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
@@ -280,14 +282,26 @@ def get_upcoming_matches(
         away = standing_by_team.get((m.poule_id, m.away_team_id))
         if not home or not away or home.position is None or away.position is None:
             continue
-        gap = abs(home.position - away.position) if stat == "rank_gap" else abs(home.points - away.points)
-        candidates.append((m, home, away, gap))
+        rank_gap = abs(home.position - away.position)
+        point_gap = abs(home.points - away.points)
+        is_position_battle = rank_gap <= 1
+        is_points_tie = point_gap == 0
+        if not (is_position_battle or is_points_tie):
+            continue
+        if is_position_battle and is_points_tie:
+            type_label = "positie + punten"
+        elif is_position_battle:
+            type_label = "positie"
+        else:
+            type_label = "punten"
+        top_position = min(home.position, away.position)
+        candidates.append((m, home, away, rank_gap, point_gap, type_label, top_position))
 
-    candidates.sort(key=lambda c: (c[3], c[0].match_date or ""))
+    candidates.sort(key=lambda c: (c[6], c[3], c[4], c[0].match_date or ""))
     ranked = candidates[:limit]
 
     rows = []
-    for i, (m, home, away, gap) in enumerate(ranked):
+    for i, (m, home, away, rank_gap, point_gap, type_label, _) in enumerate(ranked):
         poule, comp = poule_by_ext.get(m.poule_id, (None, None))
         rows.append({
             "rank":             i + 1,
@@ -297,12 +311,12 @@ def get_upcoming_matches(
             "away_position":    away.position,
             "home_points":      home.points,
             "away_points":      away.points,
+            "type":             type_label,
             "match_date":       m.match_date,
-            "gap":              gap,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
         })
-    return {"tags": tag, "stat": stat, "rows": rows}
+    return {"tags": tag, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/win-streak")
