@@ -1,4 +1,4 @@
-// interceptor.js v11 — MAIN world
+// interceptor.js v12 — MAIN world
 // Intercepts fetch/XHR to app.hockeyweerelt.nl
 // Handles: poule teams, competition detail, competition list, club list, club detail
 
@@ -15,7 +15,7 @@
   // /clubs/HH11AR3 — club-id uit URL, ongeacht body-veldnamen
   const CLUB_DETAIL_RE  = /\/clubs\/([A-Za-z0-9]+)(?:\/|$)/;
 
-  console.log('[HDV] 🏑 v11 interceptor laden... target:', TARGET);
+  console.log('[HDV] 🏑 v12 interceptor laden... target:', TARGET);
 
   function writeLog(type, msg, detail) {
     try {
@@ -185,9 +185,16 @@
   }
 
   // ── Save poule ───────────────────────────────────────────
+  // Sla alleen de zojuist opgevangen poule op (geen merge met eerdere captures) —
+  // de Vanger leest direct na capture en post naar de backend, dus historische
+  // entries zijn niet nodig. Item 674: de oude merge-aanpak liet de STORE_KEY
+  // groeien tot boven de localStorage-quota, waarna safeSetItem's noodgreep
+  // (trimmen tot de laatste 5 keys, alfabetisch gesorteerd) structureel de
+  // net-geschreven poule_id weer wegtrimde als die numeriek "lager" sorteerde
+  // dan een paar toevallige oudere keys — vandaar de blijvende key_ontbreekt-
+  // meldingen. Zelfde patroon als saveCompetition() hieronder.
   function save(url, pouleId, teamId, data) {
     try {
-      const store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
       let pouleName = '', teamName = '', compName = '', className = '', seizoen = '';
       try {
         pouleName = data.data.poule.name || '';
@@ -205,6 +212,7 @@
         }
       } catch(e) {}
 
+      const store = {};
       store[pouleId] = {
         poule_id: pouleId, team_id: teamId,
         poule_name: pouleName, team_name: teamName,
@@ -214,10 +222,9 @@
       };
       safeSetItem(STORE_KEY, JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('__hw_captured'));
-      const count = Object.keys(store).length;
       let teams = [];
       try { teams = data.data.poule.standings.map(s => s.team.name); } catch(e) {}
-      writeLog('ok', '✅ Gevangen: ' + pouleName + ' · ' + compName + ' · ' + className + ' (via ' + teamName + ')  [' + count + ' totaal]', {
+      writeLog('ok', '✅ Gevangen: ' + pouleName + ' · ' + compName + ' · ' + className + ' (via ' + teamName + ')', {
         poule_id: pouleId, poule_name: pouleName, comp: compName + ' · ' + className, teams: teams
       });
     } catch(e) {
@@ -310,5 +317,5 @@
   window.__hwList   = () => Object.entries(window.__hwGet()).map(([id, e]) =>
     `${id}: ${e.poule_name} · ${e.competition} · ${e.class_name} (${e.team_name})`).join('\n');
 
-  writeLog('info', '🏑 v11 actief op ' + location.hostname + ' · target: ' + TARGET);
+  writeLog('info', '🏑 v12 actief op ' + location.hostname + ' · target: ' + TARGET);
 })();
