@@ -28,7 +28,9 @@ export const STATS_BY_TEMPLATE = {
   club_ranking: [],
 }
 
-const HAS_ROUND_SEASON_TOGGLE = new Set(['round_scorers', 'round_matches'])
+// round_scorers heeft bewust geen seizoensvariant: die zou letterlijk
+// dezelfde cijfers tonen als de goals_for/goals_against-stat op Ranglijst.
+const HAS_ROUND_SEASON_TOGGLE = new Set(['round_matches'])
 
 const selectStyle = {
   background: C.deep, border: `1px solid ${C.border}`, borderRadius: 5,
@@ -46,10 +48,13 @@ function titleFor(pin) {
   if (pin.template === 'win_streak') return `Winstreak · ${tagLabel}`
   if (pin.template === 'club_ranking') return `Clubranglijst · ${tagLabel}`
 
+  if (pin.template === 'round_scorers') {
+    const base = pin.stat === 'goals_against' ? 'Beste verdediging' : 'Topscorers'
+    return `${base} laatste ronde · ${tagLabel}`
+  }
+
   const periodLabel = pin.scope === 'season' ? 'dit seizoen' : 'laatste ronde'
-  const base = pin.template === 'round_scorers'
-    ? (pin.stat === 'goals_against' ? 'Beste verdediging' : 'Topscorers')
-    : (pin.stat === 'closest_match' ? 'Spannendste wedstrijd' : 'Grootste overwinning')
+  const base = pin.stat === 'closest_match' ? 'Spannendste wedstrijd' : 'Grootste overwinning'
   return `${base} ${periodLabel} · ${tagLabel}`
 }
 

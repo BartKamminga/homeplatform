@@ -129,24 +129,25 @@ def get_tag_round_scorers(
     tid: str,
     tag: Optional[str] = None,
     stat: str = "goals_for",
-    scope: str = "round",
     limit: int = 3,
     session: Session = Depends(get_session),
 ):
-    """Team-ranglijst: meeste doelpunten voor of tegen, over de laatste ronde of het hele seizoen."""
+    """Team-ranglijst: meeste doelpunten voor of tegen in de laatste gespeelde ronde.
+
+    Alleen 'laatste ronde' (geen seizoensvariant): de seizoenstotalen staan al
+    op de ranking-template (goals_for/goals_against-stat) - dat zou hier een
+    letterlijk duplicaat zijn."""
     if stat not in ROUND_TEAM_STATS:
         raise HTTPException(400, "Onbekende stat")
-    if scope not in ("round", "season"):
-        raise HTTPException(400, "Onbekende scope")
     limit = max(1, min(limit, 20))
 
     scoped = _scoped_poules(session, tid, tag)
     if not scoped:
-        return {"tag": tag, "stat": stat, "scope": scope, "rows": []}
+        return {"tag": tag, "stat": stat, "rows": []}
 
     poule_ext_ids = [p.poule_id for p, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
-    matches, last_round = _scoped_matches(session, poule_ext_ids, scope)
+    matches, last_round = _last_round_only(_finished_matches(session, poule_ext_ids))
 
     totals: dict = {}  # (poule_ext_id, team_id) -> {team_name, goals_for, goals_against}
     for m in matches:
@@ -182,7 +183,7 @@ def get_tag_round_scorers(
             "goals_against":    data["goals_against"],
             "round":            last_round.get(poule_ext_id),
         })
-    return {"tag": tag, "stat": stat, "scope": scope, "rows": rows}
+    return {"tag": tag, "stat": stat, "rows": rows}
 
 
 @router.get("/public/tournaments/{tid}/query/round-matches")

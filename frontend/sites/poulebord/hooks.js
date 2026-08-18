@@ -122,7 +122,7 @@ export function useQueryResult(pin) {
     if (cached) { setData(cached); return }
     setData(null)
     const req = template === 'round_scorers'
-      ? getTagRoundScorers(tournamentId, tag, stat, scope || 'round', limit)
+      ? getTagRoundScorers(tournamentId, tag, stat, limit)
       : template === 'round_matches'
         ? getTagRoundMatches(tournamentId, tag, stat, scope || 'round', limit)
         : template === 'upcoming_matches'
