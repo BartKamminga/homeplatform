@@ -1,19 +1,5 @@
 import { C } from './constants.js'
-
-function TeamName({ name, logoUrl, showLogos, highlighted }) {
-  return (
-    <>
-      {showLogos && logoUrl && (
-        <img src={logoUrl} alt="" style={{
-          width: 14, height: 14, borderRadius: '50%', objectFit: 'cover',
-          marginRight: 4, verticalAlign: 'middle', flexShrink: 0,
-        }} />
-      )}
-      {highlighted && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
-      {name}
-    </>
-  )
-}
+import { TeamName } from './RankRow.jsx'
 
 // Unified pool standings table — zelfde opmaak en kolommen in elke context
 // (browse-kaart, board-kaart, wedstrijd-detail-modal). Alle stat-kolommen

@@ -1,5 +1,6 @@
 import { C, badgeStyle, pinButtonStyle } from './constants.js'
 import { useQueryResult } from './hooks.js'
+import { RankRow } from './RankRow.jsx'
 
 export const STATS_BY_TEMPLATE = {
   ranking: [
@@ -55,25 +56,9 @@ function baseLabelFor(pin) {
 
 function TeamRows({ rows, stat }) {
   return rows.map(r => (
-    <div key={`${r.rank}-${r.team_name}`} style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
-      borderBottom: `1px solid ${C.border}`, fontSize: 12,
-    }}>
-      <span style={{ color: C.muted, width: 14, textAlign: 'right', flexShrink: 0 }}>{r.rank}</span>
-      {r.club_logo_url && (
-        <img src={r.club_logo_url} alt="" style={{
-          width: 16, height: 16, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
-        }} />
-      )}
-      <span style={{ flex: 1, minWidth: 0, color: C.chalk,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {r.team_name}
-      </span>
-      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{r.poule_name}</span>
-      <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, minWidth: 18, textAlign: 'right' }}>
-        {r[stat]}
-      </span>
-    </div>
+    <RankRow key={`${r.rank}-${r.team_name}`}
+      rank={r.rank} logoUrl={r.club_logo_url} name={r.team_name}
+      meta={r.poule_name} value={r[stat]} />
   ))
 }
 
@@ -119,24 +104,9 @@ function UpcomingMatchRows({ rows }) {
 
 function ClubRankingRows({ rows }) {
   return rows.map(r => (
-    <div key={`${r.rank}-${r.club_name}`} style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
-      borderBottom: `1px solid ${C.border}`, fontSize: 12,
-    }}>
-      <span style={{ color: C.muted, width: 14, textAlign: 'right', flexShrink: 0 }}>{r.rank}</span>
-      {r.club_logo_url && (
-        <img src={r.club_logo_url} alt="" style={{
-          width: 16, height: 16, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
-        }} />
-      )}
-      <span style={{ flex: 1, minWidth: 0, color: C.chalk,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {r.club_name}
-      </span>
-      <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap' }}>
-        {r.team_count} team{r.team_count !== 1 ? 's' : ''}
-      </span>
-    </div>
+    <RankRow key={`${r.rank}-${r.club_name}`}
+      rank={r.rank} logoUrl={r.club_logo_url} name={r.club_name}
+      value={`${r.team_count} team${r.team_count !== 1 ? 's' : ''}`} />
   ))
 }
 
