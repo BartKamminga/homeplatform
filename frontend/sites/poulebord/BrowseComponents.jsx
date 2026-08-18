@@ -73,10 +73,17 @@ export function PoolSearchCard({ result, poolPins, onPoolPin, onOpen }) {
         onClick={openable ? () => onOpen(result) : undefined}
         style={{ flex: 1, padding: '8px 12px', cursor: openable ? 'pointer' : 'default' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, letterSpacing: '0.06em' }}>
-          POULE {result.pool_name}{openable && <span style={{ color: C.muted, fontSize: 9 }}> ›</span>}
+          {result.pool_name}{openable && <span style={{ color: C.muted, fontSize: 9 }}> ›</span>}
         </div>
         <div style={{ fontSize: 11, color: C.chalk, marginTop: 2 }}>{result.tournament_name}</div>
         <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{result.matched_team}</div>
+        {result.tags?.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+            {result.tags.map((tag, i) => (
+              <span key={i} style={badgeStyle()}>{tag}</span>
+            ))}
+          </div>
+        )}
       </div>
       <button
         onClick={e => { e.stopPropagation(); onPoolPin(result.phase_id, result.pool_name, result.tournament_name) }}

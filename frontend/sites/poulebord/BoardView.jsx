@@ -78,7 +78,7 @@ export function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin, tourn
     <>
       {detailPool && (
         <MatchModal
-          title={`POULE ${detailPool.poolName}`}
+          title={detailPool.poolName}
           subtitle={tournamentName || ''}
           rows={detailPool.rows}
           matchSource={{ phaseId, poolName: detailPool.poolName }}
@@ -94,7 +94,7 @@ export function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin, tourn
             return (
               <div key={pname} style={{ flex: '1 1 240px' }}>
                 <PouleCard
-                  title={`POULE ${pname}`}
+                  title={pname}
                   rows={prows}
                   club={club}
                   onOpen={() => setDetailPool({ poolName: pname, rows: prows })}

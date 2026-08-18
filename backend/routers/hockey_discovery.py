@@ -208,9 +208,11 @@ def search_discovery(q: str, session: Session = Depends(get_session)):
         select(HockeyPublication).where(HockeyPublication.published == True)  # noqa: E712
     ).all()
     pub_by_comp_id = {}
+    link_by_comp_id = {}
     for pub in pubs:
         for lnk in get_visible_comp_links(session, pub.id):
             pub_by_comp_id.setdefault(lnk.competition_id, pub)
+            link_by_comp_id.setdefault(lnk.competition_id, lnk)
     if not pub_by_comp_id:
         return []
 
@@ -234,12 +236,15 @@ def search_discovery(q: str, session: Session = Depends(get_session)):
         if phase_id in seen:
             continue
         seen.add(phase_id)
+        lnk = link_by_comp_id.get(poule.competition_id)
+        tags = get_comp_link_tags(session, lnk.id) if lnk else []
         results.append({
             "phase_id":        phase_id,
             "pool_name":       poule.name,
             "tournament_name": pub.name,
             "tournament_id":   pub.id,
             "matched_team":    team.name,
+            "tags":            [t.name for t in tags],
         })
 
     return sorted(results, key=lambda x: (x["tournament_name"], x["pool_name"]))
