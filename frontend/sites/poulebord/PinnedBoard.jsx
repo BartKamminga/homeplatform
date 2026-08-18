@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { C, pinRailButtonStyle } from './constants.js'
-import { useStandings } from './hooks.js'
+import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { QueryCard } from './QueryCard.jsx'
 import { PouleCard } from './PouleCard.jsx'
-import { CompactPinnedCard } from './BoardView.jsx'
+import { CompetitionStandingsView } from './BrowseComponents.jsx'
+import { PhaseCard } from './TournixBrowseCards.jsx'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,58 @@ function PinnedFilterRow({ pin, onOpen, onUnpin }) {
       </button>
       <button onClick={onUnpin} title="Verwijder deze filter van board"
         style={{ ...pinRailButtonStyle(true), height: '100%' }}>📌</button>
+    </div>
+  )
+}
+
+// ── Compact pinned tournament card (item 691: verhuisd uit BoardView.jsx,
+// dat nu alleen nog de Tournix-legacy browsekaarten bevat en is hernoemd
+// naar TournixBrowseCards.jsx) ────────────────────────────────────────────────
+
+function CompactPinnedCard({ tournament, club, onUnpin }) {
+  const [open, setOpen] = useState(true)
+  const { fasesData, useDiscovery, phases, poolPhases } = useTournamentStandings(tournament.id)
+
+  return (
+    <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
+      marginBottom: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <button onClick={() => setOpen(o => !o)} style={{
+          flex: 1, padding: '12px 16px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ flex: 1, color: C.chalk, fontWeight: 700, fontSize: 15,
+            fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
+            {tournament.name}
+          </span>
+          <span style={{ color: C.muted, fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+        </button>
+        <button onClick={onUnpin} style={{
+          background: 'transparent', border: 'none',
+          borderLeft: `1px solid ${C.border}`,
+          padding: '0 14px', fontSize: 12, color: C.muted, cursor: 'pointer', flexShrink: 0,
+        }}>✕</button>
+      </div>
+      {open && (
+        <div style={{ padding: '0 12px 12px' }}>
+          {useDiscovery === null && (
+            <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
+          )}
+          {useDiscovery === true && fasesData && (
+            <CompetitionStandingsView fasesData={fasesData} club={club} />
+          )}
+          {useDiscovery === false && (
+            phases === null
+              ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8 }}>Laden…</div>
+              : poolPhases.length === 0
+                ? <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', padding: 8, fontStyle: 'italic' }}>
+                    Geen poulefases
+                  </div>
+                : poolPhases.map(p => <PhaseCard key={p.id} phase={p} club={club} tournamentName={tournament.name} />)
+          )}
+        </div>
+      )}
     </div>
   )
 }

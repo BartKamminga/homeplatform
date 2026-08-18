@@ -63,9 +63,9 @@ export function useStandings(phaseId) {
   return data
 }
 
-// Gedeeld door TournamentCard en CompactPinnedCard (BoardView.jsx): haalt de
-// discovery-competitiestandigen op, groepeert per fase-tag, en valt terug op
-// Tournix-fases als er geen discovery-koppeling is.
+// Gedeeld door TournamentCard (TournixBrowseCards.jsx) en CompactPinnedCard
+// (PinnedBoard.jsx): haalt de discovery-competitiestandigen op, groepeert per
+// fase-tag, en valt terug op Tournix-fases als er geen discovery-koppeling is.
 export function useTournamentStandings(tournamentId) {
   const [phases,       setPhases]       = useState(null)
   const [fasesData,    setFasesData]    = useState(null)

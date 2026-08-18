@@ -1,5 +1,5 @@
 import { C, SEASON, categoryOf, pillStyle, pinButtonStyle } from './constants.js'
-import { SeizoenInfo } from './BoardView.jsx'
+import { SeizoenInfo } from './TournixBrowseCards.jsx'
 import { CompBrowseItem } from './BrowseComponents.jsx'
 import { QuerySlotsSection } from './QuerySlotsSection.jsx'
 

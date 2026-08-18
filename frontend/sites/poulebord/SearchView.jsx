@@ -1,5 +1,5 @@
 import { C } from './constants.js'
-import { TournamentCard } from './BoardView.jsx'
+import { TournamentCard } from './TournixBrowseCards.jsx'
 import { PoolSearchCard } from './BrowseComponents.jsx'
 
 export function SearchView({ searchQ, visible, searchResults, club, pins, poolPins, onTogglePin, onTogglePoolPin, onOpenResult }) {
