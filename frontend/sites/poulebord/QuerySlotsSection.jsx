@@ -9,7 +9,6 @@ import { QueryCard } from './QueryCard.jsx'
 const QUERY_SLOTS = [
   { template: 'ranking',          stat: 'points' },
   { template: 'upcoming_matches', stat: '' },
-  { template: 'win_streak',       stat: 'streak' },
   { template: 'club_ranking',     stat: '' },
 ]
 

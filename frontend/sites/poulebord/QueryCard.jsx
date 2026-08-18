@@ -9,6 +9,7 @@ export const STATS_BY_TEMPLATE = {
     { key: 'goals_against', label: 'Doelpunten tegen (minste eerst)' },
     { key: 'won',           label: 'Overwinningen' },
     { key: 'drawn',         label: 'Gelijke spelen' },
+    { key: 'streak',        label: 'Winstreak' },
   ],
   round_scorers: [
     { key: 'goals_for',     label: 'Meeste doelpunten' },
@@ -19,9 +20,6 @@ export const STATS_BY_TEMPLATE = {
     { key: 'closest_match',  label: 'Spannendste wedstrijd' },
   ],
   upcoming_matches: [],
-  win_streak: [
-    { key: 'streak', label: 'Winstreak' },
-  ],
   club_ranking: [],
 }
 
@@ -41,7 +39,6 @@ function titleFor(pin) {
   if (pin.template === 'ranking') return `Ranglijst · ${tagLabel}`
 
   if (pin.template === 'upcoming_matches') return `Belangrijke wedstrijd op komst · ${tagLabel}`
-  if (pin.template === 'win_streak') return `Winstreak · ${tagLabel}`
   if (pin.template === 'club_ranking') return `Clubranglijst · ${tagLabel}`
 
   if (pin.template === 'round_scorers') {
@@ -141,7 +138,11 @@ function ClubRankingRows({ rows }) {
   ))
 }
 
-export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
+export function QueryCard({ pin: rawPin, pinned, onTogglePin, onUpdate }) {
+  // Migratie item 673: win_streak bestond ooit als los template, is nu de
+  // streak-stat op ranking. Kaarten die al gepind waren vóór deze wijziging
+  // migreren hier stilzwijgend mee.
+  const pin = rawPin.template === 'win_streak' ? { ...rawPin, template: 'ranking', stat: 'streak' } : rawPin
   const rows = useQueryResult(pin)
   const statOptions = STATS_BY_TEMPLATE[pin.template] || []
 
@@ -192,7 +193,7 @@ export function QueryCard({ pin, pinned, onTogglePin, onUpdate }) {
       ) : pin.template === 'club_ranking' ? (
         <div><ClubRankingRows rows={rows} /></div>
       ) : (
-        <div><TeamRows rows={rows} stat={pin.stat || 'streak'} /></div>
+        <div><TeamRows rows={rows} stat={pin.stat} /></div>
       )}
     </div>
   )

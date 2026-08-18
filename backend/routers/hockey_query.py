@@ -18,6 +18,9 @@ from services.hockey_teams import resolve_team_clubs, club_logo_for_team
 router = APIRouter(prefix="/api/hockey", tags=["hockey-query"])
 
 # stat -> (sleutel-functie, reverse) — reverse=True is "hoogste eerst"
+# "streak" (winstreak) staat er niet in: die vergt wedstrijdgeschiedenis i.p.v.
+# een standings-veld en wordt apart afgehandeld in get_tag_ranking (item 673 -
+# was een losse win-streak-template, nu een stat-optie op de ranglijst).
 RANKING_STATS = {
     "points":        (lambda r: r.points, True),
     "goal_diff":     (lambda r: r.goals_for - r.goals_against, True),
@@ -26,6 +29,7 @@ RANKING_STATS = {
     "won":           (lambda r: r.won, True),
     "drawn":         (lambda r: r.drawn, True),
 }
+ALL_RANKING_STATS = set(RANKING_STATS) | {"streak"}
 
 ROUND_TEAM_STATS = {"goals_for", "goals_against"}
 ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
@@ -76,6 +80,34 @@ def _scoped_matches(session: Session, poule_ext_ids: list, scope: str):
     return all_matches, {}
 
 
+def _compute_win_streaks(session: Session, poule_ext_ids: list):
+    """Actieve overwinningsreeks per (poule_id, team_id) - alleen teams met een lopende streak > 0."""
+    matches = _finished_matches(session, poule_ext_ids)
+
+    games_by_team: dict = {}  # (poule_id, team_id) -> [(round, result), ...]
+    for m in matches:
+        if m.round is None or m.home_score is None or m.away_score is None:
+            continue
+        if m.home_team_id is not None:
+            result = "W" if m.home_score > m.away_score else ("L" if m.home_score < m.away_score else "D")
+            games_by_team.setdefault((m.poule_id, m.home_team_id), []).append((m.round, result))
+        if m.away_team_id is not None:
+            result = "W" if m.away_score > m.home_score else ("L" if m.away_score < m.home_score else "D")
+            games_by_team.setdefault((m.poule_id, m.away_team_id), []).append((m.round, result))
+
+    streaks: dict = {}
+    for key, games in games_by_team.items():
+        games.sort(key=lambda g: g[0])
+        streak = 0
+        for _, result in reversed(games):
+            if result != "W":
+                break
+            streak += 1
+        if streak > 0:
+            streaks[key] = streak
+    return streaks
+
+
 @router.get("/public/tournaments/{tid}/query/ranking")
 def get_tag_ranking(
     tid: str,
@@ -85,7 +117,7 @@ def get_tag_ranking(
     session: Session = Depends(get_session),
 ):
     """Cross-poule ranglijst (top-N) voor een publicatie, evt. gefilterd op 1+ niveau-tags (AND)."""
-    if stat not in RANKING_STATS:
+    if stat not in ALL_RANKING_STATS:
         raise HTTPException(400, "Onbekende stat")
     limit = max(1, min(limit, 20))
 
@@ -100,8 +132,18 @@ def get_tag_ranking(
     ).all()
 
     teams, clubs = resolve_team_clubs(session, [r.team_id for r in standings])
-    key_func, reverse = RANKING_STATS[stat]
-    ranked = sorted(standings, key=key_func, reverse=reverse)[:limit]
+
+    if stat == "streak":
+        streaks = _compute_win_streaks(session, poule_ext_ids)
+        ranked = sorted(
+            (r for r in standings if (r.poule_id, r.team_id) in streaks),
+            key=lambda r: streaks[(r.poule_id, r.team_id)],
+            reverse=True,
+        )[:limit]
+    else:
+        streaks = {}
+        key_func, reverse = RANKING_STATS[stat]
+        ranked = sorted(standings, key=key_func, reverse=reverse)[:limit]
 
     rows = []
     for i, r in enumerate(ranked):
@@ -119,6 +161,7 @@ def get_tag_ranking(
             "goals_for":        r.goals_for,
             "goals_against":    r.goals_against,
             "goal_diff":        r.goals_for - r.goals_against,
+            "streak":           streaks.get((r.poule_id, r.team_id), 0),
         })
     return {"tags": tag, "stat": stat, "rows": rows}
 
@@ -315,64 +358,6 @@ def get_upcoming_matches(
             "match_date":       m.match_date,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-        })
-    return {"tags": tag, "rows": rows}
-
-
-@router.get("/public/tournaments/{tid}/query/win-streak")
-def get_win_streak(
-    tid: str,
-    tag: Optional[List[str]] = Query(None),
-    limit: int = 3,
-    session: Session = Depends(get_session),
-):
-    """Langste actieve reeks overwinningen per team, binnen 1 of meer niveau-tags."""
-    limit = max(1, min(limit, 20))
-
-    scoped = _scoped_poules(session, tid, tag)
-    if not scoped:
-        return {"tags": tag, "rows": []}
-
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
-    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
-    matches = _finished_matches(session, poule_ext_ids)
-
-    games_by_team: dict = {}  # (poule_id, team_id) -> [(round, result, team_name), ...]
-    for m in matches:
-        if m.round is None or m.home_score is None or m.away_score is None:
-            continue
-        if m.home_team_id is not None:
-            result = "W" if m.home_score > m.away_score else ("L" if m.home_score < m.away_score else "D")
-            games_by_team.setdefault((m.poule_id, m.home_team_id), []).append((m.round, result, m.home_team_name))
-        if m.away_team_id is not None:
-            result = "W" if m.away_score > m.home_score else ("L" if m.away_score < m.home_score else "D")
-            games_by_team.setdefault((m.poule_id, m.away_team_id), []).append((m.round, result, m.away_team_name))
-
-    streaks = []
-    for (poule_id, team_id), games in games_by_team.items():
-        games.sort(key=lambda g: g[0])
-        streak = 0
-        for _, result, _ in reversed(games):
-            if result != "W":
-                break
-            streak += 1
-        if streak > 0:
-            streaks.append((poule_id, team_id, games[-1][2], streak))
-
-    streaks.sort(key=lambda s: s[3], reverse=True)
-    ranked = streaks[:limit]
-
-    teams, clubs = resolve_team_clubs(session, [team_id for (_, team_id, _, _) in ranked])
-    rows = []
-    for i, (poule_id, team_id, team_name, streak) in enumerate(ranked):
-        poule, comp = poule_by_ext.get(poule_id, (None, None))
-        rows.append({
-            "rank":             i + 1,
-            "team_name":        team_name,
-            "club_logo_url":    club_logo_for_team(teams, clubs, team_id),
-            "poule_name":       poule.name if poule else None,
-            "competition_name": comp.name if comp else None,
-            "streak":           streak,
         })
     return {"tags": tag, "rows": rows}
 

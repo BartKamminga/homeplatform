@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getHockeyPouleStandings, getPhaseStandings, getTagRanking, getTagRoundScorers, getTagRoundMatches,
-  getUpcomingMatches, getWinStreak, getClubRanking, getTournamentCompetitionStandings, getPhases,
+  getUpcomingMatches, getClubRanking, getTournamentCompetitionStandings, getPhases,
 } from './api.js'
 
 // Generieke localStorage-gebonden state (Set/Map met JSON-serialisatie).
@@ -131,11 +131,9 @@ export function useQueryResult(pin) {
         ? getTagRoundMatches(tournamentId, tags, stat, scope || 'round', limit)
         : template === 'upcoming_matches'
           ? getUpcomingMatches(tournamentId, tags, limit)
-          : template === 'win_streak'
-            ? getWinStreak(tournamentId, tags, limit)
-            : template === 'club_ranking'
-              ? getClubRanking(tournamentId, tags, limit)
-              : getTagRanking(tournamentId, tags, stat, limit)
+          : template === 'club_ranking'
+            ? getClubRanking(tournamentId, tags, limit)
+            : getTagRanking(tournamentId, tags, stat, limit)
     req
       .then(d => { _queryCache[cacheKey] = { rows: d.rows || [], ts: Date.now() }; setData(d.rows || []) })
       .catch(() => setData([]))
