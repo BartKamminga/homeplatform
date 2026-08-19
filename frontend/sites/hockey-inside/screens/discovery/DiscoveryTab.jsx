@@ -5,6 +5,7 @@ import DiscoveryClubs from './DiscoveryClubs.jsx'
 
 const HOCKEY_TYPES = ['VE', 'ZA', '']
 const AGE_GROUPS   = ['Senioren', 'Jeugd']
+const DETAIL_STALE_MS = 30_000
 
 function districtKeys(dist) {
   const keys = new Set()
@@ -40,19 +41,29 @@ export default function DiscoveryTab({ initialDistrict }) {
   // Districts open: vul vanuit initialDistrict zodat kaart-navigatie direct het juiste district opent
   const [expanded, setExpanded] = useState(() => initialDistrict ? districtKeys(initialDistrict) : new Set())
 
-  const detailRequestedRef = useRef(false)
+  // item 744: capturedPoules/allTeams/queue werden vroeger maar EEN keer per
+  // seizoenskeuze opgehaald (useRef-guard die nooit meer terugklapte), terwijl
+  // competities/poule_count wel telkens verst werd - na achtergrond-scans
+  // (scan-plan-pass, smart-scan) liepen die twee datasets in de UI uit elkaar.
+  // Nu: tijdgebaseerde staleness (elke DETAIL_STALE_MS opnieuw ophalen bij de
+  // eerstvolgende klik) + competities in dezelfde ophaal-cyclus, zodat beide
+  // altijd samen ververst worden.
+  const lastDetailAtRef = useRef(0)
 
-  function loadDetail(currentSeason) {
-    if (detailRequestedRef.current) return
-    detailRequestedRef.current = true
+  function loadDetail(currentSeason, force = false) {
+    const now = Date.now()
+    if (!force && lastDetailAtRef.current && (now - lastDetailAtRef.current) < DETAIL_STALE_MS) return
+    lastDetailAtRef.current = now
     Promise.all([
       api.get('/api/hockey/teams'),
       api.get('/api/hockey/poule-queue'),
       api.get(`/api/hockey/poules?season=${currentSeason}`),
-    ]).then(([teamsRes, queueRes, poulesRes]) => {
+      api.get(`/api/hockey/competitions?season=${currentSeason}`),
+    ]).then(([teamsRes, queueRes, poulesRes, compsRes]) => {
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setCapturedPoules(poulesRes.poules || [])
+      setCompetitions(compsRes.competitions || [])
       setDetailLoaded(true)
     }).catch(e => setError(e.message))
   }
@@ -60,7 +71,7 @@ export default function DiscoveryTab({ initialDistrict }) {
   useEffect(() => {
     setLoading(true)
     setError('')
-    detailRequestedRef.current = false
+    lastDetailAtRef.current = 0
     setDetailLoaded(false)
     setAllTeams([])
     setQueue({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
@@ -155,11 +166,7 @@ export default function DiscoveryTab({ initialDistrict }) {
           loading={loading}
           detailLoaded={detailLoaded}
           season={season}
-          onReload={() => {
-            detailRequestedRef.current = false
-            setDetailLoaded(false)
-            loadDetail(season)
-          }}
+          onReload={() => loadDetail(season, true)}
         />
       )}
 
