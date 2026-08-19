@@ -57,7 +57,7 @@ function CreatePopup({ onClose, onCreated }) {
               }}>{s}</button>
             ))}
           </div>
-          {err && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8 }}>{err}</div>}
+          {err && <div style={{ fontSize: 12, color: 'var(--color-danger)', marginBottom: 8 }}>{err}</div>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button type="button" onClick={onClose} style={ghostBtn}>Annuleren</button>
             <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
@@ -99,12 +99,12 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, draggable, onDr
               style={{
                 fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
                 fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                background: t.published ? '#16a34a22' : '#f9731622',
-                color: t.published ? '#16a34a' : '#f97316',
+                background: t.published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
+                color: t.published ? 'var(--color-success)' : 'var(--color-warning)',
               }}
             >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
           ) : !t.published ? (
-            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, background: '#f9731622', color: '#f97316', fontWeight: 600 }}>Concept</span>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, background: 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))', color: 'var(--color-warning)', fontWeight: 600 }}>Concept</span>
           ) : null}
           {t.competition_count > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.competition_count} comp.</span>

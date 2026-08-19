@@ -137,7 +137,7 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
         style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
       >
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)', userSelect: 'none' }}>
-          {open ? '▼' : '▶'}
+          {open ? '▾' : '▸'}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -329,7 +329,7 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
                     border: '1px solid var(--color-border)', background: rawOpen ? 'var(--color-surface-2)' : 'transparent',
                     color: rawOpen ? 'var(--color-text)' : 'var(--color-text-muted)' }}
                 >
-                  {rawOpen ? '▲ raw' : '▶ raw'}
+                  {rawOpen ? '▾ raw' : '▸ raw'}
                 </button>
               </>
             )}

@@ -122,7 +122,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
           </span>
           {poules.length > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8 }}>
-              {poules.length} poule{poules.length !== 1 ? 's' : ''} {open ? '▲' : '▼'}
+              {poules.length} poule{poules.length !== 1 ? 's' : ''} {open ? '▾' : '▸'}
             </span>
           )}
         </button>
@@ -138,8 +138,8 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
             style={{
               fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
               fontFamily: 'inherit', fontWeight: 600, border: 'none',
-              background: lnk.scan_profile === 'active' ? '#16a34a22' : 'var(--color-bg)',
-              color: lnk.scan_profile === 'active' ? '#16a34a' : 'var(--color-text-muted)',
+              background: lnk.scan_profile === 'active' ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'var(--color-bg)',
+              color: lnk.scan_profile === 'active' ? 'var(--color-success)' : 'var(--color-text-muted)',
             }}>
             {lnk.scan_profile === 'active' ? '🔄 Auto-scan' : '⏸ Handmatig'}
           </button>
@@ -192,7 +192,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
                 style={{ width: '100%', textAlign: 'left', background: openPoule === p.id ? 'var(--color-primary)11' : 'var(--color-bg)', border: `1px solid ${openPoule === p.id ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--color-text)', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>{p.name}</span>
                 <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                  {p.matches_played ?? 0}/{p.matches_total ?? 0} gespeeld {openPoule === p.id ? '▲' : '▼'}
+                  {p.matches_played ?? 0}/{p.matches_total ?? 0} gespeeld {openPoule === p.id ? '▾' : '▸'}
                 </span>
               </button>
               {openPoule === p.id && (

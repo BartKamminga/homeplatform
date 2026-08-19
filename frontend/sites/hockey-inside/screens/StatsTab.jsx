@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import { statBox, statNum, statLbl } from './queueShared.jsx'
+import { statBox, statNum, statLbl } from './ui.jsx'
 import { ghostBtn } from './styles.js'
 
 function resolveHockeyType(t) {

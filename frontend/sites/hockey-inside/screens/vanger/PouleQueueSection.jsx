@@ -1,5 +1,5 @@
 import { api } from '@core/api.js'
-import { pill } from '../queueShared.jsx'
+import { pill } from '../ui.jsx'
 
 const AGE_RE = /[JMjm][OZoz](\d+)-/
 const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }

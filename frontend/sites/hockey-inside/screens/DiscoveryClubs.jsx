@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { pill, useQueueCmd } from './queueShared.jsx'
+import { pill } from './ui.jsx'
+import { useQueueCmd } from './queueShared.jsx'
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {

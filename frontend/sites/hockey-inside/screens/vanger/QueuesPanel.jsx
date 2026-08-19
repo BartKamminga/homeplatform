@@ -1,5 +1,5 @@
 ﻿import { api } from '@core/api.js'
-import { pill } from '../queueShared.jsx'
+import { pill } from '../ui.jsx'
 
 export default function QueuesPanel({ pluginErrors, setPluginErrors, errOpen, setErrOpen }) {
   return (

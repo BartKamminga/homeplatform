@@ -22,7 +22,7 @@ function normalizeSeason(s) {
 function InlineConfirm({ msg, onConfirm, onCancel }) {
   return (
     <div style={{
-      background: 'var(--color-surface)', border: '1px solid #dc262633',
+      background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-danger) 20%, transparent)',
       borderRadius: 8, padding: '10px 14px', marginBottom: 10,
       display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
     }}>
@@ -35,7 +35,7 @@ function InlineConfirm({ msg, onConfirm, onCancel }) {
         }}>Nee</button>
         <button onClick={onConfirm} style={{
           padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
-          border: 'none', background: '#dc2626', color: '#fff',
+          border: 'none', background: 'var(--color-danger)', color: '#fff',
           fontFamily: 'inherit', fontWeight: 600,
         }}>Ja</button>
       </div>
@@ -269,8 +269,8 @@ export default function CompetitiesTab({
               <>
                 <span style={{
                   fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 600,
-                  background: published ? '#16a34a22' : '#f9731622',
-                  color: published ? '#16a34a' : '#f97316',
+                  background: published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
+                  color: published ? 'var(--color-success)' : 'var(--color-warning)',
                 }}>
                   {published ? '● Zichtbaar' : '○ Concept'}
                 </span>
@@ -298,22 +298,22 @@ export default function CompetitiesTab({
                     style={{
                       fontSize: 11, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
                       fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                      background: published ? '#16a34a22' : '#f9731622',
-                      color: published ? '#16a34a' : '#f97316',
+                      background: published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
+                      color: published ? 'var(--color-success)' : 'var(--color-warning)',
                     }}
                   >{published ? '● Zichtbaar' : '○ Concept'}</button>
                 )}
                 {onDelete && !confirmDel && (
                   <button
                     onClick={() => setConfirmDel(true)}
-                    style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', fontSize: 11 }}
+                    style={{ ...ghostBtn, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', fontSize: 11 }}
                   >Verwijderen</button>
                 )}
                 {confirmDel && (
                   <>
                     <button onClick={() => setConfirmDel(false)} style={ghostBtn}>Nee</button>
                     <button onClick={handleDelete} disabled={deleting}
-                      style={{ ...ghostBtn, borderColor: '#dc2626', color: '#dc2626', opacity: deleting ? 0.5 : 1 }}
+                      style={{ ...ghostBtn, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', opacity: deleting ? 0.5 : 1 }}
                     >{deleting ? 'Bezig…' : 'Ja, verwijderen'}</button>
                   </>
                 )}

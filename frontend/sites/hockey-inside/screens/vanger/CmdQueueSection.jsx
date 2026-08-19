@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { pill, fmtDuration, fmtBytes, makeCmdConclusion, TYPE_BADGE, InfoTooltip } from '../queueShared.jsx'
+import { pill, fmtDuration, fmtBytes, Btn } from '../ui.jsx'
+import { makeCmdConclusion, TYPE_BADGE } from '../queueShared.jsx'
 
 const STATUS_COLOR = { pending: 'var(--color-text-muted)', in_progress: 'var(--color-warning)', done: 'var(--color-success)', failed: 'var(--color-danger)', skipped: 'var(--color-text-muted)' }
 const STATUS_ICON  = { pending: '⏳', in_progress: '🔄', done: '✓', failed: '✗', skipped: '⏭' }
@@ -13,27 +14,6 @@ const TOOLTIPS = {
   poulesVullen:     'Zet alle missende poules in de wachtrij (get_poule cmds). Gebruik dit als de teams al bekende poule-ID\'s hebben maar de standen nog niet zijn opgehaald.',
   standsRefreshen:  'Zet alle verouderde poules in de wachtrij om standen en uitslagen bij te werken.',
   allesPollen:      'Zet alle poules ouder dan 1 dag in de wachtrij. Gebruik dit voor een volledige refresh van alle standen.',
-}
-
-
-function Btn({ onClick, disabled, color, filled, children, tooltip, style: extraStyle }) {
-  const base = {
-    fontSize: 11, padding: '4px 10px', borderRadius: 6, fontFamily: 'inherit',
-    cursor: disabled ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
-    transition: 'opacity .15s',
-    ...(filled
-      ? { border: 'none', background: color || 'var(--color-primary)', color: '#fff' }
-      : { border: `1px solid ${color || 'var(--color-border)'}`, background: 'none', color: color || 'var(--color-text)' }
-    ),
-    opacity: disabled ? 0.5 : 1,
-    ...extraStyle,
-  }
-  return (
-    <button onClick={onClick} disabled={disabled} style={base}>
-      {children}
-      {tooltip && <InfoTooltip text={tooltip} />}
-    </button>
-  )
 }
 
 export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
@@ -120,7 +100,7 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen
                 const concl  = summ ? makeCmdConclusion(c, summ) : null
                 const durStr = summ?.duration_ms != null ? fmtDuration(summ.duration_ms) : null
                 const szStr  = summ?.raw_bytes ? fmtBytes(summ.raw_bytes) : null
-                const color  = c.filtered_out ? '#f97316' : (STATUS_COLOR[c.status] || 'var(--color-text-muted)')
+                const color  = c.filtered_out ? 'var(--color-warning)' : (STATUS_COLOR[c.status] || 'var(--color-text-muted)')
                 const icon   = c.filtered_out ? '⏸' : (STATUS_ICON[c.status]  || '?')
                 const fin    = c.finished_at ? new Date(c.finished_at + 'Z').toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null
                 return (
@@ -135,7 +115,7 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen
                       <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
                         {label}
                         {subId && <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · #{subId}</span>}
-                        {c.filtered_out && <span style={{ color: '#f97316', fontWeight: 600, fontSize: 10 }}> · buiten filter</span>}
+                        {c.filtered_out && <span style={{ color: 'var(--color-warning)', fontWeight: 600, fontSize: 10 }}> · buiten filter</span>}
                       </span>
                       {durStr && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{durStr}</span>}
                       {fin    && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{fin}</span>}

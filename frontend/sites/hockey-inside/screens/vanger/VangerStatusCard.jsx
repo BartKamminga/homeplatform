@@ -213,9 +213,9 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           onClick={onToggleGhost}
           style={{
             fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-            border: `1px solid ${ghostEnabled ? 'var(--color-border)' : '#f97316'}`,
-            background: ghostEnabled ? 'transparent' : '#f9731622',
-            color: ghostEnabled ? 'var(--color-text-muted)' : '#f97316', cursor: 'pointer',
+            border: `1px solid ${ghostEnabled ? 'var(--color-border)' : 'var(--color-warning)'}`,
+            background: ghostEnabled ? 'transparent' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
+            color: ghostEnabled ? 'var(--color-text-muted)' : 'var(--color-warning)', cursor: 'pointer',
           }}
         >
           {ghostEnabled ? 'Ghost uitschakelen' : 'Ghost weer aanzetten'}
@@ -225,9 +225,9 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           title="Zet de automatische scan-plan-pass (clublijst/club-cap + event-driven matchday-scan) volledig aan of uit"
           style={{
             fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-            border: `1px solid ${scanPlanEnabled ? 'var(--color-border)' : '#f97316'}`,
-            background: scanPlanEnabled ? 'transparent' : '#f9731622',
-            color: scanPlanEnabled ? 'var(--color-text-muted)' : '#f97316', cursor: 'pointer',
+            border: `1px solid ${scanPlanEnabled ? 'var(--color-border)' : 'var(--color-warning)'}`,
+            background: scanPlanEnabled ? 'transparent' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
+            color: scanPlanEnabled ? 'var(--color-text-muted)' : 'var(--color-warning)', cursor: 'pointer',
           }}
         >
           {scanPlanEnabled ? 'Scan-plan uitschakelen' : 'Scan-plan weer aanzetten'}

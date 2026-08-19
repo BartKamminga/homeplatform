@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
-import { pill, useQueueCmd } from './queueShared.jsx'
+import { pill } from './ui.jsx'
+import { useQueueCmd } from './queueShared.jsx'
 import { deleteEmptyCompetitions, deletePoule } from '../api.js'
-
-const _ghostBtn = { fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }
+import { ghostBtnSm } from './styles.js'
 
 function isJeugd(comp) { return /O\d+/i.test(comp.name) }
 const AGE_GROUP_ORDER = ['Senioren', 'Jeugd']
@@ -273,14 +273,14 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button onClick={handleHerscanAll} disabled={herscanBusy} style={{ ..._ghostBtn, opacity: herscanBusy ? 0.5 : 1 }}>
+        <button onClick={handleHerscanAll} disabled={herscanBusy} style={{ ...ghostBtnSm, opacity: herscanBusy ? 0.5 : 1 }}>
           {herscanBusy ? '…' : '⟳ Herscan alle'}
         </button>
-        <button onClick={handleCleanupEmpty} style={_ghostBtn}>🗑 Lege opruimen</button>
+        <button onClick={handleCleanupEmpty} style={ghostBtnSm}>🗑 Lege opruimen</button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           {[['district', '📍 Per district'], ['competitie', '🏆 Per competitie']].map(([v, label]) => (
             <button key={v} onClick={() => setCompView(v)} style={{
-              ..._ghostBtn,
+              ...ghostBtnSm,
               ...(compView === v ? { background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)' } : {}),
             }}>{label}</button>
           ))}
