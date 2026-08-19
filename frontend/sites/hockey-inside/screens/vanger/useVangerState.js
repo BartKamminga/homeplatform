@@ -22,7 +22,6 @@ export function useVangerState() {
   const [cmdFilling,    setCmdFilling]    = useState(null)
   const [cmdOpen,       setCmdOpen]       = useState(true)
   const [fillMsg,       setFillMsg]       = useState('')
-  const [gapData,       setGapData]       = useState(null)
   const [smartScan,     setSmartScan]     = useState({ active: false, mode: null, cmd_count: 0 })
   const [smartBusy,     setSmartBusy]     = useState(false)
   const [ghostBusy,     setGhostBusy]     = useState(false)
@@ -38,7 +37,6 @@ export function useVangerState() {
       .then(() => { setFillMsg('Idle-timeout opgeslagen'); setTimeout(() => setFillMsg(''), 4000) })
       .catch(() => { setFillMsg('Opslaan mislukt'); setTimeout(() => setFillMsg(''), 4000) })
   }
-  function loadGapAnalysis() { api.get('/api/hockey/gap-analysis').then(setGapData).catch(() => {}) }
   function loadSmartScan()   { api.get('/api/hockey/smart-scan/status').then(setSmartScan).catch(() => {}) }
 
   const cmdOps = useQueueCmd({ onAdded: loadCmdQueue })
@@ -183,7 +181,7 @@ export function useVangerState() {
       .finally(() => setScoutBusy(false))
   }
 
-  useEffect(() => { load(); loadCmdQueue(); loadGapAnalysis(); loadSmartScan(); loadVangerSettings() }, [])
+  useEffect(() => { load(); loadCmdQueue(); loadSmartScan(); loadVangerSettings() }, [])
 
   useEffect(() => {
     function pollVanger() {
@@ -212,12 +210,11 @@ export function useVangerState() {
     cmdFilling,
     cmdOpen, setCmdOpen,
     fillMsg,
-    gapData,
     smartScan, smartBusy,
     ghostBusy, scoutBusy,
     cmdOps,
     // functions
-    load, loadCmdQueue, loadGapAnalysis,
+    load, loadCmdQueue,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
     toggle, resetPoule,

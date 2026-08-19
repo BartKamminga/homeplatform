@@ -1272,63 +1272,6 @@ def smart_scan_status(
     }
 
 
-# ── Gap-analyse ──────────────────────────────────────────
-
-@router.get("/gap-analysis")
-def gap_analysis(
-    season: Optional[str] = None,
-    stale_days: int = 7,
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
-    """Analyse welke data ontbreekt of verouderd is; geeft queue-aanbeveling."""
-    from datetime import timedelta
-    target = season or _get_target_season(session)
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=stale_days)
-
-    poules    = session.exec(select(HockeyPoule).where(HockeyPoule.season == target)).all()
-    poule_ids = {p.poule_id for p in poules}
-
-    standing_ids = set(session.exec(
-        select(HockeyPouleStanding.poule_id).where(col(HockeyPouleStanding.poule_id).in_(list(poule_ids)))
-    ).all())
-    match_ids = set(session.exec(
-        select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(list(poule_ids)))
-    ).all())
-
-    stale        = [p for p in poules if p.last_scanned_at is None or p.last_scanned_at < cutoff]
-    no_standings = [p for p in poules if p.poule_id not in standing_ids]
-    no_matches   = [p for p in poules if p.poule_id not in match_ids]
-
-    season_pending_teams = session.exec(
-        select(HockeyTeam).where(HockeyTeam.season_pending == True)  # noqa: E712
-    ).all()
-    clubs_pending    = {t.club_external_id for t in season_pending_teams}
-    unscanned_clubs  = session.exec(
-        select(HockeyClub).where(HockeyClub.detail_loaded == False)  # noqa: E712
-    ).all()
-
-    return {
-        "season":     target,
-        "stale_days": stale_days,
-        "poules": {
-            "total":        len(poules),
-            "stale":        len(stale),
-            "no_standings": len(no_standings),
-            "no_matches":   len(no_matches),
-        },
-        "clubs": {
-            "total":                   len(session.exec(select(HockeyClub)).all()),
-            "unscanned":               len(unscanned_clubs),
-            "needs_rescan_for_new_poule": len(clubs_pending),
-        },
-        "queue_recommendation": {
-            "get_poule_cmds": len(stale) + len(no_standings),
-            "scan_club_cmds": len(unscanned_clubs) + len(clubs_pending),
-        },
-    }
-
-
 @router.post("/gap-analysis/fill-queue")
 def gap_fill_queue(
     season: Optional[str] = None,

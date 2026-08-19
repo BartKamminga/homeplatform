@@ -36,9 +36,10 @@ function Btn({ onClick, disabled, color, filled, children, tooltip, style: extra
   )
 }
 
-export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onGapRefresh, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
+export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
   const { cmdBtn } = cmdOps
   const [advOpen, setAdvOpen] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const counts     = cmdQueue?.counts || {}
   const recent     = cmdQueue?.recent || []
   const pending    = counts.pending     || 0
@@ -75,56 +76,6 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
       {cmdOpen && (
         <div style={{ borderTop: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* Primair */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            {smartScan?.active ? (
-              <Btn onClick={onStopSmartScan} color='var(--color-warning)' filled tooltip={TOOLTIPS.slimScannen}>
-                ⏹ Stop slim scannen ({smartScan.cmd_count}/{smartScan.max_cmds})
-              </Btn>
-            ) : (
-              <Btn onClick={onStartSmartScan} disabled={smartBusy || !!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.slimScannen}>
-                {smartBusy ? '…' : '🎯 Slim scannen'}
-              </Btn>
-            )}
-            <Btn disabled tooltip={TOOLTIPS.slimRefreshen} color='var(--color-text-muted)'>
-              🔄 Slim refreshen
-            </Btn>
-          </div>
-
-          {/* Infra */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 40 }}>INFRA</span>
-            {cmdBtn('get_clubs',        { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md', TOOLTIPS.clubsSync)}
-            {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md', TOOLTIPS.competities)}
-          </div>
-
-          {/* Geavanceerd (inklapbaar) */}
-          <div>
-            <div
-              onClick={() => setAdvOpen(o => !o)}
-              style={{ fontSize: 11, color: 'var(--color-text-muted)', cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-            >
-              <span>{advOpen ? '▾' : '▸'}</span>
-              <span>Geavanceerd (bulk)</span>
-            </div>
-            {advOpen && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
-                <Btn onClick={() => onFill('clubs')} disabled={!!cmdFilling} tooltip={TOOLTIPS.clubsVullen}>
-                  {cmdFilling === 'clubs' ? '…' : '1. Clubs vullen'}
-                </Btn>
-                <Btn onClick={() => onFill('poules')} disabled={!!cmdFilling} tooltip={TOOLTIPS.poulesVullen}>
-                  {cmdFilling === 'poules' ? '…' : '2. Poules vullen'}
-                </Btn>
-                <Btn onClick={() => onFill('poules_refresh')} disabled={!!cmdFilling} color='var(--color-primary)' tooltip={TOOLTIPS.standsRefreshen}>
-                  {cmdFilling === 'poules_refresh' ? '…' : '⟳ Stands refreshen'}
-                </Btn>
-                <Btn onClick={() => onFill('poules_refresh', 1)} disabled={!!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.allesPollen}>
-                  {cmdFilling === 'poules_refresh' ? '…' : '📡 Alles pollen'}
-                </Btn>
-              </div>
-            )}
-          </div>
-
           {/* Feedback / status */}
           {(fillMsg || smartScan?.active) && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -149,16 +100,6 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
               {(done + skipped) > 0 && !(pending + inProgress) && (
                 <Btn onClick={onClearDone}>🗑 Done wissen</Btn>
               )}
-            </div>
-          )}
-
-          {gapData && (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '6px 8px', background: 'color-mix(in srgb, var(--color-primary) 5%, var(--color-surface))', borderRadius: 6, border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)', fontSize: 11 }}>
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>Gap {gapData.season}:</span>
-              <span style={{ color: gapData.poules.stale > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>{gapData.poules.stale} poules verouderd</span>
-              <span style={{ color: gapData.clubs.unscanned > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>{gapData.clubs.unscanned} clubs onbekend</span>
-              <span style={{ color: 'var(--color-text-muted)' }}>→ {gapData.queue_recommendation.get_poule_cmds} poule + {gapData.queue_recommendation.scan_club_cmds} club cmds aanbevolen</span>
-              <button onClick={onGapRefresh} style={{ fontSize: 10, padding: '0 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>↺</button>
             </div>
           )}
 
@@ -218,9 +159,75 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
 
           {!hasAny && (
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-              Queue leeg — gebruik Slim scannen, of vul handmatig via Geavanceerd
+              Queue leeg — open Acties hieronder om te starten
             </div>
           )}
+
+          {/* Acties (inklapbaar, onderaan - item 734) */}
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
+            <div
+              onClick={() => setActionsOpen(o => !o)}
+              style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <span>{actionsOpen ? '▾' : '▸'}</span>
+              <span>ACTIES</span>
+            </div>
+            {actionsOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+
+                {/* Primair */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {smartScan?.active ? (
+                    <Btn onClick={onStopSmartScan} color='var(--color-warning)' filled tooltip={TOOLTIPS.slimScannen}>
+                      ⏹ Stop slim scannen ({smartScan.cmd_count}/{smartScan.max_cmds})
+                    </Btn>
+                  ) : (
+                    <Btn onClick={onStartSmartScan} disabled={smartBusy || !!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.slimScannen}>
+                      {smartBusy ? '…' : '🎯 Slim scannen'}
+                    </Btn>
+                  )}
+                  <Btn disabled tooltip={TOOLTIPS.slimRefreshen} color='var(--color-text-muted)'>
+                    🔄 Slim refreshen
+                  </Btn>
+                </div>
+
+                {/* Infra */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 40 }}>INFRA</span>
+                  {cmdBtn('get_clubs',        { label: 'Alle clubs' },            '⟳ Clubs sync',  '#7c3aed', 'md', TOOLTIPS.clubsSync)}
+                  {cmdBtn('get_competitions', { label: 'Nationale competities' }, '⟳ Competities', '#b45309', 'md', TOOLTIPS.competities)}
+                </div>
+
+                {/* Geavanceerd (inklapbaar) */}
+                <div>
+                  <div
+                    onClick={() => setAdvOpen(o => !o)}
+                    style={{ fontSize: 11, color: 'var(--color-text-muted)', cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <span>{advOpen ? '▾' : '▸'}</span>
+                    <span>Geavanceerd (bulk)</span>
+                  </div>
+                  {advOpen && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+                      <Btn onClick={() => onFill('clubs')} disabled={!!cmdFilling} tooltip={TOOLTIPS.clubsVullen}>
+                        {cmdFilling === 'clubs' ? '…' : '1. Clubs vullen'}
+                      </Btn>
+                      <Btn onClick={() => onFill('poules')} disabled={!!cmdFilling} tooltip={TOOLTIPS.poulesVullen}>
+                        {cmdFilling === 'poules' ? '…' : '2. Poules vullen'}
+                      </Btn>
+                      <Btn onClick={() => onFill('poules_refresh')} disabled={!!cmdFilling} color='var(--color-primary)' tooltip={TOOLTIPS.standsRefreshen}>
+                        {cmdFilling === 'poules_refresh' ? '…' : '⟳ Stands refreshen'}
+                      </Btn>
+                      <Btn onClick={() => onFill('poules_refresh', 1)} disabled={!!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.allesPollen}>
+                        {cmdFilling === 'poules_refresh' ? '…' : '📡 Alles pollen'}
+                      </Btn>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
