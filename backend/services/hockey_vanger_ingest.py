@@ -19,7 +19,17 @@ from routers.hockey_capture import (
 from routers.hockey_clubs import ClubDetailIn, TeamIn
 
 
-def _parse_raw_poule(raw: dict, params: dict) -> Optional[PouleCaptureIn]:
+def _season_from_date(date_str: str) -> Optional[str]:
+    """NL hockeyseizoen loopt van zomer tot zomer (Sep t/m Jun) - juli/aug tellen als start nieuw seizoen."""
+    try:
+        dt = datetime.fromisoformat(date_str)
+    except (TypeError, ValueError):
+        return None
+    year = dt.year
+    return f"{year}-{year + 1}" if dt.month >= 7 else f"{year - 1}-{year}"
+
+
+def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = None) -> Optional[PouleCaptureIn]:
     try:
         poule_data = raw["data"]["data"]["poule"]
         comp       = poule_data.get("competition") or {}
@@ -77,6 +87,13 @@ def _parse_raw_poule(raw: dict, params: dict) -> Optional[PouleCaptureIn]:
             name = poule_data.get("name", "")
             hockey_type = "ZA" if name.lower().startswith("z") else "VE"
 
+        season = raw.get("seizoen")
+        if not season:
+            match_dates = sorted(m.match_date for m in matches_list if m.match_date)
+            season = _season_from_date(match_dates[0]) if match_dates else None
+        if not season:
+            season = target_season or "2026-2027"
+
         return PouleCaptureIn(
             poule_id=params["poule_id"],
             poule_name=poule_data.get("name", ""),
@@ -84,7 +101,7 @@ def _parse_raw_poule(raw: dict, params: dict) -> Optional[PouleCaptureIn]:
             class_name=subcomp.get("class") or comp.get("class_name", ""),
             district=comp.get("district_name") or comp.get("district") or "",
             hockey_type=hockey_type,
-            season=raw.get("seizoen", "2026-2027"),
+            season=season,
             teams_in_poule=teams_list,
             standings_data=standings_list,
             matches_data=matches_list,
