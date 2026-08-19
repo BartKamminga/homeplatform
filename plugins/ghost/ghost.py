@@ -134,19 +134,27 @@ def login(page) -> bool:
     page.goto("https://www.hockey.nl/", wait_until="domcontentloaded", timeout=20000)
     page.wait_for_timeout(1500)
     dismiss_consent(page)
+    # De banner kan tot een paar seconden na page-load pas verschijnen — één
+    # dismiss-poging vlak na de goto is niet altijd genoeg (vandaar ook vóór
+    # elke klik hieronder nogmaals proberen, met een langere wachttijd).
+    page.wait_for_timeout(2000)
+    dismiss_consent(page)
 
+    dismiss_consent(page)
     with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-        page.get_by_text("Inloggen", exact=False).first.click(timeout=5000)
+        page.get_by_text("Inloggen", exact=False).first.click(timeout=8000)
     dismiss_consent(page)
 
     page.locator('[name="email"]').first.fill(EMAIL, timeout=5000)
+    dismiss_consent(page)
     with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-        page.get_by_text("Verder", exact=False).first.click(timeout=5000)
+        page.get_by_text("Verder", exact=False).first.click(timeout=8000)
     dismiss_consent(page)
 
     page.locator('[name="password"]').first.fill(PASSWORD, timeout=5000)
+    dismiss_consent(page)
     with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-        page.get_by_text("Inloggen", exact=False).first.click(timeout=5000)
+        page.get_by_text("Inloggen", exact=False).first.click(timeout=8000)
     page.wait_for_timeout(1500)
     dismiss_consent(page)
 
