@@ -233,6 +233,11 @@ def run_once():
         except Exception as exc:
             print(f"[GHOST] login-fout: {exc}", flush=True)
             traceback.print_exc()
+            try:
+                page.screenshot(path="/tmp/ghost-debug.png", full_page=True)
+                print("[GHOST] debug-screenshot: /tmp/ghost-debug.png (docker cp om te bekijken)", flush=True)
+            except Exception:
+                pass
             sentry_sdk.capture_exception(exc)
             report_plugin_error(f"Ghost login-fout: {exc}", context="ghost:login", session_id=session_id)
             logged_in = False
