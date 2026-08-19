@@ -22,6 +22,7 @@ export default function VangerTab() {
         onStartGhost={s.triggerGhost} ghostBusy={s.ghostBusy}
         onStartScout={s.triggerScout} scoutBusy={s.scoutBusy}
         onToggleGhost={s.toggleGhostEnabled}
+        vangerSettings={s.vangerSettings} onSaveSettings={s.saveVangerSettings}
       />
 
       {/* item 543: contextbadge when no clubs have been scanned yet */}

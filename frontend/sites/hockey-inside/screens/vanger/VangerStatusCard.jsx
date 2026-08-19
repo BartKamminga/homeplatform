@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 // Twee client-types kunnen dezelfde cmd-queue bedienen, tegelijk:
 //   Scout — de Chrome-extensie, handmatig vanaf een laptop (debug/kleine acties)
 //   Ghost — de headless server-worker, op afstand getriggerd
@@ -61,7 +63,44 @@ function ClientRow({ name, status, disabled, task, doneCount, onStart, startBusy
   )
 }
 
-export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost }) {
+// Instelbaar per client (item 706) — beide starten op 20 min, hier op één
+// plek bij te stellen i.p.v. lokaal per browser/container.
+function IdleTimeoutSettings({ settings, onSave }) {
+  const [scoutMin, setScoutMin] = useState('')
+  const [ghostMin, setGhostMin] = useState('')
+
+  useEffect(() => {
+    if (!settings) return
+    setScoutMin(String(settings.scout_idle_timeout_min))
+    setGhostMin(String(settings.ghost_idle_timeout_min))
+  }, [settings?.scout_idle_timeout_min, settings?.ghost_idle_timeout_min])
+
+  if (!settings) return null
+
+  const inputStyle = { width: 44, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
+      <span>Idle-timeout (min)</span>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        Scout
+        <input type="number" min="1" value={scoutMin} onChange={e => setScoutMin(e.target.value)} style={inputStyle} />
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        Ghost
+        <input type="number" min="1" value={ghostMin} onChange={e => setGhostMin(e.target.value)} style={inputStyle} />
+      </label>
+      <button
+        onClick={() => onSave({ scout_idle_timeout_min: Number(scoutMin) || 20, ghost_idle_timeout_min: Number(ghostMin) || 20 })}
+        style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+      >
+        Opslaan
+      </button>
+    </div>
+  )
+}
+
+export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, vangerSettings, onSaveSettings }) {
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
   const ghost = vangerStatus.ghost || {}
@@ -92,6 +131,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           {ghostEnabled ? 'Ghost uitschakelen' : 'Ghost weer aanzetten'}
         </button>
       </div>
+      <IdleTimeoutSettings settings={vangerSettings} onSave={onSaveSettings} />
     </div>
   )
 }

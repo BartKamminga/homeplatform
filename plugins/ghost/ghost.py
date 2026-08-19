@@ -7,6 +7,12 @@ run aanvraagt via GET /api/hockey/vanger/ghost/should-run (gezet door de
 Scout (de Chrome-extensie): /vanger/cmd-queue/next, /vanger/cmd-queue/{id}/result
 en /vanger/heartbeat — beide clients bedienen dezelfde queue.
 
+Net als Scout blijft de browsersessie na het inloggen gewoon openstaan en
+pollend op nieuw werk — geen nieuwe login per trigger. Pas na een periode
+zonder nieuw werk (instelbaar via /vanger/settings, ghost_idle_timeout_min)
+sluit de sessie zichzelf, waarna een volgende trigger weer met een verse
+login begint.
+
 Login gebeurt met env-var credentials (niet met een opgenomen recipe die het
 wachtwoord in plaintext zou bevatten).
 
@@ -232,76 +238,95 @@ def process_cmd(page, cmd):
     return None, "geen data opgevangen (timeout of onbekende response-vorm)"
 
 
+def fetch_ghost_idle_timeout_sec():
+    try:
+        d = api_get("/api/hockey/vanger/settings")
+        return max(60, int(d.get("ghost_idle_timeout_min", 20)) * 60)
+    except Exception:
+        return 20 * 60
+
+
+def open_session(p, session_id):
+    """Start een browser en log in. Geeft (browser, page) terug, of (None, None)
+    bij een mislukte login."""
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context(user_agent=USER_AGENT)
+    page = context.new_page()
+
+    send_heartbeat(True, mode="ghost_login", task="Inloggen op hockey.nl", state="online")
+    try:
+        logged_in = login(page)
+    except Exception as exc:
+        print(f"[GHOST] login-fout: {exc}", flush=True)
+        traceback.print_exc()
+        try:
+            page.screenshot(path="/tmp/ghost-debug.png", full_page=True)
+            print("[GHOST] debug-screenshot: /tmp/ghost-debug.png (docker cp om te bekijken)", flush=True)
+        except Exception:
+            pass
+        sentry_sdk.capture_exception(exc)
+        report_plugin_error(f"Ghost login-fout: {exc}", context="ghost:login", session_id=session_id)
+        logged_in = False
+    else:
+        if not logged_in:
+            report_plugin_error("Ghost login mislukt (Inloggen-knop nog zichtbaar na loginflow)",
+                                 context="ghost:login", session_id=session_id)
+
+    if not logged_in:
+        send_heartbeat(False, mode="ghost_login_failed", task="Login mislukt", state="online")
+        browser.close()
+        return None, None
+
+    # De hash-routes (/club/..., /team/...|.../standings, ...) worden alleen
+    # herkend als de SPA op de match-center-basispagina staat — dezelfde
+    # aanname als de Scout-extensie (die zijn tab daar altijd op openhoudt).
+    page.goto("https://www.hockey.nl/match-center", wait_until="domcontentloaded", timeout=20000)
+    page.wait_for_timeout(1500)
+    dismiss_consent(page)
+    return browser, page
+
+
+def process_one(page, nxt, session_id):
+    """Verwerkt één cmd en post het resultaat. Geeft True terug bij succes
+    (voor de done_count in de aanroeper)."""
+    cmd_id = nxt["id"]
+    try:
+        data, error = process_cmd(page, nxt)
+    except Exception as exc:
+        data, error = None, f"{type(exc).__name__}: {exc}"
+        sentry_sdk.capture_exception(exc)
+        report_plugin_error(f"Ghost cmd {cmd_id} ({nxt['cmd_type']}) crashte: {exc}",
+                             context="ghost:cmd", session_id=session_id)
+    try:
+        if error:
+            api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"error": error})
+            print(f"[GHOST] cmd {cmd_id} mislukt: {error}", flush=True)
+        else:
+            api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"raw": data})
+            print(f"[GHOST] cmd {cmd_id} klaar", flush=True)
+    except Exception as exc:
+        print(f"[GHOST] kon resultaat niet posten voor cmd {cmd_id}: {exc}", flush=True)
+
+
 def run_once():
-    """Eén sessie: inloggen, queue leegwerken tot leeg/limiet, afsluiten."""
+    """Eén sessie: inloggen, queue leegwerken tot leeg, meteen afsluiten.
+    Alleen voor --once (lokaal handmatig testen) — de continue loop houdt de
+    sessie juist open, zie main()."""
     session_id = f"ghost_{int(time.time())}"
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(user_agent=USER_AGENT)
-        page = context.new_page()
-
-        send_heartbeat(True, mode="ghost_login", task="Inloggen op hockey.nl", state="online")
-        try:
-            logged_in = login(page)
-        except Exception as exc:
-            print(f"[GHOST] login-fout: {exc}", flush=True)
-            traceback.print_exc()
-            try:
-                page.screenshot(path="/tmp/ghost-debug.png", full_page=True)
-                print("[GHOST] debug-screenshot: /tmp/ghost-debug.png (docker cp om te bekijken)", flush=True)
-            except Exception:
-                pass
-            sentry_sdk.capture_exception(exc)
-            report_plugin_error(f"Ghost login-fout: {exc}", context="ghost:login", session_id=session_id)
-            logged_in = False
-        else:
-            if not logged_in:
-                report_plugin_error("Ghost login mislukt (Inloggen-knop nog zichtbaar na loginflow)",
-                                     context="ghost:login", session_id=session_id)
-
-        if not logged_in:
-            send_heartbeat(False, mode="ghost_login_failed", task="Login mislukt", state="online")
-            browser.close()
+        browser, page = open_session(p, session_id)
+        if not browser:
             return
-
-        # De hash-routes (/club/..., /team/...|.../standings, ...) worden alleen
-        # herkend als de SPA op de match-center-basispagina staat — dezelfde
-        # aanname als de Scout-extensie (die zijn tab daar altijd op openhoudt).
-        page.goto("https://www.hockey.nl/match-center", wait_until="domcontentloaded", timeout=20000)
-        page.wait_for_timeout(1500)
-        dismiss_consent(page)
-
         done_count = 0
         while done_count < MAX_CMDS_PER_RUN:
             nxt = api_get("/api/hockey/vanger/cmd-queue/next")
             if nxt.get("done"):
                 break
-
-            cmd_id = nxt["id"]
             label = nxt["params"].get("label") or nxt["params"].get("external_id") or ""
             send_heartbeat(True, mode="ghost_run", task=f"{nxt['cmd_type']} · {label}", done_count=done_count, state="ingelogd")
-            print(f"[GHOST] cmd {cmd_id}: {nxt['cmd_type']} · {label}", flush=True)
-
-            try:
-                data, error = process_cmd(page, nxt)
-            except Exception as exc:
-                data, error = None, f"{type(exc).__name__}: {exc}"
-                sentry_sdk.capture_exception(exc)
-                report_plugin_error(f"Ghost cmd {cmd_id} ({nxt['cmd_type']}) crashte: {exc}",
-                                     context="ghost:cmd", session_id=session_id)
-
-            try:
-                if error:
-                    api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"error": error})
-                    print(f"[GHOST] cmd {cmd_id} mislukt: {error}", flush=True)
-                else:
-                    api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"raw": data})
-                    print(f"[GHOST] cmd {cmd_id} klaar", flush=True)
-            except Exception as exc:
-                print(f"[GHOST] kon resultaat niet posten voor cmd {cmd_id}: {exc}", flush=True)
-
+            print(f"[GHOST] cmd {nxt['id']}: {nxt['cmd_type']} · {label}", flush=True)
+            process_one(page, nxt, session_id)
             done_count += 1
-
         send_heartbeat(False)
         browser.close()
         print(f"[GHOST] sessie klaar — {done_count} cmd(s) verwerkt.", flush=True)
@@ -313,21 +338,77 @@ def main():
         run_once()
         return
 
+    # Continue sessie, net als Scout: één keer inloggen, daarna de browser
+    # openhouden en gewoon op de queue blijven pollen. Pas na een periode
+    # zonder nieuw werk (idle-timeout, instelbaar via /vanger/settings) sluit
+    # de sessie zichzelf — dat scheelt herhaaldelijk opnieuw inloggen (item 702).
     print("[GHOST] gestart, wacht op trigger...", flush=True)
-    while True:
-        try:
-            resp = api_get("/api/hockey/vanger/ghost/should-run")
-            if resp.get("should_run"):
-                print("[GHOST] trigger ontvangen, sessie starten...", flush=True)
-                run_once()
-            else:
-                # Idle-heartbeat — zonder dit lijkt Ghost "offline" tussen runs
-                # door, terwijl de container gewoon actief aan het pollen is.
-                send_heartbeat(False, state="online")
-        except Exception as exc:
-            traceback.print_exc()
-            sentry_sdk.capture_exception(exc)
-        time.sleep(POLL_IDLE_SEC)
+    with sync_playwright() as p:
+        browser = None
+        page = None
+        session_id = None
+        idle_since = None
+        done_count = 0
+
+        while True:
+            try:
+                if page is None:
+                    resp = api_get("/api/hockey/vanger/ghost/should-run")
+                    if not resp.get("should_run"):
+                        send_heartbeat(False, state="online")
+                        time.sleep(POLL_IDLE_SEC)
+                        continue
+                    print("[GHOST] trigger ontvangen, sessie starten...", flush=True)
+                    session_id = f"ghost_{int(time.time())}"
+                    idle_since = None
+                    done_count = 0
+                    browser, page = open_session(p, session_id)
+                    if page is None:
+                        time.sleep(POLL_IDLE_SEC)
+                        continue
+
+                nxt = api_get("/api/hockey/vanger/cmd-queue/next")
+                if nxt.get("done"):
+                    if idle_since is None:
+                        idle_since = time.time()
+                        print("[GHOST] queue leeg, idle-timer gestart", flush=True)
+                    idle_sec = time.time() - idle_since
+                    timeout_sec = fetch_ghost_idle_timeout_sec()
+                    if idle_sec >= timeout_sec:
+                        print(f"[GHOST] idle-timeout ({timeout_sec}s) bereikt, sessie sluiten", flush=True)
+                        browser.close()
+                        browser = page = None
+                        send_heartbeat(False, state="online")
+                    else:
+                        send_heartbeat(True, done_count=done_count, state="wachten_op_queue")
+                    time.sleep(POLL_IDLE_SEC)
+                    continue
+
+                idle_since = None  # nieuw werk — idle-klok resetten
+                label = nxt["params"].get("label") or nxt["params"].get("external_id") or ""
+                send_heartbeat(True, mode="ghost_run", task=f"{nxt['cmd_type']} · {label}", done_count=done_count, state="ingelogd")
+                print(f"[GHOST] cmd {nxt['id']}: {nxt['cmd_type']} · {label}", flush=True)
+                process_one(page, nxt, session_id)
+                done_count += 1
+
+                if done_count >= MAX_CMDS_PER_RUN:
+                    print(f"[GHOST] {MAX_CMDS_PER_RUN} cmds verwerkt, sessie voorzorgshalve herstarten", flush=True)
+                    browser.close()
+                    session_id = f"ghost_{int(time.time())}"
+                    idle_since = None
+                    done_count = 0
+                    browser, page = open_session(p, session_id)
+
+            except Exception as exc:
+                traceback.print_exc()
+                sentry_sdk.capture_exception(exc)
+                if browser:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
+                browser = page = None
+                time.sleep(POLL_IDLE_SEC)
 
 
 if __name__ == "__main__":

@@ -32,9 +32,17 @@ export function useVangerState() {
   const [smartBusy,     setSmartBusy]     = useState(false)
   const [ghostBusy,     setGhostBusy]     = useState(false)
   const [scoutBusy,     setScoutBusy]     = useState(false)
+  const [vangerSettings, setVangerSettings] = useState(null)
 
   function loadCmdQueue()    { api.get('/api/hockey/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
   function loadVangerStatus(){ api.get('/api/hockey/vanger/status').then(setVangerStatus).catch(() => {}) }
+  function loadVangerSettings(){ api.get('/api/hockey/vanger/settings').then(setVangerSettings).catch(() => {}) }
+  function saveVangerSettings(patch) {
+    api.post('/api/hockey/vanger/settings', patch)
+      .then(setVangerSettings)
+      .then(() => { setFillMsg('Idle-timeout opgeslagen'); setTimeout(() => setFillMsg(''), 4000) })
+      .catch(() => { setFillMsg('Opslaan mislukt'); setTimeout(() => setFillMsg(''), 4000) })
+  }
   function loadGapAnalysis() { api.get('/api/hockey/gap-analysis').then(setGapData).catch(() => {}) }
   function loadRanges()      { api.get('/api/hockey/poule-ranges').then(setRangeData).catch(() => {}) }
   function loadSmartScan()   { api.get('/api/hockey/smart-scan/status').then(setSmartScan).catch(() => {}) }
@@ -205,7 +213,7 @@ export function useVangerState() {
       .finally(() => setIsInferring(false))
   }
 
-  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadGapAnalysis(); loadSmartScan() }, [])
+  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadGapAnalysis(); loadSmartScan(); loadVangerSettings() }, [])
 
   useEffect(() => {
     function pollVanger() {
@@ -225,7 +233,7 @@ export function useVangerState() {
     competitions,
     clubScanQueue,
     pluginErrors, setPluginErrors,
-    vangerStatus,
+    vangerStatus, vangerSettings, saveVangerSettings,
     loading, error,
     expanded, errOpen, setErrOpen,
     queueOpen, setQueueOpen,

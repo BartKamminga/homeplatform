@@ -438,6 +438,61 @@ def get_vanger_status(
     return result
 
 
+# ── Vanger instellingen (idle-timeout per client) ─────────
+# Eén centrale plek (AppSetting) i.p.v. lokaal per browser/container, zodat
+# je 'm op één plek kunt bijstellen voor zowel Scout als Ghost.
+
+SCOUT_IDLE_TIMEOUT_KEY   = "scout_idle_timeout_min"
+GHOST_IDLE_TIMEOUT_KEY   = "ghost_idle_timeout_min"
+DEFAULT_IDLE_TIMEOUT_MIN = 20
+
+
+def _get_int_setting(session: Session, key: str, default: int) -> int:
+    row = session.get(AppSetting, key)
+    if row and row.value and row.value.lstrip("-").isdigit():
+        return int(row.value)
+    return default
+
+
+def _vanger_settings(session: Session) -> dict:
+    return {
+        "scout_idle_timeout_min": _get_int_setting(session, SCOUT_IDLE_TIMEOUT_KEY, DEFAULT_IDLE_TIMEOUT_MIN),
+        "ghost_idle_timeout_min": _get_int_setting(session, GHOST_IDLE_TIMEOUT_KEY, DEFAULT_IDLE_TIMEOUT_MIN),
+    }
+
+
+class VangerSettingsIn(BaseModel):
+    scout_idle_timeout_min: Optional[int] = None
+    ghost_idle_timeout_min: Optional[int] = None
+
+
+@router.get("/vanger/settings")
+def get_vanger_settings(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    return _vanger_settings(session)
+
+
+@router.post("/vanger/settings")
+def update_vanger_settings(
+    body: VangerSettingsIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    for key, val in [(SCOUT_IDLE_TIMEOUT_KEY, body.scout_idle_timeout_min), (GHOST_IDLE_TIMEOUT_KEY, body.ghost_idle_timeout_min)]:
+        if val is None:
+            continue
+        val = max(1, int(val))
+        row = session.get(AppSetting, key)
+        if row:
+            row.value = str(val); session.add(row)
+        else:
+            session.add(AppSetting(key=key, value=str(val)))
+    session.commit()
+    return _vanger_settings(session)
+
+
 # ── Vanger cmd-queue ─────────────────────────────────────
 
 class CmdResultIn(BaseModel):

@@ -1,8 +1,8 @@
-// popup.js v11.4 — dwingt match-center af vóór start en vóór elk commando,
-// meldt correctie ook op de statuskaart op de website (item 705)
+// popup.js v11.5 — idle-timeout centraal instelbaar via /vanger/settings
+// i.p.v. hardcoded 20 min (item 706)
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
-var IDLE_TIMEOUT_MS  = 20 * 60 * 1000;
+var IDLE_TIMEOUT_MS  = 20 * 60 * 1000; // default — overschreven door /vanger/settings (loadIdleTimeout)
 var IDLE_POLL_MS     = 30 * 1000;
 var _vanger = {
   running: false, currentCmd: null, doneCount: 0, failCount: 0,
@@ -91,8 +91,21 @@ function loadSettings() {
     HP.delayMax = r.hw_delay_max ? parseInt(r.hw_delay_max) * 1000 : 15000;
     renderSettings();
     startHeartbeat();
+    loadIdleTimeout();
     renderVangerPane();
   });
+}
+// Idle-timeout komt centraal uit de backend (/vanger/settings) i.p.v. hier
+// hardcoded, zodat hij op één plek voor zowel Scout als Ghost bij te stellen
+// is. Wordt ook periodiek ververst (zelfde cyclus als de heartbeat) zodat een
+// wijziging niet pas na een herlaad van de popup ingaat.
+function loadIdleTimeout() {
+  if (!HP.url || !HP.key) return;
+  fetch(HP.url + '/api/hockey/vanger/settings', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d && d.scout_idle_timeout_min) IDLE_TIMEOUT_MS = d.scout_idle_timeout_min * 60 * 1000;
+  }).catch(function() {});
 }
 function renderSettings() {
   var pane = $('settingsPane');
@@ -173,7 +186,7 @@ function pollScoutTrigger() {
 function startHeartbeat() {
   if (_heartbeatTimer) return;
   sendHeartbeat();
-  _heartbeatTimer = setInterval(function() { sendHeartbeat(); pollScoutTrigger(); }, 15000);
+  _heartbeatTimer = setInterval(function() { sendHeartbeat(); pollScoutTrigger(); loadIdleTimeout(); }, 15000);
 }
 // ══════════════════════════════════════
 // TABBLAD — juiste pagina afdwingen
