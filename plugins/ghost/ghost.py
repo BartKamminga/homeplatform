@@ -195,14 +195,28 @@ def capture_for_cmd(page, cmd_type):
             if TARGET_HOST not in url:
                 return
             print(f"[GHOST]   [xhr] {response.status} {url}", flush=True)
+            # Dezelfde URL kan meerdere keren binnenkomen (SPA doet soms een
+            # tweede/andere call) — alleen accepteren als de body ook echt de
+            # verwachte vorm heeft, anders overschrijft een kortere/afwijkende
+            # response een al goede capture (bron van parse_failed, item 709).
+            #
+            # get_poule/get_competition_detail verwachten backend-zijdig een
+            # extra "data"-envelope (raw.data.data.poule) — die envelope komt
+            # normaal van Scout's eigen opslagformaat (interceptor.js bewaart
+            # {poule_id, team_id, ..., data: <api-response>}). Ghost heeft die
+            # wrapper niet, dus die voegen we hier zelf toe (item 709).
             if cmd_type == "get_poule" and POULE_RE.search(url):
-                captured["data"] = response.json()
+                body = response.json()
+                if body and isinstance(body.get("data"), dict) and body["data"].get("poule"):
+                    captured["data"] = {"data": body}
             elif cmd_type == "scan_club" and CLUB_DETAIL_RE.search(url):
                 body = response.json()
                 if body and body.get("data") and not isinstance(body["data"], list):
                     captured["data"] = body
             elif cmd_type == "get_competition_detail" and COMP_RE.search(url):
-                captured["data"] = response.json()
+                body = response.json()
+                if body and isinstance(body.get("data"), dict) and body["data"].get("poules") is not None:
+                    captured["data"] = {"data": body}
             elif cmd_type in ("get_clubs", "get_competitions"):
                 body = response.json()
                 if isinstance(body, dict) and isinstance(body.get("data"), list) and body["data"]:
