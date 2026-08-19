@@ -196,6 +196,17 @@ export default function CompetitiesTab({
     }
   }
 
+  async function handleToggleScanProfile(lnk) {
+    const next = lnk.scan_profile === 'active' ? 'manual' : 'active'
+    setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, scan_profile: next } : l))
+    try {
+      await updatePublicationComp(tid, lnk.id, { scan_profile: next })
+    } catch (e) {
+      setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, scan_profile: lnk.scan_profile } : l))
+      flash(e.message, true)
+    }
+  }
+
   async function doRemoveLink(lnk) {
     setConfirmLink(null)
     try {
@@ -377,6 +388,7 @@ export default function CompetitiesTab({
           onAssignTag={tagId => handleAssignTag(lnk, tagId)}
           onRemoveTag={tagId => handleRemoveCompTag(lnk, tagId)}
           onToggleVisible={() => handleToggleVisible(lnk)}
+          onToggleScanProfile={() => handleToggleScanProfile(lnk)}
           onRemove={() => setConfirmLink(lnk)}
           onOpenDetail={() => setSelectedLnk(lnk)}
         />

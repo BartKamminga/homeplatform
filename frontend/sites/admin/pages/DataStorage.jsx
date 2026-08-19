@@ -42,7 +42,7 @@ const DB_GLOBAL_ROWS = [
   { label: 'url, title, status, progress_log, output_path', where: 'download_jobs', note: 'BeatCrades — download queue' },
   { label: 'name, slug, season, published',                where: 'hockey_publications',      note: 'Hockey Inside — publicaties (user-beheerd)' },
   { label: 'name, order',                                  where: 'hockey_publication_tags',  note: 'Hockey Inside — publicatie-tags' },
-  { label: 'publication_id, competition_id, label, order', where: 'hockey_publication_comps', note: 'Hockey Inside — competitie-koppelingen' },
+  { label: 'publication_id, competition_id, label, order, scan_profile', where: 'hockey_publication_comps', note: 'Hockey Inside — competitie-koppelingen (scan_profile: manual/active, stuurt de auto-scan)' },
 ];
 
 const LS_ROWS = [

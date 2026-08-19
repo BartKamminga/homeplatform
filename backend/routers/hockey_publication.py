@@ -47,9 +47,10 @@ class CompLinkCreate(BaseModel):
     label:          Optional[str] = None
 
 class CompLinkUpdate(BaseModel):
-    label:   Optional[str]  = None
-    order:   Optional[int]  = None
-    visible: Optional[bool] = None
+    label:        Optional[str]  = None
+    order:        Optional[int]  = None
+    visible:      Optional[bool] = None
+    scan_profile: Optional[str]  = None
 
 class TagCreate(BaseModel):
     name: str
@@ -196,6 +197,7 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
             "order":          lnk.order,
             "label":          lnk.label,
             "visible":        lnk.visible,
+            "scan_profile":   lnk.scan_profile,
             "fase_tags":      [{"id": t.id, "name": t.name} for _, t in assigned_tags],
             "competition": {
                 "id":          comp.id,

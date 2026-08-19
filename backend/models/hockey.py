@@ -42,6 +42,7 @@ class HockeyPublicationComp(SQLModel, table=True):
     label:          Optional[str] = Field(default=None)
     fase:           Optional[str] = Field(default=None)
     visible:        bool          = Field(default=True)
+    scan_profile:   str           = Field(default="manual")  # manual | active
 
 
 class HockeyPublicationCompTag(SQLModel, table=True):

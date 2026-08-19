@@ -1,7 +1,7 @@
 """Hockey — queue helpers, vanger cmd-queue, smart scan, gap analysis."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,6 +29,7 @@ from services.hockey_vanger_smartscan import (
     _smart_scan_get_state, _smart_scan_set_state, _smart_scan_discovery_next,
     _smart_scan_try_advance, SMART_SCAN_MAX_CMDS,
 )
+from services.hockey_vanger_scanplan import run_scan_plan_pass
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -455,6 +456,16 @@ DELAY_KEYS = {
 DEFAULT_DELAY_MIN_SEC = 10
 DEFAULT_DELAY_MAX_SEC = 15
 
+# ── Scan-plan instellingen (item 720: scan-profielen) ────
+SCAN_PLAN_DEFAULTS = {
+    "club_list_scan_days":         7,
+    "club_scan_days":              1,
+    "profile_scan_interval_min":   20,
+    "match_duration_min":          90,
+    "active_daily_fallback_hours": 24,
+    "active_matchday_interval_min": 45,
+}
+
 
 def _get_int_setting(session: Session, key: str, default: int) -> int:
     row = session.get(AppSetting, key)
@@ -471,6 +482,8 @@ def _vanger_settings(session: Session) -> dict:
     for key in DELAY_KEYS:
         default = DEFAULT_DELAY_MIN_SEC if key.endswith("_min_sec") else DEFAULT_DELAY_MAX_SEC
         result[key] = _get_int_setting(session, key, default)
+    for key, default in SCAN_PLAN_DEFAULTS.items():
+        result[key] = _get_int_setting(session, key, default)
     return result
 
 
@@ -481,6 +494,12 @@ class VangerSettingsIn(BaseModel):
     scout_delay_max_sec:    Optional[int] = None
     ghost_delay_min_sec:    Optional[int] = None
     ghost_delay_max_sec:    Optional[int] = None
+    club_list_scan_days:           Optional[int] = None
+    club_scan_days:                Optional[int] = None
+    profile_scan_interval_min:     Optional[int] = None
+    match_duration_min:            Optional[int] = None
+    active_daily_fallback_hours:   Optional[int] = None
+    active_matchday_interval_min:  Optional[int] = None
 
 
 @router.get("/vanger/settings")
@@ -504,6 +523,12 @@ def update_vanger_settings(
         ("scout_delay_max_sec", body.scout_delay_max_sec),
         ("ghost_delay_min_sec", body.ghost_delay_min_sec),
         ("ghost_delay_max_sec", body.ghost_delay_max_sec),
+        ("club_list_scan_days", body.club_list_scan_days),
+        ("club_scan_days", body.club_scan_days),
+        ("profile_scan_interval_min", body.profile_scan_interval_min),
+        ("match_duration_min", body.match_duration_min),
+        ("active_daily_fallback_hours", body.active_daily_fallback_hours),
+        ("active_matchday_interval_min", body.active_matchday_interval_min),
     ]
     for key, val in pairs:
         if val is None:
@@ -881,7 +906,7 @@ def post_cmd_result(
 
     try:
         if cmd.cmd_type == "get_poule":
-            capture_body = _parse_raw_poule(body.raw, params)
+            capture_body = _parse_raw_poule(body.raw, params, _get_target_season(session))
             if capture_body:
                 poule_sum = _call_poule_capture(capture_body, session)
                 if poule_sum:
@@ -1042,13 +1067,49 @@ def smart_scan_stop(
 # met dezelfde cmd-queue/heartbeat-endpoints, wie er het eerst bij is pakt het
 # volgende commando op.
 
-GHOST_TRIGGER_KEY = "ghost_run_requested"
-GHOST_ENABLED_KEY = "ghost_enabled"
+GHOST_TRIGGER_KEY        = "ghost_run_requested"
+GHOST_ENABLED_KEY        = "ghost_enabled"
+SCAN_PLAN_LAST_RUN_KEY   = "profile_scan_last_run_at"
 
 
 def _ghost_enabled(session: Session) -> bool:
     row = session.get(AppSetting, GHOST_ENABLED_KEY)
     return row.value != "0" if row else True
+
+
+def _set_ghost_trigger(session: Session, now: datetime):
+    row = session.get(AppSetting, GHOST_TRIGGER_KEY)
+    if row:
+        row.value = now.isoformat(); session.add(row)
+    else:
+        session.add(AppSetting(key=GHOST_TRIGGER_KEY, value=now.isoformat()))
+
+
+def _maybe_run_scan_plan_pass(session: Session):
+    """Draait de scan-plan-pass (item 720) op eigen cadans, los van de handmatige
+    Ghost-trigger. Piggybackt op de al-bestaande poll van Ghost (elke ~15s) omdat dat
+    de enige continu actieve component in dit systeem is — geen aparte scheduler nodig."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    interval_min = _get_int_setting(session, "profile_scan_interval_min", 20)
+    row = session.get(AppSetting, SCAN_PLAN_LAST_RUN_KEY)
+    last_run = None
+    if row and row.value:
+        try:
+            last_run = datetime.fromisoformat(row.value)
+        except ValueError:
+            last_run = None
+    if last_run and now - last_run < timedelta(minutes=interval_min):
+        return
+    if row:
+        row.value = now.isoformat(); session.add(row)
+    else:
+        session.add(AppSetting(key=SCAN_PLAN_LAST_RUN_KEY, value=now.isoformat()))
+    session.commit()
+
+    result = run_scan_plan_pass(session)
+    if result.get("added", 0) > 0 and _ghost_enabled(session):
+        _set_ghost_trigger(session, now)
+        session.commit()
 
 
 @router.post("/vanger/ghost/trigger")
@@ -1071,6 +1132,7 @@ def ghost_should_run(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
+    _maybe_run_scan_plan_pass(session)
     if not _ghost_enabled(session):
         # Trigger blijft staan tot Ghost weer aangezet wordt — geen run
         # "verliezen" alleen omdat hij tijdelijk uitgeschakeld was.

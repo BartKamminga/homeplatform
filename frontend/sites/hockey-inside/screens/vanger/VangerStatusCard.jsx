@@ -127,6 +127,66 @@ function VangerTuning({ settings, onSave }) {
   )
 }
 
+// Scan-plan instellingen (item 720): tijdgestuurde queuing los van Scout/Ghost —
+// globaal, niet per client, dus eigen FIELDS-lijst zonder client-prefix.
+const SCAN_PLAN_FIELDS = [
+  { key: 'club_list_scan_days',          label: 'Clublijst (dagen)',        width: 40 },
+  { key: 'club_scan_days',               label: 'Club-scan (dagen)',        width: 40 },
+  { key: 'profile_scan_interval_min',    label: 'Scan-plan interval (min)', width: 44 },
+  { key: 'match_duration_min',           label: 'Wedstrijdduur (min)',      width: 44 },
+  { key: 'active_daily_fallback_hours',  label: 'Dagelijkse fallback (u)',  width: 44 },
+  { key: 'active_matchday_interval_min', label: 'Matchday-interval (min)',  width: 44 },
+]
+
+function ScanPlanTuning({ settings, onSave }) {
+  const [values, setValues] = useState({})
+
+  useEffect(() => {
+    if (!settings) return
+    const next = {}
+    for (const f of SCAN_PLAN_FIELDS) next[f.key] = String(settings[f.key] ?? '')
+    setValues(next)
+  }, [settings])
+
+  if (!settings) return null
+
+  const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
+
+  function set(key, v) { setValues(prev => ({ ...prev, [key]: v })) }
+
+  function save() {
+    const patch = {}
+    for (const key of Object.keys(values)) patch[key] = Number(values[key]) || settings[key]
+    onSave(patch)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
+      <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: '.05em' }}>SCAN-PLAN</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {SCAN_PLAN_FIELDS.map(f => (
+          <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {f.label}
+            <input
+              type="number" min="1" style={inputStyle(f.width)}
+              value={values[f.key] ?? ''}
+              onChange={e => set(f.key, e.target.value)}
+            />
+          </label>
+        ))}
+      </div>
+      <div>
+        <button
+          onClick={save}
+          style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+        >
+          Opslaan
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, vangerSettings, onSaveSettings }) {
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
@@ -159,6 +219,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
         </button>
       </div>
       <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
+      <ScanPlanTuning settings={vangerSettings} onSave={onSaveSettings} />
     </div>
   )
 }

@@ -86,7 +86,7 @@ function PouleDetail({ poule }) {
 
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
-export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onRemove, onOpenDetail }) {
+export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onRemove, onOpenDetail }) {
   const [open,          setOpen]          = useState(false)
   const [openPoule,     setOpenPoule]     = useState(null)
   const [showTagPicker, setShowTagPicker] = useState(false)
@@ -132,6 +132,18 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, opacity: lnk.visible ? 1 : 0.35, padding: '0 2px' }}>
           {lnk.visible ? '👁' : '🚫'}
         </button>
+        {onToggleScanProfile && (
+          <button onClick={onToggleScanProfile}
+            title={lnk.scan_profile === 'active' ? 'Auto-scan actief — klik om uit te zetten' : 'Auto-scan uit — klik om te activeren'}
+            style={{
+              fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
+              fontFamily: 'inherit', fontWeight: 600, border: 'none',
+              background: lnk.scan_profile === 'active' ? '#16a34a22' : 'var(--color-bg)',
+              color: lnk.scan_profile === 'active' ? '#16a34a' : 'var(--color-text-muted)',
+            }}>
+            {lnk.scan_profile === 'active' ? '🔄 Auto-scan' : '⏸ Handmatig'}
+          </button>
+        )}
         <button onClick={onRemove} style={deleteBtn} title="Verwijder koppeling">✕</button>
       </div>
 
