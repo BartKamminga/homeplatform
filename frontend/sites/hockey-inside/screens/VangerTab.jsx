@@ -17,7 +17,7 @@ export default function VangerTab() {
       {s.error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{s.error}</p>}
       {s.loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
 
-      <VangerStatusCard vangerStatus={s.vangerStatus} />
+      <VangerStatusCard vangerStatus={s.vangerStatus} onStartGhost={s.triggerGhost} ghostBusy={s.ghostBusy} />
 
       {/* item 543: contextbadge when no clubs have been scanned yet */}
       {!s.loading && s.clubs.length === 0 && (

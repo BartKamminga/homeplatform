@@ -48,6 +48,21 @@ services:
       retries: 3
       start_period: 10s
 
+  ghost_acc:
+    build:
+      context: ./plugins/ghost
+      dockerfile: Dockerfile
+    container_name: homeplatform_ghost_acc
+    shm_size: "1gb"
+    environment:
+      - GHOST_API_BASE=http://backend_acc:8000
+      - GHOST_API_KEY=${GHOST_API_KEY_ACC}
+      - HOCKEY_EMAIL=${HOCKEY_EMAIL}
+      - HOCKEY_PASSWORD=${HOCKEY_PASSWORD}
+    depends_on:
+      - backend_acc
+    restart: unless-stopped
+
 volumes:
   caddy_acc_data:
   caddy_acc_config:

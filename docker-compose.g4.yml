@@ -50,6 +50,21 @@ services:
       retries: 3
       start_period: 10s
 
+  ghost:
+    build:
+      context: ./plugins/ghost
+      dockerfile: Dockerfile
+    container_name: homeplatform_ghost
+    shm_size: "1gb"
+    environment:
+      - GHOST_API_BASE=http://backend:8000
+      - GHOST_API_KEY=${GHOST_API_KEY}
+      - HOCKEY_EMAIL=${HOCKEY_EMAIL}
+      - HOCKEY_PASSWORD=${HOCKEY_PASSWORD}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: homeplatform_cloudflared

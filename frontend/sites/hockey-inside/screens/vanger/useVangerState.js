@@ -30,6 +30,7 @@ export function useVangerState() {
   const [gapFilling,    setGapFilling]    = useState(false)
   const [smartScan,     setSmartScan]     = useState({ active: false, mode: null, cmd_count: 0 })
   const [smartBusy,     setSmartBusy]     = useState(false)
+  const [ghostBusy,     setGhostBusy]     = useState(false)
 
   function loadCmdQueue()    { api.get('/api/hockey/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
   function loadGapAnalysis() { api.get('/api/hockey/gap-analysis').then(setGapData).catch(() => {}) }
@@ -172,6 +173,14 @@ export function useVangerState() {
     api.post('/api/hockey/smart-scan/stop', {}).then(() => setSmartScan(s => ({ ...s, active: false, mode: null }))).catch(() => {})
   }
 
+  function triggerGhost() {
+    setGhostBusy(true)
+    api.post('/api/hockey/vanger/ghost/trigger', {})
+      .then(() => { setFillMsg('Ghost gestart — kan tot een paar minuten duren voor de eerste heartbeat.'); setTimeout(() => setFillMsg(''), 6000) })
+      .catch(() => { setFillMsg('Ghost starten mislukt'); setTimeout(() => setFillMsg(''), 6000) })
+      .finally(() => setGhostBusy(false))
+  }
+
   function runInfer() {
     setIsInferring(true); setInferResult(null)
     api.post('/api/hockey/infer-season-pending', {})
@@ -214,12 +223,13 @@ export function useVangerState() {
     fillMsg,
     gapData, gapFilling,
     smartScan, smartBusy,
+    ghostBusy,
     cmdOps,
     // functions
     load, loadCmdQueue, loadGapAnalysis, loadRanges,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
     toggle, resetPoule, runGapFill, runInfer,
-    startSmartScan, stopSmartScan,
+    startSmartScan, stopSmartScan, triggerGhost,
   }
 }

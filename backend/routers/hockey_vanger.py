@@ -384,6 +384,7 @@ class VangerHeartbeatIn(BaseModel):
     task:        Optional[str] = None
     done_count:  int = 0
     queue_total: int = 0
+    client:      str = "scout"  # "scout" (Chrome-extensie) of "ghost" (headless server-worker)
 
 
 @router.post("/vanger/heartbeat")
@@ -399,6 +400,7 @@ def vanger_heartbeat(
         "task":        body.task,
         "done_count":  body.done_count,
         "queue_total": body.queue_total,
+        "client":      body.client,
         "last_seen":   now.isoformat(),
     }, ensure_ascii=False)
     row = session.get(AppSetting, VANGER_STATUS_KEY)
@@ -913,6 +915,44 @@ def smart_scan_stop(
     _smart_scan_set_state(session, "")
     session.commit()
     return {"ok": True}
+
+
+# ── Ghost (headless server-worker) trigger ────────────────
+# De Ghost-container draait continu maar doet pas een login+scan-sessie zodra
+# hij hier een trigger vindt. Los van de Scout (Chrome-extensie): beide praten
+# met dezelfde cmd-queue/heartbeat-endpoints, wie er het eerst bij is pakt het
+# volgende commando op.
+
+GHOST_TRIGGER_KEY = "ghost_run_requested"
+
+
+@router.post("/vanger/ghost/trigger")
+def ghost_trigger(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    row = session.get(AppSetting, GHOST_TRIGGER_KEY)
+    if row:
+        row.value = now.isoformat(); session.add(row)
+    else:
+        session.add(AppSetting(key=GHOST_TRIGGER_KEY, value=now.isoformat()))
+    session.commit()
+    return {"ok": True}
+
+
+@router.get("/vanger/ghost/should-run")
+def ghost_should_run(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    row = session.get(AppSetting, GHOST_TRIGGER_KEY)
+    if row and row.value:
+        row.value = ""
+        session.add(row)
+        session.commit()
+        return {"should_run": True}
+    return {"should_run": False}
 
 
 @router.get("/smart-scan/status")
