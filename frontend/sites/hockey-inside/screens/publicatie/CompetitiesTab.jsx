@@ -6,42 +6,18 @@ import {
   assignCompTag, removeCompTag,
   KNOWN_SEASONS,
 } from '../../api.js'
-import {
-  card, cardLabel, ghostBtn,
-  muted, successBanner, errorBanner, inputStyle,
-} from '../styles.js'
+import { card, muted, successBanner, errorBanner } from '../styles.js'
 import { useCollapse } from '../ui.jsx'
 import CompetitieDetailView from './CompetitieDetailView.jsx'
 import CompetitionRow from './CompetitionRow.jsx'
+import InlineConfirm from './InlineConfirm.jsx'
+import BeheerPanel from './BeheerPanel.jsx'
+import CompetitiePicker from './CompetitiePicker.jsx'
 
 function normalizeSeason(s) {
   if (!s) return '2026-2027'
   const clean = s.trim().replace(/\s*-\s*/, '-')
   return KNOWN_SEASONS.includes(clean) ? clean : '2026-2027'
-}
-
-function InlineConfirm({ msg, onConfirm, onCancel }) {
-  return (
-    <div style={{
-      background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-danger) 20%, transparent)',
-      borderRadius: 8, padding: '10px 14px', marginBottom: 10,
-      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-    }}>
-      <span style={{ flex: 1, fontSize: 12, minWidth: 120 }}>{msg}</span>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={onCancel} style={{
-          padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
-          border: '1px solid var(--color-border)', background: 'var(--color-bg)',
-          color: 'var(--color-text)', fontFamily: 'inherit',
-        }}>Nee</button>
-        <button onClick={onConfirm} style={{
-          padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
-          border: 'none', background: 'var(--color-danger)', color: '#fff',
-          fontFamily: 'inherit', fontWeight: 600,
-        }}>Ja</button>
-      </div>
-    </div>
-  )
 }
 
 export default function CompetitiesTab({
@@ -258,122 +234,15 @@ export default function CompetitiesTab({
         />
       )}
 
-      {/* ── ⚙ Beheer meta-paneel (item 635) ───────────────────────── */}
       {isAdmin && (
-        <div style={card}>
-          <div
-            onClick={toggleMetaOpen}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', flex: 1 }}>⚙ Beheer</span>
-            {!metaOpen && (
-              <>
-                <span style={{
-                  fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 600,
-                  background: published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
-                  color: published ? 'var(--color-success)' : 'var(--color-warning)',
-                }}>
-                  {published ? '● Zichtbaar' : '○ Concept'}
-                </span>
-                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99,
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>
-                  {season}
-                </span>
-                {globalTags.length > 0 && (
-                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{globalTags.length} tags</span>
-                )}
-              </>
-            )}
-            <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{metaOpen ? '▾' : '▸'}</span>
-          </div>
-
-          {metaOpen && (
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-              {/* Zichtbaar + verwijderen */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {onTogglePublished && (
-                  <button
-                    onClick={onTogglePublished}
-                    style={{
-                      fontSize: 11, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
-                      fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                      background: published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
-                      color: published ? 'var(--color-success)' : 'var(--color-warning)',
-                    }}
-                  >{published ? '● Zichtbaar' : '○ Concept'}</button>
-                )}
-                {onDelete && !confirmDel && (
-                  <button
-                    onClick={() => setConfirmDel(true)}
-                    style={{ ...ghostBtn, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', fontSize: 11 }}
-                  >Verwijderen</button>
-                )}
-                {confirmDel && (
-                  <>
-                    <button onClick={() => setConfirmDel(false)} style={ghostBtn}>Nee</button>
-                    <button onClick={handleDelete} disabled={deleting}
-                      style={{ ...ghostBtn, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', opacity: deleting ? 0.5 : 1 }}
-                    >{deleting ? 'Bezig…' : 'Ja, verwijderen'}</button>
-                  </>
-                )}
-              </div>
-
-              {/* Seizoenskeuze */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>Seizoen:</span>
-                {KNOWN_SEASONS.map(s => (
-                  <button key={s} onClick={() => setSeason(s)} style={{
-                    fontSize: 11, padding: '3px 10px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
-                    border: `1px solid ${season === s ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                    background: season === s ? 'var(--color-primary)' : 'var(--color-surface)',
-                    color: season === s ? '#fff' : 'var(--color-text)',
-                  }}>{s}</button>
-                ))}
-              </div>
-
-              {/* FASE-TAGS */}
-              <div>
-                <div style={{ ...cardLabel, marginBottom: 10 }}>FASE-TAGS (globaal)</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
-                  {globalTags.length === 0 && (
-                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen tags aangemaakt.</span>
-                  )}
-                  {globalTags.map(tag => (
-                    <span key={tag.id} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
-                      border: '1px solid var(--color-primary)',
-                      color: 'var(--color-primary)',
-                    }}>
-                      {tag.name}
-                      <button onClick={() => setConfirmTag(tag)} style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1, padding: 0,
-                      }}>✕</button>
-                    </span>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    value={newTagName}
-                    onChange={e => setNewTagName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAddTag()}
-                    placeholder="Nieuwe tag…"
-                    style={{ ...inputStyle, flex: 1, fontSize: 12 }}
-                  />
-                  <button
-                    onClick={handleAddTag}
-                    disabled={addingTag || !newTagName.trim()}
-                    style={{ ...ghostBtn, fontSize: 12, opacity: addingTag || !newTagName.trim() ? 0.4 : 1 }}
-                  >+ Toevoegen</button>
-                </div>
-              </div>
-
-            </div>
-          )}
-        </div>
+        <BeheerPanel
+          metaOpen={metaOpen} toggleMetaOpen={toggleMetaOpen}
+          published={published} onTogglePublished={onTogglePublished}
+          season={season} setSeason={setSeason}
+          globalTags={globalTags} onRequestDeleteTag={setConfirmTag}
+          newTagName={newTagName} setNewTagName={setNewTagName} addingTag={addingTag} onAddTag={handleAddTag}
+          onDelete={onDelete} confirmDel={confirmDel} setConfirmDel={setConfirmDel} deleting={deleting} onConfirmDelete={handleDelete}
+        />
       )}
 
       {/* ── Gekoppelde competities ───────────────────────────────── */}
@@ -395,86 +264,13 @@ export default function CompetitiesTab({
         />
       ))}
 
-      {/* ── Competitie koppelen ──────────────────────────────────── */}
-      <div style={card}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: showPicker ? 12 : 0 }}>
-          <div style={cardLabel}>COMPETITIE KOPPELEN</div>
-          {showPicker && selectedComps.size > 0 && (
-            <button
-              onClick={handleBulkAdd}
-              disabled={adding}
-              style={{ ...ghostBtn, fontSize: 12, color: 'var(--color-primary)', borderColor: 'var(--color-primary)', opacity: adding ? 0.5 : 1 }}
-            >
-              {adding ? 'Bezig…' : `+ Koppel ${selectedComps.size} geselecteerde`}
-            </button>
-          )}
-          <button
-            onClick={() => { setShowPicker(p => !p); setFilterQ(''); setSelectedComps(new Set()) }}
-            style={{ ...ghostBtn, fontSize: 12, marginLeft: 'auto' }}
-          >
-            {showPicker ? 'Sluiten' : '+ Koppelen'}
-          </button>
-        </div>
-        {showPicker && (
-          <>
-            <input
-              value={filterQ}
-              onChange={e => setFilterQ(e.target.value)}
-              placeholder="Filter op naam…"
-              autoFocus
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', marginBottom: 10 }}
-            />
-            {pickerComps.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', textAlign: 'center', padding: '8px 0' }}>
-                {allComps.length === 0 ? 'Geen discovery-competities gevonden.' : 'Alle competities al gekoppeld.'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
-                {pickerComps.map(comp => {
-                  const checked = selectedComps.has(comp.id)
-                  return (
-                    <div key={comp.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '8px 12px', borderRadius: 8,
-                      border: `1px solid ${checked ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                      background: checked ? 'var(--color-primary)11' : 'var(--color-surface)',
-                      cursor: adding ? 'default' : 'pointer',
-                    }} onClick={() => {
-                      if (adding) return
-                      setSelectedComps(prev => {
-                        const n = new Set(prev)
-                        if (n.has(comp.id)) n.delete(comp.id); else n.add(comp.id)
-                        return n
-                      })
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {}}
-                        onClick={e => e.stopPropagation()}
-                        style={{ flexShrink: 0, width: 'auto', accentColor: 'var(--color-primary)' }}
-                      />
-                      <span style={{ fontSize: 11, opacity: 0.6, flexShrink: 0 }}>
-                        {comp.hockey_type === 'ZA' ? '🏒' : '🏑'}
-                      </span>
-                      <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{comp.name}</span>
-                        {comp.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{comp.class_name}</span>}
-                      </span>
-                      {!checked && (
-                        <button onClick={e => { e.stopPropagation(); if (!adding) handleAdd(comp) }} disabled={adding}
-                          style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                          + Direct
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      <CompetitiePicker
+        showPicker={showPicker} setShowPicker={setShowPicker}
+        selectedComps={selectedComps} setSelectedComps={setSelectedComps}
+        adding={adding} onBulkAdd={handleBulkAdd} onAdd={handleAdd}
+        filterQ={filterQ} setFilterQ={setFilterQ}
+        pickerComps={pickerComps} allComps={allComps}
+      />
     </div>
   )
 }

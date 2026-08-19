@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import { normalizeDistrict } from './DiscoveryCompetities.jsx'
+import { normalizeDistrict } from './discoveryHelpers.js'
 
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
