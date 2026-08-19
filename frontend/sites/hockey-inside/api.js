@@ -38,7 +38,8 @@ export const deleteOldCaptureSessions = (olderThanDays) =>
 
 // Discovery + Vanger
 export const getDiscoveryComps       = (season) => api.get(`/api/hockey/competitions${season ? `?season=${season}` : ''}`)
-export const deleteEmptyCompetitions = (season) => api.delete(`/api/hockey/competitions/empty${season ? `?season=${season}` : ''}`)
+export const previewEmptyCompetitions = (season) => api.get(`/api/hockey/competitions/empty${season ? `?season=${season}` : ''}`)
+export const deleteEmptyCompetitions  = (season) => api.delete(`/api/hockey/competitions/empty${season ? `?season=${season}` : ''}`)
 export const deletePoule             = (pouleId) => api.delete(`/api/hockey/poules/${pouleId}`)
 export const getVangerQueue          = (status) => api.get(`/api/hockey/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
 

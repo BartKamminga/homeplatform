@@ -436,13 +436,7 @@ def get_stats_by_season(
 
 
 # ── Cleanup lege competities ─────────────────────────────
-@router.delete("/competitions/empty")
-def delete_empty_competitions(
-    season: Optional[str] = None,
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
-    """Verwijder HockeyCompetition-records zonder gekoppelde poules."""
+def _empty_competitions_query(season: Optional[str]):
     q = select(HockeyCompetition).where(
         ~HockeyCompetition.id.in_(
             select(col(HockeyPoule.competition_id)).where(col(HockeyPoule.competition_id).isnot(None))
@@ -450,7 +444,39 @@ def delete_empty_competitions(
     )
     if season:
         q = q.where(HockeyCompetition.season == season)
-    empty = session.exec(q).all()
+    return q
+
+
+@router.get("/competitions/empty")
+def preview_empty_competitions(
+    season: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Dry-run (item 743): toont welke competities 'Lege opruimen' zou
+    verwijderen, vOOr je het echt doet - 'leeg' betekent hier 0 HockeyPoule-rijen
+    gekoppeld, niet 'weinig poules volgens de bond'."""
+    empty = session.exec(_empty_competitions_query(season)).all()
+    return {
+        "total": len(empty),
+        "competitions": [
+            {
+                "id": c.id, "name": c.name, "class_name": c.class_name,
+                "district": c.district, "hockey_type": c.hockey_type, "season": c.season,
+            }
+            for c in empty
+        ],
+    }
+
+
+@router.delete("/competitions/empty")
+def delete_empty_competitions(
+    season: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Verwijder HockeyCompetition-records zonder gekoppelde poules."""
+    empty = session.exec(_empty_competitions_query(season)).all()
     for c in empty:
         session.delete(c)
     session.commit()
