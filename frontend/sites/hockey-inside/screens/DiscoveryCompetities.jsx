@@ -89,8 +89,11 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
 
   async function handleCleanupEmpty() {
     try {
-      const r = await deleteEmptyCompetitions(season)
-      setCleanupMsg(`${r.deleted} lege competities verwijderd`)
+      // item 728: geen season-scoping meer - een lege competitie is leeg ongeacht
+      // welk seizoen er nu geselecteerd staat, anders blijven oudere lege
+      // competities onopgemerkt liggen.
+      const r = await deleteEmptyCompetitions()
+      setCleanupMsg(`${r.deleted} lege competities verwijderd (alle seizoenen)`)
       setTimeout(() => setCleanupMsg(''), 4000)
       onReload()
     } catch (e) { setCleanupMsg('Fout: ' + e.message) }
