@@ -1,5 +1,5 @@
-// popup.js v11.5 — idle-timeout centraal instelbaar via /vanger/settings
-// i.p.v. hardcoded 20 min (item 706)
+// popup.js v11.6 — navigatie-delay ook centraal instelbaar via
+// /vanger/settings (item 707), lokale Instellingen-save synct nu mee
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
 var IDLE_TIMEOUT_MS  = 20 * 60 * 1000; // default — overschreven door /vanger/settings (loadIdleTimeout)
@@ -95,16 +95,21 @@ function loadSettings() {
     renderVangerPane();
   });
 }
-// Idle-timeout komt centraal uit de backend (/vanger/settings) i.p.v. hier
-// hardcoded, zodat hij op één plek voor zowel Scout als Ghost bij te stellen
-// is. Wordt ook periodiek ververst (zelfde cyclus als de heartbeat) zodat een
-// wijziging niet pas na een herlaad van de popup ingaat.
+// Idle-timeout + navigatie-delay komen centraal uit de backend
+// (/vanger/settings) i.p.v. hier/lokaal hardcoded, zodat ze op één plek voor
+// zowel Scout als Ghost bij te stellen zijn (item 706/707). Wordt periodiek
+// ververst (zelfde cyclus als de heartbeat) zodat een wijziging niet pas na
+// een herlaad van de popup ingaat. De lokale Instellingen-velden (chrome.
+// storage.sync) blijven de fallback totdat de server bereikbaar is.
 function loadIdleTimeout() {
   if (!HP.url || !HP.key) return;
   fetch(HP.url + '/api/hockey/vanger/settings', {
     headers: { 'Authorization': 'Bearer ' + HP.key }
   }).then(function(r) { return r.json(); }).then(function(d) {
-    if (d && d.scout_idle_timeout_min) IDLE_TIMEOUT_MS = d.scout_idle_timeout_min * 60 * 1000;
+    if (!d) return;
+    if (d.scout_idle_timeout_min) IDLE_TIMEOUT_MS = d.scout_idle_timeout_min * 60 * 1000;
+    if (d.scout_delay_min_sec) HP.delayMin = d.scout_delay_min_sec * 1000;
+    if (d.scout_delay_max_sec) HP.delayMax = d.scout_delay_max_sec * 1000;
   }).catch(function() {});
 }
 function renderSettings() {
@@ -132,6 +137,15 @@ function renderSettings() {
       HP.url = url; HP.key = key;
       HP.delayMin = mn * 1000; HP.delayMax = mx * 1000;
       toast('✅ Opgeslagen');
+      // Ook centraal opslaan (item 707) — anders overschrijft de volgende
+      // periodieke loadIdleTimeout() deze lokale wijziging weer.
+      if (url && key) {
+        fetch(url + '/api/hockey/vanger/settings', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scout_delay_min_sec: mn, scout_delay_max_sec: mx })
+        }).catch(function() {});
+      }
     });
   });
 }

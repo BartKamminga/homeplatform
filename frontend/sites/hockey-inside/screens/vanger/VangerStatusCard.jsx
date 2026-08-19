@@ -63,39 +63,66 @@ function ClientRow({ name, status, disabled, task, doneCount, onStart, startBusy
   )
 }
 
-// Instelbaar per client (item 706) — beide starten op 20 min, hier op één
-// plek bij te stellen i.p.v. lokaal per browser/container.
-function IdleTimeoutSettings({ settings, onSave }) {
-  const [scoutMin, setScoutMin] = useState('')
-  const [ghostMin, setGhostMin] = useState('')
+// Instelbaar per client (item 706/707) — idle-timeout start op 20 min,
+// navigatie-delay op 10-15s, hier op één plek bij te stellen i.p.v. lokaal
+// per browser/container.
+const FIELDS = [
+  { key: 'idle_timeout_min', label: 'Idle-timeout (min)', width: 44 },
+  { key: 'delay_min_sec',    label: 'Delay min (s)',       width: 40 },
+  { key: 'delay_max_sec',    label: 'Delay max (s)',       width: 40 },
+]
+
+function VangerTuning({ settings, onSave }) {
+  const [values, setValues] = useState({})
 
   useEffect(() => {
     if (!settings) return
-    setScoutMin(String(settings.scout_idle_timeout_min))
-    setGhostMin(String(settings.ghost_idle_timeout_min))
-  }, [settings?.scout_idle_timeout_min, settings?.ghost_idle_timeout_min])
+    const next = {}
+    for (const client of ['scout', 'ghost']) {
+      for (const f of FIELDS) {
+        next[`${client}_${f.key}`] = String(settings[`${client}_${f.key}`] ?? '')
+      }
+    }
+    setValues(next)
+  }, [settings])
 
   if (!settings) return null
 
-  const inputStyle = { width: 44, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }
+  const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
+
+  function set(key, v) { setValues(prev => ({ ...prev, [key]: v })) }
+
+  function save() {
+    const patch = {}
+    for (const key of Object.keys(values)) patch[key] = Number(values[key]) || settings[key]
+    onSave(patch)
+  }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
-      <span>Idle-timeout (min)</span>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        Scout
-        <input type="number" min="1" value={scoutMin} onChange={e => setScoutMin(e.target.value)} style={inputStyle} />
-      </label>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        Ghost
-        <input type="number" min="1" value={ghostMin} onChange={e => setGhostMin(e.target.value)} style={inputStyle} />
-      </label>
-      <button
-        onClick={() => onSave({ scout_idle_timeout_min: Number(scoutMin) || 20, ghost_idle_timeout_min: Number(ghostMin) || 20 })}
-        style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-      >
-        Opslaan
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
+      {['scout', 'ghost'].map(client => (
+        <div key={client} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 40, textTransform: 'capitalize' }}>{client}</span>
+          {FIELDS.map(f => (
+            <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {f.label}
+              <input
+                type="number" min="1" style={inputStyle(f.width)}
+                value={values[`${client}_${f.key}`] ?? ''}
+                onChange={e => set(`${client}_${f.key}`, e.target.value)}
+              />
+            </label>
+          ))}
+        </div>
+      ))}
+      <div>
+        <button
+          onClick={save}
+          style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+        >
+          Opslaan
+        </button>
+      </div>
     </div>
   )
 }
@@ -131,7 +158,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           {ghostEnabled ? 'Ghost uitschakelen' : 'Ghost weer aanzetten'}
         </button>
       </div>
-      <IdleTimeoutSettings settings={vangerSettings} onSave={onSaveSettings} />
+      <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
     </div>
   )
 }

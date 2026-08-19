@@ -438,13 +438,22 @@ def get_vanger_status(
     return result
 
 
-# ── Vanger instellingen (idle-timeout per client) ─────────
+# ── Vanger instellingen (idle-timeout + navigatie-delay per client) ──
 # Eén centrale plek (AppSetting) i.p.v. lokaal per browser/container, zodat
 # je 'm op één plek kunt bijstellen voor zowel Scout als Ghost.
 
 SCOUT_IDLE_TIMEOUT_KEY   = "scout_idle_timeout_min"
 GHOST_IDLE_TIMEOUT_KEY   = "ghost_idle_timeout_min"
 DEFAULT_IDLE_TIMEOUT_MIN = 20
+
+DELAY_KEYS = {
+    "scout_delay_min_sec": "scout_delay_min_sec",
+    "scout_delay_max_sec": "scout_delay_max_sec",
+    "ghost_delay_min_sec": "ghost_delay_min_sec",
+    "ghost_delay_max_sec": "ghost_delay_max_sec",
+}
+DEFAULT_DELAY_MIN_SEC = 10
+DEFAULT_DELAY_MAX_SEC = 15
 
 
 def _get_int_setting(session: Session, key: str, default: int) -> int:
@@ -455,15 +464,23 @@ def _get_int_setting(session: Session, key: str, default: int) -> int:
 
 
 def _vanger_settings(session: Session) -> dict:
-    return {
+    result = {
         "scout_idle_timeout_min": _get_int_setting(session, SCOUT_IDLE_TIMEOUT_KEY, DEFAULT_IDLE_TIMEOUT_MIN),
         "ghost_idle_timeout_min": _get_int_setting(session, GHOST_IDLE_TIMEOUT_KEY, DEFAULT_IDLE_TIMEOUT_MIN),
     }
+    for key in DELAY_KEYS:
+        default = DEFAULT_DELAY_MIN_SEC if key.endswith("_min_sec") else DEFAULT_DELAY_MAX_SEC
+        result[key] = _get_int_setting(session, key, default)
+    return result
 
 
 class VangerSettingsIn(BaseModel):
     scout_idle_timeout_min: Optional[int] = None
     ghost_idle_timeout_min: Optional[int] = None
+    scout_delay_min_sec:    Optional[int] = None
+    scout_delay_max_sec:    Optional[int] = None
+    ghost_delay_min_sec:    Optional[int] = None
+    ghost_delay_max_sec:    Optional[int] = None
 
 
 @router.get("/vanger/settings")
@@ -480,7 +497,15 @@ def update_vanger_settings(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    for key, val in [(SCOUT_IDLE_TIMEOUT_KEY, body.scout_idle_timeout_min), (GHOST_IDLE_TIMEOUT_KEY, body.ghost_idle_timeout_min)]:
+    pairs = [
+        (SCOUT_IDLE_TIMEOUT_KEY, body.scout_idle_timeout_min),
+        (GHOST_IDLE_TIMEOUT_KEY, body.ghost_idle_timeout_min),
+        ("scout_delay_min_sec", body.scout_delay_min_sec),
+        ("scout_delay_max_sec", body.scout_delay_max_sec),
+        ("ghost_delay_min_sec", body.ghost_delay_min_sec),
+        ("ghost_delay_max_sec", body.ghost_delay_max_sec),
+    ]
+    for key, val in pairs:
         if val is None:
             continue
         val = max(1, int(val))

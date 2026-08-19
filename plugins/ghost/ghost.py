@@ -59,9 +59,12 @@ if os.environ.get("SENTRY_DSN"):
     sentry_sdk.set_tag("component", "ghost")
 
 POLL_IDLE_SEC    = int(os.environ.get("GHOST_POLL_IDLE_SEC", "15"))
-CMD_DELAY_MIN    = int(os.environ.get("GHOST_CMD_DELAY_MIN", "10"))
-CMD_DELAY_MAX    = int(os.environ.get("GHOST_CMD_DELAY_MAX", "15"))
 MAX_CMDS_PER_RUN = int(os.environ.get("GHOST_MAX_CMDS_PER_RUN", "200"))
+# Fallback-waarden als /vanger/settings niet bereikbaar is — normaal komen
+# idle-timeout en navigatie-delay centraal van de server (item 706/707).
+FALLBACK_DELAY_MIN_SEC = int(os.environ.get("GHOST_CMD_DELAY_MIN", "10"))
+FALLBACK_DELAY_MAX_SEC = int(os.environ.get("GHOST_CMD_DELAY_MAX", "15"))
+FALLBACK_IDLE_TIMEOUT_SEC = 20 * 60
 
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 USER_AGENT = (
@@ -228,7 +231,7 @@ def capture_for_cmd(page, cmd_type):
     return captured
 
 
-def process_cmd(page, cmd):
+def process_cmd(page, cmd, delay_range):
     cmd_type = cmd["cmd_type"]
     params   = cmd["params"]
     hash_fn  = HASH_BY_CMD.get(cmd_type)
@@ -244,7 +247,8 @@ def process_cmd(page, cmd):
     page.reload(wait_until="domcontentloaded", timeout=20000)
     dismiss_consent(page)
 
-    delay = random.randint(CMD_DELAY_MIN, CMD_DELAY_MAX)
+    delay_min, delay_max = delay_range
+    delay = random.randint(delay_min, delay_max)
     page.wait_for_timeout(delay * 1000)
 
     if "data" in captured:
@@ -252,12 +256,17 @@ def process_cmd(page, cmd):
     return None, "geen data opgevangen (timeout of onbekende response-vorm)"
 
 
-def fetch_ghost_idle_timeout_sec():
+def fetch_ghost_settings():
+    """(idle_timeout_sec, delay_min_sec, delay_max_sec) — centraal ingesteld
+    via /vanger/settings (item 706/707), met lokale fallback als onbereikbaar."""
     try:
         d = api_get("/api/hockey/vanger/settings")
-        return max(60, int(d.get("ghost_idle_timeout_min", 20)) * 60)
+        idle_sec = max(60, int(d.get("ghost_idle_timeout_min", 20)) * 60)
+        delay_min = max(1, int(d.get("ghost_delay_min_sec", FALLBACK_DELAY_MIN_SEC)))
+        delay_max = max(delay_min, int(d.get("ghost_delay_max_sec", FALLBACK_DELAY_MAX_SEC)))
+        return idle_sec, delay_min, delay_max
     except Exception:
-        return 20 * 60
+        return FALLBACK_IDLE_TIMEOUT_SEC, FALLBACK_DELAY_MIN_SEC, FALLBACK_DELAY_MAX_SEC
 
 
 def open_session(p, session_id):
@@ -300,12 +309,12 @@ def open_session(p, session_id):
     return browser, page
 
 
-def process_one(page, nxt, session_id):
+def process_one(page, nxt, session_id, delay_range):
     """Verwerkt één cmd en post het resultaat. Geeft True terug bij succes
     (voor de done_count in de aanroeper)."""
     cmd_id = nxt["id"]
     try:
-        data, error = process_cmd(page, nxt)
+        data, error = process_cmd(page, nxt, delay_range)
     except Exception as exc:
         data, error = None, f"{type(exc).__name__}: {exc}"
         sentry_sdk.capture_exception(exc)
@@ -339,7 +348,8 @@ def run_once():
             label = nxt["params"].get("label") or nxt["params"].get("external_id") or ""
             send_heartbeat(True, mode="ghost_run", task=f"{nxt['cmd_type']} · {label}", done_count=done_count, state="ingelogd")
             print(f"[GHOST] cmd {nxt['id']}: {nxt['cmd_type']} · {label}", flush=True)
-            process_one(page, nxt, session_id)
+            _, delay_min, delay_max = fetch_ghost_settings()
+            process_one(page, nxt, session_id, (delay_min, delay_max))
             done_count += 1
         send_heartbeat(False)
         browser.close()
@@ -387,7 +397,7 @@ def main():
                         idle_since = time.time()
                         print("[GHOST] queue leeg, idle-timer gestart", flush=True)
                     idle_sec = time.time() - idle_since
-                    timeout_sec = fetch_ghost_idle_timeout_sec()
+                    timeout_sec, _, _ = fetch_ghost_settings()
                     if idle_sec >= timeout_sec:
                         print(f"[GHOST] idle-timeout ({timeout_sec}s) bereikt, sessie sluiten", flush=True)
                         browser.close()
@@ -402,7 +412,8 @@ def main():
                 label = nxt["params"].get("label") or nxt["params"].get("external_id") or ""
                 send_heartbeat(True, mode="ghost_run", task=f"{nxt['cmd_type']} · {label}", done_count=done_count, state="ingelogd")
                 print(f"[GHOST] cmd {nxt['id']}: {nxt['cmd_type']} · {label}", flush=True)
-                process_one(page, nxt, session_id)
+                _, delay_min, delay_max = fetch_ghost_settings()
+                process_one(page, nxt, session_id, (delay_min, delay_max))
                 done_count += 1
 
                 if done_count >= MAX_CMDS_PER_RUN:
