@@ -264,6 +264,13 @@ def run_once():
             browser.close()
             return
 
+        # De hash-routes (/club/..., /team/...|.../standings, ...) worden alleen
+        # herkend als de SPA op de match-center-basispagina staat — dezelfde
+        # aanname als de Scout-extensie (die zijn tab daar altijd op openhoudt).
+        page.goto("https://www.hockey.nl/match-center", wait_until="domcontentloaded", timeout=20000)
+        page.wait_for_timeout(1500)
+        dismiss_consent(page)
+
         done_count = 0
         while done_count < MAX_CMDS_PER_RUN:
             nxt = api_get("/api/hockey/vanger/cmd-queue/next")
