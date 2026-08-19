@@ -197,6 +197,12 @@ export function useVangerState() {
       .catch(() => {})
   }
 
+  function toggleScanPlanEnabled() {
+    api.post('/api/hockey/vanger/scan-plan/toggle', {})
+      .then(r => { setFillMsg(r.enabled ? 'Scan-plan weer aangezet' : 'Scan-plan uitgeschakeld — queuet niets meer automatisch'); setTimeout(() => setFillMsg(''), 6000); loadVangerStatus() })
+      .catch(() => {})
+  }
+
   function triggerScout() {
     setScoutBusy(true)
     api.post('/api/hockey/vanger/scout/trigger', {})
@@ -254,6 +260,6 @@ export function useVangerState() {
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
     toggle, resetPoule, runGapFill, runInfer,
-    startSmartScan, stopSmartScan, triggerGhost, triggerScout, toggleGhostEnabled,
+    startSmartScan, stopSmartScan, triggerGhost, triggerScout, toggleGhostEnabled, toggleScanPlanEnabled,
   }
 }

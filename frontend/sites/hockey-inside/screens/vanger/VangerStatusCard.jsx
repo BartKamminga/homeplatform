@@ -187,11 +187,12 @@ function ScanPlanTuning({ settings, onSave }) {
   )
 }
 
-export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, vangerSettings, onSaveSettings }) {
+export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, vangerSettings, onSaveSettings }) {
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
   const ghost = vangerStatus.ghost || {}
   const ghostEnabled = vangerStatus.ghost_enabled !== false
+  const scanPlanEnabled = vangerStatus.scan_plan_enabled !== false
 
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '4px 14px' }}>
@@ -206,7 +207,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
         onStart={onStartGhost} startBusy={ghostBusy}
         startTitle="Start de headless Ghost-worker op de server (verwerkt de queue zonder dat de Chrome-extensie open hoeft te staan)"
       />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, paddingBottom: 6 }}>
         <button
           onClick={onToggleGhost}
           style={{
@@ -216,6 +217,18 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           }}
         >
           {ghostEnabled ? 'Ghost uitschakelen' : 'Ghost weer aanzetten'}
+        </button>
+        <button
+          onClick={onToggleScanPlan}
+          title="Zet de automatische scan-plan-pass (clublijst/club-cap + event-driven matchday-scan) volledig aan of uit"
+          style={{
+            fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
+            border: `1px solid ${scanPlanEnabled ? 'var(--color-border)' : '#f97316'}`,
+            background: scanPlanEnabled ? 'transparent' : '#f9731622',
+            color: scanPlanEnabled ? 'var(--color-text-muted)' : '#f97316', cursor: 'pointer',
+          }}
+        >
+          {scanPlanEnabled ? 'Scan-plan uitschakelen' : 'Scan-plan weer aanzetten'}
         </button>
       </div>
       <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />

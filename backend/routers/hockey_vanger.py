@@ -436,6 +436,8 @@ def get_vanger_status(
         result[client] = json.loads(row.value) if row and row.value else {**_EMPTY_STATUS, "client": client}
     ghost_row = session.get(AppSetting, GHOST_ENABLED_KEY)
     result["ghost_enabled"] = ghost_row.value != "0" if ghost_row else True
+    scan_plan_row = session.get(AppSetting, SCAN_PLAN_ENABLED_KEY)
+    result["scan_plan_enabled"] = scan_plan_row.value != "0" if scan_plan_row else True
     return result
 
 
@@ -1070,10 +1072,16 @@ def smart_scan_stop(
 GHOST_TRIGGER_KEY        = "ghost_run_requested"
 GHOST_ENABLED_KEY        = "ghost_enabled"
 SCAN_PLAN_LAST_RUN_KEY   = "profile_scan_last_run_at"
+SCAN_PLAN_ENABLED_KEY    = "scan_plan_enabled"
 
 
 def _ghost_enabled(session: Session) -> bool:
     row = session.get(AppSetting, GHOST_ENABLED_KEY)
+    return row.value != "0" if row else True
+
+
+def _scan_plan_enabled(session: Session) -> bool:
+    row = session.get(AppSetting, SCAN_PLAN_ENABLED_KEY)
     return row.value != "0" if row else True
 
 
@@ -1089,6 +1097,8 @@ def _maybe_run_scan_plan_pass(session: Session):
     """Draait de scan-plan-pass (item 720) op eigen cadans, los van de handmatige
     Ghost-trigger. Piggybackt op de al-bestaande poll van Ghost (elke ~15s) omdat dat
     de enige continu actieve component in dit systeem is — geen aparte scheduler nodig."""
+    if not _scan_plan_enabled(session):
+        return
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     interval_min = _get_int_setting(session, "profile_scan_interval_min", 20)
     row = session.get(AppSetting, SCAN_PLAN_LAST_RUN_KEY)
@@ -1158,6 +1168,22 @@ def ghost_toggle(
         row.value = value; session.add(row)
     else:
         session.add(AppSetting(key=GHOST_ENABLED_KEY, value=value))
+    session.commit()
+    return {"enabled": enabled}
+
+
+@router.post("/vanger/scan-plan/toggle")
+def scan_plan_toggle(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    enabled = not _scan_plan_enabled(session)
+    row = session.get(AppSetting, SCAN_PLAN_ENABLED_KEY)
+    value = "1" if enabled else "0"
+    if row:
+        row.value = value; session.add(row)
+    else:
+        session.add(AppSetting(key=SCAN_PLAN_ENABLED_KEY, value=value))
     session.commit()
     return {"enabled": enabled}
 
