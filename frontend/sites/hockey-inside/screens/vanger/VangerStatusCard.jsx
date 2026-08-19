@@ -212,8 +212,9 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           onClick={onToggleGhost}
           style={{
             fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-            border: '1px solid var(--color-border)', background: 'transparent',
-            color: 'var(--color-text-muted)', cursor: 'pointer',
+            border: `1px solid ${ghostEnabled ? 'var(--color-border)' : '#f97316'}`,
+            background: ghostEnabled ? 'transparent' : '#f9731622',
+            color: ghostEnabled ? 'var(--color-text-muted)' : '#f97316', cursor: 'pointer',
           }}
         >
           {ghostEnabled ? 'Ghost uitschakelen' : 'Ghost weer aanzetten'}
