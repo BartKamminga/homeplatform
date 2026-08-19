@@ -91,12 +91,12 @@ def api_post(path, body):
     return r.json()
 
 
-def send_heartbeat(running, mode=None, task=None, done_count=0, queue_total=0):
+def send_heartbeat(running, mode=None, task=None, done_count=0, queue_total=0, state="online"):
     try:
         api_post("/api/hockey/vanger/heartbeat", {
             "running": running, "mode": mode, "task": task,
             "done_count": done_count, "queue_total": queue_total,
-            "client": "ghost",
+            "client": "ghost", "state": state,
         })
     except Exception:
         pass
@@ -240,7 +240,7 @@ def run_once():
         context = browser.new_context(user_agent=USER_AGENT)
         page = context.new_page()
 
-        send_heartbeat(True, mode="ghost_login", task="Inloggen op hockey.nl")
+        send_heartbeat(True, mode="ghost_login", task="Inloggen op hockey.nl", state="online")
         try:
             logged_in = login(page)
         except Exception as exc:
@@ -260,7 +260,7 @@ def run_once():
                                      context="ghost:login", session_id=session_id)
 
         if not logged_in:
-            send_heartbeat(False, mode="ghost_login_failed", task="Login mislukt")
+            send_heartbeat(False, mode="ghost_login_failed", task="Login mislukt", state="online")
             browser.close()
             return
 
@@ -279,7 +279,7 @@ def run_once():
 
             cmd_id = nxt["id"]
             label = nxt["params"].get("label") or nxt["params"].get("external_id") or ""
-            send_heartbeat(True, mode="ghost_run", task=f"{nxt['cmd_type']} · {label}", done_count=done_count)
+            send_heartbeat(True, mode="ghost_run", task=f"{nxt['cmd_type']} · {label}", done_count=done_count, state="ingelogd")
             print(f"[GHOST] cmd {cmd_id}: {nxt['cmd_type']} · {label}", flush=True)
 
             try:
@@ -320,6 +320,10 @@ def main():
             if resp.get("should_run"):
                 print("[GHOST] trigger ontvangen, sessie starten...", flush=True)
                 run_once()
+            else:
+                # Idle-heartbeat — zonder dit lijkt Ghost "offline" tussen runs
+                # door, terwijl de container gewoon actief aan het pollen is.
+                send_heartbeat(False, state="online")
         except Exception as exc:
             traceback.print_exc()
             sentry_sdk.capture_exception(exc)

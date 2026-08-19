@@ -1,4 +1,5 @@
-// popup.js v11.2 — idle polling: 20 min na lege queue (384)
+// popup.js v11.3 — remote-start via scout/should-run + heartbeat blijft
+// doorlopen na stop (item 700), hernoemd naar Scout (item 701)
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
 var IDLE_TIMEOUT_MS  = 20 * 60 * 1000;
@@ -128,6 +129,10 @@ function renderSettings() {
 function sendHeartbeat() {
   if (!HP.url || !HP.key) return;
   var cmd = _vanger.currentCmd;
+  // "online" = sidepanel open, niks aan het doen; "wachten_op_queue" = actief
+  // maar queue leeg (bezig met idle-pollen tot de 20-min-timeout);
+  // "ingelogd" = daadwerkelijk een commando aan het verwerken.
+  var state = !_vanger.running ? 'online' : (_vanger.idleStartMs > 0 ? 'wachten_op_queue' : 'ingelogd');
   fetch(HP.url + '/api/hockey/vanger/heartbeat', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
@@ -139,25 +144,27 @@ function sendHeartbeat() {
       done_count:  _vanger.doneCount,
       fail_count:  _vanger.failCount,
       queue_total: 0,
+      client:      'scout',
+      state:       state,
     })
+  }).catch(function() {});
+}
+// Laat de webpagina Scout op afstand starten (zelfde principe als Ghost's
+// should-run trigger) — de "Start Scout"-knop in de popup zelf blijft de
+// normale/primaire manier, dit is er los naast.
+function pollScoutTrigger() {
+  if (!HP.url || !HP.key || _vanger.running) return;
+  fetch(HP.url + '/api/hockey/vanger/scout/should-run', {
+    headers: { 'Authorization': 'Bearer ' + HP.key }
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d && d.should_run) startVanger();
   }).catch(function() {});
 }
 function startHeartbeat() {
   if (_heartbeatTimer) return;
   sendHeartbeat();
-  _heartbeatTimer = setInterval(sendHeartbeat, 15000);
+  _heartbeatTimer = setInterval(function() { sendHeartbeat(); pollScoutTrigger(); }, 15000);
 }
-function stopHeartbeat() {
-  if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
-  if (HP.url && HP.key) {
-    fetch(HP.url + '/api/hockey/vanger/heartbeat', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ running: false, mode: 'idle', task: null, cmd_id: null, done_count: 0, fail_count: 0, queue_total: 0 })
-    }).catch(function() {});
-  }
-}
-
 // ══════════════════════════════════════
 // VANGER — cmd loop
 // ══════════════════════════════════════
@@ -221,7 +228,10 @@ function stopVanger() {
   _vanger.currentCmd = null;
   _vanger.idleStartMs = 0;
   addLog('info', '■ Gestopt — ✓ ' + _vanger.doneCount + '  ✗ ' + _vanger.failCount);
-  stopHeartbeat();
+  // Alleen een directe statusupdate sturen, niet de hele heartbeat-lus
+  // afbreken — anders lijkt Scout na elke stop "offline" zolang het
+  // sidepanel gewoon open blijft, en stopt ook de should-run-polling.
+  sendHeartbeat();
   renderVangerPane();
 }
 

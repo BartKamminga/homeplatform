@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hockey Scout",
-  "version": "3.25",
+  "version": "3.26",
   "description": "Vangt hockey.nl API data op en pusht naar HomePlatform",
   "permissions": [
     "activeTab",

@@ -31,8 +31,10 @@ export function useVangerState() {
   const [smartScan,     setSmartScan]     = useState({ active: false, mode: null, cmd_count: 0 })
   const [smartBusy,     setSmartBusy]     = useState(false)
   const [ghostBusy,     setGhostBusy]     = useState(false)
+  const [scoutBusy,     setScoutBusy]     = useState(false)
 
   function loadCmdQueue()    { api.get('/api/hockey/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
+  function loadVangerStatus(){ api.get('/api/hockey/vanger/status').then(setVangerStatus).catch(() => {}) }
   function loadGapAnalysis() { api.get('/api/hockey/gap-analysis').then(setGapData).catch(() => {}) }
   function loadRanges()      { api.get('/api/hockey/poule-ranges').then(setRangeData).catch(() => {}) }
   function loadSmartScan()   { api.get('/api/hockey/smart-scan/status').then(setSmartScan).catch(() => {}) }
@@ -181,6 +183,20 @@ export function useVangerState() {
       .finally(() => setGhostBusy(false))
   }
 
+  function toggleGhostEnabled() {
+    api.post('/api/hockey/vanger/ghost/toggle', {})
+      .then(r => { setFillMsg(r.enabled ? 'Ghost weer aangezet' : 'Ghost uitgeschakeld — reageert niet meer op triggers'); setTimeout(() => setFillMsg(''), 6000); loadVangerStatus() })
+      .catch(() => {})
+  }
+
+  function triggerScout() {
+    setScoutBusy(true)
+    api.post('/api/hockey/vanger/scout/trigger', {})
+      .then(() => { setFillMsg('Scout-start aangevraagd — moet binnen 15s oppikken zolang de extensie open staat.'); setTimeout(() => setFillMsg(''), 6000) })
+      .catch(() => { setFillMsg('Scout starten mislukt'); setTimeout(() => setFillMsg(''), 6000) })
+      .finally(() => setScoutBusy(false))
+  }
+
   function runInfer() {
     setIsInferring(true); setInferResult(null)
     api.post('/api/hockey/infer-season-pending', {})
@@ -193,7 +209,7 @@ export function useVangerState() {
 
   useEffect(() => {
     function pollVanger() {
-      api.get('/api/hockey/vanger/status').then(setVangerStatus).catch(() => {})
+      loadVangerStatus()
       loadCmdQueue()
       loadSmartScan()
     }
@@ -223,13 +239,13 @@ export function useVangerState() {
     fillMsg,
     gapData, gapFilling,
     smartScan, smartBusy,
-    ghostBusy,
+    ghostBusy, scoutBusy,
     cmdOps,
     // functions
     load, loadCmdQueue, loadGapAnalysis, loadRanges,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
     toggle, resetPoule, runGapFill, runInfer,
-    startSmartScan, stopSmartScan, triggerGhost,
+    startSmartScan, stopSmartScan, triggerGhost, triggerScout, toggleGhostEnabled,
   }
 }

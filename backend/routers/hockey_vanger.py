@@ -374,8 +374,13 @@ def get_club_scan_queue_next(
 
 
 # ── Vanger heartbeat / live status ──────────────────────
+# Scout (Chrome-extensie) en Ghost (headless server-worker) kunnen tegelijk
+# draaien en bedienen dezelfde cmd-queue — elk krijgt daarom een eigen
+# status-sleutel i.p.v. elkaars heartbeat te overschrijven.
 
-VANGER_STATUS_KEY = "vanger_status"
+VANGER_STATUS_KEYS = {"scout": "vanger_status_scout", "ghost": "vanger_status_ghost"}
+_EMPTY_STATUS = {"running": False, "mode": None, "task": None, "state": "offline",
+                  "done_count": 0, "queue_total": 0, "last_seen": None}
 
 
 class VangerHeartbeatIn(BaseModel):
@@ -385,6 +390,10 @@ class VangerHeartbeatIn(BaseModel):
     done_count:  int = 0
     queue_total: int = 0
     client:      str = "scout"  # "scout" (Chrome-extensie) of "ghost" (headless server-worker)
+    # "online" | "ingelogd" | "wachten_op_queue" — door de client zelf bepaald,
+    # "offline" wordt hieronder altijd afgeleid uit het ontbreken van een
+    # recente heartbeat, nooit door de client zelf gerapporteerd.
+    state:       str = "online"
 
 
 @router.post("/vanger/heartbeat")
@@ -394,21 +403,23 @@ def vanger_heartbeat(
     _=Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    key = VANGER_STATUS_KEYS.get(body.client, VANGER_STATUS_KEYS["scout"])
     payload = json.dumps({
         "running":     body.running,
         "mode":        body.mode,
         "task":        body.task,
+        "state":       body.state,
         "done_count":  body.done_count,
         "queue_total": body.queue_total,
         "client":      body.client,
         "last_seen":   now.isoformat(),
     }, ensure_ascii=False)
-    row = session.get(AppSetting, VANGER_STATUS_KEY)
+    row = session.get(AppSetting, key)
     if row:
         row.value = payload
         session.add(row)
     else:
-        session.add(AppSetting(key=VANGER_STATUS_KEY, value=payload))
+        session.add(AppSetting(key=key, value=payload))
     session.commit()
     return {"ok": True}
 
@@ -418,10 +429,13 @@ def get_vanger_status(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    row = session.get(AppSetting, VANGER_STATUS_KEY)
-    if not row or not row.value:
-        return {"running": False, "mode": None, "task": None, "done_count": 0, "queue_total": 0, "last_seen": None}
-    return json.loads(row.value)
+    result = {}
+    for client, key in VANGER_STATUS_KEYS.items():
+        row = session.get(AppSetting, key)
+        result[client] = json.loads(row.value) if row and row.value else {**_EMPTY_STATUS, "client": client}
+    ghost_row = session.get(AppSetting, GHOST_ENABLED_KEY)
+    result["ghost_enabled"] = ghost_row.value != "0" if ghost_row else True
+    return result
 
 
 # ── Vanger cmd-queue ─────────────────────────────────────
@@ -924,6 +938,12 @@ def smart_scan_stop(
 # volgende commando op.
 
 GHOST_TRIGGER_KEY = "ghost_run_requested"
+GHOST_ENABLED_KEY = "ghost_enabled"
+
+
+def _ghost_enabled(session: Session) -> bool:
+    row = session.get(AppSetting, GHOST_ENABLED_KEY)
+    return row.value != "0" if row else True
 
 
 @router.post("/vanger/ghost/trigger")
@@ -946,7 +966,64 @@ def ghost_should_run(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
+    if not _ghost_enabled(session):
+        # Trigger blijft staan tot Ghost weer aangezet wordt — geen run
+        # "verliezen" alleen omdat hij tijdelijk uitgeschakeld was.
+        return {"should_run": False}
     row = session.get(AppSetting, GHOST_TRIGGER_KEY)
+    if row and row.value:
+        row.value = ""
+        session.add(row)
+        session.commit()
+        return {"should_run": True}
+    return {"should_run": False}
+
+
+@router.post("/vanger/ghost/toggle")
+def ghost_toggle(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    enabled = not _ghost_enabled(session)
+    row = session.get(AppSetting, GHOST_ENABLED_KEY)
+    value = "1" if enabled else "0"
+    if row:
+        row.value = value; session.add(row)
+    else:
+        session.add(AppSetting(key=GHOST_ENABLED_KEY, value=value))
+    session.commit()
+    return {"enabled": enabled}
+
+
+# ── Scout (Chrome-extensie) remote-start ──────────────────
+# Zelfde trigger-patroon als Ghost, zodat de webpagina de Scout ook kan
+# starten zodra die online is. De bestaande "Start Vanger"-knop in de
+# popup zelf blijft gewoon werken — dit is een tweede manier, geen vervanging.
+
+SCOUT_TRIGGER_KEY = "scout_run_requested"
+
+
+@router.post("/vanger/scout/trigger")
+def scout_trigger(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    row = session.get(AppSetting, SCOUT_TRIGGER_KEY)
+    if row:
+        row.value = now.isoformat(); session.add(row)
+    else:
+        session.add(AppSetting(key=SCOUT_TRIGGER_KEY, value=now.isoformat()))
+    session.commit()
+    return {"ok": True}
+
+
+@router.get("/vanger/scout/should-run")
+def scout_should_run(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    row = session.get(AppSetting, SCOUT_TRIGGER_KEY)
     if row and row.value:
         row.value = ""
         session.add(row)
