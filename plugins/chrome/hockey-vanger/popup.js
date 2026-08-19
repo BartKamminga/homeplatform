@@ -1,5 +1,5 @@
-// popup.js v11.3 — remote-start via scout/should-run + heartbeat blijft
-// doorlopen na stop (item 700), hernoemd naar Scout (item 701)
+// popup.js v11.4 — dwingt match-center af vóór start en vóór elk commando,
+// meldt correctie ook op de statuskaart op de website (item 705)
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
 var IDLE_TIMEOUT_MS  = 20 * 60 * 1000;
@@ -126,28 +126,38 @@ function renderSettings() {
 // ══════════════════════════════════════
 // HEARTBEAT
 // ══════════════════════════════════════
-function sendHeartbeat() {
+function postHeartbeat(fields) {
   if (!HP.url || !HP.key) return;
+  fetch(HP.url + '/api/hockey/vanger/heartbeat', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({
+      running: false, mode: null, task: null, cmd_id: null,
+      done_count: 0, fail_count: 0, queue_total: 0, client: 'scout', state: 'online',
+    }, fields))
+  }).catch(function() {});
+}
+function sendHeartbeat() {
   var cmd = _vanger.currentCmd;
   // "online" = sidepanel open, niks aan het doen; "wachten_op_queue" = actief
   // maar queue leeg (bezig met idle-pollen tot de 20-min-timeout);
   // "ingelogd" = daadwerkelijk een commando aan het verwerken.
   var state = !_vanger.running ? 'online' : (_vanger.idleStartMs > 0 ? 'wachten_op_queue' : 'ingelogd');
-  fetch(HP.url + '/api/hockey/vanger/heartbeat', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + HP.key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      running:     _vanger.running,
-      mode:        _vanger.running ? (cmd ? cmd.cmd_type : 'polling') : 'idle',
-      task:        cmd ? (cmd.params.label || cmd.params.external_id || null) : null,
-      cmd_id:      cmd ? cmd.id : null,
-      done_count:  _vanger.doneCount,
-      fail_count:  _vanger.failCount,
-      queue_total: 0,
-      client:      'scout',
-      state:       state,
-    })
-  }).catch(function() {});
+  postHeartbeat({
+    running:     _vanger.running,
+    mode:        _vanger.running ? (cmd ? cmd.cmd_type : 'polling') : 'idle',
+    task:        cmd ? (cmd.params.label || cmd.params.external_id || null) : null,
+    cmd_id:      cmd ? cmd.id : null,
+    done_count:  _vanger.doneCount,
+    fail_count:  _vanger.failCount,
+    state:       state,
+  });
+}
+// Meldt op de statuskaart op de website dat het tabblad eerst naar de juiste
+// pagina gecorrigeerd wordt — anders lijkt Scout daar even "hangend" zonder
+// dat zichtbaar is waarom (alleen in de extensie-log, niet op de website).
+function reportNavCorrection(task) {
+  postHeartbeat({ running: true, mode: 'nav_correct', task: task, state: 'online' });
 }
 // Laat de webpagina Scout op afstand starten (zelfde principe als Ghost's
 // should-run trigger) — de "Start Scout"-knop in de popup zelf blijft de
@@ -166,6 +176,28 @@ function startHeartbeat() {
   _heartbeatTimer = setInterval(function() { sendHeartbeat(); pollScoutTrigger(); }, 15000);
 }
 // ══════════════════════════════════════
+// TABBLAD — juiste pagina afdwingen
+// ══════════════════════════════════════
+// De hash-routes (/club/..., /team/...|.../standings) worden alleen herkend
+// als de SPA al op match-center staat (zelfde ontdekking als bij de
+// Ghost-fix). "Ga naar hockey.nl" alleen checken is dus niet genoeg — als het
+// tabblad op een andere hockey.nl-pagina staat, corrigeren we 'm eerst.
+function ensureMatchCenter(tabId, cb) {
+  chrome.tabs.get(tabId, function(tab) {
+    if (tab && tab.url && tab.url.indexOf('/match-center') !== -1) { cb(); return; }
+    addLog('warn', '⚠ Tab niet op match-center — navigeren...');
+    reportNavCorrection('Navigeren naar match-center');
+    var listener = function(id, info) {
+      if (id !== tabId || info.status !== 'complete') return;
+      chrome.tabs.onUpdated.removeListener(listener);
+      cb();
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.update(tabId, { url: 'https://www.hockey.nl/match-center' });
+  });
+}
+
+// ══════════════════════════════════════
 // VANGER — cmd loop
 // ══════════════════════════════════════
 function startVanger() {
@@ -174,15 +206,20 @@ function startVanger() {
   chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
     var tab = tabs && tabs[0];
     if (!tab || tab.url.indexOf('hockey.nl') === -1) { toast('❌ Ga naar www.hockey.nl'); return; }
+    ensureMatchCenter(tab.id, function() { startVangerOnTab(tab.id); });
+  });
+}
+
+function startVangerOnTab(tabId) {
     _vanger = {
       running: true, currentCmd: null, doneCount: 0, failCount: 0,
-      countdownMs: 0, tabId: tab.id, tickTimer: null, stepTimer: null, tabLoadedListener: null,
+      countdownMs: 0, tabId: tabId, tickTimer: null, stepTimer: null, tabLoadedListener: null,
       idleStartMs: 0, startMs: Date.now(), sessionTimer: null, flowStep: '',
       tabOk: true, tabUrlListener: null,
       sessionId: crypto.randomUUID()
     };
-    _vanger.tabUrlListener = function(tabId, info) {
-      if (tabId !== _vanger.tabId) return;
+    _vanger.tabUrlListener = function(updatedTabId, info) {
+      if (updatedTabId !== _vanger.tabId) return;
       var ok = info.url ? info.url.indexOf('hockey.nl') !== -1 : _vanger.tabOk;
       if (ok !== _vanger.tabOk) {
         _vanger.tabOk = ok;
@@ -202,14 +239,13 @@ function startVanger() {
     }, 1000);
     // Ruim __hw_log op om localStorage-ruimte vrij te maken
     chrome.scripting.executeScript({
-      target: { tabId: tab.id },
+      target: { tabId: tabId },
       func: function() { try { localStorage.removeItem('__hw_log'); } catch(e) {} }
     });
     addLog('info', '▶ Scout 3.0 gestart');
     startHeartbeat();
     renderVangerPane();
     pollNextCmd();
-  });
 }
 
 function stopVanger() {
@@ -394,6 +430,7 @@ function executeCmd(cmd) {
 
   setFlowStep('nav');
 
+  ensureMatchCenter(_vanger.tabId, function() {
   chrome.scripting.executeScript({
     target: { tabId: _vanger.tabId },
     func: function(h) { window.location.hash = h; },
@@ -430,6 +467,7 @@ function executeCmd(cmd) {
       chrome.tabs.onUpdated.addListener(onReloadDone);
       chrome.tabs.reload(_vanger.tabId, { bypassCache: true });
     }, 600);
+  });
   });
 }
 

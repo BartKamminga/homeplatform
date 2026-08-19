@@ -7,6 +7,7 @@ const STATE_LABEL = { online: 'Online', ingelogd: 'Ingelogd', wachten_op_queue: 
 const MODE_LABEL = {
   poule_scan: '⚡ Poule scan', club_rescan: '🏢 Club-rescan',
   ghost_login: '👻 Inloggen...', ghost_run: '👻 Scant', ghost_login_failed: '👻 Login mislukt',
+  nav_correct: '🧭 Tab corrigeren naar match-center',
   idle: null, polling: null,
 }
 
