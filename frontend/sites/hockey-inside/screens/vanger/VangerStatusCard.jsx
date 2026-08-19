@@ -188,6 +188,7 @@ function ScanPlanTuning({ settings, onSave }) {
 }
 
 export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, vangerSettings, onSaveSettings }) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
   const ghost = vangerStatus.ghost || {}
@@ -232,8 +233,19 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           {scanPlanEnabled ? 'Scan-plan uitschakelen' : 'Scan-plan weer aanzetten'}
         </button>
       </div>
-      <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
-      <ScanPlanTuning settings={vangerSettings} onSave={onSaveSettings} />
+      <div
+        onClick={() => setSettingsOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', cursor: 'pointer', userSelect: 'none', borderTop: '1px solid var(--color-border)' }}
+      >
+        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10 }}>{settingsOpen ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '.04em' }}>⚙ INSTELLINGEN</span>
+      </div>
+      {settingsOpen && (
+        <>
+          <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
+          <ScanPlanTuning settings={vangerSettings} onSave={onSaveSettings} />
+        </>
+      )}
     </div>
   )
 }

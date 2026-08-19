@@ -2,7 +2,7 @@
 import { pill } from '../queueShared.jsx'
 import { ghostBtn } from '../styles.js'
 
-export default function QueuesPanel({ pluginErrors, setPluginErrors, clubScanQueue, clubLogoMap, competitions, rangeData, inferResult, isInferring, expanded, errOpen, setErrOpen, toggle, onRunInfer, cmdOps }) {
+export default function QueuesPanel({ pluginErrors, setPluginErrors, clubScanQueue, clubLogoMap, rangeData, inferResult, isInferring, expanded, errOpen, setErrOpen, toggle, onRunInfer, cmdOps }) {
   const { addSingleCmd, cmdAdding } = cmdOps
 
   return (
@@ -80,62 +80,6 @@ export default function QueuesPanel({ pluginErrors, setPluginErrors, clubScanQue
           )}
         </div>
       )}
-
-      {/* Competities queue */}
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-        <div onClick={() => toggle('comp_q')}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{expanded.has('comp_q') ? '▾' : '▸'}</span>
-          <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏆 Competities queue</span>
-          {competitions.length > 0
-            ? <span style={pill('muted')}>{competitions.length} beschikbaar</span>
-            : <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>leeg</span>}
-        </div>
-        {expanded.has('comp_q') && (
-          <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {competitions.length === 0 && (
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 2px 8px', fontStyle: 'italic' }}>
-                Nog geen competities — klik eerst op ⟳ Competities hierboven en laat de vanger draaien
-              </div>
-            )}
-            {['VE', 'ZA', ''].map(ht => {
-              const group = competitions.filter(c => ht === '' ? (!c.hockey_type || (c.hockey_type !== 'VE' && c.hockey_type !== 'ZA')) : c.hockey_type === ht)
-              if (!group.length) return null
-              const htLabel = ht === 'VE' ? '🏑 Veldhockey' : ht === 'ZA' ? '🏒 Zaalhockey' : '⚪ Overig'
-              return (
-                <div key={ht || 'other'}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', padding: '6px 2px 3px', borderBottom: '1px solid var(--color-border)', marginBottom: 2 }}>
-                    {htLabel}
-                  </div>
-                  {group.map(c => {
-                    const addKey   = 'get_competition_detail_' + c.hl_comp_id
-                    const addState = cmdAdding[addKey]
-                    return (
-                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                        <span style={{ flex: 1 }}>{c.name}</span>
-                        {c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
-                        {c.poule_count > 0 && <span style={{ ...pill('ok'), fontSize: 10 }}>{c.poule_count} poules</span>}
-                        {c.hl_comp_id && (
-                          <button
-                            disabled={!!addState}
-                            onClick={() => addSingleCmd('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name })}
-                            style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, cursor: addState ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
-                              border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
-                              background: 'none',
-                              color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
-                              transition: 'color .2s, border-color .2s' }}>
-                            {addState === 'adding' ? '…' : addState === 'added' ? '✓ toegevoegd' : addState === 'exists' ? '⚠ al in queue' : '+ cmd'}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
 
       {/* ID-reeks per seizoen */}
       {rangeData && rangeData.seasons.length > 0 && (

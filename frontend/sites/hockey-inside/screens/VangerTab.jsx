@@ -54,7 +54,6 @@ export default function VangerTab() {
       <QueuesPanel
         pluginErrors={s.pluginErrors} setPluginErrors={s.setPluginErrors}
         clubScanQueue={s.clubScanQueue} clubLogoMap={clubLogoMap}
-        competitions={s.competitions}
         rangeData={s.rangeData} inferResult={s.inferResult} isInferring={s.isInferring}
         expanded={s.expanded} errOpen={s.errOpen} setErrOpen={s.setErrOpen}
         toggle={s.toggle} onRunInfer={s.runInfer}
