@@ -20,7 +20,7 @@ export default function App() {
     { key: 'publicaties', label: 'Publicaties' },
     ...(isAdmin ? [{ key: 'kaart', label: 'Kaart' }] : []),
     { key: 'discovery',   label: 'Discovery' },
-    { key: 'vanger',      label: 'Vanger' },
+    { key: 'vanger',      label: 'Scout' },
     { key: 'stats',       label: 'Statistieken' },
     { key: 'archief',     label: 'Archief' },
   ]

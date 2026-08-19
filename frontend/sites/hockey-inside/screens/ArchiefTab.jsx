@@ -390,7 +390,7 @@ export default function ArchiefTab() {
       <div style={{ fontSize: 32, marginBottom: 10 }}>🗄️</div>
       <div>Nog geen gearchiveerde data.</div>
       <div style={{ marginTop: 4, fontSize: 12 }}>
-        Data wordt automatisch gearchiveerd als je de Hockey Data Vanger gebruikt.
+        Data wordt automatisch gearchiveerd als je Scout of Ghost gebruikt.
       </div>
     </div>
   )

@@ -198,7 +198,7 @@ function startVanger() {
       target: { tabId: tab.id },
       func: function() { try { localStorage.removeItem('__hw_log'); } catch(e) {} }
     });
-    addLog('info', '▶ Vanger 3.0 gestart');
+    addLog('info', '▶ Scout 3.0 gestart');
     startHeartbeat();
     renderVangerPane();
     pollNextCmd();
@@ -514,9 +514,9 @@ function renderVangerPane() {
   if (!running) {
     html += '<div class="vcockpit-idle">' +
       '<div class="vc-logo-wrap"><div class="vc-ring vc-ring-1 vc-ring--off"></div><div class="vc-ring vc-ring-2 vc-ring--off"></div><div class="vc-dot-static">🏑</div></div>' +
-      '<div class="vcockpit-idle-title">' + (connected ? 'Hockey Vanger' : 'Niet verbonden') + '</div>' +
+      '<div class="vcockpit-idle-title">' + (connected ? 'Hockey Scout' : 'Niet verbonden') + '</div>' +
       '<div class="vcockpit-idle-sub">' + (connected ? 'Klaar om te starten' : 'Stel URL en API-key in bij Instellingen') + '</div>' +
-      '<button id="vStart" class="vcockpit-start-btn"' + (connected ? '' : ' disabled') + '>▶ Start Vanger</button>' +
+      '<button id="vStart" class="vcockpit-start-btn"' + (connected ? '' : ' disabled') + '>▶ Start Scout</button>' +
       (_vanger.doneCount > 0 || _vanger.failCount > 0
         ? '<div class="vcockpit-lastsession">Vorige sessie: <span class="vcs-ok">' + _vanger.doneCount + ' ✓</span>' +
           (_vanger.failCount > 0 ? ' <span class="vcs-fail">' + _vanger.failCount + ' ✗</span>' : '') + '</div>'

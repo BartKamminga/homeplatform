@@ -109,7 +109,7 @@ export default function StatsTab() {
         <div>
           {section(`Plugin fouten (${errors.length})`)}
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '8px 12px', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-danger)' }}>
-            Bekijk details in de Vanger tab.
+            Bekijk details in de Scout tab.
           </div>
         </div>
       )}
