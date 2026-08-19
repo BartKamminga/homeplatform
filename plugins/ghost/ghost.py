@@ -130,6 +130,18 @@ def dom_shows_login_button(page):
         return None
 
 
+def clickable(page, text):
+    """Zoekt eerst op rol (zelfde aanpak als play.js) — get_by_text alleen matcht
+    ook op verborgen duplicaten (bv. een mobiel-menu-variant elders in de DOM)
+    en kan daardoor op een onzichtbaar element uitkomen."""
+    role_loc = page.get_by_role("link", name=text, exact=True).or_(
+        page.get_by_role("button", name=text, exact=True)
+    )
+    if role_loc.count() > 0:
+        return role_loc.first
+    return page.get_by_text(text, exact=False).first
+
+
 def login(page) -> bool:
     page.goto("https://www.hockey.nl/", wait_until="domcontentloaded", timeout=20000)
     page.wait_for_timeout(1500)
@@ -142,19 +154,19 @@ def login(page) -> bool:
 
     dismiss_consent(page)
     with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-        page.get_by_text("Inloggen", exact=False).first.click(timeout=8000)
+        clickable(page, "Inloggen").click(timeout=8000)
     dismiss_consent(page)
 
     page.locator('[name="email"]').first.fill(EMAIL, timeout=5000)
     dismiss_consent(page)
     with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-        page.get_by_text("Verder", exact=False).first.click(timeout=8000)
+        clickable(page, "Verder").click(timeout=8000)
     dismiss_consent(page)
 
     page.locator('[name="password"]').first.fill(PASSWORD, timeout=5000)
     dismiss_consent(page)
     with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-        page.get_by_text("Inloggen", exact=False).first.click(timeout=8000)
+        clickable(page, "Inloggen").click(timeout=8000)
     page.wait_for_timeout(1500)
     dismiss_consent(page)
 
