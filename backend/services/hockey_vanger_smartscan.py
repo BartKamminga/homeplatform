@@ -10,7 +10,7 @@ from sqlmodel import Session, col, func, select
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
-from services.hockey_vanger_filters import _apply_gender_filter, _get_queue_filter
+from services.hockey_vanger_filters import _apply_gender_filter, _get_queue_filter, _is_scoreless_youth
 
 SMART_SCAN_MODE       = "smart_scan_mode"
 SMART_SCAN_STARTED_AT = "smart_scan_started_at"
@@ -90,6 +90,8 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
         seen_pids: set = set()
         to_add = []
         for t in teams:
+            if _is_scoreless_youth(t.short_name):
+                continue
             pid = t.recent_poule_id
             if pid in captured_ids or pid in queued_poule_ids or pid in seen_pids:
                 continue
@@ -131,6 +133,8 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
 
     club_counts: Dict[str, int] = {}
     for t in pending_teams:
+        if _is_scoreless_youth(t.short_name):
+            continue
         if t.club_external_id in scanned_ext_ids:
             continue
         needs_scan = (

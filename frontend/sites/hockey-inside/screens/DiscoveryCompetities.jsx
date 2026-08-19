@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { pill, useQueueCmd } from './queueShared.jsx'
-import { deleteEmptyCompetitions } from '../api.js'
+import { deleteEmptyCompetitions, deletePoule } from '../api.js'
 
 const _ghostBtn = { fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' }
 
@@ -96,6 +96,15 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
     } catch (e) { setCleanupMsg('Fout: ' + e.message) }
   }
 
+  async function handleDeletePoule(e, poule) {
+    e.stopPropagation()
+    if (!window.confirm(`Poule "${poule.name}" (#${poule.poule_id}) verwijderen? Matches/standen gaan mee, kan opnieuw ontdekt worden bij een volgende scan.`)) return
+    try {
+      await deletePoule(poule.poule_id)
+      onReload()
+    } catch (e2) { setCleanupMsg('Fout: ' + e2.message); setTimeout(() => setCleanupMsg(''), 5000) }
+  }
+
   // Competition entry: expandable → poules → teams
   // nested=true: toon class_name ipv volledige naam (naam staat al in parent)
   // distBadge: optioneel district-label (voor 'per competitie' view)
@@ -138,6 +147,8 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                     <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>#{p.poule_id}</span>
                     {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length} teams</span>}
                     {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
+                    <button onClick={e => handleDeletePoule(e, p)} title="Poule verwijderen"
+                      style={{ fontSize: 10, padding: '1px 5px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>🗑</button>
                   </div>
                   {pOpen && (
                     <div style={{ marginLeft: 18, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
@@ -226,6 +237,8 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                         <span style={{ flex: 1 }}>{p.name}</span>
                         {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length}</span>}
                         {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
+                        <button onClick={e => handleDeletePoule(e, p)} title="Poule verwijderen"
+                          style={{ fontSize: 9, padding: '0 4px', background: 'none', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 3, cursor: 'pointer' }}>🗑</button>
                       </div>
                       {pOpen && (
                         <div style={{ marginLeft: 12, display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>

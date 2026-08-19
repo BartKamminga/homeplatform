@@ -15,7 +15,7 @@ from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch,
-    HockeyPouleStanding, HockeyTeam,
+    HockeyPouleStanding, HockeyTeam, VangerCmd,
 )
 from models.settings import AppSetting
 
@@ -291,20 +291,50 @@ def upsert_poule_capture(
     }
 
 
-# ── Poule reset (bijsturen queue) ────────────────────────
+# ── Poule verwijderen (reset queue + Discovery-opschoning, item 723) ────
 @router.delete("/poules/{poule_id}")
 def delete_poule_capture(
     poule_id: int,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    """Verwijdert de HockeyPoule capture, zodat het team als 'missing' terug in de queue komt."""
+    """Verwijdert de HockeyPoule-capture inclusief matches/standings, en annuleert
+    nog openstaande scan-cmds voor deze poule. team.recent_poule_id blijft ongemoeid —
+    komt de poule bij hockey.nl nog steeds voor, dan vindt de eerstvolgende scan 'm
+    gewoon terug (bewuste keuze, item 723: geen permanente blokkade)."""
     row = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == poule_id)).first()
     if not row:
         return {"deleted": False}
     session.delete(row)
+
+    matches_deleted = 0
+    for m in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all():
+        session.delete(m)
+        matches_deleted += 1
+
+    standings_deleted = 0
+    for s in session.exec(select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == poule_id)).all():
+        session.delete(s)
+        standings_deleted += 1
+
+    cmds_cancelled = 0
+    for cmd in session.exec(
+        select(VangerCmd)
+        .where(VangerCmd.cmd_type == "get_poule")
+        .where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all():
+        if json.loads(cmd.params).get("poule_id") == poule_id:
+            cmd.status = "skipped"
+            session.add(cmd)
+            cmds_cancelled += 1
+
     session.commit()
-    return {"deleted": True}
+    return {
+        "deleted": True,
+        "matches_deleted": matches_deleted,
+        "standings_deleted": standings_deleted,
+        "cmds_cancelled": cmds_cancelled,
+    }
 
 
 # ── Poule skip (geen data gevonden door interceptor) ─────

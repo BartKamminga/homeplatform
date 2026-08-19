@@ -20,6 +20,7 @@ from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import (
     DISC_FILTER_AGE, DISC_FILTER_CLUB, DISC_FILTER_CAT, DISC_FILTER_HT, DISC_FILTER_GENDER,
     _AGE_RE_GENERIC, _GENDER_PREFIX, _age_group_of, _apply_gender_filter, _get_queue_filter,
+    _is_scoreless_youth,
 )
 from services.hockey_vanger_ingest import (
     _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_club_detail,
@@ -637,6 +638,8 @@ def fill_cmd_queue(
         seen: set = set()
         candidates = []
         for t in teams:
+            if _is_scoreless_youth(t.short_name):
+                continue
             pid = t.recent_poule_id
             if not pid or pid in captured_ids or pid in seen or pid in skip_ids:
                 continue
@@ -683,6 +686,8 @@ def fill_cmd_queue(
 
         counts_by_club: Dict[str, int] = {}
         for t in teams:
+            if _is_scoreless_youth(t.short_name):
+                continue
             counts_by_club[t.club_external_id] = counts_by_club.get(t.club_external_id, 0) + 1
 
         unscanned = session.exec(
@@ -734,6 +739,8 @@ def fill_cmd_queue(
 
         for poule in poules:
             t = team_by_poule.get(poule.poule_id)
+            if t and _is_scoreless_youth(t.short_name):
+                continue
             if cats and (not t or t.category_group_name not in cats):
                 continue
             if hts and (not t or t.hockey_type not in hts):
@@ -1339,6 +1346,8 @@ def gap_fill_queue(
             continue
         t = team_by_poule.get(poule.poule_id)
         if not t:
+            continue
+        if _is_scoreless_youth(t.short_name):
             continue
         label = t.name + " — " + (poule.name or f"poule #{poule.poule_id}")
         session.add(VangerCmd(

@@ -63,3 +63,9 @@ def _age_in_range(short_name: str, age_min: int, age_max: int) -> bool:
         return False
     age = int(m.group(1))
     return age_min <= age <= age_max
+
+
+def _is_scoreless_youth(short_name: str) -> bool:
+    """O7 t/m O10 (jongste jeugd, veld en zaal) houden geen score bij - deze teams
+    worden nooit gescand/gequeued, ongeacht ingestelde filters (item 724)."""
+    return _age_in_range(short_name, 7, 10)

@@ -20,6 +20,7 @@ from models.hockey_discovery import (
 )
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
+from services.hockey_vanger_filters import _is_scoreless_youth
 
 STEP_MAX_CMDS = 10
 
@@ -48,6 +49,8 @@ def _pending_club_ext_ids(session: Session) -> set:
 def _team_by_poule(session: Session) -> Dict[int, HockeyTeam]:
     result: Dict[int, HockeyTeam] = {}
     for t in session.exec(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))).all():
+        if _is_scoreless_youth(t.short_name):
+            continue
         result.setdefault(t.recent_poule_id, t)
     return result
 
@@ -110,6 +113,8 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
     for t in teams:
         if added >= cap:
             return added
+        if _is_scoreless_youth(t.short_name):
+            continue
         pid = t.recent_poule_id
         if pid in captured_ids or pid in queued_poule_ids or pid in seen:
             continue
