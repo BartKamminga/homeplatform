@@ -1158,6 +1158,17 @@ def ghost_trigger(
     return {"ok": True}
 
 
+@router.get("/vanger/ghost/enabled")
+def ghost_enabled_check(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Lichtgewicht check zonder trigger-neveneffecten (item 729) - Ghost roept dit
+    op elke loop-iteratie aan, ook tijdens een lopende sessie, zodat 'Ghost
+    uitschakelen' meteen effect heeft i.p.v. pas na de eerstvolgende idle-timeout."""
+    return {"enabled": _ghost_enabled(session)}
+
+
 @router.get("/vanger/ghost/should-run")
 def ghost_should_run(
     session: Session = Depends(get_session),

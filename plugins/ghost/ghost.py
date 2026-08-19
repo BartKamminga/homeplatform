@@ -376,6 +376,18 @@ def main():
 
         while True:
             try:
+                # item 729: enabled-check op elke iteratie, ook tijdens een lopende
+                # sessie - anders had "Ghost uitschakelen" pas effect zodra de
+                # queue toevallig leegraakt en de idle-timeout verstreken is.
+                if not api_get("/api/hockey/vanger/ghost/enabled").get("enabled", True):
+                    if page is not None:
+                        print("[GHOST] uitgeschakeld — sessie direct sluiten", flush=True)
+                        browser.close()
+                        browser = page = None
+                    send_heartbeat(False, state="online")
+                    time.sleep(POLL_IDLE_SEC)
+                    continue
+
                 if page is None:
                     resp = api_get("/api/hockey/vanger/ghost/should-run")
                     if not resp.get("should_run"):
