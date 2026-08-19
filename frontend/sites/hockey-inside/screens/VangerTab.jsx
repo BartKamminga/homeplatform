@@ -49,9 +49,7 @@ export default function VangerTab() {
 
       <QueuesPanel
         pluginErrors={s.pluginErrors} setPluginErrors={s.setPluginErrors}
-        rangeData={s.rangeData} inferResult={s.inferResult} isInferring={s.isInferring}
         errOpen={s.errOpen} setErrOpen={s.setErrOpen}
-        onRunInfer={s.runInfer}
       />
 
       <QueueFilterBar

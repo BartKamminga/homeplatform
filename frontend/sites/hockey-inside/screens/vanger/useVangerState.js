@@ -18,9 +18,6 @@ export function useVangerState() {
   const [showWaiting,   setShowWaiting]   = useState(() => {
     try { return localStorage.getItem('disc_show_waiting') !== 'false' } catch { return true }
   })
-  const [rangeData,     setRangeData]     = useState(null)
-  const [isInferring,   setIsInferring]   = useState(false)
-  const [inferResult,   setInferResult]   = useState(null)
   const [cmdQueue,      setCmdQueue]      = useState(null)
   const [cmdFilling,    setCmdFilling]    = useState(null)
   const [cmdOpen,       setCmdOpen]       = useState(true)
@@ -42,7 +39,6 @@ export function useVangerState() {
       .catch(() => { setFillMsg('Opslaan mislukt'); setTimeout(() => setFillMsg(''), 4000) })
   }
   function loadGapAnalysis() { api.get('/api/hockey/gap-analysis').then(setGapData).catch(() => {}) }
-  function loadRanges()      { api.get('/api/hockey/poule-ranges').then(setRangeData).catch(() => {}) }
   function loadSmartScan()   { api.get('/api/hockey/smart-scan/status').then(setSmartScan).catch(() => {}) }
 
   const cmdOps = useQueueCmd({ onAdded: loadCmdQueue })
@@ -70,17 +66,6 @@ export function useVangerState() {
         genders:          filterRes.genders          || [],
       })
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
-  }
-
-  function refreshQuiet() {
-    Promise.all([
-      api.get('/api/hockey/poule-queue'),
-      api.get('/api/hockey/teams'),
-      api.get('/api/hockey/competitions'),
-    ]).then(([queueRes, teamsRes, compsRes]) => {
-      setQueue(queueRes)
-      setAllTeams(teamsRes.teams || []); setCompetitions(compsRes.competitions || [])
-    }).catch(() => {})
   }
 
   function saveFilter(next) {
@@ -198,15 +183,7 @@ export function useVangerState() {
       .finally(() => setScoutBusy(false))
   }
 
-  function runInfer() {
-    setIsInferring(true); setInferResult(null)
-    api.post('/api/hockey/infer-season-pending', {})
-      .then(r => { setInferResult(r); loadRanges(); refreshQuiet() })
-      .catch(() => {})
-      .finally(() => setIsInferring(false))
-  }
-
-  useEffect(() => { load(); loadRanges(); loadCmdQueue(); loadGapAnalysis(); loadSmartScan(); loadVangerSettings() }, [])
+  useEffect(() => { load(); loadCmdQueue(); loadGapAnalysis(); loadSmartScan(); loadVangerSettings() }, [])
 
   useEffect(() => {
     function pollVanger() {
@@ -231,8 +208,6 @@ export function useVangerState() {
     queueOpen, setQueueOpen,
     qFilter,
     showWaiting, setShowWaiting,
-    rangeData,
-    isInferring, inferResult,
     cmdQueue,
     cmdFilling,
     cmdOpen, setCmdOpen,
@@ -242,10 +217,10 @@ export function useVangerState() {
     ghostBusy, scoutBusy,
     cmdOps,
     // functions
-    load, loadCmdQueue, loadGapAnalysis, loadRanges,
+    load, loadCmdQueue, loadGapAnalysis,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
-    toggle, resetPoule, runInfer,
+    toggle, resetPoule,
     startSmartScan, stopSmartScan, triggerGhost, triggerScout, toggleGhostEnabled, toggleScanPlanEnabled,
   }
 }
