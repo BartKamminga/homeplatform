@@ -873,17 +873,11 @@ def post_cmd_result(
         .where(DataCapture.external_id == archive_ext)
         .where(DataCapture.session_id == session_key)
     ).first()
-    if not already:
-        session.add(DataCapture(
-            id=new_uuid(),
-            source="hockey-vanger",
-            capture_type=archive_type,
-            external_id=archive_ext,
-            session_id=session_key,
-            payload=json.dumps(body.raw, ensure_ascii=False),
-            meta=json.dumps({"label": result_label, "cmd_id": cmd_id}, ensure_ascii=False),
-            captured_at=now,
-        ))
+    # Meta wordt hieronder verrijkt met geparste velden (competitie, poule-
+    # naam, teamtelling, ...) zodra de parse-stap succesvol was — anders
+    # toont het Archief-tabblad voor elke capture alleen een generieke titel
+    # (item 708). Basisversie hier, aangevuld/geschreven na de parse-stap.
+    archive_meta = {"label": result_label, "cmd_id": cmd_id}
 
     try:
         if cmd.cmd_type == "get_poule":
@@ -892,6 +886,14 @@ def post_cmd_result(
                 poule_sum = _call_poule_capture(capture_body, session)
                 if poule_sum:
                     summary_data.update(poule_sum)
+                archive_meta.update({
+                    "competition":       capture_body.competition_name,
+                    "poule_name":        capture_body.poule_name,
+                    "class_name":        capture_body.class_name,
+                    "team_count":        len(capture_body.teams_in_poule),
+                    "matches_played":    sum(1 for m in (capture_body.matches_data or []) if m.status == "finished"),
+                    "matches_remaining": sum(1 for m in (capture_body.matches_data or []) if m.status != "finished"),
+                })
             else:
                 summary_data["parse_failed"] = True
         elif cmd.cmd_type == "scan_club":
@@ -933,6 +935,18 @@ def post_cmd_result(
         session.add(cmd)
         session.commit()
         return {"ok": False, "status": "failed", "error": str(e)}
+
+    if not already:
+        session.add(DataCapture(
+            id=new_uuid(),
+            source="hockey-vanger",
+            capture_type=archive_type,
+            external_id=archive_ext,
+            session_id=session_key,
+            payload=json.dumps(body.raw, ensure_ascii=False),
+            meta=json.dumps(archive_meta, ensure_ascii=False),
+            captured_at=now,
+        ))
 
     cmd.status         = "done"
     cmd.finished_at    = now

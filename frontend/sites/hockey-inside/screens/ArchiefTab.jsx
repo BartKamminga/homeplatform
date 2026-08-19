@@ -71,8 +71,10 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
   const [copied,  setCopied]  = useState(false)
   const m = item.meta
 
-  // Parse standings and matches from payload
-  const pouleData = item.payload?.data?.poule ?? null
+  // Parse standings and matches from payload — zelfde dubbele data-envelope
+  // als de backend-parser (_parse_raw_poule leest raw.data.data.poule, zie
+  // item 709); compDetailData hieronder deed dit al goed, poule_capture niet.
+  const pouleData = item.payload?.data?.data?.poule ?? null
   const standings = pouleData?.standings ?? []
   const matches   = pouleData?.matches   ?? []
 
