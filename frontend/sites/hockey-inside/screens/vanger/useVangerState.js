@@ -27,7 +27,6 @@ export function useVangerState() {
   const [cmdOpen,       setCmdOpen]       = useState(true)
   const [fillMsg,       setFillMsg]       = useState('')
   const [gapData,       setGapData]       = useState(null)
-  const [gapFilling,    setGapFilling]    = useState(false)
   const [smartScan,     setSmartScan]     = useState({ active: false, mode: null, cmd_count: 0 })
   const [smartBusy,     setSmartBusy]     = useState(false)
   const [ghostBusy,     setGhostBusy]     = useState(false)
@@ -163,14 +162,6 @@ export function useVangerState() {
     api.delete('/api/hockey/vanger/cmd-queue?scope=done').then(() => loadCmdQueue()).catch(() => {})
   }
 
-  function runGapFill() {
-    setGapFilling(true)
-    api.post('/api/hockey/gap-analysis/fill-queue')
-      .then(r => { loadCmdQueue(); loadGapAnalysis(); setFillMsg(`Gap-fill: +${r.total} cmds (${r.added_poules} poules, ${r.added_clubs} clubs)`); setTimeout(() => setFillMsg(''), 5000) })
-      .catch(() => {})
-      .finally(() => setGapFilling(false))
-  }
-
   function startSmartScan() {
     setSmartBusy(true)
     api.post('/api/hockey/smart-scan/start', {})
@@ -251,7 +242,7 @@ export function useVangerState() {
     cmdFilling,
     cmdOpen, setCmdOpen,
     fillMsg,
-    gapData, gapFilling,
+    gapData,
     smartScan, smartBusy,
     ghostBusy, scoutBusy,
     cmdOps,
@@ -259,7 +250,7 @@ export function useVangerState() {
     load, loadCmdQueue, loadGapAnalysis, loadRanges,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
-    toggle, resetPoule, runGapFill, runInfer,
+    toggle, resetPoule, runInfer,
     startSmartScan, stopSmartScan, triggerGhost, triggerScout, toggleGhostEnabled, toggleScanPlanEnabled,
   }
 }

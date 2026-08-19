@@ -13,7 +13,6 @@ const TOOLTIPS = {
   poulesVullen:     'Zet alle missende poules in de wachtrij (get_poule cmds). Gebruik dit als de teams al bekende poule-ID\'s hebben maar de standen nog niet zijn opgehaald.',
   standsRefreshen:  'Zet alle verouderde poules in de wachtrij om standen en uitslagen bij te werken.',
   allesPollen:      'Zet alle poules ouder dan 1 dag in de wachtrij. Gebruik dit voor een volledige refresh van alle standen.',
-  gapFill:          'Analyseert de bekende ID-reeks en voegt ontbrekende poule-ID\'s toe aan de wachtrij. Handig om gaten op te sporen die de normale scan mist.',
 }
 
 
@@ -37,7 +36,7 @@ function Btn({ onClick, disabled, color, filled, children, tooltip, style: extra
   )
 }
 
-export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData, gapFilling, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onGapFill, onGapRefresh, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
+export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onGapRefresh, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
   const { cmdBtn } = cmdOps
   const [advOpen, setAdvOpen] = useState(false)
   const counts     = cmdQueue?.counts || {}
@@ -121,9 +120,6 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
                 </Btn>
                 <Btn onClick={() => onFill('poules_refresh', 1)} disabled={!!cmdFilling} color='var(--color-primary)' filled tooltip={TOOLTIPS.allesPollen}>
                   {cmdFilling === 'poules_refresh' ? '…' : '📡 Alles pollen'}
-                </Btn>
-                <Btn onClick={onGapFill} disabled={gapFilling || !!cmdFilling} color='var(--color-warning)' tooltip={TOOLTIPS.gapFill}>
-                  {gapFilling ? '…' : '🔍 Gap-fill auto'}
                 </Btn>
               </div>
             )}

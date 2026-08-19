@@ -40,11 +40,11 @@ export default function VangerTab() {
 
       <CmdQueueSection
         cmdQueue={s.cmdQueue} cmdFilling={s.cmdFilling} fillMsg={s.fillMsg}
-        gapData={s.gapData} gapFilling={s.gapFilling}
+        gapData={s.gapData}
         cmdOpen={s.cmdOpen} setCmdOpen={s.setCmdOpen}
         onFill={s.fillCmdQueue} onClear={s.clearCmdQueue}
         onRetryAll={s.retryAllFailed} onClearDone={s.clearDoneCmds}
-        onGapFill={s.runGapFill} onGapRefresh={s.loadGapAnalysis}
+        onGapRefresh={s.loadGapAnalysis}
         onRetrySingle={s.retryCmdQueue}
         cmdOps={s.cmdOps}
         smartScan={s.smartScan} smartBusy={s.smartBusy}
