@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getHockeyPouleStandings, getCompetitionMatches } from '../api.js'
 import { card, deleteBtn } from './styles.js'
+import { useCollapse } from './ui.jsx'
 
 // ── PouleDetail ────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ function PouleDetail({ poule }) {
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
 export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onRemove, onOpenDetail }) {
-  const [open,          setOpen]          = useState(false)
+  const [open,          toggleOpen]       = useCollapse(false)
   const [openPoule,     setOpenPoule]     = useState(null)
   const [showTagPicker, setShowTagPicker] = useState(false)
   const pickerRef   = useRef(null)
@@ -114,7 +115,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
   return (
     <div style={{ ...card, marginBottom: 6 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <button onClick={() => { setOpen(o => !o); setOpenPoule(null) }}
+        <button onClick={() => { toggleOpen(); setOpenPoule(null) }}
           style={{ flex: 1, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>
             {comp?.hockey_type === 'ZA' ? '🏒 ' : '🏑 '}

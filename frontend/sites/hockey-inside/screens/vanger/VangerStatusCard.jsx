@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useCollapse } from '../ui.jsx'
 
 // Twee client-types kunnen dezelfde cmd-queue bedienen, tegelijk:
 //   Scout — de Chrome-extensie, handmatig vanaf een laptop (debug/kleine acties)
@@ -188,7 +189,7 @@ function ScanPlanTuning({ settings, onSave }) {
 }
 
 export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, vangerSettings, onSaveSettings }) {
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen, toggleSettingsOpen] = useCollapse(false)
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
   const ghost = vangerStatus.ghost || {}
@@ -234,7 +235,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
         </button>
       </div>
       <div
-        onClick={() => setSettingsOpen(o => !o)}
+        onClick={toggleSettingsOpen}
         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', cursor: 'pointer', userSelect: 'none', borderTop: '1px solid var(--color-border)' }}
       >
         <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 10 }}>{settingsOpen ? '▾' : '▸'}</span>

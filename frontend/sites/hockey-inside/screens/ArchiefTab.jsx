@@ -4,6 +4,7 @@ import {
   deleteCaptureSession, deleteOldCaptureSessions,
 } from '../api.js'
 import { muted, ghostBtn } from './styles.js'
+import { useCollapse } from './ui.jsx'
 
 const PAGE_SIZE = 50
 
@@ -85,8 +86,8 @@ function SessionRow({ s, onSelect, selected, onReprocess, reprocessing, onDelete
 }
 
 function ItemDetail({ item, onReprocess, reprocessing }) {
-  const [open,    setOpen]    = useState(false)
-  const [rawOpen, setRawOpen] = useState(false)
+  const [open,    toggleOpen]    = useCollapse(false)
+  const [rawOpen, toggleRawOpen] = useCollapse(false)
   const [copied,  setCopied]  = useState(false)
   const m = item.meta
 
@@ -133,7 +134,7 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
       overflow: 'hidden',
     }}>
       <div
-        onClick={() => setOpen(o => !o)}
+        onClick={toggleOpen}
         style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
       >
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)', userSelect: 'none' }}>
@@ -324,7 +325,7 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
                   title="Kopieer JSON naar klembord"
                 >📋</button>
                 <button
-                  onClick={e => { e.stopPropagation(); setRawOpen(o => !o) }}
+                  onClick={e => { e.stopPropagation(); toggleRawOpen() }}
                   style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
                     border: '1px solid var(--color-border)', background: rawOpen ? 'var(--color-surface-2)' : 'transparent',
                     color: rawOpen ? 'var(--color-text)' : 'var(--color-text-muted)' }}

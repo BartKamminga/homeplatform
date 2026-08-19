@@ -10,6 +10,7 @@ import {
   card, cardLabel, ghostBtn,
   muted, successBanner, errorBanner, inputStyle,
 } from './styles.js'
+import { useCollapse } from './ui.jsx'
 import CompetitieDetailView from './CompetitieDetailView.jsx'
 import CompetitionRow from './CompetitionRow.jsx'
 
@@ -67,7 +68,7 @@ export default function CompetitiesTab({
   const [confirmTag,  setConfirmTag]  = useState(null)
   const [confirmLink, setConfirmLink] = useState(null)
   const [selectedLnk, setSelectedLnk] = useState(null)
-  const [metaOpen,    setMetaOpen]    = useState(false)
+  const [metaOpen,    toggleMetaOpen] = useCollapse(false)
   const [confirmDel,  setConfirmDel]  = useState(false)
   const [deleting,    setDeleting]    = useState(false)
 
@@ -261,7 +262,7 @@ export default function CompetitiesTab({
       {isAdmin && (
         <div style={card}>
           <div
-            onClick={() => setMetaOpen(p => !p)}
+            onClick={toggleMetaOpen}
             style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}
           >
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', flex: 1 }}>⚙ Beheer</span>

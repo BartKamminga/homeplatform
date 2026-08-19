@@ -65,6 +65,14 @@ export function fmtBytes(b) {
   return (b / (1024 * 1024)).toFixed(1) + 'MB'
 }
 
+// ── useCollapse (item 742: gedeeld open/dicht-patroon i.p.v. losse useState+chevron) ──
+
+export function useCollapse(initial = false) {
+  const [open, setOpen] = useState(initial)
+  const toggle = () => setOpen(o => !o)
+  return [open, toggle]
+}
+
 // ── Btn (item 740: was gedupliceerd als lokale component in CmdQueueSection) ──
 
 export function Btn({ onClick, disabled, color, filled, children, tooltip, style: extraStyle }) {

@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { pill, fmtDuration, fmtBytes, Btn } from '../ui.jsx'
+import { pill, fmtDuration, fmtBytes, Btn, useCollapse } from '../ui.jsx'
 import { makeCmdConclusion, TYPE_BADGE } from '../queueShared.jsx'
 
 const STATUS_COLOR = { pending: 'var(--color-text-muted)', in_progress: 'var(--color-warning)', done: 'var(--color-success)', failed: 'var(--color-danger)', skipped: 'var(--color-text-muted)' }
@@ -18,8 +17,8 @@ const TOOLTIPS = {
 
 export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen, setCmdOpen, onFill, onClear, onRetryAll, onClearDone, onRetrySingle, cmdOps, smartScan, smartBusy, onStartSmartScan, onStopSmartScan }) {
   const { cmdBtn } = cmdOps
-  const [advOpen, setAdvOpen] = useState(false)
-  const [actionsOpen, setActionsOpen] = useState(false)
+  const [advOpen, toggleAdvOpen] = useCollapse(false)
+  const [actionsOpen, toggleActionsOpen] = useCollapse(false)
   const counts     = cmdQueue?.counts || {}
   const recent     = cmdQueue?.recent || []
   const pending    = counts.pending     || 0
@@ -146,7 +145,7 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen
           {/* Acties (inklapbaar, onderaan - item 734) */}
           <div style={{ paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
             <div
-              onClick={() => setActionsOpen(o => !o)}
+              onClick={toggleActionsOpen}
               style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.04em', cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
               <span>{actionsOpen ? '▾' : '▸'}</span>
@@ -181,7 +180,7 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen
                 {/* Geavanceerd (inklapbaar) */}
                 <div>
                   <div
-                    onClick={() => setAdvOpen(o => !o)}
+                    onClick={toggleAdvOpen}
                     style={{ fontSize: 11, color: 'var(--color-text-muted)', cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
                     <span>{advOpen ? '▾' : '▸'}</span>
