@@ -188,6 +188,7 @@ def capture_for_cmd(page, cmd_type):
             url = response.url
             if TARGET_HOST not in url:
                 return
+            print(f"[GHOST]   [xhr] {response.status} {url}", flush=True)
             if cmd_type == "get_poule" and POULE_RE.search(url):
                 captured["data"] = response.json()
             elif cmd_type == "scan_club" and CLUB_DETAIL_RE.search(url):
