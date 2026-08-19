@@ -7,7 +7,6 @@ export function useVangerState() {
   const [allTeams,      setAllTeams]      = useState([])
   const [queue,         setQueue]         = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
   const [competitions,  setCompetitions]  = useState([])
-  const [clubScanQueue, setClubScanQueue] = useState({ total: 0, clubs: [] })
   const [pluginErrors,  setPluginErrors]  = useState([])
   const [vangerStatus,  setVangerStatus]  = useState(null)
   const [loading,       setLoading]       = useState(true)
@@ -57,8 +56,7 @@ export function useVangerState() {
       api.get('/api/hockey/competitions'),
       api.get('/api/hockey/plugin-errors?limit=30'),
       api.get('/api/hockey/queue-filter'),
-      api.get('/api/hockey/club-scan-queue'),
-    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes, clubScanRes]) => {
+    ]).then(([clubsRes, teamsRes, queueRes, compsRes, errRes, filterRes]) => {
       setClubs(clubsRes.clubs || [])
       setAllTeams(teamsRes.teams || [])
       setQueue(queueRes)
@@ -71,18 +69,16 @@ export function useVangerState() {
         hockey_types:     filterRes.hockey_types     || ['VE'],
         genders:          filterRes.genders          || [],
       })
-      setClubScanQueue(clubScanRes)
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
 
   function refreshQuiet() {
     Promise.all([
       api.get('/api/hockey/poule-queue'),
-      api.get('/api/hockey/club-scan-queue'),
       api.get('/api/hockey/teams'),
       api.get('/api/hockey/competitions'),
-    ]).then(([queueRes, clubScanRes, teamsRes, compsRes]) => {
-      setQueue(queueRes); setClubScanQueue(clubScanRes)
+    ]).then(([queueRes, teamsRes, compsRes]) => {
+      setQueue(queueRes)
       setAllTeams(teamsRes.teams || []); setCompetitions(compsRes.competitions || [])
     }).catch(() => {})
   }
@@ -228,7 +224,6 @@ export function useVangerState() {
     allTeams,
     queue,
     competitions,
-    clubScanQueue,
     pluginErrors, setPluginErrors,
     vangerStatus, vangerSettings, saveVangerSettings,
     loading, error,

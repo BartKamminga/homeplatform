@@ -8,10 +8,6 @@ import QueuesPanel       from './vanger/QueuesPanel.jsx'
 export default function VangerTab() {
   const s = useVangerState()
 
-  const clubLogoMap = Object.fromEntries(
-    s.clubs.filter(c => c.logo_url).map(c => [c.external_id, c.logo_url])
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {s.error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{s.error}</p>}
@@ -53,11 +49,9 @@ export default function VangerTab() {
 
       <QueuesPanel
         pluginErrors={s.pluginErrors} setPluginErrors={s.setPluginErrors}
-        clubScanQueue={s.clubScanQueue} clubLogoMap={clubLogoMap}
         rangeData={s.rangeData} inferResult={s.inferResult} isInferring={s.isInferring}
-        expanded={s.expanded} errOpen={s.errOpen} setErrOpen={s.setErrOpen}
-        toggle={s.toggle} onRunInfer={s.runInfer}
-        cmdOps={s.cmdOps}
+        errOpen={s.errOpen} setErrOpen={s.setErrOpen}
+        onRunInfer={s.runInfer}
       />
 
       <QueueFilterBar

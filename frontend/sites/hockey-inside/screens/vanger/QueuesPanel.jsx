@@ -2,9 +2,7 @@
 import { pill } from '../queueShared.jsx'
 import { ghostBtn } from '../styles.js'
 
-export default function QueuesPanel({ pluginErrors, setPluginErrors, clubScanQueue, clubLogoMap, rangeData, inferResult, isInferring, expanded, errOpen, setErrOpen, toggle, onRunInfer, cmdOps }) {
-  const { addSingleCmd, cmdAdding } = cmdOps
-
+export default function QueuesPanel({ pluginErrors, setPluginErrors, rangeData, inferResult, isInferring, errOpen, setErrOpen, onRunInfer }) {
   return (
     <>
       {/* Plugin fouten */}
@@ -33,49 +31,6 @@ export default function QueuesPanel({ pluginErrors, setPluginErrors, clubScanQue
                   </span>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Club-scan queue */}
-      {clubScanQueue.total > 0 && (
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-          <div onClick={() => toggle('club_scan_q')}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12 }}>{expanded.has('club_scan_q') ? '▾' : '▸'}</span>
-            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>🏢 Club-scan queue</span>
-            <span style={{ ...pill('partial'), color: 'var(--color-warning)', borderColor: 'var(--color-warning)' }}>{clubScanQueue.total} clubs</span>
-          </div>
-          {expanded.has('club_scan_q') && (
-            <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 2px 8px', fontStyle: 'italic' }}>
-                Poule gescand maar bond heeft nog geen nieuw seizoen — club opnieuw scannen om nieuwe poule-ID op te halen
-              </div>
-              {clubScanQueue.clubs.map(c => {
-                const addKey   = 'scan_club_' + c.club_external_id
-                const addState = cmdAdding[addKey]
-                return (
-                  <div key={c.club_external_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 2px', fontSize: 11, borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                    {clubLogoMap[c.club_external_id] && (
-                      <img src={clubLogoMap[c.club_external_id]} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0, borderRadius: 2 }} />
-                    )}
-                    <span style={{ flex: 1 }}>{c.friendly_name || c.name}</span>
-                    {c.city && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.city}</span>}
-                    <span style={{ ...pill('partial'), fontSize: 10 }}>{c.pending_teams} teams</span>
-                    <button
-                      disabled={!!addState}
-                      onClick={() => addSingleCmd('scan_club', { external_id: c.club_external_id, label: c.friendly_name || c.name })}
-                      style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, cursor: addState ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
-                        border: `1px solid ${addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-border)'}`,
-                        background: 'none',
-                        color: addState === 'added' ? 'var(--color-success)' : addState === 'exists' ? 'var(--color-warning)' : 'var(--color-text-muted)',
-                        transition: 'color .2s, border-color .2s' }}>
-                      {addState === 'adding' ? '…' : addState === 'added' ? '✓ toegevoegd' : addState === 'exists' ? '⚠ al in queue' : '+ cmd'}
-                    </button>
-                  </div>
-                )
-              })}
             </div>
           )}
         </div>

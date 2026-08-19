@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { pill } from './queueShared.jsx'
+import { pill, useQueueCmd } from './queueShared.jsx'
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {
@@ -21,6 +21,7 @@ function resolveHockeyType(t) {
 
 export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queueByPouleId, expanded, toggle, loading }) {
   const [clubSearch, setClubSearch] = useState('')
+  const { cmdBtn } = useQueueCmd()
 
   const sortedClubs = [...clubs].sort((a, b) => {
     const aLen = (teamsByClub[a.external_id] || []).length
@@ -110,6 +111,7 @@ export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queue
                 <span style={pill('muted')}>🏒 {teams.filter(t => resolveHockeyType(t) === 'ZA').length}</span>
               )}
               {pStats && <span style={pill(pVar)}>{cap}/{tot} poules</span>}
+              {cmdBtn('scan_club', { external_id: c.external_id, label: c.friendly_name || c.name }, '⟳ herscan', 'var(--color-border)')}
             </div>
 
             {isOpen && (

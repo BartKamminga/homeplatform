@@ -97,7 +97,8 @@ def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, clu
                 return False
         return True
     if cmd_type == "scan_club":
-        if club:
-            return params.get("external_id") == club
+        # item 732: club-scans zijn niet poule-/team-specifiek, dus die gaan altijd
+        # door de filter heen - anders blijft een handmatige "herscan"-klik vanuit
+        # Discovery-clubs onterecht als "buiten filter" liggen.
         return True
     return True
