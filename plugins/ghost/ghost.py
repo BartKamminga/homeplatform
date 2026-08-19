@@ -30,6 +30,7 @@ import time
 import traceback
 
 import requests
+import sentry_sdk
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
@@ -39,6 +40,17 @@ API_BASE = os.environ["GHOST_API_BASE"].rstrip("/")
 API_KEY  = os.environ["GHOST_API_KEY"]
 EMAIL    = os.environ["HOCKEY_EMAIL"]
 PASSWORD = os.environ["HOCKEY_PASSWORD"]
+
+# Zelfde SENTRY_DSN/ENVIRONMENT als de rest van het platform (root .env) —
+# geen apart secret nodig. Alleen crash-level fouten (login stuk, hoofdloop
+# stukgelopen); routinematige cmd-fouten gaan naar het bestaande
+# plugin-error-paneel (zelfde plek als de Scout-extensie al gebruikt).
+if os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        environment=os.environ.get("ENVIRONMENT", "production"),
+    )
+    sentry_sdk.set_tag("component", "ghost")
 
 POLL_IDLE_SEC    = int(os.environ.get("GHOST_POLL_IDLE_SEC", "15"))
 CMD_DELAY_MIN    = int(os.environ.get("GHOST_CMD_DELAY_MIN", "10"))
@@ -85,6 +97,17 @@ def send_heartbeat(running, mode=None, task=None, done_count=0, queue_total=0):
             "running": running, "mode": mode, "task": task,
             "done_count": done_count, "queue_total": queue_total,
             "client": "ghost",
+        })
+    except Exception:
+        pass
+
+
+def report_plugin_error(message, context=None, session_id=None):
+    """Zelfde in-app foutenpaneel als de Scout-extensie gebruikt (POST
+    /api/hockey/plugin-error) — zichtbaar in de Vanger-tab, niet Bugsink."""
+    try:
+        api_post("/api/hockey/plugin-error", {
+            "message": message, "context": context, "session_id": session_id,
         })
     except Exception:
         pass
@@ -190,6 +213,7 @@ def process_cmd(page, cmd):
 
 def run_once():
     """Eén sessie: inloggen, queue leegwerken tot leeg/limiet, afsluiten."""
+    session_id = f"ghost_{int(time.time())}"
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=USER_AGENT)
@@ -201,7 +225,13 @@ def run_once():
         except Exception as exc:
             print(f"[GHOST] login-fout: {exc}", flush=True)
             traceback.print_exc()
+            sentry_sdk.capture_exception(exc)
+            report_plugin_error(f"Ghost login-fout: {exc}", context="ghost:login", session_id=session_id)
             logged_in = False
+        else:
+            if not logged_in:
+                report_plugin_error("Ghost login mislukt (Inloggen-knop nog zichtbaar na loginflow)",
+                                     context="ghost:login", session_id=session_id)
 
         if not logged_in:
             send_heartbeat(False, mode="ghost_login_failed", task="Login mislukt")
@@ -223,6 +253,9 @@ def run_once():
                 data, error = process_cmd(page, nxt)
             except Exception as exc:
                 data, error = None, f"{type(exc).__name__}: {exc}"
+                sentry_sdk.capture_exception(exc)
+                report_plugin_error(f"Ghost cmd {cmd_id} ({nxt['cmd_type']}) crashte: {exc}",
+                                     context="ghost:cmd", session_id=session_id)
 
             try:
                 if error:
@@ -254,8 +287,9 @@ def main():
             if resp.get("should_run"):
                 print("[GHOST] trigger ontvangen, sessie starten...", flush=True)
                 run_once()
-        except Exception:
+        except Exception as exc:
             traceback.print_exc()
+            sentry_sdk.capture_exception(exc)
         time.sleep(POLL_IDLE_SEC)
 
 
