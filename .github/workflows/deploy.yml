@@ -19,8 +19,8 @@ jobs:
       - name: Backend bouwen en herstarten
         working-directory: ${{ env.PROD_REPO }}
         run: |
-          docker compose -f docker-compose.g4.yml build backend
-          docker compose -f docker-compose.g4.yml up -d backend
+          docker compose -f docker-compose.g4.yml build backend ghost
+          docker compose -f docker-compose.g4.yml up -d backend ghost
           sleep 5
 
       - name: Migraties + seed
@@ -65,7 +65,7 @@ jobs:
           mkdir -p /home/bart/homeplatform-acc/db
           mkdir -p /home/bart/homeplatform-acc/uploads
           mkdir -p /home/bart/homeplatform-acc/nas-files
-          cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc ghost_acc
           cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d
           sleep 5
 
