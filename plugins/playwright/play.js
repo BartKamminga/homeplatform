@@ -43,6 +43,23 @@ const recipe = JSON.parse(fs.readFileSync(recipeFile, 'utf8'))
   })
   const page = await context.newPage()
 
+  // ── Logging naar bestand (naast console) — zodat runs achteraf te diffen zijn ──
+  const logLines = []
+  const origLog  = console.log
+  const origWarn = console.warn
+  console.log  = (...a) => { logLines.push(a.join(' ')); origLog(...a) }
+  console.warn = (...a) => { logLines.push(a.join(' ')); origWarn(...a) }
+
+  // ── Navigatielog — bewijs van daadwerkelijke runtime-navigatie (i.t.t. de
+  // afgespeelde recipe-goto's, die na een klik juist worden overgeslagen) ──
+  const navLog = []
+  page.on('framenavigated', (frame) => {
+    if (frame !== page.mainFrame()) return
+    const url = frame.url()
+    if (!url || url === 'about:blank') return
+    navLog.push({ url, ts: Date.now() })
+  })
+
   const captured = []
 
   page.on('response', async (response) => {
@@ -58,18 +75,29 @@ const recipe = JSON.parse(fs.readFileSync(recipeFile, 'utf8'))
   })
 
   // ── Events afspelen ───────────────────────────────────────────────────────────
-  let lastWasClick = false
+  // Na een click slaan we ALLE opeenvolgende goto's over: de browser handelt
+  // navigatie (inclusief OAuth-redirects met eenmalige codes) zelf af.
+  let skipGotos = false
+
+  // Usercentrics-cookiebanner wegklikken — met een fresh (cookieloos) profiel
+  // verschijnt die na elke volledige paginanavigatie opnieuw en overlapt de hele
+  // pagina (pointer-events), waardoor daaropvolgende clicks op de verkeerde
+  // (onderliggende) elementen kunnen landen.
+  async function dismissConsent() {
+    try {
+      const btn = page.getByRole('button', { name: 'Accepteer alles' })
+      await btn.click({ timeout: 2500 })
+      console.log('  [CONSENT] cookiebanner geaccepteerd')
+    } catch {}
+  }
 
   for (const event of recipe.events) {
 
-    // Sla een goto over als we er net naartoe navigeerden via een click
-    if (event.type === 'goto' && lastWasClick) {
-      lastWasClick = false
-      console.log(`  [SKIP] goto ${event.url}  (nav via click)`)
-      await page.waitForLoadState('domcontentloaded').catch(() => {})
+    if (event.type === 'goto' && skipGotos) {
+      console.log(`  [SKIP] goto ${event.url}  (nav na click)`)
       continue
     }
-    lastWasClick = false
+    if (event.type !== 'goto') skipGotos = false
 
     if (event.type === 'goto') {
       console.log(`  [GOTO] ${event.url}`)
@@ -77,6 +105,7 @@ const recipe = JSON.parse(fs.readFileSync(recipeFile, 'utf8'))
         console.warn(`    Fout: ${e.message}`)
       })
       await page.waitForTimeout(800)
+      await dismissConsent()
 
     } else if (event.type === 'fill') {
       const masked = event.inputType === 'password' ? '••••' : event.value
@@ -90,46 +119,100 @@ const recipe = JSON.parse(fs.readFileSync(recipeFile, 'utf8'))
 
     } else if (event.type === 'click') {
       console.log(`  [CLICK] ${event.selector || ''}  ${event.text ? `"${event.text}"` : ''}`)
+      await dismissConsent()
       try {
+        // Probeer eerst een button/link op rol, val terug op tekst
+        const byRole = page.getByRole('button', { name: event.text, exact: true })
+          .or(page.getByRole('link', { name: event.text, exact: true }))
         const loc = event.selector
           ? page.locator(event.selector).first()
-          : page.getByText(event.text, { exact: false }).first()
+          : await byRole.count() > 0
+            ? byRole.first()
+            : page.getByText(event.text, { exact: false }).first()
 
-        // Wacht kort op navigatie na de click (niet verplicht)
         await Promise.all([
           page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 4000 }).catch(() => {}),
           loc.click({ timeout: 5000 }),
         ])
-        lastWasClick = true
+        skipGotos = true
       } catch {
         console.warn(`    Knop niet gevonden: ${event.selector || event.text}`)
       }
       await page.waitForTimeout(800)
+      await dismissConsent()
     }
   }
 
   // Extra wachttijd voor late XHR-calls
   await page.waitForTimeout(2000)
+
+  const ts      = Date.now()
+  const outFile = args[1] || path.join(path.dirname(recipeFile), `${recipe.name}-play-${ts}.json`)
+  const logFile = outFile.replace(/\.json$/, '.log')
+  const screenshotFile = outFile.replace(/\.json$/, '.png')
+
+  // ── DOM-check ─────────────────────────────────────────────────────────────────
+  // Harde controle op de daadwerkelijke pagina-inhoud, i.p.v. alleen afleiden uit
+  // URL's/netwerkcalls: staat de "Inloggen"-knop nog in de pagina, dan is de
+  // gebruiker (zichtbaar voor de site zelf) niet ingelogd — ongeacht wat de
+  // navigatie- of netwerklog suggereert.
+  let domShowsLoginButton = null
+  try {
+    domShowsLoginButton = await page.evaluate(() => document.body.innerText.includes('Inloggen'))
+  } catch {}
+  try { await page.screenshot({ path: screenshotFile, fullPage: true }) } catch {}
+
+  if (!headless) {
+    console.log('\n  Browser blijft nog 10s open voor handmatige check...')
+    await page.waitForTimeout(10000)
+  }
+
   await browser.close()
 
-  // ── Output ────────────────────────────────────────────────────────────────────
-  const ts = Date.now()
-  const outFile = args[1] || path.join(path.dirname(recipeFile), `${recipe.name}-play-${ts}.json`)
+  // ── Login-check ───────────────────────────────────────────────────────────────
+  // De DOM-check (staat "Inloggen" nog op de pagina?) is leidend: dat is wat de
+  // site zelf denkt over de sessie. Navigatie/netwerk-signalen (auth/callback,
+  // account/dashboard bereikt) zijn alleen een ondersteunende indicatie — bleek
+  // in de praktijk niet betrouwbaar genoeg als enige bewijs.
+  const sawAuthCallback  = navLog.some(n => /\/auth\/callback\?code=/.test(n.url))
+  const sawDashboard     = navLog.some(n => /login\.hockeyweerelt\.nl\/account\/dashboard/.test(n.url))
+  const finalUrl         = page.url()
+  const stillOnLogin     = /inloggen|login\.hockeyweerelt\.nl/.test(finalUrl)
+  const loginOk          = domShowsLoginButton === false && !stillOnLogin
+  const authTs           = (navLog.find(n => /\/auth\/callback\?code=/.test(n.url))
+                          || navLog.find(n => /login\.hockeyweerelt\.nl\/account\/dashboard/.test(n.url))
+                          || {}).ts
+  const unauthorizedAfterLogin = authTs
+    ? captured.filter(r => r.status === 401 && r.ts > authTs).length
+    : 0
 
-  const unauthorized = captured.filter(r => r.status === 401).length
+  // ── Output ────────────────────────────────────────────────────────────────────
   const output = {
     recipe: recipe.name,
     playedAt: new Date().toISOString(),
+    loginOk,
+    domShowsLoginButton,
+    finalUrl,
+    navLog,
     requests: captured,
   }
   fs.writeFileSync(outFile, JSON.stringify(output, null, 2))
 
   console.log(`\nKlaar.`)
-  console.log(`  Output:     ${outFile}`)
-  console.log(`  XHR-calls:  ${captured.length}`)
+  console.log(`  Output:      ${outFile}`)
+  console.log(`  Log:         ${logFile}`)
+  console.log(`  Screenshot:  ${screenshotFile}`)
+  console.log(`  XHR-calls:   ${captured.length}`)
+  console.log(`  Eind-URL:    ${finalUrl}`)
+  console.log(`  "Inloggen"-knop nog zichtbaar: ${domShowsLoginButton}`)
+  console.log(loginOk ? `  LOGIN:       OK` : `  LOGIN:       FAILED (auth/callback gezien: ${sawAuthCallback}, dashboard gezien: ${sawDashboard}, eind-URL is login-pagina: ${stillOnLogin})`)
 
-  if (unauthorized > 0) {
-    console.log(`\n  Let op: ${unauthorized} call(s) gaven 401 — login mislukt of sessie verlopen.`)
+  if (unauthorizedAfterLogin > 0) {
+    console.log(`\n  Let op: ${unauthorizedAfterLogin} call(s) gaven 401 ná de login — sessie mogelijk niet volledig geldig.`)
+  }
+  if (!loginOk) {
     console.log(`  Probeer opnieuw op te nemen: node record.js ${recipe.name} ${recipe.startUrl}`)
   }
+
+  fs.writeFileSync(logFile, logLines.join('\n') + '\n')
 })()
