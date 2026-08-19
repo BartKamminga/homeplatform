@@ -126,11 +126,9 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
 
     poules = session.exec(select(HockeyPoule).where(HockeyPoule.season == target_season)).all()
     poule_ids = [p.poule_id for p in poules]
-    match_poule_ids = {
-        r[0] for r in session.exec(
-            select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
-        ).all()
-    } if poule_ids else set()
+    match_poule_ids = set(session.exec(
+        select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
+    ).all()) if poule_ids else set()
     team_by_poule = _team_by_poule(session)
 
     for p in poules:
@@ -194,12 +192,10 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
 
-    active_comp_ids = {
-        r[0] for r in session.exec(
-            select(HockeyPublicationComp.competition_id)
-            .where(HockeyPublicationComp.scan_profile == "active")
-        ).all()
-    }
+    active_comp_ids = set(session.exec(
+        select(HockeyPublicationComp.competition_id)
+        .where(HockeyPublicationComp.scan_profile == "active")
+    ).all())
     if not active_comp_ids:
         return 0
 

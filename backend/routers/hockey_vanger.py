@@ -1231,16 +1231,12 @@ def gap_analysis(
     poules    = session.exec(select(HockeyPoule).where(HockeyPoule.season == target)).all()
     poule_ids = {p.poule_id for p in poules}
 
-    standing_ids = {
-        r[0] for r in session.exec(
-            select(HockeyPouleStanding.poule_id).where(col(HockeyPouleStanding.poule_id).in_(list(poule_ids)))
-        ).all()
-    }
-    match_ids = {
-        r[0] for r in session.exec(
-            select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(list(poule_ids)))
-        ).all()
-    }
+    standing_ids = set(session.exec(
+        select(HockeyPouleStanding.poule_id).where(col(HockeyPouleStanding.poule_id).in_(list(poule_ids)))
+    ).all())
+    match_ids = set(session.exec(
+        select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(list(poule_ids)))
+    ).all())
 
     stale        = [p for p in poules if p.last_scanned_at is None or p.last_scanned_at < cutoff]
     no_standings = [p for p in poules if p.poule_id not in standing_ids]
