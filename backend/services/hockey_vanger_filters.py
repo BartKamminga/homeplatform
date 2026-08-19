@@ -3,7 +3,7 @@ routers/hockey_vanger.py (item 696)."""
 
 import re
 
-from sqlmodel import Session, col
+from sqlmodel import Session, col, select
 
 from models.hockey_discovery import HockeyTeam
 from models.settings import AppSetting
@@ -69,3 +69,35 @@ def _is_scoreless_youth(short_name: str) -> bool:
     """O7 t/m O10 (jongste jeugd, veld en zaal) houden geen score bij - deze teams
     worden nooit gescand/gequeued, ongeacht ingestelde filters (item 724)."""
     return _age_in_range(short_name, 7, 10)
+
+
+def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, club, cats, hts, genders) -> bool:
+    """Bepaalt of een cmd bij de huidige queue-filter past - gebruikt bij het
+    OPPAKKEN (dequeue) van cmds, niet bij het aanmaken ervan (item 727): cmds die
+    niet passen blijven gewoon 'pending' in de lijst staan, maar worden overgeslagen
+    zodat ze niet verwerkt worden zolang het filter ze uitsluit."""
+    if cmd_type == "get_poule":
+        team_id = params.get("team_id")
+        if not team_id:
+            return True
+        team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == team_id)).first()
+        if not team:
+            return True
+        if cats and team.category_group_name not in cats:
+            return False
+        if hts and team.hockey_type not in hts:
+            return False
+        if club and team.club_external_id != club:
+            return False
+        if ages and _age_group_of(team.short_name) not in ages:
+            return False
+        if genders:
+            prefixes = {_GENDER_PREFIX[g] for g in genders if g in _GENDER_PREFIX}
+            if prefixes and not any((team.short_name or "").startswith(p) for p in prefixes):
+                return False
+        return True
+    if cmd_type == "scan_club":
+        if club:
+            return params.get("external_id") == club
+        return True
+    return True

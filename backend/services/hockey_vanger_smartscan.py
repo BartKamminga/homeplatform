@@ -10,7 +10,7 @@ from sqlmodel import Session, col, func, select
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
-from services.hockey_vanger_filters import _apply_gender_filter, _get_queue_filter, _is_scoreless_youth
+from services.hockey_vanger_filters import _apply_gender_filter, _get_queue_filter, _is_scoreless_youth, _cmd_matches_filter
 
 SMART_SCAN_MODE       = "smart_scan_mode"
 SMART_SCAN_STARTED_AT = "smart_scan_started_at"
@@ -169,10 +169,18 @@ def _smart_scan_try_advance(session: Session):
     state = _smart_scan_get_state(session)
     if not state["mode"] or not state["started_at"]:
         return
-    remaining = session.exec(
-        select(func.count(VangerCmd.id)).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    in_progress = session.exec(
+        select(func.count(VangerCmd.id)).where(VangerCmd.status == "in_progress")
     ).one()
-    if remaining > 0:
+    # item 727: cmds die door de queue-filter worden overgeslagen tellen niet mee als
+    # "nog te doen" - anders blijft smart-scan voor altijd wachten op werk dat nooit
+    # opgepakt gaat worden zolang het huidige filter actief staat.
+    ages, club, cats, hts, genders = _get_queue_filter(session)
+    pending_matching = sum(
+        1 for c in session.exec(select(VangerCmd).where(VangerCmd.status == "pending")).all()
+        if _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), ages, club, cats, hts, genders)
+    )
+    if in_progress + pending_matching > 0:
         return
     if state["mode"] == "discovery":
         result = _smart_scan_discovery_next(session, state["started_at"], state["cmd_count"])

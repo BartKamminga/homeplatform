@@ -20,7 +20,7 @@ from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import (
     DISC_FILTER_AGE, DISC_FILTER_CLUB, DISC_FILTER_CAT, DISC_FILTER_HT, DISC_FILTER_GENDER,
     _AGE_RE_GENERIC, _GENDER_PREFIX, _age_group_of, _apply_gender_filter, _get_queue_filter,
-    _is_scoreless_youth,
+    _is_scoreless_youth, _cmd_matches_filter,
 )
 from services.hockey_vanger_ingest import (
     _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_club_detail,
@@ -574,22 +574,30 @@ def get_cmd_queue(
         select(VangerCmd).order_by(col(VangerCmd.id).desc()).limit(200)
     ).all()
 
+    ages, club, cats, hts, genders = _get_queue_filter(session)
+
+    def _row(c):
+        params = json.loads(c.params)
+        filtered_out = (
+            c.status == "pending"
+            and not _cmd_matches_filter(session, c.cmd_type, params, ages, club, cats, hts, genders)
+        )
+        return {
+            "id":             c.id,
+            "cmd_type":       c.cmd_type,
+            "params":         params,
+            "status":         c.status,
+            "filtered_out":   filtered_out,
+            "created_at":     c.created_at.isoformat() if c.created_at else None,
+            "started_at":     c.started_at.isoformat() if c.started_at else None,
+            "finished_at":    c.finished_at.isoformat() if c.finished_at else None,
+            "error":          c.error,
+            "result_summary": json.loads(c.result_summary) if c.result_summary else None,
+        }
+
     return {
         "counts": counts,
-        "recent": [
-            {
-                "id":             c.id,
-                "cmd_type":       c.cmd_type,
-                "params":         json.loads(c.params),
-                "status":         c.status,
-                "created_at":     c.created_at.isoformat() if c.created_at else None,
-                "started_at":     c.started_at.isoformat() if c.started_at else None,
-                "finished_at":    c.finished_at.isoformat() if c.finished_at else None,
-                "error":          c.error,
-                "result_summary": json.loads(c.result_summary) if c.result_summary else None,
-            }
-            for c in recent
-        ],
+        "recent": [_row(c) for c in recent],
     }
 
 
@@ -829,9 +837,15 @@ def get_cmd_queue_next(
     _=Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    cmd = session.exec(
-        select(VangerCmd).where(VangerCmd.status == "pending").order_by(col(VangerCmd.id).asc()).limit(1)
-    ).first()
+    ages, club, cats, hts, genders = _get_queue_filter(session)
+    pending = session.exec(
+        select(VangerCmd).where(VangerCmd.status == "pending").order_by(col(VangerCmd.id).asc())
+    ).all()
+    cmd = None
+    for c in pending:
+        if _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), ages, club, cats, hts, genders):
+            cmd = c
+            break
     if not cmd:
         return {"done": True}
     cmd.status     = "in_progress"

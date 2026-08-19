@@ -179,8 +179,8 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
                 const concl  = summ ? makeCmdConclusion(c, summ) : null
                 const durStr = summ?.duration_ms != null ? fmtDuration(summ.duration_ms) : null
                 const szStr  = summ?.raw_bytes ? fmtBytes(summ.raw_bytes) : null
-                const color  = STATUS_COLOR[c.status] || 'var(--color-text-muted)'
-                const icon   = STATUS_ICON[c.status]  || '?'
+                const color  = c.filtered_out ? '#f97316' : (STATUS_COLOR[c.status] || 'var(--color-text-muted)')
+                const icon   = c.filtered_out ? '⏸' : (STATUS_ICON[c.status]  || '?')
                 const fin    = c.finished_at ? new Date(c.finished_at + 'Z').toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null
                 return (
                   <div key={c.id} style={{ padding: '5px 2px', borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
@@ -194,6 +194,7 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, gapData
                       <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
                         {label}
                         {subId && <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · #{subId}</span>}
+                        {c.filtered_out && <span style={{ color: '#f97316', fontWeight: 600, fontSize: 10 }}> · buiten filter</span>}
                       </span>
                       {durStr && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{durStr}</span>}
                       {fin    && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{fin}</span>}
