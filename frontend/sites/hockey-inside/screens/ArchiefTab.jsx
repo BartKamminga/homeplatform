@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
-import { getCaptureSessions, getCaptureSessionItems, reprocessCaptures } from '../api.js'
+import {
+  getCaptureSessions, getCaptureSessionItems, reprocessCaptures,
+  deleteCaptureSession, deleteOldCaptureSessions,
+} from '../api.js'
 import { muted, ghostBtn } from './styles.js'
+
+const PAGE_SIZE = 50
 
 function captureLabel(captureType) {
   if (captureType === 'poule_capture') return 'Poule capture'
   if (captureType === 'club_detail')   return 'Club detail'
   if (captureType === 'comp_detail')   return 'Competitie detail'
+  if (captureType === 'clubs_list')    return 'Clubs lijst'
+  if (captureType === 'comp_list')     return 'Competities lijst'
   return 'Capture'
 }
 
@@ -17,7 +24,7 @@ function fmt(iso) {
   })
 }
 
-function SessionRow({ s, onSelect, selected, onReprocess, reprocessing }) {
+function SessionRow({ s, onSelect, selected, onReprocess, reprocessing, onDelete, deleting }) {
   return (
     <div
       onClick={() => onSelect(s.session_id)}
@@ -47,12 +54,24 @@ function SessionRow({ s, onSelect, selected, onReprocess, reprocessing }) {
           >
             🔄 herverwerk
           </button>
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(s.session_id) }}
+            disabled={deleting}
+            title="Verwijder deze sessie uit het archief"
+            style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 5, cursor: deleting ? 'default' : 'pointer',
+              border: '1px solid var(--color-border)', background: 'transparent',
+              color: 'var(--color-text-muted)', fontFamily: 'inherit', opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            🗑
+          </button>
           <span style={{
             fontSize: 11, padding: '2px 8px', borderRadius: 99,
             background: 'var(--color-surface-2)', color: 'var(--color-text-muted)',
             border: '1px solid var(--color-border)',
           }}>
-            {s.item_count} poules
+            {s.item_count} item{s.item_count === 1 ? '' : 's'}
           </span>
         </div>
       </div>
@@ -88,6 +107,7 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
 
   const isCompDetail  = item.capture_type === 'comp_detail'
   const isClubDetail  = item.capture_type === 'club_detail'
+  const isClubsList   = item.capture_type === 'clubs_list'
   const compDetailData   = isCompDetail ? (item.payload?.data?.data ?? {}) : null
   const compDetailPoules = compDetailData?.poules ?? []
   const clubPayload   = isClubDetail ? item.payload : null
@@ -131,9 +151,11 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
           ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>🏆 {compDetailPoules.length} poules</span>
           : isClubDetail
             ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.teams ?? '?'} teams</span>
-            : item.capture_type === 'poule_capture'
-              ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}</span>
-              : null
+            : isClubsList
+              ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>🏟️ {m.clubs_count ?? '?'} clubs</span>
+              : item.capture_type === 'poule_capture'
+                ? <span style={{ fontSize: 11, color: 'var(--color-text-muted)', flexShrink: 0 }}>👥 {m.team_count ?? '?'} &nbsp; 📊 {m.matches_played ?? '?'} &nbsp; 📅 {m.matches_remaining ?? '?'}</span>
+                : null
         }
       </div>
 
@@ -328,6 +350,8 @@ function ItemDetail({ item, onReprocess, reprocessing }) {
 
 export default function ArchiefTab() {
   const [sessions,     setSessions]     = useState([])
+  const [hasMore,      setHasMore]      = useState(false)
+  const [loadingMore,  setLoadingMore]  = useState(false)
   const [loading,      setLoading]      = useState(true)
   const [selectedSid,  setSelectedSid]  = useState(null)
   const [items,        setItems]        = useState([])
@@ -335,13 +359,61 @@ export default function ArchiefTab() {
   const [error,        setError]        = useState(null)
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessMsg, setReprocessMsg] = useState(null)
+  const [deleting,     setDeleting]     = useState(false)
+  const [cleanupDays,  setCleanupDays]  = useState(30)
 
   useEffect(() => {
     setLoading(true)
-    getCaptureSessions()
-      .then(r => { setSessions(r.sessions ?? []); setLoading(false) })
+    getCaptureSessions(0, PAGE_SIZE)
+      .then(r => { setSessions(r.sessions ?? []); setHasMore(!!r.has_more); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
+
+  async function loadMore() {
+    setLoadingMore(true)
+    try {
+      const r = await getCaptureSessions(sessions.length, PAGE_SIZE)
+      setSessions(prev => [...prev, ...(r.sessions ?? [])])
+      setHasMore(!!r.has_more)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  async function handleDeleteSession(sid) {
+    if (!window.confirm('Deze sessie definitief uit het archief verwijderen?')) return
+    setDeleting(true)
+    try {
+      await deleteCaptureSession(sid)
+      setSessions(prev => prev.filter(s => s.session_id !== sid))
+      if (selectedSid === sid) { setSelectedSid(null); setItems([]) }
+    } catch (e) {
+      setReprocessMsg(`Fout: ${e.message}`)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleCleanupOld() {
+    if (!window.confirm(`Alle captures ouder dan ${cleanupDays} dagen definitief verwijderen?`)) return
+    setDeleting(true)
+    try {
+      const r = await deleteOldCaptureSessions(cleanupDays)
+      setReprocessMsg(`✓ ${r.deleted} captures opgeruimd`)
+      const r2 = await getCaptureSessions(0, PAGE_SIZE)
+      setSessions(r2.sessions ?? [])
+      setHasMore(!!r2.has_more)
+      setSelectedSid(null)
+      setItems([])
+    } catch (e) {
+      setReprocessMsg(`Fout: ${e.message}`)
+    } finally {
+      setDeleting(false)
+      setTimeout(() => setReprocessMsg(null), 5000)
+    }
+  }
 
   async function selectSession(sid) {
     if (selectedSid === sid) { setSelectedSid(null); setItems([]); return }
@@ -413,7 +485,30 @@ export default function ArchiefTab() {
         {/* Sessie lijst */}
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-            Sessies ({sessions.length})
+            Sessies ({sessions.length}{hasMore ? '+' : ''})
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Opschonen ouder dan</span>
+            <input
+              type="number" min={1} value={cleanupDays}
+              onChange={e => setCleanupDays(Number(e.target.value) || 1)}
+              style={{
+                width: 48, fontSize: 11, padding: '2px 6px', borderRadius: 5,
+                border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)',
+              }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>dagen</span>
+            <button
+              onClick={handleCleanupOld}
+              disabled={deleting}
+              style={{
+                fontSize: 11, padding: '2px 8px', borderRadius: 5, cursor: deleting ? 'default' : 'pointer',
+                border: '1px solid var(--color-border)', background: 'transparent',
+                color: 'var(--color-text-muted)', fontFamily: 'inherit', opacity: deleting ? 0.5 : 1,
+              }}
+            >
+              🧹 opschonen
+            </button>
           </div>
           {sessions.map(s => (
             <SessionRow
@@ -423,8 +518,23 @@ export default function ArchiefTab() {
               onSelect={selectSession}
               onReprocess={handleReprocessSession}
               reprocessing={reprocessing}
+              onDelete={handleDeleteSession}
+              deleting={deleting}
             />
           ))}
+          {hasMore && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{
+                width: '100%', fontSize: 12, padding: '8px', borderRadius: 6, marginTop: 6,
+                cursor: loadingMore ? 'default' : 'pointer', border: '1px solid var(--color-border)',
+                background: 'transparent', color: 'var(--color-text-muted)', fontFamily: 'inherit',
+              }}
+            >
+              {loadingMore ? 'Laden…' : 'Meer laden'}
+            </button>
+          )}
         </div>
 
         {/* Detail */}
@@ -441,7 +551,7 @@ export default function ArchiefTab() {
           {selectedSid && !itemsLoading && items.length > 0 && (
             <>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                {items.length} poules in deze sessie
+                {items.length} item{items.length === 1 ? '' : 's'} in deze sessie
               </div>
               {items.map(item => (
                 <ItemDetail

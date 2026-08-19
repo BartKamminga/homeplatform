@@ -322,10 +322,10 @@ def process_one(page, nxt, session_id, delay_range):
                              context="ghost:cmd", session_id=session_id)
     try:
         if error:
-            api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"error": error})
+            api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"error": error, "session_id": session_id})
             print(f"[GHOST] cmd {cmd_id} mislukt: {error}", flush=True)
         else:
-            api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"raw": data})
+            api_post(f"/api/hockey/vanger/cmd-queue/{cmd_id}/result", {"raw": data, "session_id": session_id})
             print(f"[GHOST] cmd {cmd_id} klaar", flush=True)
     except Exception as exc:
         print(f"[GHOST] kon resultaat niet posten voor cmd {cmd_id}: {exc}", flush=True)

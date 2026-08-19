@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -70,6 +70,7 @@ def archive(body: ArchiveBody, session: Session = Depends(get_session), _=Depend
 def list_sessions(
     source: Optional[str] = "hockey-vanger",
     limit: int = 50,
+    offset: int = 0,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
@@ -77,16 +78,17 @@ def list_sessions(
         select(DataCapture)
         .where(DataCapture.source == source)
         .order_by(col(DataCapture.captured_at).desc())
-        .limit(limit * 20)          # over-fetch so we can group client-side
+        .limit((offset + limit + 1) * 20)          # over-fetch so we can group client-side
     )
     rows = session.exec(stmt).all()
 
     # Group by session_id, keeping earliest captured_at per session
     sessions: dict = {}
+    order: List[str] = []
     for row in rows:
         sid = row.session_id
         if sid not in sessions:
-            meta = json.loads(row.meta)
+            order.append(sid)
             sessions[sid] = {
                 "session_id": sid,
                 "captured_at": row.captured_at.isoformat(),
@@ -102,14 +104,14 @@ def list_sessions(
         except Exception:
             pass
 
+    page_ids = order[offset:offset + limit]
     result = []
-    for s in sessions.values():
+    for sid in page_ids:
+        s = sessions[sid]
         s["competitions"] = sorted(s["competitions"])
         result.append(s)
-        if len(result) >= limit:
-            break
 
-    return {"sessions": result}
+    return {"sessions": result, "has_more": len(order) > offset + limit}
 
 
 # ── GET /api/capture/sessions/{session_id}/items ──────────────────────────────
@@ -141,6 +143,44 @@ def session_items(
         })
 
     return {"items": items}
+
+
+# ── DELETE /api/capture/sessions/{session_id} ─────────────────────────────────
+
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: str,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    rows = session.exec(select(DataCapture).where(DataCapture.session_id == session_id)).all()
+    if not rows:
+        raise HTTPException(404, "Sessie niet gevonden")
+    for row in rows:
+        session.delete(row)
+    session.commit()
+    return {"deleted": len(rows)}
+
+
+# ── DELETE /api/capture/sessions?older_than_days=N ────────────────────────────
+
+@router.delete("/sessions")
+def delete_old_sessions(
+    older_than_days: int,
+    source: Optional[str] = "hockey-vanger",
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=older_than_days)
+    rows = session.exec(
+        select(DataCapture)
+        .where(DataCapture.source == source)
+        .where(DataCapture.captured_at < cutoff)
+    ).all()
+    for row in rows:
+        session.delete(row)
+    session.commit()
+    return {"deleted": len(rows)}
 
 
 # ── POST /api/capture/reprocess ───────────────────────────────────────────────

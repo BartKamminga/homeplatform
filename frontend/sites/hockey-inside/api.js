@@ -28,9 +28,13 @@ export const removeCompTag = (pid, linkId, tagId) =>
   api.delete(`/api/hockey/publications/${pid}/competitions/${linkId}/tags/${tagId}`)
 
 // Archief / captures
-export const getCaptureSessions     = ()     => api.get('/api/capture/sessions')
+export const getCaptureSessions     = (offset = 0, limit = 50) =>
+  api.get(`/api/capture/sessions?offset=${offset}&limit=${limit}`)
 export const getCaptureSessionItems = (sid)  => api.get(`/api/capture/sessions/${sid}/items`)
 export const reprocessCaptures      = (body) => api.post('/api/capture/reprocess', body)
+export const deleteCaptureSession   = (sid)  => api.delete(`/api/capture/sessions/${sid}`)
+export const deleteOldCaptureSessions = (olderThanDays) =>
+  api.delete(`/api/capture/sessions?older_than_days=${olderThanDays}`)
 
 // Discovery + Vanger
 export const getDiscoveryComps       = (season) => api.get(`/api/hockey/competitions${season ? `?season=${season}` : ''}`)

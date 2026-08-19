@@ -902,6 +902,12 @@ def post_cmd_result(
                 club_sum = _call_club_detail(detail_body, session)
                 if club_sum:
                     summary_data.update(club_sum)
+                archive_meta.update({
+                    "name":     detail_body.friendly_name or detail_body.name,
+                    "city":     detail_body.city,
+                    "district": detail_body.district,
+                    "teams":    len(detail_body.teams),
+                })
             else:
                 summary_data["parse_failed"] = True
         elif cmd.cmd_type == "get_clubs":
@@ -911,6 +917,7 @@ def post_cmd_result(
                 clubs_sum = _call_clubs_list(clubs_list, session)
                 if clubs_sum:
                     summary_data.update(clubs_sum)
+                archive_meta["clubs_count"] = len(clubs_list)
             else:
                 summary_data["parse_failed"] = True
         elif cmd.cmd_type == "get_competition_detail":
@@ -918,6 +925,10 @@ def post_cmd_result(
             comp_sum = _call_competition_detail(comp_raw, session, params)
             if comp_sum:
                 summary_data.update(comp_sum)
+                archive_meta.update({
+                    "competition":  comp_sum.get("competition"),
+                    "poule_count":  comp_sum.get("poules_processed"),
+                })
             else:
                 summary_data["parse_failed"] = True
         elif cmd.cmd_type == "get_competitions":
