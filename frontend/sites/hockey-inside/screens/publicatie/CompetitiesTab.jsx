@@ -5,12 +5,12 @@ import {
   getPublicationTags, addPublicationTag, removePublicationTag,
   assignCompTag, removeCompTag,
   KNOWN_SEASONS,
-} from '../api.js'
+} from '../../api.js'
 import {
   card, cardLabel, ghostBtn,
   muted, successBanner, errorBanner, inputStyle,
-} from './styles.js'
-import { useCollapse } from './ui.jsx'
+} from '../styles.js'
+import { useCollapse } from '../ui.jsx'
 import CompetitieDetailView from './CompetitieDetailView.jsx'
 import CompetitionRow from './CompetitionRow.jsx'
 

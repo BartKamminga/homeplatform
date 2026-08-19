@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { getHockeyPouleStandings, getCompetitionMatches } from '../api.js'
-import { card, deleteBtn } from './styles.js'
-import { useCollapse } from './ui.jsx'
+import { getHockeyPouleStandings, getCompetitionMatches } from '../../api.js'
+import { card, deleteBtn } from '../styles.js'
+import { useCollapse } from '../ui.jsx'
 
 // ── PouleDetail ────────────────────────────────────────────────────────────────
 

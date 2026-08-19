@@ -3,9 +3,9 @@ import {
   getPublications, createPublication, updatePublication,
   reorderPublications, deletePublication, getMe,
   KNOWN_SEASONS,
-} from '../api.js'
+} from '../../api.js'
 import CompetitiesTab from './CompetitiesTab.jsx'
-import { ghostBtn, primaryBtn, inputStyle } from './styles.js'
+import { ghostBtn, primaryBtn, inputStyle } from '../styles.js'
 
 // ── Aanmaken popup ────────────────────────────────────────────────────────────
 

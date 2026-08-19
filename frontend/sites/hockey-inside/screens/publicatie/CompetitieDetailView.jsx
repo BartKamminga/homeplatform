@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import {
   syncCompetition, getCompetitionMatches, getHockeyPouleStandings,
-} from '../api.js'
-import { ghostBtn } from './styles.js'
+} from '../../api.js'
+import { ghostBtn } from '../styles.js'
 
 const TABS = ['Standen', 'Programma', 'Uitslagen']
 

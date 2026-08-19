@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
-import { pill } from './ui.jsx'
-import { useQueueCmd } from './queueShared.jsx'
-import { deleteEmptyCompetitions, deletePoule } from '../api.js'
-import { ghostBtnSm } from './styles.js'
+import { pill } from '../ui.jsx'
+import { useQueueCmd } from '../queueShared.jsx'
+import { deleteEmptyCompetitions, deletePoule } from '../../api.js'
+import { ghostBtnSm } from '../styles.js'
 
 function isJeugd(comp) { return /O\d+/i.test(comp.name) }
 const AGE_GROUP_ORDER = ['Senioren', 'Jeugd']
