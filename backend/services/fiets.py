@@ -16,6 +16,7 @@ from core.analytics import log_site_event
 logger = logging.getLogger("homeplatform")
 
 OPENMETEO_URL = "https://api.open-meteo.com/v1/forecast"
+GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_DAYS = 3
 CACHE_TTL = 1800  # 30 min — cachet de RUWE Open-Meteo respons, niet de gescoorde output,
 # zodat een gewijzigde windvoorkeur direct een andere score geeft zonder cache-invalidatie.
@@ -50,14 +51,20 @@ WIND_WEIGHT = 0.4
 _WEEKDAGEN = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
 _MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
 
-_cache: dict = {"data": None, "ts": 0.0}
+_cache: dict[str, dict] = {}  # key: "lat,lon" (afgerond) -> {"data":..., "ts":...}
+
+
+def _cache_key(lat: float, lon: float) -> str:
+    return f"{round(lat, 2)},{round(lon, 2)}"
 
 
 async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
-    """Haalt uurlijkse forecast op bij Open-Meteo, met een TTL-cache op de ruwe respons."""
+    """Haalt uurlijkse forecast op bij Open-Meteo, met een TTL-cache op de ruwe respons per locatie."""
+    key = _cache_key(lat, lon)
     now = time.time()
-    if _cache["data"] is not None and now - _cache["ts"] < CACHE_TTL:
-        return _cache["data"]
+    cached = _cache.get(key)
+    if cached is not None and now - cached["ts"] < CACHE_TTL:
+        return cached["data"]
 
     params = {
         "latitude": lat,
@@ -91,9 +98,32 @@ async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
         pass
 
     if data is not None:
-        _cache["data"] = data
-        _cache["ts"] = now
+        _cache[key] = {"data": data, "ts": now}
     return data
+
+
+async def geocode_location(query: str) -> list[dict]:
+    """Zoekt plaatsnamen op via de Open-Meteo geocoding-API (ook gratis, geen key)."""
+    if not query or len(query) < 2:
+        return []
+    params = {"name": query, "count": 5, "language": "nl", "format": "json"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(GEOCODE_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+    except Exception as exc:
+        logger.warning("fiets: geocode fetch failed — %s", exc)
+        return []
+
+    return [
+        {
+            "label": ", ".join(filter(None, [r.get("name"), r.get("admin1"), r.get("country")])),
+            "lat": r["latitude"],
+            "lon": r["longitude"],
+        }
+        for r in data.get("results", [])
+    ]
 
 
 def score_hour(
@@ -102,21 +132,34 @@ def score_hour(
     rain_mm: float,
     wind_kmh: float,
     wind_dir_deg: float,
-    pref_deg: float | None,
+    prefs: dict | None = None,
 ) -> float:
-    """Score 0-100 voor één uur. Regen is een harde poort; temp/wind wegen anders mee."""
-    if (rain_prob or 0) > RAIN_PROB_THRESHOLD or (rain_mm or 0) > RAIN_MM_THRESHOLD:
+    """Score 0-100 voor één uur. Regen is een harde poort; temp/wind wegen anders mee.
+
+    `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
+    "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
+    ontbrekende keys vallen terug op de MVP-constanten hierboven."""
+    prefs = prefs or {}
+    pref_deg = prefs.get("wind_pref_deg")
+    temp_min = prefs.get("temp_min", TEMP_OPTIMAL_MIN)
+    temp_max = prefs.get("temp_max", TEMP_OPTIMAL_MAX)
+    rain_prob_threshold = prefs.get("rain_prob_threshold", RAIN_PROB_THRESHOLD)
+    wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
+    temp_weight = prefs.get("temp_weight", TEMP_WEIGHT)
+    wind_weight = 1 - temp_weight
+
+    if (rain_prob or 0) > rain_prob_threshold or (rain_mm or 0) > RAIN_MM_THRESHOLD:
         return max(0.0, RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10)
 
-    temp_penalty = max(0.0, TEMP_OPTIMAL_MIN - temp, temp - TEMP_OPTIMAL_MAX)
+    temp_penalty = max(0.0, temp_min - temp, temp - temp_max)
     temp_score = max(0.0, min(100.0, 100.0 - temp_penalty * TEMP_FALLOFF_RATE))
 
-    if wind_kmh <= WIND_KNEE_KMH:
+    if wind_kmh <= wind_knee_kmh:
         wind_penalty = wind_kmh * WIND_LINEAR_PENALTY_PER_KMH
     else:
         wind_penalty = (
-            WIND_KNEE_KMH * WIND_LINEAR_PENALTY_PER_KMH
-            + (wind_kmh - WIND_KNEE_KMH) * WIND_STEEP_PENALTY_PER_KMH
+            wind_knee_kmh * WIND_LINEAR_PENALTY_PER_KMH
+            + (wind_kmh - wind_knee_kmh) * WIND_STEEP_PENALTY_PER_KMH
         )
     wind_score = max(0.0, 100.0 - wind_penalty)
 
@@ -125,7 +168,7 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    return round(max(0.0, min(100.0, TEMP_WEIGHT * temp_score + WIND_WEIGHT * wind_score)), 1)
+    return round(max(0.0, min(100.0, temp_weight * temp_score + wind_weight * wind_score)), 1)
 
 
 def _score_label(score: float) -> str:
@@ -169,8 +212,9 @@ def _format_day_label(date_key: str) -> str:
 
 
 async def build_prognose(
-    lat: float, lon: float, pref_deg: float | None, location_label: str = ""
+    lat: float, lon: float, prefs: dict | None = None, location_label: str = ""
 ) -> dict:
+    prefs = prefs or {}
     raw = await fetch_openmeteo_hourly(lat, lon)
     if raw is None:
         return {"status": "error", "message": "Weerdata niet beschikbaar", "days": []}
@@ -186,7 +230,7 @@ async def build_prognose(
 
     days_map: dict[str, list[dict]] = {}
     for i, iso_time in enumerate(times):
-        raw_score = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], pref_deg)
+        raw_score = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
             "is_daytime": bool(is_days[i]),
@@ -208,12 +252,13 @@ async def build_prognose(
         for date_key, hours in sorted(days_map.items())
     ]
 
+    cached = _cache.get(_cache_key(lat, lon))
     return {
         "status": "ok",
         "location": {"lat": lat, "lon": lon, "label": location_label},
-        "wind_pref_deg": pref_deg,
+        "wind_pref_deg": prefs.get("wind_pref_deg"),
         "scale": "0-10",
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "cache_age_s": int(time.time() - _cache["ts"]) if _cache["ts"] else 0,
+        "cache_age_s": int(time.time() - cached["ts"]) if cached else 0,
         "days": days,
     }

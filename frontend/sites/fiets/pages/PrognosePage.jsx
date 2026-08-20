@@ -52,6 +52,9 @@ export default function PrognosePage() {
 
   return (
     <div style={{ padding: '20px 16px' }}>
+      {data.location?.label && (
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 8 }}>📍 {data.location.label}</p>
+      )}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)' }}>
         {TABS.map(t => (
           <button

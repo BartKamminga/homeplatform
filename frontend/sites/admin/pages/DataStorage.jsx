@@ -18,6 +18,10 @@ const DB_USER_ROWS = [
   { label: 'mm_resume_server',                                      where: 'user_preferences.extra', note: 'MixMusic laatste track + positie (cross-device sync)' },
   { label: 'rm_site, rm_status, rm_priority, rm_last_site',        where: 'user_preferences.extra', note: 'Roadmap filterinstellingen' },
   { label: 'fiets_wind_pref_deg',                                   where: 'user_preferences.extra', note: 'Fiets windrichting-voorkeur (graden)' },
+  { label: 'fiets_lat, fiets_lon, fiets_location_label',           where: 'user_preferences.extra', note: 'Fiets locatie-instelling (i.p.v. vast Rotterdam)' },
+  { label: 'fiets_temp_weight',                                     where: 'user_preferences.extra', note: 'Fiets gewicht temperatuur vs. wind in score' },
+  { label: 'fiets_temp_min, fiets_temp_max',                       where: 'user_preferences.extra', note: 'Fiets comfortband temperatuur' },
+  { label: 'fiets_rain_prob_threshold, fiets_wind_knee_kmh',       where: 'user_preferences.extra', note: 'Fiets regen/wind-drempels' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },
 ];
