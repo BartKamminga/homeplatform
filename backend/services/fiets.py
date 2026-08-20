@@ -53,9 +53,9 @@ WIND_WEIGHT = 0.4
 # 's nachts is er geen zon, ongeacht bewolking.
 SUN_BONUS_MAX = 8  # scorepunten bij een volledig onbewolkte lucht
 
-# Licht/donker — 's nachts fietsen is sowieso minder aantrekkelijk (zicht/
-# veiligheid), los van het weer. Vaste malus, geen eigen gewicht.
-NIGHT_PENALTY = 15  # scorepunten
+# Licht/donker — harde poort net als regen: in het donker fietsen is geen
+# optie, los van hoe goed het weer verder is (zicht/veiligheid).
+NIGHT_GATE_SCORE_MAX = 15  # score (0-100) die een nachtelijk uur maximaal krijgt
 
 # Twee onafhankelijke modellen (beide via Open-Meteo, geen 2e integratie nodig)
 # voor een betrouwbaardere score — gemiddelde van KNMI (Harmonie) en NOAA GFS.
@@ -198,8 +198,8 @@ def score_hour(
     prefs: dict | None = None,
 ) -> dict:
     """Score 0-100 voor één uur, opgesplitst in bijdragen (voor de gesegmenteerde
-    balk: welk deel komt van temperatuur/wind/zon). Regen is een harde poort;
-    's nachts geen zon-bonus en een vaste malus (zicht/veiligheid).
+    balk: welk deel komt van temperatuur/wind/zon). Regen én donker zijn allebei
+    een harde poort — goed weer maakt fietsen in het donker niet alsnog een optie.
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -212,15 +212,12 @@ def score_hour(
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
     temp_weight = prefs.get("temp_weight", TEMP_WEIGHT)
     wind_weight = 1 - temp_weight
-    # Percentage-korting i.p.v. vaste puntenaftrek, zodat temp/wind-bijdragen
-    # en het eindcijfer altijd exact blijven optellen (nodig voor de
-    # gestapelde grafiek — geen apart "nacht"-laagje nodig).
-    night_factor = 1.0 if is_daytime else (1 - NIGHT_PENALTY / 100)
 
-    if (rain_prob or 0) > rain_prob_threshold or (rain_mm or 0) > RAIN_MM_THRESHOLD:
-        gated = max(0.0, (RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10) * night_factor)
+    rain_gated = (rain_prob or 0) > rain_prob_threshold or (rain_mm or 0) > RAIN_MM_THRESHOLD
+    if rain_gated or not is_daytime:
+        gated = NIGHT_GATE_SCORE_MAX if not is_daytime else max(0.0, RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10)
         return {
-            "score": round(gated, 1), "rain_gated": True,
+            "score": round(gated, 1), "rain_gated": rain_gated, "night_gated": not is_daytime,
             "temp_contrib": 0.0, "wind_contrib": 0.0, "sun_bonus": 0.0,
         }
 
@@ -241,14 +238,15 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    temp_contrib = temp_weight * temp_score * night_factor
-    wind_contrib = wind_weight * wind_score * night_factor
-    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX if is_daytime else 0.0
+    temp_contrib = temp_weight * temp_score
+    wind_contrib = wind_weight * wind_score
+    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX
 
     total = max(0.0, min(100.0, temp_contrib + wind_contrib + sun_bonus))
     return {
         "score": round(total, 1),
         "rain_gated": False,
+        "night_gated": False,
         "temp_contrib": round(temp_contrib, 1),
         "wind_contrib": round(wind_contrib, 1),
         "sun_bonus": round(sun_bonus, 1),
@@ -326,6 +324,7 @@ async def build_prognose(
             "score": round(s["score"] / 10, 1),
             "breakdown": {
                 "rain_gated": s["rain_gated"],
+                "night_gated": s["night_gated"],
                 "temp_contrib": round(s["temp_contrib"] / 10, 1),
                 "wind_contrib": round(s["wind_contrib"] / 10, 1),
                 "sun_bonus": round(s["sun_bonus"] / 10, 1),
