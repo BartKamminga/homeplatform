@@ -37,16 +37,16 @@ function useThemeColors() {
 export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e' }
 
 // Zelfde kleuren als de Fiets-legenda, ook voor de losse metriek-grafieken
-// (item 788): Temperatuur=oranje, Wind=blauw, Neerslagkans=grijs (regen-kleur), Zon=geel.
+// (item 788): Temperatuur=oranje, Wind=blauw, Regen=grijs, Zon=geel.
 const FIELD_COLOR = {
-  temp: BREAKDOWN_COLORS.temp, rain_prob: BREAKDOWN_COLORS.rain,
+  temp: BREAKDOWN_COLORS.temp, rain_mm: BREAKDOWN_COLORS.rain,
   wind_kmh: BREAKDOWN_COLORS.wind, sun_pct: BREAKDOWN_COLORS.sun,
 }
 
 const FIELD_CONFIG = {
   score:     { min: 0, max: 10,  fmt: v => v.toFixed(1) },
   temp:      { auto: true, pad: 1, fmt: v => `${Math.round(v)}°` },
-  rain_prob: { min: 0, max: 100, fmt: v => `${Math.round(v)}%` },
+  rain_mm:   { auto: true, min: 0, pad: 0.5, fmt: v => `${v.toFixed(1)}mm` },
   wind_kmh:  { auto: true, pad: 3, fmt: v => `${Math.round(v)}` },
   // 's nachts is er geen zon, ongeacht bewolking — anders lijkt een heldere
   // nacht (lage cloud_cover) ten onrechte op een hoog zon-percentage.
@@ -141,7 +141,7 @@ export default function SmoothChart({ days, field, showBreakdown = true }) {
 
   const cfg = FIELD_CONFIG[field]
   const values = hours.map(cfg.get ?? (h => h[field]))
-  const min = cfg.auto ? Math.min(...values) - cfg.pad : cfg.min
+  const min = cfg.auto ? (cfg.min ?? Math.min(...values) - cfg.pad) : cfg.min
   const max = cfg.auto ? Math.max(...values) + cfg.pad : cfg.max
   const yAt = v => PAD_TOP + innerH - ((v - min) / (max - min || 1)) * innerH
   const lineColor = field === 'score' ? BREAKDOWN_COLORS.fiets : (FIELD_COLOR[field] || colors['--color-primary'])

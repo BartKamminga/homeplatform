@@ -7,7 +7,7 @@ import DayCard from '../components/DayCard.jsx'
 const TABS = [
   { key: 'fiets',   label: 'Fiets',         field: 'score' },
   { key: 'temp',    label: 'Temperatuur',   field: 'temp' },
-  { key: 'rain',    label: 'Neerslagkans',  field: 'rain_prob' },
+  { key: 'rain',    label: 'Regen',         field: 'rain_mm' },
   { key: 'wind',    label: 'Wind',          field: 'wind_kmh' },
   { key: 'zon',     label: 'Zon',           field: 'sun_pct' },
   { key: 'winddir', label: 'Windrichting',  field: null },
