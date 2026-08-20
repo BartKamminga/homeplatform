@@ -93,6 +93,31 @@ function nowIndex(hours) {
   return hours.length - 1
 }
 
+// Zoekt de uur-index-range die bij een aangeklikt "beste moment" hoort
+// (item 831) — start/end zijn ISO-tijden zoals door best_window teruggegeven.
+function highlightRange(hours, win) {
+  if (!win) return null
+  const startIdx = hours.findIndex(h => h.time === win.start)
+  if (startIdx === -1) return null
+  const spanHours = Math.max(1, Math.round((new Date(win.end) - new Date(win.start)) / 3600000))
+  const endIdx = Math.min(hours.length - 1, startIdx + spanHours - 1)
+  return [startIdx, endIdx]
+}
+
+function HighlightBand({ range, xAt, top, bottom, colors }) {
+  if (!range) return null
+  const [s, e] = range
+  const barWidth = 3
+  return (
+    <g>
+      <rect x={xAt(s)} y={top} width={Math.max(1, xAt(e) - xAt(s))} height={bottom - top}
+        fill={colors['--color-primary']} opacity={0.12} />
+      <rect x={xAt(s) - barWidth / 2} y={top} width={barWidth} height={bottom - top} fill={colors['--color-primary']} opacity={0.7} />
+      <rect x={xAt(e) - barWidth / 2} y={top} width={barWidth} height={bottom - top} fill={colors['--color-primary']} opacity={0.7} />
+    </g>
+  )
+}
+
 function NowMarker({ x, top, bottom, colors }) {
   if (x == null) return null
   return (
@@ -103,7 +128,7 @@ function NowMarker({ x, top, bottom, colors }) {
   )
 }
 
-export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both' }) {
+export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', highlightWindow = null }) {
   const colors = useThemeColors()
   const hours = days.flatMap(d => d.hours)
   const n = hours.length
@@ -137,12 +162,13 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
   for (let i = 0; i < n; i += HOUR_TICK_STEP) hourTicks.push(i)
 
   const nowX = (() => { const ni = nowIndex(hours); return ni == null ? null : xAt(ni) })()
+  const highlight = highlightRange(hours, highlightWindow)
 
   if (field === 'score' && showBreakdown) {
     return (
       <ScoreArea
         hours={hours} n={n} xAt={xAt} baseline={baseline} innerH={innerH}
-        nightBands={nightBands} dayTicks={dayTicks} hourTicks={hourTicks} colors={colors} nowX={nowX}
+        nightBands={nightBands} dayTicks={dayTicks} hourTicks={hourTicks} colors={colors} nowX={nowX} highlight={highlight}
       />
     )
   }
@@ -180,6 +206,7 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
         <rect key={`night-${i}`} x={xAt(s)} y={PAD_TOP} width={Math.max(1, xAt(e) - xAt(s))} height={innerH}
           fill={colors['--color-border']} opacity={0.35} />
       ))}
+      <HighlightBand range={highlight} xAt={xAt} top={PAD_TOP} bottom={baseline} colors={colors} />
       {showChart && <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />}
       {showChart && <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />}
       {hours.map((h, i) => h.low_confidence && (
@@ -199,7 +226,7 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
   )
 }
 
-function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX }) {
+function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX, highlight }) {
   const scale = v => (v / 10) * innerH // score/contributies zitten al op de 0-10 schaal
 
   // Gestapeld van onder naar boven: wind, zon, temp, regen — zelfde volgorde
@@ -224,6 +251,7 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
         <rect key={`night-${i}`} x={xAt(s)} y={PAD_TOP} width={Math.max(1, xAt(e) - xAt(s))} height={innerH}
           fill={colors['--color-border']} opacity={0.35} />
       ))}
+      <HighlightBand range={highlight} xAt={xAt} top={PAD_TOP} bottom={baseline} colors={colors} />
 
       {keys.map((key, layer) => {
         const lower = boundaries[layer].map((y, i) => [xAt(i), y])

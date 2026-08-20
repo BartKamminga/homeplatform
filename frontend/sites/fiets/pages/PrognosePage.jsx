@@ -31,6 +31,7 @@ export default function PrognosePage() {
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showExplainer, setShowExplainer] = useState(false)
   const [windMode, setWindMode] = useState('arrow')
+  const [selectedWindow, setSelectedWindow] = useState(null) // { date, start, end } — item 831
   // Defaults matchen services/fiets.py (RAIN_WEIGHT=0.4, TEMP_WIND_BUDGET=0.4
   // @ 60/40, SUN_WEIGHT=0.2) — voor de uitleg-popup, die zo altijd de actuele
   // verdeling toont i.p.v. hardcoded percentages.
@@ -64,6 +65,12 @@ export default function PrognosePage() {
       api.patch('/api/auth/me/ui-prefs', { fiets_show_breakdown: next }).catch(() => {})
       return next
     })
+  }
+
+  function selectBestMoment(day, w) {
+    setSelectedWindow(prev =>
+      prev && prev.date === day.date && prev.start === w.start ? null : { date: day.date, start: w.start, end: w.end }
+    )
   }
 
   function toggleSource(key) {
@@ -195,7 +202,7 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} />
+        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} highlightWindow={selectedWindow} />
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
             (item 806) i.p.v. alleen bij Fiets/Wind en leeg bij de rest. */}
@@ -253,7 +260,11 @@ export default function PrognosePage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {data.days.map(day => (
-          <DayCard key={day.date} day={day} />
+          <DayCard
+            key={day.date} day={day}
+            selected={Boolean(selectedWindow && selectedWindow.date === day.date && selectedWindow.start === day.best_window?.start)}
+            onSelectBestMoment={selectBestMoment}
+          />
         ))}
       </div>
     </div>
