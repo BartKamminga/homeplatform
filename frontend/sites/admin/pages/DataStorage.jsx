@@ -25,6 +25,7 @@ const DB_USER_ROWS = [
   { label: 'fiets_wind_knee_kmh',                                   where: 'user_preferences.extra', note: 'Fiets wind-drempel' },
   { label: 'fiets_weight_rain/temp/sun/wind',                       where: 'user_preferences.extra', note: 'Fiets eigen score-gewicht-profiel (debug-pagina) - puur weer, geen daglicht' },
   { label: 'fiets_include_night',                                   where: 'user_preferences.extra', note: 'Fiets: schakelt het s nachts dimmen van de score uit + telt mee bij "beste moment"' },
+  { label: 'fiets_ride_duration_h',                                 where: 'user_preferences.extra', note: 'Fiets gemiddelde rittijd (uur) - venstergrootte voor "beste moment"' },
   { label: 'fiets_label_excellent/good/fair',                       where: 'user_preferences.extra', note: 'Fiets score-staffel voor "beste moment"-label (debug-pagina)' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },

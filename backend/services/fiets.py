@@ -353,12 +353,22 @@ def _score_label(score: float, prefs: dict | None = None) -> str:
 
 
 def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict | None = None) -> dict | None:
-    """Schuift over de bruikbare uren en kiest het venster (1-3u) met de hoogste
-    gemiddelde score. Donkere uren tellen standaard niet mee (niemand fietst
-    voor zijn plezier in het pikkedonker) — instelbaar via 'include_night' voor
-    wie met verlichting fietst. Bij gelijke score wint de vroegste starttijd —
-    niet kritisch, de volledige tijdlijn blijft ook zichtbaar in de grafiek."""
+    """Schuift over de bruikbare uren en kiest het venster met de hoogste
+    gemiddelde score. Zonder 'ride_duration_h' wordt 1-3u afgezocht (min_h/max_h);
+    met een ingestelde gemiddelde rittijd wordt alleen dat ene venster (afgerond
+    op het dichtstbijzijnde uur) vergeleken — anders wint een kort venster
+    structureel omdat het minder kans heeft op een mindere uur ertussen, ook al
+    fietst de gebruiker altijd 2 uur.
+
+    Donkere uren tellen standaard niet mee (niemand fietst voor zijn plezier in
+    het pikkedonker) — instelbaar via 'include_night' voor wie met verlichting
+    fietst. Bij gelijke score wint de vroegste starttijd — niet kritisch, de
+    volledige tijdlijn blijft ook zichtbaar in de grafiek."""
     prefs = prefs or {}
+    ride_duration_h = prefs.get("ride_duration_h")
+    if ride_duration_h is not None:
+        min_h = max_h = max(1, round(ride_duration_h))
+
     include_night = bool(prefs.get("include_night"))
     daytime = [h for h in hours if h["daylight_state"] != "nacht" or include_night]
     if not daytime:
@@ -366,6 +376,7 @@ def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict |
 
     best = None
     for window_len in range(min_h, max_h + 1):
+        window_len = min(window_len, len(daytime))  # rittijd kan langer zijn dan het aantal bruikbare uren die dag
         for start_idx in range(0, len(daytime) - window_len + 1):
             window = daytime[start_idx:start_idx + window_len]
             avg_score = round(sum(h["score"] for h in window) / len(window), 1)

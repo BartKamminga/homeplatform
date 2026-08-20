@@ -125,6 +125,15 @@ export default function InstellingenPage() {
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+          "Beste moment" zoekt een venster van deze lengte i.p.v. altijd het kortste (dat scoort anders structureel te makkelijk hoog).
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
+          <NumberRow icon="⏱" label="Gemiddelde rittijd" unit="uur" field="fiets_ride_duration_h" defaultValue={2} min={0.5} max={6} step={0.5} last prefs={prefs} onSave={save} saving={saving} />
+        </div>
+      </div>
+
+      <div>
+        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
           Standaard dimt de score 's nachts naar 0, ongeacht het weer — handig aan laten als je met verlichting fietst.
         </p>
         <div style={rowStyle}>
@@ -153,7 +162,7 @@ export default function InstellingenPage() {
   )
 }
 
-function NumberRow({ icon, label, unit, field, defaultValue, min = -20, max = 45, prefs, onSave, saving, last }) {
+function NumberRow({ icon, label, unit, field, defaultValue, min = -20, max = 45, step = 1, prefs, onSave, saving, last }) {
   const [local, setLocal] = useState(prefs[field] ?? defaultValue)
   useEffect(() => { setLocal(prefs[field] ?? defaultValue) }, [prefs[field]])
 
@@ -165,7 +174,7 @@ function NumberRow({ icon, label, unit, field, defaultValue, min = -20, max = 45
       <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
       <span style={{ flex: 1, fontSize: 13 }}>{label}</span>
       <input
-        type="number" min={min} max={max} disabled={saving}
+        type="number" min={min} max={max} step={step} disabled={saving}
         value={local}
         onChange={e => setLocal(e.target.value)}
         onBlur={() => onSave({ [field]: Number(local) })}

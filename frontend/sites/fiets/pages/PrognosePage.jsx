@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import SmoothChart, { BREAKDOWN_COLORS, RAIN_TIER_OPACITY } from '../components/SmoothChart.jsx'
 import DayCard from '../components/DayCard.jsx'
+import { scoreColor, scoreLabel } from '../scoreUtils.js'
 
 const TABS = [
   { key: 'fiets', label: 'Fiets',        field: 'score' },
@@ -22,6 +23,25 @@ const WIND_MODES = [
   { key: 'both',  label: 'Beide' },
 ]
 
+// Tijden uit de API zijn lokaal, zonder 'Z' — Date parseert die als lokale
+// tijd, dus met de Date-methoden (niet toISOString, die naar UTC zou draaien)
+// erbij/eraf rekenen blijft consistent.
+function isoPlusHours(iso, n) {
+  const d = new Date(iso)
+  d.setHours(d.getHours() + n)
+  const pad = x => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+// Startindex voor de tijdvak-verkenner: begin bij "nu" zodat je niet eerst
+// terug in de tijd moet schuiven naar een relevant moment.
+function nowStartIndex(hours, len) {
+  const now = Date.now()
+  let idx = hours.findIndex(h => new Date(h.time).getTime() >= now)
+  if (idx === -1) idx = 0
+  return Math.max(0, Math.min(idx, hours.length - len))
+}
+
 export default function PrognosePage() {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
@@ -32,6 +52,10 @@ export default function PrognosePage() {
   const [showExplainer, setShowExplainer] = useState(false)
   const [windMode, setWindMode] = useState('arrow')
   const [selectedWindow, setSelectedWindow] = useState(null) // { date, start, end } — item 831
+  const [exploreOn, setExploreOn] = useState(false) // handmatig tijdvak verkennen — item 832/833
+  const [exploreStart, setExploreStart] = useState(0)
+  const [exploreLen, setExploreLen] = useState(2)
+  const [rideDurationH, setRideDurationH] = useState(2)
   // Defaults matchen services/fiets.py (RAIN_WEIGHT=0.4, TEMP_WIND_BUDGET=0.4
   // @ 60/40, SUN_WEIGHT=0.2) — voor de uitleg-popup, die zo altijd de actuele
   // verdeling toont i.p.v. hardcoded percentages.
@@ -55,6 +79,7 @@ export default function PrognosePage() {
           sun: prefs.fiets_weight_sun ?? w.sun,
           wind: prefs.fiets_weight_wind ?? w.wind,
         }))
+        if (prefs.fiets_ride_duration_h) setRideDurationH(prefs.fiets_ride_duration_h)
       })
       .catch(() => {})
   }, [])
@@ -71,6 +96,17 @@ export default function PrognosePage() {
     setSelectedWindow(prev =>
       prev && prev.date === day.date && prev.start === w.start ? null : { date: day.date, start: w.start, end: w.end }
     )
+  }
+
+  function toggleExplore(allHours) {
+    setExploreOn(on => {
+      if (!on) {
+        const len = Math.max(1, Math.round(rideDurationH))
+        setExploreLen(len)
+        setExploreStart(nowStartIndex(allHours, len))
+      }
+      return !on
+    })
   }
 
   function toggleSource(key) {
@@ -109,6 +145,15 @@ export default function PrognosePage() {
   )
 
   const activeField = TABS.find(t => t.key === tab).field
+  const allHours = data.days.flatMap(d => d.hours)
+  const exploreEnd = Math.min(allHours.length - 1, exploreStart + exploreLen - 1)
+  const exploreHours = exploreOn ? allHours.slice(exploreStart, exploreEnd + 1) : []
+  const exploreAvg = exploreHours.length
+    ? Math.round(exploreHours.reduce((sum, h) => sum + h.score, 0) / exploreHours.length * 10) / 10
+    : null
+  const exploreWindow = exploreHours.length
+    ? { start: exploreHours[0].time, end: isoPlusHours(exploreHours[exploreHours.length - 1].time, 1) }
+    : null
 
   return (
     <div style={{ padding: '20px 16px' }}>
@@ -132,6 +177,18 @@ export default function PrognosePage() {
               {s.label}
             </button>
           ))}
+          <button
+            onClick={() => toggleExplore(allHours)}
+            title="Zelf een tijdvak kiezen en de score ervan bekijken"
+            style={{
+              fontSize: 11, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+              border: `1px solid ${exploreOn ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              background: exploreOn ? 'var(--color-surface)' : 'transparent',
+              color: exploreOn ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            }}
+          >
+            🕐 Tijdvak
+          </button>
           <button
             onClick={() => setShowExplainer(v => !v)}
             aria-label="Hoe werkt de score?"
@@ -202,7 +259,52 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} highlightWindow={selectedWindow} />
+        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} highlightWindow={exploreOn ? exploreWindow : selectedWindow} />
+
+        {exploreOn && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '8px 10px',
+            background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 10, flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                onClick={() => {
+                  const len = Math.max(1, exploreLen - 1)
+                  setExploreLen(len)
+                  setExploreStart(s => Math.min(s, allHours.length - len))
+                }}
+                style={stepperBtn}
+              >
+                −
+              </button>
+              <span style={{ fontSize: 11, width: 28, textAlign: 'center' }}>{exploreLen}u</span>
+              <button
+                onClick={() => {
+                  const len = Math.min(12, exploreLen + 1)
+                  setExploreLen(len)
+                  setExploreStart(s => Math.min(s, allHours.length - len))
+                }}
+                style={stepperBtn}
+              >
+                +
+              </button>
+            </div>
+            <input
+              type="range" min={0} max={Math.max(0, allHours.length - exploreLen)} value={exploreStart}
+              onChange={e => setExploreStart(Number(e.target.value))}
+              style={{ flex: 1, minWidth: 100 }}
+            />
+            {exploreAvg != null && (
+              <span style={{
+                fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+                color: scoreColor(exploreAvg), background: 'var(--color-surface)', border: `1px solid ${scoreColor(exploreAvg)}`,
+                whiteSpace: 'nowrap',
+              }}>
+                {exploreHours[0].time.slice(11, 16)}–{isoPlusHours(exploreHours[exploreHours.length - 1].time, 1).slice(11, 16)} · {exploreAvg} {scoreLabel(exploreAvg)}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
             (item 806) i.p.v. alleen bij Fiets/Wind en leeg bij de rest. minHeight
@@ -304,4 +406,9 @@ function Legend({ color, label, opacity = 1 }) {
 const center = {
   display: 'flex', flexDirection: 'column', alignItems: 'center',
   justifyContent: 'center', padding: '60px 24px', textAlign: 'center',
+}
+
+const stepperBtn = {
+  width: 22, height: 22, fontSize: 13, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
+  border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)', lineHeight: 1,
 }
