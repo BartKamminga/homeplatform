@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     BEATPORTDL_CONFIG_DIR: str = ""  # pad naar beatportdl config-map (optioneel)
     BEATPORT_PROVIDER: str = "binary"  # "binary" (beatportdl) of "native" (Python)
     CORS_ORIGINS: str = ""  # kommagescheiden; leeg = automatisch op basis van omgeving
+    FIETS_LAT: float = 51.9244  # MVP: vaste locatie (Rotterdam) — later instelbaar (roadmap-item)
+    FIETS_LON: float = 4.4777
+    FIETS_LOCATION_LABEL: str = "Rotterdam"
 
     @property
     def is_dev(self) -> bool:

@@ -6,6 +6,7 @@ const SITE_LABELS = {
   scrapster: 'Scrapster',
   poulebord: 'Poulebord',
   'hockey-inside': 'Hockey Inside',
+  fiets: 'Fiets',
 };
 
 export default function SiteMonitoring() {

@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
+import LineGraph from '../components/LineGraph.jsx'
+import BestMomentChip from '../components/BestMomentChip.jsx'
 
-const SCORE_COLOR = s => s >= 8 ? '#22c55e' : s >= 5 ? '#f59e0b' : '#ef4444'
-const SCORE_LABEL = s => s >= 8 ? 'Uitstekend' : s >= 6 ? 'Goed' : s >= 4 ? 'Matig' : 'Slecht'
-const SCORE_ICON  = s => s >= 8 ? '🟢' : s >= 6 ? '🟡' : s >= 4 ? '🟠' : '🔴'
+const TABS = [
+  { key: 'fiets', label: 'Fiets',        field: 'score' },
+  { key: 'temp',  label: 'Temperatuur',  field: 'temp' },
+  { key: 'rain',  label: 'Neerslagkans', field: 'rain_prob' },
+  { key: 'wind',  label: 'Wind',         field: 'wind_kmh' },
+]
 
 export default function PrognosePage() {
-  const [days,    setDays]    = useState([])
+  const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
+  const [tab,     setTab]     = useState('fiets')
 
   useEffect(() => {
     api.get('/api/fiets/prognose')
-      .then(data => setDays(data.days ?? []))
+      .then(setData)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
@@ -24,14 +30,14 @@ export default function PrognosePage() {
     </div>
   )
 
-  if (error) return (
+  if (error || data?.status === 'error') return (
     <div style={center}>
       <span style={{ fontSize: 40 }}>⚠️</span>
-      <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12 }}>{error}</p>
+      <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12 }}>{error || data?.message}</p>
     </div>
   )
 
-  if (days.length === 0) return (
+  if (!data || data.days.length === 0) return (
     <div style={center}>
       <span style={{ fontSize: 56 }}>🚴</span>
       <p style={{ fontSize: 15, color: 'var(--color-text-muted)', marginTop: 16, maxWidth: 260, lineHeight: 1.5, textAlign: 'center' }}>
@@ -42,46 +48,38 @@ export default function PrognosePage() {
     </div>
   )
 
+  const activeField = TABS.find(t => t.key === tab).field
+
   return (
     <div style={{ padding: '20px 16px' }}>
-      <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
-        Wanneer is het deze week goed fietsweer?
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {days.map((day, i) => (
-          <div key={i} style={{
-            background: 'var(--color-surface)', border: `1px solid var(--color-border)`,
-            borderRadius: 14, padding: '14px 16px',
-            borderLeft: `4px solid ${SCORE_COLOR(day.score ?? 0)}`,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15 }}>
-                  {day.label ?? new Date(day.date).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'short' })}
-                </div>
-                {day.summary && (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>{day.summary}</div>
-                )}
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: SCORE_COLOR(day.score ?? 0) }}>
-                  {SCORE_ICON(day.score ?? 0)}
-                </div>
-                <div style={{ fontSize: 11, color: SCORE_COLOR(day.score ?? 0), fontWeight: 600, marginTop: 2 }}>
-                  {SCORE_LABEL(day.score ?? 0)}
-                </div>
-              </div>
-            </div>
-            {(day.temp_min != null || day.wind_kmh != null || day.rain_mm != null) && (
-              <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                {day.temp_min != null && day.temp_max != null && (
-                  <span>🌡 {day.temp_min}–{day.temp_max}°C</span>
-                )}
-                {day.wind_kmh != null && <span>💨 {day.wind_kmh} km/u</span>}
-                {day.rain_mm  != null && <span>🌧 {day.rain_mm} mm</span>}
-              </div>
-            )}
-          </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)' }}>
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: tab === t.key ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              borderBottom: tab === t.key ? '2px solid var(--color-primary)' : '2px solid transparent',
+              marginBottom: -1, fontFamily: 'inherit',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{
+        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+        borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
+      }}>
+        <LineGraph days={data.days} field={activeField} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {data.days.map(day => (
+          <BestMomentChip key={day.date} day={day} />
         ))}
       </div>
     </div>

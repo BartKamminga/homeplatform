@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import PrognosePage from './pages/PrognosePage.jsx'
+import InstellingenPage from './pages/InstellingenPage.jsx'
 
 export default function FietsLayout() {
   const [version, setVersion] = useState('')
+  const [view, setView] = useState('prognose')
 
   useEffect(() => {
     fetch('/api/changelog?site=fiets')
@@ -33,16 +35,28 @@ export default function FietsLayout() {
             <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>v{version}</div>
           </div>
         </div>
-        <a href="/account/groups?back=/fiets/" style={{
-          fontSize: 12, color: 'var(--color-text-muted)',
-          textDecoration: 'none', padding: '6px 10px',
-          border: '1px solid var(--color-border)', borderRadius: 8,
-        }}>Account</a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setView(v => v === 'prognose' ? 'instellingen' : 'prognose')}
+            aria-label="Instellingen"
+            style={{
+              fontSize: 15, padding: '6px 10px', cursor: 'pointer',
+              border: '1px solid var(--color-border)', borderRadius: 8,
+              background: 'transparent', lineHeight: 1,
+              color: view === 'instellingen' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            }}
+          >⚙️</button>
+          <a href="/account/groups?back=/fiets/" style={{
+            fontSize: 12, color: 'var(--color-text-muted)',
+            textDecoration: 'none', padding: '6px 10px',
+            border: '1px solid var(--color-border)', borderRadius: 8,
+          }}>Account</a>
+        </div>
       </header>
 
       {/* Content */}
       <main style={{ flex: 1, overflowY: 'auto' }}>
-        <PrognosePage />
+        {view === 'prognose' ? <PrognosePage /> : <InstellingenPage />}
       </main>
     </div>
   )
