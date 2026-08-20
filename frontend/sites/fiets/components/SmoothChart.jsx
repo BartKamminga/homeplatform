@@ -177,6 +177,9 @@ export default function SmoothChart({ days, field, showBreakdown = true }) {
       {hours.map((h, i) => h.low_confidence && (
         <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
       ))}
+      {field === 'wind_kmh' && hourTicks.map(i => (
+        <WindArrowMark key={`arrow-${i}`} x={xAt(i)} y={Math.max(16, yAt(values[i]) - 22)} deg={hours[i].wind_dir} kmh={values[i]} color={lineColor} />
+      ))}
       <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => yAt(values[i])} fmt={v => cfg.fmt(v)} values={values} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
       <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
@@ -241,6 +244,19 @@ function HourLabels({ hourTicks, xAt, yAt, fmt, values, hours, colors }) {
       </text>
     </g>
   ))
+}
+
+// Windrichting-pijl bovenop de Wind-grafiek (item: Wind+Windrichting samengevoegd) —
+// hoogte van de lijn = snelheid, rotatie/grootte van de pijl = richting/kracht.
+function WindArrowMark({ x, y, deg, kmh, color }) {
+  const size = Math.min(14, 7 + kmh * 0.25)
+  const travelDeg = (deg + 180) % 360
+  return (
+    <g transform={`translate(${x},${y}) rotate(${travelDeg})`} stroke={color} fill={color}>
+      <line x1={0} y1={size / 2} x2={0} y2={-size / 2} strokeWidth={1.8} strokeLinecap="round" />
+      <path d={`M0,${-size / 2 - 2.5} L${-2.5},${-size / 2 + 2.5} L${2.5},${-size / 2 + 2.5} Z`} stroke="none" />
+    </g>
+  )
 }
 
 function DayTicks({ dayTicks, baseline, colors }) {

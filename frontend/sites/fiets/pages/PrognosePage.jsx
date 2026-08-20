@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import SmoothChart, { BREAKDOWN_COLORS } from '../components/SmoothChart.jsx'
-import WindDirectionTimeline from '../components/WindDirectionTimeline.jsx'
 import DayCard from '../components/DayCard.jsx'
 
 const TABS = [
-  { key: 'fiets',   label: 'Fiets',         field: 'score' },
-  { key: 'temp',    label: 'Temperatuur',   field: 'temp' },
-  { key: 'rain',    label: 'Regen',         field: 'rain_mm' },
-  { key: 'wind',    label: 'Wind',          field: 'wind_kmh' },
-  { key: 'zon',     label: 'Zon',           field: 'sun_pct' },
-  { key: 'winddir', label: 'Windrichting',  field: null },
+  { key: 'fiets', label: 'Fiets',        field: 'score' },
+  { key: 'temp',  label: 'Temperatuur',  field: 'temp' },
+  { key: 'rain',  label: 'Regen',        field: 'rain_mm' },
+  { key: 'wind',  label: 'Wind',         field: 'wind_kmh' },
+  { key: 'zon',   label: 'Zon',          field: 'sun_pct' },
 ]
 
 const SOURCES = [
@@ -131,36 +129,30 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        {tab === 'winddir' ? (
-          <WindDirectionTimeline days={data.days} />
-        ) : (
-          <>
-            <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} />
-            {tab === 'fiets' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
-                <button
-                  onClick={toggleBreakdown}
-                  style={{
-                    fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                    border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
-                  }}
-                >
-                  {showBreakdown ? 'Met opbouw' : 'Simpel'}
-                </button>
-                {showBreakdown ? (
-                  <>
-                    <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
-                    <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
-                    <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
-                    <Legend color={BREAKDOWN_COLORS.rain} label="Donker (blokkeert)" />
-                  </>
-                ) : (
-                  <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
-                )}
-                <span>· grijze stip = bronnen zijn het niet eens</span>
-              </div>
+        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} />
+        {tab === 'fiets' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+            <button
+              onClick={toggleBreakdown}
+              style={{
+                fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+                border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
+              }}
+            >
+              {showBreakdown ? 'Met opbouw' : 'Simpel'}
+            </button>
+            {showBreakdown ? (
+              <>
+                <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
+                <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
+                <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
+                <Legend color={BREAKDOWN_COLORS.rain} label="Donker (blokkeert)" />
+              </>
+            ) : (
+              <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
             )}
-          </>
+            <span>· grijze stip = bronnen zijn het niet eens</span>
+          </div>
         )}
       </div>
 
