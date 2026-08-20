@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import SmoothChart, { BREAKDOWN_COLORS } from '../components/SmoothChart.jsx'
+import SmoothChart, { BREAKDOWN_COLORS, RAIN_TIER_OPACITY } from '../components/SmoothChart.jsx'
 import DayCard from '../components/DayCard.jsx'
 
 const TABS = [
@@ -196,48 +196,59 @@ export default function PrognosePage() {
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
         <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} />
-        {tab === 'wind' && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            {WIND_MODES.map(m => (
-              <button
-                key={m.key}
-                onClick={() => setWindMode(m.key)}
-                style={{
-                  fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                  border: `1px solid ${windMode === m.key ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
-                  background: windMode === m.key ? 'var(--color-background)' : 'transparent',
-                  color: windMode === m.key ? 'var(--color-text)' : 'var(--color-text-muted)',
-                }}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {tab === 'fiets' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+
+        {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
+            (item 806) i.p.v. alleen bij Fiets/Wind en leeg bij de rest. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+          {tab === 'wind' && WIND_MODES.map(m => (
             <button
-              onClick={toggleBreakdown}
+              key={m.key}
+              onClick={() => setWindMode(m.key)}
               style={{
                 fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
+                border: `1px solid ${windMode === m.key ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
+                background: windMode === m.key ? 'var(--color-background)' : 'transparent',
+                color: windMode === m.key ? 'var(--color-text)' : 'var(--color-text-muted)',
               }}
             >
-              {showBreakdown ? 'Met opbouw' : 'Simpel'}
+              {m.label}
             </button>
-            {showBreakdown ? (
-              <>
-                <Legend color={BREAKDOWN_COLORS.rain} label="Regen" />
-                <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
-                <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
-                <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
-              </>
-            ) : (
-              <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
-            )}
-            <span>· grijze stip = bronnen zijn het niet eens</span>
-          </div>
-        )}
+          ))}
+
+          {tab === 'fiets' && (
+            <>
+              <button
+                onClick={toggleBreakdown}
+                style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+                  border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
+                }}
+              >
+                {showBreakdown ? 'Met opbouw' : 'Simpel'}
+              </button>
+              {showBreakdown ? (
+                <>
+                  <Legend color={BREAKDOWN_COLORS.rain} label="Regen" />
+                  <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
+                  <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
+                  <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
+                </>
+              ) : (
+                <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
+              )}
+            </>
+          )}
+
+          {tab === 'rain' && (
+            <>
+              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[1]} label="Licht" />
+              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[2]} label="Matig" />
+              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[3]} label="Zwaar" />
+            </>
+          )}
+
+          <span>· grijze stip = bronnen zijn het niet eens</span>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -267,10 +278,10 @@ function weightRows(weights) {
     .sort((a, b) => b.pct - a.pct)
 }
 
-function Legend({ color, label }) {
+function Legend({ color, label, opacity = 1 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-      <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
+      <span style={{ width: 8, height: 8, borderRadius: 2, background: color, opacity, display: 'inline-block' }} />
       {label}
     </span>
   )

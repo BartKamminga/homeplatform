@@ -37,7 +37,8 @@ function useThemeColors() {
 export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e' }
 
 // Opaciteit van het regen-vlak per weather_code-tier (0=helder/bewolkt .. 3=zware regen).
-const RAIN_TIER_OPACITY = [0.06, 0.22, 0.42, 0.7]
+// Geëxporteerd zodat de Regen-tab dezelfde opaciteiten kan gebruiken in de legenda (item 806).
+export const RAIN_TIER_OPACITY = [0.06, 0.22, 0.42, 0.7]
 
 // Zelfde kleuren als de Fiets-legenda, ook voor de losse metriek-grafieken
 // (item 788): Temperatuur=oranje, Wind=blauw, Regen=grijs, Zon=geel.
