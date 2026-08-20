@@ -12,10 +12,20 @@ const THEME_VARS = [
 function useThemeColors() {
   const [colors, setColors] = useState({})
   useEffect(() => {
-    const cs = getComputedStyle(document.documentElement)
-    const next = {}
-    THEME_VARS.forEach(v => { next[v] = cs.getPropertyValue(v).trim() })
-    setColors(next)
+    const read = () => {
+      const cs = getComputedStyle(document.documentElement)
+      const next = {}
+      THEME_VARS.forEach(v => { next[v] = cs.getPropertyValue(v).trim() })
+      setColors(next)
+    }
+    read()
+
+    // Thema laadt async (fetch naar /api/admin/themes/active als er nog niets
+    // in localStorage staat) — data-theme kan dus pas na deze eerste render
+    // gezet worden. Herlezen zodra dat attribuut verandert.
+    const observer = new MutationObserver(read)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
   }, [])
   return colors
 }
