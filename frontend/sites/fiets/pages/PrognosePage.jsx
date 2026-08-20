@@ -205,8 +205,11 @@ export default function PrognosePage() {
         <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} highlightWindow={selectedWindow} />
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
-            (item 806) i.p.v. alleen bij Fiets/Wind en leeg bij de rest. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+            (item 806) i.p.v. alleen bij Fiets/Wind en leeg bij de rest. minHeight
+            vast houden: anders verspringt de kaart (en alles daaronder) bij het
+            wisselen van tab, omdat Fiets/Wind meer items bevatten dan Temp/Zon
+            en dus eerder naar 2 regels wrappen. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap', minHeight: 40 }}>
           {tab === 'wind' && WIND_MODES.map(m => (
             <button
               key={m.key}
