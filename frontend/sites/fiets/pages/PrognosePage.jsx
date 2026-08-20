@@ -151,9 +151,10 @@ export default function PrognosePage() {
               </button>
             </div>
             <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)' }}>
-              <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> & 💨 <strong>wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
-              <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — geen eigen laag, maar een grijze wasem over de score: hoe meer het regent en hoe zwaarder de bui, hoe donkerder (en lager de score).</p>
-              <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — een klein extra puntje bij helder weer overdag, telt niet zwaar.</p>
+              <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — telt het zwaarst mee (35%). Hoe meer het regent en hoe zwaarder de bui, hoe lager deze bijdrage.</p>
+              <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> — daarna het belangrijkst (± 27%, instelbaar). Prettigst tussen 15-22°C.</p>
+              <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — telt voor 20% mee, meer zon is beter.</p>
+              <p style={{ margin: '0 0 6px' }}>💨 <strong>Wind</strong> — het lichtste gewicht (± 18%, instelbaar). Harde wind en tegenwind tellen negatief.</p>
               <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
               <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
             </div>
@@ -215,10 +216,10 @@ export default function PrognosePage() {
             </button>
             {showBreakdown ? (
               <>
-                <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
                 <Legend color={BREAKDOWN_COLORS.rain} label="Regen" />
-                <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
+                <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
                 <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
+                <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
               </>
             ) : (
               <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />

@@ -23,13 +23,19 @@ CACHE_TTL = 1800  # 30 min — cachet de RUWE Open-Meteo respons, niet de gescoo
 
 # ── Score-model constanten — MVP-startpunt, later instelbaar via instellingen ──
 # (roadmap-item "Score-drempels/comfortband instelbaar maken via instellingen")
+#
+# Vier onafhankelijke 0-100 subscores (regen/temp/zon/wind), elk met een vast
+# gewicht — prioriteit regen > temp > zon > wind. Regen en zon waren eerder
+# resp. een multiplicatieve demping en een kleine bonus zonder eigen gewicht;
+# nu tellen ze volwaardig mee, net als temp/wind.
+RAIN_WEIGHT = 0.35
+SUN_WEIGHT = 0.20
+TEMP_WIND_BUDGET = 1 - RAIN_WEIGHT - SUN_WEIGHT  # 0.45 — verdeeld via de instelbare temp/wind-balans
 
-# Regen — GEEN harde poort meer. Regenkans bleek zwak gecorreleerd met
-# werkelijke neerslag (vaak 100% kans bij 0mm), dus telt niet meer mee.
-# In plaats daarvan: mm + WMO weather_code-tier (licht/matig/zwaar) bepalen
-# samen een percentage-korting op temp/wind (zelfde mechanisme als de
-# nacht-poort), zodat lichte motregen niet meer alles blokkeert maar een
-# fikse regenbui de score wel effectief naar 0 duwt.
+# Regen — geen harde poort. Regenkans bleek zwak gecorreleerd met werkelijke
+# neerslag (vaak 100% kans bij 0mm), dus telt niet mee. In plaats daarvan:
+# mm + WMO weather_code-tier (licht/matig/zwaar) bepalen samen de regen-score
+# (100 = droog, 0 = zware bui).
 MM_IMPACT_PER_MM = 0.25
 TIER_IMPACT = {0: 0.0, 1: 0.10, 2: 0.25, 3: 0.45}
 
@@ -63,15 +69,9 @@ WIND_STEEP_PENALTY_PER_KMH = 4.0
 WIND_DIR_BONUS_MAX = 10
 WIND_DIR_MALUS_MAX = 10
 
-# Gewicht temperatuur vs. wind in de eindscore — MVP-vast, later instelbaar
+# Verdeling van TEMP_WIND_BUDGET tussen temp en wind — instelbaar
 # (roadmap-item "Gewicht temperatuur vs. wind instelbaar maken").
-TEMP_WEIGHT = 0.6
-WIND_WEIGHT = 0.4
-
-# Zon — kleine bonus bovenop temp/wind, geen eigen gewicht (voorkomt dat de
-# instelbare temp/wind-verdeling opnieuw ontworpen moet worden). Alleen overdag:
-# 's nachts is er geen zon, ongeacht bewolking.
-SUN_BONUS_MAX = 8  # scorepunten bij een volledig onbewolkte lucht
+TEMP_SPLIT = 0.6  # 60% van het temp/wind-budget naar temp, 40% naar wind
 
 # Licht/donker — harde poort net als regen: in het donker fietsen is geen
 # optie, los van hoe goed het weer verder is (zicht/veiligheid).
@@ -221,11 +221,10 @@ def score_hour(
     is_daytime: bool,
     prefs: dict | None = None,
 ) -> dict:
-    """Score 0-100 voor één uur, opgesplitst in bijdragen (voor de gesegmenteerde
-    balk: welk deel komt van temperatuur/wind/zon). Regen is een percentage-
-    korting op basis van mm + weather_code-tier (regenkans zelf is te zwak
-    gecorreleerd met werkelijke neerslag om als harde poort te gebruiken).
-    Donker blijft wel een harde poort (zicht/veiligheid, los van het weer).
+    """Score 0-100 voor één uur, opgesplitst in 4 gewogen subscores: regen, temp,
+    zon, wind (prioriteit in die volgorde — regen weegt het zwaarst, wind het
+    lichtst). Donker blijft een losse harde poort (zicht/veiligheid, los van
+    het weer).
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -235,20 +234,23 @@ def score_hour(
     temp_min = prefs.get("temp_min", TEMP_OPTIMAL_MIN)
     temp_max = prefs.get("temp_max", TEMP_OPTIMAL_MAX)
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
-    temp_weight = prefs.get("temp_weight", TEMP_WEIGHT)
-    wind_weight = 1 - temp_weight
+    temp_split = prefs.get("temp_weight", TEMP_SPLIT)
+    temp_weight = temp_split * TEMP_WIND_BUDGET
+    wind_weight = (1 - temp_split) * TEMP_WIND_BUDGET
 
     if not is_daytime:
         return {
-            "score": float(NIGHT_GATE_SCORE_MAX), "night_gated": True, "rain_factor": 1.0,
-            "temp_contrib": 0.0, "wind_contrib": 0.0, "sun_bonus": 0.0,
+            "score": float(NIGHT_GATE_SCORE_MAX), "night_gated": True,
+            "rain_contrib": 0.0, "temp_contrib": 0.0, "sun_contrib": 0.0, "wind_contrib": 0.0,
         }
 
     rain_impact = min(1.0, (rain_mm or 0) * MM_IMPACT_PER_MM + TIER_IMPACT.get(rain_tier, 0.0))
-    rain_factor = 1 - rain_impact
+    rain_score = (1 - rain_impact) * 100
 
     temp_penalty = max(0.0, temp_min - temp, temp - temp_max)
     temp_score = max(0.0, min(100.0, 100.0 - temp_penalty * TEMP_FALLOFF_RATE))
+
+    sun_score = 100.0 - (cloud_cover or 0)
 
     if wind_kmh <= wind_knee_kmh:
         wind_penalty = wind_kmh * WIND_LINEAR_PENALTY_PER_KMH
@@ -264,18 +266,19 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    temp_contrib = temp_weight * temp_score * rain_factor
-    wind_contrib = wind_weight * wind_score * rain_factor
-    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX * rain_factor
+    rain_contrib = RAIN_WEIGHT * rain_score
+    temp_contrib = temp_weight * temp_score
+    sun_contrib = SUN_WEIGHT * sun_score
+    wind_contrib = wind_weight * wind_score
 
-    total = max(0.0, min(100.0, temp_contrib + wind_contrib + sun_bonus))
+    total = max(0.0, min(100.0, rain_contrib + temp_contrib + sun_contrib + wind_contrib))
     return {
         "score": round(total, 1),
         "night_gated": False,
-        "rain_factor": round(rain_factor, 2),
+        "rain_contrib": round(rain_contrib, 1),
         "temp_contrib": round(temp_contrib, 1),
+        "sun_contrib": round(sun_contrib, 1),
         "wind_contrib": round(wind_contrib, 1),
-        "sun_bonus": round(sun_bonus, 1),
     }
 
 
@@ -351,10 +354,10 @@ async def build_prognose(
             "score": round(s["score"] / 10, 1),
             "breakdown": {
                 "night_gated": s["night_gated"],
-                "rain_factor": s["rain_factor"],
+                "rain_contrib": round(s["rain_contrib"] / 10, 1),
                 "temp_contrib": round(s["temp_contrib"] / 10, 1),
+                "sun_contrib": round(s["sun_contrib"] / 10, 1),
                 "wind_contrib": round(s["wind_contrib"] / 10, 1),
-                "sun_bonus": round(s["sun_bonus"] / 10, 1),
             },
             "temp": temps[i],
             "rain_prob": rain_probs[i],
