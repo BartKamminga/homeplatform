@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import LineGraph from '../components/LineGraph.jsx'
-import BestMomentChip from '../components/BestMomentChip.jsx'
+import DayCard from '../components/DayCard.jsx'
 
 const TABS = [
   { key: 'fiets', label: 'Fiets',        field: 'score' },
@@ -79,7 +79,7 @@ export default function PrognosePage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {data.days.map(day => (
-          <BestMomentChip key={day.date} day={day} />
+          <DayCard key={day.date} day={day} />
         ))}
       </div>
     </div>

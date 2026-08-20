@@ -8,9 +8,10 @@ const FIELD_CONFIG = {
 }
 
 const WIDTH = 720
-const HEIGHT = 150
+const HEIGHT = 170
 const PAD_TOP = 12
-const PAD_BOTTOM = 26
+const PAD_BOTTOM = 42
+const HOUR_TICK_STEP = 6
 
 export default function LineGraph({ days, field }) {
   const hours = days.flatMap(d => d.hours)
@@ -43,6 +44,12 @@ export default function LineGraph({ days, field }) {
     offset += d.hours.length
   })
 
+  // Uur-ticks elke 6 uur (00:00/06:00/12:00/18:00), zoals de Google Weer-tijdlijn
+  const hourTicks = []
+  for (let i = 0; i < n; i += HOUR_TICK_STEP) {
+    hourTicks.push({ x: xAt(i), label: hours[i].time.slice(11, 16) })
+  }
+
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       {nightBands.map(([s, e], i) => (
@@ -68,12 +75,19 @@ export default function LineGraph({ days, field }) {
         />
       )}
 
+      {hourTicks.map((t, i) => (
+        <g key={`hour-${i}`}>
+          <line x1={t.x} y1={HEIGHT - PAD_BOTTOM} x2={t.x} y2={HEIGHT - PAD_BOTTOM + 4} style={{ stroke: 'var(--color-border)', strokeWidth: 1 }} />
+          <text x={t.x} y={HEIGHT - PAD_BOTTOM + 16} textAnchor="middle" style={{ fontSize: 9, fill: 'var(--color-text-muted)' }}>{t.label}</text>
+        </g>
+      ))}
+
       {dayTicks.map((t, i) => (
         <g key={`day-${i}`}>
           {i > 0 && (
             <line x1={t.x} y1={0} x2={t.x} y2={HEIGHT - PAD_BOTTOM} style={{ stroke: 'var(--color-border)', strokeWidth: 1 }} />
           )}
-          <text x={t.x + 4} y={HEIGHT - 8} style={{ fontSize: 11, fill: 'var(--color-text-muted)' }}>{t.label}</text>
+          <text x={t.x + 4} y={HEIGHT - 6} style={{ fontSize: 11, fontWeight: 600, fill: 'var(--color-text)' }}>{t.label}</text>
         </g>
       ))}
     </svg>
