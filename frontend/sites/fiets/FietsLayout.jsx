@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import PrognosePage from './pages/PrognosePage.jsx'
 import InstellingenPage from './pages/InstellingenPage.jsx'
 import DebugPage from './pages/DebugPage.jsx'
@@ -6,6 +6,12 @@ import DebugPage from './pages/DebugPage.jsx'
 export default function FietsLayout() {
   const [version, setVersion] = useState('')
   const [view, setView] = useState('prognose')
+  const debugLeaveGuard = useRef(null)
+
+  function goTo(nextView) {
+    if (view === 'debug' && debugLeaveGuard.current) debugLeaveGuard.current()
+    setView(nextView)
+  }
 
   useEffect(() => {
     fetch('/api/changelog?site=fiets')
@@ -38,7 +44,7 @@ export default function FietsLayout() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
-            onClick={() => setView(v => v === 'debug' ? 'prognose' : 'debug')}
+            onClick={() => goTo(view === 'debug' ? 'prognose' : 'debug')}
             aria-label="Debug-data"
             style={{
               fontSize: 15, padding: '6px 10px', cursor: 'pointer',
@@ -48,7 +54,7 @@ export default function FietsLayout() {
             }}
           >🔬</button>
           <button
-            onClick={() => setView(v => v === 'instellingen' ? 'prognose' : 'instellingen')}
+            onClick={() => goTo(view === 'instellingen' ? 'prognose' : 'instellingen')}
             aria-label="Instellingen"
             style={{
               fontSize: 15, padding: '6px 10px', cursor: 'pointer',
@@ -57,11 +63,15 @@ export default function FietsLayout() {
               color: view === 'instellingen' ? 'var(--color-primary)' : 'var(--color-text-muted)',
             }}
           >⚙️</button>
-          <a href="/account/groups?back=/fiets/" style={{
-            fontSize: 12, color: 'var(--color-text-muted)',
-            textDecoration: 'none', padding: '6px 10px',
-            border: '1px solid var(--color-border)', borderRadius: 8,
-          }}>Account</a>
+          <a
+            href="/account/groups?back=/fiets/"
+            onClick={() => { if (view === 'debug' && debugLeaveGuard.current) debugLeaveGuard.current() }}
+            style={{
+              fontSize: 12, color: 'var(--color-text-muted)',
+              textDecoration: 'none', padding: '6px 10px',
+              border: '1px solid var(--color-border)', borderRadius: 8,
+            }}
+          >Account</a>
         </div>
       </header>
 
@@ -69,7 +79,7 @@ export default function FietsLayout() {
       <main style={{ flex: 1, overflowY: 'auto' }}>
         {view === 'prognose' && <PrognosePage />}
         {view === 'instellingen' && <InstellingenPage />}
-        {view === 'debug' && <DebugPage />}
+        {view === 'debug' && <DebugPage onBeforeLeave={debugLeaveGuard} />}
       </main>
     </div>
   )

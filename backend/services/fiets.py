@@ -34,6 +34,11 @@ RAIN_WEIGHT = 0.25
 SUN_WEIGHT = 0.15
 TEMP_WIND_BUDGET = 1 - NIGHT_WEIGHT - RAIN_WEIGHT - SUN_WEIGHT  # 0.25 — verdeeld via de instelbare temp/wind-balans
 
+# Nacht kan ook als absolute (harde) grens gelden i.p.v. alleen gewogen —
+# instelbaar via een toggle. De losse subscores blijven altijd echt berekend/
+# zichtbaar; dit plafond raakt alleen de eindscore.
+NIGHT_ABSOLUTE_MAX = 15  # score (0-100) die een nachtelijk uur maximaal krijgt als de toggle aan staat
+
 # Regen — geen harde poort. Regenkans bleek zwak gecorreleerd met werkelijke
 # neerslag (vaak 100% kans bij 0mm), dus telt niet mee. In plaats daarvan:
 # mm + WMO weather_code-tier (licht/matig/zwaar) bepalen samen de regen-score
@@ -283,6 +288,8 @@ def score_hour(
     wind_contrib = wind_weight * wind_score
 
     total = max(0.0, min(100.0, night_contrib + rain_contrib + temp_contrib + sun_contrib + wind_contrib))
+    if prefs.get("night_absolute") and not is_daytime:
+        total = min(total, NIGHT_ABSOLUTE_MAX)
     return {
         "score": round(total, 1),
         "night_gated": not is_daytime,

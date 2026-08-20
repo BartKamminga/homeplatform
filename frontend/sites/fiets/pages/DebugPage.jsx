@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '@core/api.js'
 
 const th = { padding: '4px 8px', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '2px solid var(--color-border)', position: 'sticky', top: 0, background: 'var(--color-surface)' }
@@ -7,66 +7,96 @@ const groupTh = { ...th, textAlign: 'center', borderLeft: '2px solid var(--color
 
 // Defaults matchen de vaste verdeling in services/fiets.py (NIGHT_WEIGHT=0.35,
 // RAIN_WEIGHT=0.25, TEMP_WIND_BUDGET=0.25 @ 60/40, SUN_WEIGHT=0.15) — als
-// startpunt voor de sliders.
+// startpunt voor de inputs.
 const DEFAULT_WEIGHTS = { night: 35, rain: 25, temp: 15, sun: 15, wind: 10 }
 const WEIGHT_FIELDS = [
-  { key: 'night', label: 'Nacht', prefKey: 'fiets_weight_night' },
-  { key: 'rain',  label: 'Regen', prefKey: 'fiets_weight_rain' },
-  { key: 'temp',  label: 'Temperatuur', prefKey: 'fiets_weight_temp' },
-  { key: 'sun',   label: 'Zon', prefKey: 'fiets_weight_sun' },
-  { key: 'wind',  label: 'Wind', prefKey: 'fiets_weight_wind' },
+  { key: 'night', label: 'Nacht' },
+  { key: 'rain',  label: 'Regen' },
+  { key: 'temp',  label: 'Temperatuur' },
+  { key: 'sun',   label: 'Zon' },
+  { key: 'wind',  label: 'Wind' },
 ]
+const PREVIEW_DEBOUNCE_MS = 400
 
-export default function DebugPage() {
+export default function DebugPage({ onBeforeLeave }) {
   const [rows,    setRows]    = useState(null)
-  const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
   const [weights, setWeights] = useState(null)
-  const [saving,  setSaving]  = useState(false)
+  const [nightAbsolute, setNightAbsolute] = useState(false)
+  const [savedState, setSavedState] = useState(null) // laatst opgeslagen waarden, voor dirty-check
+  const debounceRef = useRef(null)
 
-  function load() {
-    api.get('/api/fiets/debug')
+  function loadPreview(w, abs) {
+    const params = new URLSearchParams({
+      weight_night: w.night, weight_rain: w.rain, weight_temp: w.temp,
+      weight_sun: w.sun, weight_wind: w.wind, night_absolute: abs,
+    })
+    api.get(`/api/fiets/debug?${params}`)
       .then(d => setRows(d.rows || []))
       .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    load()
     api.get('/api/auth/me/ui-prefs').then(prefs => {
-      setWeights({
+      const w = {
         night: prefs.fiets_weight_night ?? DEFAULT_WEIGHTS.night,
         rain: prefs.fiets_weight_rain ?? DEFAULT_WEIGHTS.rain,
         temp: prefs.fiets_weight_temp ?? DEFAULT_WEIGHTS.temp,
         sun:  prefs.fiets_weight_sun ?? DEFAULT_WEIGHTS.sun,
         wind: prefs.fiets_weight_wind ?? DEFAULT_WEIGHTS.wind,
-      })
-    }).catch(() => setWeights(DEFAULT_WEIGHTS))
+      }
+      const abs = Boolean(prefs.fiets_night_absolute)
+      setWeights(w)
+      setNightAbsolute(abs)
+      setSavedState({ weights: w, nightAbsolute: abs })
+      loadPreview(w, abs)
+    }).catch(() => {
+      setWeights(DEFAULT_WEIGHTS)
+      setSavedState({ weights: DEFAULT_WEIGHTS, nightAbsolute: false })
+      loadPreview(DEFAULT_WEIGHTS, false)
+    })
   }, [])
 
-  function updateWeight(key, value) {
-    const next = { ...weights, [key]: value }
-    setWeights(next)
+  // Live preview: elke wijziging herberekent (gedebounced) de tabel via de
+  // querystring-preview, zonder iets op te slaan (geen Toepassen-knop meer).
+  useEffect(() => {
+    if (!weights) return
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => loadPreview(weights, nightAbsolute), PREVIEW_DEBOUNCE_MS)
+    return () => clearTimeout(debounceRef.current)
+  }, [weights, nightAbsolute])
+
+  function isDirty() {
+    if (!savedState || !weights) return false
+    return nightAbsolute !== savedState.nightAbsolute
+      || WEIGHT_FIELDS.some(f => Number(weights[f.key]) !== Number(savedState.weights[f.key]))
   }
 
-  async function saveWeights() {
-    setSaving(true)
-    try {
-      await api.patch('/api/auth/me/ui-prefs', {
-        fiets_weight_night: Number(weights.night), fiets_weight_rain: Number(weights.rain),
-        fiets_weight_temp: Number(weights.temp), fiets_weight_sun: Number(weights.sun),
-        fiets_weight_wind: Number(weights.wind),
-      })
-      setLoading(true)
-      load()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
+  async function saveNow() {
+    await api.patch('/api/auth/me/ui-prefs', {
+      fiets_weight_night: Number(weights.night), fiets_weight_rain: Number(weights.rain),
+      fiets_weight_temp: Number(weights.temp), fiets_weight_sun: Number(weights.sun),
+      fiets_weight_wind: Number(weights.wind), fiets_night_absolute: nightAbsolute,
+    })
+    setSavedState({ weights, nightAbsolute })
+  }
+
+  // Aangeroepen door FietsLayout vlak vóórdat de gebruiker deze pagina verlaat.
+  useEffect(() => {
+    if (!onBeforeLeave) return
+    onBeforeLeave.current = () => {
+      if (isDirty() && window.confirm('Je hebt de verhoudingen aangepast maar nog niet opgeslagen. Nu opslaan?')) {
+        saveNow().catch(() => {})
+      }
     }
+    return () => { if (onBeforeLeave) onBeforeLeave.current = null }
+  }, [weights, nightAbsolute, savedState])
+
+  function updateWeight(key, value) {
+    setWeights(w => ({ ...w, [key]: value }))
   }
 
-  if (loading || !weights) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+  if (!weights) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
   if (error) return <p style={{ padding: 20, fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>
 
   const total = WEIGHT_FIELDS.reduce((sum, f) => sum + Number(weights[f.key] || 0), 0) || 1
@@ -98,19 +128,17 @@ export default function DebugPage() {
             </span>
           </div>
         ))}
-        <button
-          onClick={saveWeights}
-          disabled={saving}
-          style={{
-            fontSize: 12, padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit',
-            border: '1px solid var(--color-border)', background: 'var(--color-primary)', color: '#fff', opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? 'Opslaan…' : 'Toepassen'}
-        </button>
-        <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-          getallen zijn onderlinge verhouding, worden genormaliseerd naar 100%
-        </span>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)', paddingBottom: 4 }}>
+          <input type="checkbox" checked={nightAbsolute} onChange={e => setNightAbsolute(e.target.checked)} />
+          Nacht is een absolute grens (plafond {15}, los van het gewicht)
+        </label>
+
+        {isDirty() && (
+          <span style={{ fontSize: 10, color: 'var(--color-text-muted)', paddingBottom: 4 }}>
+            niet opgeslagen — wordt gevraagd bij verlaten
+          </span>
+        )}
       </div>
 
       <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 10 }}>
@@ -148,7 +176,7 @@ export default function DebugPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {(rows || []).map((r, i) => (
               <tr key={i}>
                 <td style={td}>{r.time.slice(5).replace('T', ' ')}</td>
                 <td style={td}>{r.is_daytime ? '☀️' : '🌙'}</td>
