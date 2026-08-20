@@ -1,7 +1,6 @@
 export function daySummary(hours) {
   const temps = hours.map(h => h.temp)
   const winds = hours.map(h => h.wind_kmh)
-  const rainProbs = hours.map(h => h.rain_prob)
   const rainMm = hours.reduce((sum, h) => sum + (h.rain_mm || 0), 0)
 
   // Gemiddelde windrichting via vector-som (voorkomt vertekening rond de 0/360-overgang)
@@ -17,7 +16,6 @@ export function daySummary(hours) {
     tempMax: Math.round(Math.max(...temps)),
     windAvg: Math.round(winds.reduce((a, b) => a + b, 0) / winds.length),
     windDir,
-    rainProbMax: Math.max(...rainProbs),
     rainMm: Math.round(rainMm * 10) / 10,
     sunPct,
   }

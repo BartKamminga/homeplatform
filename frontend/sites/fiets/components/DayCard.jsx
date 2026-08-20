@@ -16,7 +16,7 @@ export default function DayCard({ day }) {
         <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>
           <span>🌡 {s.tempMin}–{s.tempMax}°C</span>
           <span>☀️ {s.sunPct}%</span>
-          <span>🌧 {s.rainProbMax}%</span>
+          <span>🌧 {s.rainMm}mm</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <WindArrow deg={s.windDir} kmh={s.windAvg} />
             {s.windAvg} km/u
