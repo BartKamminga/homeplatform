@@ -9,13 +9,25 @@ const THEME_VARS = [
   '--color-success', '--color-warning', '--color-danger',
 ]
 
+// Fallback als /core/theme.css niet laadt (bekend probleem, zie roadmap) —
+// zonder dit blijven de CSS-variabelen leeg en rendert de grafiek niets.
+const FALLBACK_COLORS = {
+  '--color-primary': '#ff3e6c',
+  '--color-border': 'rgba(0,0,0,0.1)',
+  '--color-text': '#1a1a1a',
+  '--color-text-muted': 'rgba(26,26,26,0.55)',
+  '--color-success': '#0F6E56',
+  '--color-warning': '#854F0B',
+  '--color-danger': '#A32D2D',
+}
+
 function useThemeColors() {
-  const [colors, setColors] = useState({})
+  const [colors, setColors] = useState(FALLBACK_COLORS)
   useEffect(() => {
     const read = () => {
       const cs = getComputedStyle(document.documentElement)
       const next = {}
-      THEME_VARS.forEach(v => { next[v] = cs.getPropertyValue(v).trim() })
+      THEME_VARS.forEach(v => { next[v] = cs.getPropertyValue(v).trim() || FALLBACK_COLORS[v] })
       setColors(next)
     }
     read()
