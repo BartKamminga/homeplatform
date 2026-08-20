@@ -62,3 +62,17 @@ async def get_prognose(
 @router.get("/geocode")
 async def geocode(q: str, _: User = Depends(get_current_user)):
     return {"results": await svc.geocode_location(q)}
+
+
+@router.get("/debug")
+async def get_debug_view(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Ruwe brondata (KNMI/GFS los) + score-tussenstappen per uur — voor de
+    debug/data-pagina (item 797), om te leren hoe de score tot stand komt."""
+    extra = _get_extra(current_user, session)
+    prefs = {out: extra[key] for key, out in _PREF_KEYS.items() if extra.get(key) is not None}
+    lat = extra.get("fiets_lat", settings.FIETS_LAT)
+    lon = extra.get("fiets_lon", settings.FIETS_LON)
+    return await svc.build_debug_view(lat, lon, prefs)

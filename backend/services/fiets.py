@@ -390,3 +390,56 @@ async def build_prognose(
         "cache_age_s": int(time.time() - cached["ts"]) if cached else 0,
         "days": days,
     }
+
+
+async def build_debug_view(lat: float, lon: float, prefs: dict | None = None) -> dict:
+    """Per uur: de ruwe waarden per bron (KNMI/GFS los), het geblende resultaat
+    en de score-tussenstappen — voor de debug/data-pagina (item 797), puur om
+    te leren hoe de score tot stand komt. Gebruikt altijd beide bronnen."""
+    prefs = prefs or {}
+    raw = await fetch_openmeteo_raw(lat, lon)
+    if raw is None:
+        return {"status": "error", "message": "Weerdata niet beschikbaar", "rows": []}
+
+    raw_hourly = raw["hourly"]
+    blended = _blend_models(raw_hourly, list(SOURCE_MODELS.values()))
+    n = len(raw_hourly["time"])
+
+    rows = []
+    for i in range(n):
+        per_source = {}
+        for key, model_id in SOURCE_MODELS.items():
+            per_source[key] = {
+                "temp": raw_hourly[f"temperature_2m_{model_id}"][i],
+                "rain_prob": raw_hourly[f"precipitation_probability_{model_id}"][i],
+                "rain_mm": raw_hourly[f"precipitation_{model_id}"][i],
+                "weather_code": raw_hourly[f"weather_code_{model_id}"][i],
+                "cloud_cover": raw_hourly[f"cloud_cover_{model_id}"][i],
+                "wind_kmh": raw_hourly[f"wind_speed_10m_{model_id}"][i],
+                "wind_dir": raw_hourly[f"wind_direction_10m_{model_id}"][i],
+            }
+
+        is_daytime = bool(blended["is_day"][i])
+        s = score_hour(
+            blended["temperature_2m"][i], blended["precipitation"][i], blended["rain_tier"][i],
+            blended["wind_speed_10m"][i], blended["wind_direction_10m"][i], blended["cloud_cover"][i],
+            is_daytime, prefs,
+        )
+        rows.append({
+            "time": blended["time"][i],
+            "is_daytime": is_daytime,
+            "sources": per_source,
+            "blended": {
+                "temp": blended["temperature_2m"][i],
+                "rain_prob": blended["precipitation_probability"][i],
+                "rain_mm": blended["precipitation"][i],
+                "rain_tier": blended["rain_tier"][i],
+                "cloud_cover": blended["cloud_cover"][i],
+                "wind_kmh": blended["wind_speed_10m"][i],
+                "wind_dir": blended["wind_direction_10m"][i],
+            },
+            "low_confidence": blended["low_confidence"][i],
+            "score": s,
+        })
+
+    return {"status": "ok", "rows": rows}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import PrognosePage from './pages/PrognosePage.jsx'
 import InstellingenPage from './pages/InstellingenPage.jsx'
+import DebugPage from './pages/DebugPage.jsx'
 
 export default function FietsLayout() {
   const [version, setVersion] = useState('')
@@ -37,7 +38,17 @@ export default function FietsLayout() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
-            onClick={() => setView(v => v === 'prognose' ? 'instellingen' : 'prognose')}
+            onClick={() => setView(v => v === 'debug' ? 'prognose' : 'debug')}
+            aria-label="Debug-data"
+            style={{
+              fontSize: 15, padding: '6px 10px', cursor: 'pointer',
+              border: '1px solid var(--color-border)', borderRadius: 8,
+              background: 'transparent', lineHeight: 1,
+              color: view === 'debug' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            }}
+          >🔬</button>
+          <button
+            onClick={() => setView(v => v === 'instellingen' ? 'prognose' : 'instellingen')}
             aria-label="Instellingen"
             style={{
               fontSize: 15, padding: '6px 10px', cursor: 'pointer',
@@ -56,7 +67,9 @@ export default function FietsLayout() {
 
       {/* Content */}
       <main style={{ flex: 1, overflowY: 'auto' }}>
-        {view === 'prognose' ? <PrognosePage /> : <InstellingenPage />}
+        {view === 'prognose' && <PrognosePage />}
+        {view === 'instellingen' && <InstellingenPage />}
+        {view === 'debug' && <DebugPage />}
       </main>
     </div>
   )
