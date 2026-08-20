@@ -24,12 +24,23 @@ class HockeyPublication(SQLModel, table=True):
     info:        Optional[str] = Field(default=None)
 
 
-class HockeyPublicationTag(SQLModel, table=True):
-    __tablename__ = "hockey_publication_tags"
+class HockeyPublicationTagCategory(SQLModel, table=True):
+    """Organisatorische groepering van tags (item 749) - bv. 'Niveau'/'Leeftijd'/
+    'Regio'. Puur presentatie: verandert niets aan de AND-filterlogica op tag-naam."""
+    __tablename__ = "hockey_publication_tag_categories"
 
     id:    str = Field(default_factory=_new_uuid, primary_key=True)
     name:  str = Field(unique=True)
     order: int = Field(default=0)
+
+
+class HockeyPublicationTag(SQLModel, table=True):
+    __tablename__ = "hockey_publication_tags"
+
+    id:          str           = Field(default_factory=_new_uuid, primary_key=True)
+    name:        str           = Field(unique=True)
+    order:       int           = Field(default=0)
+    category_id: Optional[str] = Field(default=None, foreign_key="hockey_publication_tag_categories.id")
 
 
 class HockeyPublicationComp(SQLModel, table=True):

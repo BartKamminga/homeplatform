@@ -228,8 +228,14 @@ export function usePublicationBrowse() {
     return true
   }
 
+  // item 749: categorie meegeven per tag (puur organisatorisch, groepeert
+  // alleen de weergave in BrowseView - de AND-filterlogica werkt nog steeds
+  // op tag-naam, ongewijzigd).
   const allTags = pubComps
-    ? [...new Set(pubComps.flatMap(c => (c.fase_tags || []).map(t => t.name)))]
+    ? [...new Map(
+        pubComps.flatMap(c => c.fase_tags || [])
+          .map(t => [t.name, { name: t.name, category_name: t.category_name, category_order: t.category_order }])
+      ).values()]
     : []
   const filteredComps = !pubComps ? [] : tagFilters.size === 0 ? pubComps
     : pubComps.filter(c => {

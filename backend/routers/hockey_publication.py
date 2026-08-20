@@ -15,6 +15,7 @@ from models.hockey import (
     HockeyPublication,
     HockeyPublicationComp,
     HockeyPublicationTag,
+    HockeyPublicationTagCategory,
     HockeyPublicationCompTag,
 )
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch
@@ -44,6 +45,12 @@ class PublicationsReorder(BaseModel):
 class TagsReorder(BaseModel):
     ids: list
 
+class TagCategoryCreate(BaseModel):
+    name: str
+
+class TagCategoriesReorder(BaseModel):
+    ids: list
+
 class CompLinkCreate(BaseModel):
     competition_id: int
     order:          int = 0
@@ -56,7 +63,12 @@ class CompLinkUpdate(BaseModel):
     scan_profile: Optional[str]  = None
 
 class TagCreate(BaseModel):
-    name: str
+    name:        str
+    category_id: Optional[str] = None
+
+class TagUpdate(BaseModel):
+    name:        Optional[str] = None
+    category_id: Optional[str] = None
 
 class TagAssign(BaseModel):
     tag_id: str
@@ -110,9 +122,21 @@ def reorder_publications(body: PublicationsReorder, session: Session = Depends(g
 
 # ── Globale publicatie-tags (vóór /{pid} om conflict te voorkomen) ─────────────
 
+def _serialize_tag(tag: HockeyPublicationTag, cats_by_id: dict) -> dict:
+    cat = cats_by_id.get(tag.category_id) if tag.category_id else None
+    return {
+        "id": tag.id, "name": tag.name, "order": tag.order,
+        "category_id": tag.category_id,
+        "category_name": cat.name if cat else None,
+        "category_order": cat.order if cat else None,
+    }
+
+
 @router.get("/tags")
 def list_tags(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
-    return session.exec(select(HockeyPublicationTag).order_by(HockeyPublicationTag.order, HockeyPublicationTag.name)).all()
+    cats_by_id = {c.id: c for c in session.exec(select(HockeyPublicationTagCategory)).all()}
+    tags = session.exec(select(HockeyPublicationTag).order_by(HockeyPublicationTag.order, HockeyPublicationTag.name)).all()
+    return [_serialize_tag(t, cats_by_id) for t in tags]
 
 
 @router.post("/tags", status_code=201)
@@ -124,20 +148,12 @@ def create_tag(body: TagCreate, session: Session = Depends(get_session), _: User
     if existing:
         return existing
     count = session.exec(select(func.count()).select_from(HockeyPublicationTag)).one()
-    tag = HockeyPublicationTag(name=name, order=count)
+    tag = HockeyPublicationTag(name=name, order=count, category_id=body.category_id)
     session.add(tag)
     session.commit()
     session.refresh(tag)
-    return tag
-
-
-@router.delete("/tags/{tag_id}", status_code=204)
-def delete_tag(tag_id: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
-    tag = session.get(HockeyPublicationTag, tag_id)
-    if not tag:
-        raise HTTPException(404, "Tag niet gevonden")
-    session.delete(tag)
-    session.commit()
+    cats_by_id = {c.id: c for c in session.exec(select(HockeyPublicationTagCategory)).all()}
+    return _serialize_tag(tag, cats_by_id)
 
 
 @router.patch("/tags/reorder")
@@ -149,6 +165,80 @@ def reorder_tags(body: TagsReorder, session: Session = Depends(get_session), _: 
             session.add(tag)
     session.commit()
     return {"ok": True}
+
+
+@router.patch("/tags/{tag_id}")
+def update_tag(tag_id: str, body: TagUpdate, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    """Vooral bedoeld om category_id te (her)toewijzen, incl. terug naar null (item 749)."""
+    tag = session.get(HockeyPublicationTag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag niet gevonden")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(tag, k, v)
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    cats_by_id = {c.id: c for c in session.exec(select(HockeyPublicationTagCategory)).all()}
+    return _serialize_tag(tag, cats_by_id)
+
+
+@router.delete("/tags/{tag_id}", status_code=204)
+def delete_tag(tag_id: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    tag = session.get(HockeyPublicationTag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag niet gevonden")
+    session.delete(tag)
+    session.commit()
+
+
+# ── Tag-categorieën (item 749: organisatorische groepering, geen filterlogica) ─
+
+@router.get("/tag-categories")
+def list_tag_categories(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    return session.exec(
+        select(HockeyPublicationTagCategory).order_by(HockeyPublicationTagCategory.order, HockeyPublicationTagCategory.name)
+    ).all()
+
+
+@router.post("/tag-categories", status_code=201)
+def create_tag_category(body: TagCategoryCreate, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Naam is verplicht")
+    existing = session.exec(select(HockeyPublicationTagCategory).where(HockeyPublicationTagCategory.name == name)).first()
+    if existing:
+        return existing
+    count = session.exec(select(func.count()).select_from(HockeyPublicationTagCategory)).one()
+    cat = HockeyPublicationTagCategory(name=name, order=count)
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    return cat
+
+
+@router.patch("/tag-categories/reorder")
+def reorder_tag_categories(body: TagCategoriesReorder, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    for i, cat_id in enumerate(body.ids):
+        cat = session.get(HockeyPublicationTagCategory, cat_id)
+        if cat:
+            cat.order = i
+            session.add(cat)
+    session.commit()
+    return {"ok": True}
+
+
+@router.delete("/tag-categories/{cat_id}", status_code=204)
+def delete_tag_category(cat_id: str, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    cat = session.get(HockeyPublicationTagCategory, cat_id)
+    if not cat:
+        raise HTTPException(404, "Categorie niet gevonden")
+    # Tags die naar deze categorie wezen vallen terug naar "Overig" i.p.v. een
+    # dangling category_id te laten staan.
+    for tag in session.exec(select(HockeyPublicationTag).where(HockeyPublicationTag.category_id == cat_id)).all():
+        tag.category_id = None
+        session.add(tag)
+    session.delete(cat)
+    session.commit()
 
 
 # ── Publicatie detail (ná de vaste paden) ────────────────────────────────────

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import {
   getPublicationComps, addPublicationComp, updatePublicationComp, removePublicationComp,
   getDiscoveryComps, syncCompetition,
-  getPublicationTags, addPublicationTag, removePublicationTag, reorderPublicationTags,
+  getPublicationTags, addPublicationTag, updatePublicationTag, removePublicationTag, reorderPublicationTags,
+  getTagCategories, addTagCategory, removeTagCategory, reorderTagCategories,
   assignCompTag, removeCompTag,
   KNOWN_SEASONS,
 } from '../../api.js'
@@ -30,6 +31,7 @@ export default function CompetitiesTab({
 }) {
   const [links,       setLinks]       = useState([])
   const [globalTags,  setGlobalTags]  = useState([])
+  const [categories,  setCategories]  = useState([])
   const [allComps,    setAllComps]    = useState([])
   const [loading,     setLoading]     = useState(false)
   const [msg,         setMsg]         = useState('')
@@ -38,10 +40,14 @@ export default function CompetitiesTab({
   const [filterQ,     setFilterQ]     = useState('')
   const [adding,      setAdding]      = useState(false)
   const [newTagName,  setNewTagName]  = useState('')
+  const [newTagCategoryId, setNewTagCategoryId] = useState('')
   const [addingTag,   setAddingTag]   = useState(false)
+  const [newCatName,  setNewCatName]  = useState('')
+  const [addingCat,   setAddingCat]   = useState(false)
   const [season,      setSeason]      = useState(() => normalizeSeason(seasonProp))
   const [selectedComps, setSelectedComps] = useState(new Set())
   const [confirmTag,  setConfirmTag]  = useState(null)
+  const [confirmCat,  setConfirmCat]  = useState(null)
   const [confirmLink, setConfirmLink] = useState(null)
   const [selectedLnk, setSelectedLnk] = useState(null)
   const [metaOpen,    toggleMetaOpen] = useCollapse(false)
@@ -49,8 +55,10 @@ export default function CompetitiesTab({
   const [deleting,    setDeleting]    = useState(false)
   const tagDragIdx = useRef(null)
   const [tagOverIdx, setTagOverIdx] = useState(null)
+  const catDragIdx = useRef(null)
+  const [catOverIdx, setCatOverIdx] = useState(null)
 
-  useEffect(() => { loadGlobalTags() }, [])
+  useEffect(() => { loadGlobalTags(); loadCategories() }, [])
   useEffect(() => { if (tid) { loadLinks() } }, [tid])
   useEffect(() => { if (tid) { loadComps() } }, [tid, season])
 
@@ -63,6 +71,11 @@ export default function CompetitiesTab({
 
   async function loadGlobalTags() {
     try { setGlobalTags(await getPublicationTags()) }
+    catch { /* stil */ }
+  }
+
+  async function loadCategories() {
+    try { setCategories(await getTagCategories()) }
     catch { /* stil */ }
   }
 
@@ -83,9 +96,10 @@ export default function CompetitiesTab({
     if (!name) return
     setAddingTag(true)
     try {
-      const t = await addPublicationTag({ name })
+      const t = await addPublicationTag({ name, category_id: newTagCategoryId || null })
       setGlobalTags(prev => prev.some(x => x.id === t.id) ? prev : [...prev, t])
       setNewTagName('')
+      setNewTagCategoryId('')
     } catch (e) { flash(e.message, true) }
     finally { setAddingTag(false) }
   }
@@ -115,6 +129,61 @@ export default function CompetitiesTab({
       setLinks(prev => prev.map(l => ({
         ...l, fase_tags: (l.fase_tags || []).filter(t => t.id !== tag.id),
       })))
+    } catch (e) { flash(e.message, true) }
+  }
+
+  // item 749: tag toewijzen aan een categorie (of terug naar "Overig" met null)
+  // - puur organisatorisch, verandert niets aan de AND-filterlogica op naam.
+  async function handleAssignTagCategory(tagId, categoryId) {
+    const cat = categories.find(c => c.id === categoryId) || null
+    setGlobalTags(prev => prev.map(t => t.id === tagId
+      ? { ...t, category_id: categoryId, category_name: cat?.name ?? null, category_order: cat?.order ?? null }
+      : t
+    ))
+    try {
+      await updatePublicationTag(tagId, { category_id: categoryId })
+    } catch (e) {
+      await loadGlobalTags()
+      flash(e.message, true)
+    }
+  }
+
+  async function handleAddCategory() {
+    const name = newCatName.trim()
+    if (!name) return
+    setAddingCat(true)
+    try {
+      const c = await addTagCategory({ name })
+      setCategories(prev => prev.some(x => x.id === c.id) ? prev : [...prev, c])
+      setNewCatName('')
+    } catch (e) { flash(e.message, true) }
+    finally { setAddingCat(false) }
+  }
+
+  function handleReorderCategories(newList) {
+    setCategories(newList)
+    reorderTagCategories(newList.map(c => c.id)).catch(() => {})
+  }
+
+  function handleCatDrop(targetIdx) {
+    if (catDragIdx.current === null || catDragIdx.current === targetIdx) { setCatOverIdx(null); return }
+    const next = [...categories]
+    const [moved] = next.splice(catDragIdx.current, 1)
+    next.splice(targetIdx, 0, moved)
+    catDragIdx.current = null
+    setCatOverIdx(null)
+    handleReorderCategories(next)
+  }
+
+  async function doRemoveCategory(cat) {
+    setConfirmCat(null)
+    try {
+      await removeTagCategory(cat.id)
+      setCategories(prev => prev.filter(x => x.id !== cat.id))
+      setGlobalTags(prev => prev.map(t => t.category_id === cat.id
+        ? { ...t, category_id: null, category_name: null, category_order: null }
+        : t
+      ))
     } catch (e) { flash(e.message, true) }
   }
 
@@ -252,14 +321,28 @@ export default function CompetitiesTab({
           onCancel={() => setConfirmLink(null)}
         />
       )}
+      {confirmCat && (
+        <InlineConfirm
+          msg={`Categorie "${confirmCat.name}" verwijderen? Tags in deze categorie vallen terug naar "Overig".`}
+          onConfirm={() => doRemoveCategory(confirmCat)}
+          onCancel={() => setConfirmCat(null)}
+        />
+      )}
 
       {isAdmin && (
         <BeheerPanel
           metaOpen={metaOpen} toggleMetaOpen={toggleMetaOpen}
           published={published} onTogglePublished={onTogglePublished}
           season={season} setSeason={setSeason}
-          globalTags={globalTags} onRequestDeleteTag={setConfirmTag}
+          globalTags={globalTags} onRequestDeleteTag={setConfirmTag} onAssignTagCategory={handleAssignTagCategory}
           newTagName={newTagName} setNewTagName={setNewTagName} addingTag={addingTag} onAddTag={handleAddTag}
+          newTagCategoryId={newTagCategoryId} setNewTagCategoryId={setNewTagCategoryId}
+          categories={categories} onRequestDeleteCategory={setConfirmCat}
+          newCatName={newCatName} setNewCatName={setNewCatName} addingCat={addingCat} onAddCategory={handleAddCategory}
+          onCatDragStart={i => { catDragIdx.current = i }}
+          onCatDragOver={i => setCatOverIdx(i)}
+          onCatDrop={handleCatDrop}
+          catOverIdx={catOverIdx}
           onDelete={onDelete} confirmDel={confirmDel} setConfirmDel={setConfirmDel} deleting={deleting} onConfirmDelete={handleDelete}
           onTagDragStart={i => { tagDragIdx.current = i }}
           onTagDragOver={i => setTagOverIdx(i)}

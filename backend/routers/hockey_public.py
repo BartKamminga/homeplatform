@@ -13,6 +13,7 @@ from models.hockey_discovery import (
     HockeyPouleStanding,
     HockeyTeam,
 )
+from models.hockey import HockeyPublicationTagCategory
 from services.hockey_scope import get_comp_link_tags, get_visible_comp_links
 from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
@@ -53,6 +54,11 @@ def get_tournament_competition_standings(
     if not links:
         return {"tournament_id": tid, "competitions": []}
 
+    # item 749: categorie-info meegeven per tag, puur organisatorisch (verandert
+    # niets aan de AND-filterlogica op tag-naam) zodat poulebord tags gegroepeerd
+    # kan tonen zonder een extra round-trip.
+    cats_by_id = {c.id: c for c in session.exec(select(HockeyPublicationTagCategory)).all()}
+
     competitions = []
     for lnk in links:
         comp = session.get(HockeyCompetition, lnk.competition_id)
@@ -83,7 +89,14 @@ def get_tournament_competition_standings(
             "class_name":  comp.class_name,
             "district":    comp.district,
             "season":      comp.season,
-            "fase_tags":   [{"id": ft.id, "name": ft.name} for ft in assigned_tags],
+            "fase_tags":   [
+                {
+                    "id": ft.id, "name": ft.name,
+                    "category_name": cats_by_id[ft.category_id].name if ft.category_id in cats_by_id else None,
+                    "category_order": cats_by_id[ft.category_id].order if ft.category_id in cats_by_id else None,
+                }
+                for ft in assigned_tags
+            ],
             "poules":      [],
         }
         for poule in poules:

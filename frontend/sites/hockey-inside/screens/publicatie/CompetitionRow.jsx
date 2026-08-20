@@ -1,101 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
-import { getHockeyPouleStandings, getCompetitionMatches } from '../../api.js'
 import { card, deleteBtn } from '../styles.js'
 import { Toggle } from '../ui.jsx'
 
-// ── PouleDetail ────────────────────────────────────────────────────────────────
-
-function PouleDetail({ poule }) {
-  const [data,    setData]    = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    Promise.all([
-      getHockeyPouleStandings(poule.id).catch(() => null),
-      getCompetitionMatches(poule.competition_id).catch(() => null),
-    ]).then(([standings, matchData]) => {
-      const pouleMeta = matchData?.poules?.find(p => p.id === poule.id)
-      setData({ standings: standings?.standings || [], finished: pouleMeta?.finished || [], scheduled: pouleMeta?.scheduled || [] })
-    }).finally(() => setLoading(false))
-  }, [poule.id])
-
-  if (loading) return <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '6px 0' }}>Laden…</div>
-
-  return (
-    <div style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
-      {data?.standings?.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '.05em', marginBottom: 4 }}>STAND</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-            <thead>
-              <tr style={{ color: 'var(--color-text-muted)', textAlign: 'right' }}>
-                <th style={{ textAlign: 'left', paddingRight: 8, fontWeight: 400 }}>Team</th>
-                <th style={{ width: 24 }}>G</th><th style={{ width: 24 }}>W</th>
-                <th style={{ width: 24 }}>G</th><th style={{ width: 24 }}>V</th>
-                <th style={{ width: 36 }}>Doel</th><th style={{ width: 28, fontWeight: 700 }}>Pnt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.standings.map((r, i) => (
-                <tr key={i} style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-text)' }}>
-                  <td style={{ padding: '2px 8px 2px 0', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.team_name}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.played ?? (r.won + r.drawn + r.lost)}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.won}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.drawn}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.lost}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.gf}-{r.ga}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{r.pts}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data?.finished?.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '.05em', marginBottom: 4 }}>GESPEELD</div>
-          {data.finished.slice(-10).map((m, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '2px 0', borderTop: '1px solid var(--color-border)' }}>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
-              <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{m.home_score ?? '?'}–{m.away_score ?? '?'}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{m.away}</span>
-            </div>
-          ))}
-          {data.finished.length > 10 && <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>+{data.finished.length - 10} eerder</div>}
-        </div>
-      )}
-      {data?.scheduled?.length > 0 && (
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '.05em', marginBottom: 4 }}>GEPLAND</div>
-          {data.scheduled.slice(0, 10).map((m, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '2px 0', borderTop: '1px solid var(--color-border)' }}>
-              {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, fontSize: 10 }}>{m.date.slice(0, 10)}</span>}
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
-              <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>vs</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{m.away}</span>
-            </div>
-          ))}
-          {data.scheduled.length > 10 && <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>+{data.scheduled.length - 10} meer</div>}
-        </div>
-      )}
-      {!data?.standings?.length && !data?.finished?.length && !data?.scheduled?.length && (
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Geen data beschikbaar.</div>
-      )}
-    </div>
-  )
-}
-
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
+// item 747 (correctie): geen poule-lijst/accordeon meer op deze rij - alleen
+// de "N poule(s)"-samenvatting. De volledige standen/programma/uitslagen
+// staan al in CompetitieDetailView (bereikt door op de kaart te klikken),
+// dus dat is geen functieverlies. item 748 (correctie): visible- en
+// scan_profile-toggle gebruiken nu exact hetzelfde ●/○-patroon + kleuren als
+// de publicatie-published-toggle, i.p.v. eigen icoon/emoji-stijlen.
 
 export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onRemove, onOpenDetail }) {
-  const [openPoule,     setOpenPoule]     = useState(null)
   const [showTagPicker, setShowTagPicker] = useState(false)
   const pickerRef   = useRef(null)
   const comp        = lnk.competition
   const poules      = lnk.poules || []
   const assigned    = lnk.fase_tags || []
   const assignedIds = new Set(assigned.map(t => t.id))
-  const available   = globalTags.filter(t => !assignedIds.has(t.id))
+  const available   = globalTags
+    .filter(t => !assignedIds.has(t.id))
+    .sort((a, b) => (a.category_order ?? 0) - (b.category_order ?? 0) || a.name.localeCompare(b.name))
 
   const suggestedTags = globalTags.filter(gt =>
     !assignedIds.has(gt.id) &&
@@ -112,7 +36,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
   }, [showTagPicker])
 
   return (
-    <div style={{ ...card, marginBottom: 6 }}>
+    <div onClick={onOpenDetail} style={{ ...card, marginBottom: 6, cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, padding: 0 }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>
@@ -125,20 +49,19 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
             </span>
           )}
         </div>
-        <button onClick={onOpenDetail} title="Open detail"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-primary)', padding: '0 2px', fontFamily: 'inherit' }}>→</button>
-        <Toggle on={lnk.visible} onChange={onToggleVisible} compact
-          onLabel="👁" offLabel="🚫"
+        <Toggle on={lnk.visible} onChange={e => { e.stopPropagation(); onToggleVisible() }}
+          onLabel="● Zichtbaar" offLabel="○ Concept" offVariant="partial"
           title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'} />
         {onToggleScanProfile && (
-          <Toggle on={lnk.scan_profile === 'active'} onChange={onToggleScanProfile}
-            onLabel="🔄 Auto-scan" offLabel="⏸ Handmatig"
+          <Toggle on={lnk.scan_profile === 'active'} onChange={e => { e.stopPropagation(); onToggleScanProfile() }}
+            onLabel="● Auto-scan" offLabel="○ Handmatig" offVariant="partial"
             title={lnk.scan_profile === 'active' ? 'Auto-scan actief — klik om uit te zetten' : 'Auto-scan uit — klik om te activeren'} />
         )}
-        <button onClick={onRemove} style={deleteBtn} title="Verwijder koppeling">✕</button>
+        <button onClick={e => { e.stopPropagation(); onRemove() }} style={deleteBtn} title="Verwijder koppeling">✕</button>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8, alignItems: 'center', position: 'relative' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8, alignItems: 'center', position: 'relative' }}>
         {assigned.map(tag => (
           <span key={tag.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, padding: '2px 6px 2px 8px', borderRadius: 20, background: 'var(--color-primary)', color: '#fff' }}>
             {tag.name}
@@ -174,27 +97,6 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>geen tags</span>
         )}
       </div>
-
-      {poules.length > 0 && (
-        <div style={{ paddingTop: 10 }}>
-          {poules.map(p => (
-            <div key={p.id} style={{ marginBottom: 4 }}>
-              <button onClick={() => setOpenPoule(prev => prev === p.id ? null : p.id)}
-                style={{ width: '100%', textAlign: 'left', background: openPoule === p.id ? 'var(--color-primary)11' : 'var(--color-bg)', border: `1px solid ${openPoule === p.id ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--color-text)', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{p.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                  {p.matches_played ?? 0}/{p.matches_total ?? 0} gespeeld {openPoule === p.id ? '▾' : '▸'}
-                </span>
-              </button>
-              {openPoule === p.id && (
-                <div style={{ padding: '6px 10px 4px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderTop: 'none', borderRadius: '0 0 6px 6px' }}>
-                  <PouleDetail poule={{ ...p, competition_id: comp?.id }} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

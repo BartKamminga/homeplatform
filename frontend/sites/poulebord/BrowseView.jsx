@@ -3,6 +3,23 @@ import { SeizoenInfo } from './TournixBrowseCards.jsx'
 import { CompBrowseItem } from './BrowseComponents.jsx'
 import { QuerySlotsSection } from './QuerySlotsSection.jsx'
 
+// item 749: tags groeperen op categorie in de filterbalk - puur presentatie,
+// "Overig" (geen categorie) staat altijd als laatste groep. Verandert niets
+// aan tagFilters/onToggleTagFilter, die werken nog steeds op tag-naam.
+function groupTagsByCategory(allTags) {
+  const groups = new Map()
+  for (const tag of allTags) {
+    const key = tag.category_name || '__none__'
+    if (!groups.has(key)) groups.set(key, { name: tag.category_name, order: tag.category_order, tags: [] })
+    groups.get(key).tags.push(tag)
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (!a.name) return 1
+    if (!b.name) return -1
+    return (a.order ?? 0) - (b.order ?? 0)
+  })
+}
+
 export function BrowseView({
   all, error, selectedPub,
   infoOpen, onToggleInfo,
@@ -57,11 +74,23 @@ export function BrowseView({
                 )}
               </div>
               {filtersOpen && (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <button onClick={onClearTagFilters} style={pillStyle(activeCount === 0)}>Alle</button>
-                  {allTags.map(tag => (
-                    <button key={tag} onClick={() => onToggleTagFilter(tag)}
-                      style={pillStyle(tagFilters.has(tag))}>{tag}</button>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                    <button onClick={onClearTagFilters} style={pillStyle(activeCount === 0)}>Alle</button>
+                  </div>
+                  {groupTagsByCategory(allTags).map(group => (
+                    <div key={group.name || '__none__'} style={{ marginBottom: 6 }}>
+                      {group.name && (
+                        <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase',
+                          letterSpacing: '0.05em', marginBottom: 3 }}>{group.name}</div>
+                      )}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {group.tags.map(tag => (
+                          <button key={tag.name} onClick={() => onToggleTagFilter(tag.name)}
+                            style={pillStyle(tagFilters.has(tag.name))}>{tag.name}</button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
