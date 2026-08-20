@@ -27,7 +27,7 @@ export default function DayCard({ day }) {
         {w ? (
           <>Beste moment: <strong style={{ color: 'var(--color-text)' }}>{w.label}</strong></>
         ) : (
-          'Geen goed moment overdag'
+          'Geen goed moment gevonden'
         )}
       </div>
     </div>

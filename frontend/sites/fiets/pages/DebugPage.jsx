@@ -5,12 +5,12 @@ const th = { padding: '4px 8px', textAlign: 'left', whiteSpace: 'nowrap', border
 const td = { padding: '4px 8px', whiteSpace: 'nowrap' }
 const groupTh = { ...th, textAlign: 'center', borderLeft: '2px solid var(--color-border)' }
 
-// Defaults matchen de vaste verdeling in services/fiets.py (NIGHT_WEIGHT=0.35,
-// RAIN_WEIGHT=0.25, TEMP_WIND_BUDGET=0.25 @ 60/40, SUN_WEIGHT=0.15) — als
-// startpunt voor de inputs.
-const DEFAULT_WEIGHTS = { night: 35, rain: 25, temp: 15, sun: 15, wind: 10 }
+// Defaults matchen de vaste verdeling in services/fiets.py (RAIN_WEIGHT=0.4,
+// TEMP_WIND_BUDGET=0.4 @ 60/40, SUN_WEIGHT=0.2) — als startpunt voor de inputs.
+// Daglicht is geen gewicht meer (zie roadmap-item "Dag/nacht van gewogen
+// score-factor naar los daglicht-filter/badge") — puur weer.
+const DEFAULT_WEIGHTS = { rain: 40, temp: 24, sun: 20, wind: 16 }
 const WEIGHT_FIELDS = [
-  { key: 'night', label: 'Nacht' },
   { key: 'rain',  label: 'Regen' },
   { key: 'temp',  label: 'Temperatuur' },
   { key: 'sun',   label: 'Zon' },
@@ -22,14 +22,12 @@ export default function DebugPage({ onBeforeLeave }) {
   const [rows,    setRows]    = useState(null)
   const [error,   setError]   = useState('')
   const [weights, setWeights] = useState(null)
-  const [nightAbsolute, setNightAbsolute] = useState(false)
   const [savedState, setSavedState] = useState(null) // laatst opgeslagen waarden, voor dirty-check
   const debounceRef = useRef(null)
 
-  function loadPreview(w, abs) {
+  function loadPreview(w) {
     const params = new URLSearchParams({
-      weight_night: w.night, weight_rain: w.rain, weight_temp: w.temp,
-      weight_sun: w.sun, weight_wind: w.wind, night_absolute: abs,
+      weight_rain: w.rain, weight_temp: w.temp, weight_sun: w.sun, weight_wind: w.wind,
     })
     api.get(`/api/fiets/debug?${params}`)
       .then(d => setRows(d.rows || []))
@@ -39,21 +37,18 @@ export default function DebugPage({ onBeforeLeave }) {
   useEffect(() => {
     api.get('/api/auth/me/ui-prefs').then(prefs => {
       const w = {
-        night: prefs.fiets_weight_night ?? DEFAULT_WEIGHTS.night,
         rain: prefs.fiets_weight_rain ?? DEFAULT_WEIGHTS.rain,
         temp: prefs.fiets_weight_temp ?? DEFAULT_WEIGHTS.temp,
         sun:  prefs.fiets_weight_sun ?? DEFAULT_WEIGHTS.sun,
         wind: prefs.fiets_weight_wind ?? DEFAULT_WEIGHTS.wind,
       }
-      const abs = Boolean(prefs.fiets_night_absolute)
       setWeights(w)
-      setNightAbsolute(abs)
-      setSavedState({ weights: w, nightAbsolute: abs })
-      loadPreview(w, abs)
+      setSavedState({ weights: w })
+      loadPreview(w)
     }).catch(() => {
       setWeights(DEFAULT_WEIGHTS)
-      setSavedState({ weights: DEFAULT_WEIGHTS, nightAbsolute: false })
-      loadPreview(DEFAULT_WEIGHTS, false)
+      setSavedState({ weights: DEFAULT_WEIGHTS })
+      loadPreview(DEFAULT_WEIGHTS)
     })
   }, [])
 
@@ -62,23 +57,21 @@ export default function DebugPage({ onBeforeLeave }) {
   useEffect(() => {
     if (!weights) return
     clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => loadPreview(weights, nightAbsolute), PREVIEW_DEBOUNCE_MS)
+    debounceRef.current = setTimeout(() => loadPreview(weights), PREVIEW_DEBOUNCE_MS)
     return () => clearTimeout(debounceRef.current)
-  }, [weights, nightAbsolute])
+  }, [weights])
 
   function isDirty() {
     if (!savedState || !weights) return false
-    return nightAbsolute !== savedState.nightAbsolute
-      || WEIGHT_FIELDS.some(f => Number(weights[f.key]) !== Number(savedState.weights[f.key]))
+    return WEIGHT_FIELDS.some(f => Number(weights[f.key]) !== Number(savedState.weights[f.key]))
   }
 
   async function saveNow() {
     await api.patch('/api/auth/me/ui-prefs', {
-      fiets_weight_night: Number(weights.night), fiets_weight_rain: Number(weights.rain),
-      fiets_weight_temp: Number(weights.temp), fiets_weight_sun: Number(weights.sun),
-      fiets_weight_wind: Number(weights.wind), fiets_night_absolute: nightAbsolute,
+      fiets_weight_rain: Number(weights.rain), fiets_weight_temp: Number(weights.temp),
+      fiets_weight_sun: Number(weights.sun), fiets_weight_wind: Number(weights.wind),
     })
-    setSavedState({ weights, nightAbsolute })
+    setSavedState({ weights })
   }
 
   // Aangeroepen door FietsLayout vlak vóórdat de gebruiker deze pagina verlaat.
@@ -90,7 +83,7 @@ export default function DebugPage({ onBeforeLeave }) {
       }
     }
     return () => { if (onBeforeLeave) onBeforeLeave.current = null }
-  }, [weights, nightAbsolute, savedState])
+  }, [weights, savedState])
 
   function updateWeight(key, value) {
     setWeights(w => ({ ...w, [key]: value }))
@@ -128,11 +121,6 @@ export default function DebugPage({ onBeforeLeave }) {
             </span>
           </div>
         ))}
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)', paddingBottom: 4 }}>
-          <input type="checkbox" checked={nightAbsolute} onChange={e => setNightAbsolute(e.target.checked)} />
-          Nacht is een absolute grens (plafond {15}, los van het gewicht)
-        </label>
 
         {isDirty() && (
           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', paddingBottom: 4 }}>
@@ -174,15 +162,15 @@ export default function DebugPage({ onBeforeLeave }) {
                 </th>
               ))}
               <th style={th}></th>
-              {['nacht','regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
+              {['regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {(rows || []).map((r, i) => (
               <tr key={i}>
                 <td style={td}>{r.time.slice(5).replace('T', ' ')}</td>
-                <td style={td} title="Vloeiende dag/nacht-factor (0=nacht, 1=dag), schemering rond zonsopgang/-ondergang">
-                  {r.is_daytime ? '☀️' : '🌙'} {r.score.daylight_factor}
+                <td style={td} title="Daglicht-label (los van de score) — telt alleen mee als filter bij 'beste moment', vloeiende factor 0=nacht/1=dag ertussenin.">
+                  {{ dag: '☀️', schemer: '🌆', nacht: '🌙' }[r.daylight_state]} {r.daylight_factor}
                 </td>
                 <td style={td}>{r.sources.knmi.temp}°</td>
                 <td style={td}>{r.sources.knmi.rain_mm}</td>
@@ -200,7 +188,6 @@ export default function DebugPage({ onBeforeLeave }) {
                 <td style={td}>{r.blended.cloud_cover}</td>
                 <td style={td}>{Math.round(r.blended.wind_kmh)}</td>
                 <td style={td}>{r.low_confidence ? '⚠️' : ''}</td>
-                <td style={td}>{r.score.night_contrib}</td>
                 <td style={td}>{r.score.rain_contrib}</td>
                 <td style={td}>{r.score.temp_contrib}</td>
                 <td style={td}>{r.score.sun_contrib}</td>

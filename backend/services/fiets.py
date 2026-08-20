@@ -24,26 +24,21 @@ CACHE_TTL = 1800  # 30 min — cachet de RUWE Open-Meteo respons, niet de gescoo
 # ── Score-model constanten — MVP-startpunt, later instelbaar via instellingen ──
 # (roadmap-item "Score-drempels/comfortband instelbaar maken via instellingen")
 #
-# Vijf onafhankelijke 0-100 subscores (nacht/regen/temp/zon/wind), elk met
-# een vast gewicht — prioriteit nacht > regen > temp > zon > wind. Nacht was
-# eerder een harde poort die temp/regen/zon/wind op 0 zette (klopte niet: die
-# subscores worden altijd echt berekend, ook 's nachts); nu telt nacht mee
-# als volwaardige, instelbare factor net als de andere vier.
-NIGHT_WEIGHT = 0.35
-RAIN_WEIGHT = 0.25
-SUN_WEIGHT = 0.15
-TEMP_WIND_BUDGET = 1 - NIGHT_WEIGHT - RAIN_WEIGHT - SUN_WEIGHT  # 0.25 — verdeeld via de instelbare temp/wind-balans
-
-# Nacht kan ook als absolute (harde) grens gelden i.p.v. alleen gewogen —
-# instelbaar via een toggle. De losse subscores blijven altijd echt berekend/
-# zichtbaar; dit plafond raakt alleen de eindscore.
-NIGHT_ABSOLUTE_MAX = 15  # score (0-100) die een nachtelijk uur maximaal krijgt als de toggle aan staat
+# Vier onafhankelijke 0-100 subscores (regen/temp/zon/wind), elk met een vast
+# gewicht — prioriteit regen > temp > zon > wind. Dag/nacht zat hier eerder ook
+# in als 5e gewogen factor, maar dat maakte het cijfer een black box (een
+# donkere avond met prima weer kreeg een score die je niet kon terugrekenen).
+# Nu is de score puur weer; daglicht is een los filter, zie _daylight_state.
+RAIN_WEIGHT = 0.4
+SUN_WEIGHT = 0.2
+TEMP_WIND_BUDGET = 1 - RAIN_WEIGHT - SUN_WEIGHT  # 0.4 — verdeeld via de instelbare temp/wind-balans
 
 # Dag/nacht is geen aan/uit-schakelaar maar een vloeiende schemering: een
 # smoothstep-overgang van TWILIGHT_MINUTES rond zonsopgang/-ondergang i.p.v.
 # een abrupte sprong tussen het laatste nachtuur en het eerste daguur. Ruim
 # gekozen (3 uur) zodat de overgang met uurlijkse data ook echt over meerdere
-# uren zichtbaar is, niet slechts 1 tussenwaarde.
+# uren zichtbaar is, niet slechts 1 tussenwaarde. Puur voor het daglicht-label
+# (filter/badge) — telt niet meer mee in de weerscore zelf.
 TWILIGHT_MINUTES = 180
 
 
@@ -61,6 +56,17 @@ def _daylight_factor(hour_dt: datetime, sunrise: datetime, sunset: datetime) -> 
     ramp_up = _smoothstep((since_sunrise + half) / TWILIGHT_MINUTES)
     ramp_down = 1 - _smoothstep((since_sunset + half) / TWILIGHT_MINUTES)
     return min(ramp_up, ramp_down)
+
+
+def _daylight_state(daylight_factor: float) -> str:
+    """Vertaalt de vloeiende factor naar een simpel label voor filter/badge —
+    losstaand van de score. 'dag'/'nacht' zijn de exacte randen van de
+    schemeringscurve (smoothstep klemt op 0/1 buiten het venster)."""
+    if daylight_factor >= 1.0:
+        return "dag"
+    if daylight_factor <= 0.0:
+        return "nacht"
+    return "schemer"
 
 # Regen — geen harde poort. Regenkans bleek zwak gecorreleerd met werkelijke
 # neerslag (vaak 100% kans bij 0mm), dus telt niet mee. In plaats daarvan:
@@ -246,12 +252,10 @@ def score_hour(
     wind_kmh: float,
     wind_dir_deg: float,
     cloud_cover: float,
-    daylight_factor: float,
     prefs: dict | None = None,
 ) -> dict:
-    """Score 0-100 voor één uur, opgesplitst in 5 gewogen subscores: nacht, regen,
-    temp, zon, wind (prioriteit in die volgorde). Elke subscore wordt altijd
-    echt berekend — ook 's nachts — zodat de bijdragen nooit ten onrechte 0 zijn.
+    """Score 0-100 voor één uur, opgesplitst in 4 gewogen subscores: regen,
+    temp, zon, wind (prioriteit in die volgorde) — puur weer, geen daglicht.
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -262,26 +266,24 @@ def score_hour(
     temp_max = prefs.get("temp_max", TEMP_OPTIMAL_MAX)
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
 
-    # Eigen profiel: als de gebruiker alle 5 gewichten los heeft ingesteld
-    # (debug-pagina), genormaliseerd gebruiken i.p.v. de vaste verdeling.
-    custom_keys = ("weight_night", "weight_rain", "weight_temp", "weight_sun", "weight_wind")
+    # Eigen profiel: als de gebruiker alle 4 gewichten los heeft ingesteld
+    # (debug-pagina, of een profielkeuze op de instellingen-pagina die er
+    # onderliggend hetzelfde in zet), genormaliseerd gebruiken i.p.v. de
+    # vaste verdeling.
+    custom_keys = ("weight_rain", "weight_temp", "weight_sun", "weight_wind")
     if all(prefs.get(k) is not None for k in custom_keys):
         raw = {k: max(0.0, prefs[k]) for k in custom_keys}
         total_raw = sum(raw.values()) or 1.0
-        night_weight = raw["weight_night"] / total_raw
         rain_weight = raw["weight_rain"] / total_raw
         temp_weight = raw["weight_temp"] / total_raw
         sun_weight = raw["weight_sun"] / total_raw
         wind_weight = raw["weight_wind"] / total_raw
     else:
         temp_split = prefs.get("temp_weight", TEMP_SPLIT)
-        night_weight = NIGHT_WEIGHT
         rain_weight = RAIN_WEIGHT
         sun_weight = SUN_WEIGHT
         temp_weight = temp_split * TEMP_WIND_BUDGET
         wind_weight = (1 - temp_split) * TEMP_WIND_BUDGET
-
-    night_score = daylight_factor * 100.0
 
     rain_impact = min(1.0, (rain_mm or 0) * MM_IMPACT_PER_MM + TIER_IMPACT.get(rain_tier, 0.0))
     rain_score = (1 - rain_impact) * 100
@@ -305,20 +307,14 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    night_contrib = night_weight * night_score
     rain_contrib = rain_weight * rain_score
     temp_contrib = temp_weight * temp_score
     sun_contrib = sun_weight * sun_score
     wind_contrib = wind_weight * wind_score
 
-    total = max(0.0, min(100.0, night_contrib + rain_contrib + temp_contrib + sun_contrib + wind_contrib))
-    if prefs.get("night_absolute") and daylight_factor < 0.5:
-        total = min(total, NIGHT_ABSOLUTE_MAX)
+    total = max(0.0, min(100.0, rain_contrib + temp_contrib + sun_contrib + wind_contrib))
     return {
         "score": round(total, 1),
-        "night_gated": daylight_factor < 0.5,
-        "daylight_factor": round(daylight_factor, 2),
-        "night_contrib": round(night_contrib, 1),
         "rain_contrib": round(rain_contrib, 1),
         "temp_contrib": round(temp_contrib, 1),
         "sun_contrib": round(sun_contrib, 1),
@@ -345,10 +341,14 @@ def _score_label(score: float, prefs: dict | None = None) -> str:
 
 
 def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict | None = None) -> dict | None:
-    """Schuift over de daguren en kiest het venster (1-3u) met de hoogste gemiddelde score.
-    Bij gelijke score wint de vroegste starttijd — niet kritisch, de volledige tijdlijn
-    blijft ook zichtbaar in de grafiek."""
-    daytime = [h for h in hours if h["is_daytime"]]
+    """Schuift over de bruikbare uren en kiest het venster (1-3u) met de hoogste
+    gemiddelde score. Donkere uren tellen standaard niet mee (niemand fietst
+    voor zijn plezier in het pikkedonker) — instelbaar via 'include_night' voor
+    wie met verlichting fietst. Bij gelijke score wint de vroegste starttijd —
+    niet kritisch, de volledige tijdlijn blijft ook zichtbaar in de grafiek."""
+    prefs = prefs or {}
+    include_night = bool(prefs.get("include_night"))
+    daytime = [h for h in hours if h["daylight_state"] != "nacht" or include_night]
     if not daytime:
         return None
 
@@ -415,14 +415,13 @@ async def build_prognose(
         is_daytime = bool(is_days[i])
         sunrise, sunset = sun_times.get(iso_time[:10], (None, None))
         daylight_factor = _daylight_factor(datetime.fromisoformat(iso_time), sunrise, sunset) if sunrise else float(is_daytime)
-        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], daylight_factor, prefs)
+        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
             "is_daytime": is_daytime,
+            "daylight_state": _daylight_state(daylight_factor),
             "score": round(s["score"] / 10, 1),
             "breakdown": {
-                "night_gated": s["night_gated"],
-                "night_contrib": round(s["night_contrib"] / 10, 1),
                 "rain_contrib": round(s["rain_contrib"] / 10, 1),
                 "temp_contrib": round(s["temp_contrib"] / 10, 1),
                 "sun_contrib": round(s["sun_contrib"] / 10, 1),
@@ -495,11 +494,13 @@ async def build_debug_view(lat: float, lon: float, prefs: dict | None = None) ->
         s = score_hour(
             blended["temperature_2m"][i], blended["precipitation"][i], blended["rain_tier"][i],
             blended["wind_speed_10m"][i], blended["wind_direction_10m"][i], blended["cloud_cover"][i],
-            daylight_factor, prefs,
+            prefs,
         )
         rows.append({
             "time": blended["time"][i],
             "is_daytime": is_daytime,
+            "daylight_factor": round(daylight_factor, 2),
+            "daylight_state": _daylight_state(daylight_factor),
             "sources": per_source,
             "blended": {
                 "temp": blended["temperature_2m"][i],

@@ -21,12 +21,11 @@ _PREF_KEYS = {
     "fiets_temp_max": "temp_max",
     "fiets_wind_knee_kmh": "wind_knee_kmh",
     "fiets_temp_weight": "temp_weight",
-    "fiets_weight_night": "weight_night",
     "fiets_weight_rain": "weight_rain",
     "fiets_weight_temp": "weight_temp",
     "fiets_weight_sun": "weight_sun",
     "fiets_weight_wind": "weight_wind",
-    "fiets_night_absolute": "night_absolute",
+    "fiets_include_night": "include_night",
     "fiets_label_excellent": "label_excellent",
     "fiets_label_good": "label_good",
     "fiets_label_fair": "label_fair",
@@ -75,12 +74,10 @@ async def geocode(q: str, _: User = Depends(get_current_user)):
 
 @router.get("/debug")
 async def get_debug_view(
-    weight_night: Optional[float] = None,
     weight_rain: Optional[float] = None,
     weight_temp: Optional[float] = None,
     weight_sun: Optional[float] = None,
     weight_wind: Optional[float] = None,
-    night_absolute: Optional[bool] = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -92,8 +89,8 @@ async def get_debug_view(
     prefs = {out: extra[key] for key, out in _PREF_KEYS.items() if extra.get(key) is not None}
 
     preview = {
-        "weight_night": weight_night, "weight_rain": weight_rain, "weight_temp": weight_temp,
-        "weight_sun": weight_sun, "weight_wind": weight_wind, "night_absolute": night_absolute,
+        "weight_rain": weight_rain, "weight_temp": weight_temp,
+        "weight_sun": weight_sun, "weight_wind": weight_wind,
     }
     prefs.update({k: v for k, v in preview.items() if v is not None})
 

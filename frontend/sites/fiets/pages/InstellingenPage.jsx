@@ -106,6 +106,22 @@ export default function InstellingenPage() {
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+          Donkere uren tellen niet mee bij "beste moment" — handig als je met verlichting fietst.
+        </p>
+        <div style={rowStyle}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>🌙</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Neem ook donkere uren mee</span>
+          <input
+            type="checkbox" disabled={saving}
+            checked={Boolean(prefs.fiets_include_night)}
+            onChange={e => save({ fiets_include_night: e.target.checked })}
+            style={{ width: 18, height: 18, cursor: saving ? 'default' : 'pointer' }}
+          />
+        </div>
+      </div>
+
+      <div>
+        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
           Comfortband en drempels waarop de score rekent (MVP-defaults, hier aan te passen).
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
