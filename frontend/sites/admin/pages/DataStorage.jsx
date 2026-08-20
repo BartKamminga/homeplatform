@@ -25,6 +25,7 @@ const DB_USER_ROWS = [
   { label: 'fiets_wind_knee_kmh',                                   where: 'user_preferences.extra', note: 'Fiets wind-drempel' },
   { label: 'fiets_weight_night/rain/temp/sun/wind',                 where: 'user_preferences.extra', note: 'Fiets eigen score-gewicht-profiel (debug-pagina)' },
   { label: 'fiets_night_absolute',                                  where: 'user_preferences.extra', note: 'Fiets nacht als absoluut plafond i.p.v. gewogen' },
+  { label: 'fiets_label_excellent/good/fair',                       where: 'user_preferences.extra', note: 'Fiets score-staffel voor "beste moment"-label (debug-pagina)' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },
 ];

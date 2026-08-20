@@ -27,6 +27,9 @@ _PREF_KEYS = {
     "fiets_weight_sun": "weight_sun",
     "fiets_weight_wind": "weight_wind",
     "fiets_night_absolute": "night_absolute",
+    "fiets_label_excellent": "label_excellent",
+    "fiets_label_good": "label_good",
+    "fiets_label_fair": "label_fair",
 }
 
 

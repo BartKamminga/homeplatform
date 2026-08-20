@@ -326,17 +326,25 @@ def score_hour(
     }
 
 
-def _score_label(score: float) -> str:
-    if score >= 8:
+# Score-staffel voor de beste-moment-labels (0-10 schaal) — MVP-defaults,
+# instelbaar via de debug-pagina (nerd-instelling, niet in gewone instellingen).
+LABEL_EXCELLENT = 8.0
+LABEL_GOOD = 6.0
+LABEL_FAIR = 4.0
+
+
+def _score_label(score: float, prefs: dict | None = None) -> str:
+    prefs = prefs or {}
+    if score >= prefs.get("label_excellent", LABEL_EXCELLENT):
         return "uitstekend fietsweer"
-    if score >= 6:
+    if score >= prefs.get("label_good", LABEL_GOOD):
         return "goed fietsweer"
-    if score >= 4:
+    if score >= prefs.get("label_fair", LABEL_FAIR):
         return "matig fietsweer"
     return "slecht fietsweer"
 
 
-def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3) -> dict | None:
+def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict | None = None) -> dict | None:
     """Schuift over de daguren en kiest het venster (1-3u) met de hoogste gemiddelde score.
     Bij gelijke score wint de vroegste starttijd — niet kritisch, de volledige tijdlijn
     blijft ook zichtbaar in de grafiek."""
@@ -357,7 +365,7 @@ def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3) -> dict | Non
                     "avg_score": avg_score,
                 }
 
-    best["label"] = f"{best['start'][11:16]}–{best['end'][11:16]}, {_score_label(best['avg_score'])}"
+    best["label"] = f"{best['start'][11:16]}–{best['end'][11:16]}, {_score_label(best['avg_score'], prefs)}"
     return best
 
 
@@ -435,7 +443,7 @@ async def build_prognose(
             "date": date_key,
             "label": _format_day_label(date_key),
             "hours": hours,
-            "best_window": best_window(hours),
+            "best_window": best_window(hours, prefs=prefs),
         }
         for date_key, hours in sorted(days_map.items())
     ]

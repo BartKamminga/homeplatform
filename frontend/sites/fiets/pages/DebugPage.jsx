@@ -141,6 +141,8 @@ export default function DebugPage({ onBeforeLeave }) {
         )}
       </div>
 
+      <LabelThresholds />
+
       <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 10 }}>
         <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono, monospace)' }}>
           <thead>
@@ -209,6 +211,65 @@ export default function DebugPage({ onBeforeLeave }) {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+// Score-staffel voor de beste-moment-labels — een nerd-instelling, los van de
+// live weight-preview hierboven (verandert niets aan de per-uur debug-rijen,
+// alleen aan het "Beste moment"-label dat de hoofd-app toont).
+const LABEL_FIELDS = [
+  { key: 'excellent', prefKey: 'fiets_label_excellent', label: 'Uitstekend vanaf', defaultValue: 8 },
+  { key: 'good',      prefKey: 'fiets_label_good',      label: 'Goed vanaf', defaultValue: 6 },
+  { key: 'fair',      prefKey: 'fiets_label_fair',      label: 'Matig vanaf', defaultValue: 4 },
+]
+
+function LabelThresholds() {
+  const [values, setValues] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.get('/api/auth/me/ui-prefs').then(prefs => {
+      setValues(Object.fromEntries(LABEL_FIELDS.map(f => [f.key, prefs[f.prefKey] ?? f.defaultValue])))
+    }).catch(() => {
+      setValues(Object.fromEntries(LABEL_FIELDS.map(f => [f.key, f.defaultValue])))
+    })
+  }, [])
+
+  async function save(key, value) {
+    setValues(v => ({ ...v, [key]: value }))
+    const field = LABEL_FIELDS.find(f => f.key === key)
+    setSaving(true)
+    try {
+      await api.patch('/api/auth/me/ui-prefs', { [field.prefKey]: Number(value) })
+    } catch { /* stil falen, dit is een nerd-instelling zonder groot risico */ }
+    finally { setSaving(false) }
+  }
+
+  if (!values) return null
+
+  return (
+    <div style={{
+      display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14,
+      padding: '12px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
+    }}>
+      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: '100%' }}>
+        Score-staffel voor "Beste moment" (0-10 schaal, geldt voor de hoofd-app):
+      </span>
+      {LABEL_FIELDS.map(f => (
+        <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{f.label}</label>
+          <input
+            type="number" min={0} max={10} step={0.5} value={values[f.key]} disabled={saving}
+            onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
+            onBlur={e => save(f.key, e.target.value)}
+            style={{
+              width: 56, fontSize: 12, padding: '4px 6px', borderRadius: 6,
+              border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)',
+            }}
+          />
+        </div>
+      ))}
     </div>
   )
 }
