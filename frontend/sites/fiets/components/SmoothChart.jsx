@@ -102,7 +102,7 @@ function NowMarker({ x, top, bottom, colors }) {
   )
 }
 
-export default function SmoothChart({ days, field, showBreakdown = true }) {
+export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both' }) {
   const colors = useThemeColors()
   const hours = days.flatMap(d => d.hours)
   const n = hours.length
@@ -153,6 +153,9 @@ export default function SmoothChart({ days, field, showBreakdown = true }) {
   const linePath = smoothPath(points)
   const areaPath = `${linePath} L ${xAt(n - 1)},${baseline} L ${xAt(0)},${baseline} Z`
   const isRain = field === 'rain_mm'
+  const isWind = field === 'wind_kmh'
+  const showChart = !isWind || windMode !== 'arrow'
+  const showArrows = isWind && windMode !== 'chart'
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
@@ -172,17 +175,18 @@ export default function SmoothChart({ days, field, showBreakdown = true }) {
         <rect key={`night-${i}`} x={xAt(s)} y={PAD_TOP} width={Math.max(1, xAt(e) - xAt(s))} height={innerH}
           fill={colors['--color-border']} opacity={0.35} />
       ))}
-      <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />
-      <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />
-      {hours.map((h, i) => h.low_confidence && (
+      {showChart && <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />}
+      {showChart && <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />}
+      {showChart && hours.map((h, i) => h.low_confidence && (
         <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
       ))}
-      {field === 'wind_kmh' && hourTicks.map(i => (
-        <WindArrowMark key={`arrow-${i}`} x={xAt(i)} y={PAD_TOP + innerH / 2} deg={hours[i].wind_dir} kmh={values[i]} color={lineColor} />
+      {showArrows && hourTicks.map(i => (
+        <WindArrowMark key={`arrow-${i}`} x={xAt(i)} y={PAD_TOP + innerH / 2} deg={hours[i].wind_dir} kmh={values[i]}
+          color={lineColor} halo={showChart ? colors['--color-surface'] : null} />
       ))}
-      <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => yAt(values[i])} fmt={v => cfg.fmt(v)} values={values} colors={colors} />
+      {showChart && <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => yAt(values[i])} fmt={v => cfg.fmt(v)} values={values} colors={colors} />}
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
-      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
+      {showChart && <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />}
     </svg>
   )
 }
@@ -265,14 +269,18 @@ function HourLabels({ hourTicks, xAt, yAt, fmt, values, hours, colors }) {
 // Windrichting-pijl bovenop de Wind-grafiek (item: Wind+Windrichting samengevoegd) —
 // blijft vast in het midden staan (beweegt niet mee met de snelheidslijn),
 // lengte EN dikte schalen met de snelheid — zelfde formule als WindArrow.jsx.
-function WindArrowMark({ x, y, deg, kmh, color }) {
+function WindArrowMark({ x, y, deg, kmh, color, halo }) {
   const size = Math.min(32, 14 + kmh * 0.6)
   const thickness = Math.min(4, 1.5 + kmh * 0.06)
   const travelDeg = (deg + 180) % 360
   return (
-    <g transform={`translate(${x},${y}) rotate(${travelDeg})`} stroke={color} fill={color}>
-      <line x1={0} y1={size / 2} x2={0} y2={-size / 2} strokeWidth={thickness} strokeLinecap="round" />
-      <path d={`M0,${-size / 2 - thickness * 1.8} L${-thickness * 1.8},${-size / 2 + thickness * 1.8} L${thickness * 1.8},${-size / 2 + thickness * 1.8} Z`} stroke="none" />
+    <g>
+      {/* Halo achter de pijl zodat die opvalt tegen de lijn/vlak ("beide"-modus) */}
+      {halo && <circle cx={x} cy={y} r={size / 2 + 4} fill={halo} opacity={0.75} />}
+      <g transform={`translate(${x},${y}) rotate(${travelDeg})`} stroke={color} fill={color}>
+        <line x1={0} y1={size / 2} x2={0} y2={-size / 2} strokeWidth={thickness} strokeLinecap="round" />
+        <path d={`M0,${-size / 2 - thickness * 1.8} L${-thickness * 1.8},${-size / 2 + thickness * 1.8} L${thickness * 1.8},${-size / 2 + thickness * 1.8} Z`} stroke="none" />
+      </g>
     </g>
   )
 }

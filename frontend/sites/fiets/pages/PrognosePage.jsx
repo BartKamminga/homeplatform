@@ -16,6 +16,12 @@ const SOURCES = [
   { key: 'gfs',  label: 'NOAA GFS' },
 ]
 
+const WIND_MODES = [
+  { key: 'chart', label: 'Grafiek' },
+  { key: 'arrow', label: 'Pijl' },
+  { key: 'both',  label: 'Beide' },
+]
+
 export default function PrognosePage() {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
@@ -24,6 +30,7 @@ export default function PrognosePage() {
   const [sources, setSources] = useState(['knmi', 'gfs'])
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showExplainer, setShowExplainer] = useState(false)
+  const [windMode, setWindMode] = useState('both')
 
   useEffect(() => {
     setLoading(true)
@@ -97,9 +104,10 @@ export default function PrognosePage() {
               onClick={() => toggleSource(s.key)}
               style={{
                 fontSize: 11, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                border: `1px solid ${sources.includes(s.key) ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                background: sources.includes(s.key) ? 'var(--color-primary)' : 'transparent',
-                color: sources.includes(s.key) ? '#fff' : 'var(--color-text-muted)',
+                border: `1px solid ${sources.includes(s.key) ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
+                background: sources.includes(s.key) ? 'var(--color-surface)' : 'transparent',
+                color: sources.includes(s.key) ? 'var(--color-text)' : 'var(--color-text-muted)',
+                opacity: sources.includes(s.key) ? 1 : 0.6,
               }}
             >
               {s.label}
@@ -149,7 +157,25 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} />
+        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} />
+        {tab === 'wind' && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {WIND_MODES.map(m => (
+              <button
+                key={m.key}
+                onClick={() => setWindMode(m.key)}
+                style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+                  border: `1px solid ${windMode === m.key ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
+                  background: windMode === m.key ? 'var(--color-background)' : 'transparent',
+                  color: windMode === m.key ? 'var(--color-text)' : 'var(--color-text-muted)',
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
         {tab === 'fiets' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
             <button
