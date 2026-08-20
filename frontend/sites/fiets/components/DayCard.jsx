@@ -1,5 +1,6 @@
 import { scoreColor } from '../scoreUtils.js'
-import { daySummary, degToCompass } from '../format.js'
+import { daySummary } from '../format.js'
+import WindArrow from './WindArrow.jsx'
 
 export default function DayCard({ day }) {
   const w = day.best_window
@@ -15,7 +16,10 @@ export default function DayCard({ day }) {
         <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>
           <span>🌡 {s.tempMin}–{s.tempMax}°C</span>
           <span>🌧 {s.rainProbMax}%</span>
-          <span>💨 {s.windAvg} km/u {degToCompass(s.windDir)}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <WindArrow deg={s.windDir} kmh={s.windAvg} />
+            {s.windAvg} km/u
+          </span>
         </div>
       </div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>

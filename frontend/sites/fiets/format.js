@@ -1,10 +1,3 @@
-const COMPASS = ['N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW']
-
-export function degToCompass(deg) {
-  if (deg == null) return ''
-  return COMPASS[Math.round(deg / 45) % 8]
-}
-
 export function daySummary(hours) {
   const temps = hours.map(h => h.temp)
   const winds = hours.map(h => h.wind_kmh)

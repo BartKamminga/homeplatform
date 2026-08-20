@@ -1,7 +1,11 @@
+export function scoreColorVar(score) {
+  if (score >= 8) return '--color-success'
+  if (score >= 4) return '--color-warning'
+  return '--color-danger'
+}
+
 export function scoreColor(score) {
-  if (score >= 8) return 'var(--color-success)'
-  if (score >= 4) return 'var(--color-warning)'
-  return 'var(--color-danger)'
+  return `var(${scoreColorVar(score)})`
 }
 
 export function scoreLabel(score) {

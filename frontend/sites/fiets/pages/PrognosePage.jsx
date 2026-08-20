@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import LineGraph from '../components/LineGraph.jsx'
+import BarChart from '../components/BarChart.jsx'
 import DayCard from '../components/DayCard.jsx'
 
 const TABS = [
@@ -74,7 +74,7 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        <LineGraph days={data.days} field={activeField} />
+        <BarChart days={data.days} field={activeField} />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
