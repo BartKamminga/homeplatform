@@ -177,16 +177,19 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
       ))}
       {showChart && <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />}
       {showChart && <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />}
-      {showChart && hours.map((h, i) => h.low_confidence && (
+      {hours.map((h, i) => h.low_confidence && (
         <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
       ))}
       {showArrows && hourTicks.map(i => (
         <WindArrowMark key={`arrow-${i}`} x={xAt(i)} y={PAD_TOP + innerH / 2} deg={hours[i].wind_dir} kmh={values[i]}
           color={lineColor} halo={showChart ? colors['--color-surface'] : null} />
       ))}
-      {showChart && <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => yAt(values[i])} fmt={v => cfg.fmt(v)} values={values} colors={colors} />}
+      {/* Bij pijl-alleen (geen lijn) staan de cijfers netjes vlak onder de pijl i.p.v. op de (verborgen) lijnhoogte. */}
+      <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt}
+        yAt={i => showChart ? yAt(values[i]) : PAD_TOP + innerH / 2 + Math.min(32, 14 + values[i] * 0.6) / 2 + 16}
+        fmt={v => cfg.fmt(v)} values={values} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
-      {showChart && <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />}
+      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
     </svg>
   )
 }
