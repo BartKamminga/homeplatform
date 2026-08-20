@@ -166,7 +166,7 @@ export default function PrognosePage() {
               {weightRows(weights).map(({ key, icon, label, pct, note }) => (
                 <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
               ))}
-              <p style={{ margin: '0 0 6px' }}>🌙 <strong>Daglicht</strong> — telt niet mee in dit cijfer. Donkere uren (grijze band) worden wel standaard overgeslagen bij "beste moment", instelbaar bij Instellingen.</p>
+              <p style={{ margin: '0 0 6px' }}>🌙 <strong>Daglicht</strong> — werkt los van de 4 gewichten hierboven: 's nachts dimt de score vloeiend naar 0, overdag blijft hij onveranderd. Instelbaar via "neem ook donkere uren mee" bij Instellingen.</p>
               <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
             </div>
           </div>

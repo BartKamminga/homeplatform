@@ -252,10 +252,18 @@ def score_hour(
     wind_kmh: float,
     wind_dir_deg: float,
     cloud_cover: float,
+    daylight_factor: float,
     prefs: dict | None = None,
 ) -> dict:
-    """Score 0-100 voor één uur, opgesplitst in 4 gewogen subscores: regen,
-    temp, zon, wind (prioriteit in die volgorde) — puur weer, geen daglicht.
+    """Score 0-100 voor één uur. De weer-score is opgesplitst in 4 gewogen
+    subscores: regen, temp, zon, wind (prioriteit in die volgorde) — dat deel
+    blijft altijd terug te rekenen naar de 4 instelbare gewichten.
+
+    Daglicht werkt daar overheen als simpele vermenigvuldiging (geen 5e gewicht
+    meer, geen absolute-toggle): 's nachts (daylight_factor 0) gaat de score
+    naar 0, overdag (1) blijft de weer-score onveranderd, met een vloeiende
+    overgang in de schemering. `include_night` schakelt het dimmen uit voor
+    wie met verlichting fietst.
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -311,14 +319,18 @@ def score_hour(
     temp_contrib = temp_weight * temp_score
     sun_contrib = sun_weight * sun_score
     wind_contrib = wind_weight * wind_score
+    weather_score = max(0.0, min(100.0, rain_contrib + temp_contrib + sun_contrib + wind_contrib))
 
-    total = max(0.0, min(100.0, rain_contrib + temp_contrib + sun_contrib + wind_contrib))
+    dim = 1.0 if prefs.get("include_night") else daylight_factor
+    total = weather_score * dim
     return {
         "score": round(total, 1),
-        "rain_contrib": round(rain_contrib, 1),
-        "temp_contrib": round(temp_contrib, 1),
-        "sun_contrib": round(sun_contrib, 1),
-        "wind_contrib": round(wind_contrib, 1),
+        "weather_score": round(weather_score, 1),
+        "daylight_factor": round(daylight_factor, 2),
+        "rain_contrib": round(rain_contrib * dim, 1),
+        "temp_contrib": round(temp_contrib * dim, 1),
+        "sun_contrib": round(sun_contrib * dim, 1),
+        "wind_contrib": round(wind_contrib * dim, 1),
     }
 
 
@@ -415,7 +427,7 @@ async def build_prognose(
         is_daytime = bool(is_days[i])
         sunrise, sunset = sun_times.get(iso_time[:10], (None, None))
         daylight_factor = _daylight_factor(datetime.fromisoformat(iso_time), sunrise, sunset) if sunrise else float(is_daytime)
-        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], prefs)
+        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], daylight_factor, prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
             "is_daytime": is_daytime,
@@ -494,7 +506,7 @@ async def build_debug_view(lat: float, lon: float, prefs: dict | None = None) ->
         s = score_hour(
             blended["temperature_2m"][i], blended["precipitation"][i], blended["rain_tier"][i],
             blended["wind_speed_10m"][i], blended["wind_direction_10m"][i], blended["cloud_cover"][i],
-            prefs,
+            daylight_factor, prefs,
         )
         rows.append({
             "time": blended["time"][i],

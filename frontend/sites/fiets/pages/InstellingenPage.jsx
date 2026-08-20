@@ -125,7 +125,7 @@ export default function InstellingenPage() {
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          Donkere uren tellen niet mee bij "beste moment" — handig als je met verlichting fietst.
+          Standaard dimt de score 's nachts naar 0, ongeacht het weer — handig aan laten als je met verlichting fietst.
         </p>
         <div style={rowStyle}>
           <span style={{ fontSize: 20, flexShrink: 0 }}>🌙</span>

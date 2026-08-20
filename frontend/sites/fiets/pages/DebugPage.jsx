@@ -141,7 +141,7 @@ export default function DebugPage({ onBeforeLeave }) {
               <th style={groupTh} colSpan={5}>GFS</th>
               <th style={groupTh} colSpan={5}>Geblend</th>
               <th style={groupTh}>2brn</th>
-              <th style={groupTh} colSpan={6}>Score</th>
+              <th style={groupTh} colSpan={7}>Score</th>
             </tr>
             <tr>
               <th style={th}></th>
@@ -162,14 +162,26 @@ export default function DebugPage({ onBeforeLeave }) {
                 </th>
               ))}
               <th style={th}></th>
-              {['regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
+              {['regen','temp','zon','wind','weer','totaal'].map(h => (
+                <th key={`s-${h}`} style={th}>
+                  {h}
+                  {h === 'weer' && (
+                    <span
+                      title="Weerscore vóór het dimmen door daglicht (som van regen+temp+zon+wind). 'totaal' = weer × daglicht-factor uit de dag-kolom (of ongedimd als 'donkere uren meenemen' aanstaat)."
+                      style={{ marginLeft: 3, cursor: 'help', fontWeight: 400 }}
+                    >
+                      ⓘ
+                    </span>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {(rows || []).map((r, i) => (
               <tr key={i}>
                 <td style={td}>{r.time.slice(5).replace('T', ' ')}</td>
-                <td style={td} title="Daglicht-label (los van de score) — telt alleen mee als filter bij 'beste moment', vloeiende factor 0=nacht/1=dag ertussenin.">
+                <td style={td} title="Daglicht-factor (0=nacht, 1=dag, vloeiend in de schemering) — dimt de weerscore naar 'totaal'.">
                   {{ dag: '☀️', schemer: '🌆', nacht: '🌙' }[r.daylight_state]} {r.daylight_factor}
                 </td>
                 <td style={td}>{r.sources.knmi.temp}°</td>
@@ -192,6 +204,7 @@ export default function DebugPage({ onBeforeLeave }) {
                 <td style={td}>{r.score.temp_contrib}</td>
                 <td style={td}>{r.score.sun_contrib}</td>
                 <td style={td}>{r.score.wind_contrib}</td>
+                <td style={{ ...td, color: 'var(--color-text-muted)' }}>{r.score.weather_score}</td>
                 <td style={{ ...td, fontWeight: 700 }}>{r.score.score}</td>
               </tr>
             ))}
