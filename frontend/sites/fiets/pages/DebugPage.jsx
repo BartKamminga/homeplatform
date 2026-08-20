@@ -5,14 +5,16 @@ const th = { padding: '4px 8px', textAlign: 'left', whiteSpace: 'nowrap', border
 const td = { padding: '4px 8px', whiteSpace: 'nowrap' }
 const groupTh = { ...th, textAlign: 'center', borderLeft: '2px solid var(--color-border)' }
 
-// Defaults matchen de vaste verdeling in services/fiets.py (RAIN_WEIGHT=0.35,
-// TEMP_WIND_BUDGET=0.45 @ 60/40, SUN_WEIGHT=0.20) — als startpunt voor de sliders.
-const DEFAULT_WEIGHTS = { rain: 35, temp: 27, sun: 20, wind: 18 }
+// Defaults matchen de vaste verdeling in services/fiets.py (NIGHT_WEIGHT=0.35,
+// RAIN_WEIGHT=0.25, TEMP_WIND_BUDGET=0.25 @ 60/40, SUN_WEIGHT=0.15) — als
+// startpunt voor de sliders.
+const DEFAULT_WEIGHTS = { night: 35, rain: 25, temp: 15, sun: 15, wind: 10 }
 const WEIGHT_FIELDS = [
-  { key: 'rain', label: 'Regen', prefKey: 'fiets_weight_rain' },
-  { key: 'temp', label: 'Temperatuur', prefKey: 'fiets_weight_temp' },
-  { key: 'sun',  label: 'Zon', prefKey: 'fiets_weight_sun' },
-  { key: 'wind', label: 'Wind', prefKey: 'fiets_weight_wind' },
+  { key: 'night', label: 'Nacht', prefKey: 'fiets_weight_night' },
+  { key: 'rain',  label: 'Regen', prefKey: 'fiets_weight_rain' },
+  { key: 'temp',  label: 'Temperatuur', prefKey: 'fiets_weight_temp' },
+  { key: 'sun',   label: 'Zon', prefKey: 'fiets_weight_sun' },
+  { key: 'wind',  label: 'Wind', prefKey: 'fiets_weight_wind' },
 ]
 
 export default function DebugPage() {
@@ -33,6 +35,7 @@ export default function DebugPage() {
     load()
     api.get('/api/auth/me/ui-prefs').then(prefs => {
       setWeights({
+        night: prefs.fiets_weight_night ?? DEFAULT_WEIGHTS.night,
         rain: prefs.fiets_weight_rain ?? DEFAULT_WEIGHTS.rain,
         temp: prefs.fiets_weight_temp ?? DEFAULT_WEIGHTS.temp,
         sun:  prefs.fiets_weight_sun ?? DEFAULT_WEIGHTS.sun,
@@ -50,8 +53,9 @@ export default function DebugPage() {
     setSaving(true)
     try {
       await api.patch('/api/auth/me/ui-prefs', {
-        fiets_weight_rain: Number(weights.rain), fiets_weight_temp: Number(weights.temp),
-        fiets_weight_sun: Number(weights.sun), fiets_weight_wind: Number(weights.wind),
+        fiets_weight_night: Number(weights.night), fiets_weight_rain: Number(weights.rain),
+        fiets_weight_temp: Number(weights.temp), fiets_weight_sun: Number(weights.sun),
+        fiets_weight_wind: Number(weights.wind),
       })
       setLoading(true)
       load()
@@ -114,12 +118,11 @@ export default function DebugPage() {
           <thead>
             <tr>
               <th style={th}>tijd</th>
-              <th style={th}>dag</th>
               <th style={groupTh} colSpan={5}>KNMI</th>
               <th style={groupTh} colSpan={5}>GFS</th>
               <th style={groupTh} colSpan={5}>Geblend</th>
               <th style={groupTh}>2brn</th>
-              <th style={groupTh} colSpan={6}>Score</th>
+              <th style={groupTh} colSpan={7}>Score</th>
             </tr>
             <tr>
               <th style={th}></th>
@@ -139,7 +142,7 @@ export default function DebugPage() {
                 </th>
               ))}
               <th style={th}></th>
-              {['dag','regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
+              {['dag','nacht','regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -163,6 +166,7 @@ export default function DebugPage() {
                 <td style={td}>{Math.round(r.blended.wind_kmh)}</td>
                 <td style={td}>{r.low_confidence ? '⚠️' : ''}</td>
                 <td style={td}>{r.is_daytime ? '☀️' : '🌙'}</td>
+                <td style={td}>{r.score.night_contrib}</td>
                 <td style={td}>{r.score.rain_contrib}</td>
                 <td style={td}>{r.score.temp_contrib}</td>
                 <td style={td}>{r.score.sun_contrib}</td>

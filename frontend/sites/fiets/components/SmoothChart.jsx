@@ -34,7 +34,7 @@ function useThemeColors() {
 // Factor-kleuren voor de gestapelde Fiets-vlakken (welk deel komt van
 // regen-blokkade/temperatuur/wind/zon) — eigen kleine palet, geen thema-var
 // voorhanden hiervoor.
-export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e' }
+export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e', night: '#6366f1' }
 
 // Opaciteit van het regen-vlak per weather_code-tier (0=helder/bewolkt .. 3=zware regen).
 const RAIN_TIER_OPACITY = [0.06, 0.22, 0.42, 0.7]
@@ -197,20 +197,22 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
 function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX }) {
   const scale = v => (v / 10) * innerH // score/contributies zitten al op de 0-10 schaal
 
-  // Gestapeld van onder naar boven: wind, zon, temp, regen — zelfde volgorde
-  // als het gewicht in de formule (regen zwaarst, dus boven/meest zichtbaar).
+  // Gestapeld van onder naar boven: wind, zon, temp, regen, nacht — zelfde
+  // volgorde als het gewicht in de formule (nacht zwaarst, dus boven/meest
+  // zichtbaar). Alle 5 subscores worden altijd echt berekend, ook 's nachts.
   const layerValues = hours.map(h => [
     h.breakdown?.wind_contrib ?? 0, h.breakdown?.sun_contrib ?? 0,
     h.breakdown?.temp_contrib ?? 0, h.breakdown?.rain_contrib ?? 0,
+    h.breakdown?.night_contrib ?? 0,
   ])
 
   const boundaries = [hours.map(() => baseline)] // onderste grens = baseline
-  for (let layer = 0; layer < 4; layer++) {
+  for (let layer = 0; layer < 5; layer++) {
     const prev = boundaries[layer]
     boundaries.push(hours.map((_, i) => prev[i] - scale(layerValues[i][layer])))
   }
 
-  const keys = ['wind', 'sun', 'temp', 'rain']
+  const keys = ['wind', 'sun', 'temp', 'rain', 'night']
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
@@ -228,13 +230,13 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
         return <path key={key} d={d} fill={BREAKDOWN_COLORS[key]} opacity={0.55} />
       })}
 
-      <path d={smoothPath(boundaries[4].map((y, i) => [xAt(i), y]))} fill="none" stroke={colors['--color-text']} strokeWidth={1.5} opacity={0.5} />
+      <path d={smoothPath(boundaries[5].map((y, i) => [xAt(i), y]))} fill="none" stroke={colors['--color-text']} strokeWidth={1.5} opacity={0.5} />
 
       {hours.map((h, i) => h.low_confidence && (
         <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
       ))}
 
-      <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => boundaries[4][i]} fmt={v => v.toFixed(1)} values={hours.map(h => h.score)} colors={colors} />
+      <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => boundaries[5][i]} fmt={v => v.toFixed(1)} values={hours.map(h => h.score)} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
       <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
     </svg>

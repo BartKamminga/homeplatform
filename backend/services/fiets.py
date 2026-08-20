@@ -24,13 +24,15 @@ CACHE_TTL = 1800  # 30 min — cachet de RUWE Open-Meteo respons, niet de gescoo
 # ── Score-model constanten — MVP-startpunt, later instelbaar via instellingen ──
 # (roadmap-item "Score-drempels/comfortband instelbaar maken via instellingen")
 #
-# Vier onafhankelijke 0-100 subscores (regen/temp/zon/wind), elk met een vast
-# gewicht — prioriteit regen > temp > zon > wind. Regen en zon waren eerder
-# resp. een multiplicatieve demping en een kleine bonus zonder eigen gewicht;
-# nu tellen ze volwaardig mee, net als temp/wind.
-RAIN_WEIGHT = 0.35
-SUN_WEIGHT = 0.20
-TEMP_WIND_BUDGET = 1 - RAIN_WEIGHT - SUN_WEIGHT  # 0.45 — verdeeld via de instelbare temp/wind-balans
+# Vijf onafhankelijke 0-100 subscores (nacht/regen/temp/zon/wind), elk met
+# een vast gewicht — prioriteit nacht > regen > temp > zon > wind. Nacht was
+# eerder een harde poort die temp/regen/zon/wind op 0 zette (klopte niet: die
+# subscores worden altijd echt berekend, ook 's nachts); nu telt nacht mee
+# als volwaardige, instelbare factor net als de andere vier.
+NIGHT_WEIGHT = 0.35
+RAIN_WEIGHT = 0.25
+SUN_WEIGHT = 0.15
+TEMP_WIND_BUDGET = 1 - NIGHT_WEIGHT - RAIN_WEIGHT - SUN_WEIGHT  # 0.25 — verdeeld via de instelbare temp/wind-balans
 
 # Regen — geen harde poort. Regenkans bleek zwak gecorreleerd met werkelijke
 # neerslag (vaak 100% kans bij 0mm), dus telt niet mee. In plaats daarvan:
@@ -73,9 +75,6 @@ WIND_DIR_MALUS_MAX = 10
 # (roadmap-item "Gewicht temperatuur vs. wind instelbaar maken").
 TEMP_SPLIT = 0.6  # 60% van het temp/wind-budget naar temp, 40% naar wind
 
-# Licht/donker — harde poort net als regen: in het donker fietsen is geen
-# optie, los van hoe goed het weer verder is (zicht/veiligheid).
-NIGHT_GATE_SCORE_MAX = 15  # score (0-100) die een nachtelijk uur maximaal krijgt
 
 # Twee onafhankelijke modellen (beide via Open-Meteo, geen 2e integratie nodig)
 # voor een betrouwbaardere score — gemiddelde van KNMI (Harmonie) en NOAA GFS.
@@ -221,10 +220,9 @@ def score_hour(
     is_daytime: bool,
     prefs: dict | None = None,
 ) -> dict:
-    """Score 0-100 voor één uur, opgesplitst in 4 gewogen subscores: regen, temp,
-    zon, wind (prioriteit in die volgorde — regen weegt het zwaarst, wind het
-    lichtst). Donker blijft een losse harde poort (zicht/veiligheid, los van
-    het weer).
+    """Score 0-100 voor één uur, opgesplitst in 5 gewogen subscores: nacht, regen,
+    temp, zon, wind (prioriteit in die volgorde). Elke subscore wordt altijd
+    echt berekend — ook 's nachts — zodat de bijdragen nooit ten onrechte 0 zijn.
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -235,28 +233,26 @@ def score_hour(
     temp_max = prefs.get("temp_max", TEMP_OPTIMAL_MAX)
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
 
-    # Eigen profiel: als de gebruiker alle 4 gewichten los heeft ingesteld
+    # Eigen profiel: als de gebruiker alle 5 gewichten los heeft ingesteld
     # (debug-pagina), genormaliseerd gebruiken i.p.v. de vaste verdeling.
-    custom_keys = ("weight_rain", "weight_temp", "weight_sun", "weight_wind")
+    custom_keys = ("weight_night", "weight_rain", "weight_temp", "weight_sun", "weight_wind")
     if all(prefs.get(k) is not None for k in custom_keys):
         raw = {k: max(0.0, prefs[k]) for k in custom_keys}
         total_raw = sum(raw.values()) or 1.0
+        night_weight = raw["weight_night"] / total_raw
         rain_weight = raw["weight_rain"] / total_raw
         temp_weight = raw["weight_temp"] / total_raw
         sun_weight = raw["weight_sun"] / total_raw
         wind_weight = raw["weight_wind"] / total_raw
     else:
         temp_split = prefs.get("temp_weight", TEMP_SPLIT)
+        night_weight = NIGHT_WEIGHT
         rain_weight = RAIN_WEIGHT
         sun_weight = SUN_WEIGHT
         temp_weight = temp_split * TEMP_WIND_BUDGET
         wind_weight = (1 - temp_split) * TEMP_WIND_BUDGET
 
-    if not is_daytime:
-        return {
-            "score": float(NIGHT_GATE_SCORE_MAX), "night_gated": True,
-            "rain_contrib": 0.0, "temp_contrib": 0.0, "sun_contrib": 0.0, "wind_contrib": 0.0,
-        }
+    night_score = 100.0 if is_daytime else 0.0
 
     rain_impact = min(1.0, (rain_mm or 0) * MM_IMPACT_PER_MM + TIER_IMPACT.get(rain_tier, 0.0))
     rain_score = (1 - rain_impact) * 100
@@ -280,15 +276,17 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
+    night_contrib = night_weight * night_score
     rain_contrib = rain_weight * rain_score
     temp_contrib = temp_weight * temp_score
     sun_contrib = sun_weight * sun_score
     wind_contrib = wind_weight * wind_score
 
-    total = max(0.0, min(100.0, rain_contrib + temp_contrib + sun_contrib + wind_contrib))
+    total = max(0.0, min(100.0, night_contrib + rain_contrib + temp_contrib + sun_contrib + wind_contrib))
     return {
         "score": round(total, 1),
-        "night_gated": False,
+        "night_gated": not is_daytime,
+        "night_contrib": round(night_contrib, 1),
         "rain_contrib": round(rain_contrib, 1),
         "temp_contrib": round(temp_contrib, 1),
         "sun_contrib": round(sun_contrib, 1),
@@ -368,6 +366,7 @@ async def build_prognose(
             "score": round(s["score"] / 10, 1),
             "breakdown": {
                 "night_gated": s["night_gated"],
+                "night_contrib": round(s["night_contrib"] / 10, 1),
                 "rain_contrib": round(s["rain_contrib"] / 10, 1),
                 "temp_contrib": round(s["temp_contrib"] / 10, 1),
                 "sun_contrib": round(s["sun_contrib"] / 10, 1),

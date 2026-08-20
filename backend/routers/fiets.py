@@ -21,6 +21,7 @@ _PREF_KEYS = {
     "fiets_temp_max": "temp_max",
     "fiets_wind_knee_kmh": "wind_knee_kmh",
     "fiets_temp_weight": "temp_weight",
+    "fiets_weight_night": "weight_night",
     "fiets_weight_rain": "weight_rain",
     "fiets_weight_temp": "weight_temp",
     "fiets_weight_sun": "weight_sun",

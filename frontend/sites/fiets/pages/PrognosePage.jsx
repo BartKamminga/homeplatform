@@ -31,6 +31,10 @@ export default function PrognosePage() {
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showExplainer, setShowExplainer] = useState(false)
   const [windMode, setWindMode] = useState('both')
+  // Defaults matchen services/fiets.py (NIGHT_WEIGHT=0.35, RAIN_WEIGHT=0.25,
+  // TEMP_WIND_BUDGET=0.25 @ 60/40, SUN_WEIGHT=0.15) — voor de uitleg-popup,
+  // die zo altijd de actuele verdeling toont i.p.v. hardcoded percentages.
+  const [weights, setWeights] = useState({ night: 35, rain: 25, temp: 15, sun: 15, wind: 10 })
 
   useEffect(() => {
     setLoading(true)
@@ -42,7 +46,16 @@ export default function PrognosePage() {
 
   useEffect(() => {
     api.get('/api/auth/me/ui-prefs')
-      .then(prefs => setShowBreakdown(Boolean(prefs.fiets_show_breakdown)))
+      .then(prefs => {
+        setShowBreakdown(Boolean(prefs.fiets_show_breakdown))
+        setWeights(w => ({
+          night: prefs.fiets_weight_night ?? w.night,
+          rain: prefs.fiets_weight_rain ?? w.rain,
+          temp: prefs.fiets_weight_temp ?? w.temp,
+          sun: prefs.fiets_weight_sun ?? w.sun,
+          wind: prefs.fiets_weight_wind ?? w.wind,
+        }))
+      })
       .catch(() => {})
   }, [])
 
@@ -151,11 +164,9 @@ export default function PrognosePage() {
               </button>
             </div>
             <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)' }}>
-              <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — telt het zwaarst mee (35%). Hoe meer het regent en hoe zwaarder de bui, hoe lager deze bijdrage.</p>
-              <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> — daarna het belangrijkst (± 27%, instelbaar). Prettigst tussen 15-22°C.</p>
-              <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — telt voor 20% mee, meer zon is beter.</p>
-              <p style={{ margin: '0 0 6px' }}>💨 <strong>Wind</strong> — het lichtste gewicht (± 18%, instelbaar). Harde wind en tegenwind tellen negatief.</p>
-              <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
+              {weightRows(weights).map(({ key, icon, label, pct, note }) => (
+                <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
+              ))}
               <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
             </div>
           </div>
@@ -216,6 +227,7 @@ export default function PrognosePage() {
             </button>
             {showBreakdown ? (
               <>
+                <Legend color={BREAKDOWN_COLORS.night} label="Nacht" />
                 <Legend color={BREAKDOWN_COLORS.rain} label="Regen" />
                 <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
                 <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
@@ -236,6 +248,25 @@ export default function PrognosePage() {
       </div>
     </div>
   )
+}
+
+// Zet de actuele (eventueel door de gebruiker aangepaste) gewichten om naar
+// percentages voor de uitleg-popup, altijd op basis van de live waarden i.p.v.
+// hardcoded tekst — zo blijft de uitleg kloppen als de formule/instellingen wijzigen.
+function weightRows(weights) {
+  const total = Object.values(weights).reduce((sum, v) => sum + Number(v || 0), 0) || 1
+  const notes = {
+    night: "'s Nachts is het donker (0%), overdag telt dit vol mee (100%) — zicht/veiligheid.",
+    rain: 'Hoe meer het regent en hoe zwaarder de bui, hoe lager deze bijdrage.',
+    temp: 'Prettigst tussen 15-22°C, instelbaar.',
+    sun: 'Meer zon (minder bewolking) is beter.',
+    wind: 'Harde wind en tegenwind tellen negatief, instelbaar.',
+  }
+  const icons = { night: '🌙', rain: '🌧', temp: '🌡', sun: '☀️', wind: '💨' }
+  const labels = { night: 'Nacht', rain: 'Regen', temp: 'Temperatuur', sun: 'Zon', wind: 'Wind' }
+  return Object.keys(weights)
+    .map(key => ({ key, icon: icons[key], label: labels[key], note: notes[key], pct: Math.round(Number(weights[key] || 0) / total * 100) }))
+    .sort((a, b) => b.pct - a.pct)
 }
 
 function Legend({ color, label }) {
