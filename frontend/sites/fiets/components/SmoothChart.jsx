@@ -48,7 +48,9 @@ const FIELD_CONFIG = {
   temp:      { auto: true, pad: 1, fmt: v => `${Math.round(v)}°` },
   rain_prob: { min: 0, max: 100, fmt: v => `${Math.round(v)}%` },
   wind_kmh:  { auto: true, pad: 3, fmt: v => `${Math.round(v)}` },
-  sun_pct:   { min: 0, max: 100, fmt: v => `${Math.round(v)}%`, get: h => 100 - (h.cloud_cover ?? 0) },
+  // 's nachts is er geen zon, ongeacht bewolking — anders lijkt een heldere
+  // nacht (lage cloud_cover) ten onrechte op een hoog zon-percentage.
+  sun_pct:   { min: 0, max: 100, fmt: v => `${Math.round(v)}%`, get: h => h.is_daytime ? 100 - (h.cloud_cover ?? 0) : 0 },
 }
 
 const WIDTH = 720
