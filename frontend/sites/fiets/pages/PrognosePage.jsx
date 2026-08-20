@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import BarChart, { BREAKDOWN_COLORS } from '../components/BarChart.jsx'
+import SmoothChart, { BREAKDOWN_COLORS } from '../components/SmoothChart.jsx'
 import DayCard from '../components/DayCard.jsx'
 
 const TABS = [
@@ -77,12 +77,13 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        <BarChart days={data.days} field={activeField} />
+        <SmoothChart days={data.days} field={activeField} />
         {tab === 'fiets' && (
-          <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)' }}>
+          <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
             <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
             <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
             <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
+            <Legend color={BREAKDOWN_COLORS.rain} label="Regen (blokkeert)" />
             <span>· grijze stip = bronnen zijn het niet eens</span>
           </div>
         )}
