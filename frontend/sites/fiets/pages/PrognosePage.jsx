@@ -30,7 +30,7 @@ export default function PrognosePage() {
   const [sources, setSources] = useState(['knmi', 'gfs'])
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showExplainer, setShowExplainer] = useState(false)
-  const [windMode, setWindMode] = useState('both')
+  const [windMode, setWindMode] = useState('arrow')
   // Defaults matchen services/fiets.py (NIGHT_WEIGHT=0.35, RAIN_WEIGHT=0.25,
   // TEMP_WIND_BUDGET=0.25 @ 60/40, SUN_WEIGHT=0.15) — voor de uitleg-popup,
   // die zo altijd de actuele verdeling toont i.p.v. hardcoded percentages.
