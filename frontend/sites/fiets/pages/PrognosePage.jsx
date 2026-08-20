@@ -15,6 +15,7 @@ const TABS = [
 const SOURCES = [
   { key: 'knmi', label: 'KNMI' },
   { key: 'gfs',  label: 'NOAA GFS' },
+  { key: 'icon', label: 'DWD ICON' },
 ]
 
 const WIND_MODES = [
@@ -47,7 +48,7 @@ export default function PrognosePage() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
   const [tab,     setTab]     = useState('fiets')
-  const [sources, setSources] = useState(['knmi', 'gfs'])
+  const [sources, setSources] = useState(['knmi', 'gfs', 'icon'])
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showExplainer, setShowExplainer] = useState(false)
   const [windMode, setWindMode] = useState('arrow')
@@ -231,7 +232,7 @@ export default function PrognosePage() {
                 <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
               ))}
               <p style={{ margin: '0 0 6px' }}>🌙 <strong>Daglicht</strong> — werkt los van de 4 gewichten hierboven: 's nachts dimt de score vloeiend naar 0, overdag blijft hij onveranderd. Instelbaar via "neem ook donkere uren mee" bij Instellingen.</p>
-              <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
+              <p style={{ margin: 0 }}>📡 <strong>3 bronnen</strong> — de score is een gemiddelde van KNMI, NOAA GFS en DWD ICON. Zijn ze het duidelijk niet eens? Dan zie je een grijze stip.</p>
             </div>
           </div>
         </div>

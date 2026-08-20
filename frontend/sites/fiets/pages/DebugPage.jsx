@@ -97,7 +97,7 @@ export default function DebugPage({ onBeforeLeave }) {
   return (
     <div style={{ padding: '16px' }}>
       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-        Ruwe brondata per model (KNMI/GFS los), het geblende resultaat en de score-tussenstappen, per uur.
+        Ruwe brondata per model (KNMI/GFS/ICON los), het geblende resultaat en de score-tussenstappen, per uur.
         Puur om te leren hoe de score tot stand komt — sleep horizontaal om alle kolommen te zien.
       </p>
 
@@ -139,8 +139,9 @@ export default function DebugPage({ onBeforeLeave }) {
               <th style={th}>dag</th>
               <th style={groupTh} colSpan={5}>KNMI</th>
               <th style={groupTh} colSpan={5}>GFS</th>
+              <th style={groupTh} colSpan={5}>ICON</th>
               <th style={groupTh} colSpan={5}>Geblend</th>
-              <th style={groupTh}>2brn</th>
+              <th style={groupTh} title="Vlag als de actieve bronnen het duidelijk oneens zijn (temp/regenkans-spreiding boven de drempel)">afwijk.</th>
               <th style={groupTh} colSpan={7}>Score</th>
             </tr>
             <tr>
@@ -148,12 +149,13 @@ export default function DebugPage({ onBeforeLeave }) {
               <th style={th}></th>
               {['temp','mm','code','bew%','wind'].map(h => <th key={`k-${h}`} style={th}>{h}</th>)}
               {['temp','mm','code','bew%','wind'].map(h => <th key={`g-${h}`} style={th}>{h}</th>)}
+              {['temp','mm','code','bew%','wind'].map(h => <th key={`i-${h}`} style={th}>{h}</th>)}
               {['temp','mm','tier','bew%','wind'].map(h => (
                 <th key={`b-${h}`} style={th}>
                   {h}
                   {h === 'tier' && (
                     <span
-                      title="Regen-intensiteitsklasse (0-3), afgeleid uit de WMO weather_code: 0 = droog/bewolkt, 1 = lichte motregen, 2 = matige motregen/regen, 3 = zware regen/onweer/ijzel. Strengste van de twee bronnen (voorzichtigheidsprincipe). Bepaalt samen met mm de regen-score."
+                      title="Regen-intensiteitsklasse (0-3), afgeleid uit de WMO weather_code: 0 = droog/bewolkt, 1 = lichte motregen, 2 = matige motregen/regen, 3 = zware regen/onweer/ijzel. Strengste van de actieve bronnen (voorzichtigheidsprincipe). Bepaalt samen met mm de regen-score."
                       style={{ marginLeft: 3, cursor: 'help', fontWeight: 400 }}
                     >
                       ⓘ
@@ -194,6 +196,11 @@ export default function DebugPage({ onBeforeLeave }) {
                 <td style={td}>{r.sources.gfs.weather_code}</td>
                 <td style={td}>{r.sources.gfs.cloud_cover}</td>
                 <td style={td}>{Math.round(r.sources.gfs.wind_kmh)}</td>
+                <td style={td}>{r.sources.icon.temp}°</td>
+                <td style={td}>{r.sources.icon.rain_mm}</td>
+                <td style={td}>{r.sources.icon.weather_code}</td>
+                <td style={td}>{r.sources.icon.cloud_cover}</td>
+                <td style={td}>{Math.round(r.sources.icon.wind_kmh)}</td>
                 <td style={td}>{r.blended.temp}°</td>
                 <td style={td}>{r.blended.rain_mm}</td>
                 <td style={td}>{r.blended.rain_tier}</td>

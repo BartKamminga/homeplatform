@@ -110,13 +110,16 @@ WIND_DIR_MALUS_MAX = 10
 TEMP_SPLIT = 0.6  # 60% van het temp/wind-budget naar temp, 40% naar wind
 
 
-# Twee onafhankelijke modellen (beide via Open-Meteo, geen 2e integratie nodig)
-# voor een betrouwbaardere score — gemiddelde van KNMI (Harmonie) en NOAA GFS.
+# Drie onafhankelijke modellen (alle via Open-Meteo, geen extra integratie nodig)
+# voor een betrouwbaardere score — KNMI (Harmonie), NOAA GFS en DWD ICON.
 # (ecmwf_ifs04 gaf op 3 dagen vooruit alleen null-waarden — niet gebruiken.)
 # Kort label -> Open-Meteo model-id, gebruikt voor de aan/uit-toggle per bron (item 790).
-SOURCE_MODELS = {"knmi": "knmi_seamless", "gfs": "gfs_seamless"}
+# Onderzocht (item 835): icon_seamless, meteofrance_seamless en ukmo_seamless leverden
+# alle 3 volledige data (0 nulls over 72u) — icon_seamless gekozen als sterkste,
+# meest onafhankelijke aanvulling op KNMI/GFS.
+SOURCE_MODELS = {"knmi": "knmi_seamless", "gfs": "gfs_seamless", "icon": "icon_seamless"}
 WEATHER_MODELS = ",".join(SOURCE_MODELS.values())
-# Boven deze verschillen tussen de twee modellen markeren we het uur als "low confidence".
+# Boven deze verschillen tussen de bronnen markeren we het uur als "low confidence".
 DISAGREEMENT_TEMP_C = 3.0
 DISAGREEMENT_RAIN_PROB = 25
 
@@ -131,9 +134,9 @@ def _cache_key(lat: float, lon: float) -> str:
 
 
 def _blend_models(raw_hourly: dict, model_ids: list[str]) -> dict:
-    """Middelt de gekozen modellen (1 of 2 van SOURCE_MODELS) per uur tot één
+    """Middelt de gekozen modellen (1-3 van SOURCE_MODELS) per uur tot één
     hourly-dict met de gebruikelijke (ongesuffixte) veldnamen, plus
-    low_confidence per uur waar twee bronnen het duidelijk oneens zijn
+    low_confidence per uur waar de actieve bronnen het duidelijk oneens zijn
     (altijd False als er maar 1 bron actief is — niets om mee te vergelijken)."""
     n = len(raw_hourly["time"])
     blended = {
