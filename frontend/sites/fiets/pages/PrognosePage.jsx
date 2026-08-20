@@ -126,12 +126,38 @@ export default function PrognosePage() {
         </div>
       </div>
       {showExplainer && (
-        <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)', marginBottom: 16, padding: '10px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10 }}>
-          <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> & 💨 <strong>wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
-          <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — geen eigen laag, maar een grijze wasem over de score: hoe meer het regent en hoe zwaarder de bui, hoe donkerder (en lager de score).</p>
-          <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — een klein extra puntje bij helder weer overdag, telt niet zwaar.</p>
-          <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
-          <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
+        <div
+          onClick={() => setShowExplainer(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14,
+              padding: '18px 18px 16px', maxWidth: 340, width: '100%', maxHeight: '80vh', overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Hoe werkt de score?</h3>
+              <button
+                onClick={() => setShowExplainer(false)}
+                aria-label="Sluiten"
+                style={{ fontSize: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', lineHeight: 1 }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)' }}>
+              <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> & 💨 <strong>wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
+              <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — geen eigen laag, maar een grijze wasem over de score: hoe meer het regent en hoe zwaarder de bui, hoe donkerder (en lager de score).</p>
+              <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — een klein extra puntje bij helder weer overdag, telt niet zwaar.</p>
+              <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
+              <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
+            </div>
+          </div>
         </div>
       )}
 
