@@ -21,7 +21,7 @@ const DB_USER_ROWS = [
   { label: 'fiets_lat, fiets_lon, fiets_location_label',           where: 'user_preferences.extra', note: 'Fiets locatie-instelling (i.p.v. vast Rotterdam)' },
   { label: 'fiets_temp_weight',                                     where: 'user_preferences.extra', note: 'Fiets gewicht temperatuur vs. wind in score' },
   { label: 'fiets_temp_min, fiets_temp_max',                       where: 'user_preferences.extra', note: 'Fiets comfortband temperatuur' },
-  { label: 'fiets_rain_prob_threshold, fiets_wind_knee_kmh',       where: 'user_preferences.extra', note: 'Fiets regen/wind-drempels' },
+  { label: 'fiets_wind_knee_kmh',                                   where: 'user_preferences.extra', note: 'Fiets wind-drempel' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },
 ];

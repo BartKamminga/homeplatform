@@ -111,7 +111,6 @@ export default function InstellingenPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
           <NumberRow icon="🌡" label="Prettige temperatuur vanaf" unit="°C" field="fiets_temp_min" defaultValue={15} prefs={prefs} onSave={save} saving={saving} />
           <NumberRow icon="🌡" label="Prettige temperatuur tot" unit="°C" field="fiets_temp_max" defaultValue={22} prefs={prefs} onSave={save} saving={saving} />
-          <NumberRow icon="🌧" label="Regenkans-drempel" unit="%" field="fiets_rain_prob_threshold" defaultValue={50} min={0} max={100} prefs={prefs} onSave={save} saving={saving} />
           <NumberRow icon="💨" label="Windknikpunt (harder = snel minder prettig)" unit="km/u" field="fiets_wind_knee_kmh" defaultValue={25} last prefs={prefs} onSave={save} saving={saving} />
         </div>
       </div>

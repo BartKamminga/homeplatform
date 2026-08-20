@@ -24,10 +24,30 @@ CACHE_TTL = 1800  # 30 min — cachet de RUWE Open-Meteo respons, niet de gescoo
 # ── Score-model constanten — MVP-startpunt, later instelbaar via instellingen ──
 # (roadmap-item "Score-drempels/comfortband instelbaar maken via instellingen")
 
-# Regen — harde poort: boven de drempel telt temperatuur/wind niet meer mee.
-RAIN_PROB_THRESHOLD = 50   # %
-RAIN_MM_THRESHOLD = 0.2    # mm/uur
-RAIN_GATE_SCORE_MAX = 15   # score (0-100) die een geblokkeerd uur maximaal krijgt
+# Regen — GEEN harde poort meer. Regenkans bleek zwak gecorreleerd met
+# werkelijke neerslag (vaak 100% kans bij 0mm), dus telt niet meer mee.
+# In plaats daarvan: mm + WMO weather_code-tier (licht/matig/zwaar) bepalen
+# samen een percentage-korting op temp/wind (zelfde mechanisme als de
+# nacht-poort), zodat lichte motregen niet meer alles blokkeert maar een
+# fikse regenbui de score wel effectief naar 0 duwt.
+MM_IMPACT_PER_MM = 0.25
+TIER_IMPACT = {0: 0.0, 1: 0.10, 2: 0.25, 3: 0.45}
+
+# WMO weather_code -> intensiteits-tier. Codes die geen neerslag betekenen
+# (helder/bewolkt/mist) vallen op tier 0.
+_TIER_3_CODES = {55, 57, 65, 66, 67, 75, 82, 86, 95, 96, 99}   # zwaar (regen/onweer/ijzel)
+_TIER_2_CODES = {53, 63, 73, 81}                                # matig
+_TIER_1_CODES = {51, 56, 61, 71, 77, 80, 85}                    # licht
+
+
+def _code_tier(code: int) -> int:
+    if code in _TIER_3_CODES:
+        return 3
+    if code in _TIER_2_CODES:
+        return 2
+    if code in _TIER_1_CODES:
+        return 1
+    return 0
 
 # Temperatuur — comfortcurve met een piek-band, geleidelijk aflopend naar de randen.
 TEMP_OPTIMAL_MIN = 15.0    # °C
@@ -87,7 +107,7 @@ def _blend_models(raw_hourly: dict, model_ids: list[str]) -> dict:
         "time": raw_hourly["time"],
         "temperature_2m": [], "precipitation_probability": [], "precipitation": [],
         "wind_speed_10m": [], "wind_direction_10m": [], "is_day": [],
-        "cloud_cover": [], "low_confidence": [],
+        "cloud_cover": [], "low_confidence": [], "rain_tier": [],
     }
     for i in range(n):
         temps = [raw_hourly[f"temperature_2m_{m}"][i] for m in model_ids]
@@ -96,6 +116,9 @@ def _blend_models(raw_hourly: dict, model_ids: list[str]) -> dict:
         winds = [raw_hourly[f"wind_speed_10m_{m}"][i] for m in model_ids]
         dirs = [raw_hourly[f"wind_direction_10m_{m}"][i] for m in model_ids]
         clouds = [raw_hourly[f"cloud_cover_{m}"][i] for m in model_ids]
+        # Ergst-geval tier van de actieve bronnen (voorzichtig: als 1 bron regen
+        # ziet, wegen we die mee i.p.v. het te middelen/negeren).
+        tier = max(_code_tier(raw_hourly[f"weather_code_{m}"][i]) for m in model_ids)
 
         # Vector-gemiddelde voor windrichting (voorkomt vertekening rond 0/360).
         sin_avg = sum(sin(radians(d)) for d in dirs) / len(dirs)
@@ -108,6 +131,7 @@ def _blend_models(raw_hourly: dict, model_ids: list[str]) -> dict:
         blended["wind_speed_10m"].append(round(sum(winds) / len(winds), 1))
         blended["wind_direction_10m"].append(round(wind_dir_avg))
         blended["cloud_cover"].append(round(sum(clouds) / len(clouds)))
+        blended["rain_tier"].append(tier)
         blended["is_day"].append(raw_hourly[f"is_day_{model_ids[0]}"][i])
         blended["low_confidence"].append(
             len(model_ids) > 1 and (max(temps) - min(temps) > DISAGREEMENT_TEMP_C
@@ -130,7 +154,7 @@ async def fetch_openmeteo_raw(lat: float, lon: float) -> dict | None:
         "latitude": lat,
         "longitude": lon,
         "hourly": "temperature_2m,precipitation_probability,precipitation,"
-                  "wind_speed_10m,wind_direction_10m,is_day,cloud_cover",
+                  "wind_speed_10m,wind_direction_10m,is_day,cloud_cover,weather_code",
         "forecast_days": FORECAST_DAYS,
         "timezone": "auto",
         "models": WEATHER_MODELS,
@@ -189,8 +213,8 @@ async def geocode_location(query: str) -> list[dict]:
 
 def score_hour(
     temp: float,
-    rain_prob: float,
     rain_mm: float,
+    rain_tier: int,
     wind_kmh: float,
     wind_dir_deg: float,
     cloud_cover: float,
@@ -198,8 +222,10 @@ def score_hour(
     prefs: dict | None = None,
 ) -> dict:
     """Score 0-100 voor één uur, opgesplitst in bijdragen (voor de gesegmenteerde
-    balk: welk deel komt van temperatuur/wind/zon). Regen én donker zijn allebei
-    een harde poort — goed weer maakt fietsen in het donker niet alsnog een optie.
+    balk: welk deel komt van temperatuur/wind/zon). Regen is een percentage-
+    korting op basis van mm + weather_code-tier (regenkans zelf is te zwak
+    gecorreleerd met werkelijke neerslag om als harde poort te gebruiken).
+    Donker blijft wel een harde poort (zicht/veiligheid, los van het weer).
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -208,18 +234,18 @@ def score_hour(
     pref_deg = prefs.get("wind_pref_deg")
     temp_min = prefs.get("temp_min", TEMP_OPTIMAL_MIN)
     temp_max = prefs.get("temp_max", TEMP_OPTIMAL_MAX)
-    rain_prob_threshold = prefs.get("rain_prob_threshold", RAIN_PROB_THRESHOLD)
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
     temp_weight = prefs.get("temp_weight", TEMP_WEIGHT)
     wind_weight = 1 - temp_weight
 
-    rain_gated = (rain_prob or 0) > rain_prob_threshold or (rain_mm or 0) > RAIN_MM_THRESHOLD
-    if rain_gated or not is_daytime:
-        gated = NIGHT_GATE_SCORE_MAX if not is_daytime else max(0.0, RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10)
+    if not is_daytime:
         return {
-            "score": round(gated, 1), "rain_gated": rain_gated, "night_gated": not is_daytime,
+            "score": float(NIGHT_GATE_SCORE_MAX), "night_gated": True, "rain_factor": 1.0,
             "temp_contrib": 0.0, "wind_contrib": 0.0, "sun_bonus": 0.0,
         }
+
+    rain_impact = min(1.0, (rain_mm or 0) * MM_IMPACT_PER_MM + TIER_IMPACT.get(rain_tier, 0.0))
+    rain_factor = 1 - rain_impact
 
     temp_penalty = max(0.0, temp_min - temp, temp - temp_max)
     temp_score = max(0.0, min(100.0, 100.0 - temp_penalty * TEMP_FALLOFF_RATE))
@@ -238,15 +264,15 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    temp_contrib = temp_weight * temp_score
-    wind_contrib = wind_weight * wind_score
-    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX
+    temp_contrib = temp_weight * temp_score * rain_factor
+    wind_contrib = wind_weight * wind_score * rain_factor
+    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX * rain_factor
 
     total = max(0.0, min(100.0, temp_contrib + wind_contrib + sun_bonus))
     return {
         "score": round(total, 1),
-        "rain_gated": False,
         "night_gated": False,
+        "rain_factor": round(rain_factor, 2),
         "temp_contrib": round(temp_contrib, 1),
         "wind_contrib": round(wind_contrib, 1),
         "sun_bonus": round(sun_bonus, 1),
@@ -313,18 +339,19 @@ async def build_prognose(
     is_days = hourly["is_day"]
     cloud_covers = hourly["cloud_cover"]
     low_confidences = hourly["low_confidence"]
+    rain_tiers = hourly["rain_tier"]
 
     days_map: dict[str, list[dict]] = {}
     for i, iso_time in enumerate(times):
         is_daytime = bool(is_days[i])
-        s = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], cloud_covers[i], is_daytime, prefs)
+        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], is_daytime, prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
             "is_daytime": is_daytime,
             "score": round(s["score"] / 10, 1),
             "breakdown": {
-                "rain_gated": s["rain_gated"],
                 "night_gated": s["night_gated"],
+                "rain_factor": s["rain_factor"],
                 "temp_contrib": round(s["temp_contrib"] / 10, 1),
                 "wind_contrib": round(s["wind_contrib"] / 10, 1),
                 "sun_bonus": round(s["sun_bonus"] / 10, 1),
@@ -332,6 +359,7 @@ async def build_prognose(
             "temp": temps[i],
             "rain_prob": rain_probs[i],
             "rain_mm": rain_mms[i],
+            "rain_tier": rain_tiers[i],
             "wind_kmh": winds[i],
             "wind_dir": wind_dirs[i],
             "cloud_cover": cloud_covers[i],

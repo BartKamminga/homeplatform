@@ -2,9 +2,10 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, select
 
+from core.analytics import client_ip, hash_ip, log_site_event
 from core.auth import get_current_user
 from core.database import get_session
 from core.settings import settings
@@ -18,7 +19,6 @@ _PREF_KEYS = {
     "fiets_wind_pref_deg": "wind_pref_deg",
     "fiets_temp_min": "temp_min",
     "fiets_temp_max": "temp_max",
-    "fiets_rain_prob_threshold": "rain_prob_threshold",
     "fiets_wind_knee_kmh": "wind_knee_kmh",
     "fiets_temp_weight": "temp_weight",
 }
@@ -33,6 +33,7 @@ def _get_extra(current_user: User, session: Session) -> dict:
 
 @router.get("/prognose")
 async def get_prognose(
+    request: Request,
     sources: Optional[str] = None,  # comma-gescheiden: "knmi,gfs" — togglebaar op de main page (item 790)
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -45,7 +46,17 @@ async def get_prognose(
     location_label = extra.get("fiets_location_label", settings.FIETS_LOCATION_LABEL)
     source_list = [s.strip() for s in sources.split(",")] if sources else None
 
-    return await svc.build_prognose(lat, lon, prefs, location_label, source_list)
+    result = await svc.build_prognose(lat, lon, prefs, location_label, source_list)
+    try:
+        log_site_event(
+            "fiets", "api_call",
+            ip_hash=hash_ip(client_ip(request)),
+            user_agent=request.headers.get("User-Agent", ""),
+            endpoint="/api/fiets/prognose",
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/geocode")

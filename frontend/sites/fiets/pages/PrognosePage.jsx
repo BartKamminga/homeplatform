@@ -138,7 +138,7 @@ export default function PrognosePage() {
                     <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
                     <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
                     <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
-                    <Legend color={BREAKDOWN_COLORS.rain} label="Regen/donker (blokkeert)" />
+                    <Legend color={BREAKDOWN_COLORS.rain} label="Donker (blokkeert)" />
                   </>
                 ) : (
                   <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />

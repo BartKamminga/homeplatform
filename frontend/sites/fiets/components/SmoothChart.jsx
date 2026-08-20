@@ -171,8 +171,10 @@ export default function SmoothChart({ days, field, showBreakdown = true }) {
 function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX }) {
   const scale = v => (v / 10) * innerH // score/contributies zitten al op de 0-10 schaal
 
-  // Gestapeld van onder naar boven: regen/nacht-blokkade, temperatuur, wind, zon.
-  const layerValues = hours.map(h => (h.breakdown?.rain_gated || h.breakdown?.night_gated)
+  // Gestapeld van onder naar boven: nacht-blokkade, temperatuur, wind, zon.
+  // Regen is geen aparte blokkade meer — die verkleint temp/wind/zon al
+  // proportioneel via breakdown.rain_factor (zie services/fiets.py).
+  const layerValues = hours.map(h => h.breakdown?.night_gated
     ? [h.score, 0, 0, 0]
     : [0, h.breakdown?.temp_contrib ?? 0, h.breakdown?.wind_contrib ?? 0, h.breakdown?.sun_bonus ?? 0])
 
