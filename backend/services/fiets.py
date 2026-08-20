@@ -39,6 +39,29 @@ TEMP_WIND_BUDGET = 1 - NIGHT_WEIGHT - RAIN_WEIGHT - SUN_WEIGHT  # 0.25 — verde
 # zichtbaar; dit plafond raakt alleen de eindscore.
 NIGHT_ABSOLUTE_MAX = 15  # score (0-100) die een nachtelijk uur maximaal krijgt als de toggle aan staat
 
+# Dag/nacht is geen aan/uit-schakelaar maar een vloeiende schemering: een
+# smoothstep-overgang van TWILIGHT_MINUTES rond zonsopgang/-ondergang i.p.v.
+# een abrupte sprong tussen het laatste nachtuur en het eerste daguur. Ruim
+# gekozen (3 uur) zodat de overgang met uurlijkse data ook echt over meerdere
+# uren zichtbaar is, niet slechts 1 tussenwaarde.
+TWILIGHT_MINUTES = 180
+
+
+def _smoothstep(x: float) -> float:
+    x = max(0.0, min(1.0, x))
+    return x * x * (3 - 2 * x)
+
+
+def _daylight_factor(hour_dt: datetime, sunrise: datetime, sunset: datetime) -> float:
+    """0 = volledig nacht, 1 = volledig dag, met een vloeiende overgang rond
+    beide randen i.p.v. een harde 0/1-sprong."""
+    half = TWILIGHT_MINUTES / 2
+    since_sunrise = (hour_dt - sunrise).total_seconds() / 60
+    since_sunset = (hour_dt - sunset).total_seconds() / 60
+    ramp_up = _smoothstep((since_sunrise + half) / TWILIGHT_MINUTES)
+    ramp_down = 1 - _smoothstep((since_sunset + half) / TWILIGHT_MINUTES)
+    return min(ramp_up, ramp_down)
+
 # Regen — geen harde poort. Regenkans bleek zwak gecorreleerd met werkelijke
 # neerslag (vaak 100% kans bij 0mm), dus telt niet mee. In plaats daarvan:
 # mm + WMO weather_code-tier (licht/matig/zwaar) bepalen samen de regen-score
@@ -159,6 +182,7 @@ async def fetch_openmeteo_raw(lat: float, lon: float) -> dict | None:
         "longitude": lon,
         "hourly": "temperature_2m,precipitation_probability,precipitation,"
                   "wind_speed_10m,wind_direction_10m,is_day,cloud_cover,weather_code",
+        "daily": "sunrise,sunset",
         "forecast_days": FORECAST_DAYS,
         "timezone": "auto",
         "models": WEATHER_MODELS,
@@ -222,7 +246,7 @@ def score_hour(
     wind_kmh: float,
     wind_dir_deg: float,
     cloud_cover: float,
-    is_daytime: bool,
+    daylight_factor: float,
     prefs: dict | None = None,
 ) -> dict:
     """Score 0-100 voor één uur, opgesplitst in 5 gewogen subscores: nacht, regen,
@@ -257,7 +281,7 @@ def score_hour(
         temp_weight = temp_split * TEMP_WIND_BUDGET
         wind_weight = (1 - temp_split) * TEMP_WIND_BUDGET
 
-    night_score = 100.0 if is_daytime else 0.0
+    night_score = daylight_factor * 100.0
 
     rain_impact = min(1.0, (rain_mm or 0) * MM_IMPACT_PER_MM + TIER_IMPACT.get(rain_tier, 0.0))
     rain_score = (1 - rain_impact) * 100
@@ -288,11 +312,12 @@ def score_hour(
     wind_contrib = wind_weight * wind_score
 
     total = max(0.0, min(100.0, night_contrib + rain_contrib + temp_contrib + sun_contrib + wind_contrib))
-    if prefs.get("night_absolute") and not is_daytime:
+    if prefs.get("night_absolute") and daylight_factor < 0.5:
         total = min(total, NIGHT_ABSOLUTE_MAX)
     return {
         "score": round(total, 1),
-        "night_gated": not is_daytime,
+        "night_gated": daylight_factor < 0.5,
+        "daylight_factor": round(daylight_factor, 2),
         "night_contrib": round(night_contrib, 1),
         "rain_contrib": round(rain_contrib, 1),
         "temp_contrib": round(temp_contrib, 1),
@@ -336,6 +361,19 @@ def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3) -> dict | Non
     return best
 
 
+def _sun_times_by_date(raw: dict, model_id: str) -> dict[str, tuple]:
+    """date -> (sunrise, sunset) als datetime, voor de vloeiende dag/nacht-curve."""
+    daily = raw.get("daily", {})
+    dates = daily.get("time", [])
+    sunrises = daily.get(f"sunrise_{model_id}", [])
+    sunsets = daily.get(f"sunset_{model_id}", [])
+    return {
+        date: (datetime.fromisoformat(sunrises[i]), datetime.fromisoformat(sunsets[i]))
+        for i, date in enumerate(dates)
+        if i < len(sunrises) and i < len(sunsets)
+    }
+
+
 def _format_day_label(date_key: str) -> str:
     d = datetime.strptime(date_key, "%Y-%m-%d")
     return f"{_WEEKDAGEN[d.weekday()]} {d.day} {_MAANDEN[d.month - 1]}"
@@ -362,11 +400,14 @@ async def build_prognose(
     cloud_covers = hourly["cloud_cover"]
     low_confidences = hourly["low_confidence"]
     rain_tiers = hourly["rain_tier"]
+    sun_times = _sun_times_by_date(raw, SOURCE_MODELS[active_sources[0]])
 
     days_map: dict[str, list[dict]] = {}
     for i, iso_time in enumerate(times):
         is_daytime = bool(is_days[i])
-        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], is_daytime, prefs)
+        sunrise, sunset = sun_times.get(iso_time[:10], (None, None))
+        daylight_factor = _daylight_factor(datetime.fromisoformat(iso_time), sunrise, sunset) if sunrise else float(is_daytime)
+        s = score_hour(temps[i], rain_mms[i], rain_tiers[i], winds[i], wind_dirs[i], cloud_covers[i], daylight_factor, prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
             "is_daytime": is_daytime,
@@ -424,6 +465,7 @@ async def build_debug_view(lat: float, lon: float, prefs: dict | None = None) ->
     raw_hourly = raw["hourly"]
     blended = _blend_models(raw_hourly, list(SOURCE_MODELS.values()))
     n = len(raw_hourly["time"])
+    sun_times = _sun_times_by_date(raw, next(iter(SOURCE_MODELS.values())))
 
     rows = []
     for i in range(n):
@@ -440,10 +482,12 @@ async def build_debug_view(lat: float, lon: float, prefs: dict | None = None) ->
             }
 
         is_daytime = bool(blended["is_day"][i])
+        sunrise, sunset = sun_times.get(blended["time"][i][:10], (None, None))
+        daylight_factor = _daylight_factor(datetime.fromisoformat(blended["time"][i]), sunrise, sunset) if sunrise else float(is_daytime)
         s = score_hour(
             blended["temperature_2m"][i], blended["precipitation"][i], blended["rain_tier"][i],
             blended["wind_speed_10m"][i], blended["wind_direction_10m"][i], blended["cloud_cover"][i],
-            is_daytime, prefs,
+            daylight_factor, prefs,
         )
         rows.append({
             "time": blended["time"][i],

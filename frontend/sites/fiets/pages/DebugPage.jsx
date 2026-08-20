@@ -179,7 +179,9 @@ export default function DebugPage({ onBeforeLeave }) {
             {(rows || []).map((r, i) => (
               <tr key={i}>
                 <td style={td}>{r.time.slice(5).replace('T', ' ')}</td>
-                <td style={td}>{r.is_daytime ? '☀️' : '🌙'}</td>
+                <td style={td} title="Vloeiende dag/nacht-factor (0=nacht, 1=dag), schemering rond zonsopgang/-ondergang">
+                  {r.is_daytime ? '☀️' : '🌙'} {r.score.daylight_factor}
+                </td>
                 <td style={td}>{r.sources.knmi.temp}°</td>
                 <td style={td}>{r.sources.knmi.rain_mm}</td>
                 <td style={td}>{r.sources.knmi.weather_code}</td>
