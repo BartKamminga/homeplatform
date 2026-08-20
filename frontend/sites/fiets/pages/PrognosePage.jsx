@@ -90,7 +90,7 @@ export default function PrognosePage() {
         {data.location?.label && (
           <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>📍 {data.location.label}</p>
         )}
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {SOURCES.map(s => (
             <button
               key={s.key}
@@ -105,8 +105,27 @@ export default function PrognosePage() {
               {s.label}
             </button>
           ))}
+          <button
+            onClick={() => setShowExplainer(v => !v)}
+            aria-label="Hoe werkt de score?"
+            style={{
+              fontSize: 15, width: 26, height: 26, borderRadius: '50%', cursor: 'pointer', lineHeight: 1,
+              border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)',
+            }}
+          >
+            ⓘ
+          </button>
         </div>
       </div>
+      {showExplainer && (
+        <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)', marginBottom: 16, padding: '10px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10 }}>
+          <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> & 💨 <strong>wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
+          <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — geen eigen laag, maar een grijze wasem over de score: hoe meer het regent en hoe zwaarder de bui, hoe donkerder (en lager de score).</p>
+          <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — een klein extra puntje bij helder weer overdag, telt niet zwaar.</p>
+          <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
+          <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
         {TABS.map(t => (
@@ -153,25 +172,6 @@ export default function PrognosePage() {
               <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
             )}
             <span>· grijze stip = bronnen zijn het niet eens</span>
-            <button
-              onClick={() => setShowExplainer(v => !v)}
-              style={{
-                fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)',
-                marginLeft: 'auto',
-              }}
-            >
-              ⓘ Hoe werkt de score?
-            </button>
-          </div>
-        )}
-        {tab === 'fiets' && showExplainer && (
-          <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)', marginTop: 10, padding: '10px 12px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 10 }}>
-            <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> & 💨 <strong>wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
-            <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — geen eigen laag, maar een grijze wasem over de score: hoe meer het regent en hoe zwaarder de bui, hoe donkerder (en lager de score).</p>
-            <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — een klein extra puntje bij helder weer overdag, telt niet zwaar.</p>
-            <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
-            <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
           </div>
         )}
       </div>
