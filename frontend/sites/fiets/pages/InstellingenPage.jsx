@@ -13,11 +13,22 @@ const DIRECTIONS = [
   { deg: 315,   label: 'Noordwest' },
 ]
 
-const WEIGHT_PRESETS = [
-  { value: 0.8, label: 'Temperatuur belangrijker' },
-  { value: 0.6, label: 'Gebalanceerd' },
-  { value: 0.3, label: 'Wind belangrijker' },
+// Profielen zetten dezelfde 4 gewichten als de debug-pagina (fiets_weight_*) —
+// hergebruikt dat mechanisme i.p.v. een losse temp/wind-knop. 'Gebalanceerd'
+// is exact de backend-default (services/fiets.py RAIN/TEMP_WIND_BUDGET/SUN).
+const SCORE_PROFILES = [
+  { key: 'balanced', label: 'Gebalanceerd',              weights: { rain: 40, temp: 24, sun: 20, wind: 16 } },
+  { key: 'temp',     label: 'Gevoelig voor kou/hitte',   weights: { rain: 30, temp: 40, sun: 15, wind: 15 } },
+  { key: 'wind',     label: 'Fiets liever niet in de wind', weights: { rain: 30, temp: 15, sun: 15, wind: 40 } },
+  { key: 'rain',     label: 'Regen is een dealbreaker',  weights: { rain: 55, temp: 20, sun: 15, wind: 10 } },
 ]
+
+function matchingProfile(prefs) {
+  const current = { rain: prefs.fiets_weight_rain, temp: prefs.fiets_weight_temp, sun: prefs.fiets_weight_sun, wind: prefs.fiets_weight_wind }
+  if (Object.values(current).every(v => v == null)) return 'balanced' // nog nooit ingesteld = backend-default = Gebalanceerd
+  const found = SCORE_PROFILES.find(p => Object.keys(p.weights).every(k => Number(current[k]) === p.weights[k]))
+  return found?.key ?? 'custom'
+}
 
 const rowStyle = {
   display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
@@ -88,18 +99,26 @@ export default function InstellingenPage() {
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          Weegt tegenwind/harde wind zwaarder mee, of eerder een paar graden te koud/warm?
+          Wat weegt het zwaarst mee in de score: regen, temperatuur, zon of wind?
         </p>
         <div style={rowStyle}>
           <span style={{ fontSize: 20, flexShrink: 0 }}>⚖️</span>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Gewicht temperatuur vs. wind</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Score-profiel</span>
           <select
             disabled={saving}
-            value={prefs.fiets_temp_weight ?? 0.6}
-            onChange={e => save({ fiets_temp_weight: Number(e.target.value) })}
+            value={matchingProfile(prefs)}
+            onChange={e => {
+              const profile = SCORE_PROFILES.find(p => p.key === e.target.value)
+              if (!profile) return
+              save({
+                fiets_weight_rain: profile.weights.rain, fiets_weight_temp: profile.weights.temp,
+                fiets_weight_sun: profile.weights.sun, fiets_weight_wind: profile.weights.wind,
+              })
+            }}
             style={controlStyle(saving)}
           >
-            {WEIGHT_PRESETS.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
+            {SCORE_PROFILES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+            {matchingProfile(prefs) === 'custom' && <option value="custom">Aangepast (via debug-pagina)</option>}
           </select>
         </div>
       </div>

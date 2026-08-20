@@ -20,7 +20,7 @@ const DB_USER_ROWS = [
   { label: 'fiets_wind_pref_deg',                                   where: 'user_preferences.extra', note: 'Fiets windrichting-voorkeur (graden)' },
   { label: 'fiets_show_breakdown',                                  where: 'user_preferences.extra', note: 'Fiets grafiek met/zonder opbouw (onthouden per sessie)' },
   { label: 'fiets_lat, fiets_lon, fiets_location_label',           where: 'user_preferences.extra', note: 'Fiets locatie-instelling (i.p.v. vast Rotterdam)' },
-  { label: 'fiets_temp_weight',                                     where: 'user_preferences.extra', note: 'Fiets gewicht temperatuur vs. wind in score' },
+  { label: 'fiets_temp_weight',                                     where: 'user_preferences.extra', note: 'Fiets legacy fallback temp/wind-balans - UI schrijft dit niet meer, zie fiets_weight_* profielen' },
   { label: 'fiets_temp_min, fiets_temp_max',                       where: 'user_preferences.extra', note: 'Fiets comfortband temperatuur' },
   { label: 'fiets_wind_knee_kmh',                                   where: 'user_preferences.extra', note: 'Fiets wind-drempel' },
   { label: 'fiets_weight_rain/temp/sun/wind',                       where: 'user_preferences.extra', note: 'Fiets eigen score-gewicht-profiel (debug-pagina) - puur weer, geen daglicht' },
