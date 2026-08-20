@@ -8,10 +8,9 @@ import {
   KNOWN_SEASONS,
 } from '../../api.js'
 import { card, muted, successBanner, errorBanner } from '../styles.js'
-import { useCollapse } from '../ui.jsx'
+import { useCollapse, ConfirmDialog } from '../ui.jsx'
 import CompetitieDetailView from './CompetitieDetailView.jsx'
 import CompetitionRow from './CompetitionRow.jsx'
-import InlineConfirm from './InlineConfirm.jsx'
 import BeheerPanel from './BeheerPanel.jsx'
 import CompetitiePicker from './CompetitiePicker.jsx'
 
@@ -307,27 +306,18 @@ export default function CompetitiesTab({
       {msg   && <div style={successBanner}>{msg}</div>}
       {error && <div style={errorBanner}>{error}</div>}
 
-      {confirmTag && (
-        <InlineConfirm
-          msg={`Tag "${confirmTag.name}" verwijderen? Wordt ook bij alle koppelingen verwijderd.`}
-          onConfirm={() => doRemoveTag(confirmTag)}
-          onCancel={() => setConfirmTag(null)}
-        />
-      )}
-      {confirmLink && (
-        <InlineConfirm
-          msg={`Koppeling met "${confirmLink.competition?.name}" verwijderen?`}
-          onConfirm={() => doRemoveLink(confirmLink)}
-          onCancel={() => setConfirmLink(null)}
-        />
-      )}
-      {confirmCat && (
-        <InlineConfirm
-          msg={`Categorie "${confirmCat.name}" verwijderen? Tags in deze categorie vallen terug naar "Overig".`}
-          onConfirm={() => doRemoveCategory(confirmCat)}
-          onCancel={() => setConfirmCat(null)}
-        />
-      )}
+      <ConfirmDialog open={!!confirmTag} onConfirm={() => doRemoveTag(confirmTag)} onCancel={() => setConfirmTag(null)}>
+        Tag "{confirmTag?.name}" verwijderen? Wordt ook bij alle koppelingen verwijderd.
+      </ConfirmDialog>
+      <ConfirmDialog open={!!confirmLink} onConfirm={() => doRemoveLink(confirmLink)} onCancel={() => setConfirmLink(null)}>
+        Koppeling met "{confirmLink?.competition?.name}" verwijderen?
+      </ConfirmDialog>
+      <ConfirmDialog open={!!confirmCat} onConfirm={() => doRemoveCategory(confirmCat)} onCancel={() => setConfirmCat(null)}>
+        Categorie "{confirmCat?.name}" verwijderen? Tags in deze categorie vallen terug naar "Overig".
+      </ConfirmDialog>
+      <ConfirmDialog open={confirmDel} busy={deleting} onConfirm={handleDelete} onCancel={() => setConfirmDel(false)}>
+        Deze publicatie definitief verwijderen? Dit kan niet ongedaan gemaakt worden.
+      </ConfirmDialog>
 
       {isAdmin && (
         <BeheerPanel
@@ -343,7 +333,7 @@ export default function CompetitiesTab({
           onCatDragOver={i => setCatOverIdx(i)}
           onCatDrop={handleCatDrop}
           catOverIdx={catOverIdx}
-          onDelete={onDelete} confirmDel={confirmDel} setConfirmDel={setConfirmDel} deleting={deleting} onConfirmDelete={handleDelete}
+          onDelete={onDelete} setConfirmDel={setConfirmDel}
           onTagDragStart={i => { tagDragIdx.current = i }}
           onTagDragOver={i => setTagOverIdx(i)}
           onTagDrop={handleTagDrop}

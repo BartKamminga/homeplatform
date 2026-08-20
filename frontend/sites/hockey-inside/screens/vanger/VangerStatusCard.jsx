@@ -212,14 +212,12 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, paddingBottom: 6 }}>
         <Toggle
           on={ghostEnabled} onChange={onToggleGhost} onVariant="muted" offVariant="partial"
-          onLabel="Ghost uitschakelen" offLabel="Ghost weer aanzetten"
-          style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5 }}
+          onLabel="● Ghost actief" offLabel="○ Ghost uit"
         />
         <Toggle
           on={scanPlanEnabled} onChange={onToggleScanPlan} onVariant="muted" offVariant="partial"
-          onLabel="Scan-plan uitschakelen" offLabel="Scan-plan weer aanzetten"
+          onLabel="● Scan-plan actief" offLabel="○ Scan-plan uit"
           title="Zet de automatische scan-plan-pass (clublijst/club-cap + event-driven matchday-scan) volledig aan of uit"
-          style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5 }}
         />
       </div>
       <div

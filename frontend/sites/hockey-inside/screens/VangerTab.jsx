@@ -1,4 +1,4 @@
-import { useVangerState } from './vanger/useVangerState.js'
+import { useVangerState } from './vanger/useVangerState.jsx'
 import VangerStatusCard  from './vanger/VangerStatusCard.jsx'
 import CmdQueueSection   from './vanger/CmdQueueSection.jsx'
 import QueueFilterBar    from './vanger/QueueFilterBar.jsx'
@@ -74,6 +74,7 @@ export default function VangerTab() {
           Geen poule queue — teams worden geladen zodra de vanger clubs heeft gescand
         </div>
       )}
+      {s.confirmDialog}
     </div>
   )
 }

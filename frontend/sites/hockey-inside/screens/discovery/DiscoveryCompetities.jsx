@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { previewEmptyCompetitions, deleteEmptyCompetitions, deletePoule } from '../../api.js'
 import { ghostBtnSm } from '../styles.js'
 import { useQueueCmd } from '../queueShared.jsx'
+import { ConfirmDialog, useConfirm } from '../ui.jsx'
 import { isJeugd, AGE_GROUP_ORDER, normalizeDistrict, classRank } from './discoveryHelpers.js'
 import NameGroup from './NameGroup.jsx'
 
@@ -14,6 +15,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
   const [previewing,  setPreviewing]  = useState(false)
   const [cleaning,    setCleaning]    = useState(false)
   const { addSingleCmd, cmdBtn } = useQueueCmd()
+  const [confirmPoule, poulesDialog] = useConfirm()
 
   // Precomputed lookups — vervangen O(N) inline filters per render door O(1) lookup
   const capturedPoulesByComp = useMemo(() => {
@@ -56,7 +58,12 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
       // welk seizoen er nu geselecteerd staat, anders blijven oudere lege
       // competities onopgemerkt liggen.
       const r = await previewEmptyCompetitions()
-      setEmptyPreview(r)
+      if (r.total === 0) {
+        setCleanupMsg('Geen lege competities gevonden — niets om op te ruimen.')
+        setTimeout(() => setCleanupMsg(''), 5000)
+      } else {
+        setEmptyPreview(r)
+      }
     } catch (e) { setCleanupMsg('Fout: ' + e.message); setTimeout(() => setCleanupMsg(''), 5000) }
     finally { setPreviewing(false) }
   }
@@ -74,7 +81,8 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
 
   async function handleDeletePoule(e, poule) {
     e.stopPropagation()
-    if (!window.confirm(`Poule "${poule.name}" (#${poule.poule_id}) verwijderen? Matches/standen gaan mee, kan opnieuw ontdekt worden bij een volgende scan.`)) return
+    const ok = await confirmPoule(`Poule "${poule.name}" (#${poule.poule_id}) verwijderen? Matches/standen gaan mee, kan opnieuw ontdekt worden bij een volgende scan.`)
+    if (!ok) return
     try {
       await deletePoule(poule.poule_id)
       onReload()
@@ -114,38 +122,29 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
           betekent hier 0 gecapturede poule-rijen in de database, niet "weinig
           poules volgens de bond". De getoonde X/Y-badges hierboven kunnen door
           achtergrond-scans verouderd zijn; deze lijst is dat niet. */}
-      {emptyPreview && (
-        <div style={{
-          background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-danger) 25%, transparent)',
-          borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8,
-        }}>
-          {emptyPreview.total === 0 ? (
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Geen lege competities gevonden — niets om op te ruimen.</span>
-          ) : (
-            <>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>
-                {emptyPreview.total} competitie{emptyPreview.total !== 1 ? 's' : ''} heeft geen enkele gescande poule en wordt verwijderd:
-              </span>
-              <div style={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {emptyPreview.competitions.map(c => (
-                  <div key={c.id} style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                    {c.hockey_type === 'ZA' ? '🏒' : '🏑'} {c.name}{c.class_name ? ` · ${c.class_name}` : ''}{c.district ? ` · ${c.district}` : ''} · {c.season}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            <button onClick={() => setEmptyPreview(null)} style={ghostBtnSm}>Nee</button>
-            {emptyPreview.total > 0 && (
-              <button onClick={handleConfirmCleanup} disabled={cleaning}
-                style={{ ...ghostBtnSm, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', opacity: cleaning ? 0.5 : 1 }}>
-                {cleaning ? 'Bezig…' : 'Ja, verwijderen'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!emptyPreview}
+        busy={cleaning}
+        confirmLabel="Ja, verwijderen"
+        onConfirm={handleConfirmCleanup}
+        onCancel={() => setEmptyPreview(null)}
+      >
+        {emptyPreview && (
+          <>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              {emptyPreview.total} competitie{emptyPreview.total !== 1 ? 's' : ''} heeft geen enkele gescande poule en wordt verwijderd:
+            </div>
+            <div style={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {emptyPreview.competitions.map(c => (
+                <div key={c.id} style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  {c.hockey_type === 'ZA' ? '🏒' : '🏑'} {c.name}{c.class_name ? ` · ${c.class_name}` : ''}{c.district ? ` · ${c.district}` : ''} · {c.season}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </ConfirmDialog>
+      {poulesDialog}
 
       {/* Boom: VE/ZA → Senioren/Jeugd → [district → naam] of [naam → district] */}
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>

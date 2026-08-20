@@ -1,7 +1,14 @@
 ﻿import { api } from '@core/api.js'
-import { pill } from '../ui.jsx'
+import { pill, useConfirm } from '../ui.jsx'
 
 export default function QueuesPanel({ pluginErrors, setPluginErrors, errOpen, setErrOpen }) {
+  const [confirm, confirmDialog] = useConfirm()
+
+  async function handleClearErrors() {
+    if (!await confirm('Alle plugin fouten wissen?')) return
+    api.delete('/api/hockey/plugin-errors').then(() => setPluginErrors([]))
+  }
+
   return (
     <>
       {/* Plugin fouten */}
@@ -12,7 +19,7 @@ export default function QueuesPanel({ pluginErrors, setPluginErrors, errOpen, se
             <span onClick={() => setErrOpen(o => !o)} style={{ fontWeight: 600, fontSize: 13, flex: 1, color: 'var(--color-danger)', cursor: 'pointer' }}>⚠️ Plugin fouten</span>
             <span style={pill('muted')}>{pluginErrors.length} recent</span>
             <button
-              onClick={() => { if (window.confirm('Alle plugin fouten wissen?')) api.delete('/api/hockey/plugin-errors').then(() => setPluginErrors([])) }}
+              onClick={handleClearErrors}
               style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 4, cursor: 'pointer' }}>
               legen
             </button>
@@ -34,7 +41,7 @@ export default function QueuesPanel({ pluginErrors, setPluginErrors, errOpen, se
           )}
         </div>
       )}
-
+      {confirmDialog}
     </>
   )
 }

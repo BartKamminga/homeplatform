@@ -31,7 +31,7 @@ export default function BeheerPanel({
   categories, onRequestDeleteCategory,
   newCatName, setNewCatName, addingCat, onAddCategory,
   onCatDragStart, onCatDragOver, onCatDrop, catOverIdx,
-  onDelete, confirmDel, setConfirmDel, deleting, onConfirmDelete,
+  onDelete, setConfirmDel,
   onTagDragStart, onTagDragOver, onTagDrop, tagOverIdx,
 }) {
   const tagGroups = groupTagsByCategory(globalTags)
@@ -76,19 +76,11 @@ export default function BeheerPanel({
                 style={{ padding: '4px 10px' }}
               />
             )}
-            {onDelete && !confirmDel && (
+            {onDelete && (
               <button
                 onClick={() => setConfirmDel(true)}
                 style={{ ...ghostBtn, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', fontSize: 11 }}
               >Verwijderen</button>
-            )}
-            {confirmDel && (
-              <>
-                <button onClick={() => setConfirmDel(false)} style={ghostBtn}>Nee</button>
-                <button onClick={onConfirmDelete} disabled={deleting}
-                  style={{ ...ghostBtn, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', opacity: deleting ? 0.5 : 1 }}
-                >{deleting ? 'Bezig…' : 'Ja, verwijderen'}</button>
-              </>
             )}
           </div>
 

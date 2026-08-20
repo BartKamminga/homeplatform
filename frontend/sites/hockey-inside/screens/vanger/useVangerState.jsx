@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import { useQueueCmd } from '../queueShared.jsx'
+import { useConfirm } from '../ui.jsx'
 
 export function useVangerState() {
   const [clubs,         setClubs]         = useState([])
@@ -27,6 +28,7 @@ export function useVangerState() {
   const [ghostBusy,     setGhostBusy]     = useState(false)
   const [scoutBusy,     setScoutBusy]     = useState(false)
   const [vangerSettings, setVangerSettings] = useState(null)
+  const [confirm, confirmDialog] = useConfirm()
 
   function loadCmdQueue()    { api.get('/api/hockey/vanger/cmd-queue').then(setCmdQueue).catch(() => {}) }
   function loadVangerStatus(){ api.get('/api/hockey/vanger/status').then(setVangerStatus).catch(() => {}) }
@@ -121,8 +123,8 @@ export function useVangerState() {
       .finally(() => setCmdFilling(null))
   }
 
-  function clearCmdQueue() {
-    if (!window.confirm('Alle pending cmds wissen?')) return
+  async function clearCmdQueue() {
+    if (!await confirm('Alle pending cmds wissen?')) return
     api.delete('/api/hockey/vanger/cmd-queue').then(() => loadCmdQueue()).catch(() => {})
   }
 
@@ -213,6 +215,7 @@ export function useVangerState() {
     smartScan, smartBusy,
     ghostBusy, scoutBusy,
     cmdOps,
+    confirmDialog,
     // functions
     load, loadCmdQueue,
     fillCmdQueue, clearCmdQueue, retryCmdQueue, retryAllFailed, clearDoneCmds,

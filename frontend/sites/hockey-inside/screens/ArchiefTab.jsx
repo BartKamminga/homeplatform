@@ -4,6 +4,7 @@ import {
   deleteCaptureSession, deleteOldCaptureSessions,
 } from '../api.js'
 import { muted } from './styles.js'
+import { useConfirm } from './ui.jsx'
 import SessionRow from './SessionRow.jsx'
 import ItemDetail from './ItemDetail.jsx'
 
@@ -22,6 +23,7 @@ export default function ArchiefTab() {
   const [reprocessMsg, setReprocessMsg] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
   const [cleanupDays,  setCleanupDays]  = useState(30)
+  const [confirm, confirmDialog] = useConfirm()
 
   useEffect(() => {
     setLoading(true)
@@ -44,7 +46,7 @@ export default function ArchiefTab() {
   }
 
   async function handleDeleteSession(sid) {
-    if (!window.confirm('Deze sessie definitief uit het archief verwijderen?')) return
+    if (!await confirm('Deze sessie definitief uit het archief verwijderen?')) return
     setDeleting(true)
     try {
       await deleteCaptureSession(sid)
@@ -58,7 +60,7 @@ export default function ArchiefTab() {
   }
 
   async function handleCleanupOld() {
-    if (!window.confirm(`Alle captures ouder dan ${cleanupDays} dagen definitief verwijderen?`)) return
+    if (!await confirm(`Alle captures ouder dan ${cleanupDays} dagen definitief verwijderen?`)) return
     setDeleting(true)
     try {
       const r = await deleteOldCaptureSessions(cleanupDays)
@@ -226,6 +228,7 @@ export default function ArchiefTab() {
           )}
         </div>
       </div>
+      {confirmDialog}
     </div>
   )
 }
