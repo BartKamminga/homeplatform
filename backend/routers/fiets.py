@@ -1,5 +1,7 @@
 """FietsPrognose router — wanneer kan ik het beste fietsen?"""
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
@@ -31,6 +33,7 @@ def _get_extra(current_user: User, session: Session) -> dict:
 
 @router.get("/prognose")
 async def get_prognose(
+    sources: Optional[str] = None,  # comma-gescheiden: "knmi,gfs" — togglebaar op de main page (item 790)
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -40,8 +43,9 @@ async def get_prognose(
     lat = extra.get("fiets_lat", settings.FIETS_LAT)
     lon = extra.get("fiets_lon", settings.FIETS_LON)
     location_label = extra.get("fiets_location_label", settings.FIETS_LOCATION_LABEL)
+    source_list = [s.strip() for s in sources.split(",")] if sources else None
 
-    return await svc.build_prognose(lat, lon, prefs, location_label)
+    return await svc.build_prognose(lat, lon, prefs, location_label, source_list)
 
 
 @router.get("/geocode")

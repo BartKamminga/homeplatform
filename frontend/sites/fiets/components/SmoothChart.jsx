@@ -34,17 +34,21 @@ function useThemeColors() {
 // Factor-kleuren voor de gestapelde Fiets-vlakken (welk deel komt van
 // regen-blokkade/temperatuur/wind/zon) — eigen kleine palet, geen thema-var
 // voorhanden hiervoor.
-export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308' }
+export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e' }
 
 // Zelfde kleuren als de Fiets-legenda, ook voor de losse metriek-grafieken
-// (item 788): Temperatuur=oranje, Wind=blauw, Neerslagkans=grijs (regen-kleur).
-const FIELD_COLOR = { temp: BREAKDOWN_COLORS.temp, rain_prob: BREAKDOWN_COLORS.rain, wind_kmh: BREAKDOWN_COLORS.wind }
+// (item 788): Temperatuur=oranje, Wind=blauw, Neerslagkans=grijs (regen-kleur), Zon=geel.
+const FIELD_COLOR = {
+  temp: BREAKDOWN_COLORS.temp, rain_prob: BREAKDOWN_COLORS.rain,
+  wind_kmh: BREAKDOWN_COLORS.wind, sun_pct: BREAKDOWN_COLORS.sun,
+}
 
 const FIELD_CONFIG = {
   score:     { min: 0, max: 10,  fmt: v => v.toFixed(1) },
   temp:      { auto: true, pad: 1, fmt: v => `${Math.round(v)}°` },
   rain_prob: { min: 0, max: 100, fmt: v => `${Math.round(v)}%` },
   wind_kmh:  { auto: true, pad: 3, fmt: v => `${Math.round(v)}` },
+  sun_pct:   { min: 0, max: 100, fmt: v => `${Math.round(v)}%`, get: h => 100 - (h.cloud_cover ?? 0) },
 }
 
 const WIDTH = 720
@@ -93,7 +97,7 @@ function NowMarker({ x, top, bottom, colors }) {
   )
 }
 
-export default function SmoothChart({ days, field }) {
+export default function SmoothChart({ days, field, showBreakdown = true }) {
   const colors = useThemeColors()
   const hours = days.flatMap(d => d.hours)
   const n = hours.length
@@ -124,7 +128,7 @@ export default function SmoothChart({ days, field }) {
 
   const nowX = (() => { const ni = nowIndex(hours); return ni == null ? null : xAt(ni) })()
 
-  if (field === 'score') {
+  if (field === 'score' && showBreakdown) {
     return (
       <ScoreArea
         hours={hours} n={n} xAt={xAt} baseline={baseline} innerH={innerH}
@@ -133,12 +137,12 @@ export default function SmoothChart({ days, field }) {
     )
   }
 
-  const values = hours.map(h => h[field])
   const cfg = FIELD_CONFIG[field]
+  const values = hours.map(cfg.get ?? (h => h[field]))
   const min = cfg.auto ? Math.min(...values) - cfg.pad : cfg.min
   const max = cfg.auto ? Math.max(...values) + cfg.pad : cfg.max
   const yAt = v => PAD_TOP + innerH - ((v - min) / (max - min || 1)) * innerH
-  const lineColor = FIELD_COLOR[field] || colors['--color-primary']
+  const lineColor = field === 'score' ? BREAKDOWN_COLORS.fiets : (FIELD_COLOR[field] || colors['--color-primary'])
 
   const points = values.map((v, i) => [xAt(i), yAt(v)])
   const linePath = smoothPath(points)

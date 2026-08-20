@@ -49,13 +49,20 @@ TEMP_WEIGHT = 0.6
 WIND_WEIGHT = 0.4
 
 # Zon — kleine bonus bovenop temp/wind, geen eigen gewicht (voorkomt dat de
-# instelbare temp/wind-verdeling opnieuw ontworpen moet worden).
+# instelbare temp/wind-verdeling opnieuw ontworpen moet worden). Alleen overdag:
+# 's nachts is er geen zon, ongeacht bewolking.
 SUN_BONUS_MAX = 8  # scorepunten bij een volledig onbewolkte lucht
+
+# Licht/donker — 's nachts fietsen is sowieso minder aantrekkelijk (zicht/
+# veiligheid), los van het weer. Vaste malus, geen eigen gewicht.
+NIGHT_PENALTY = 15  # scorepunten
 
 # Twee onafhankelijke modellen (beide via Open-Meteo, geen 2e integratie nodig)
 # voor een betrouwbaardere score — gemiddelde van KNMI (Harmonie) en NOAA GFS.
 # (ecmwf_ifs04 gaf op 3 dagen vooruit alleen null-waarden — niet gebruiken.)
-WEATHER_MODELS = "knmi_seamless,gfs_seamless"
+# Kort label -> Open-Meteo model-id, gebruikt voor de aan/uit-toggle per bron (item 790).
+SOURCE_MODELS = {"knmi": "knmi_seamless", "gfs": "gfs_seamless"}
+WEATHER_MODELS = ",".join(SOURCE_MODELS.values())
 # Boven deze verschillen tussen de twee modellen markeren we het uur als "low confidence".
 DISAGREEMENT_TEMP_C = 3.0
 DISAGREEMENT_RAIN_PROB = 25
@@ -70,11 +77,11 @@ def _cache_key(lat: float, lon: float) -> str:
     return f"{round(lat, 2)},{round(lon, 2)}"
 
 
-def _blend_models(raw_hourly: dict) -> dict:
-    """Middelt de twee modellen (knmi_seamless + ecmwf_ifs04) per uur tot één
+def _blend_models(raw_hourly: dict, model_ids: list[str]) -> dict:
+    """Middelt de gekozen modellen (1 of 2 van SOURCE_MODELS) per uur tot één
     hourly-dict met de gebruikelijke (ongesuffixte) veldnamen, plus
-    low_confidence per uur waar de twee bronnen het duidelijk oneens zijn."""
-    m1, m2 = WEATHER_MODELS.split(",")
+    low_confidence per uur waar twee bronnen het duidelijk oneens zijn
+    (altijd False als er maar 1 bron actief is — niets om mee te vergelijken)."""
     n = len(raw_hourly["time"])
     blended = {
         "time": raw_hourly["time"],
@@ -83,34 +90,36 @@ def _blend_models(raw_hourly: dict) -> dict:
         "cloud_cover": [], "low_confidence": [],
     }
     for i in range(n):
-        t1, t2 = raw_hourly[f"temperature_2m_{m1}"][i], raw_hourly[f"temperature_2m_{m2}"][i]
-        p1, p2 = raw_hourly[f"precipitation_probability_{m1}"][i], raw_hourly[f"precipitation_probability_{m2}"][i]
-        r1, r2 = raw_hourly[f"precipitation_{m1}"][i], raw_hourly[f"precipitation_{m2}"][i]
-        w1, w2 = raw_hourly[f"wind_speed_10m_{m1}"][i], raw_hourly[f"wind_speed_10m_{m2}"][i]
-        d1, d2 = raw_hourly[f"wind_direction_10m_{m1}"][i], raw_hourly[f"wind_direction_10m_{m2}"][i]
-        c1, c2 = raw_hourly[f"cloud_cover_{m1}"][i], raw_hourly[f"cloud_cover_{m2}"][i]
+        temps = [raw_hourly[f"temperature_2m_{m}"][i] for m in model_ids]
+        probs = [raw_hourly[f"precipitation_probability_{m}"][i] for m in model_ids]
+        rains = [raw_hourly[f"precipitation_{m}"][i] for m in model_ids]
+        winds = [raw_hourly[f"wind_speed_10m_{m}"][i] for m in model_ids]
+        dirs = [raw_hourly[f"wind_direction_10m_{m}"][i] for m in model_ids]
+        clouds = [raw_hourly[f"cloud_cover_{m}"][i] for m in model_ids]
 
         # Vector-gemiddelde voor windrichting (voorkomt vertekening rond 0/360).
-        sin_avg = (sin(radians(d1)) + sin(radians(d2))) / 2
-        cos_avg = (cos(radians(d1)) + cos(radians(d2))) / 2
+        sin_avg = sum(sin(radians(d)) for d in dirs) / len(dirs)
+        cos_avg = sum(cos(radians(d)) for d in dirs) / len(dirs)
         wind_dir_avg = (degrees(atan2(sin_avg, cos_avg)) + 360) % 360
 
-        blended["temperature_2m"].append(round((t1 + t2) / 2, 1))
-        blended["precipitation_probability"].append(round((p1 + p2) / 2))
-        blended["precipitation"].append(round((r1 + r2) / 2, 2))
-        blended["wind_speed_10m"].append(round((w1 + w2) / 2, 1))
+        blended["temperature_2m"].append(round(sum(temps) / len(temps), 1))
+        blended["precipitation_probability"].append(round(sum(probs) / len(probs)))
+        blended["precipitation"].append(round(sum(rains) / len(rains), 2))
+        blended["wind_speed_10m"].append(round(sum(winds) / len(winds), 1))
         blended["wind_direction_10m"].append(round(wind_dir_avg))
-        blended["cloud_cover"].append(round((c1 + c2) / 2))
-        blended["is_day"].append(raw_hourly[f"is_day_{m1}"][i])
+        blended["cloud_cover"].append(round(sum(clouds) / len(clouds)))
+        blended["is_day"].append(raw_hourly[f"is_day_{model_ids[0]}"][i])
         blended["low_confidence"].append(
-            abs(t1 - t2) > DISAGREEMENT_TEMP_C or abs(p1 - p2) > DISAGREEMENT_RAIN_PROB
+            len(model_ids) > 1 and (max(temps) - min(temps) > DISAGREEMENT_TEMP_C
+                                     or max(probs) - min(probs) > DISAGREEMENT_RAIN_PROB)
         )
     return blended
 
 
-async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
-    """Haalt uurlijkse forecast op bij Open-Meteo voor 2 modellen (KNMI + ECMWF),
-    middelt ze tot één respons, met een TTL-cache op het resultaat per locatie."""
+async def fetch_openmeteo_raw(lat: float, lon: float) -> dict | None:
+    """Haalt uurlijkse forecast op bij Open-Meteo voor beide modellen (KNMI + GFS),
+    ongeblend, met een TTL-cache per locatie — zodat het aan/uit togglen van een
+    bron (item 790) geen nieuwe Open-Meteo-call vereist, alleen herblenden."""
     key = _cache_key(lat, lon)
     now = time.time()
     cached = _cache.get(key)
@@ -134,8 +143,7 @@ async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
             response = await client.get(OPENMETEO_URL, params=params)
             status_code = response.status_code
             response.raise_for_status()
-            raw = response.json()
-            data = {**raw, "hourly": _blend_models(raw["hourly"])}
+            data = response.json()
     except Exception as exc:
         logger.warning("fiets: open-meteo fetch failed — %s", exc)
 
@@ -186,10 +194,12 @@ def score_hour(
     wind_kmh: float,
     wind_dir_deg: float,
     cloud_cover: float,
+    is_daytime: bool,
     prefs: dict | None = None,
 ) -> dict:
     """Score 0-100 voor één uur, opgesplitst in bijdragen (voor de gesegmenteerde
-    balk: welk deel komt van temperatuur/wind/zon). Regen is een harde poort.
+    balk: welk deel komt van temperatuur/wind/zon). Regen is een harde poort;
+    's nachts geen zon-bonus en een vaste malus (zicht/veiligheid).
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -202,10 +212,17 @@ def score_hour(
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
     temp_weight = prefs.get("temp_weight", TEMP_WEIGHT)
     wind_weight = 1 - temp_weight
+    # Percentage-korting i.p.v. vaste puntenaftrek, zodat temp/wind-bijdragen
+    # en het eindcijfer altijd exact blijven optellen (nodig voor de
+    # gestapelde grafiek — geen apart "nacht"-laagje nodig).
+    night_factor = 1.0 if is_daytime else (1 - NIGHT_PENALTY / 100)
 
     if (rain_prob or 0) > rain_prob_threshold or (rain_mm or 0) > RAIN_MM_THRESHOLD:
-        gated = max(0.0, RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10)
-        return {"score": round(gated, 1), "rain_gated": True, "temp_contrib": 0.0, "wind_contrib": 0.0, "sun_bonus": 0.0}
+        gated = max(0.0, (RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10) * night_factor)
+        return {
+            "score": round(gated, 1), "rain_gated": True,
+            "temp_contrib": 0.0, "wind_contrib": 0.0, "sun_bonus": 0.0,
+        }
 
     temp_penalty = max(0.0, temp_min - temp, temp - temp_max)
     temp_score = max(0.0, min(100.0, 100.0 - temp_penalty * TEMP_FALLOFF_RATE))
@@ -224,9 +241,9 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    temp_contrib = temp_weight * temp_score
-    wind_contrib = wind_weight * wind_score
-    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX
+    temp_contrib = temp_weight * temp_score * night_factor
+    wind_contrib = wind_weight * wind_score * night_factor
+    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX if is_daytime else 0.0
 
     total = max(0.0, min(100.0, temp_contrib + wind_contrib + sun_bonus))
     return {
@@ -279,14 +296,16 @@ def _format_day_label(date_key: str) -> str:
 
 
 async def build_prognose(
-    lat: float, lon: float, prefs: dict | None = None, location_label: str = ""
+    lat: float, lon: float, prefs: dict | None = None, location_label: str = "",
+    sources: list[str] | None = None,
 ) -> dict:
     prefs = prefs or {}
-    raw = await fetch_openmeteo_hourly(lat, lon)
+    active_sources = [s for s in (sources or list(SOURCE_MODELS)) if s in SOURCE_MODELS] or list(SOURCE_MODELS)
+    raw = await fetch_openmeteo_raw(lat, lon)
     if raw is None:
         return {"status": "error", "message": "Weerdata niet beschikbaar", "days": []}
 
-    hourly = raw["hourly"]
+    hourly = _blend_models(raw["hourly"], [SOURCE_MODELS[s] for s in active_sources])
     times = hourly["time"]
     temps = hourly["temperature_2m"]
     rain_probs = hourly["precipitation_probability"]
@@ -299,10 +318,11 @@ async def build_prognose(
 
     days_map: dict[str, list[dict]] = {}
     for i, iso_time in enumerate(times):
-        s = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], cloud_covers[i], prefs)
+        is_daytime = bool(is_days[i])
+        s = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], cloud_covers[i], is_daytime, prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
-            "is_daytime": bool(is_days[i]),
+            "is_daytime": is_daytime,
             "score": round(s["score"] / 10, 1),
             "breakdown": {
                 "rain_gated": s["rain_gated"],
@@ -333,6 +353,7 @@ async def build_prognose(
     return {
         "status": "ok",
         "location": {"lat": lat, "lon": lon, "label": location_label},
+        "sources": active_sources,
         "wind_pref_deg": prefs.get("wind_pref_deg"),
         "scale": "0-10",
         "generated_at": datetime.utcnow().isoformat() + "Z",
