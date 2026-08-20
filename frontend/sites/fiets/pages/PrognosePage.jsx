@@ -145,9 +145,9 @@ export default function PrognosePage() {
             {showBreakdown ? (
               <>
                 <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
+                <Legend color={BREAKDOWN_COLORS.rain} label="Regen" />
                 <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
                 <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
-                <Legend color={BREAKDOWN_COLORS.rain} label="Donker (blokkeert)" />
               </>
             ) : (
               <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
@@ -167,10 +167,10 @@ export default function PrognosePage() {
         )}
         {tab === 'fiets' && showExplainer && (
           <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)', marginTop: 10, padding: '10px 12px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 10 }}>
-            <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — hoe meer het regent en hoe zwaarder de bui, hoe lager de score. Een paar motregen-druppels tellen licht, een flinke bui drukt de score bijna naar nul.</p>
-            <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
-            <p style={{ margin: '0 0 6px' }}>🌡💨 <strong>Temperatuur & wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
+            <p style={{ margin: '0 0 6px' }}>🌡 <strong>Temperatuur</strong> & 💨 <strong>wind</strong> — bepalen samen het grootste deel van de score. In instellingen kun je zelf kiezen wat zwaarder telt.</p>
+            <p style={{ margin: '0 0 6px' }}>🌧 <strong>Regen</strong> — geen eigen laag, maar een grijze wasem over de score: hoe meer het regent en hoe zwaarder de bui, hoe donkerder (en lager de score).</p>
             <p style={{ margin: '0 0 6px' }}>☀️ <strong>Zon</strong> — een klein extra puntje bij helder weer overdag, telt niet zwaar.</p>
+            <p style={{ margin: '0 0 6px' }}>🌙 <strong>Donker</strong> — 's nachts is de score altijd laag, wat het weer ook doet (zicht en veiligheid gaan voor).</p>
             <p style={{ margin: 0 }}>📡 <strong>2 bronnen</strong> — de score is een gemiddelde van KNMI en NOAA GFS. Zien ze het niet eens? Dan zie je een grijze stip.</p>
           </div>
         )}
