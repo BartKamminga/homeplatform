@@ -36,6 +36,10 @@ function useThemeColors() {
 // voorhanden hiervoor.
 export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308' }
 
+// Zelfde kleuren als de Fiets-legenda, ook voor de losse metriek-grafieken
+// (item 788): Temperatuur=oranje, Wind=blauw, Neerslagkans=grijs (regen-kleur).
+const FIELD_COLOR = { temp: BREAKDOWN_COLORS.temp, rain_prob: BREAKDOWN_COLORS.rain, wind_kmh: BREAKDOWN_COLORS.wind }
+
 const FIELD_CONFIG = {
   score:     { min: 0, max: 10,  fmt: v => v.toFixed(1) },
   temp:      { auto: true, pad: 1, fmt: v => `${Math.round(v)}°` },
@@ -62,6 +66,31 @@ function smoothPath(points) {
   const [lx, ly] = points[points.length - 1]
   d += ` T ${lx},${ly}`
   return d
+}
+
+// Fractionele positie (uur-index) van "nu" binnen de uren-array, voor de
+// tijd-indicator op de tijdlijn (item 787). null als "nu" buiten bereik valt.
+function nowIndex(hours) {
+  const now = new Date()
+  const first = new Date(hours[0].time)
+  const last = new Date(hours[hours.length - 1].time)
+  if (now < first || now > last) return null
+  for (let i = 0; i < hours.length - 1; i++) {
+    const t0 = new Date(hours[i].time)
+    const t1 = new Date(hours[i + 1].time)
+    if (now >= t0 && now <= t1) return i + (now - t0) / (t1 - t0)
+  }
+  return hours.length - 1
+}
+
+function NowMarker({ x, top, bottom, colors }) {
+  if (x == null) return null
+  return (
+    <g>
+      <line x1={x} y1={top} x2={x} y2={bottom} stroke={colors['--color-text']} strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
+      <text x={x} y={top - 6} textAnchor="middle" fill={colors['--color-text']} style={{ fontSize: 9, fontWeight: 700 }}>nu</text>
+    </g>
+  )
 }
 
 export default function SmoothChart({ days, field }) {
@@ -93,11 +122,13 @@ export default function SmoothChart({ days, field }) {
   const hourTicks = []
   for (let i = 0; i < n; i += HOUR_TICK_STEP) hourTicks.push(i)
 
+  const nowX = (() => { const ni = nowIndex(hours); return ni == null ? null : xAt(ni) })()
+
   if (field === 'score') {
     return (
       <ScoreArea
         hours={hours} n={n} xAt={xAt} baseline={baseline} innerH={innerH}
-        nightBands={nightBands} dayTicks={dayTicks} hourTicks={hourTicks} colors={colors}
+        nightBands={nightBands} dayTicks={dayTicks} hourTicks={hourTicks} colors={colors} nowX={nowX}
       />
     )
   }
@@ -107,6 +138,7 @@ export default function SmoothChart({ days, field }) {
   const min = cfg.auto ? Math.min(...values) - cfg.pad : cfg.min
   const max = cfg.auto ? Math.max(...values) + cfg.pad : cfg.max
   const yAt = v => PAD_TOP + innerH - ((v - min) / (max - min || 1)) * innerH
+  const lineColor = FIELD_COLOR[field] || colors['--color-primary']
 
   const points = values.map((v, i) => [xAt(i), yAt(v)])
   const linePath = smoothPath(points)
@@ -118,15 +150,19 @@ export default function SmoothChart({ days, field }) {
         <rect key={`night-${i}`} x={xAt(s)} y={PAD_TOP} width={Math.max(1, xAt(e) - xAt(s))} height={innerH}
           fill={colors['--color-border']} opacity={0.35} />
       ))}
-      <path d={areaPath} fill={colors['--color-primary']} opacity={0.15} />
-      <path d={linePath} fill="none" stroke={colors['--color-primary']} strokeWidth={2.5} strokeLinecap="round" />
+      <path d={areaPath} fill={lineColor} opacity={0.15} />
+      <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />
+      {hours.map((h, i) => h.low_confidence && (
+        <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
+      ))}
       <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => yAt(values[i])} fmt={v => cfg.fmt(v)} values={values} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
+      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
     </svg>
   )
 }
 
-function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors }) {
+function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX }) {
   const scale = v => (v / 10) * innerH // score/contributies zitten al op de 0-10 schaal
 
   // Gestapeld van onder naar boven: regen-blokkade, temperatuur, wind, zon.
@@ -165,6 +201,7 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
 
       <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => boundaries[4][i]} fmt={v => v.toFixed(1)} values={hours.map(h => h.score)} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
+      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
     </svg>
   )
 }
