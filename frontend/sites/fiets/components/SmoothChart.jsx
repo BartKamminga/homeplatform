@@ -36,6 +36,9 @@ function useThemeColors() {
 // voorhanden hiervoor.
 export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e' }
 
+// Opaciteit van het regen-vlak per weather_code-tier (0=helder/bewolkt .. 3=zware regen).
+const RAIN_TIER_OPACITY = [0.06, 0.22, 0.42, 0.7]
+
 // Zelfde kleuren als de Fiets-legenda, ook voor de losse metriek-grafieken
 // (item 788): Temperatuur=oranje, Wind=blauw, Regen=grijs, Zon=geel.
 const FIELD_COLOR = {
@@ -149,14 +152,27 @@ export default function SmoothChart({ days, field, showBreakdown = true }) {
   const points = values.map((v, i) => [xAt(i), yAt(v)])
   const linePath = smoothPath(points)
   const areaPath = `${linePath} L ${xAt(n - 1)},${baseline} L ${xAt(0)},${baseline} Z`
+  const isRain = field === 'rain_mm'
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {isRain && (
+        <defs>
+          {/* Vlak wordt donkerder naarmate de bui zwaarder is (weather_code-tier),
+              met een vloeiend verloop i.p.v. harde stappen tussen uren. */}
+          <linearGradient id="rainSeverityGradient" x1="0" x2="1" y1="0" y2="0">
+            {hours.map((h, i) => (
+              <stop key={i} offset={`${(i / (n - 1)) * 100}%`}
+                stopColor={lineColor} stopOpacity={RAIN_TIER_OPACITY[h.rain_tier ?? 0]} />
+            ))}
+          </linearGradient>
+        </defs>
+      )}
       {nightBands.map(([s, e], i) => (
         <rect key={`night-${i}`} x={xAt(s)} y={PAD_TOP} width={Math.max(1, xAt(e) - xAt(s))} height={innerH}
           fill={colors['--color-border']} opacity={0.35} />
       ))}
-      <path d={areaPath} fill={lineColor} opacity={0.15} />
+      <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />
       {hours.map((h, i) => h.low_confidence && (
         <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
