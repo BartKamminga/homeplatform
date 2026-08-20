@@ -214,7 +214,7 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
         const d = `${smoothPath(upper)} L ${xAt(n - 1)},${lower[n - 1][1]} ${
           smoothPath([...lower].reverse()).replace('M', 'L')
         } Z`
-        return <path key={key} d={d} fill={BREAKDOWN_COLORS[key]} opacity={key === 'rain' ? 0.7 : 0.85} />
+        return <path key={key} d={d} fill={BREAKDOWN_COLORS[key]} opacity={key === 'rain' ? 0.35 : 0.4} />
       })}
 
       <path d={smoothPath(boundaries[4].map((y, i) => [xAt(i), y]))} fill="none" stroke={colors['--color-text']} strokeWidth={1.5} opacity={0.5} />

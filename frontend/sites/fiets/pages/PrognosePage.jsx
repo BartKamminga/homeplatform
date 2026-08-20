@@ -24,7 +24,7 @@ export default function PrognosePage() {
   const [error,   setError]   = useState('')
   const [tab,     setTab]     = useState('fiets')
   const [sources, setSources] = useState(['knmi', 'gfs'])
-  const [showBreakdown, setShowBreakdown] = useState(true)
+  const [showBreakdown, setShowBreakdown] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -33,6 +33,20 @@ export default function PrognosePage() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [sources])
+
+  useEffect(() => {
+    api.get('/api/auth/me/ui-prefs')
+      .then(prefs => setShowBreakdown(Boolean(prefs.fiets_show_breakdown)))
+      .catch(() => {})
+  }, [])
+
+  function toggleBreakdown() {
+    setShowBreakdown(v => {
+      const next = !v
+      api.patch('/api/auth/me/ui-prefs', { fiets_show_breakdown: next }).catch(() => {})
+      return next
+    })
+  }
 
   function toggleSource(key) {
     setSources(prev => {
@@ -125,7 +139,7 @@ export default function PrognosePage() {
             {tab === 'fiets' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => setShowBreakdown(v => !v)}
+                  onClick={toggleBreakdown}
                   style={{
                     fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
                     border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
