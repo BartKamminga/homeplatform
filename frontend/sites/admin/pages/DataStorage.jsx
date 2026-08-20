@@ -17,6 +17,7 @@ const DB_USER_ROWS = [
   { label: 'mm_show_play_count, mm_show_hearts, mm_show_rating, mm_show_moments, mm_show_ext', where: 'user_preferences.extra', note: 'MixMusic weergaveopties tracklist' },
   { label: 'mm_resume_server',                                      where: 'user_preferences.extra', note: 'MixMusic laatste track + positie (cross-device sync)' },
   { label: 'rm_site, rm_status, rm_priority, rm_last_site',        where: 'user_preferences.extra', note: 'Roadmap filterinstellingen' },
+  { label: 'fiets_wind_pref_deg',                                   where: 'user_preferences.extra', note: 'Fiets windrichting-voorkeur (graden)' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },
 ];
