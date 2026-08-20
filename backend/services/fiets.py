@@ -234,9 +234,23 @@ def score_hour(
     temp_min = prefs.get("temp_min", TEMP_OPTIMAL_MIN)
     temp_max = prefs.get("temp_max", TEMP_OPTIMAL_MAX)
     wind_knee_kmh = prefs.get("wind_knee_kmh", WIND_KNEE_KMH)
-    temp_split = prefs.get("temp_weight", TEMP_SPLIT)
-    temp_weight = temp_split * TEMP_WIND_BUDGET
-    wind_weight = (1 - temp_split) * TEMP_WIND_BUDGET
+
+    # Eigen profiel: als de gebruiker alle 4 gewichten los heeft ingesteld
+    # (debug-pagina), genormaliseerd gebruiken i.p.v. de vaste verdeling.
+    custom_keys = ("weight_rain", "weight_temp", "weight_sun", "weight_wind")
+    if all(prefs.get(k) is not None for k in custom_keys):
+        raw = {k: max(0.0, prefs[k]) for k in custom_keys}
+        total_raw = sum(raw.values()) or 1.0
+        rain_weight = raw["weight_rain"] / total_raw
+        temp_weight = raw["weight_temp"] / total_raw
+        sun_weight = raw["weight_sun"] / total_raw
+        wind_weight = raw["weight_wind"] / total_raw
+    else:
+        temp_split = prefs.get("temp_weight", TEMP_SPLIT)
+        rain_weight = RAIN_WEIGHT
+        sun_weight = SUN_WEIGHT
+        temp_weight = temp_split * TEMP_WIND_BUDGET
+        wind_weight = (1 - temp_split) * TEMP_WIND_BUDGET
 
     if not is_daytime:
         return {
@@ -266,9 +280,9 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    rain_contrib = RAIN_WEIGHT * rain_score
+    rain_contrib = rain_weight * rain_score
     temp_contrib = temp_weight * temp_score
-    sun_contrib = SUN_WEIGHT * sun_score
+    sun_contrib = sun_weight * sun_score
     wind_contrib = wind_weight * wind_score
 
     total = max(0.0, min(100.0, rain_contrib + temp_contrib + sun_contrib + wind_contrib))
