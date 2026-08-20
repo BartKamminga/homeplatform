@@ -118,13 +118,15 @@ export default function DebugPage() {
           <thead>
             <tr>
               <th style={th}>tijd</th>
+              <th style={th}>dag</th>
               <th style={groupTh} colSpan={5}>KNMI</th>
               <th style={groupTh} colSpan={5}>GFS</th>
               <th style={groupTh} colSpan={5}>Geblend</th>
               <th style={groupTh}>2brn</th>
-              <th style={groupTh} colSpan={7}>Score</th>
+              <th style={groupTh} colSpan={6}>Score</th>
             </tr>
             <tr>
+              <th style={th}></th>
               <th style={th}></th>
               {['temp','mm','code','bew%','wind'].map(h => <th key={`k-${h}`} style={th}>{h}</th>)}
               {['temp','mm','code','bew%','wind'].map(h => <th key={`g-${h}`} style={th}>{h}</th>)}
@@ -142,13 +144,14 @@ export default function DebugPage() {
                 </th>
               ))}
               <th style={th}></th>
-              {['dag','nacht','regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
+              {['nacht','regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i}>
                 <td style={td}>{r.time.slice(5).replace('T', ' ')}</td>
+                <td style={td}>{r.is_daytime ? '☀️' : '🌙'}</td>
                 <td style={td}>{r.sources.knmi.temp}°</td>
                 <td style={td}>{r.sources.knmi.rain_mm}</td>
                 <td style={td}>{r.sources.knmi.weather_code}</td>
@@ -165,7 +168,6 @@ export default function DebugPage() {
                 <td style={td}>{r.blended.cloud_cover}</td>
                 <td style={td}>{Math.round(r.blended.wind_kmh)}</td>
                 <td style={td}>{r.low_confidence ? '⚠️' : ''}</td>
-                <td style={td}>{r.is_daytime ? '☀️' : '🌙'}</td>
                 <td style={td}>{r.score.night_contrib}</td>
                 <td style={td}>{r.score.rain_contrib}</td>
                 <td style={td}>{r.score.temp_contrib}</td>
