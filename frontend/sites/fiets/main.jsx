@@ -6,6 +6,7 @@ import AuthGate from '@components/AuthGate.jsx'
 import { trackEvent, loadTheme } from '@core/api.js'
 import { initSentry } from '@core/sentry.js'
 import EnvBanner from '@core/EnvBanner.jsx'
+import '@core/theme.css'
 
 initSentry()
 trackEvent('fiets', 'page.view', { path: window.location.pathname })
