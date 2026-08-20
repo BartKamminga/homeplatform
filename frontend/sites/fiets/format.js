@@ -9,6 +9,9 @@ export function daySummary(hours) {
   const cosSum = hours.reduce((s, h) => s + Math.cos(h.wind_dir * Math.PI / 180), 0)
   const windDir = (Math.atan2(sinSum, cosSum) * 180 / Math.PI + 360) % 360
 
+  const clouds = hours.map(h => h.cloud_cover ?? 0)
+  const sunPct = Math.round(100 - clouds.reduce((a, b) => a + b, 0) / clouds.length)
+
   return {
     tempMin: Math.round(Math.min(...temps)),
     tempMax: Math.round(Math.max(...temps)),
@@ -16,5 +19,6 @@ export function daySummary(hours) {
     windDir,
     rainProbMax: Math.max(...rainProbs),
     rainMm: Math.round(rainMm * 10) / 10,
+    sunPct,
   }
 }

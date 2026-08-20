@@ -42,6 +42,11 @@ function useThemeColors() {
   return colors
 }
 
+// Factor-kleuren voor de gesegmenteerde Fiets-balk (welk deel komt van
+// temperatuur/wind/zon) — geen thema-variabelen hiervoor, dus bewust een
+// eigen kleine palet los van de rood/oranje/groen score-kleuren.
+export const BREAKDOWN_COLORS = { temp: '#f97316', wind: '#3b82f6', sun: '#eab308' }
+
 const FIELD_CONFIG = {
   score:     { min: 0, max: 10,  fmt: v => v.toFixed(1) },
   temp:      { auto: true, pad: 1, fmt: v => `${Math.round(v)}°` },
@@ -96,7 +101,7 @@ export default function BarChart({ days, field }) {
     hourTicks.push({ i, x: xAt(i) + barW / 2 })
   }
 
-  const barColor = i => field === 'score' ? colors[scoreColorVar(values[i])] : colors['--color-primary']
+  const barX = i => xAt(i) + (slotW - barW) / 2
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
@@ -108,13 +113,43 @@ export default function BarChart({ days, field }) {
         />
       ))}
 
-      {values.map((v, i) => (
-        <rect
-          key={`bar-${i}`}
-          x={xAt(i) + (slotW - barW) / 2} y={yAt(v)}
-          width={barW} height={Math.max(1, baseline - yAt(v))}
-          fill={barColor(i)} rx={1}
-        />
+      {field === 'score' ? (
+        values.map((v, i) => {
+          const b = hours[i].breakdown
+          if (!b || b.rain_gated) {
+            return (
+              <rect key={`bar-${i}`} x={barX(i)} y={yAt(v)} width={barW} height={Math.max(1, baseline - yAt(v))}
+                fill={colors['--color-danger']} rx={1} />
+            )
+          }
+          // Gestapeld van onder naar boven: temp-bijdrage, wind-bijdrage, zon-bonus.
+          let y = baseline
+          const segments = [
+            ['temp', b.temp_contrib], ['wind', b.wind_contrib], ['sun', b.sun_bonus],
+          ]
+          return (
+            <g key={`bar-${i}`}>
+              {segments.map(([kind, val]) => {
+                const segH = (val / (max - min || 1)) * innerH
+                y -= segH
+                return <rect key={kind} x={barX(i)} y={y} width={barW} height={Math.max(0, segH)} fill={BREAKDOWN_COLORS[kind]} />
+              })}
+            </g>
+          )
+        })
+      ) : (
+        values.map((v, i) => (
+          <rect
+            key={`bar-${i}`}
+            x={barX(i)} y={yAt(v)}
+            width={barW} height={Math.max(1, baseline - yAt(v))}
+            fill={colors['--color-primary']} rx={1}
+          />
+        ))
+      )}
+
+      {field === 'score' && hours.map((h, i) => h.low_confidence && (
+        <circle key={`lc-${i}`} cx={barX(i) + barW / 2} cy={PAD_TOP - 8} r={2} fill={colors['--color-text-muted']} />
       ))}
 
       {hourTicks.map((t, i) => (

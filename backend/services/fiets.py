@@ -7,7 +7,7 @@ goed fietsweer, op basis van regen, temperatuur en wind (snelheid + richting)?
 import logging
 import time
 from datetime import datetime, timedelta
-from math import cos, radians
+from math import atan2, cos, degrees, radians, sin
 
 import httpx
 
@@ -48,6 +48,18 @@ WIND_DIR_MALUS_MAX = 10
 TEMP_WEIGHT = 0.6
 WIND_WEIGHT = 0.4
 
+# Zon — kleine bonus bovenop temp/wind, geen eigen gewicht (voorkomt dat de
+# instelbare temp/wind-verdeling opnieuw ontworpen moet worden).
+SUN_BONUS_MAX = 8  # scorepunten bij een volledig onbewolkte lucht
+
+# Twee onafhankelijke modellen (beide via Open-Meteo, geen 2e integratie nodig)
+# voor een betrouwbaardere score — gemiddelde van KNMI (Harmonie) en NOAA GFS.
+# (ecmwf_ifs04 gaf op 3 dagen vooruit alleen null-waarden — niet gebruiken.)
+WEATHER_MODELS = "knmi_seamless,gfs_seamless"
+# Boven deze verschillen tussen de twee modellen markeren we het uur als "low confidence".
+DISAGREEMENT_TEMP_C = 3.0
+DISAGREEMENT_RAIN_PROB = 25
+
 _WEEKDAGEN = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
 _MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
 
@@ -58,8 +70,47 @@ def _cache_key(lat: float, lon: float) -> str:
     return f"{round(lat, 2)},{round(lon, 2)}"
 
 
+def _blend_models(raw_hourly: dict) -> dict:
+    """Middelt de twee modellen (knmi_seamless + ecmwf_ifs04) per uur tot één
+    hourly-dict met de gebruikelijke (ongesuffixte) veldnamen, plus
+    low_confidence per uur waar de twee bronnen het duidelijk oneens zijn."""
+    m1, m2 = WEATHER_MODELS.split(",")
+    n = len(raw_hourly["time"])
+    blended = {
+        "time": raw_hourly["time"],
+        "temperature_2m": [], "precipitation_probability": [], "precipitation": [],
+        "wind_speed_10m": [], "wind_direction_10m": [], "is_day": [],
+        "cloud_cover": [], "low_confidence": [],
+    }
+    for i in range(n):
+        t1, t2 = raw_hourly[f"temperature_2m_{m1}"][i], raw_hourly[f"temperature_2m_{m2}"][i]
+        p1, p2 = raw_hourly[f"precipitation_probability_{m1}"][i], raw_hourly[f"precipitation_probability_{m2}"][i]
+        r1, r2 = raw_hourly[f"precipitation_{m1}"][i], raw_hourly[f"precipitation_{m2}"][i]
+        w1, w2 = raw_hourly[f"wind_speed_10m_{m1}"][i], raw_hourly[f"wind_speed_10m_{m2}"][i]
+        d1, d2 = raw_hourly[f"wind_direction_10m_{m1}"][i], raw_hourly[f"wind_direction_10m_{m2}"][i]
+        c1, c2 = raw_hourly[f"cloud_cover_{m1}"][i], raw_hourly[f"cloud_cover_{m2}"][i]
+
+        # Vector-gemiddelde voor windrichting (voorkomt vertekening rond 0/360).
+        sin_avg = (sin(radians(d1)) + sin(radians(d2))) / 2
+        cos_avg = (cos(radians(d1)) + cos(radians(d2))) / 2
+        wind_dir_avg = (degrees(atan2(sin_avg, cos_avg)) + 360) % 360
+
+        blended["temperature_2m"].append(round((t1 + t2) / 2, 1))
+        blended["precipitation_probability"].append(round((p1 + p2) / 2))
+        blended["precipitation"].append(round((r1 + r2) / 2, 2))
+        blended["wind_speed_10m"].append(round((w1 + w2) / 2, 1))
+        blended["wind_direction_10m"].append(round(wind_dir_avg))
+        blended["cloud_cover"].append(round((c1 + c2) / 2))
+        blended["is_day"].append(raw_hourly[f"is_day_{m1}"][i])
+        blended["low_confidence"].append(
+            abs(t1 - t2) > DISAGREEMENT_TEMP_C or abs(p1 - p2) > DISAGREEMENT_RAIN_PROB
+        )
+    return blended
+
+
 async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
-    """Haalt uurlijkse forecast op bij Open-Meteo, met een TTL-cache op de ruwe respons per locatie."""
+    """Haalt uurlijkse forecast op bij Open-Meteo voor 2 modellen (KNMI + ECMWF),
+    middelt ze tot één respons, met een TTL-cache op het resultaat per locatie."""
     key = _cache_key(lat, lon)
     now = time.time()
     cached = _cache.get(key)
@@ -70,9 +121,10 @@ async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
         "latitude": lat,
         "longitude": lon,
         "hourly": "temperature_2m,precipitation_probability,precipitation,"
-                  "wind_speed_10m,wind_direction_10m,is_day",
+                  "wind_speed_10m,wind_direction_10m,is_day,cloud_cover",
         "forecast_days": FORECAST_DAYS,
         "timezone": "auto",
+        "models": WEATHER_MODELS,
     }
     t0 = time.time()
     status_code = 0
@@ -82,7 +134,8 @@ async def fetch_openmeteo_hourly(lat: float, lon: float) -> dict | None:
             response = await client.get(OPENMETEO_URL, params=params)
             status_code = response.status_code
             response.raise_for_status()
-            data = response.json()
+            raw = response.json()
+            data = {**raw, "hourly": _blend_models(raw["hourly"])}
     except Exception as exc:
         logger.warning("fiets: open-meteo fetch failed — %s", exc)
 
@@ -132,9 +185,11 @@ def score_hour(
     rain_mm: float,
     wind_kmh: float,
     wind_dir_deg: float,
+    cloud_cover: float,
     prefs: dict | None = None,
-) -> float:
-    """Score 0-100 voor één uur. Regen is een harde poort; temp/wind wegen anders mee.
+) -> dict:
+    """Score 0-100 voor één uur, opgesplitst in bijdragen (voor de gesegmenteerde
+    balk: welk deel komt van temperatuur/wind/zon). Regen is een harde poort.
 
     `prefs` overschrijft per gebruiker instelbare defaults (roadmap-items
     "Score-drempels/comfortband instelbaar maken" en "Gewicht instelbaar maken");
@@ -149,7 +204,8 @@ def score_hour(
     wind_weight = 1 - temp_weight
 
     if (rain_prob or 0) > rain_prob_threshold or (rain_mm or 0) > RAIN_MM_THRESHOLD:
-        return max(0.0, RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10)
+        gated = max(0.0, RAIN_GATE_SCORE_MAX - (rain_prob or 0) / 10)
+        return {"score": round(gated, 1), "rain_gated": True, "temp_contrib": 0.0, "wind_contrib": 0.0, "sun_bonus": 0.0}
 
     temp_penalty = max(0.0, temp_min - temp, temp - temp_max)
     temp_score = max(0.0, min(100.0, 100.0 - temp_penalty * TEMP_FALLOFF_RATE))
@@ -168,7 +224,18 @@ def score_hour(
         adjustment = cos_diff * (WIND_DIR_BONUS_MAX if cos_diff >= 0 else WIND_DIR_MALUS_MAX)
         wind_score = max(0.0, min(100.0, wind_score + adjustment))
 
-    return round(max(0.0, min(100.0, temp_weight * temp_score + wind_weight * wind_score)), 1)
+    temp_contrib = temp_weight * temp_score
+    wind_contrib = wind_weight * wind_score
+    sun_bonus = (100 - (cloud_cover or 0)) / 100 * SUN_BONUS_MAX
+
+    total = max(0.0, min(100.0, temp_contrib + wind_contrib + sun_bonus))
+    return {
+        "score": round(total, 1),
+        "rain_gated": False,
+        "temp_contrib": round(temp_contrib, 1),
+        "wind_contrib": round(wind_contrib, 1),
+        "sun_bonus": round(sun_bonus, 1),
+    }
 
 
 def _score_label(score: float) -> str:
@@ -227,19 +294,29 @@ async def build_prognose(
     winds = hourly["wind_speed_10m"]
     wind_dirs = hourly["wind_direction_10m"]
     is_days = hourly["is_day"]
+    cloud_covers = hourly["cloud_cover"]
+    low_confidences = hourly["low_confidence"]
 
     days_map: dict[str, list[dict]] = {}
     for i, iso_time in enumerate(times):
-        raw_score = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], prefs)
+        s = score_hour(temps[i], rain_probs[i], rain_mms[i], winds[i], wind_dirs[i], cloud_covers[i], prefs)
         days_map.setdefault(iso_time[:10], []).append({
             "time": iso_time,
             "is_daytime": bool(is_days[i]),
-            "score": round(raw_score / 10, 1),
+            "score": round(s["score"] / 10, 1),
+            "breakdown": {
+                "rain_gated": s["rain_gated"],
+                "temp_contrib": round(s["temp_contrib"] / 10, 1),
+                "wind_contrib": round(s["wind_contrib"] / 10, 1),
+                "sun_bonus": round(s["sun_bonus"] / 10, 1),
+            },
             "temp": temps[i],
             "rain_prob": rain_probs[i],
             "rain_mm": rain_mms[i],
             "wind_kmh": winds[i],
             "wind_dir": wind_dirs[i],
+            "cloud_cover": cloud_covers[i],
+            "low_confidence": low_confidences[i],
         })
 
     days = [

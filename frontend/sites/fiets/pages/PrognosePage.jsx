@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
-import BarChart from '../components/BarChart.jsx'
+import BarChart, { BREAKDOWN_COLORS } from '../components/BarChart.jsx'
 import DayCard from '../components/DayCard.jsx'
 
 const TABS = [
@@ -78,6 +78,14 @@ export default function PrognosePage() {
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
         <BarChart days={data.days} field={activeField} />
+        {tab === 'fiets' && (
+          <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)' }}>
+            <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
+            <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
+            <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
+            <span>· grijze stip = bronnen zijn het niet eens</span>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -86,6 +94,15 @@ export default function PrognosePage() {
         ))}
       </div>
     </div>
+  )
+}
+
+function Legend({ color, label }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
+      {label}
+    </span>
   )
 }
 
