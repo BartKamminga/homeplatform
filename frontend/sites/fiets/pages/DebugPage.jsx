@@ -125,7 +125,19 @@ export default function DebugPage() {
               <th style={th}></th>
               {['temp','mm','code','bew%','wind'].map(h => <th key={`k-${h}`} style={th}>{h}</th>)}
               {['temp','mm','code','bew%','wind'].map(h => <th key={`g-${h}`} style={th}>{h}</th>)}
-              {['temp','mm','tier','bew%','wind'].map(h => <th key={`b-${h}`} style={th}>{h}</th>)}
+              {['temp','mm','tier','bew%','wind'].map(h => (
+                <th key={`b-${h}`} style={th}>
+                  {h}
+                  {h === 'tier' && (
+                    <span
+                      title="Regen-intensiteitsklasse (0-3), afgeleid uit de WMO weather_code: 0 = droog/bewolkt, 1 = lichte motregen, 2 = matige motregen/regen, 3 = zware regen/onweer/ijzel. Strengste van de twee bronnen (voorzichtigheidsprincipe). Bepaalt samen met mm de regen-score."
+                      style={{ marginLeft: 3, cursor: 'help', fontWeight: 400 }}
+                    >
+                      ⓘ
+                    </span>
+                  )}
+                </th>
+              ))}
               <th style={th}></th>
               {['dag','regen','temp','zon','wind','totaal'].map(h => <th key={`s-${h}`} style={th}>{h}</th>)}
             </tr>
