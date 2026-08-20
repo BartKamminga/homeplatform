@@ -1,5 +1,6 @@
 import { KNOWN_SEASONS } from '../../api.js'
 import { card, cardLabel, ghostBtn, inputStyle } from '../styles.js'
+import { Toggle } from '../ui.jsx'
 
 // ── ⚙ Beheer meta-paneel (item 635, uitgesplitst uit CompetitiesTab item 737) ──
 
@@ -10,6 +11,7 @@ export default function BeheerPanel({
   globalTags, onRequestDeleteTag,
   newTagName, setNewTagName, addingTag, onAddTag,
   onDelete, confirmDel, setConfirmDel, deleting, onConfirmDelete,
+  onTagDragStart, onTagDragOver, onTagDrop, tagOverIdx,
 }) {
   return (
     <div style={card}>
@@ -46,15 +48,11 @@ export default function BeheerPanel({
           {/* Zichtbaar + verwijderen */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {onTogglePublished && (
-              <button
-                onClick={onTogglePublished}
-                style={{
-                  fontSize: 11, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
-                  fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                  background: published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
-                  color: published ? 'var(--color-success)' : 'var(--color-warning)',
-                }}
-              >{published ? '● Zichtbaar' : '○ Concept'}</button>
+              <Toggle
+                on={published} onChange={onTogglePublished}
+                onLabel="● Zichtbaar" offLabel="○ Concept" offVariant="partial"
+                style={{ padding: '4px 10px' }}
+              />
             )}
             {onDelete && !confirmDel && (
               <button
@@ -92,13 +90,22 @@ export default function BeheerPanel({
               {globalTags.length === 0 && (
                 <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen tags aangemaakt.</span>
               )}
-              {globalTags.map(tag => (
-                <span key={tag.id} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
-                  border: '1px solid var(--color-primary)',
-                  color: 'var(--color-primary)',
-                }}>
+              {globalTags.map((tag, i) => (
+                <span key={tag.id}
+                  draggable={!!onTagDragStart}
+                  onDragStart={() => onTagDragStart?.(i)}
+                  onDragOver={e => { e.preventDefault(); onTagDragOver?.(i) }}
+                  onDrop={() => onTagDrop?.(i)}
+                  title={onTagDragStart ? 'Sleep om volgorde te wijzigen' : undefined}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
+                    border: '1px solid var(--color-primary)',
+                    color: 'var(--color-primary)',
+                    cursor: onTagDragStart ? 'grab' : 'default',
+                    opacity: tagOverIdx === i ? 0.5 : 1, transition: 'opacity 0.15s',
+                  }}>
+                  {onTagDragStart && <span style={{ opacity: 0.5, fontSize: 10 }}>⠿</span>}
                   {tag.name}
                   <button onClick={() => onRequestDeleteTag(tag)} style={{
                     background: 'none', border: 'none', cursor: 'pointer',

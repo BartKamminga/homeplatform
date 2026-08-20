@@ -22,6 +22,7 @@ export const syncCompetition       = (cid)               => api.post(`/api/hocke
 export const getPublicationTags       = ()       => api.get('/api/hockey/publications/tags')
 export const addPublicationTag        = (body)   => api.post('/api/hockey/publications/tags', body)
 export const removePublicationTag     = (tagId)  => api.delete(`/api/hockey/publications/tags/${tagId}`)
+export const reorderPublicationTags   = (ids)    => api.patch('/api/hockey/publications/tags/reorder', { ids })
 export const assignCompTag = (pid, linkId, tagId) =>
   api.post(`/api/hockey/publications/${pid}/competitions/${linkId}/tags`, { tag_id: tagId })
 export const removeCompTag = (pid, linkId, tagId) =>

@@ -73,6 +73,40 @@ export function useCollapse(initial = false) {
   return [open, toggle]
 }
 
+// ── Toggle (item 748: gedeeld aan/uit-patroon i.p.v. 5-6 losse, net-anders-
+// gestylede knoppen voor visible/published/scan_profile/ghost_enabled/
+// scan_plan_enabled). onVariant/offVariant kiezen de VARIANT-kleur per staat -
+// bv. published: ok (aan) / partial (uit, trekt aandacht naar concept-status);
+// scan_profile: ok (aan) / muted (uit, geen bijzondere aandacht nodig);
+// ghost/scan-plan: muted (aan, normale toestand) / partial (uit, waarschuwing).
+// compact levert de originele icoon-only stijl (geen achtergrondkleur, dimt
+// via opacity) voor krappe toolbar-rijen. ──────────────────────────────────
+
+export function Toggle({
+  on, onChange, onLabel, offLabel, onVariant = 'ok', offVariant = 'muted',
+  compact = false, title, disabled, style: extraStyle,
+}) {
+  if (compact) {
+    return (
+      <button onClick={onChange} disabled={disabled} title={title} style={{
+        background: 'none', border: 'none', cursor: disabled ? 'default' : 'pointer',
+        fontSize: 14, opacity: on ? 1 : 0.35, padding: '0 2px', fontFamily: 'inherit',
+        ...extraStyle,
+      }}>{on ? onLabel : offLabel}</button>
+    )
+  }
+  const variant = VARIANT[on ? onVariant : offVariant] || VARIANT.muted
+  return (
+    <button onClick={onChange} disabled={disabled} title={title} style={{
+      fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: disabled ? 'default' : 'pointer',
+      fontFamily: 'inherit', fontWeight: 600, border: 'none',
+      background: variant.bg, color: variant.fg, opacity: disabled ? 0.5 : 1,
+      whiteSpace: 'nowrap',
+      ...extraStyle,
+    }}>{on ? onLabel : offLabel}</button>
+  )
+}
+
 // ── Btn (item 740: was gedupliceerd als lokale component in CmdQueueSection) ──
 
 export function Btn({ onClick, disabled, color, filled, children, tooltip, style: extraStyle }) {

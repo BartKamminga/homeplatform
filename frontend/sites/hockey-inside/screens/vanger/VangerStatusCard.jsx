@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useCollapse } from '../ui.jsx'
+import { useCollapse, Toggle } from '../ui.jsx'
 
 // Twee client-types kunnen dezelfde cmd-queue bedienen, tegelijk:
 //   Scout — de Chrome-extensie, handmatig vanaf een laptop (debug/kleine acties)
@@ -210,29 +210,17 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
         startTitle="Start de headless Ghost-worker op de server (verwerkt de queue zonder dat de Chrome-extensie open hoeft te staan)"
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, paddingBottom: 6 }}>
-        <button
-          onClick={onToggleGhost}
-          style={{
-            fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-            border: `1px solid ${ghostEnabled ? 'var(--color-border)' : 'var(--color-warning)'}`,
-            background: ghostEnabled ? 'transparent' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
-            color: ghostEnabled ? 'var(--color-text-muted)' : 'var(--color-warning)', cursor: 'pointer',
-          }}
-        >
-          {ghostEnabled ? 'Ghost uitschakelen' : 'Ghost weer aanzetten'}
-        </button>
-        <button
-          onClick={onToggleScanPlan}
+        <Toggle
+          on={ghostEnabled} onChange={onToggleGhost} onVariant="muted" offVariant="partial"
+          onLabel="Ghost uitschakelen" offLabel="Ghost weer aanzetten"
+          style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5 }}
+        />
+        <Toggle
+          on={scanPlanEnabled} onChange={onToggleScanPlan} onVariant="muted" offVariant="partial"
+          onLabel="Scan-plan uitschakelen" offLabel="Scan-plan weer aanzetten"
           title="Zet de automatische scan-plan-pass (clublijst/club-cap + event-driven matchday-scan) volledig aan of uit"
-          style={{
-            fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-            border: `1px solid ${scanPlanEnabled ? 'var(--color-border)' : 'var(--color-warning)'}`,
-            background: scanPlanEnabled ? 'transparent' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
-            color: scanPlanEnabled ? 'var(--color-text-muted)' : 'var(--color-warning)', cursor: 'pointer',
-          }}
-        >
-          {scanPlanEnabled ? 'Scan-plan uitschakelen' : 'Scan-plan weer aanzetten'}
-        </button>
+          style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5 }}
+        />
       </div>
       <div
         onClick={toggleSettingsOpen}

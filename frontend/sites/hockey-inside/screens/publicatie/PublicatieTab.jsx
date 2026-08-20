@@ -6,6 +6,7 @@ import {
 } from '../../api.js'
 import CompetitiesTab from './CompetitiesTab.jsx'
 import { ghostBtn, primaryBtn, inputStyle } from '../styles.js'
+import { Toggle } from '../ui.jsx'
 
 // ── Aanmaken popup ────────────────────────────────────────────────────────────
 
@@ -88,21 +89,20 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, draggable, onDr
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        {draggable && (
+          <span title="Sleep om volgorde te wijzigen" style={{ opacity: 0.4, fontSize: 14, flexShrink: 0, paddingTop: 1 }}>⠿</span>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{t.name}</div>
           {t.season && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.season}</div>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
           {isAdmin ? (
-            <button
-              onClick={e => { e.stopPropagation(); onTogglePublished(t) }}
-              style={{
-                fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
-                fontFamily: 'inherit', fontWeight: 600, border: 'none',
-                background: t.published ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))',
-                color: t.published ? 'var(--color-success)' : 'var(--color-warning)',
-              }}
-            >{t.published ? '● Zichtbaar' : '○ Concept'}</button>
+            <Toggle
+              on={t.published}
+              onChange={e => { e.stopPropagation(); onTogglePublished(t) }}
+              onLabel="● Zichtbaar" offLabel="○ Concept" offVariant="partial"
+            />
           ) : !t.published ? (
             <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, background: 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))', color: 'var(--color-warning)', fontWeight: 600 }}>Concept</span>
           ) : null}

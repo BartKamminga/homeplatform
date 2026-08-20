@@ -41,6 +41,9 @@ class PublicationUpdate(BaseModel):
 class PublicationsReorder(BaseModel):
     ids: list
 
+class TagsReorder(BaseModel):
+    ids: list
+
 class CompLinkCreate(BaseModel):
     competition_id: int
     order:          int = 0
@@ -64,8 +67,13 @@ class TagAssign(BaseModel):
 
 @router.get("")
 def list_publications(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    # Zelfde sortering als /api/hockey/public/publications (item 745) - anders
+    # toont de admin-lijst (voorheen: order, created_at.desc()) een andere
+    # volgorde dan poulebord zolang niemand ooit gesleept heeft (order=0 voor
+    # iedereen), wat de indruk geeft dat "de volgorde niet wordt overgenomen".
     pubs = session.exec(
-        select(HockeyPublication).order_by(HockeyPublication.order, HockeyPublication.created_at.desc())
+        select(HockeyPublication)
+        .order_by(HockeyPublication.season.desc(), HockeyPublication.order, HockeyPublication.name)
     ).all()
     result = []
     for p in pubs:
@@ -130,6 +138,17 @@ def delete_tag(tag_id: str, session: Session = Depends(get_session), _: User = D
         raise HTTPException(404, "Tag niet gevonden")
     session.delete(tag)
     session.commit()
+
+
+@router.patch("/tags/reorder")
+def reorder_tags(body: TagsReorder, session: Session = Depends(get_session), _: User = Depends(require_admin)):
+    for i, tag_id in enumerate(body.ids):
+        tag = session.get(HockeyPublicationTag, tag_id)
+        if tag:
+            tag.order = i
+            session.add(tag)
+    session.commit()
+    return {"ok": True}
 
 
 # ── Publicatie detail (ná de vaste paden) ────────────────────────────────────

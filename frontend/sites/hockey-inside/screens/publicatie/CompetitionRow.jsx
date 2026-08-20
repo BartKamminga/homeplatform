@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getHockeyPouleStandings, getCompetitionMatches } from '../../api.js'
 import { card, deleteBtn } from '../styles.js'
-import { useCollapse } from '../ui.jsx'
+import { Toggle } from '../ui.jsx'
 
 // ── PouleDetail ────────────────────────────────────────────────────────────────
 
@@ -88,7 +88,6 @@ function PouleDetail({ poule }) {
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 
 export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onRemove, onOpenDetail }) {
-  const [open,          toggleOpen]       = useCollapse(false)
   const [openPoule,     setOpenPoule]     = useState(null)
   const [showTagPicker, setShowTagPicker] = useState(false)
   const pickerRef   = useRef(null)
@@ -115,35 +114,26 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
   return (
     <div style={{ ...card, marginBottom: 6 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <button onClick={() => { toggleOpen(); setOpenPoule(null) }}
-          style={{ flex: 1, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+        <div style={{ flex: 1, padding: 0 }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>
             {comp?.hockey_type === 'ZA' ? '🏒 ' : '🏑 '}
             {lnk.label || [comp?.name, comp?.class_name].filter(Boolean).join(' | ') || '—'}
           </span>
           {poules.length > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8 }}>
-              {poules.length} poule{poules.length !== 1 ? 's' : ''} {open ? '▾' : '▸'}
+              {poules.length} poule{poules.length !== 1 ? 's' : ''}
             </span>
           )}
-        </button>
+        </div>
         <button onClick={onOpenDetail} title="Open detail"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-primary)', padding: '0 2px', fontFamily: 'inherit' }}>→</button>
-        <button onClick={onToggleVisible} title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, opacity: lnk.visible ? 1 : 0.35, padding: '0 2px' }}>
-          {lnk.visible ? '👁' : '🚫'}
-        </button>
+        <Toggle on={lnk.visible} onChange={onToggleVisible} compact
+          onLabel="👁" offLabel="🚫"
+          title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'} />
         {onToggleScanProfile && (
-          <button onClick={onToggleScanProfile}
-            title={lnk.scan_profile === 'active' ? 'Auto-scan actief — klik om uit te zetten' : 'Auto-scan uit — klik om te activeren'}
-            style={{
-              fontSize: 10, padding: '2px 7px', borderRadius: 99, cursor: 'pointer',
-              fontFamily: 'inherit', fontWeight: 600, border: 'none',
-              background: lnk.scan_profile === 'active' ? 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))' : 'var(--color-bg)',
-              color: lnk.scan_profile === 'active' ? 'var(--color-success)' : 'var(--color-text-muted)',
-            }}>
-            {lnk.scan_profile === 'active' ? '🔄 Auto-scan' : '⏸ Handmatig'}
-          </button>
+          <Toggle on={lnk.scan_profile === 'active'} onChange={onToggleScanProfile}
+            onLabel="🔄 Auto-scan" offLabel="⏸ Handmatig"
+            title={lnk.scan_profile === 'active' ? 'Auto-scan actief — klik om uit te zetten' : 'Auto-scan uit — klik om te activeren'} />
         )}
         <button onClick={onRemove} style={deleteBtn} title="Verwijder koppeling">✕</button>
       </div>
@@ -185,7 +175,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
         )}
       </div>
 
-      {open && poules.length > 0 && (
+      {poules.length > 0 && (
         <div style={{ paddingTop: 10 }}>
           {poules.map(p => (
             <div key={p.id} style={{ marginBottom: 4 }}>

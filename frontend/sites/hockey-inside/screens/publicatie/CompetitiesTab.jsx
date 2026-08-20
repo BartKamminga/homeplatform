@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   getPublicationComps, addPublicationComp, updatePublicationComp, removePublicationComp,
   getDiscoveryComps, syncCompetition,
-  getPublicationTags, addPublicationTag, removePublicationTag,
+  getPublicationTags, addPublicationTag, removePublicationTag, reorderPublicationTags,
   assignCompTag, removeCompTag,
   KNOWN_SEASONS,
 } from '../../api.js'
@@ -47,6 +47,8 @@ export default function CompetitiesTab({
   const [metaOpen,    toggleMetaOpen] = useCollapse(false)
   const [confirmDel,  setConfirmDel]  = useState(false)
   const [deleting,    setDeleting]    = useState(false)
+  const tagDragIdx = useRef(null)
+  const [tagOverIdx, setTagOverIdx] = useState(null)
 
   useEffect(() => { loadGlobalTags() }, [])
   useEffect(() => { if (tid) { loadLinks() } }, [tid])
@@ -86,6 +88,23 @@ export default function CompetitiesTab({
       setNewTagName('')
     } catch (e) { flash(e.message, true) }
     finally { setAddingTag(false) }
+  }
+
+  // item 746: tags kunnen slepen om volgorde te bepalen - zelfde patroon als
+  // publicatie-reorder (PublicatieTab.jsx), maar dan voor de globale tag-lijst.
+  function handleReorderTags(newList) {
+    setGlobalTags(newList)
+    reorderPublicationTags(newList.map(t => t.id)).catch(() => {})
+  }
+
+  function handleTagDrop(targetIdx) {
+    if (tagDragIdx.current === null || tagDragIdx.current === targetIdx) { setTagOverIdx(null); return }
+    const next = [...globalTags]
+    const [moved] = next.splice(tagDragIdx.current, 1)
+    next.splice(targetIdx, 0, moved)
+    tagDragIdx.current = null
+    setTagOverIdx(null)
+    handleReorderTags(next)
   }
 
   async function doRemoveTag(tag) {
@@ -242,6 +261,10 @@ export default function CompetitiesTab({
           globalTags={globalTags} onRequestDeleteTag={setConfirmTag}
           newTagName={newTagName} setNewTagName={setNewTagName} addingTag={addingTag} onAddTag={handleAddTag}
           onDelete={onDelete} confirmDel={confirmDel} setConfirmDel={setConfirmDel} deleting={deleting} onConfirmDelete={handleDelete}
+          onTagDragStart={i => { tagDragIdx.current = i }}
+          onTagDragOver={i => setTagOverIdx(i)}
+          onTagDrop={handleTagDrop}
+          tagOverIdx={tagOverIdx}
         />
       )}
 
