@@ -34,8 +34,8 @@ function isoPlusHours(iso, n) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-// Startindex voor de tijdvak-verkenner: begin bij "nu" zodat je niet eerst
-// terug in de tijd moet schuiven naar een relevant moment.
+// Startindex voor het tijdvak: begin bij "nu" zodat je niet eerst terug in de
+// tijd moet schuiven naar een relevant moment.
 function nowStartIndex(hours, len) {
   const now = Date.now()
   let idx = hours.findIndex(h => new Date(h.time).getTime() >= now)
@@ -52,10 +52,10 @@ export default function PrognosePage() {
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showExplainer, setShowExplainer] = useState(false)
   const [windMode, setWindMode] = useState('arrow')
-  const [selectedWindow, setSelectedWindow] = useState(null) // { date, start, end } — item 831
-  const [exploreOn, setExploreOn] = useState(false) // handmatig tijdvak verkennen — item 832/833
-  const [exploreStart, setExploreStart] = useState(0)
-  const [exploreLen, setExploreLen] = useState(2)
+  // Tijdvak: altijd actief (geen aan/uit-toggle meer, item 862), start/eind als
+  // uur-index in de platte 72-uurs reeks. null tot de data + rittijd-instelling
+  // geladen zijn, dan één keer geïnitialiseerd op "nu".
+  const [tijdvak, setTijdvak] = useState(null)
   const [rideDurationH, setRideDurationH] = useState(2)
   // Defaults matchen services/fiets.py (RAIN_WEIGHT=0.4, TEMP_WIND_BUDGET=0.4
   // @ 60/40, SUN_WEIGHT=0.2) — voor de uitleg-popup, die zo altijd de actuele
@@ -85,6 +85,17 @@ export default function PrognosePage() {
       .catch(() => {})
   }, [])
 
+  // Tijdvak eenmalig initialiseren zodra de data binnen is — start bij "nu",
+  // lengte op de ingestelde gemiddelde rittijd.
+  useEffect(() => {
+    if (!data || tijdvak) return
+    const allHours = data.days.flatMap(d => d.hours)
+    if (allHours.length === 0) return
+    const len = Math.max(1, Math.min(allHours.length, Math.round(rideDurationH)))
+    const startIdx = nowStartIndex(allHours, len)
+    setTijdvak({ startIdx, endIdx: startIdx + len - 1 })
+  }, [data])
+
   function toggleBreakdown() {
     setShowBreakdown(v => {
       const next = !v
@@ -93,20 +104,22 @@ export default function PrognosePage() {
     })
   }
 
-  function selectBestMoment(day, w) {
-    setSelectedWindow(prev =>
-      prev && prev.date === day.date && prev.start === w.start ? null : { date: day.date, start: w.start, end: w.end }
-    )
+  // "Beste moment" aanklikken (item 831) verplaatst hetzelfde tijdvak naar dat
+  // venster — één samenhangend concept i.p.v. een los "geselecteerd"-mechanisme.
+  function selectBestMoment(allHours, w) {
+    const startIdx = allHours.findIndex(h => h.time === w.start)
+    if (startIdx === -1) return
+    const spanHours = Math.max(1, Math.round((new Date(w.end) - new Date(w.start)) / 3600000))
+    setTijdvak({ startIdx, endIdx: Math.min(allHours.length - 1, startIdx + spanHours - 1) })
   }
 
-  function toggleExplore(allHours) {
-    setExploreOn(on => {
-      if (!on) {
-        const len = Math.max(1, Math.round(rideDurationH))
-        setExploreLen(len)
-        setExploreStart(nowStartIndex(allHours, len))
-      }
-      return !on
+  // Slepen aan een handvat op de grafiek (item 862) — start/eind blijven altijd
+  // in de juiste volgorde (min. 1 uur venster).
+  function handleTijdvakDrag(edge, idx) {
+    setTijdvak(prev => {
+      if (!prev) return prev
+      if (edge === 'start') return { startIdx: Math.min(idx, prev.endIdx), endIdx: prev.endIdx }
+      return { startIdx: prev.startIdx, endIdx: Math.max(idx, prev.startIdx) }
     })
   }
 
@@ -147,13 +160,9 @@ export default function PrognosePage() {
 
   const activeField = TABS.find(t => t.key === tab).field
   const allHours = data.days.flatMap(d => d.hours)
-  const exploreEnd = Math.min(allHours.length - 1, exploreStart + exploreLen - 1)
-  const exploreHours = exploreOn ? allHours.slice(exploreStart, exploreEnd + 1) : []
-  const exploreAvg = exploreHours.length
-    ? Math.round(exploreHours.reduce((sum, h) => sum + h.score, 0) / exploreHours.length * 10) / 10
-    : null
-  const exploreWindow = exploreHours.length
-    ? { start: exploreHours[0].time, end: isoPlusHours(exploreHours[exploreHours.length - 1].time, 1) }
+  const tijdvakHours = tijdvak ? allHours.slice(tijdvak.startIdx, tijdvak.endIdx + 1) : []
+  const tijdvakAvg = tijdvakHours.length
+    ? Math.round(tijdvakHours.reduce((sum, h) => sum + h.score, 0) / tijdvakHours.length * 10) / 10
     : null
 
   return (
@@ -178,18 +187,6 @@ export default function PrognosePage() {
               {s.label}
             </button>
           ))}
-          <button
-            onClick={() => toggleExplore(allHours)}
-            title="Zelf een tijdvak kiezen en de score ervan bekijken"
-            style={{
-              fontSize: 11, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-              border: `1px solid ${exploreOn ? 'var(--color-primary)' : 'var(--color-border)'}`,
-              background: exploreOn ? 'var(--color-surface)' : 'transparent',
-              color: exploreOn ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            }}
-          >
-            🕐 Tijdvak
-          </button>
           <button
             onClick={() => setShowExplainer(v => !v)}
             aria-label="Hoe werkt de score?"
@@ -260,52 +257,10 @@ export default function PrognosePage() {
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
-        <SmoothChart days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode} highlightWindow={exploreOn ? exploreWindow : selectedWindow} />
-
-        {exploreOn && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '8px 10px',
-            background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 10, flexWrap: 'wrap',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button
-                onClick={() => {
-                  const len = Math.max(1, exploreLen - 1)
-                  setExploreLen(len)
-                  setExploreStart(s => Math.min(s, allHours.length - len))
-                }}
-                style={stepperBtn}
-              >
-                −
-              </button>
-              <span style={{ fontSize: 11, width: 28, textAlign: 'center' }}>{exploreLen}u</span>
-              <button
-                onClick={() => {
-                  const len = Math.min(12, exploreLen + 1)
-                  setExploreLen(len)
-                  setExploreStart(s => Math.min(s, allHours.length - len))
-                }}
-                style={stepperBtn}
-              >
-                +
-              </button>
-            </div>
-            <input
-              type="range" min={0} max={Math.max(0, allHours.length - exploreLen)} value={exploreStart}
-              onChange={e => setExploreStart(Number(e.target.value))}
-              style={{ flex: 1, minWidth: 100 }}
-            />
-            {exploreAvg != null && (
-              <span style={{
-                fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
-                color: scoreColor(exploreAvg), background: 'var(--color-surface)', border: `1px solid ${scoreColor(exploreAvg)}`,
-                whiteSpace: 'nowrap',
-              }}>
-                {exploreHours[0].time.slice(11, 16)}–{isoPlusHours(exploreHours[exploreHours.length - 1].time, 1).slice(11, 16)} · {exploreAvg} {scoreLabel(exploreAvg)}
-              </span>
-            )}
-          </div>
-        )}
+        <SmoothChart
+          days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode}
+          tijdvak={tijdvak} onTijdvakDrag={handleTijdvakDrag}
+        />
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
             (item 806) i.p.v. alleen bij Fiets/Wind en leeg bij de rest. minHeight
@@ -365,13 +320,41 @@ export default function PrognosePage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {tijdvakHours.length > 0 && (
+          <TijdvakCard
+            startTime={tijdvakHours[0].time}
+            endTime={isoPlusHours(tijdvakHours[tijdvakHours.length - 1].time, 1)}
+            avg={tijdvakAvg}
+          />
+        )}
         {data.days.map(day => (
           <DayCard
             key={day.date} day={day}
-            selected={Boolean(selectedWindow && selectedWindow.date === day.date && selectedWindow.start === day.best_window?.start)}
-            onSelectBestMoment={selectBestMoment}
+            selected={Boolean(tijdvak && day.best_window && tijdvak.startIdx === allHours.findIndex(h => h.time === day.best_window.start))}
+            onSelectBestMoment={(_day, w) => selectBestMoment(allHours, w)}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+// Altijd-zichtbare kaart voor het zelf te verkennen tijdvak (item 862) —
+// zelfde stijl als DayCard's "beste moment", maar dan voor het venster dat je
+// met de handvatjes op de grafiek hebt versleept.
+function TijdvakCard({ startTime, endTime, avg }) {
+  return (
+    <div style={{
+      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+      borderRadius: 12, padding: '10px 14px',
+      borderLeft: `4px solid ${avg != null ? scoreColor(avg) : 'var(--color-border)'}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontWeight: 600, fontSize: 13 }}>🕐 Tijdvak</div>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>sleep de handvatjes op de grafiek</span>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+        {startTime.slice(11, 16)}–{endTime.slice(11, 16)} · <strong style={{ color: 'var(--color-text)' }}>{avg}</strong> {scoreLabel(avg)}
       </div>
     </div>
   )
@@ -407,9 +390,4 @@ function Legend({ color, label, opacity = 1 }) {
 const center = {
   display: 'flex', flexDirection: 'column', alignItems: 'center',
   justifyContent: 'center', padding: '60px 24px', textAlign: 'center',
-}
-
-const stepperBtn = {
-  width: 22, height: 22, fontSize: 13, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
-  border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)', lineHeight: 1,
 }
