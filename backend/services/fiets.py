@@ -382,15 +382,20 @@ def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict |
 
     Donkere uren tellen standaard niet mee (niemand fietst voor zijn plezier in
     het pikkedonker) — instelbaar via 'include_night' voor wie met verlichting
-    fietst. Bij gelijke score wint de vroegste starttijd — niet kritisch, de
-    volledige tijdlijn blijft ook zichtbaar in de grafiek."""
+    fietst. Uren die al voorbij zijn (van vandaag) tellen nooit mee — anders
+    kan 'beste moment' een tijdstip in het verleden tonen. Bij gelijke score
+    wint de vroegste starttijd — niet kritisch, de volledige tijdlijn blijft
+    ook zichtbaar in de grafiek."""
     prefs = prefs or {}
     ride_duration_h = prefs.get("ride_duration_h")
     if ride_duration_h is not None:
         min_h = max_h = max(1, round(ride_duration_h))
 
+    now = datetime.now()
+    future = [h for h in hours if datetime.fromisoformat(h["time"]) + timedelta(hours=1) > now]
+
     include_night = bool(prefs.get("include_night"))
-    daytime = [h for h in hours if h["daylight_state"] != "nacht" or include_night]
+    daytime = [h for h in future if h["daylight_state"] != "nacht" or include_night]
     if not daytime:
         return None
 
