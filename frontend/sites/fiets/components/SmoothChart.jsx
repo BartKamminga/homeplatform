@@ -253,9 +253,6 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
       <HighlightBand range={highlight} xAt={xAt} top={PAD_TOP} bottom={baseline} colors={colors} n={n} onDrag={dragOffset} />
       {showChart && <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />}
       {showChart && <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />}
-      {hours.map((h, i) => h.low_confidence && (
-        <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
-      ))}
       {showArrows && hourTicks.map(i => (
         <WindArrowMark key={`arrow-${i}`} x={xAt(i)} y={PAD_TOP + innerH / 2} deg={hours[i].wind_dir} kmh={values[i]}
           color={lineColor} halo={showChart ? colors['--color-surface'] : null} />
@@ -307,10 +304,6 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
       })}
 
       <path d={smoothPath(boundaries[4].map((y, i) => [xAt(i), y]))} fill="none" stroke={colors['--color-text']} strokeWidth={1.5} opacity={0.5} />
-
-      {hours.map((h, i) => h.low_confidence && (
-        <circle key={`lc-${i}`} cx={xAt(i)} cy={PAD_TOP - 10} r={2} fill={colors['--color-text-muted']} />
-      ))}
 
       <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => boundaries[4][i]} fmt={v => v.toFixed(1)} values={hours.map(h => h.score)} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />

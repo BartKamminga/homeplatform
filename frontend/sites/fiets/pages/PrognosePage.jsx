@@ -182,21 +182,6 @@ export default function PrognosePage() {
           <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>📍 {data.location.label}</p>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {SOURCES.map(s => (
-            <button
-              key={s.key}
-              onClick={() => toggleSource(s.key)}
-              style={{
-                fontSize: 10, padding: '3px 8px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                border: `1px solid ${sources.includes(s.key) ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
-                background: sources.includes(s.key) ? 'var(--color-surface)' : 'transparent',
-                color: sources.includes(s.key) ? 'var(--color-text)' : 'var(--color-text-muted)',
-                opacity: sources.includes(s.key) ? 1 : 0.6,
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
           <button
             onClick={() => setShowExplainer(v => !v)}
             aria-label="Hoe werkt de score?"
@@ -239,7 +224,7 @@ export default function PrognosePage() {
                 <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
               ))}
               <p style={{ margin: '0 0 6px' }}>🌙 <strong>Daglicht</strong> — werkt los van de 4 gewichten hierboven: 's nachts dimt de score vloeiend naar 0, overdag blijft hij onveranderd. Instelbaar via "neem ook donkere uren mee" bij Instellingen.</p>
-              <p style={{ margin: 0 }}>📡 <strong>3 bronnen</strong> — de score is een gemiddelde van KNMI, NOAA GFS en DWD ICON. Zijn ze het duidelijk niet eens? Dan zie je een grijze stip.</p>
+              <p style={{ margin: 0 }}>📡 <strong>3 bronnen</strong> — de score is een gemiddelde van KNMI, NOAA GFS en DWD ICON.</p>
             </div>
           </div>
         </div>
@@ -325,27 +310,38 @@ export default function PrognosePage() {
             </>
           )}
 
-          <span>· grijze stip = bronnen zijn het niet eens</span>
+          {/* Bron-toggles hier i.p.v. in de header (item 871 — mobiel ruimte
+              besparen), rechts uitgelijnd via marginLeft:auto. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+            {SOURCES.map(s => (
+              <button
+                key={s.key}
+                onClick={() => toggleSource(s.key)}
+                style={{
+                  fontSize: 10, padding: '3px 8px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+                  border: `1px solid ${sources.includes(s.key) ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
+                  background: sources.includes(s.key) ? 'var(--color-surface)' : 'transparent',
+                  color: sources.includes(s.key) ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  opacity: sources.includes(s.key) ? 1 : 0.6,
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setDayFilter(null)}
-          style={dayChipStyle(dayFilter === null)}
-        >
-          Alle dagen
-        </button>
-        {data.days.map(d => (
-          <button
-            key={d.date}
-            onClick={() => setDayFilter(d.date)}
-            style={dayChipStyle(dayFilter === d.date)}
-          >
-            {new Date(d.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}
+      {/* Dag-zoom-reset (item 866/871) — alleen zichtbaar als je op 1 dag
+          ingezoomd bent (via dag-kaart 'beste moment' aanklikken); anders
+          neemt dit 0 ruimte in. */}
+      {dayFilter && (
+        <div style={{ marginBottom: 10 }}>
+          <button onClick={() => setDayFilter(null)} style={dayChipStyle(true)}>
+            📅 {new Date(dayFilter).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })} · terug naar alle dagen ✕
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {tijdvakHours.length > 0 && (
@@ -415,7 +411,7 @@ function Legend({ color, label, opacity = 1 }) {
   )
 }
 
-// Dag-chips om in te zoomen op 1 dag (item 866) — zelfde pil-stijl als de
+// Stijl voor de dag-zoom-reset-chip (item 866/871) — zelfde pil-stijl als de
 // bron-toggles, actief = primary-kleur zoals de tabs.
 function dayChipStyle(active) {
   return {
