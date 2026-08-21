@@ -23,6 +23,7 @@ export default function DebugPage({ onBeforeLeave }) {
   const [error,   setError]   = useState('')
   const [weights, setWeights] = useState(null)
   const [savedState, setSavedState] = useState(null) // laatst opgeslagen waarden, voor dirty-check
+  const [showExplainer, setShowExplainer] = useState(false)
   const debounceRef = useRef(null)
 
   function loadPreview(w) {
@@ -96,10 +97,34 @@ export default function DebugPage({ onBeforeLeave }) {
 
   return (
     <div style={{ padding: '16px' }}>
-      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-        Ruwe brondata per model (KNMI/GFS/ICON los), het geblende resultaat en de score-tussenstappen, per uur.
-        Puur om te leren hoe de score tot stand komt — sleep horizontaal om alle kolommen te zien.
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
+          Ruwe brondata per model (KNMI/GFS/ICON los), het geblende resultaat en de score-tussenstappen, per uur.
+          Puur om te leren hoe de score tot stand komt — sleep horizontaal om alle kolommen te zien.
+        </p>
+        <button
+          onClick={() => setShowExplainer(v => !v)}
+          aria-label="Hoe werkt de score?"
+          style={{
+            fontSize: 15, width: 26, height: 26, flexShrink: 0, borderRadius: '50%', cursor: 'pointer', lineHeight: 1,
+            border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)',
+          }}
+        >
+          ⓘ
+        </button>
+      </div>
+
+      {showExplainer && (
+        <div style={{
+          padding: '12px 14px', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)',
+          background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
+        }}>
+          {weightRows(weights).map(({ key, icon, label, pct, note }) => (
+            <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
+          ))}
+          <p style={{ margin: 0 }}>🌙 <strong>Daglicht</strong> — werkt los van deze 4 gewichten: 's nachts dimt de score vloeiend naar 0 (kolom 'weer' toont de ongedimde waarde). Live bijgewerkt bij het aanpassen van de gewichten hierboven.</p>
+        </div>
+      )}
 
       <div style={{
         display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14,
@@ -220,6 +245,23 @@ export default function DebugPage({ onBeforeLeave }) {
       </div>
     </div>
   )
+}
+
+// Zet de actuele (live, nog niet per se opgeslagen) gewichten om naar
+// percentages voor de (i)-uitleg-kaart — leest rechtstreeks de lokale
+// weights-state van deze pagina, dus wijzigt meteen mee met de inputs erboven.
+function weightRows(weights) {
+  const total = WEIGHT_FIELDS.reduce((sum, f) => sum + Number(weights[f.key] || 0), 0) || 1
+  const notes = {
+    rain: 'Hoe meer het regent en hoe zwaarder de bui, hoe lager deze bijdrage.',
+    temp: 'Prettigst tussen 15-22°C, instelbaar in Instellingen.',
+    sun: 'Meer zon (minder bewolking) is beter.',
+    wind: 'Harde wind en tegenwind tellen negatief, instelbaar in Instellingen.',
+  }
+  const icons = { rain: '🌧', temp: '🌡', sun: '☀️', wind: '💨' }
+  return WEIGHT_FIELDS
+    .map(f => ({ key: f.key, icon: icons[f.key], label: f.label, note: notes[f.key], pct: Math.round(Number(weights[f.key] || 0) / total * 100) }))
+    .sort((a, b) => b.pct - a.pct)
 }
 
 // Score-staffel voor de beste-moment-labels — een nerd-instelling, los van de
