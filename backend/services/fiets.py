@@ -225,18 +225,35 @@ async def fetch_openmeteo_raw(lat: float, lon: float) -> dict | None:
 
 
 async def geocode_location(query: str) -> list[dict]:
-    """Zoekt plaatsnamen op via de Open-Meteo geocoding-API (ook gratis, geen key)."""
+    """Zoekt plaatsnamen op via de Open-Meteo geocoding-API (ook gratis, geen key).
+    Logt net als fetch_openmeteo_raw een source_call (item 864 — deze call miste
+    tot nu toe in de site-monitoring, alleen de weer-fetch werd gelogd)."""
     if not query or len(query) < 2:
         return []
     params = {"name": query, "count": 5, "language": "nl", "format": "json"}
+    t0 = time.time()
+    status_code = 0
+    data = None
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(GEOCODE_URL, params=params)
+            status_code = response.status_code
             response.raise_for_status()
             data = response.json()
     except Exception as exc:
         logger.warning("fiets: geocode fetch failed — %s", exc)
-        return []
+
+    results = data.get("results", []) if data else []
+    try:
+        log_site_event(
+            "fiets", "source_call",
+            source_url=GEOCODE_URL,
+            duration_ms=int((time.time() - t0) * 1000),
+            status_code=status_code,
+            result_count=len(results),
+        )
+    except Exception:
+        pass
 
     return [
         {
@@ -244,7 +261,7 @@ async def geocode_location(query: str) -> list[dict]:
             "lat": r["latitude"],
             "lon": r["longitude"],
         }
-        for r in data.get("results", [])
+        for r in results
     ]
 
 
@@ -391,7 +408,7 @@ def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict |
                     "avg_score": avg_score,
                 }
 
-    best["label"] = f"{best['start'][11:16]}–{best['end'][11:16]}, {_score_label(best['avg_score'], prefs)}"
+    best["label"] = f"{best['start'][11:16]}–{best['end'][11:16]} · {best['avg_score']} {_score_label(best['avg_score'], prefs)}"
     return best
 
 

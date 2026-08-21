@@ -57,6 +57,7 @@ export default function PrognosePage() {
   // geladen zijn, dan één keer geïnitialiseerd op "nu".
   const [tijdvak, setTijdvak] = useState(null)
   const [rideDurationH, setRideDurationH] = useState(2)
+  const [dayFilter, setDayFilter] = useState(null) // null = alle dagen, anders day.date — item 866 (inzoomen op mobiel)
   // Defaults matchen services/fiets.py (RAIN_WEIGHT=0.4, TEMP_WIND_BUDGET=0.4
   // @ 60/40, SUN_WEIGHT=0.2) — voor de uitleg-popup, die zo altijd de actuele
   // verdeling toont i.p.v. hardcoded percentages.
@@ -106,11 +107,14 @@ export default function PrognosePage() {
 
   // "Beste moment" aanklikken (item 831) verplaatst hetzelfde tijdvak naar dat
   // venster — één samenhangend concept i.p.v. een los "geselecteerd"-mechanisme.
-  function selectBestMoment(allHours, w) {
+  // Zoomt ook meteen in op die dag (item 866), anders is de band onzichtbaar
+  // als je op een andere dag ingezoomd stond.
+  function selectBestMoment(allHours, day, w) {
     const startIdx = allHours.findIndex(h => h.time === w.start)
     if (startIdx === -1) return
     const spanHours = Math.max(1, Math.round((new Date(w.end) - new Date(w.start)) / 3600000))
     setTijdvak({ startIdx, endIdx: Math.min(allHours.length - 1, startIdx + spanHours - 1) })
+    setDayFilter(day.date)
   }
 
   // Slepen aan een handvat op de grafiek (item 862) — start/eind blijven altijd
@@ -164,6 +168,12 @@ export default function PrognosePage() {
   const tijdvakAvg = tijdvakHours.length
     ? Math.round(tijdvakHours.reduce((sum, h) => sum + h.score, 0) / tijdvakHours.length * 10) / 10
     : null
+
+  // Inzoomen op 1 dag (item 866) — op een klein scherm is 72 uur in 1 grafiek
+  // te krap om het tijdvak precies te verslepen. hourOffset vertaalt de
+  // globale tijdvak-indices naar lokale indices binnen de ingezoomde dag.
+  const displayedDays = dayFilter ? data.days.filter(d => d.date === dayFilter) : data.days
+  const hourOffset = dayFilter ? allHours.findIndex(h => h.time === displayedDays[0]?.hours[0]?.time) : 0
 
   return (
     <div style={{ padding: '20px 16px' }}>
@@ -253,13 +263,31 @@ export default function PrognosePage() {
         ))}
       </div>
 
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setDayFilter(null)}
+          style={dayChipStyle(dayFilter === null)}
+        >
+          Alle dagen
+        </button>
+        {data.days.map(d => (
+          <button
+            key={d.date}
+            onClick={() => setDayFilter(d.date)}
+            style={dayChipStyle(dayFilter === d.date)}
+          >
+            {new Date(d.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}
+          </button>
+        ))}
+      </div>
+
       <div style={{
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
       }}>
         <SmoothChart
-          days={data.days} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode}
-          tijdvak={tijdvak} onTijdvakDrag={handleTijdvakDrag}
+          days={displayedDays} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode}
+          tijdvak={tijdvak} onTijdvakDrag={handleTijdvakDrag} hourOffset={hourOffset}
         />
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
@@ -331,7 +359,7 @@ export default function PrognosePage() {
           <DayCard
             key={day.date} day={day}
             selected={Boolean(tijdvak && day.best_window && tijdvak.startIdx === allHours.findIndex(h => h.time === day.best_window.start))}
-            onSelectBestMoment={(_day, w) => selectBestMoment(allHours, w)}
+            onSelectBestMoment={(day, w) => selectBestMoment(allHours, day, w)}
           />
         ))}
       </div>
@@ -385,6 +413,17 @@ function Legend({ color, label, opacity = 1 }) {
       {label}
     </span>
   )
+}
+
+// Dag-chips om in te zoomen op 1 dag (item 866) — zelfde pil-stijl als de
+// bron-toggles, actief = primary-kleur zoals de tabs.
+function dayChipStyle(active) {
+  return {
+    fontSize: 11, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+    border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+    background: active ? 'var(--color-surface)' : 'transparent',
+    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+  }
 }
 
 const center = {

@@ -163,7 +163,7 @@ function NowMarker({ x, top, bottom, colors }) {
   )
 }
 
-export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', tijdvak = null, onTijdvakDrag }) {
+export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', tijdvak = null, onTijdvakDrag, hourOffset = 0 }) {
   const colors = useThemeColors()
   const hours = days.flatMap(d => d.hours)
   const n = hours.length
@@ -197,14 +197,22 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
   for (let i = 0; i < n; i += HOUR_TICK_STEP) hourTicks.push(i)
 
   const nowX = (() => { const ni = nowIndex(hours); return ni == null ? null : xAt(ni) })()
-  const highlight = tijdvak ? [Math.min(tijdvak.startIdx, n - 1), Math.min(tijdvak.endIdx, n - 1)] : null
+  // tijdvak-indices zijn globaal (over alle dagen heen); hourOffset vertaalt
+  // ze naar lokale indices binnen de huidige (evt. op 1 dag ingezoomde) weergave
+  // — item 866. Buiten beeld (bv. ingezoomd op een andere dag) -> geen band.
+  const localStart = tijdvak ? tijdvak.startIdx - hourOffset : null
+  const localEnd = tijdvak ? tijdvak.endIdx - hourOffset : null
+  const highlight = (localEnd != null && localEnd >= 0 && localStart <= n - 1)
+    ? [Math.max(0, localStart), Math.min(n - 1, localEnd)]
+    : null
+  const dragOffset = (edge, idx) => onTijdvakDrag?.(edge, idx + hourOffset)
 
   if (field === 'score' && showBreakdown) {
     return (
       <ScoreArea
         hours={hours} n={n} xAt={xAt} baseline={baseline} innerH={innerH}
         nightBands={nightBands} dayTicks={dayTicks} hourTicks={hourTicks} colors={colors} nowX={nowX}
-        highlight={highlight} onTijdvakDrag={onTijdvakDrag}
+        highlight={highlight} onTijdvakDrag={dragOffset}
       />
     )
   }
@@ -242,7 +250,7 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
         <rect key={`night-${i}`} x={xAt(s)} y={PAD_TOP} width={Math.max(1, xAt(e) - xAt(s))} height={innerH}
           fill={colors['--color-border']} opacity={0.35} />
       ))}
-      <HighlightBand range={highlight} xAt={xAt} top={PAD_TOP} bottom={baseline} colors={colors} n={n} onDrag={onTijdvakDrag} />
+      <HighlightBand range={highlight} xAt={xAt} top={PAD_TOP} bottom={baseline} colors={colors} n={n} onDrag={dragOffset} />
       {showChart && <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />}
       {showChart && <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />}
       {hours.map((h, i) => h.low_confidence && (
