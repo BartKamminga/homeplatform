@@ -193,8 +193,11 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
     offset += d.hours.length
   })
 
+  // Bij inzoomen op 1 dag (item 866) is er 3x zoveel ruimte per uur, dus dan
+  // elk uur een tick/pijl tonen i.p.v. elke 6 uur (item 877).
+  const hourTickStep = n <= 24 ? 1 : HOUR_TICK_STEP
   const hourTicks = []
-  for (let i = 0; i < n; i += HOUR_TICK_STEP) hourTicks.push(i)
+  for (let i = 0; i < n; i += hourTickStep) hourTicks.push(i)
 
   const nowX = (() => { const ni = nowIndex(hours); return ni == null ? null : xAt(ni) })()
   // tijdvak-indices zijn globaal (over alle dagen heen); hourOffset vertaalt
