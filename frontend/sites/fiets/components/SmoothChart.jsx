@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t, localeOf } from '../i18n.js'
 
 // CSS-variabelen worden hier op runtime opgelost naar echte kleurwaarden i.p.v.
 // via var(...) in SVG-attributen te verwijzen — dat bleek in de praktijk niet
@@ -153,17 +154,17 @@ function HighlightBand({ range, xAt, top, bottom, colors, n, onDrag }) {
   )
 }
 
-function NowMarker({ x, top, bottom, colors }) {
+function NowMarker({ x, top, bottom, colors, label }) {
   if (x == null) return null
   return (
     <g>
       <line x1={x} y1={top} x2={x} y2={bottom} stroke={colors['--color-text']} strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
-      <text x={x} y={top - 6} textAnchor="middle" fill={colors['--color-text']} style={{ fontSize: 9, fontWeight: 700 }}>nu</text>
+      <text x={x} y={top - 6} textAnchor="middle" fill={colors['--color-text']} style={{ fontSize: 9, fontWeight: 700 }}>{label}</text>
     </g>
   )
 }
 
-export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', tijdvak = null, onTijdvakDrag, hourOffset = 0 }) {
+export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', tijdvak = null, onTijdvakDrag, hourOffset = 0, lang = 'nl' }) {
   const colors = useThemeColors()
   const hours = days.flatMap(d => d.hours)
   const n = hours.length
@@ -186,11 +187,18 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
   })
   if (bandStart !== null) nightBands.push([bandStart, n - 1])
 
+  // Label gecentreerd onder de dag-span (niet naast de scheidingslijn) en met
+  // volledige datum i.p.v. alleen de weekdag-afkorting.
   const dayTicks = []
   let offset = 0
   days.forEach(d => {
-    dayTicks.push({ x: xAt(offset), label: new Date(d.date).toLocaleDateString('nl-NL', { weekday: 'short' }) })
-    offset += d.hours.length
+    const len = d.hours.length
+    dayTicks.push({
+      x: xAt(offset),
+      centerX: xAt(offset + (len - 1) / 2),
+      label: new Date(d.date).toLocaleDateString(localeOf(lang), { weekday: 'short', day: 'numeric', month: 'short' }),
+    })
+    offset += len
   })
 
   // Bij inzoomen op 1 dag (item 866) is er 3x zoveel ruimte per uur, dus dan
@@ -209,13 +217,14 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
     ? [Math.max(0, localStart), Math.min(n - 1, localEnd)]
     : null
   const dragOffset = (edge, idx) => onTijdvakDrag?.(edge, idx + hourOffset)
+  const nowLabel = t(lang, 'now')
 
   if (field === 'score' && showBreakdown) {
     return (
       <ScoreArea
         hours={hours} n={n} xAt={xAt} baseline={baseline} innerH={innerH}
         nightBands={nightBands} dayTicks={dayTicks} hourTicks={hourTicks} colors={colors} nowX={nowX}
-        highlight={highlight} onTijdvakDrag={dragOffset}
+        highlight={highlight} onTijdvakDrag={dragOffset} nowLabel={nowLabel}
       />
     )
   }
@@ -265,12 +274,12 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
         yAt={i => showChart ? yAt(values[i]) : PAD_TOP + innerH / 2 + Math.min(32, 14 + values[i] * 0.6) / 2 + 16}
         fmt={v => cfg.fmt(v)} values={values} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
-      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
+      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} label={nowLabel} />
     </svg>
   )
 }
 
-function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX, highlight, onTijdvakDrag }) {
+function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hourTicks, colors, nowX, highlight, onTijdvakDrag, nowLabel }) {
   const scale = v => (v / 10) * innerH // score/contributies zitten al op de 0-10 schaal
 
   // Gestapeld van onder naar boven: wind, zon, temp, regen — zelfde volgorde
@@ -310,7 +319,7 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
 
       <HourLabels hours={hours} hourTicks={hourTicks} xAt={xAt} yAt={i => boundaries[4][i]} fmt={v => v.toFixed(1)} values={hours.map(h => h.score)} colors={colors} />
       <DayTicks dayTicks={dayTicks} baseline={baseline} colors={colors} />
-      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} />
+      <NowMarker x={nowX} top={PAD_TOP} bottom={baseline} colors={colors} label={nowLabel} />
     </svg>
   )
 }
@@ -348,10 +357,10 @@ function WindArrowMark({ x, y, deg, kmh, color, halo }) {
 }
 
 function DayTicks({ dayTicks, baseline, colors }) {
-  return dayTicks.map((t, i) => (
+  return dayTicks.map((tick, i) => (
     <g key={`day-${i}`}>
-      {i > 0 && <line x1={t.x} y1={PAD_TOP} x2={t.x} y2={baseline} stroke={colors['--color-border']} strokeWidth={1} />}
-      <text x={t.x + 4} y={HEIGHT - 6} fill={colors['--color-text']} style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</text>
+      {i > 0 && <line x1={tick.x} y1={PAD_TOP} x2={tick.x} y2={baseline} stroke={colors['--color-border']} strokeWidth={1} />}
+      <text x={tick.centerX} y={HEIGHT - 6} textAnchor="middle" fill={colors['--color-text']} style={{ fontSize: 11, fontWeight: 600 }}>{tick.label}</text>
     </g>
   ))
 }

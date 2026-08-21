@@ -1,14 +1,16 @@
 import { scoreColor } from '../scoreUtils.js'
 import { daySummary } from '../format.js'
+import { t, localeOf } from '../i18n.js'
 import WindArrow from './WindArrow.jsx'
 
-export default function DayCard({ day, selected, onSelectBestMoment }) {
+export default function DayCard({ day, lang, selected, onSelectBestMoment }) {
   const w = day.best_window
   const s = daySummary(day.hours)
+  const dayLabel = new Date(day.date).toLocaleDateString(localeOf(lang), { weekday: 'long', day: 'numeric', month: 'long' })
   return (
     <div
       onClick={() => w && onSelectBestMoment?.(day, w)}
-      title={w ? 'Toon dit tijdvak in de grafiek' : undefined}
+      title={w ? t(lang, 'showThisWindow') : undefined}
       style={{
         background: 'var(--color-surface)',
         border: `1px solid ${selected ? 'var(--color-primary)' : 'var(--color-border)'}`,
@@ -17,7 +19,7 @@ export default function DayCard({ day, selected, onSelectBestMoment }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ fontWeight: 600, fontSize: 13 }}>{day.label}</div>
+        <div style={{ fontWeight: 600, fontSize: 13 }}>{dayLabel}</div>
         <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>
           <span>🌡 {s.tempMin}–{s.tempMax}°C</span>
           <span>☀️ {s.sunPct}%</span>
@@ -31,10 +33,12 @@ export default function DayCard({ day, selected, onSelectBestMoment }) {
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
         {w ? (
           <>
-            Beste moment: <strong style={{ color: selected ? 'var(--color-primary)' : 'var(--color-text)' }}>{w.label}</strong>
+            {t(lang, 'bestMoment')}: <strong style={{ color: selected ? 'var(--color-primary)' : 'var(--color-text)' }}>
+              {w.start.slice(11, 16)}–{w.end.slice(11, 16)} · {w.avg_score} {t(lang, `tier.${w.score_tier}`).toLowerCase()} {t(lang, 'bikingWeather')}
+            </strong>
           </>
         ) : (
-          'Geen goed moment gevonden'
+          t(lang, 'noGoodMoment')
         )}
       </div>
     </div>

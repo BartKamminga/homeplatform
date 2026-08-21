@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import PrognosePage from './pages/PrognosePage.jsx'
 import InstellingenPage from './pages/InstellingenPage.jsx'
 import DebugPage from './pages/DebugPage.jsx'
+import { t, useLanguage } from './i18n.js'
 
 export default function FietsLayout() {
   const [version, setVersion] = useState('')
   const [view, setView] = useState('prognose')
+  const [lang, setLang] = useLanguage()
   const debugLeaveGuard = useRef(null)
 
   function goTo(nextView) {
@@ -45,7 +47,7 @@ export default function FietsLayout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={() => goTo(view === 'debug' ? 'prognose' : 'debug')}
-            aria-label="Debug-data"
+            aria-label={t(lang, 'nav.debug')}
             style={{
               fontSize: 15, padding: '6px 10px', cursor: 'pointer',
               border: '1px solid var(--color-border)', borderRadius: 8,
@@ -55,7 +57,7 @@ export default function FietsLayout() {
           >🔬</button>
           <button
             onClick={() => goTo(view === 'instellingen' ? 'prognose' : 'instellingen')}
-            aria-label="Instellingen"
+            aria-label={t(lang, 'nav.settings')}
             style={{
               fontSize: 15, padding: '6px 10px', cursor: 'pointer',
               border: '1px solid var(--color-border)', borderRadius: 8,
@@ -71,15 +73,15 @@ export default function FietsLayout() {
               textDecoration: 'none', padding: '6px 10px',
               border: '1px solid var(--color-border)', borderRadius: 8,
             }}
-          >Account</a>
+          >{t(lang, 'nav.account')}</a>
         </div>
       </header>
 
       {/* Content */}
       <main style={{ flex: 1, overflowY: 'auto' }}>
-        {view === 'prognose' && <PrognosePage />}
-        {view === 'instellingen' && <InstellingenPage />}
-        {view === 'debug' && <DebugPage onBeforeLeave={debugLeaveGuard} />}
+        {view === 'prognose' && <PrognosePage lang={lang} />}
+        {view === 'instellingen' && <InstellingenPage lang={lang} onLangChange={setLang} />}
+        {view === 'debug' && <DebugPage lang={lang} onBeforeLeave={debugLeaveGuard} />}
       </main>
     </div>
   )

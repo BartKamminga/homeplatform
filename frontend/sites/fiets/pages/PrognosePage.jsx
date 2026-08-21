@@ -2,15 +2,11 @@ import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import SmoothChart, { BREAKDOWN_COLORS, RAIN_TIER_OPACITY } from '../components/SmoothChart.jsx'
 import DayCard from '../components/DayCard.jsx'
-import { scoreColor, scoreLabel } from '../scoreUtils.js'
+import { scoreColor } from '../scoreUtils.js'
+import { t, localeOf, scoreTierLabel } from '../i18n.js'
 
-const TABS = [
-  { key: 'fiets', label: 'Fiets',        field: 'score' },
-  { key: 'temp',  label: 'Temp',         field: 'temp' },
-  { key: 'rain',  label: 'Regen',        field: 'rain_mm' },
-  { key: 'wind',  label: 'Wind',         field: 'wind_kmh' },
-  { key: 'zon',   label: 'Zon',          field: 'sun_pct' },
-]
+const TAB_KEYS = ['fiets', 'temp', 'rain', 'wind', 'zon']
+const TAB_FIELDS = { fiets: 'score', temp: 'temp', rain: 'rain_mm', wind: 'wind_kmh', zon: 'sun_pct' }
 
 const SOURCES = [
   { key: 'knmi', label: 'KNMI' },
@@ -18,11 +14,7 @@ const SOURCES = [
   { key: 'icon', label: 'ICON' },
 ]
 
-const WIND_MODES = [
-  { key: 'chart', label: 'Grafiek' },
-  { key: 'arrow', label: 'Pijl' },
-  { key: 'both',  label: 'Beide' },
-]
+const WIND_MODE_KEYS = ['chart', 'arrow', 'both']
 
 // Tijden uit de API zijn lokaal, zonder 'Z' — Date parseert die als lokale
 // tijd, dus met de Date-methoden (niet toISOString, die naar UTC zou draaien)
@@ -60,7 +52,7 @@ function nextBestWindowToday(dayHours, len) {
   return best
 }
 
-export default function PrognosePage() {
+export default function PrognosePage({ lang }) {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
@@ -162,14 +154,14 @@ export default function PrognosePage() {
   if (loading) return (
     <div style={center}>
       <span style={{ fontSize: 40 }}>🚴</span>
-      <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 12 }}>Prognose laden…</p>
+      <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 12 }}>{t(lang, 'loading')}</p>
     </div>
   )
 
   if (error || data?.status === 'error') return (
     <div style={center}>
       <span style={{ fontSize: 40 }}>⚠️</span>
-      <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12 }}>{error || data?.message}</p>
+      <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12 }}>{t(lang, 'weatherUnavailable')}</p>
     </div>
   )
 
@@ -177,14 +169,12 @@ export default function PrognosePage() {
     <div style={center}>
       <span style={{ fontSize: 56 }}>🚴</span>
       <p style={{ fontSize: 15, color: 'var(--color-text-muted)', marginTop: 16, maxWidth: 260, lineHeight: 1.5, textAlign: 'center' }}>
-        De fietsweersvoorspelling is nog in ontwikkeling.
-        <br /><br />
-        Binnenkort zie je hier wanneer het beste moment is om te gaan fietsen.
+        {t(lang, 'emptyState')}
       </p>
     </div>
   )
 
-  const activeField = TABS.find(t => t.key === tab).field
+  const activeField = TAB_FIELDS[tab]
   const allHours = data.days.flatMap(d => d.hours)
   const tijdvakHours = tijdvak ? allHours.slice(tijdvak.startIdx, tijdvak.endIdx + 1) : []
   const tijdvakAvg = tijdvakHours.length
@@ -220,7 +210,7 @@ export default function PrognosePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
             onClick={() => setShowExplainer(v => !v)}
-            aria-label="Hoe werkt de score?"
+            aria-label={t(lang, 'howScoreWorks')}
             style={{
               fontSize: 15, width: 26, height: 26, borderRadius: '50%', cursor: 'pointer', lineHeight: 1,
               border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)',
@@ -246,21 +236,21 @@ export default function PrognosePage() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Hoe werkt de score?</h3>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{t(lang, 'howScoreWorks')}</h3>
               <button
                 onClick={() => setShowExplainer(false)}
-                aria-label="Sluiten"
+                aria-label={t(lang, 'close')}
                 style={{ fontSize: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', lineHeight: 1 }}
               >
                 ✕
               </button>
             </div>
             <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)' }}>
-              {weightRows(weights).map(({ key, icon, label, pct, note }) => (
-                <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
+              {weightRows(lang, weights).map(({ key, icon, label, pct, note }) => (
+                <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — {t(lang, 'weightPct', { pct })} {note}</p>
               ))}
-              <p style={{ margin: '0 0 6px' }}>🌙 <strong>Daglicht</strong> — werkt los van de 4 gewichten hierboven: 's nachts dimt de score vloeiend naar 0, overdag blijft hij onveranderd. Instelbaar via "neem ook donkere uren mee" bij Instellingen.</p>
-              <p style={{ margin: 0 }}>📡 <strong>3 bronnen</strong> — de score is een gemiddelde van KNMI, NOAA GFS en DWD ICON.</p>
+              <p style={{ margin: '0 0 6px' }}>🌙 <strong>{t(lang, 'daylightTitle')}</strong> — {t(lang, 'daylightExplain')}</p>
+              <p style={{ margin: 0 }}>📡 <strong>{t(lang, 'sourcesTitle')}</strong> — {t(lang, 'sourcesExplain')}</p>
             </div>
           </div>
         </div>
@@ -270,19 +260,19 @@ export default function PrognosePage() {
           dan behandelen browsers de y-as ook als scrollbaar (CSS-eigenaardigheid) —
           dat gaf een ongewenste verticale scrollbalk naast de tab-rij. */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)', overflowX: 'auto', overflowY: 'hidden' }}>
-        {TABS.map(t => (
+        {TAB_KEYS.map(key => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={key}
+            onClick={() => setTab(key)}
             style={{
-              padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400, whiteSpace: 'nowrap',
+              padding: '8px 14px', fontSize: 13, fontWeight: tab === key ? 600 : 400, whiteSpace: 'nowrap',
               background: 'transparent', border: 'none', cursor: 'pointer',
-              color: tab === t.key ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              borderBottom: tab === t.key ? '2px solid var(--color-primary)' : '2px solid transparent',
+              color: tab === key ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              borderBottom: tab === key ? '2px solid var(--color-primary)' : '2px solid transparent',
               marginBottom: -1, fontFamily: 'inherit',
             }}
           >
-            {t.label}
+            {t(lang, `tab.${key}`)}
           </button>
         ))}
       </div>
@@ -293,7 +283,7 @@ export default function PrognosePage() {
       }}>
         <SmoothChart
           days={displayedDays} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode}
-          tijdvak={tijdvak} onTijdvakDrag={handleTijdvakDrag} hourOffset={hourOffset}
+          tijdvak={tijdvak} onTijdvakDrag={handleTijdvakDrag} hourOffset={hourOffset} lang={lang}
         />
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
@@ -302,18 +292,18 @@ export default function PrognosePage() {
             wisselen van tab, omdat Fiets/Wind meer items bevatten dan Temp/Zon
             en dus eerder naar 2 regels wrappen. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', flexWrap: 'wrap', minHeight: 40 }}>
-          {tab === 'wind' && WIND_MODES.map(m => (
+          {tab === 'wind' && WIND_MODE_KEYS.map(key => (
             <button
-              key={m.key}
-              onClick={() => setWindMode(m.key)}
+              key={key}
+              onClick={() => setWindMode(key)}
               style={{
                 fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                border: `1px solid ${windMode === m.key ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
-                background: windMode === m.key ? 'var(--color-background)' : 'transparent',
-                color: windMode === m.key ? 'var(--color-text)' : 'var(--color-text-muted)',
+                border: `1px solid ${windMode === key ? 'var(--color-text-muted)' : 'var(--color-border)'}`,
+                background: windMode === key ? 'var(--color-background)' : 'transparent',
+                color: windMode === key ? 'var(--color-text)' : 'var(--color-text-muted)',
               }}
             >
-              {m.label}
+              {t(lang, `windMode.${key}`)}
             </button>
           ))}
 
@@ -326,26 +316,26 @@ export default function PrognosePage() {
                   border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
                 }}
               >
-                {showBreakdown ? 'Met opbouw' : 'Simpel'}
+                {showBreakdown ? t(lang, 'withBreakdown') : t(lang, 'simple')}
               </button>
               {showBreakdown ? (
                 <>
-                  <Legend color={BREAKDOWN_COLORS.rain} label="Regen" />
-                  <Legend color={BREAKDOWN_COLORS.temp} label="Temperatuur" />
-                  <Legend color={BREAKDOWN_COLORS.sun} label="Zon" />
-                  <Legend color={BREAKDOWN_COLORS.wind} label="Wind" />
+                  <Legend color={BREAKDOWN_COLORS.rain} label={t(lang, 'weight.rain')} />
+                  <Legend color={BREAKDOWN_COLORS.temp} label={t(lang, 'weight.temp')} />
+                  <Legend color={BREAKDOWN_COLORS.sun} label={t(lang, 'weight.sun')} />
+                  <Legend color={BREAKDOWN_COLORS.wind} label={t(lang, 'weight.wind')} />
                 </>
               ) : (
-                <Legend color={BREAKDOWN_COLORS.fiets} label="Score" />
+                <Legend color={BREAKDOWN_COLORS.fiets} label={t(lang, 'legend.score')} />
               )}
             </>
           )}
 
           {tab === 'rain' && (
             <>
-              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[1]} label="Licht" />
-              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[2]} label="Matig" />
-              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[3]} label="Zwaar" />
+              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[1]} label={t(lang, 'legend.light')} />
+              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[2]} label={t(lang, 'legend.moderate')} />
+              <Legend color={BREAKDOWN_COLORS.rain} opacity={RAIN_TIER_OPACITY[3]} label={t(lang, 'legend.heavy')} />
             </>
           )}
 
@@ -375,6 +365,7 @@ export default function PrognosePage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {tijdvakHours.length > 0 && (
           <TijdvakCard
+            lang={lang}
             startTime={tijdvakHours[0].time}
             endTime={isoPlusHours(tijdvakHours[tijdvakHours.length - 1].time, 1)}
             avg={tijdvakAvg}
@@ -383,7 +374,7 @@ export default function PrognosePage() {
         )}
         {data.days.map(day => (
           <DayCard
-            key={day.date} day={day}
+            key={day.date} day={day} lang={lang}
             selected={Boolean(tijdvak && day.best_window && tijdvak.startIdx === allHours.findIndex(h => h.time === day.best_window.start))}
             onSelectBestMoment={(day, w) => selectBestMoment(allHours, day, w)}
           />
@@ -396,7 +387,7 @@ export default function PrognosePage() {
 // Altijd-zichtbare kaart voor het zelf te verkennen tijdvak (item 862) —
 // zelfde stijl als DayCard's "beste moment", maar dan voor het venster dat je
 // met de handvatjes op de grafiek hebt versleept.
-function TijdvakCard({ startTime, endTime, avg, onNextBest }) {
+function TijdvakCard({ lang, startTime, endTime, avg, onNextBest }) {
   return (
     <div style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
@@ -404,13 +395,13 @@ function TijdvakCard({ startTime, endTime, avg, onNextBest }) {
       borderLeft: `4px solid ${avg != null ? scoreColor(avg) : 'var(--color-border)'}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ fontWeight: 600, fontSize: 13 }}>🕐 Tijdvak</div>
+        <div style={{ fontWeight: 600, fontSize: 13 }}>🕐 {t(lang, 'tijdvakTitle')}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>sleep de handvatjes op de grafiek</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t(lang, 'dragHint')}</span>
           <button
             onClick={onNextBest}
             disabled={!onNextBest}
-            title="Volgende beste tijdvak vandaag"
+            title={t(lang, 'nextBestTooltip')}
             style={{
               fontSize: 14, width: 24, height: 24, borderRadius: '50%', lineHeight: 1,
               border: '1px solid var(--color-border)', background: 'transparent',
@@ -423,7 +414,7 @@ function TijdvakCard({ startTime, endTime, avg, onNextBest }) {
         </div>
       </div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
-        {startTime.slice(11, 16)}–{endTime.slice(11, 16)} · <strong style={{ color: 'var(--color-text)' }}>{avg}</strong> {scoreLabel(avg)}
+        {startTime.slice(11, 16)}–{endTime.slice(11, 16)} · <strong style={{ color: 'var(--color-text)' }}>{avg}</strong> {scoreTierLabel(lang, avg)}
       </div>
     </div>
   )
@@ -432,18 +423,14 @@ function TijdvakCard({ startTime, endTime, avg, onNextBest }) {
 // Zet de actuele (eventueel door de gebruiker aangepaste) gewichten om naar
 // percentages voor de uitleg-popup, altijd op basis van de live waarden i.p.v.
 // hardcoded tekst — zo blijft de uitleg kloppen als de formule/instellingen wijzigen.
-function weightRows(weights) {
+function weightRows(lang, weights) {
   const total = Object.values(weights).reduce((sum, v) => sum + Number(v || 0), 0) || 1
-  const notes = {
-    rain: 'Hoe meer het regent en hoe zwaarder de bui, hoe lager deze bijdrage.',
-    temp: 'Prettigst tussen 15-22°C, instelbaar.',
-    sun: 'Meer zon (minder bewolking) is beter.',
-    wind: 'Harde wind en tegenwind tellen negatief, instelbaar.',
-  }
   const icons = { rain: '🌧', temp: '🌡', sun: '☀️', wind: '💨' }
-  const labels = { rain: 'Regen', temp: 'Temperatuur', sun: 'Zon', wind: 'Wind' }
   return Object.keys(weights)
-    .map(key => ({ key, icon: icons[key], label: labels[key], note: notes[key], pct: Math.round(Number(weights[key] || 0) / total * 100) }))
+    .map(key => ({
+      key, icon: icons[key], label: t(lang, `weight.${key}`), note: t(lang, `weightNote.${key}`),
+      pct: Math.round(Number(weights[key] || 0) / total * 100),
+    }))
     .sort((a, b) => b.pct - a.pct)
 }
 

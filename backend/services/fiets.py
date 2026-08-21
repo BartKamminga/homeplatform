@@ -123,9 +123,6 @@ WEATHER_MODELS = ",".join(SOURCE_MODELS.values())
 DISAGREEMENT_TEMP_C = 3.0
 DISAGREEMENT_RAIN_PROB = 25
 
-_WEEKDAGEN = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
-_MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
-
 _cache: dict[str, dict] = {}  # key: "lat,lon" (afgerond) -> {"data":..., "ts":...}
 
 
@@ -361,15 +358,18 @@ LABEL_GOOD = 6.0
 LABEL_FAIR = 4.0
 
 
-def _score_label(score: float, prefs: dict | None = None) -> str:
+def _score_tier(score: float, prefs: dict | None = None) -> str:
+    """Taal-neutrale slug — de frontend vertaalt dit naar de gekozen taal
+    (item 878, NL/EN-taalkeuze). Geen kant-en-klare Nederlandse tekst meer
+    teruggeven vanuit de backend."""
     prefs = prefs or {}
     if score >= prefs.get("label_excellent", LABEL_EXCELLENT):
-        return "uitstekend fietsweer"
+        return "excellent"
     if score >= prefs.get("label_good", LABEL_GOOD):
-        return "goed fietsweer"
+        return "good"
     if score >= prefs.get("label_fair", LABEL_FAIR):
-        return "matig fietsweer"
-    return "slecht fietsweer"
+        return "fair"
+    return "poor"
 
 
 def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict | None = None) -> dict | None:
@@ -413,7 +413,7 @@ def best_window(hours: list[dict], min_h: int = 1, max_h: int = 3, prefs: dict |
                     "avg_score": avg_score,
                 }
 
-    best["label"] = f"{best['start'][11:16]}–{best['end'][11:16]} · {best['avg_score']} {_score_label(best['avg_score'], prefs)}"
+    best["score_tier"] = _score_tier(best["avg_score"], prefs)
     return best
 
 
@@ -428,11 +428,6 @@ def _sun_times_by_date(raw: dict, model_id: str) -> dict[str, tuple]:
         for i, date in enumerate(dates)
         if i < len(sunrises) and i < len(sunsets)
     }
-
-
-def _format_day_label(date_key: str) -> str:
-    d = datetime.strptime(date_key, "%Y-%m-%d")
-    return f"{_WEEKDAGEN[d.weekday()]} {d.day} {_MAANDEN[d.month - 1]}"
 
 
 async def build_prognose(
@@ -485,10 +480,11 @@ async def build_prognose(
             "low_confidence": low_confidences[i],
         })
 
+    # Geen kant-en-klaar Nederlands dag-label meer vanuit de backend (item 878,
+    # NL/EN-taalkeuze) — de frontend formatteert "date" met de gekozen locale.
     days = [
         {
             "date": date_key,
-            "label": _format_day_label(date_key),
             "hours": hours,
             "best_window": best_window(hours, prefs=prefs),
         }

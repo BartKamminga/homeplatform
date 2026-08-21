@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@core/api.js'
+import { t } from '../i18n.js'
 
 const th = { padding: '4px 8px', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '2px solid var(--color-border)', position: 'sticky', top: 0, background: 'var(--color-surface)' }
 const td = { padding: '4px 8px', whiteSpace: 'nowrap' }
@@ -10,15 +11,10 @@ const groupTh = { ...th, textAlign: 'center', borderLeft: '2px solid var(--color
 // Daglicht is geen gewicht meer (zie roadmap-item "Dag/nacht van gewogen
 // score-factor naar los daglicht-filter/badge") — puur weer.
 const DEFAULT_WEIGHTS = { rain: 40, temp: 24, sun: 20, wind: 16 }
-const WEIGHT_FIELDS = [
-  { key: 'rain',  label: 'Regen' },
-  { key: 'temp',  label: 'Temperatuur' },
-  { key: 'sun',   label: 'Zon' },
-  { key: 'wind',  label: 'Wind' },
-]
+const WEIGHT_KEYS = ['rain', 'temp', 'sun', 'wind']
 const PREVIEW_DEBOUNCE_MS = 400
 
-export default function DebugPage({ onBeforeLeave }) {
+export default function DebugPage({ lang, onBeforeLeave }) {
   const [rows,    setRows]    = useState(null)
   const [error,   setError]   = useState('')
   const [weights, setWeights] = useState(null)
@@ -64,7 +60,7 @@ export default function DebugPage({ onBeforeLeave }) {
 
   function isDirty() {
     if (!savedState || !weights) return false
-    return WEIGHT_FIELDS.some(f => Number(weights[f.key]) !== Number(savedState.weights[f.key]))
+    return WEIGHT_KEYS.some(key => Number(weights[key]) !== Number(savedState.weights[key]))
   }
 
   async function saveNow() {
@@ -79,7 +75,7 @@ export default function DebugPage({ onBeforeLeave }) {
   useEffect(() => {
     if (!onBeforeLeave) return
     onBeforeLeave.current = () => {
-      if (isDirty() && window.confirm('Je hebt de verhoudingen aangepast maar nog niet opgeslagen. Nu opslaan?')) {
+      if (isDirty() && window.confirm(t(lang, 'confirmLeave'))) {
         saveNow().catch(() => {})
       }
     }
@@ -90,21 +86,20 @@ export default function DebugPage({ onBeforeLeave }) {
     setWeights(w => ({ ...w, [key]: value }))
   }
 
-  if (!weights) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+  if (!weights) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>{t(lang, 'loadingShort')}</div>
   if (error) return <p style={{ padding: 20, fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>
 
-  const total = WEIGHT_FIELDS.reduce((sum, f) => sum + Number(weights[f.key] || 0), 0) || 1
+  const total = WEIGHT_KEYS.reduce((sum, key) => sum + Number(weights[key] || 0), 0) || 1
 
   return (
     <div style={{ padding: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
         <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
-          Ruwe brondata per model (KNMI/GFS/ICON los), het geblende resultaat en de score-tussenstappen, per uur.
-          Puur om te leren hoe de score tot stand komt — sleep horizontaal om alle kolommen te zien.
+          {t(lang, 'debugIntro')}
         </p>
         <button
           onClick={() => setShowExplainer(v => !v)}
-          aria-label="Hoe werkt de score?"
+          aria-label={t(lang, 'howScoreWorks')}
           style={{
             fontSize: 15, width: 26, height: 26, flexShrink: 0, borderRadius: '50%', cursor: 'pointer', lineHeight: 1,
             border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)',
@@ -119,10 +114,10 @@ export default function DebugPage({ onBeforeLeave }) {
           padding: '12px 14px', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: 'var(--color-text)',
           background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
         }}>
-          {weightRows(weights).map(({ key, icon, label, pct, note }) => (
-            <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — telt voor {pct}% mee. {note}</p>
+          {weightRows(lang, weights).map(({ key, icon, label, pct, note }) => (
+            <p key={key} style={{ margin: '0 0 6px' }}>{icon} <strong>{label}</strong> — {t(lang, 'weightPct', { pct })} {note}</p>
           ))}
-          <p style={{ margin: 0 }}>🌙 <strong>Daglicht</strong> — werkt los van deze 4 gewichten: 's nachts dimt de score vloeiend naar 0 (kolom 'weer' toont de ongedimde waarde). Live bijgewerkt bij het aanpassen van de gewichten hierboven.</p>
+          <p style={{ margin: 0 }}>🌙 <strong>{t(lang, 'daylightTitle')}</strong> — {t(lang, 'daylightDebugExplain')}</p>
         </div>
       )}
 
@@ -130,57 +125,57 @@ export default function DebugPage({ onBeforeLeave }) {
         display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14,
         padding: '12px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
       }}>
-        {WEIGHT_FIELDS.map(f => (
-          <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{f.label}</label>
+        {WEIGHT_KEYS.map(key => (
+          <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t(lang, `weight.${key}`)}</label>
             <input
-              type="number" min={0} max={100} value={weights[f.key]}
-              onChange={e => updateWeight(f.key, e.target.value)}
+              type="number" min={0} max={100} value={weights[key]}
+              onChange={e => updateWeight(key, e.target.value)}
               style={{
                 width: 56, fontSize: 12, padding: '4px 6px', borderRadius: 6,
                 border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)',
               }}
             />
             <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-              {Math.round(Number(weights[f.key] || 0) / total * 100)}%
+              {Math.round(Number(weights[key] || 0) / total * 100)}%
             </span>
           </div>
         ))}
 
         {isDirty() && (
           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', paddingBottom: 4 }}>
-            niet opgeslagen — wordt gevraagd bij verlaten
+            {t(lang, 'notSaved')}
           </span>
         )}
       </div>
 
-      <LabelThresholds />
+      <LabelThresholds lang={lang} />
 
       <div style={{ overflowX: 'auto', overflowY: 'hidden', border: '1px solid var(--color-border)', borderRadius: 10 }}>
         <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono, monospace)' }}>
           <thead>
             <tr>
-              <th style={th}>tijd</th>
-              <th style={th}>dag</th>
+              <th style={th}>{t(lang, 'col.time')}</th>
+              <th style={th}>{t(lang, 'col.day')}</th>
               <th style={groupTh} colSpan={5}>KNMI</th>
               <th style={groupTh} colSpan={5}>GFS</th>
               <th style={groupTh} colSpan={5}>ICON</th>
-              <th style={groupTh} colSpan={5}>Geblend</th>
-              <th style={groupTh} title="Vlag als de actieve bronnen het duidelijk oneens zijn (temp/regenkans-spreiding boven de drempel)">afwijk.</th>
-              <th style={groupTh} colSpan={7}>Score</th>
+              <th style={groupTh} colSpan={5}>{t(lang, 'col.blended')}</th>
+              <th style={groupTh} title={t(lang, 'col.deviationTitle')}>{t(lang, 'col.deviation')}</th>
+              <th style={groupTh} colSpan={7}>{t(lang, 'col.score')}</th>
             </tr>
             <tr>
               <th style={th}></th>
               <th style={th}></th>
-              {['temp','mm','code','bew%','wind'].map(h => <th key={`k-${h}`} style={th}>{h}</th>)}
-              {['temp','mm','code','bew%','wind'].map(h => <th key={`g-${h}`} style={th}>{h}</th>)}
-              {['temp','mm','code','bew%','wind'].map(h => <th key={`i-${h}`} style={th}>{h}</th>)}
-              {['temp','mm','tier','bew%','wind'].map(h => (
+              {['temp','mm','code','cloud','wind'].map(h => <th key={`k-${h}`} style={th}>{h === 'cloud' ? t(lang, 'sub.cloud') : h}</th>)}
+              {['temp','mm','code','cloud','wind'].map(h => <th key={`g-${h}`} style={th}>{h === 'cloud' ? t(lang, 'sub.cloud') : h}</th>)}
+              {['temp','mm','code','cloud','wind'].map(h => <th key={`i-${h}`} style={th}>{h === 'cloud' ? t(lang, 'sub.cloud') : h}</th>)}
+              {['temp','mm','tier','cloud','wind'].map(h => (
                 <th key={`b-${h}`} style={th}>
-                  {h}
+                  {h === 'cloud' ? t(lang, 'sub.cloud') : h}
                   {h === 'tier' && (
                     <span
-                      title="Regen-intensiteitsklasse (0-3), afgeleid uit de WMO weather_code: 0 = droog/bewolkt, 1 = lichte motregen, 2 = matige motregen/regen, 3 = zware regen/onweer/ijzel. Strengste van de actieve bronnen (voorzichtigheidsprincipe). Bepaalt samen met mm de regen-score."
+                      title={t(lang, 'tierColTooltip')}
                       style={{ marginLeft: 3, cursor: 'help', fontWeight: 400 }}
                     >
                       ⓘ
@@ -189,12 +184,12 @@ export default function DebugPage({ onBeforeLeave }) {
                 </th>
               ))}
               <th style={th}></th>
-              {['regen','temp','zon','wind','weer','totaal'].map(h => (
+              {['rain','temp','sun','wind','weather','total'].map(h => (
                 <th key={`s-${h}`} style={th}>
-                  {h}
-                  {h === 'weer' && (
+                  {t(lang, `sub.${h}`)}
+                  {h === 'weather' && (
                     <span
-                      title="Weerscore vóór het dimmen door daglicht (som van regen+temp+zon+wind). 'totaal' = weer × daglicht-factor uit de dag-kolom (of ongedimd als 'donkere uren meenemen' aanstaat)."
+                      title={t(lang, 'weatherColTooltip')}
                       style={{ marginLeft: 3, cursor: 'help', fontWeight: 400 }}
                     >
                       ⓘ
@@ -208,7 +203,7 @@ export default function DebugPage({ onBeforeLeave }) {
             {(rows || []).map((r, i) => (
               <tr key={i}>
                 <td style={td}>{r.time.slice(5).replace('T', ' ')}</td>
-                <td style={td} title="Daglicht-factor (0=nacht, 1=dag, vloeiend in de schemering) — dimt de weerscore naar 'totaal'.">
+                <td style={td} title={t(lang, 'daylightFactorTooltip')}>
                   {{ dag: '☀️', schemer: '🌆', nacht: '🌙' }[r.daylight_state]} {r.daylight_factor}
                 </td>
                 <td style={td}>{r.sources.knmi.temp}°</td>
@@ -250,17 +245,15 @@ export default function DebugPage({ onBeforeLeave }) {
 // Zet de actuele (live, nog niet per se opgeslagen) gewichten om naar
 // percentages voor de (i)-uitleg-kaart — leest rechtstreeks de lokale
 // weights-state van deze pagina, dus wijzigt meteen mee met de inputs erboven.
-function weightRows(weights) {
-  const total = WEIGHT_FIELDS.reduce((sum, f) => sum + Number(weights[f.key] || 0), 0) || 1
-  const notes = {
-    rain: 'Hoe meer het regent en hoe zwaarder de bui, hoe lager deze bijdrage.',
-    temp: 'Prettigst tussen 15-22°C, instelbaar in Instellingen.',
-    sun: 'Meer zon (minder bewolking) is beter.',
-    wind: 'Harde wind en tegenwind tellen negatief, instelbaar in Instellingen.',
-  }
+function weightRows(lang, weights) {
+  const total = WEIGHT_KEYS.reduce((sum, key) => sum + Number(weights[key] || 0), 0) || 1
   const icons = { rain: '🌧', temp: '🌡', sun: '☀️', wind: '💨' }
-  return WEIGHT_FIELDS
-    .map(f => ({ key: f.key, icon: icons[f.key], label: f.label, note: notes[f.key], pct: Math.round(Number(weights[f.key] || 0) / total * 100) }))
+  const noteKey = { rain: 'weightNote.rain', temp: 'debugWeightNote.temp', sun: 'weightNote.sun', wind: 'debugWeightNote.wind' }
+  return WEIGHT_KEYS
+    .map(key => ({
+      key, icon: icons[key], label: t(lang, `weight.${key}`), note: t(lang, noteKey[key]),
+      pct: Math.round(Number(weights[key] || 0) / total * 100),
+    }))
     .sort((a, b) => b.pct - a.pct)
 }
 
@@ -268,12 +261,12 @@ function weightRows(weights) {
 // live weight-preview hierboven (verandert niets aan de per-uur debug-rijen,
 // alleen aan het "Beste moment"-label dat de hoofd-app toont).
 const LABEL_FIELDS = [
-  { key: 'excellent', prefKey: 'fiets_label_excellent', label: 'Uitstekend vanaf', defaultValue: 8 },
-  { key: 'good',      prefKey: 'fiets_label_good',      label: 'Goed vanaf', defaultValue: 6 },
-  { key: 'fair',      prefKey: 'fiets_label_fair',      label: 'Matig vanaf', defaultValue: 4 },
+  { key: 'excellent', prefKey: 'fiets_label_excellent', defaultValue: 8 },
+  { key: 'good',      prefKey: 'fiets_label_good',      defaultValue: 6 },
+  { key: 'fair',      prefKey: 'fiets_label_fair',      defaultValue: 4 },
 ]
 
-function LabelThresholds() {
+function LabelThresholds({ lang }) {
   const [values, setValues] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -303,11 +296,11 @@ function LabelThresholds() {
       padding: '12px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
     }}>
       <span style={{ fontSize: 11, color: 'var(--color-text-muted)', width: '100%' }}>
-        Score-staffel voor "Beste moment" (0-10 schaal, geldt voor de hoofd-app):
+        {t(lang, 'labelThresholdsTitle')}
       </span>
       {LABEL_FIELDS.map(f => (
         <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{f.label}</label>
+          <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t(lang, `labelThreshold.${f.key}`)}</label>
           <input
             type="number" min={0} max={10} step={0.5} value={values[f.key]} disabled={saving}
             onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}

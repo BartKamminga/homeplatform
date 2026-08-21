@@ -1,26 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@core/api.js'
+import { t } from '../i18n.js'
 
-const DIRECTIONS = [
-  { deg: '',    label: 'Geen voorkeur' },
-  { deg: 0,     label: 'Noord' },
-  { deg: 45,    label: 'Noordoost' },
-  { deg: 90,    label: 'Oost' },
-  { deg: 135,   label: 'Zuidoost' },
-  { deg: 180,   label: 'Zuid' },
-  { deg: 225,   label: 'Zuidwest' },
-  { deg: 270,   label: 'West' },
-  { deg: 315,   label: 'Noordwest' },
+const DIRECTION_KEYS = [
+  { deg: '',    key: 'none' },
+  { deg: 0,     key: 'n' },
+  { deg: 45,    key: 'ne' },
+  { deg: 90,    key: 'e' },
+  { deg: 135,   key: 'se' },
+  { deg: 180,   key: 's' },
+  { deg: 225,   key: 'sw' },
+  { deg: 270,   key: 'w' },
+  { deg: 315,   key: 'nw' },
 ]
 
 // Profielen zetten dezelfde 4 gewichten als de debug-pagina (fiets_weight_*) —
 // hergebruikt dat mechanisme i.p.v. een losse temp/wind-knop. 'Gebalanceerd'
 // is exact de backend-default (services/fiets.py RAIN/TEMP_WIND_BUDGET/SUN).
 const SCORE_PROFILES = [
-  { key: 'balanced', label: 'Gebalanceerd',              weights: { rain: 40, temp: 24, sun: 20, wind: 16 } },
-  { key: 'temp',     label: 'Gevoelig voor kou/hitte',   weights: { rain: 30, temp: 40, sun: 15, wind: 15 } },
-  { key: 'wind',     label: 'Fiets liever niet in de wind', weights: { rain: 30, temp: 15, sun: 15, wind: 40 } },
-  { key: 'rain',     label: 'Regen is een dealbreaker',  weights: { rain: 55, temp: 20, sun: 15, wind: 10 } },
+  { key: 'balanced', weights: { rain: 40, temp: 24, sun: 20, wind: 16 } },
+  { key: 'temp',     weights: { rain: 30, temp: 40, sun: 15, wind: 15 } },
+  { key: 'wind',     weights: { rain: 30, temp: 15, sun: 15, wind: 40 } },
+  { key: 'rain',     weights: { rain: 55, temp: 20, sun: 15, wind: 10 } },
 ]
 
 function matchingProfile(prefs) {
@@ -41,7 +42,7 @@ const controlStyle = (saving) => ({
   cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1,
 })
 
-export default function InstellingenPage() {
+export default function InstellingenPage({ lang, onLangChange }) {
   const [prefs,   setPrefs]   = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
@@ -67,7 +68,7 @@ export default function InstellingenPage() {
   }
 
   if (loading) return (
-    <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
+    <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>{t(lang, 'loadingShort')}</div>
   )
 
   return (
@@ -75,35 +76,54 @@ export default function InstellingenPage() {
       {error && <p style={{ fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>}
 
       <LocationSetting
+        lang={lang}
         label={prefs.fiets_location_label}
         onSelect={r => save({ fiets_lat: r.lat, fiets_lon: r.lon, fiets_location_label: r.label })}
       />
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          Wind uit deze richting telt als meewind (gunstig) in de fietsscore.
+          {t(lang, 'languageIntro')}
         </p>
         <div style={rowStyle}>
-          <span style={{ fontSize: 20, flexShrink: 0 }}>🧭</span>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Windrichting-voorkeur</span>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>🌐</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{t(lang, 'languageLabel')}</span>
           <select
-            disabled={saving}
-            value={prefs.fiets_wind_pref_deg ?? ''}
-            onChange={e => save({ fiets_wind_pref_deg: e.target.value === '' ? null : Number(e.target.value) })}
-            style={controlStyle(saving)}
+            value={lang}
+            onChange={e => onLangChange?.(e.target.value)}
+            style={controlStyle(false)}
           >
-            {DIRECTIONS.map(d => <option key={d.label} value={d.deg}>{d.label}</option>)}
+            <option value="nl">Nederlands</option>
+            <option value="en">English</option>
           </select>
         </div>
       </div>
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          Wat weegt het zwaarst mee in de score: regen, temperatuur, zon of wind?
+          {t(lang, 'windPrefIntro')}
+        </p>
+        <div style={rowStyle}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>🧭</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{t(lang, 'windPrefLabel')}</span>
+          <select
+            disabled={saving}
+            value={prefs.fiets_wind_pref_deg ?? ''}
+            onChange={e => save({ fiets_wind_pref_deg: e.target.value === '' ? null : Number(e.target.value) })}
+            style={controlStyle(saving)}
+          >
+            {DIRECTION_KEYS.map(d => <option key={d.key} value={d.deg}>{t(lang, `direction.${d.key}`)}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+          {t(lang, 'profileIntro')}
         </p>
         <div style={rowStyle}>
           <span style={{ fontSize: 20, flexShrink: 0 }}>⚖️</span>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Score-profiel</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{t(lang, 'profileLabel')}</span>
           <select
             disabled={saving}
             value={matchingProfile(prefs)}
@@ -117,28 +137,28 @@ export default function InstellingenPage() {
             }}
             style={controlStyle(saving)}
           >
-            {SCORE_PROFILES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-            {matchingProfile(prefs) === 'custom' && <option value="custom">Aangepast (via debug-pagina)</option>}
+            {SCORE_PROFILES.map(p => <option key={p.key} value={p.key}>{t(lang, `profile.${p.key}`)}</option>)}
+            {matchingProfile(prefs) === 'custom' && <option value="custom">{t(lang, 'profile.custom')}</option>}
           </select>
         </div>
       </div>
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          "Beste moment" zoekt een venster van deze lengte i.p.v. altijd het kortste (dat scoort anders structureel te makkelijk hoog).
+          {t(lang, 'rideDurationIntro')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
-          <NumberRow icon="⏱" label="Gemiddelde rittijd" unit="uur" field="fiets_ride_duration_h" defaultValue={2} min={0.5} max={6} step={0.5} last prefs={prefs} onSave={save} saving={saving} />
+          <NumberRow icon="⏱" label={t(lang, 'rideDurationLabel')} unit={t(lang, 'unit.hour')} field="fiets_ride_duration_h" defaultValue={2} min={0.5} max={6} step={0.5} last prefs={prefs} onSave={save} saving={saving} />
         </div>
       </div>
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          Standaard dimt de score 's nachts naar 0, ongeacht het weer — handig aan laten als je met verlichting fietst.
+          {t(lang, 'includeNightIntro')}
         </p>
         <div style={rowStyle}>
           <span style={{ fontSize: 20, flexShrink: 0 }}>🌙</span>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Neem ook donkere uren mee</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{t(lang, 'includeNightLabel')}</span>
           <input
             type="checkbox" disabled={saving}
             checked={Boolean(prefs.fiets_include_night)}
@@ -150,12 +170,12 @@ export default function InstellingenPage() {
 
       <div>
         <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-          Comfortband en drempels waarop de score rekent (MVP-defaults, hier aan te passen).
+          {t(lang, 'comfortIntro')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
-          <NumberRow icon="🌡" label="Prettige temperatuur vanaf" unit="°C" field="fiets_temp_min" defaultValue={15} prefs={prefs} onSave={save} saving={saving} />
-          <NumberRow icon="🌡" label="Prettige temperatuur tot" unit="°C" field="fiets_temp_max" defaultValue={22} prefs={prefs} onSave={save} saving={saving} />
-          <NumberRow icon="💨" label="Windknikpunt (harder = snel minder prettig)" unit="km/u" field="fiets_wind_knee_kmh" defaultValue={25} last prefs={prefs} onSave={save} saving={saving} />
+          <NumberRow icon="🌡" label={t(lang, 'tempMinLabel')} unit="°C" field="fiets_temp_min" defaultValue={15} prefs={prefs} onSave={save} saving={saving} />
+          <NumberRow icon="🌡" label={t(lang, 'tempMaxLabel')} unit="°C" field="fiets_temp_max" defaultValue={22} prefs={prefs} onSave={save} saving={saving} />
+          <NumberRow icon="💨" label={t(lang, 'windKneeLabel')} unit="km/u" field="fiets_wind_knee_kmh" defaultValue={25} last prefs={prefs} onSave={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -185,7 +205,7 @@ function NumberRow({ icon, label, unit, field, defaultValue, min = -20, max = 45
   )
 }
 
-function LocationSetting({ label, onSelect }) {
+function LocationSetting({ lang, label, onSelect }) {
   const [query, setQuery]     = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -207,18 +227,18 @@ function LocationSetting({ label, onSelect }) {
   return (
     <div>
       <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
-        Huidige locatie: <strong style={{ color: 'var(--color-text)' }}>{label || 'onbekend'}</strong>
+        {t(lang, 'currentLocation')} <strong style={{ color: 'var(--color-text)' }}>{label || t(lang, 'unknown')}</strong>
       </p>
       <div style={rowStyle}>
         <span style={{ fontSize: 20, flexShrink: 0 }}>📍</span>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Plaatsnaam zoeken…"
+          placeholder={t(lang, 'searchPlaceholder')}
           style={{ flex: 1, fontSize: 13, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)', fontFamily: 'inherit' }}
         />
       </div>
-      {searching && <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>Zoeken…</p>}
+      {searching && <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>{t(lang, 'searching')}</p>}
       {results.length > 0 && (
         <div style={{ marginTop: 6, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
           {results.map((r, i) => (
