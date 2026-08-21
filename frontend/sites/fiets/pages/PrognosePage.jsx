@@ -265,24 +265,6 @@ export default function PrognosePage() {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setDayFilter(null)}
-          style={dayChipStyle(dayFilter === null)}
-        >
-          Alle dagen
-        </button>
-        {data.days.map(d => (
-          <button
-            key={d.date}
-            onClick={() => setDayFilter(d.date)}
-            style={dayChipStyle(dayFilter === d.date)}
-          >
-            {new Date(d.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}
-          </button>
-        ))}
-      </div>
-
       <div style={{
         background: 'var(--color-surface)', border: '1px solid var(--color-border)',
         borderRadius: 14, padding: '16px 12px 10px', marginBottom: 16,
@@ -347,6 +329,24 @@ export default function PrognosePage() {
 
           <span>· grijze stip = bronnen zijn het niet eens</span>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setDayFilter(null)}
+          style={dayChipStyle(dayFilter === null)}
+        >
+          Alle dagen
+        </button>
+        {data.days.map(d => (
+          <button
+            key={d.date}
+            onClick={() => setDayFilter(d.date)}
+            style={dayChipStyle(dayFilter === d.date)}
+          >
+            {new Date(d.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
