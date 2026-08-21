@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { api } from '@core/api.js'
 import SmoothChart, { BREAKDOWN_COLORS, RAIN_TIER_OPACITY } from '../components/SmoothChart.jsx'
 import DayCard from '../components/DayCard.jsx'
+import WindArrow from '../components/WindArrow.jsx'
+import { daySummary } from '../format.js'
 import { scoreColor, scoreLabel } from '../scoreUtils.js'
 
 const TABS = [
@@ -350,6 +352,7 @@ export default function PrognosePage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {tijdvakHours.length > 0 && (
           <TijdvakCard
+            hours={tijdvakHours}
             startTime={tijdvakHours[0].time}
             endTime={isoPlusHours(tijdvakHours[tijdvakHours.length - 1].time, 1)}
             avg={tijdvakAvg}
@@ -370,7 +373,8 @@ export default function PrognosePage() {
 // Altijd-zichtbare kaart voor het zelf te verkennen tijdvak (item 862) —
 // zelfde stijl als DayCard's "beste moment", maar dan voor het venster dat je
 // met de handvatjes op de grafiek hebt versleept.
-function TijdvakCard({ startTime, endTime, avg }) {
+function TijdvakCard({ hours, startTime, endTime, avg }) {
+  const s = daySummary(hours)
   return (
     <div style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
@@ -379,10 +383,19 @@ function TijdvakCard({ startTime, endTime, avg }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ fontWeight: 600, fontSize: 13 }}>🕐 Tijdvak</div>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>sleep de handvatjes op de grafiek</span>
+        <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>
+          <span>🌡 {s.tempMin}–{s.tempMax}°C</span>
+          <span>☀️ {s.sunPct}%</span>
+          <span>🌧 {s.rainMm}mm</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <WindArrow deg={s.windDir} kmh={s.windAvg} />
+            {s.windAvg} km/u
+          </span>
+        </div>
       </div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
         {startTime.slice(11, 16)}–{endTime.slice(11, 16)} · <strong style={{ color: 'var(--color-text)' }}>{avg}</strong> {scoreLabel(avg)}
+        <span style={{ marginLeft: 8 }}>· sleep de handvatjes op de grafiek</span>
       </div>
     </div>
   )
