@@ -56,6 +56,11 @@ Bij `.\roadmap.ps1 -Close -Ids "..." -Version v4.1`:
 
 ## Technische afspraken
 
+### Taal in code
+- **Alle nieuwe code in het Engels**: variabelen, functienamen, class-namen, component-namen, bestandsnamen — vanaf nu Engels, ook in bestaande Nederlandstalige bestanden zodra je erin werkt.
+- Comments, commit-messages, roadmap-items en changelog blijven Nederlands (projectbeheer-taal, ongewijzigd).
+- Bestaande Nederlandse code wordt niet met terugwerkende kracht in bulk omgezet — dat traject staat los op de roadmap (item 879).
+
 ### PowerShell
 - Shell is PowerShell 5.1 — geen `&&`, gebruik `;` of aparte statements.
 - Backtick-quoting in `cmd /c`-strings veroorzaakt parser-fouten — gebruik string-concatenatie.
