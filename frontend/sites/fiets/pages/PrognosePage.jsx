@@ -43,6 +43,23 @@ function nowStartIndex(hours, len) {
   return Math.max(0, Math.min(idx, hours.length - len))
 }
 
+// Beste venster van lengte `len` binnen 1 dag, alleen kijkend vanaf "nu"
+// (item 872) — zelfde gemiddelde-score-aanpak als backend's best_window,
+// maar vooruitkijkend i.p.v. de hele dag. null als er vandaag geen venster
+// van die lengte meer past na "nu".
+function nextBestWindowToday(dayHours, len) {
+  const now = Date.now()
+  const fromIdx = dayHours.findIndex(h => new Date(h.time).getTime() >= now)
+  if (fromIdx === -1) return null
+  let best = null
+  for (let start = fromIdx; start <= dayHours.length - len; start++) {
+    const window = dayHours.slice(start, start + len)
+    const avg = window.reduce((sum, h) => sum + h.score, 0) / window.length
+    if (!best || avg > best.avg) best = { startIdx: start, avg }
+  }
+  return best
+}
+
 export default function PrognosePage() {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
@@ -107,11 +124,16 @@ export default function PrognosePage() {
 
   // "Beste moment" aanklikken (item 831) verplaatst hetzelfde tijdvak naar dat
   // venster — één samenhangend concept i.p.v. een los "geselecteerd"-mechanisme.
-  // Zoomt ook meteen in op die dag (item 866), anders is de band onzichtbaar
-  // als je op een andere dag ingezoomd stond.
+  // Zoomt ook meteen in op die dag (item 866). Toggle (item 874): nogmaals
+  // klikken op een al-geselecteerde kaart zoomt weer uit naar alle dagen —
+  // zo is er geen losse "terug naar alle dagen"-chip meer nodig.
   function selectBestMoment(allHours, day, w) {
     const startIdx = allHours.findIndex(h => h.time === w.start)
     if (startIdx === -1) return
+    if (dayFilter === day.date && tijdvak && tijdvak.startIdx === startIdx) {
+      setDayFilter(null)
+      return
+    }
     const spanHours = Math.max(1, Math.round((new Date(w.end) - new Date(w.start)) / 3600000))
     setTijdvak({ startIdx, endIdx: Math.min(allHours.length - 1, startIdx + spanHours - 1) })
     setDayFilter(day.date)
@@ -168,6 +190,20 @@ export default function PrognosePage() {
   const tijdvakAvg = tijdvakHours.length
     ? Math.round(tijdvakHours.reduce((sum, h) => sum + h.score, 0) / tijdvakHours.length * 10) / 10
     : null
+
+  // "Volgende beste tijdvak vandaag" (item 872) — zelfde venster-lengte als
+  // het huidige tijdvak, maar dan het best-scorende venster later vandaag
+  // vanaf nu, i.p.v. het beste venster van de hele dag.
+  const tijdvakLen = tijdvak ? tijdvak.endIdx - tijdvak.startIdx + 1 : Math.max(1, Math.round(rideDurationH))
+  const today = data.days[0]
+  const nextBest = nextBestWindowToday(today.hours, tijdvakLen)
+
+  function goToNextBest() {
+    if (!nextBest) return
+    const globalStart = allHours.findIndex(h => h.time === today.hours[0].time) + nextBest.startIdx
+    setTijdvak({ startIdx: globalStart, endIdx: globalStart + tijdvakLen - 1 })
+    setDayFilter(today.date)
+  }
 
   // Inzoomen op 1 dag (item 866) — op een klein scherm is 72 uur in 1 grafiek
   // te krap om het tijdvak precies te verslepen. hourOffset vertaalt de
@@ -230,7 +266,10 @@ export default function PrognosePage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
+      {/* overflowY moet expliciet 'hidden' zijn: zet je alleen overflowX op 'auto',
+          dan behandelen browsers de y-as ook als scrollbaar (CSS-eigenaardigheid) —
+          dat gaf een ongewenste verticale scrollbalk naast de tab-rij. */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border)', overflowX: 'auto', overflowY: 'hidden' }}>
         {TABS.map(t => (
           <button
             key={t.key}
@@ -332,16 +371,6 @@ export default function PrognosePage() {
         </div>
       </div>
 
-      {/* Dag-zoom-reset (item 866/871) — alleen zichtbaar als je op 1 dag
-          ingezoomd bent (via dag-kaart 'beste moment' aanklikken); anders
-          neemt dit 0 ruimte in. */}
-      {dayFilter && (
-        <div style={{ marginBottom: 10 }}>
-          <button onClick={() => setDayFilter(null)} style={dayChipStyle(true)}>
-            📅 {new Date(dayFilter).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })} · terug naar alle dagen ✕
-          </button>
-        </div>
-      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {tijdvakHours.length > 0 && (
@@ -349,6 +378,7 @@ export default function PrognosePage() {
             startTime={tijdvakHours[0].time}
             endTime={isoPlusHours(tijdvakHours[tijdvakHours.length - 1].time, 1)}
             avg={tijdvakAvg}
+            onNextBest={nextBest ? goToNextBest : null}
           />
         )}
         {data.days.map(day => (
@@ -366,7 +396,7 @@ export default function PrognosePage() {
 // Altijd-zichtbare kaart voor het zelf te verkennen tijdvak (item 862) —
 // zelfde stijl als DayCard's "beste moment", maar dan voor het venster dat je
 // met de handvatjes op de grafiek hebt versleept.
-function TijdvakCard({ startTime, endTime, avg }) {
+function TijdvakCard({ startTime, endTime, avg, onNextBest }) {
   return (
     <div style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
@@ -375,7 +405,22 @@ function TijdvakCard({ startTime, endTime, avg }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ fontWeight: 600, fontSize: 13 }}>🕐 Tijdvak</div>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>sleep de handvatjes op de grafiek</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>sleep de handvatjes op de grafiek</span>
+          <button
+            onClick={onNextBest}
+            disabled={!onNextBest}
+            title="Volgende beste tijdvak vandaag"
+            style={{
+              fontSize: 14, width: 24, height: 24, borderRadius: '50%', lineHeight: 1,
+              border: '1px solid var(--color-border)', background: 'transparent',
+              color: onNextBest ? 'var(--color-text)' : 'var(--color-text-muted)',
+              cursor: onNextBest ? 'pointer' : 'default', opacity: onNextBest ? 1 : 0.4,
+            }}
+          >
+            ⏭
+          </button>
+        </div>
       </div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
         {startTime.slice(11, 16)}–{endTime.slice(11, 16)} · <strong style={{ color: 'var(--color-text)' }}>{avg}</strong> {scoreLabel(avg)}
@@ -409,17 +454,6 @@ function Legend({ color, label, opacity = 1 }) {
       {label}
     </span>
   )
-}
-
-// Stijl voor de dag-zoom-reset-chip (item 866/871) — zelfde pil-stijl als de
-// bron-toggles, actief = primary-kleur zoals de tabs.
-function dayChipStyle(active) {
-  return {
-    fontSize: 11, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-    border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
-    background: active ? 'var(--color-surface)' : 'transparent',
-    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-  }
 }
 
 const center = {

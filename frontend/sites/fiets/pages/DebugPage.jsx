@@ -131,7 +131,7 @@ export default function DebugPage({ onBeforeLeave }) {
 
       <LabelThresholds />
 
-      <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 10 }}>
+      <div style={{ overflowX: 'auto', overflowY: 'hidden', border: '1px solid var(--color-border)', borderRadius: 10 }}>
         <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono, monospace)' }}>
           <thead>
             <tr>
