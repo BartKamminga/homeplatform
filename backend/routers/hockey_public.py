@@ -145,6 +145,40 @@ def get_tournament_competition_standings(
     return {"tournament_id": tid, "competitions": competitions}
 
 
+def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
+    matches = session.exec(
+        select(HockeyPouleMatch)
+        .where(HockeyPouleMatch.poule_id == poule.poule_id)
+        .order_by(HockeyPouleMatch.match_date, HockeyPouleMatch.match_id)
+    ).all()
+    finished  = [m for m in matches if m.status == "finished"]
+    scheduled = [m for m in matches if m.status != "finished"]
+    return {
+        "finished": [
+            {
+                "match_id":   m.match_id,
+                "home":       m.home_team_name,
+                "away":       m.away_team_name,
+                "home_score": m.home_score,
+                "away_score": m.away_score,
+                "date":       m.match_date,
+                "round":      m.round,
+            }
+            for m in finished
+        ],
+        "scheduled": [
+            {
+                "match_id": m.match_id,
+                "home":     m.home_team_name,
+                "away":     m.away_team_name,
+                "date":     m.match_date,
+                "round":    m.round,
+            }
+            for m in scheduled
+        ],
+    }
+
+
 @router.get("/public/competitions/{cid}/matches")
 def get_competition_matches(cid: int, session: Session = Depends(get_session)):
     """Wedstrijden per poule voor een discovery-competitie."""
@@ -156,43 +190,21 @@ def get_competition_matches(cid: int, session: Session = Depends(get_session)):
         .where(HockeyPoule.competition_id == cid)
         .order_by(HockeyPoule.name)
     ).all()
-    result = []
-    for poule in poules:
-        matches = session.exec(
-            select(HockeyPouleMatch)
-            .where(HockeyPouleMatch.poule_id == poule.poule_id)
-            .order_by(HockeyPouleMatch.match_date, HockeyPouleMatch.match_id)
-        ).all()
-        finished  = [m for m in matches if m.status == "finished"]
-        scheduled = [m for m in matches if m.status != "finished"]
-        result.append({
-            "id":       poule.id,
-            "name":     poule.name,
-            "poule_id": poule.poule_id,
-            "finished": [
-                {
-                    "match_id":   m.match_id,
-                    "home":       m.home_team_name,
-                    "away":       m.away_team_name,
-                    "home_score": m.home_score,
-                    "away_score": m.away_score,
-                    "date":       m.match_date,
-                    "round":      m.round,
-                }
-                for m in finished
-            ],
-            "scheduled": [
-                {
-                    "match_id": m.match_id,
-                    "home":     m.home_team_name,
-                    "away":     m.away_team_name,
-                    "date":     m.match_date,
-                    "round":    m.round,
-                }
-                for m in scheduled
-            ],
-        })
+    result = [
+        {"id": poule.id, "name": poule.name, "poule_id": poule.poule_id,
+         **_serialize_poule_matches(session, poule)}
+        for poule in poules
+    ]
     return {"competition_id": cid, "name": comp.name, "poules": result}
+
+
+@router.get("/public/hockey-poules/{pid}/matches")
+def get_hockey_poule_matches(pid: int, session: Session = Depends(get_session)):
+    """Wedstrijden voor één discovery-poule (voor gepinde poules op het board, item 895)."""
+    poule = session.get(HockeyPoule, pid)
+    if not poule:
+        raise HTTPException(404, "Poule niet gevonden")
+    return _serialize_poule_matches(session, poule)
 
 
 @router.get("/public/season")

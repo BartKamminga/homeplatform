@@ -15,6 +15,8 @@ export const getTournamentCompetitionStandings = (tid) =>
   api.get(`/api/hockey/public/tournaments/${tid}/competition-standings`)
 export const getHockeyPouleStandings = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
+export const getHockeyPouleMatches = (pid) =>
+  api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
 export const getCompetitionMatches = (cid) =>
   api.get(`/api/hockey/public/competitions/${cid}/matches`)
 // Bouwt een querystring met 0+ herhaalde tag=...-params (AND-logica op de backend) plus extra params.

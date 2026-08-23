@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { C, pinRailButtonStyle } from './constants.js'
 import { useStandings, useTournamentStandings } from './hooks.js'
 import { MatchModal } from './MatchModal.jsx'
 import { QueryCard } from './QueryCard.jsx'
 import { PouleCard } from './PouleCard.jsx'
 import { StandingsBody } from './TournixBrowseCards.jsx'
+import { getHockeyPouleMatches } from './api.js'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,25 @@ function PinnedPoolSlot({ pin, club, onUnpin }) {
     ? (isDisc ? standings : standings.filter(r => r.pool_name === pin.poolName))
     : null
   const [modal, setModal] = useState(false)
+  const [discMatches, setDiscMatches] = useState(null)
+
+  // item 895: gepinde discovery-poules toonden altijd 0 wedstrijden in de modal
+  useEffect(() => {
+    if (!modal || !isDisc || discMatches) return
+    const pid = parseInt(String(pin.phaseId).replace('disc_', ''), 10)
+    getHockeyPouleMatches(pid)
+      .then(data => setDiscMatches({
+        finished: (data.finished || []).map(m => ({
+          id: m.match_id, teamA: m.home, scoreA: m.home_score, scoreB: m.away_score, teamB: m.away,
+          date: m.date, round: m.round,
+        })),
+        scheduled: (data.scheduled || []).map(m => ({
+          id: m.match_id, teamA: m.home, teamB: m.away,
+          date: m.date, round: m.round,
+        })),
+      }))
+      .catch(() => setDiscMatches({ finished: [], scheduled: [] }))
+  }, [modal, isDisc, pin.phaseId, discMatches])
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -41,7 +61,7 @@ function PinnedPoolSlot({ pin, club, onUnpin }) {
           subtitle={pin.tournamentName || ''}
           rows={poolRows || []}
           matchSource={!isDisc ? { phaseId: pin.phaseId, poolName: pin.poolName } : undefined}
-          matches={isDisc ? { finished: [], scheduled: [] } : undefined}
+          matches={isDisc ? discMatches : undefined}
           onClose={() => setModal(false)}
         />
       )}
