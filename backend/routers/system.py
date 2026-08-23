@@ -137,6 +137,8 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "hockey_poule_matches", "hockey_poule_standings", "vanger_cmd_queue",
         # BeatCrades / downloader
         "download_jobs", "download_crades", "download_crade_groups", "download_sections",
+        # Agent Control
+        "agent_notifications", "agent_tasks",
         # Overig
         "data_captures",
     ]

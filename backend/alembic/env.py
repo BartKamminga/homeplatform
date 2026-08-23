@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from models.core import *  # noqa
 from models.tournix import *  # noqa
 from models.hockey_discovery import *  # noqa
+from models.agent_control import *  # noqa
 
 config = context.config
 
