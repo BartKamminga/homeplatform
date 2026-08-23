@@ -65,6 +65,20 @@ services:
       - backend
     restart: unless-stopped
 
+  agent_worker:
+    build:
+      context: ./plugins/agent-worker
+      dockerfile: Dockerfile
+    container_name: homeplatform_agent_worker
+    environment:
+      - AGENT_API_BASE=http://backend:8000
+      - AGENT_API_KEY=${AGENT_WORKER_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - WORKER_POLL_IDLE_SEC=300
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: homeplatform_cloudflared

@@ -63,6 +63,20 @@ services:
       - backend_acc
     restart: unless-stopped
 
+  agent_worker_acc:
+    build:
+      context: ./plugins/agent-worker
+      dockerfile: Dockerfile
+    container_name: homeplatform_agent_worker_acc
+    environment:
+      - AGENT_API_BASE=http://backend_acc:8000
+      - AGENT_API_KEY=${AGENT_WORKER_API_KEY_ACC}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - WORKER_POLL_IDLE_SEC=300
+    depends_on:
+      - backend_acc
+    restart: unless-stopped
+
 volumes:
   caddy_acc_data:
   caddy_acc_config:

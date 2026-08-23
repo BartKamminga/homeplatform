@@ -303,6 +303,45 @@ def report_agent_result(
     return {"ok": True, "cmds": cmd_results}
 
 
+@router.get("/agents/{agent_key}/context")
+def get_agent_context(
+    agent_key: str,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Bundelt wat de worker nodig heeft om aan een run te beginnen: kennis van
+    de vorige run, openstaande ad-hoc taken, en (agent-specifiek) een korte
+    stand van zaken. Agent-specifieke logica blijft hier in de backend i.p.v.
+    in de (generieke) worker - zelfde reden als de cmd-dispatch in /result."""
+    if agent_key not in KNOWN_AGENTS:
+        raise HTTPException(status_code=404, detail="Onbekende agent")
+
+    latest_log = session.exec(
+        select(AgentRunLog)
+        .where(AgentRunLog.agent_key == agent_key)
+        .order_by(col(AgentRunLog.created_at).desc())
+        .limit(1)
+    ).first()
+    pending_tasks = session.exec(
+        select(AgentTask).where(AgentTask.agent_key == agent_key, AgentTask.status == "pending")
+    ).all()
+
+    agent_state = {}
+    if agent_key == "hockey_scan":
+        counts = {}
+        for status in ("pending", "in_progress", "done", "failed", "skipped"):
+            counts[status] = len(session.exec(
+                select(VangerCmd).where(VangerCmd.status == status)
+            ).all())
+        agent_state = {"vanger_cmd_queue_counts": counts}
+
+    return {
+        "knowledge": latest_log.notes if latest_log else "",
+        "pending_tasks": [{"id": t.id, "instruction": t.instruction} for t in pending_tasks],
+        "agent_state": agent_state,
+    }
+
+
 @router.get("/agents/{agent_key}/knowledge")
 def get_agent_knowledge(
     agent_key: str,
