@@ -1,5 +1,6 @@
 """Hockey Inside — publicatie CRUD, competitie-koppelingen en tags."""
 
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,6 +39,13 @@ class PublicationUpdate(BaseModel):
     order:       Optional[int]  = None
     published:   Optional[bool] = None
     info:        Optional[str]  = None
+
+def _normalize_season(s: Optional[str]) -> Optional[str]:
+    """"2026 - 2027" en "2026-2027" zijn dezelfde season maar sorteren als
+    losse ORDER BY-blokken (item 896: volgorde niet overgenomen op poulebord)
+    - spaties rond het streepje wegnemen voorkomt dat."""
+    return re.sub(r"\s*-\s*", "-", s.strip()) if s else s
+
 
 class PublicationsReorder(BaseModel):
     ids: list
@@ -101,7 +109,10 @@ def list_publications(session: Session = Depends(get_session), _: User = Depends
 
 @router.post("", status_code=201)
 def create_publication(body: PublicationCreate, session: Session = Depends(get_session), user: User = Depends(require_admin)):
-    pub = HockeyPublication(**body.model_dump(exclude_none=True), created_by=user.id)
+    data = body.model_dump(exclude_none=True)
+    if "season" in data:
+        data["season"] = _normalize_season(data["season"])
+    pub = HockeyPublication(**data, created_by=user.id)
     session.add(pub)
     session.commit()
     session.refresh(pub)
@@ -252,7 +263,7 @@ def get_publication(pid: str, session: Session = Depends(get_session), _: User =
 def update_publication(pid: str, body: PublicationUpdate, session: Session = Depends(get_session), _: User = Depends(require_admin)):
     pub = get_or_404(session, HockeyPublication, pid, "Publicatie")
     for k, v in body.model_dump(exclude_none=True).items():
-        setattr(pub, k, v)
+        setattr(pub, k, _normalize_season(v) if k == "season" else v)
     session.add(pub)
     session.commit()
     session.refresh(pub)
