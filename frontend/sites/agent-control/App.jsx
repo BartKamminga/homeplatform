@@ -1,5 +1,41 @@
 import { useEffect, useState } from 'react'
-import { listAgents, toggleAgent, listNotifications, markNotificationRead, listTasks, addTask } from './api.js'
+import { listAgents, toggleAgent, listNotifications, markNotificationRead, listTasks, addTask, getKnowledge, getRunLog } from './api.js'
+
+function KnowledgeAndLog({ agentKey }) {
+  const [open, setOpen] = useState(false)
+  const [knowledge, setKnowledge] = useState(null)
+  const [log, setLog] = useState(null)
+
+  function load() {
+    getKnowledge(agentKey).then(setKnowledge).catch(() => {})
+    getRunLog(agentKey).then(setLog).catch(() => {})
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button onClick={() => { setOpen(!open); if (!open) load() }} style={{ fontSize: 11 }}>
+        {open ? 'Kennis & log verbergen' : 'Kennis & log tonen'}
+      </button>
+      {open && (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>KENNIS (laatste run)</div>
+          <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', background: '#f7f7f7', padding: 8, borderRadius: 6 }}>
+            {knowledge?.notes || '(nog geen kennis opgebouwd)'}
+          </pre>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginTop: 8 }}>LOG (recentste runs)</div>
+          {(log || []).map(entry => (
+            <div key={entry.id} style={{ fontSize: 11, borderBottom: '1px solid #eee', padding: '4px 0' }}>
+              <div style={{ color: '#888' }}>{entry.created_at}</div>
+              <div>{entry.reasoning}</div>
+              {entry.cmds.length > 0 && <div style={{ color: '#666' }}>cmds: {entry.cmds.map(c => c.cmd_type).join(', ')}</div>}
+            </div>
+          ))}
+          {log && log.length === 0 && <p style={{ fontSize: 11, color: '#888' }}>Nog geen runs.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NotificationsPanel({ notifications, onRead }) {
   if (!notifications) return null
@@ -50,6 +86,8 @@ function AgentRow({ agent, onToggle, tasks, newInstruction, onInstructionChange,
           <button onClick={() => onAddTask(agent.agent_key)}>Toevoegen</button>
         </div>
       </div>
+
+      <KnowledgeAndLog agentKey={agent.agent_key} />
     </div>
   )
 }

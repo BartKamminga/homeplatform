@@ -1,9 +1,9 @@
-"""Agent Control — generieke registry/status/taken/notificaties voor
-Managed-Agents-gedreven smart agents (hockey scan-agent, later fiets/poulebord)."""
+"""Agent Control — generieke registry/status/taken/notificaties/log voor
+LLM-gedreven smart agents (hockey scan-agent, later fiets/poulebord)."""
 
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -11,8 +11,9 @@ from sqlmodel import Session, col, select
 
 from core.auth import get_current_user, require_admin
 from core.database import get_session
-from models.agent_control import AgentNotification, AgentTask
+from models.agent_control import AgentNotification, AgentRunLog, AgentTask
 from models.settings import AppSetting
+from routers.hockey_vanger import add_vanger_cmd
 
 router = APIRouter(prefix="/api/agent-control", tags=["agent-control"])
 
@@ -246,3 +247,97 @@ def report_task_result(
     session.add(t)
     session.commit()
     return {"ok": True}
+
+
+# ── Analyse-resultaat: 1 samengesteld antwoord per run, zelfde patroon als ──
+# Ghost/Vanger (de worker post het complete resultaat, de backend verwerkt het
+# i.p.v. dat de worker/LLM zelf losse endpoints aanroept). Dient tegelijk als
+# kennis (notes) en uitgebreide log (reasoning) - zie AgentRunLog.
+
+class AgentCmdIn(BaseModel):
+    cmd_type: str
+    params:   Dict[str, Any] = {}
+
+
+class AgentResultIn(BaseModel):
+    reasoning:    str
+    notes:        str = ""
+    notification: Optional[str] = None
+    cmds:         List[AgentCmdIn] = []
+
+
+@router.post("/agents/{agent_key}/result")
+def report_agent_result(
+    agent_key: str,
+    body: AgentResultIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    if agent_key not in KNOWN_AGENTS:
+        raise HTTPException(status_code=404, detail="Onbekende agent")
+
+    cmd_results = []
+    if agent_key == "hockey_scan":
+        # Enige agent die vandaag hockey-cmds mag aanmaken; andere toekomstige
+        # agents (fiets/poulebord) krijgen hier later hun eigen dispatch-tak.
+        for cmd in body.cmds:
+            result = add_vanger_cmd(session, cmd.cmd_type, cmd.params)
+            cmd_results.append({"cmd_type": cmd.cmd_type, "params": cmd.params, **result})
+    elif body.cmds:
+        cmd_results = [{"cmd_type": c.cmd_type, "params": c.params, "added": False, "reason": "agent_has_no_cmd_dispatch"} for c in body.cmds]
+
+    log = AgentRunLog(
+        agent_key=agent_key,
+        reasoning=body.reasoning,
+        notes=body.notes,
+        notification=body.notification,
+        cmds_json=json.dumps(cmd_results, ensure_ascii=False),
+        created_at=_now(),
+    )
+    session.add(log)
+
+    if body.notification:
+        session.add(AgentNotification(agent_key=agent_key, message=body.notification, created_at=_now()))
+
+    session.commit()
+    return {"ok": True, "cmds": cmd_results}
+
+
+@router.get("/agents/{agent_key}/knowledge")
+def get_agent_knowledge(
+    agent_key: str,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    latest = session.exec(
+        select(AgentRunLog)
+        .where(AgentRunLog.agent_key == agent_key)
+        .order_by(col(AgentRunLog.created_at).desc())
+        .limit(1)
+    ).first()
+    return {"notes": latest.notes if latest else "", "updated_at": latest.created_at.isoformat() if latest else None}
+
+
+@router.get("/agents/{agent_key}/log")
+def get_agent_log(
+    agent_key: str,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    items = session.exec(
+        select(AgentRunLog)
+        .where(AgentRunLog.agent_key == agent_key)
+        .order_by(col(AgentRunLog.created_at).desc())
+        .limit(50)
+    ).all()
+    return [
+        {
+            "id":           l.id,
+            "reasoning":    l.reasoning,
+            "notes":        l.notes,
+            "notification": l.notification,
+            "cmds":         json.loads(l.cmds_json),
+            "created_at":   l.created_at.isoformat(),
+        }
+        for l in items
+    ]

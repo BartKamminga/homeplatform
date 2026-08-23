@@ -785,50 +785,61 @@ class CmdAddIn(BaseModel):
     params:   Dict[str, Any]
 
 
-@router.post("/vanger/cmd-queue/add")
-def add_single_cmd(
-    body: CmdAddIn,
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
+def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Dedupt tegen bestaande pending/in_progress cmd's van hetzelfde type+doel en
+    voegt zo nodig toe. Losgetrokken van de route zodat andere plekken (bv. de
+    agent-control result-endpoint) dezelfde dedup-logica hergebruiken i.p.v. 'm
+    te dupliceren."""
     valid = ("get_poule", "scan_club", "get_clubs", "get_competition_detail", "get_competitions")
-    if body.cmd_type not in valid:
-        raise HTTPException(status_code=400, detail="Ongeldig cmd_type")
+    if cmd_type not in valid:
+        return {"added": False, "reason": "invalid_cmd_type"}
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    if body.cmd_type in ("get_clubs", "get_competitions"):
+    if cmd_type in ("get_clubs", "get_competitions"):
         existing = session.exec(
             select(VangerCmd).where(
-                VangerCmd.cmd_type == body.cmd_type,
+                VangerCmd.cmd_type == cmd_type,
                 col(VangerCmd.status).in_(["pending", "in_progress"]),
             )
         ).first()
         if existing:
             return {"added": False, "reason": "already_queued"}
-        default_label = "Alle clubs" if body.cmd_type == "get_clubs" else "Nationale competities"
+        default_label = "Alle clubs" if cmd_type == "get_clubs" else "Nationale competities"
         session.add(VangerCmd(
-            cmd_type=body.cmd_type,
-            params=json.dumps({"label": body.params.get("label", default_label)}),
+            cmd_type=cmd_type,
+            params=json.dumps({"label": params.get("label", default_label)}),
             created_at=now,
         ))
         session.commit()
         return {"added": True}
 
-    key_field = {"get_poule": "poule_id", "scan_club": "external_id", "get_competition_detail": "comp_id"}.get(body.cmd_type)
-    target_id = body.params.get(key_field)
+    key_field = {"get_poule": "poule_id", "scan_club": "external_id", "get_competition_detail": "comp_id"}.get(cmd_type)
+    target_id = params.get(key_field)
 
     pending = session.exec(
         select(VangerCmd).where(col(VangerCmd.status).in_(["pending", "in_progress"]))
     ).all()
     for e in pending:
         ep = json.loads(e.params)
-        if e.cmd_type == body.cmd_type and ep.get(key_field) == target_id:
+        if e.cmd_type == cmd_type and ep.get(key_field) == target_id:
             return {"added": False, "reason": "already_queued"}
 
-    session.add(VangerCmd(cmd_type=body.cmd_type, params=json.dumps(body.params), created_at=now))
+    session.add(VangerCmd(cmd_type=cmd_type, params=json.dumps(params), created_at=now))
     session.commit()
     return {"added": True}
+
+
+@router.post("/vanger/cmd-queue/add")
+def add_single_cmd(
+    body: CmdAddIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    result = add_vanger_cmd(session, body.cmd_type, body.params)
+    if result.get("reason") == "invalid_cmd_type":
+        raise HTTPException(status_code=400, detail="Ongeldig cmd_type")
+    return result
 
 
 @router.get("/vanger/cmd-queue/next")

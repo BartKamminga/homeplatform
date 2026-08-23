@@ -56,6 +56,7 @@ const DB_GLOBAL_ROWS = [
   { label: 'publication_id, competition_id, label, order, scan_profile', where: 'hockey_publication_comps', note: 'Hockey Inside — competitie-koppelingen (scan_profile: manual/active, stuurt de auto-scan)' },
   { label: 'agent_key, message, link, read_at',             where: 'agent_notifications', note: 'Agent Control — meldingen van smart agents' },
   { label: 'agent_key, instruction, status, result',        where: 'agent_tasks',      note: 'Agent Control — ad-hoc opdrachten-queue per agent' },
+  { label: 'agent_key, reasoning, notes, notification, cmds_json', where: 'agent_run_logs', note: 'Agent Control — resultaat per analyse-cyclus (kennis = notes van laatste rij, log = alle rijen)' },
   { label: 'agent_status:{key}, agent_enabled:{key}',       where: 'app_settings',     note: 'Agent Control — status/heartbeat en aan/uit per agent' },
 ];
 
