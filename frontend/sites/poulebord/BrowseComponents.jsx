@@ -123,9 +123,11 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
         setMatchesData({
           finished: raw.finished.map(m => ({
             id: m.match_id, teamA: m.home, scoreA: m.home_score, scoreB: m.away_score, teamB: m.away,
+            date: m.date, round: m.round,
           })),
           scheduled: raw.scheduled.map(m => ({
             id: m.match_id, teamA: m.home, teamB: m.away,
+            date: m.date, round: m.round,
           })),
         })
       })

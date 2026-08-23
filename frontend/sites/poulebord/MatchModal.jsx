@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { C } from './constants.js'
 import { PouleCard } from './PouleCard.jsx'
 import { getPoolMatches } from './api.js'
+import { formatMatchTime, formatMatchDay, matchDayKey } from '@core/matchDate.js'
 
 // Unified bottom-sheet modal for pool detail + matches (items 539 + 550).
 //
@@ -9,10 +10,63 @@ import { getPoolMatches } from './api.js'
 //   title:       string shown large in header (e.g. "POULE A" or poule.name)
 //   subtitle:    string shown small below title
 //   rows:        [{name, pts, w, d, l, gf?, ga?}]  — normalized standings
-//   matches:     {finished:[{id,teamA,scoreA,scoreB,teamB}], scheduled:[{id,teamA,teamB}]} | null
+//   matches:     {finished:[{id,teamA,scoreA,scoreB,teamB,date?,round?}], scheduled:[{id,teamA,teamB,date?,round?}]} | null
 //                Pass null to show "Laden…". Ignored when matchSource is set.
 //   matchSource: {phaseId, poolName} — if provided, fetches Tournix matches internally
 //   onClose:     fn
+
+// item 893: wedstrijden groeperen per dag zodat de tijd niet per rij herhaald hoeft te worden
+function groupByDay(list) {
+  const groups = []
+  const map = new Map()
+  for (const m of list) {
+    const key = matchDayKey(m.date)
+    let group = map.get(key)
+    if (!group) {
+      group = { key, label: m.date ? formatMatchDay(m.date) : null, matches: [] }
+      map.set(key, group)
+      groups.push(group)
+    }
+    group.matches.push(m)
+  }
+  return groups
+}
+
+function MatchRow({ m, middle }) {
+  return (
+    <div style={{ background: C.card, borderRadius: 8,
+      padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ fontSize: 10, color: C.muted, flexShrink: 0, minWidth: 40 }}>
+        {formatMatchTime(m.date) || ''}
+      </span>
+      <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.teamA}</span>
+      {middle}
+      <span style={{ flex: 1, fontSize: 12, color: C.chalk,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.teamB}</span>
+    </div>
+  )
+}
+
+function DayGroups({ groups, renderMiddle }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {groups.map(group => (
+        <div key={group.key}>
+          {group.label && groups.length > 1 && (
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{group.label}</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {group.matches.map(m => (
+              <MatchRow key={m.id} m={m} middle={renderMiddle(m)} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchSource, onClose }) {
   const [matches, setMatches] = useState(matchSource ? null : (matchesProp ?? null))
 
@@ -22,9 +76,11 @@ export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchS
       .then(data => setMatches({
         finished: (data.finished || []).map(m => ({
           id: m.id, teamA: m.team_a, scoreA: m.score_a, scoreB: m.score_b, teamB: m.team_b,
+          date: m.scheduled_at, round: m.round,
         })),
         scheduled: (data.scheduled || []).map(m => ({
           id: m.id, teamA: m.team_a, teamB: m.team_b,
+          date: m.scheduled_at, round: m.round,
         })),
       }))
       .catch(() => setMatches({ finished: [], scheduled: [] }))
@@ -95,20 +151,13 @@ export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchS
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
                     textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Gespeeld</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 18 }}>
-                    {matches.finished.map(m => (
-                      <div key={m.id} style={{ background: C.card, borderRadius: 8,
-                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.teamA}</span>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: C.gold,
-                          letterSpacing: '0.04em', flexShrink: 0, minWidth: 44, textAlign: 'center' }}>
-                          {m.scoreA}–{m.scoreB}
-                        </span>
-                        <span style={{ flex: 1, fontSize: 12, color: C.chalk,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.teamB}</span>
-                      </div>
-                    ))}
+                  <div style={{ marginBottom: 18 }}>
+                    <DayGroups groups={groupByDay(matches.finished)} renderMiddle={m => (
+                      <span style={{ fontSize: 15, fontWeight: 700, color: C.gold,
+                        letterSpacing: '0.04em', flexShrink: 0, minWidth: 44, textAlign: 'center' }}>
+                        {m.scoreA}–{m.scoreB}
+                      </span>
+                    )} />
                   </div>
                 </>
               )}
@@ -116,19 +165,10 @@ export function MatchModal({ title, subtitle, rows, matches: matchesProp, matchS
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
                     textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>Nog te spelen</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {matches.scheduled.map(m => (
-                      <div key={m.id} style={{ background: C.card, borderRadius: 8,
-                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ flex: 1, fontSize: 12, color: C.chalk, textAlign: 'right',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.teamA}</span>
-                        <span style={{ fontSize: 12, color: C.muted, flexShrink: 0,
-                          minWidth: 44, textAlign: 'center' }}>vs</span>
-                        <span style={{ flex: 1, fontSize: 12, color: C.chalk,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.teamB}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <DayGroups groups={groupByDay(matches.scheduled)} renderMiddle={() => (
+                    <span style={{ fontSize: 12, color: C.muted, flexShrink: 0,
+                      minWidth: 44, textAlign: 'center' }}>vs</span>
+                  )} />
                 </>
               )}
               {matches.finished.length === 0 && matches.scheduled.length === 0 && (
