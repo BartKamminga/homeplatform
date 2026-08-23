@@ -4,17 +4,21 @@ import * as s from './styles.js'
 import Badge from '@components/Badge.jsx'
 import { BtnPrimary } from '@components/Modal.jsx'
 import ContextWizard from './ContextWizard.jsx'
+import ContextEditModal from './ContextEditModal.jsx'
 
 const ACTION_BADGE = {
   none: 'neutral', hockey_cmds: 'success', poulebord_note: 'primary', roadmap_preanalysis: 'warning',
 }
 
-function ContextDetail({ ctx, action, onBack }) {
+function ContextDetail({ ctx, action, onBack, onEdit }) {
   return (
     <div>
       <div style={s.topbar}>
         <h2 style={s.h2}>{ctx.name}</h2>
-        <button onClick={onBack}>← Terug</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onEdit}>Bewerken</button>
+          <button onClick={onBack}>← Terug</button>
+        </div>
       </div>
       <div style={s.panel}>
         <div style={s.field}>
@@ -68,6 +72,7 @@ export default function ContextsView({ onError }) {
   const [actions, setActions] = useState({})
   const [selected, setSelected] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   function refresh() {
     listAgents().then(items => {
@@ -82,7 +87,29 @@ export default function ContextsView({ onError }) {
   }, [])
 
   if (selected) {
-    return <ContextDetail ctx={selected} action={actions[selected.post_process_action]} onBack={() => setSelected(null)} />
+    return (
+      <>
+        <ContextDetail
+          ctx={selected}
+          action={actions[selected.post_process_action]}
+          onBack={() => setSelected(null)}
+          onEdit={() => setEditing(true)}
+        />
+        {editing && (
+          <ContextEditModal
+            ctx={selected}
+            actions={actions}
+            onClose={() => setEditing(false)}
+            onError={onError}
+            onSaved={() => {
+              setEditing(false)
+              setSelected(null)
+              refresh()
+            }}
+          />
+        )}
+      </>
+    )
   }
 
   return (
