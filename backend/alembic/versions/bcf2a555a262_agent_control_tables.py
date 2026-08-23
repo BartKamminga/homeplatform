@@ -14,6 +14,14 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    existing = bind.execute(sa.text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+    existing_tables = {r[0] for r in existing}
+    if "agent_notifications" in existing_tables and "agent_tasks" in existing_tables:
+        # create_db_and_tables() (SQLModel create_all) draait bij backend-herstart
+        # al vóór deze alembic-stap en heeft de tabellen dan al aangemaakt.
+        return
+
     op.create_table(
         "agent_notifications",
         sa.Column("id",         sa.Integer(),  nullable=False),
