@@ -12,6 +12,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user, require_admin
 from core.database import get_session
 from models.agent_control import AgentNotification, AgentRunLog, AgentTask
+from models.hockey_discovery import VangerCmd
 from models.settings import AppSetting
 from routers.hockey_vanger import add_vanger_cmd
 
