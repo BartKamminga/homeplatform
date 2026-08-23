@@ -164,7 +164,11 @@ def main():
 
     print(f"[WORKER] gestart (test_mode={TEST_MODE}), poll elke {POLL_IDLE_SEC}s", flush=True)
     while True:
-        run_once()
+        try:
+            run_once()
+        except Exception as exc:
+            traceback.print_exc()
+            print(f"[WORKER] ronde mislukt, probeer over {POLL_IDLE_SEC}s opnieuw: {exc}", flush=True)
         time.sleep(POLL_IDLE_SEC)
 
 
