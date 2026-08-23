@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   getPublications, createPublication, updatePublication,
   reorderPublications, deletePublication, getMe,
@@ -73,24 +73,28 @@ function CreatePopup({ onClose, onCreated }) {
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
 
-function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, draggable, onDragStart, onDragOver, onDrop, isDragOver }) {
+function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, reorderable, isFirst, isLast, onMoveUp, onMoveDown }) {
   return (
     <div
       onClick={() => onOpen(t)}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={e => { e.preventDefault(); onDragOver?.() }}
-      onDrop={onDrop}
       style={{
         padding: '14px 16px', background: 'var(--color-surface)',
         border: '1px solid var(--color-border)', borderRadius: 10,
-        cursor: draggable ? 'grab' : 'pointer', marginBottom: 8,
-        opacity: isDragOver ? 0.5 : 1, transition: 'opacity 0.15s',
+        cursor: 'pointer', marginBottom: 8,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        {draggable && (
-          <span title="Sleep om volgorde te wijzigen" style={{ opacity: 0.4, fontSize: 14, flexShrink: 0, paddingTop: 1 }}>⠿</span>
+        {reorderable && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+            <button type="button" title="Naar boven" disabled={isFirst}
+              onClick={e => { e.stopPropagation(); onMoveUp() }}
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, lineHeight: 1,
+                color: 'var(--color-text-muted)', cursor: isFirst ? 'default' : 'pointer', opacity: isFirst ? 0.25 : 1 }}>▲</button>
+            <button type="button" title="Naar beneden" disabled={isLast}
+              onClick={e => { e.stopPropagation(); onMoveDown() }}
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, lineHeight: 1,
+                color: 'var(--color-text-muted)', cursor: isLast ? 'default' : 'pointer', opacity: isLast ? 0.25 : 1 }}>▼</button>
+          </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{t.name}</div>
@@ -164,8 +168,6 @@ export default function PublicatieTab() {
   const [isAdmin,     setIsAdmin]     = useState(false)
   const [showCreate,  setShowCreate]  = useState(false)
   const [search,      setSearch]      = useState('')
-  const dragIdx = useRef(null)
-  const [overIdx, setOverIdx] = useState(null)
 
   useEffect(() => {
     getMe().then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
@@ -198,13 +200,13 @@ export default function PublicatieTab() {
     reorderPublications(newList.map(t => t.id)).catch(() => {})
   }
 
-  function handleDrop(targetIdx, list) {
-    if (dragIdx.current === null || dragIdx.current === targetIdx) { setOverIdx(null); return }
+  // item 883: native HTML5 drag-and-drop (draggable/onDragStart/onDrop) vuurt niet
+  // op touchscreens - vervangen door knoppen die overal werken.
+  function handleMove(idx, dir, list) {
+    const target = idx + dir
+    if (target < 0 || target >= list.length) return
     const next = [...list]
-    const [moved] = next.splice(dragIdx.current, 1)
-    next.splice(targetIdx, 0, moved)
-    dragIdx.current = null
-    setOverIdx(null)
+    ;[next[idx], next[target]] = [next[target], next[idx]]
     handleReorder(next)
   }
 
@@ -262,11 +264,11 @@ export default function PublicatieTab() {
             isAdmin={isAdmin}
             onOpen={setSelected}
             onTogglePublished={handleTogglePublished}
-            draggable={isAdmin && !q}
-            onDragStart={() => { dragIdx.current = i }}
-            onDragOver={() => setOverIdx(i)}
-            onDrop={() => handleDrop(i, filtered)}
-            isDragOver={overIdx === i && dragIdx.current !== i}
+            reorderable={isAdmin && !q}
+            isFirst={i === 0}
+            isLast={i === filtered.length - 1}
+            onMoveUp={() => handleMove(i, -1, filtered)}
+            onMoveDown={() => handleMove(i, 1, filtered)}
           />
         ))
       )}
