@@ -24,10 +24,15 @@ from routers.roadmap import RoadmapItemUpdate, update_item
 router = APIRouter(prefix="/api/agent-control", tags=["agent-control"])
 
 # Bekende agents - hardcoded lijst, geen aparte registry-tabel nodig zolang
-# agents alleen via het (buiten deze API staande) Managed Agents setup-script
-# worden aangemaakt.
+# er maar een handvol agents zijn. Elke agent is een eigen identiteit (eigen
+# status/heartbeat/aan-uit-knop in het overzicht) al draaien ze allemaal in
+# dezelfde gedeelde workercontainer (plugins/agent-worker/) - dat laatste is
+# puur een implementatiedetail, geen reden om domeinen samen te voegen onder
+# 1 agent-naam.
 KNOWN_AGENTS = {
-    "hockey_scan": "Hockey scan-agent",
+    "hockey_scan":      "Hockey scan-agent",
+    "poulebord_agent":  "Poulebord-agent",
+    "roadmap_agent":    "Roadmap-agent",
 }
 
 
@@ -166,6 +171,7 @@ class AgentContextIn(BaseModel):
 
 
 class AgentContextUpdate(BaseModel):
+    agent_key:           Optional[str] = None
     name:                Optional[str] = None
     pre_run_info:        Optional[str] = None
     post_process_action: Optional[str] = None
