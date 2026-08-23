@@ -72,6 +72,13 @@ function StandenTab({ lnk }) {
 
 // ── ProgrammaTab ───────────────────────────────────────────────────────────────
 
+function formatMatchDate(iso) {
+  const datePart = iso.slice(0, 10)
+  const d = new Date(iso)
+  if (isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return datePart
+  return `${datePart} ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 function ProgrammaTab({ lnk }) {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -91,7 +98,7 @@ function ProgrammaTab({ lnk }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {matches.map((m, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '5px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center' }}>
-          {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 72 }}>{m.date.slice(0, 10)}</span>}
+          {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 100 }}>{formatMatchDate(m.date)}</span>}
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
           <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>vs</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{m.away}</span>
@@ -123,7 +130,7 @@ function UitslagenTab({ lnk }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {matches.map((m, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '5px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center' }}>
-          {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 72 }}>{m.date.slice(0, 10)}</span>}
+          {m.date && <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, minWidth: 100 }}>{formatMatchDate(m.date)}</span>}
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home}</span>
           <span style={{ fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
             {m.home_score ?? '?'}–{m.away_score ?? '?'}
