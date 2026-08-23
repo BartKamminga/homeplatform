@@ -11,10 +11,15 @@ from sqlmodel import Session, col, select
 
 from core.auth import get_current_user, require_admin
 from core.database import get_session
-from models.agent_control import AgentNotification, AgentRunLog, AgentTask
-from models.hockey_discovery import VangerCmd
+from models.agent_control import AgentContext, AgentNotification, AgentRunLog, AgentTask
+from models.core import RoadmapItem, User
+from models.hockey import HockeyPublicationComp
+from models.hockey_discovery import (
+    HockeyCompetition, HockeyPoule, HockeyPouleStanding, VangerCmd,
+)
 from models.settings import AppSetting
 from routers.hockey_vanger import add_vanger_cmd
+from routers.roadmap import RoadmapItemUpdate, update_item
 
 router = APIRouter(prefix="/api/agent-control", tags=["agent-control"])
 
@@ -101,6 +106,81 @@ def toggle_agent(
     return {"enabled": new_value != "0"}
 
 
+# ── Contexten: herbruikbare pre-run info + post-processing-declaratie ──
+# (item 905/906) Een taak kiest een context; de context bepaalt wat de agent
+# vooraf weet en wat er met het antwoord mag gebeuren (post_process_action).
+
+class AgentContextIn(BaseModel):
+    key:                 str
+    agent_key:           str
+    name:                str
+    pre_run_info:        str = ""
+    post_process_action: str = "none"  # none | hockey_cmds | poulebord_note | roadmap_preanalysis
+
+
+class AgentContextUpdate(BaseModel):
+    name:                Optional[str] = None
+    pre_run_info:        Optional[str] = None
+    post_process_action: Optional[str] = None
+
+
+@router.get("/contexts")
+def list_contexts(
+    agent_key: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    q = select(AgentContext)
+    if agent_key:
+        q = q.where(AgentContext.agent_key == agent_key)
+    items = session.exec(q).all()
+    return [
+        {
+            "key": c.key, "agent_key": c.agent_key, "name": c.name,
+            "pre_run_info": c.pre_run_info, "post_process_action": c.post_process_action,
+            "updated_at": c.updated_at.isoformat(),
+        }
+        for c in items
+    ]
+
+
+@router.post("/contexts", status_code=201)
+def create_context(
+    body: AgentContextIn,
+    session: Session = Depends(get_session),
+    _=Depends(require_admin),
+):
+    if session.get(AgentContext, body.key):
+        raise HTTPException(status_code=409, detail="Context bestaat al")
+    now = _now()
+    c = AgentContext(
+        key=body.key, agent_key=body.agent_key, name=body.name,
+        pre_run_info=body.pre_run_info, post_process_action=body.post_process_action,
+        created_at=now, updated_at=now,
+    )
+    session.add(c)
+    session.commit()
+    return {"key": c.key}
+
+
+@router.patch("/contexts/{key}")
+def update_context(
+    key: str,
+    body: AgentContextUpdate,
+    session: Session = Depends(get_session),
+    _=Depends(require_admin),
+):
+    c = session.get(AgentContext, key)
+    if not c:
+        raise HTTPException(status_code=404, detail="Niet gevonden")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(c, field, value)
+    c.updated_at = _now()
+    session.add(c)
+    session.commit()
+    return {"ok": True}
+
+
 # ── Notificaties ─────────────────────────────────────────────────
 
 class NotificationIn(BaseModel):
@@ -173,7 +253,9 @@ def mark_notification_read(
 
 class AgentTaskIn(BaseModel):
     agent_key:   str
+    context_key: Optional[str] = None
     instruction: str
+    params:      Dict[str, Any] = {}
 
 
 @router.get("/tasks")
@@ -190,7 +272,9 @@ def list_tasks(
         {
             "id":          t.id,
             "agent_key":   t.agent_key,
+            "context_key": t.context_key,
             "instruction": t.instruction,
+            "params":      json.loads(t.params_json),
             "status":      t.status,
             "result":      t.result,
             "created_at":  t.created_at.isoformat(),
@@ -211,7 +295,10 @@ def get_pending_tasks(
     items = session.exec(
         select(AgentTask).where(AgentTask.agent_key == agent_key, AgentTask.status == "pending")
     ).all()
-    return [{"id": t.id, "instruction": t.instruction} for t in items]
+    return [
+        {"id": t.id, "context_key": t.context_key, "instruction": t.instruction, "params": json.loads(t.params_json)}
+        for t in items
+    ]
 
 
 @router.post("/tasks", status_code=201)
@@ -220,7 +307,10 @@ def add_task(
     session: Session = Depends(get_session),
     _=Depends(require_admin),
 ):
-    t = AgentTask(agent_key=body.agent_key, instruction=body.instruction, created_at=_now())
+    t = AgentTask(
+        agent_key=body.agent_key, context_key=body.context_key, instruction=body.instruction,
+        params_json=json.dumps(body.params, ensure_ascii=False), created_at=_now(),
+    )
     session.add(t)
     session.commit()
     session.refresh(t)
@@ -261,10 +351,66 @@ class AgentCmdIn(BaseModel):
 
 
 class AgentResultIn(BaseModel):
-    reasoning:    str
-    notes:        str = ""
-    notification: Optional[str] = None
-    cmds:         List[AgentCmdIn] = []
+    context_key:    Optional[str] = None
+    task_id:        Optional[int] = None
+    input_payload:  Optional[Dict[str, Any]] = None  # wat er naar Claude ging, puur voor het archief
+    reasoning:      str
+    notes:          str = ""
+    notification:   Optional[str] = None
+    cmds:           List[AgentCmdIn] = []
+    # poulebord_note
+    link_id:        Optional[str] = None
+    note_text:      Optional[str] = None
+    # roadmap_preanalysis
+    roadmap_item_id: Optional[int] = None
+    impact:         Optional[str] = None
+    risk:           Optional[str] = None
+    scope:          Optional[str] = None
+
+
+def _resolve_post_process_action(session: Session, agent_key: str, context_key: Optional[str]) -> str:
+    if context_key:
+        ctx = session.get(AgentContext, context_key)
+        if ctx:
+            return ctx.post_process_action
+    # Legacy fallback zolang hockey_scan-taken zonder context_key binnenkomen.
+    return "hockey_cmds" if agent_key == "hockey_scan" else "none"
+
+
+def _post_process(session: Session, agent_key: str, action: str, body: "AgentResultIn", current_user: User) -> dict:
+    """Elke actie krijgt hier zijn eigen, kleine afhandeling - net als cmd_types
+    in vanger_cmd_queue groeit deze lijst organisch mee (item 907)."""
+    if action == "hockey_cmds":
+        cmd_results = []
+        for cmd in body.cmds:
+            result = add_vanger_cmd(session, cmd.cmd_type, cmd.params)
+            cmd_results.append({"cmd_type": cmd.cmd_type, "params": cmd.params, **result})
+        return {"action": action, "cmds": cmd_results}
+
+    if action == "poulebord_note":
+        link = session.get(HockeyPublicationComp, body.link_id) if body.link_id else None
+        if not link:
+            return {"action": action, "ok": False, "reason": "link_id ontbreekt of onbekend"}
+        link.ai_note = body.note_text or body.notes
+        session.add(link)
+        return {"action": action, "ok": True, "link_id": body.link_id}
+
+    if action == "roadmap_preanalysis":
+        if not body.roadmap_item_id:
+            return {"action": action, "ok": False, "reason": "roadmap_item_id ontbreekt"}
+        prefixed_notes = f"[AI-voorstel] {body.notes}".strip()
+        update_item(
+            body.roadmap_item_id,
+            RoadmapItemUpdate(impact=body.impact, risk=body.risk, scope=body.scope, notes=prefixed_notes),
+            session, current_user,
+        )
+        # Bewust GEEN status-wijziging - dit is een voorstel, een mens bevestigt
+        # het item pas als analyzed (zie roadmap-item 906).
+        return {"action": action, "ok": True, "roadmap_item_id": body.roadmap_item_id}
+
+    if body.cmds:
+        return {"action": action, "ok": False, "reason": "geen post-processing-actie gekoppeld aan deze context"}
+    return {"action": action}
 
 
 @router.post("/agents/{agent_key}/result")
@@ -272,27 +418,24 @@ def report_agent_result(
     agent_key: str,
     body: AgentResultIn,
     session: Session = Depends(get_session),
-    _=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     if agent_key not in KNOWN_AGENTS:
         raise HTTPException(status_code=404, detail="Onbekende agent")
 
-    cmd_results = []
-    if agent_key == "hockey_scan":
-        # Enige agent die vandaag hockey-cmds mag aanmaken; andere toekomstige
-        # agents (fiets/poulebord) krijgen hier later hun eigen dispatch-tak.
-        for cmd in body.cmds:
-            result = add_vanger_cmd(session, cmd.cmd_type, cmd.params)
-            cmd_results.append({"cmd_type": cmd.cmd_type, "params": cmd.params, **result})
-    elif body.cmds:
-        cmd_results = [{"cmd_type": c.cmd_type, "params": c.params, "added": False, "reason": "agent_has_no_cmd_dispatch"} for c in body.cmds]
+    action = _resolve_post_process_action(session, agent_key, body.context_key)
+    post_process_result = _post_process(session, agent_key, action, body, current_user)
 
     log = AgentRunLog(
         agent_key=agent_key,
+        context_key=body.context_key,
+        task_id=body.task_id,
+        input_payload=json.dumps(body.input_payload or {}, ensure_ascii=False),
         reasoning=body.reasoning,
         notes=body.notes,
         notification=body.notification,
-        cmds_json=json.dumps(cmd_results, ensure_ascii=False),
+        cmds_json=json.dumps(post_process_result.get("cmds", []), ensure_ascii=False),
+        post_process_result=json.dumps(post_process_result, ensure_ascii=False),
         created_at=_now(),
     )
     session.add(log)
@@ -301,19 +444,66 @@ def report_agent_result(
         session.add(AgentNotification(agent_key=agent_key, message=body.notification, created_at=_now()))
 
     session.commit()
-    return {"ok": True, "cmds": cmd_results}
+    return {"ok": True, "post_process_result": post_process_result}
+
+
+def _gather_agent_state(session: Session, agent_key: str, action: str, task_params: dict) -> dict:
+    """Agent/actie-specifieke stand van zaken - blijft hier in de backend i.p.v.
+    in de (generieke) worker, zelfde reden als de post-processing-dispatch."""
+    agent_state: Dict[str, Any] = {}
+
+    if agent_key == "hockey_scan" and action in ("hockey_cmds", "none"):
+        counts = {}
+        for status in ("pending", "in_progress", "done", "failed", "skipped"):
+            counts[status] = len(session.exec(select(VangerCmd).where(VangerCmd.status == status)).all())
+        agent_state["vanger_cmd_queue_counts"] = counts
+
+    if action == "roadmap_preanalysis":
+        items = session.exec(
+            select(RoadmapItem).where(RoadmapItem.status == "idea").order_by(col(RoadmapItem.priority)).limit(10)
+        ).all()
+        agent_state["roadmap_idea_items"] = [
+            {"id": i.id, "title": i.title, "site": i.site, "priority": i.priority, "description": i.description}
+            for i in items
+        ]
+
+    if action == "poulebord_note":
+        link_id = task_params.get("link_id")
+        link = session.get(HockeyPublicationComp, link_id) if link_id else None
+        if link:
+            comp = session.get(HockeyCompetition, link.competition_id)
+            poules = session.exec(select(HockeyPoule).where(HockeyPoule.competition_id == link.competition_id)).all()
+            standings_by_poule = {}
+            for p in poules:
+                rows = session.exec(
+                    select(HockeyPouleStanding)
+                    .where(HockeyPouleStanding.poule_id == p.poule_id)
+                    .order_by(HockeyPouleStanding.position)
+                ).all()
+                standings_by_poule[p.name] = [
+                    {"team": r.team_name, "pts": r.points, "played": r.played, "gf": r.goals_for, "ga": r.goals_against}
+                    for r in rows
+                ]
+            agent_state["link_id"] = link_id
+            agent_state["competition_name"] = comp.name if comp else None
+            agent_state["standings_by_poule"] = standings_by_poule
+        else:
+            agent_state["note"] = "geen (geldig) link_id meegegeven in de taak-params"
+
+    return agent_state
 
 
 @router.get("/agents/{agent_key}/context")
 def get_agent_context(
     agent_key: str,
+    context_key: Optional[str] = None,
+    task_id: Optional[int] = None,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
     """Bundelt wat de worker nodig heeft om aan een run te beginnen: kennis van
-    de vorige run, openstaande ad-hoc taken, en (agent-specifiek) een korte
-    stand van zaken. Agent-specifieke logica blijft hier in de backend i.p.v.
-    in de (generieke) worker - zelfde reden als de cmd-dispatch in /result."""
+    de vorige run, de gekozen context (pre-run info + toegestane afhandeling),
+    openstaande ad-hoc taken, en agent/actie-specifieke stand van zaken."""
     if agent_key not in KNOWN_AGENTS:
         raise HTTPException(status_code=404, detail="Onbekende agent")
 
@@ -327,19 +517,23 @@ def get_agent_context(
         select(AgentTask).where(AgentTask.agent_key == agent_key, AgentTask.status == "pending")
     ).all()
 
-    agent_state = {}
-    if agent_key == "hockey_scan":
-        counts = {}
-        for status in ("pending", "in_progress", "done", "failed", "skipped"):
-            counts[status] = len(session.exec(
-                select(VangerCmd).where(VangerCmd.status == status)
-            ).all())
-        agent_state = {"vanger_cmd_queue_counts": counts}
+    task = session.get(AgentTask, task_id) if task_id else None
+    task_params = json.loads(task.params_json) if task else {}
+    resolved_context_key = context_key or (task.context_key if task else None)
+    ctx = session.get(AgentContext, resolved_context_key) if resolved_context_key else None
+    action = ctx.post_process_action if ctx else _resolve_post_process_action(session, agent_key, resolved_context_key)
 
     return {
         "knowledge": latest_log.notes if latest_log else "",
-        "pending_tasks": [{"id": t.id, "instruction": t.instruction} for t in pending_tasks],
-        "agent_state": agent_state,
+        "pending_tasks": [
+            {"id": t.id, "context_key": t.context_key, "instruction": t.instruction, "params": json.loads(t.params_json)}
+            for t in pending_tasks
+        ],
+        "context": {
+            "key": ctx.key, "name": ctx.name, "pre_run_info": ctx.pre_run_info,
+            "post_process_action": ctx.post_process_action,
+        } if ctx else None,
+        "agent_state": _gather_agent_state(session, agent_key, action, task_params),
     }
 
 
@@ -372,12 +566,16 @@ def get_agent_log(
     ).all()
     return [
         {
-            "id":           l.id,
-            "reasoning":    l.reasoning,
-            "notes":        l.notes,
-            "notification": l.notification,
-            "cmds":         json.loads(l.cmds_json),
-            "created_at":   l.created_at.isoformat(),
+            "id":                  l.id,
+            "context_key":         l.context_key,
+            "task_id":             l.task_id,
+            "input_payload":       json.loads(l.input_payload),
+            "reasoning":           l.reasoning,
+            "notes":               l.notes,
+            "notification":        l.notification,
+            "cmds":                json.loads(l.cmds_json),
+            "post_process_result": json.loads(l.post_process_result),
+            "created_at":          l.created_at.isoformat(),
         }
         for l in items
     ]

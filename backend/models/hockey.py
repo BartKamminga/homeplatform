@@ -54,6 +54,7 @@ class HockeyPublicationComp(SQLModel, table=True):
     fase:           Optional[str] = Field(default=None)
     visible:        bool          = Field(default=True)
     scan_profile:   str           = Field(default="manual")  # manual | active
+    ai_note:        Optional[str] = Field(default=None)  # korte analyse-tekst van de scan-agent (poulebord_note-context)
 
 
 class HockeyPublicationCompTag(SQLModel, table=True):

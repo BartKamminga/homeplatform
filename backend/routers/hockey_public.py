@@ -89,6 +89,7 @@ def get_tournament_competition_standings(
             "class_name":  comp.class_name,
             "district":    comp.district,
             "season":      comp.season,
+            "ai_note":     lnk.ai_note,
             "fase_tags":   [
                 {
                     "id": ft.id, "name": ft.name,
