@@ -3,7 +3,11 @@ import { api } from '@core/api.js'
 export const listAgents        = () => api.get('/api/agent-control/agents')
 export const toggleAgent       = (agentKey) => api.post(`/api/agent-control/agents/${agentKey}/toggle`, {})
 
-export const listContexts      = (agentKey) => api.get(`/api/agent-control/contexts?agent_key=${encodeURIComponent(agentKey)}`)
+export const listPostProcessActions = () => api.get('/api/agent-control/post-process-actions')
+
+export const listContexts   = (agentKey) => api.get(`/api/agent-control/contexts?agent_key=${encodeURIComponent(agentKey)}`)
+export const createContext  = (body) => api.post('/api/agent-control/contexts', body)
+export const updateContext  = (key, body) => api.patch(`/api/agent-control/contexts/${key}`, body)
 
 export const listNotifications = () => api.get('/api/agent-control/notifications')
 export const markNotificationRead = (id) => api.post(`/api/agent-control/notifications/${id}/read`, {})

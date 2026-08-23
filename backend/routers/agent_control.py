@@ -106,6 +106,53 @@ def toggle_agent(
     return {"enabled": new_value != "0"}
 
 
+# ── Post-processing-acties: single source of truth voor welke velden een ──
+# taak moet meegeven en welke velden Claude terug moet geven per actie. Wordt
+# door de agent-control-UI opgehaald (Context-manager, item 909) zodat dit
+# schema zichtbaar/documented is i.p.v. verstopt in _post_process() hieronder
+# - houd deze twee bij het toevoegen van een actie in sync met elkaar.
+POST_PROCESS_ACTIONS = {
+    "none": {
+        "label": "Alleen melding (geen platform-wijziging)",
+        "task_params": [],
+        "result_fields": [
+            {"name": "notification", "type": "string of null", "required": False, "desc": "Optionele melding aan Bart"},
+        ],
+    },
+    "hockey_cmds": {
+        "label": "Hockey: cmd's naar de scan-queue",
+        "task_params": [],
+        "result_fields": [
+            {"name": "cmds", "type": "lijst van {cmd_type, params}", "required": False, "desc": "Wordt na dedup in vanger_cmd_queue gezet"},
+        ],
+    },
+    "poulebord_note": {
+        "label": "Poulebord: notitie bij een competitie",
+        "task_params": [
+            {"name": "link_id", "type": "string", "required": True, "desc": "Welke publicatie-competitie-koppeling het betreft"},
+        ],
+        "result_fields": [
+            {"name": "note_text", "type": "string (max ~200 tekens)", "required": True, "desc": "Tekst die op Poulebord verschijnt"},
+        ],
+    },
+    "roadmap_preanalysis": {
+        "label": "Roadmap: analyse-voorstel",
+        "task_params": [],
+        "result_fields": [
+            {"name": "roadmap_item_id", "type": "integer", "required": True, "desc": "Welk roadmap-item"},
+            {"name": "impact", "type": "string", "required": False, "desc": "Impact op de gebruiker"},
+            {"name": "risk",   "type": "string", "required": False, "desc": "Risico"},
+            {"name": "scope",  "type": "string", "required": False, "desc": "Omvang"},
+        ],
+    },
+}
+
+
+@router.get("/post-process-actions")
+def list_post_process_actions(_=Depends(get_current_user)):
+    return POST_PROCESS_ACTIONS
+
+
 # ── Contexten: herbruikbare pre-run info + post-processing-declaratie ──
 # (item 905/906) Een taak kiest een context; de context bepaalt wat de agent
 # vooraf weet en wat er met het antwoord mag gebeuren (post_process_action).
