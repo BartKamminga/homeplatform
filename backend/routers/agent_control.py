@@ -407,6 +407,9 @@ class AgentResultIn(BaseModel):
     impact:         Optional[str] = None
     risk:           Optional[str] = None
     scope:          Optional[str] = None
+    # ai_score_graph (fiets)
+    user_id:        Optional[str] = None
+    ai_scores:      Optional[List[Dict[str, Any]]] = None
 
 
 def _resolve_post_process_key(agent: dict, ctx: Optional[AgentContext]) -> str:
@@ -435,6 +438,8 @@ def report_agent_result(
                 body.link_id = task_params.get("link_id")
             if body.roadmap_item_id is None:
                 body.roadmap_item_id = task_params.get("roadmap_item_id")
+            if body.user_id is None:
+                body.user_id = task_params.get("user_id")
 
     ctx = session.get(AgentContext, body.context_key) if body.context_key else None
     post_process_key = _resolve_post_process_key(agent, ctx)
