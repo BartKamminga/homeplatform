@@ -5,7 +5,7 @@ export const toggleAgent       = (agentKey) => api.post(`/api/agent-control/agen
 
 export const getAgentRegistry = (agentKey) => api.get(`/api/agent-control/agents/${agentKey}/registry`)
 
-export const listContexts   = (agentKey) => api.get(`/api/agent-control/contexts?agent_key=${encodeURIComponent(agentKey)}`)
+export const listContexts   = (agentKey) => api.get(`/api/agent-control/contexts${agentKey ? `?agent_key=${encodeURIComponent(agentKey)}` : ''}`)
 export const createContext  = (body) => api.post('/api/agent-control/contexts', body)
 export const updateContext  = (key, body) => api.patch(`/api/agent-control/contexts/${key}`, body)
 
