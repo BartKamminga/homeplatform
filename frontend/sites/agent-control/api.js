@@ -3,7 +3,7 @@ import { api } from '@core/api.js'
 export const listAgents        = () => api.get('/api/agent-control/agents')
 export const toggleAgent       = (agentKey) => api.post(`/api/agent-control/agents/${agentKey}/toggle`, {})
 
-export const listPostProcessActions = () => api.get('/api/agent-control/post-process-actions')
+export const getAgentRegistry = (agentKey) => api.get(`/api/agent-control/agents/${agentKey}/registry`)
 
 export const listContexts   = (agentKey) => api.get(`/api/agent-control/contexts?agent_key=${encodeURIComponent(agentKey)}`)
 export const createContext  = (body) => api.post('/api/agent-control/contexts', body)

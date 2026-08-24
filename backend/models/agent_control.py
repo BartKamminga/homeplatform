@@ -4,21 +4,22 @@ from sqlmodel import Field, SQLModel
 
 
 class AgentContext(SQLModel, table=True):
-    """Een herbruikbare 'context': vaste pre-run info (welke API's/regels
-    gelden, wat het verwachte outputformaat is - item 905) plus de declaratie
-    welke post-processing-actie een resultaat onder deze context mag
-    triggeren (item 906/907, bv. hockey_cmds/poulebord_note/roadmap_preanalysis).
-    Een taak (AgentTask) kiest een context; de worker gebruikt 'm om te weten
-    wat hij vooraf moet weten en wat er met het antwoord mag gebeuren."""
+    """Een herbruikbare 'context': welke databron-functie de agent gebruikt om
+    vooraf iets te lezen, een vrije opdrachttekst, en welke post-process-functie
+    het antwoord mag afhandelen (item 906/907/939). data_source_key en
+    post_process_key moeten allebei voorkomen in de registry van agent_key
+    (services/agents/) - dat wordt afgedwongen in routers/agent_control.py,
+    niet hier."""
     __tablename__ = "agent_contexts"
 
-    key:                 str      = Field(primary_key=True)
-    agent_key:           str
-    name:                str
-    pre_run_info:        str      = Field(default="")  # markdown: beschikbare API's, regels, outputformaat
-    post_process_action: str      = Field(default="none")  # none | hockey_cmds | poulebord_note | roadmap_preanalysis
-    created_at:          datetime = Field(default_factory=datetime.utcnow)
-    updated_at:          datetime = Field(default_factory=datetime.utcnow)
+    key:               str      = Field(primary_key=True)
+    agent_key:         str
+    name:              str
+    pre_run_info:      str      = Field(default="")  # vrije opdrachttekst: wat moet er met de data gebeuren
+    data_source_key:   str      = Field(default="")
+    post_process_key:  str      = Field(default="none")
+    created_at:        datetime = Field(default_factory=datetime.utcnow)
+    updated_at:        datetime = Field(default_factory=datetime.utcnow)
 
 
 class AgentRunLog(SQLModel, table=True):

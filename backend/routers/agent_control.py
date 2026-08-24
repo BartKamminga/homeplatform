@@ -1,5 +1,9 @@
 """Agent Control — generieke registry/status/taken/notificaties/log voor
-LLM-gedreven smart agents (hockey scan-agent, later fiets/poulebord)."""
+LLM-gedreven smart agents (hockey scan-agent, poulebord-agent, roadmap-agent).
+
+Elke agent heeft zijn eigen, gesloten registry van databron- en post-process-
+functies (backend/services/agents/, item 939) - een context mag alleen
+kiezen uit de registry van zijn eigen agent (harde grens, afgedwongen hier)."""
 
 import json
 from datetime import datetime, timezone
@@ -12,32 +16,40 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user, require_admin
 from core.database import get_session
 from models.agent_control import AgentContext, AgentNotification, AgentRunLog, AgentTask
-from models.core import RoadmapItem, User
-from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import (
-    HockeyCompetition, HockeyPoule, HockeyPouleStanding, VangerCmd,
-)
+from models.core import User
 from models.settings import AppSetting
-from routers.hockey_vanger import add_vanger_cmd
-from routers.roadmap import RoadmapItemUpdate, update_item
+from services.agents import AGENT_REGISTRY
 
 router = APIRouter(prefix="/api/agent-control", tags=["agent-control"])
-
-# Bekende agents - hardcoded lijst, geen aparte registry-tabel nodig zolang
-# er maar een handvol agents zijn. Elke agent is een eigen identiteit (eigen
-# status/heartbeat/aan-uit-knop in het overzicht) al draaien ze allemaal in
-# dezelfde gedeelde workercontainer (plugins/agent-worker/) - dat laatste is
-# puur een implementatiedetail, geen reden om domeinen samen te voegen onder
-# 1 agent-naam.
-KNOWN_AGENTS = {
-    "hockey_scan":      "Hockey scan-agent",
-    "poulebord_agent":  "Poulebord-agent",
-    "roadmap_agent":    "Roadmap-agent",
-}
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _get_agent(agent_key: str) -> dict:
+    agent = AGENT_REGISTRY.get(agent_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Onbekende agent")
+    return agent
+
+
+def _registry_public(agent: dict) -> dict:
+    """Registry-info voor de UI/wizard - zonder de fn-callables (niet JSON-
+    serialiseerbaar en geen platform-detail dat de frontend nodig heeft)."""
+    return {
+        "label": agent["label"],
+        "default_data_source": agent.get("default_data_source"),
+        "default_post_process": agent.get("default_post_process", "none"),
+        "data_sources": {
+            k: {"label": v["label"], "params": v["params"], "desc": v.get("desc", "")}
+            for k, v in agent["data_sources"].items()
+        },
+        "post_processes": {
+            k: {"label": v["label"], "result_fields": v["result_fields"]}
+            for k, v in agent["post_processes"].items()
+        },
+    }
 
 
 # ── Agent-overzicht: status/heartbeat + aan/uit ─────────────────────
@@ -78,16 +90,21 @@ def list_agents(
     _=Depends(get_current_user),
 ):
     result = []
-    for agent_key, name in KNOWN_AGENTS.items():
+    for agent_key, agent in AGENT_REGISTRY.items():
         status_row = session.get(AppSetting, f"agent_status:{agent_key}")
         enabled_row = session.get(AppSetting, f"agent_enabled:{agent_key}")
         result.append({
             "agent_key": agent_key,
-            "name":      name,
+            "name":      agent["label"],
             "enabled":   enabled_row.value != "0" if enabled_row else True,
             "status":    json.loads(status_row.value) if status_row and status_row.value else None,
         })
     return result
+
+
+@router.get("/agents/{agent_key}/registry")
+def get_agent_registry(agent_key: str, _=Depends(get_current_user)):
+    return _registry_public(_get_agent(agent_key))
 
 
 @router.post("/agents/{agent_key}/toggle")
@@ -96,8 +113,7 @@ def toggle_agent(
     session: Session = Depends(get_session),
     _=Depends(require_admin),
 ):
-    if agent_key not in KNOWN_AGENTS:
-        raise HTTPException(status_code=404, detail="Onbekende agent")
+    _get_agent(agent_key)
     key = f"agent_enabled:{agent_key}"
     row = session.get(AppSetting, key)
     currently_enabled = row.value != "0" if row else True
@@ -111,70 +127,44 @@ def toggle_agent(
     return {"enabled": new_value != "0"}
 
 
-# ── Post-processing-acties: single source of truth voor welke velden een ──
-# taak moet meegeven en welke velden Claude terug moet geven per actie. Wordt
-# door de agent-control-UI opgehaald (Context-manager, item 909) zodat dit
-# schema zichtbaar/documented is i.p.v. verstopt in _post_process() hieronder
-# - houd deze twee bij het toevoegen van een actie in sync met elkaar.
-POST_PROCESS_ACTIONS = {
-    "none": {
-        "label": "Alleen melding (geen platform-wijziging)",
-        "task_params": [],
-        "result_fields": [
-            {"name": "notification", "type": "string of null", "required": False, "desc": "Optionele melding aan Bart"},
-        ],
-    },
-    "hockey_cmds": {
-        "label": "Hockey: cmd's naar de scan-queue",
-        "task_params": [],
-        "result_fields": [
-            {"name": "cmds", "type": "lijst van {cmd_type, params}", "required": False, "desc": "Wordt na dedup in vanger_cmd_queue gezet"},
-        ],
-    },
-    "poulebord_note": {
-        "label": "Poulebord: notitie bij een competitie",
-        "task_params": [
-            {"name": "link_id", "type": "string", "required": True, "desc": "Welke publicatie-competitie-koppeling het betreft"},
-        ],
-        "result_fields": [
-            {"name": "note_text", "type": "string (max ~200 tekens)", "required": True, "desc": "Tekst die op Poulebord verschijnt"},
-        ],
-    },
-    "roadmap_preanalysis": {
-        "label": "Roadmap: analyse-voorstel",
-        "task_params": [],
-        "result_fields": [
-            {"name": "roadmap_item_id", "type": "integer", "required": True, "desc": "Welk roadmap-item"},
-            {"name": "impact", "type": "string", "required": False, "desc": "Impact op de gebruiker"},
-            {"name": "risk",   "type": "string", "required": False, "desc": "Risico"},
-            {"name": "scope",  "type": "string", "required": False, "desc": "Omvang"},
-        ],
-    },
-}
+# ── Contexten: databron + post-process, gescoped per agent (item 906/939) ──
+# Een taak kiest een context; de context bepaalt welke databron de agent
+# vooraf leest, wat de opdracht is, en welke post-process het antwoord mag
+# afhandelen. data_source_key/post_process_key moeten allebei voorkomen in
+# de registry van agent_key - harde grens, niet alleen een UI-filter.
 
+def _validate_context_choice(agent_key: str, data_source_key: str, post_process_key: str) -> None:
+    agent = _get_agent(agent_key)
+    if data_source_key and data_source_key not in agent["data_sources"]:
+        raise HTTPException(status_code=400, detail=f"'{data_source_key}' is geen databron van agent '{agent_key}'")
+    if post_process_key not in agent["post_processes"]:
+        raise HTTPException(status_code=400, detail=f"'{post_process_key}' is geen post-process van agent '{agent_key}'")
 
-@router.get("/post-process-actions")
-def list_post_process_actions(_=Depends(get_current_user)):
-    return POST_PROCESS_ACTIONS
-
-
-# ── Contexten: herbruikbare pre-run info + post-processing-declaratie ──
-# (item 905/906) Een taak kiest een context; de context bepaalt wat de agent
-# vooraf weet en wat er met het antwoord mag gebeuren (post_process_action).
 
 class AgentContextIn(BaseModel):
-    key:                 str
-    agent_key:           str
-    name:                str
-    pre_run_info:        str = ""
-    post_process_action: str = "none"  # none | hockey_cmds | poulebord_note | roadmap_preanalysis
+    key:               str
+    agent_key:         str
+    name:              str
+    pre_run_info:      str = ""
+    data_source_key:   str = ""
+    post_process_key:  str = "none"
 
 
 class AgentContextUpdate(BaseModel):
-    agent_key:           Optional[str] = None
-    name:                Optional[str] = None
-    pre_run_info:        Optional[str] = None
-    post_process_action: Optional[str] = None
+    agent_key:         Optional[str] = None
+    name:              Optional[str] = None
+    pre_run_info:      Optional[str] = None
+    data_source_key:   Optional[str] = None
+    post_process_key:  Optional[str] = None
+
+
+def _context_out(c: AgentContext) -> dict:
+    return {
+        "key": c.key, "agent_key": c.agent_key, "name": c.name,
+        "pre_run_info": c.pre_run_info,
+        "data_source_key": c.data_source_key, "post_process_key": c.post_process_key,
+        "updated_at": c.updated_at.isoformat(),
+    }
 
 
 @router.get("/contexts")
@@ -186,15 +176,7 @@ def list_contexts(
     q = select(AgentContext)
     if agent_key:
         q = q.where(AgentContext.agent_key == agent_key)
-    items = session.exec(q).all()
-    return [
-        {
-            "key": c.key, "agent_key": c.agent_key, "name": c.name,
-            "pre_run_info": c.pre_run_info, "post_process_action": c.post_process_action,
-            "updated_at": c.updated_at.isoformat(),
-        }
-        for c in items
-    ]
+    return [_context_out(c) for c in session.exec(q).all()]
 
 
 @router.post("/contexts", status_code=201)
@@ -205,10 +187,11 @@ def create_context(
 ):
     if session.get(AgentContext, body.key):
         raise HTTPException(status_code=409, detail="Context bestaat al")
+    _validate_context_choice(body.agent_key, body.data_source_key, body.post_process_key)
     now = _now()
     c = AgentContext(
-        key=body.key, agent_key=body.agent_key, name=body.name,
-        pre_run_info=body.pre_run_info, post_process_action=body.post_process_action,
+        key=body.key, agent_key=body.agent_key, name=body.name, pre_run_info=body.pre_run_info,
+        data_source_key=body.data_source_key, post_process_key=body.post_process_key,
         created_at=now, updated_at=now,
     )
     session.add(c)
@@ -226,7 +209,12 @@ def update_context(
     c = session.get(AgentContext, key)
     if not c:
         raise HTTPException(status_code=404, detail="Niet gevonden")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    agent_key = data.get("agent_key", c.agent_key)
+    data_source_key = data.get("data_source_key", c.data_source_key)
+    post_process_key = data.get("post_process_key", c.post_process_key)
+    _validate_context_choice(agent_key, data_source_key, post_process_key)
+    for field, value in data.items():
         setattr(c, field, value)
     c.updated_at = _now()
     session.add(c)
@@ -421,49 +409,10 @@ class AgentResultIn(BaseModel):
     scope:          Optional[str] = None
 
 
-def _resolve_post_process_action(session: Session, agent_key: str, context_key: Optional[str]) -> str:
-    if context_key:
-        ctx = session.get(AgentContext, context_key)
-        if ctx:
-            return ctx.post_process_action
-    # Legacy fallback zolang hockey_scan-taken zonder context_key binnenkomen.
-    return "hockey_cmds" if agent_key == "hockey_scan" else "none"
-
-
-def _post_process(session: Session, agent_key: str, action: str, body: "AgentResultIn", current_user: User) -> dict:
-    """Elke actie krijgt hier zijn eigen, kleine afhandeling - net als cmd_types
-    in vanger_cmd_queue groeit deze lijst organisch mee (item 907)."""
-    if action == "hockey_cmds":
-        cmd_results = []
-        for cmd in body.cmds:
-            result = add_vanger_cmd(session, cmd.cmd_type, cmd.params)
-            cmd_results.append({"cmd_type": cmd.cmd_type, "params": cmd.params, **result})
-        return {"action": action, "cmds": cmd_results}
-
-    if action == "poulebord_note":
-        link = session.get(HockeyPublicationComp, body.link_id) if body.link_id else None
-        if not link:
-            return {"action": action, "ok": False, "reason": "link_id ontbreekt of onbekend"}
-        link.ai_note = body.note_text or body.notes
-        session.add(link)
-        return {"action": action, "ok": True, "link_id": body.link_id}
-
-    if action == "roadmap_preanalysis":
-        if not body.roadmap_item_id:
-            return {"action": action, "ok": False, "reason": "roadmap_item_id ontbreekt"}
-        prefixed_notes = f"[AI-voorstel] {body.notes}".strip()
-        update_item(
-            body.roadmap_item_id,
-            RoadmapItemUpdate(impact=body.impact, risk=body.risk, scope=body.scope, notes=prefixed_notes),
-            session, current_user,
-        )
-        # Bewust GEEN status-wijziging - dit is een voorstel, een mens bevestigt
-        # het item pas als analyzed (zie roadmap-item 906).
-        return {"action": action, "ok": True, "roadmap_item_id": body.roadmap_item_id}
-
-    if body.cmds:
-        return {"action": action, "ok": False, "reason": "geen post-processing-actie gekoppeld aan deze context"}
-    return {"action": action}
+def _resolve_post_process_key(agent: dict, ctx: Optional[AgentContext]) -> str:
+    if ctx:
+        return ctx.post_process_key
+    return agent.get("default_post_process", "none")
 
 
 @router.post("/agents/{agent_key}/result")
@@ -473,10 +422,9 @@ def report_agent_result(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    if agent_key not in KNOWN_AGENTS:
-        raise HTTPException(status_code=404, detail="Onbekende agent")
+    agent = _get_agent(agent_key)
 
-    # Doet wat de context-teksten al beloven: taak-params (bv. link_id) vult
+    # Doet wat de context-teksten beloven: taak-params (bv. link_id) vult
     # automatisch aan wat Claude zelf niet teruggeeft - de agent hoeft target-
     # identifiers niet te onthouden/herhalen, wij weten al bij welke taak dit hoort.
     if body.task_id:
@@ -488,8 +436,13 @@ def report_agent_result(
             if body.roadmap_item_id is None:
                 body.roadmap_item_id = task_params.get("roadmap_item_id")
 
-    action = _resolve_post_process_action(session, agent_key, body.context_key)
-    post_process_result = _post_process(session, agent_key, action, body, current_user)
+    ctx = session.get(AgentContext, body.context_key) if body.context_key else None
+    post_process_key = _resolve_post_process_key(agent, ctx)
+    post_process = agent["post_processes"].get(post_process_key)
+    if not post_process:
+        post_process_result = {"action": post_process_key, "ok": False, "reason": "onbekende post-process voor deze agent"}
+    else:
+        post_process_result = post_process["fn"](session, body, current_user)
 
     log = AgentRunLog(
         agent_key=agent_key,
@@ -512,52 +465,6 @@ def report_agent_result(
     return {"ok": True, "post_process_result": post_process_result}
 
 
-def _gather_agent_state(session: Session, agent_key: str, action: str, task_params: dict) -> dict:
-    """Agent/actie-specifieke stand van zaken - blijft hier in de backend i.p.v.
-    in de (generieke) worker, zelfde reden als de post-processing-dispatch."""
-    agent_state: Dict[str, Any] = {}
-
-    if agent_key == "hockey_scan" and action in ("hockey_cmds", "none"):
-        counts = {}
-        for status in ("pending", "in_progress", "done", "failed", "skipped"):
-            counts[status] = len(session.exec(select(VangerCmd).where(VangerCmd.status == status)).all())
-        agent_state["vanger_cmd_queue_counts"] = counts
-
-    if action == "roadmap_preanalysis":
-        items = session.exec(
-            select(RoadmapItem).where(RoadmapItem.status == "idea").order_by(col(RoadmapItem.priority)).limit(10)
-        ).all()
-        agent_state["roadmap_idea_items"] = [
-            {"id": i.id, "title": i.title, "site": i.site, "priority": i.priority, "description": i.description}
-            for i in items
-        ]
-
-    if action == "poulebord_note":
-        link_id = task_params.get("link_id")
-        link = session.get(HockeyPublicationComp, link_id) if link_id else None
-        if link:
-            comp = session.get(HockeyCompetition, link.competition_id)
-            poules = session.exec(select(HockeyPoule).where(HockeyPoule.competition_id == link.competition_id)).all()
-            standings_by_poule = {}
-            for p in poules:
-                rows = session.exec(
-                    select(HockeyPouleStanding)
-                    .where(HockeyPouleStanding.poule_id == p.poule_id)
-                    .order_by(HockeyPouleStanding.position)
-                ).all()
-                standings_by_poule[p.name] = [
-                    {"team": r.team_name, "pts": r.points, "played": r.played, "gf": r.goals_for, "ga": r.goals_against}
-                    for r in rows
-                ]
-            agent_state["link_id"] = link_id
-            agent_state["competition_name"] = comp.name if comp else None
-            agent_state["standings_by_poule"] = standings_by_poule
-        else:
-            agent_state["note"] = "geen (geldig) link_id meegegeven in de taak-params"
-
-    return agent_state
-
-
 @router.get("/agents/{agent_key}/context")
 def get_agent_context(
     agent_key: str,
@@ -567,10 +474,9 @@ def get_agent_context(
     _=Depends(get_current_user),
 ):
     """Bundelt wat de worker nodig heeft om aan een run te beginnen: kennis van
-    de vorige run, de gekozen context (pre-run info + toegestane afhandeling),
-    openstaande ad-hoc taken, en agent/actie-specifieke stand van zaken."""
-    if agent_key not in KNOWN_AGENTS:
-        raise HTTPException(status_code=404, detail="Onbekende agent")
+    de vorige run, de gekozen context (opdracht + toegestane afhandeling),
+    openstaande ad-hoc taken, en de data uit de databron-functie van de context."""
+    agent = _get_agent(agent_key)
 
     latest_log = session.exec(
         select(AgentRunLog)
@@ -586,7 +492,10 @@ def get_agent_context(
     task_params = json.loads(task.params_json) if task else {}
     resolved_context_key = context_key or (task.context_key if task else None)
     ctx = session.get(AgentContext, resolved_context_key) if resolved_context_key else None
-    action = ctx.post_process_action if ctx else _resolve_post_process_action(session, agent_key, resolved_context_key)
+
+    data_source_key = ctx.data_source_key if ctx else agent.get("default_data_source")
+    data_source = agent["data_sources"].get(data_source_key) if data_source_key else None
+    agent_state = data_source["fn"](session, task_params) if data_source else {}
 
     return {
         "knowledge": latest_log.notes if latest_log else "",
@@ -596,9 +505,9 @@ def get_agent_context(
         ],
         "context": {
             "key": ctx.key, "name": ctx.name, "pre_run_info": ctx.pre_run_info,
-            "post_process_action": ctx.post_process_action,
+            "data_source_key": ctx.data_source_key, "post_process_key": ctx.post_process_key,
         } if ctx else None,
-        "agent_state": _gather_agent_state(session, agent_key, action, task_params),
+        "agent_state": agent_state,
     }
 
 
