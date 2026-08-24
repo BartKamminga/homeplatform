@@ -476,6 +476,18 @@ def report_agent_result(
     if agent_key not in KNOWN_AGENTS:
         raise HTTPException(status_code=404, detail="Onbekende agent")
 
+    # Doet wat de context-teksten al beloven: taak-params (bv. link_id) vult
+    # automatisch aan wat Claude zelf niet teruggeeft - de agent hoeft target-
+    # identifiers niet te onthouden/herhalen, wij weten al bij welke taak dit hoort.
+    if body.task_id:
+        task = session.get(AgentTask, body.task_id)
+        if task:
+            task_params = json.loads(task.params_json)
+            if body.link_id is None:
+                body.link_id = task_params.get("link_id")
+            if body.roadmap_item_id is None:
+                body.roadmap_item_id = task_params.get("roadmap_item_id")
+
     action = _resolve_post_process_action(session, agent_key, body.context_key)
     post_process_result = _post_process(session, agent_key, action, body, current_user)
 
