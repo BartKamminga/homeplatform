@@ -37,6 +37,10 @@ function useThemeColors() {
 // voorhanden hiervoor.
 export const BREAKDOWN_COLORS = { rain: '#94a3b8', temp: '#f97316', wind: '#3b82f6', sun: '#eab308', fiets: '#22c55e' }
 
+// Kleur voor de AI-score-overlay (item 942) - los van BREAKDOWN_COLORS, geen
+// van die kleuren wordt al voor de gewone score-lijn gebruikt.
+const AI_SCORE_COLOR = '#8b5cf6'
+
 // Opaciteit van het regen-vlak per weather_code-tier (0=helder/bewolkt .. 3=zware regen).
 // Geëxporteerd zodat de Regen-tab dezelfde opaciteiten kan gebruiken in de legenda (item 806).
 export const RAIN_TIER_OPACITY = [0.06, 0.22, 0.42, 0.7]
@@ -164,7 +168,7 @@ function NowMarker({ x, top, bottom, colors, label }) {
   )
 }
 
-export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', tijdvak = null, onTijdvakDrag, hourOffset = 0, lang = 'nl' }) {
+export default function SmoothChart({ days, field, showBreakdown = true, windMode = 'both', tijdvak = null, onTijdvakDrag, hourOffset = 0, lang = 'nl', aiScores = null }) {
   const colors = useThemeColors()
   const hours = days.flatMap(d => d.hours)
   const n = hours.length
@@ -239,6 +243,19 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
   const points = values.map((v, i) => [xAt(i), yAt(v)])
   const linePath = smoothPath(points)
   const areaPath = `${linePath} L ${xAt(n - 1)},${baseline} L ${xAt(0)},${baseline} Z`
+
+  // AI-score-overlay (item 942) - alleen op de gewone (niet-uitgesplitste)
+  // score-lijn, gematcht op tijdstip zodat een gedeeltelijke/verouderde
+  // AI-reeks niet de hele grafiek laat verschuiven.
+  let aiLinePath = null
+  if (field === 'score' && Array.isArray(aiScores) && aiScores.length > 0) {
+    const aiByTime = new Map(aiScores.map(a => [a.time, a.ai_score]))
+    const aiPoints = hours
+      .map((h, i) => [i, aiByTime.get(h.time)])
+      .filter(([, v]) => v != null)
+      .map(([i, v]) => [xAt(i), yAt(v)])
+    if (aiPoints.length >= 2) aiLinePath = smoothPath(aiPoints)
+  }
   const isRain = field === 'rain_mm'
   const isWind = field === 'wind_kmh'
   const showChart = !isWind || windMode !== 'arrow'
@@ -265,6 +282,9 @@ export default function SmoothChart({ days, field, showBreakdown = true, windMod
       <HighlightBand range={highlight} xAt={xAt} top={PAD_TOP} bottom={baseline} colors={colors} n={n} onDrag={dragOffset} />
       {showChart && <path d={areaPath} fill={isRain ? 'url(#rainSeverityGradient)' : lineColor} opacity={isRain ? 1 : 0.15} />}
       {showChart && <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" />}
+      {aiLinePath && (
+        <path d={aiLinePath} fill="none" stroke={AI_SCORE_COLOR} strokeWidth={2} strokeDasharray="5,4" strokeLinecap="round" opacity={0.85} />
+      )}
       {showArrows && hourTicks.map(i => (
         <WindArrowMark key={`arrow-${i}`} x={xAt(i)} y={PAD_TOP + innerH / 2} deg={hours[i].wind_dir} kmh={values[i]}
           color={lineColor} halo={showChart ? colors['--color-surface'] : null} />

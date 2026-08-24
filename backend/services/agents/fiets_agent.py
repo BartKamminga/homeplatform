@@ -68,7 +68,9 @@ AGENT = {
             "label": "Fiets: AI-score-grafiek opslaan",
             "result_fields": [
                 {"name": "ai_scores", "type": "lijst van {time, ai_score}", "required": True,
-                 "desc": "Per-uur AI-score (0-100), opgeslagen naast de bestaande berekende score"},
+                 "desc": "Per-uur AI-score op dezelfde 0-10-schaal als de bestaande berekende score "
+                         "(zie agent_state.debug_view.rows[].score.score) - time moet exact overeenkomen "
+                         "met het time-veld uit de databron, anders kan de grafiek 'm niet matchen"},
             ],
             "fn": pp_ai_score_graph,
         },

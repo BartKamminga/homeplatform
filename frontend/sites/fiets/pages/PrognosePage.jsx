@@ -71,6 +71,11 @@ export default function PrognosePage({ lang }) {
   // @ 60/40, SUN_WEIGHT=0.2) — voor de uitleg-popup, die zo altijd de actuele
   // verdeling toont i.p.v. hardcoded percentages.
   const [weights, setWeights] = useState({ rain: 40, temp: 24, sun: 20, wind: 16 })
+  // AI-score-grafiek (item 942): door de fiets-agent geschreven in
+  // UserPreference.extra.fiets_ai_score, alleen aanwezig als de agent al
+  // eens gedraaid heeft voor deze gebruiker - anders blijft dit null en
+  // toont SmoothChart gewoon niets extra's.
+  const [aiScores, setAiScores] = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -91,6 +96,7 @@ export default function PrognosePage({ lang }) {
           wind: prefs.fiets_weight_wind ?? w.wind,
         }))
         if (prefs.fiets_ride_duration_h) setRideDurationH(prefs.fiets_ride_duration_h)
+        if (Array.isArray(prefs.fiets_ai_score)) setAiScores(prefs.fiets_ai_score)
       })
       .catch(() => {})
   }, [])
@@ -284,6 +290,7 @@ export default function PrognosePage({ lang }) {
         <SmoothChart
           days={displayedDays} field={activeField} showBreakdown={tab === 'fiets' && showBreakdown} windMode={windMode}
           tijdvak={tijdvak} onTijdvakDrag={handleTijdvakDrag} hourOffset={hourOffset} lang={lang}
+          aiScores={activeField === 'score' ? aiScores : null}
         />
 
         {/* Info-balk onder de grafiek — per tab relevante info, altijd zichtbaar
