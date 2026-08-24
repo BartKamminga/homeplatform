@@ -4,7 +4,7 @@ vanger-extensie om naar domeinmodellen (HockeyPoule/HockeyTeam/HockeyClub/...)."
 
 import json
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from sqlmodel import Session, col, select
 
