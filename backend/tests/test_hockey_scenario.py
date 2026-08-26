@@ -94,6 +94,23 @@ def test_monte_carlo_fallback_on_hockey_adapter():
     assert any("steekproef" in c for c in summary.caveats)
 
 
+def test_default_exact_threshold_stays_fast_around_the_boundary():
+    """Regressietest: MAX_EXACT_COMBINATIONS moet laag genoeg zijn dat 'net
+    over de grens' geen seconden kost (gerapporteerd: 4 teams, 1 wedstrijd
+    vastzetten liet de resterende 11 wedstrijden (3^11) omslaan naar exact bij
+    de oude grens van 200.000, en dat duurde 8+ seconden)."""
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    just_under = [MatchFixture(match_id=i, home_team_id=1, away_team_id=2) for i in range(9)]   # 3^9 = 19683
+    just_over  = [MatchFixture(match_id=i, home_team_id=1, away_team_id=2) for i in range(10)]  # 3^10 = 59049
+
+    below = simulate_position(standings, just_under, team_id=1, target_position=1, method="auto")
+    above = simulate_position(standings, just_over, team_id=1, target_position=1, method="auto")
+
+    assert below.method_used == "exact"
+    assert above.method_used == "monte_carlo"
+    assert above.combinations_considered <= 20_000  # niet 59.049 stuks doorrekenen
+
+
 def test_fixed_outcomes_bakes_assumption_into_standings_and_shrinks_search_space():
     standings = [_team(1, "A", 10), _team(2, "B", 10)]
     remaining = [

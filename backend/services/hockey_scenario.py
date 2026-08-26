@@ -25,7 +25,12 @@ from services.scenario_engine import ScenarioSpec, VariableElement, run_scenario
 
 POINTS_WIN, POINTS_DRAW, POINTS_LOSS = 3, 1, 0  # AANNAME: KNHB-puntenregel
 MATCH_OUTCOMES = ("H", "D", "A")  # thuiswinst / gelijk / uitwinst
-MAX_EXACT_COMBINATIONS = 200_000
+# Gemeten (item 963-vervolg): elke exacte combo kost ~40 microseconde in deze
+# Python-implementatie, dus 200.000 was in de praktijk 8+ seconden - te traag
+# voor een request. 20.000 combo's (<=9 resterende wedstrijden) blijft <1s en
+# geeft daarna een voorspelbare, gelijkblijvende looptijd via de steekproef
+# i.p.v. een sprong naar seconden zodra er 1 wedstrijd minder open staat.
+MAX_EXACT_COMBINATIONS = 20_000
 SAMPLE_SIZE = 20_000
 
 CAVEATS = [
