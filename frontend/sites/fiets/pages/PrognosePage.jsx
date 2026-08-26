@@ -77,12 +77,20 @@ export default function PrognosePage({ lang }) {
   // toont SmoothChart gewoon niets extra's.
   const [aiScores, setAiScores] = useState(null)
 
+  // Blijft de pagina lang open (bv. onderweg), dan loopt de prognose anders
+  // steeds verder achter op de klok - elke 15 min stil op de achtergrond
+  // verversen zonder de loading-spinner te tonen (item 949).
   useEffect(() => {
-    setLoading(true)
-    api.get(`/api/fiets/prognose?sources=${sources.join(',')}`)
-      .then(setData)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
+    function load(silent) {
+      if (!silent) setLoading(true)
+      api.get(`/api/fiets/prognose?sources=${sources.join(',')}`)
+        .then(setData)
+        .catch(e => setError(e.message))
+        .finally(() => setLoading(false))
+    }
+    load(false)
+    const interval = setInterval(() => load(true), 15 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [sources])
 
   useEffect(() => {

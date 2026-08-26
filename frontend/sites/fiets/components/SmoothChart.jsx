@@ -64,9 +64,15 @@ const FIELD_CONFIG = {
 
 const WIDTH = 720
 const HEIGHT = 170
-const PAD_TOP = 22
+// Extra hoog t.o.v. eerder (was 22) zodat de sleep-handvatjes in hun eigen
+// strook boven de grafiek passen i.p.v. over de piek-waarden heen (item 881).
+const PAD_TOP = 34
 const PAD_BOTTOM = 42
 const HOUR_TICK_STEP = 6
+// Handvatjes zitten vast bovenin (los van PAD_TOP), waarde-labels blijven
+// daaronder — zo overlappen ze nooit, ook niet als de curve de top raakt.
+const HANDLE_Y = 8
+const LABEL_MIN_Y = 26
 
 // Vloeiende curve door een reeks punten (quadratic-Bezier door de midpunten,
 // zoals de Google Weer-referentie) — geen chart-library nodig voor dit effect.
@@ -140,8 +146,8 @@ function HighlightBand({ range, xAt, top, bottom, colors, n, onDrag }) {
   function Handle({ edge, x }) {
     return (
       <g onPointerDown={ev => startDrag(edge, ev)} style={{ cursor: 'ew-resize', touchAction: 'none' }}>
-        <rect x={x - hitWidth / 2} y={top} width={hitWidth} height={bottom - top} fill="transparent" />
-        <circle cx={x} cy={top + 9} r={7} fill={colors['--color-primary']} stroke={colors['--color-surface']} strokeWidth={2} />
+        <rect x={x - hitWidth / 2} y={0} width={hitWidth} height={bottom} fill="transparent" />
+        <circle cx={x} cy={HANDLE_Y} r={7} fill={colors['--color-primary']} stroke={colors['--color-surface']} strokeWidth={2} />
       </g>
     )
   }
@@ -344,17 +350,28 @@ function ScoreArea({ hours, n, xAt, baseline, innerH, nightBands, dayTicks, hour
   )
 }
 
+// Labels van opeenvolgende uren met exact dezelfde waarde (bv. een lange
+// droge periode: "0.0mm" achter elkaar) smolten anders visueel samen tot
+// onleesbare tekst (item 948) - alleen de eerste van zo'n reeks tonen.
 function HourLabels({ hourTicks, xAt, yAt, fmt, values, hours, colors }) {
-  return hourTicks.map(i => (
-    <g key={`hour-${i}`}>
-      <text x={xAt(i)} y={Math.max(11, yAt(i) - 8)} textAnchor="middle" fill={colors['--color-text']} style={{ fontSize: 10, fontWeight: 600 }}>
-        {fmt(values[i])}
-      </text>
-      <text x={xAt(i)} y={HEIGHT - PAD_BOTTOM + 16} textAnchor="middle" fill={colors['--color-text-muted']} style={{ fontSize: 9 }}>
-        {(hours ?? [])[i]?.time?.slice(11, 16)}
-      </text>
-    </g>
-  ))
+  let lastLabel = null
+  return hourTicks.map(i => {
+    const label = fmt(values[i])
+    const showLabel = label !== lastLabel
+    if (showLabel) lastLabel = label
+    return (
+      <g key={`hour-${i}`}>
+        {showLabel && (
+          <text x={xAt(i)} y={Math.max(LABEL_MIN_Y, yAt(i) - 8)} textAnchor="middle" fill={colors['--color-text']} style={{ fontSize: 10, fontWeight: 600 }}>
+            {label}
+          </text>
+        )}
+        <text x={xAt(i)} y={HEIGHT - PAD_BOTTOM + 16} textAnchor="middle" fill={colors['--color-text-muted']} style={{ fontSize: 9 }}>
+          {(hours ?? [])[i]?.time?.slice(11, 16)}
+        </text>
+      </g>
+    )
+  })
 }
 
 // Windrichting-pijl bovenop de Wind-grafiek (item: Wind+Windrichting samengevoegd) —
