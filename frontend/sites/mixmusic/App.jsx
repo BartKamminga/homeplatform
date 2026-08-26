@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { PlayerProvider } from './context/PlayerContext.jsx'
+import { PlayerProvider, usePlayerContext } from './context/PlayerContext.jsx'
 import { useLayout } from './hooks/useLayout.js'
 import DesktopC from './layouts/DesktopC.jsx'
 import MobileA  from './layouts/MobileA.jsx'
@@ -11,6 +11,13 @@ import StatsPage        from './components/StatsPage.jsx'
 import DisplayPrefsPanel from './components/DisplayPrefsPanel.jsx'
 import GenresPanel      from './components/GenresPanel.jsx'
 import ChangelogPanel   from './components/ChangelogPanel.jsx'
+import NowPlayingExpanded from './components/NowPlayingExpanded.jsx'
+
+function ExpandedOverlay() {
+  const { expandedOpen, setExpandedOpen } = usePlayerContext()
+  if (!expandedOpen) return null
+  return <NowPlayingExpanded onClose={() => setExpandedOpen(false)} />
+}
 
 const MOBILE_LAYOUTS = { A: MobileA, B: MobileB, C: MobileC, D: MobileD }
 
@@ -56,6 +63,7 @@ export default function App() {
       {displayOpen   && <DisplayPrefsPanel onClose={() => setDisplayOpen(false)} />}
       {genresOpen    && <GenresPanel       onClose={() => setGenresOpen(false)} />}
       {changelogOpen && <ChangelogPanel    onClose={() => setChangelogOpen(false)} />}
+      <ExpandedOverlay />
       <Layout
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenDisplay={() => setDisplayOpen(true)}

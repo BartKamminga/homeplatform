@@ -14,6 +14,7 @@ export default function DesktopTransportBar() {
     toggleShuffle: onShuffle, toggleRepeat: onRepeat,
     volume, muted, changeVolume: onVolume, toggleMute: onMute,
     castAvailable, castConnected, openCastPicker, stopCast,
+    setExpandedOpen,
   } = usePlayerContext()
   const [heartFlash, setHeartFlash] = useState(false)
 
@@ -60,7 +61,7 @@ export default function DesktopTransportBar() {
             : <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           }
         </div>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, cursor: 'pointer' }} onClick={() => setExpandedOpen(true)} title="Volledig scherm">
           <div style={s.title} title={displayName || track.name}>{displayName || track.name}</div>
           <div style={s.meta}>{track.folder || 'Muziek'} · {track.ext}{displayName ? ` · ${track.name}` : ''}</div>
         </div>

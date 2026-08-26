@@ -226,6 +226,10 @@ export function PlayerProvider({ children }) {
     setTimeout(reloadMetas, 200)
   }
 
+  // Uitgeklapt "nu speelt"-scherm met fractal-achtergrond (item 908) - geopend
+  // vanuit de track-info in de compacte player-bar, ongeacht welke layout actief is.
+  const [expandedOpen, setExpandedOpen] = useState(false)
+
   return (
     <PlayerContext.Provider value={{
       // tracks
@@ -249,6 +253,8 @@ export function PlayerProvider({ children }) {
       castAvailable, castConnected, openCastPicker, stopCast,
       // admin
       isAdmin, toggleExcluded,
+      // uitgeklapt scherm
+      expandedOpen, setExpandedOpen,
     }}>
       {children}
     </PlayerContext.Provider>
