@@ -5,7 +5,7 @@ import re
 
 from sqlmodel import Session, col, select
 
-from models.hockey_discovery import HockeyTeam
+from models.hockey_discovery import HockeyCompetition, HockeyTeam
 from models.settings import AppSetting
 
 _AGE_RE         = re.compile(r"[JM][OZ](1[1-8])-")
@@ -18,6 +18,29 @@ DISC_FILTER_HT     = "disc_queue_hockey_type"
 DISC_FILTER_GENDER = "disc_queue_gender"
 
 _GENDER_PREFIX = {"Jongens": "J", "Meisjes": "M", "Heren": "H", "Dames": "D"}
+
+# Competitienamen ("Gold Cup Dames", "Landelijk Jongens O18") hebben geen
+# teamnaam-prefix zoals "H8"/"JO16-1" om op te matchen (_derive_category in
+# routers/hockey_capture.py) - hier classificeren we daarom op sleutelwoorden.
+_COMP_AGE_RE = re.compile(r"\bO\d{1,2}\b", re.IGNORECASE)
+
+
+def _derive_competition_category(name: str) -> str:
+    """Best-effort Niveau-classificatie voor een competitienaam."""
+    n = (name or "").lower()
+    if "jongens" in n or "meisjes" in n or _COMP_AGE_RE.search(name or ""):
+        return "Junioren"
+    if "dames" in n or "heren" in n:
+        return "Senioren"
+    return ""
+
+
+def _derive_competition_gender(name: str) -> str:
+    n = (name or "").lower()
+    for label, word in _GENDER_PREFIX.items():
+        if label.lower() in n:
+            return label
+    return ""
 
 
 def _is_target_age(short_name: str) -> bool:
@@ -95,6 +118,23 @@ def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, clu
             prefixes = {_GENDER_PREFIX[g] for g in genders if g in _GENDER_PREFIX}
             if prefixes and not any((team.short_name or "").startswith(p) for p in prefixes):
                 return False
+        return True
+    if cmd_type == "get_competition_detail":
+        # Landelijke competities (bv. "Gold Cup Dames") hebben geen team_id om op
+        # te filteren zoals get_poule - zonder deze tak viel dit altijd terug op
+        # de generieke `return True` hieronder, waardoor senioren-competities
+        # nooit als "buiten filter" werden gemarkeerd (zie roadmap-melding).
+        comp_id = params.get("comp_id")
+        comp = session.exec(
+            select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == comp_id)
+        ).first() if comp_id else None
+        label = params.get("label") or (comp.name if comp else "")
+        if hts and comp and comp.hockey_type not in hts:
+            return False
+        if cats and _derive_competition_category(label) not in cats:
+            return False
+        if genders and _derive_competition_gender(label) not in genders:
+            return False
         return True
     if cmd_type == "scan_club":
         # item 732: club-scans zijn niet poule-/team-specifiek, dus die gaan altijd
