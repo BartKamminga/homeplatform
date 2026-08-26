@@ -76,9 +76,15 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
           )}
           {data && (
             <>
-              <div style={{ fontSize: 15, fontWeight: 700, color: verdictInfo.color, marginBottom: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: verdictInfo.color,
+                marginBottom: data.verdict === 'depends' && data.goal_probability != null ? 4 : 12 }}>
                 {verdictInfo.label}
               </div>
+              {data.verdict === 'depends' && data.goal_probability != null && (
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+                  {Math.round(data.goal_probability * 100)}% van {data.confidence === 'sampled' ? 'de steekproef' : 'de scenario\'s'} komt hierop uit
+                </div>
+              )}
 
               {data.pivotal_matches?.length > 0 && (
                 <>
@@ -89,14 +95,22 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
                     {data.pivotal_matches.map((m, i) => (
                       <div key={m.match_id ?? i} style={{ background: C.card, borderRadius: 8,
-                        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                        <span style={{ flex: 1, color: C.chalk, textAlign: 'right',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home_team}</span>
-                        <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>vs</span>
-                        <span style={{ flex: 1, color: C.chalk,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away_team}</span>
-                        {m.round != null && (
-                          <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>R{m.round}</span>
+                        padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ flex: 1, color: C.chalk, textAlign: 'right',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home_team}</span>
+                          <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>vs</span>
+                          <span style={{ flex: 1, color: C.chalk,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away_team}</span>
+                          {m.round != null && (
+                            <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>R{m.round}</span>
+                          )}
+                        </div>
+                        {m.hint && (
+                          <div style={{ fontSize: 10, color: m.hint.required ? '#6fbf8b' : C.muted, textAlign: 'center' }}>
+                            {m.hint.required ? '✓ ' : ''}{m.hint.label}
+                            {!m.hint.required && ` (${Math.round(m.hint.recommended_rate * 100)}% kans)`}
+                          </div>
                         )}
                       </div>
                     ))}

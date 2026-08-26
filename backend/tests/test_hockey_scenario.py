@@ -43,6 +43,32 @@ def test_depends_and_examples_round_trip():
     assert any("doelsaldo" in c.lower() for c in summary.caveats)
 
 
+def test_pivotal_match_hint_flags_required_outcome():
+    # Enige resterende wedstrijd is 100% bepalend: A moet winnen om 1e te worden.
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    hint = summary.pivotal_matches[0]["hint"]
+    assert hint["required"] is True
+    assert hint["recommended_outcome"] == "H"
+    assert hint["recommended_rate"] == 1.0
+    assert hint["label"] == "A moet winnen"
+
+
+def test_pivotal_match_hint_is_probabilistic_when_not_strictly_required():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=i, home_team_id=1, away_team_id=2) for i in range(1, 4)]
+    summary = simulate_position(
+        standings, remaining, team_id=1, target_position=1,
+        max_combinations=5, sample_size=2000,
+    )
+    for m in summary.pivotal_matches:
+        hint = m["hint"]
+        assert hint["required"] is False
+        assert 0.0 < hint["recommended_rate"] < 1.0
+        assert hint["label"] == "A wint"
+
+
 def test_pruning_ignores_matches_between_locked_teams():
     standings = [_team(1, "A", 10), _team(2, "B", 10), _team(3, "C", 0), _team(4, "D", 0)]
     remaining = [

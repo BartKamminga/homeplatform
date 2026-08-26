@@ -48,6 +48,11 @@ class ScenarioResult:
     goal_probability: Optional[float]
     satisfying_examples: List[Dict[str, Outcome]]
     failing_examples: List[Dict[str, Outcome]]
+    # element_key -> outcome -> (aantal keer dat deze uitkomst voorkwam in een
+    # beschouwde combo, aantal keer dat het doel toen werd gehaald) - laat een
+    # adapter per element afleiden welke uitkomst het doel dichterbij brengt,
+    # of zelfs noodzakelijk/onmogelijk is (rate 1.0 / 0.0).
+    outcome_breakdown: Dict[str, Dict[Outcome, Tuple[int, int]]]
 
 
 def combinations_count(elements: Sequence[VariableElement]) -> int:
@@ -111,6 +116,10 @@ def run_scenario(
     goal_true = 0
     satisfying: List[Dict[str, Outcome]] = []
     failing: List[Dict[str, Outcome]] = []
+    # {key: {outcome: [totaal, satisfying]}}
+    breakdown: Dict[str, Dict[Outcome, List[int]]] = {
+        el.key: {outcome: [0, 0] for outcome in el.outcomes} for el in elements
+    }
     for state, combo in source:
         considered += 1
         ok = bool(spec.evaluate(state))
@@ -118,6 +127,10 @@ def run_scenario(
         bucket = satisfying if ok else failing
         if len(bucket) < max_examples:
             bucket.append(combo)
+        for key, outcome in combo.items():
+            counts = breakdown[key][outcome]
+            counts[0] += 1
+            counts[1] += ok
 
     return ScenarioResult(
         method_used=method_used,
@@ -126,4 +139,8 @@ def run_scenario(
         goal_probability=(goal_true / considered) if considered else None,
         satisfying_examples=satisfying,
         failing_examples=failing,
+        outcome_breakdown={
+            key: {outcome: (n_total, n_ok) for outcome, (n_total, n_ok) in outcomes.items()}
+            for key, outcomes in breakdown.items()
+        },
     )

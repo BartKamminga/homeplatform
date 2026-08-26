@@ -131,6 +131,41 @@ def _build_elements(matches: List[MatchFixture]) -> List[VariableElement]:
     ]
 
 
+def _describe_outcome(outcome: str, home_team: Optional[str], away_team: Optional[str]) -> str:
+    if outcome == "H":
+        return f"{home_team} wint"
+    if outcome == "A":
+        return f"{away_team} wint"
+    return "gelijkspel"
+
+
+def _describe_requirement(outcome: str, home_team: Optional[str], away_team: Optional[str]) -> str:
+    if outcome == "H":
+        return f"{home_team} moet winnen"
+    if outcome == "A":
+        return f"{away_team} moet winnen"
+    return f"{home_team} en {away_team} moeten gelijkspelen"
+
+
+def _outcome_hint(breakdown: Dict[str, Tuple[int, int]], home_team: Optional[str], away_team: Optional[str]) -> Optional[dict]:
+    """Vertaalt de generieke outcome_breakdown van 1 wedstrijd naar een
+    mens-leesbare hint: welke uitslag helpt (het meest), en of die zelfs
+    noodzakelijk is (elk scenario dat het doel haalt heeft die uitslag)."""
+    present = {outcome: (n_total, n_ok) for outcome, (n_total, n_ok) in breakdown.items() if n_total > 0}
+    if not present:
+        return None
+    rates = {outcome: n_ok / n_total for outcome, (n_total, n_ok) in present.items()}
+    best_outcome = max(rates, key=rates.get)
+    required = len(present) > 1 and rates[best_outcome] >= 0.999
+    return {
+        "recommended_outcome": best_outcome,
+        "recommended_rate": round(rates[best_outcome], 3),
+        "required": required,
+        "label": _describe_requirement(best_outcome, home_team, away_team) if required
+        else _describe_outcome(best_outcome, home_team, away_team),
+    }
+
+
 def _describe_examples(examples: List[Dict[str, str]], by_key: Dict[str, MatchFixture], name_by_team: Dict[int, str]) -> List[list]:
     return [
         [
@@ -179,11 +214,13 @@ def simulate_position(
     by_key = {
         f"match_{m.match_id if m.match_id is not None else i}": m for i, m in enumerate(pruned)
     }
-    pivotal = [
-        {"match_id": m.match_id, "round": m.round, "home_team": name_by_team.get(m.home_team_id),
-         "away_team": name_by_team.get(m.away_team_id)}
-        for m in pruned
-    ]
+    pivotal = []
+    for key, m in by_key.items():
+        home_name, away_name = name_by_team.get(m.home_team_id), name_by_team.get(m.away_team_id)
+        pivotal.append({
+            "match_id": m.match_id, "round": m.round, "home_team": home_name, "away_team": away_name,
+            "hint": _outcome_hint(result.outcome_breakdown.get(key, {}), home_name, away_name),
+        })
     if len(pruned) < len(remaining):
         caveats.append(
             f"{len(remaining) - len(pruned)} resterende wedstrijden hebben geen invloed op deze vraag en zijn genegeerd."
