@@ -129,6 +129,7 @@ def get_tournament_competition_standings(
                 "matches_played": mc["played"],
                 "standings": [
                     {
+                        "team_id":       r.team_id,
                         "team_name":     r.team_name,
                         "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
                         "pts":           r.points,
@@ -295,7 +296,7 @@ def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)
         "pool_name": poule.name,
         "ai_note":   poule.ai_note,
         "standings": [
-            {"team_name": r.team_name, "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
+            {"team_id": r.team_id, "team_name": r.team_name, "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
              "pts": r.points, "won": r.won,
              "drawn": r.drawn, "lost": r.lost, "gf": r.goals_for, "ga": r.goals_against,
              "ai_note": r.ai_note}

@@ -3,25 +3,36 @@ import { getCompetitionMatches } from './api.js'
 import { C, badgeStyle, pinButtonStyle, pinRailButtonStyle } from './constants.js'
 import { MatchModal } from './MatchModal.jsx'
 import { PouleCard } from './PouleCard.jsx'
+import { ScenarioModal } from './ScenarioModal.jsx'
 
 // ── Discovery poule table ─────────────────────────────────────────────────────
 
 export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) {
+  const [scenarioTeam, setScenarioTeam] = useState(null)
   const rows = (poule.standings || []).map(r => ({
-    id: r.team_name, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
+    id: r.team_name, team_id: r.team_id, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
     w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
   }))
 
   return (
-    <PouleCard
-      title={poule.name}
-      rows={rows}
-      club={club}
-      onOpen={onOpenMatches}
-      pinned={onPin ? isPinned : undefined}
-      onTogglePin={onPin}
-      note={poule.ai_note}
-    />
+    <>
+      {scenarioTeam && (
+        <ScenarioModal
+          pid={poule.id} teamId={scenarioTeam.team_id} teamName={scenarioTeam.name}
+          onClose={() => setScenarioTeam(null)}
+        />
+      )}
+      <PouleCard
+        title={poule.name}
+        rows={rows}
+        club={club}
+        onOpen={onOpenMatches}
+        onSelectTeam={setScenarioTeam}
+        pinned={onPin ? isPinned : undefined}
+        onTogglePin={onPin}
+        note={poule.ai_note}
+      />
+    </>
   )
 }
 

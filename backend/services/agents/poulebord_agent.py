@@ -8,6 +8,8 @@ Item 957 breidt dit uit met ai_note op poule- (HockeyPoule) en teamniveau
 (HockeyPouleStanding - team-binnen-een-poule, niet het globale HockeyTeam).
 Items 915/917 voegen een gap-finder en een publicatie-highlight toe."""
 
+from dataclasses import asdict
+
 from sqlmodel import col, select
 
 from models.hockey import HockeyPublication, HockeyPublicationComp
@@ -16,6 +18,7 @@ from models.hockey_discovery import (
 )
 from routers.hockey_query import get_tag_round_matches, get_tag_round_scorers, get_upcoming_matches
 from services.agents.common import NONE_POST_PROCESS
+from services.hockey_scenario import load_poule_inputs, simulate_position
 
 
 def ds_poule_standings(session, params):
@@ -79,6 +82,28 @@ def ds_ai_note_gaps(session, params):
         })
     rows.sort(key=lambda r: -r["played_matches"])
     return {"ai_note_gaps": rows[:20]}
+
+
+def ds_scenario_simulation(session, params):
+    """Item 963 - berekent (geen LLM) of een team gegarandeerd/onmogelijk/
+    afhankelijk op een gekozen eindpositie uitkomt, en welke resterende
+    wedstrijden daarbij pivotal zijn. Voedt de poulebord-agent zo met
+    deterministische feiten die de LLM alleen nog moet navertellen."""
+    poule_id = params.get("poule_id")
+    team_id = params.get("team_id")
+    target_position = params.get("target_position")
+    if not poule_id or not team_id or not target_position:
+        return {"note": "poule_id/team_id/target_position ontbreekt in de taak-params"}
+
+    standings, remaining = load_poule_inputs(session, int(poule_id))
+    try:
+        summary = simulate_position(
+            standings, remaining, team_id=int(team_id), target_position=int(target_position),
+            comparator=params.get("comparator", "lte"), method=params.get("method", "auto"),
+        )
+    except ValueError as e:
+        return {"note": str(e)}
+    return asdict(summary)
 
 
 def ds_publication_query_data(session, params):
@@ -157,6 +182,21 @@ AGENT = {
             "params": [],
             "desc": "Zichtbare publicatie-competities zonder ai_note, geprioriteerd op aantal gespeelde wedstrijden.",
             "fn": ds_ai_note_gaps,
+        },
+        "scenario_simulation": {
+            "label": "Eindpositie-scenario voor een team (item 963)",
+            "params": [
+                {"name": "poule_id", "type": "integer", "required": True,
+                 "desc": "hockey.nl poule id (hockey_poules.poule_id)"},
+                {"name": "team_id", "type": "integer", "required": True, "desc": "hockey.nl team id"},
+                {"name": "target_position", "type": "integer", "required": True,
+                 "desc": "Doelpositie (1 = kampioenschap)"},
+                {"name": "comparator", "type": "string", "required": False, "desc": "'lte' (standaard), 'eq', 'gte'"},
+                {"name": "method", "type": "string", "required": False, "desc": "'auto' (standaard), 'exact', 'monte_carlo'"},
+            ],
+            "desc": "Berekent of team X gegarandeerd/onmogelijk/afhankelijk op een gekozen eindpositie uitkomt, "
+                    "en welke resterende wedstrijden daarbij pivotal zijn.",
+            "fn": ds_scenario_simulation,
         },
         "publication_query_data": {
             "label": "Query-data voor publicatiehighlight (item 917)",

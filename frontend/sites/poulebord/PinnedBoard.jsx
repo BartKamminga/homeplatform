@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { C, pinRailButtonStyle } from './constants.js'
-import { useStandings, useTournamentStandings } from './hooks.js'
-import { MatchModal } from './MatchModal.jsx'
+import { useTournamentStandings } from './hooks.js'
 import { QueryCard } from './QueryCard.jsx'
-import { PouleCard } from './PouleCard.jsx'
 import { StandingsBody } from './TournixBrowseCards.jsx'
-import { getHockeyPouleMatches } from './api.js'
+import { PinnedCompetitionCard, PinnedBarePools } from './PinnedPoolSlot.jsx'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
 
@@ -19,98 +17,6 @@ export function EmptyBoard() {
         Pin een competitie of poule tijdens het bladeren om 'm hier terug te zien.
       </div>
     </div>
-  )
-}
-
-// ── Pinned pool slot (compact, board) ─────────────────────────────────────────
-// De kaart zelf toont geen publicatienaam meer (staat al op de omliggende
-// groep/kaart, item 682) - de wedstrijd-modal krijgt 'm nog wel mee als subtitel.
-
-function PinnedPoolSlot({ pin, club, onUnpin }) {
-  const standings = useStandings(pin.phaseId)
-  const isDisc    = pin.phaseId?.startsWith?.('disc_')
-  const poolRows  = standings
-    ? (isDisc ? standings : standings.filter(r => r.pool_name === pin.poolName))
-    : null
-  const [modal, setModal] = useState(false)
-  const [discMatches, setDiscMatches] = useState(null)
-
-  // item 895: gepinde discovery-poules toonden altijd 0 wedstrijden in de modal
-  useEffect(() => {
-    if (!modal || !isDisc || discMatches) return
-    const pid = parseInt(String(pin.phaseId).replace('disc_', ''), 10)
-    getHockeyPouleMatches(pid)
-      .then(data => setDiscMatches({
-        finished: (data.finished || []).map(m => ({
-          id: m.match_id, teamA: m.home, scoreA: m.home_score, scoreB: m.away_score, teamB: m.away,
-          date: m.date, round: m.round,
-        })),
-        scheduled: (data.scheduled || []).map(m => ({
-          id: m.match_id, teamA: m.home, teamB: m.away,
-          date: m.date, round: m.round,
-        })),
-      }))
-      .catch(() => setDiscMatches({ finished: [], scheduled: [] }))
-  }, [modal, isDisc, pin.phaseId, discMatches])
-
-  return (
-    <div style={{ marginBottom: 8 }}>
-      {modal && (
-        <MatchModal
-          title={pin.poolName}
-          subtitle={pin.tournamentName || ''}
-          rows={poolRows || []}
-          matchSource={!isDisc ? { phaseId: pin.phaseId, poolName: pin.poolName } : undefined}
-          matches={isDisc ? discMatches : undefined}
-          onClose={() => setModal(false)}
-        />
-      )}
-      {poolRows === null ? (
-        <div style={{ color: C.muted, fontSize: 11, padding: 8, textAlign: 'center' }}>Laden…</div>
-      ) : (
-        <PouleCard
-          title={pin.poolName}
-          rows={poolRows}
-          club={club}
-          onOpen={poolRows.length > 0 ? () => setModal(true) : undefined}
-          pinned={true}
-          onTogglePin={onUnpin}
-          note={isDisc ? poolRows.ai_note : undefined}
-        />
-      )}
-    </div>
-  )
-}
-
-// ── Pinned competitie (item 681: gepinde competitie als 1 kaart, geen losse
-// poule-kaarten) ───────────────────────────────────────────────────────────────
-
-function PinnedCompetitionCard({ compName, pins, club, onUnpin }) {
-  return (
-    <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
-      marginBottom: 10, overflow: 'hidden' }}>
-      <div style={{ padding: '10px 14px 2px', fontFamily: "'Bebas Neue', sans-serif",
-        fontSize: 14, letterSpacing: '0.05em', color: C.chalk }}>{compName}</div>
-      <div style={{ padding: '6px 12px 10px' }}>
-        {pins.map(p => (
-          <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
-            pin={p} club={club} onUnpin={() => onUnpin(p.phaseId, p.poolName)} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Losse gepinde poules zonder bekende competitie (bv. via zoeken gepind) ────
-
-function PinnedBarePools({ pins, club, onUnpin }) {
-  return (
-    <>
-      {pins.map(p => (
-        <PinnedPoolSlot key={`${p.phaseId}::${p.poolName}`}
-          pin={p} club={club} onUnpin={() => onUnpin(p.phaseId, p.poolName)} />
-      ))}
-    </>
   )
 }
 

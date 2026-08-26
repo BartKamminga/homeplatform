@@ -5,13 +5,18 @@ import { TeamName } from './RankRow.jsx'
 // (browse-kaart, board-kaart, wedstrijd-detail-modal). Alle stat-kolommen
 // (W/G/V/GV-GT/DS/Pt) staan altijd aan; compact toont alleen #/Team/Pt.
 // Instelbaarheid per kaart (welke kolommen tonen) volgt later (item 667).
-// rows: [{id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?, note?}]  (normalized format)
+// rows: [{id?, team_id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?, note?}]  (normalized format)
 // note: optionele AI-teamnotitie (item 957) - toont een 💬-icoon met tooltip
 // club: string for club-row highlighting
 // compact: show only #/Team/Pt without column headers
 // showLogos: toon clublogo voor teamnaam indien beschikbaar (default aan)
-export function PoolTable({ rows, club, compact = false, showLogos = true }) {
+// onSelectTeam: optionele fn(row) - maakt teamrij klikbaar (alleen rijen met
+// een team_id, dus alleen Discovery-poules; item 963-vervolg: scenario-widget)
+export function PoolTable({ rows, club, compact = false, showLogos = true, onSelectTeam }) {
   const isMyClub = name => club && name.toLowerCase().startsWith(club.toLowerCase())
+  const clickable = r => !!onSelectTeam && r.team_id != null
+  const nameCellStyle = r => (clickable(r) ? { cursor: 'pointer' } : undefined)
+  const handleSelect = r => { if (clickable(r)) onSelectTeam(r) }
 
   const pad  = { l: '5px 3px 5px 10px', m: '5px 3px', cell: '5px 6px', right: '5px 10px 5px 3px' }
   const fs   = 12
@@ -30,9 +35,10 @@ export function PoolTable({ rows, club, compact = false, showLogos = true }) {
                 background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.05)' : 'transparent',
               }}>
                 <td style={{ padding: '4px 3px 4px 8px', color: C.muted, fontSize: 10, width: 16 }}>{i + 1}</td>
-                <td style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
+                <td onClick={() => handleSelect(r)} style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
                   fontWeight: my || i === 0 ? 600 : 400,
-                  maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  ...nameCellStyle(r) }}>
                   <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} />
                 </td>
                 <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
@@ -69,9 +75,10 @@ export function PoolTable({ rows, club, compact = false, showLogos = true }) {
               background: my ? 'rgba(207,159,63,0.13)' : i === 0 ? 'rgba(207,159,63,0.07)' : 'transparent',
             }}>
               <td style={{ padding: pad.l, color: C.muted, fontSize: 11 }}>{i + 1}</td>
-              <td style={{ padding: pad.m, color: my ? C.goldBr : C.chalk,
+              <td onClick={() => handleSelect(r)} style={{ padding: pad.m, color: my ? C.goldBr : C.chalk,
                 fontWeight: my || i === 0 ? 600 : 400,
-                maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                ...nameCellStyle(r) }}>
                 <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} />
               </td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.w}</td>

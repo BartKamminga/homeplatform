@@ -16,11 +16,12 @@ import { PoolTable } from './PoolTable.jsx'
 //   club:       clubnaam voor rij-highlight
 //   density:    'full' | 'compact'
 //   onOpen:     fn — klik op titel opent wedstrijd-modal (optioneel)
+//   onSelectTeam: fn(row) — klik op een teamrij opent het scenario-widget (optioneel, item 963-vervolg)
 //   pinned:     bool — toont pin-status (optioneel, geen pin-knop als weggelaten)
 //   onTogglePin: fn
 //   note:       optioneel — AI-poulenotitie (item 957), toont een 💬-icoon met tooltip naast de titel
 export function PouleCard({
-  title, subtitle, tags, rows, club, density = 'full', onOpen, pinned, onTogglePin, note,
+  title, subtitle, tags, rows, club, density = 'full', onOpen, onSelectTeam, pinned, onTogglePin, note,
 }) {
   const [showLogos, setShowLogos] = useState(true)
   const compact = density === 'compact'
@@ -71,7 +72,7 @@ export function PouleCard({
           Nog geen stand
         </div>
       ) : (
-        <PoolTable rows={rows} club={club} compact={compact} showLogos={showLogos} />
+        <PoolTable rows={rows} club={club} compact={compact} showLogos={showLogos} onSelectTeam={onSelectTeam} />
       )}
     </div>
   )

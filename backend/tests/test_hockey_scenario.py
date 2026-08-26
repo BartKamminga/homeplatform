@@ -1,0 +1,121 @@
+"""Tests voor het poule-eindpositie-scenario (item 963)."""
+
+from sqlmodel import select
+
+from models.hockey_discovery import HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
+from services.hockey_scenario import load_poule_inputs, simulate_position
+from services.hockey_scenario_types import MatchFixture, TeamStat
+
+
+def _team(team_id, name, points, gf=0, ga=0):
+    return TeamStat(
+        team_id=team_id, team_name=name, played=0, won=0, drawn=0, lost=0,
+        goals_for=gf, goals_against=ga, points=points,
+    )
+
+
+def test_guaranteed_when_no_remaining_matches_can_close_the_gap():
+    standings = [_team(1, "A", 30), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=1, home_team_id=2, away_team_id=1)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    assert summary.verdict == "guaranteed"
+    assert summary.combinations_considered == 0
+
+
+def test_impossible_when_rival_already_out_of_reach():
+    standings = [_team(1, "A", 5), _team(2, "B", 40)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    assert summary.verdict == "impossible"
+
+
+def test_depends_and_examples_round_trip():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    assert summary.verdict == "depends"
+    assert summary.combinations_total == 3
+    assert summary.combinations_considered == 3
+    # A wint (H) -> A op 13, B op 10 -> A eerste
+    assert any(ex[0]["outcome"] == "H" for ex in summary.satisfying_examples)
+    # B wint (A) -> B op 13, A op 10 -> A tweede, dus geen satisfying example
+    assert any(ex[0]["outcome"] == "A" for ex in summary.failing_examples)
+    assert any("doelsaldo" in c.lower() for c in summary.caveats)
+
+
+def test_pruning_ignores_matches_between_locked_teams():
+    standings = [_team(1, "A", 10), _team(2, "B", 10), _team(3, "C", 0), _team(4, "D", 0)]
+    remaining = [
+        MatchFixture(match_id=1, home_team_id=1, away_team_id=2),  # relevant: A vs B
+        MatchFixture(match_id=2, home_team_id=3, away_team_id=4),  # irrelevant: C/D kunnen A niet meer inhalen
+    ]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    assert summary.combinations_total == 3  # alleen de A-B wedstrijd meegenomen
+    assert all(m["match_id"] != 2 for m in summary.pivotal_matches)
+    assert any("genegeerd" in c for c in summary.caveats)
+
+
+def test_monte_carlo_fallback_on_hockey_adapter():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=i, home_team_id=1, away_team_id=2) for i in range(1, 4)]  # 3^3 = 27 combos
+    summary = simulate_position(
+        standings, remaining, team_id=1, target_position=1,
+        max_combinations=5, sample_size=40,
+    )
+    assert summary.confidence == "sampled"
+    assert summary.combinations_total == 27
+    assert summary.combinations_considered == 40
+    assert any("steekproef" in c for c in summary.caveats)
+
+
+def test_load_poule_inputs_reads_standing_and_scheduled_matches(session):
+    session.add(HockeyPouleStanding(
+        poule_id=99, team_id=1, team_name="A", played=5, won=3, drawn=1, lost=1,
+        goals_for=10, goals_against=5, points=10,
+    ))
+    session.add(HockeyPouleStanding(
+        poule_id=99, team_id=2, team_name="B", played=5, won=2, drawn=1, lost=2,
+        goals_for=8, goals_against=6, points=7,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=99, match_id=501, home_team_id=1, away_team_id=2, status="finished",
+        home_score=2, away_score=1,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=99, match_id=502, home_team_id=2, away_team_id=1, status="scheduled",
+    ))
+    session.commit()
+
+    standings, remaining = load_poule_inputs(session, poule_id=99)
+
+    assert {s.team_id for s in standings} == {1, 2}
+    assert len(remaining) == 1
+    assert remaining[0].match_id == 502
+
+
+def test_simulate_endpoint_happy_path_and_errors(session, client):
+    session.add(HockeyPoule(poule_id=99, name="Test poule", competition_id=1, season="2025/2026"))
+    session.add(HockeyPouleStanding(poule_id=99, team_id=1, team_name="A", points=10))
+    session.add(HockeyPouleStanding(poule_id=99, team_id=2, team_name="B", points=5))
+    session.add(HockeyPouleMatch(poule_id=99, match_id=1, home_team_id=1, away_team_id=2, status="scheduled"))
+    session.commit()
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 99)).first()
+
+    res = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1},
+    )
+    assert res.status_code == 200
+    assert res.json()["verdict"] in ("guaranteed", "impossible", "depends")
+
+    res_404 = client.get(
+        "/api/hockey/public/hockey-poules/999999/simulate",
+        params={"team_id": 1, "target_position": 1},
+    )
+    assert res_404.status_code == 404
+
+    res_400 = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "type": "unknown"},
+    )
+    assert res_400.status_code == 400
