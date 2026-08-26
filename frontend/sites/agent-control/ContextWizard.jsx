@@ -102,10 +102,16 @@ export default function ContextWizard({ onClose, onCreated, onError, defaultAgen
           </div>
           <div style={s.field}>
             <label style={s.label}>Agent (domein)</label>
-            <select value={agentKey} onChange={e => setAgentKey(e.target.value)}>
-              {agents.map(a => <option key={a.agent_key} value={a.agent_key}>{a.name}</option>)}
-            </select>
-            <div style={s.hint}>Bepaalt welke databronnen en post-processen hierna te kiezen zijn — elke agent heeft zijn eigen, gesloten set.</div>
+            {defaultAgentKey ? (
+              <div>{agents.find(a => a.agent_key === defaultAgentKey)?.name || defaultAgentKey}</div>
+            ) : (
+              <>
+                <select value={agentKey} onChange={e => setAgentKey(e.target.value)}>
+                  {agents.map(a => <option key={a.agent_key} value={a.agent_key}>{a.name}</option>)}
+                </select>
+                <div style={s.hint}>Bepaalt welke databronnen en post-processen hierna te kiezen zijn — elke agent heeft zijn eigen, gesloten set.</div>
+              </>
+            )}
           </div>
           <div style={s.field}>
             <label style={s.label}>Key (uniek)</label>
