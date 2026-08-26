@@ -1388,18 +1388,31 @@ def sync_competition(
         for c in pending if c.cmd_type == "get_poule"
     }
 
+    # get_poule kan alleen via een team gescand worden (hockey.nl heeft geen
+    # poule-only route) - poules die nooit via een team ontdekt zijn (alleen via
+    # comp-detail-sync, item 945) hebben geen team_id en moeten worden overgeslagen
+    # i.p.v. een cmd te queuen die de vanger toch niet kan uitvoeren.
+    team_by_poule: dict = {}
+    for t in session.exec(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))).all():
+        if t.recent_poule_id and t.recent_poule_id not in team_by_poule:
+            team_by_poule[t.recent_poule_id] = t
+
     added = skipped = 0
     for p in poules:
         if p.poule_id in pending_ids:
             skipped += 1
-        else:
-            session.add(VangerCmd(
-                cmd_type="get_poule",
-                params=json.dumps({"poule_id": p.poule_id, "label": p.name}),
-                created_at=now,
-            ))
-            pending_ids.add(p.poule_id)
-            added += 1
+            continue
+        team = team_by_poule.get(p.poule_id)
+        if not team:
+            skipped += 1
+            continue
+        session.add(VangerCmd(
+            cmd_type="get_poule",
+            params=json.dumps({"poule_id": p.poule_id, "team_id": team.team_id, "label": p.name}),
+            created_at=now,
+        ))
+        pending_ids.add(p.poule_id)
+        added += 1
 
     session.commit()
     return {"added": added, "skipped": skipped}
