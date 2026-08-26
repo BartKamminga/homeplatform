@@ -14,10 +14,9 @@ export default function App() {
 
   return (
     <div style={s.shell}>
-      <div style={s.sidebar}>
-        <div style={{ ...s.sidebarTitle, cursor: 'pointer' }} onClick={() => selectAgent(null)}>Agent Control</div>
-        <div style={s.sidebarSub}>HomePlatform</div>
-        <div style={s.navItem(!selectedAgent)} onClick={() => selectAgent(null)}>Agents</div>
+      <div style={s.header}>
+        <span style={s.headerTitle} onClick={() => selectAgent(null)}>Agent Control</span>
+        <span style={s.headerSub}>HomePlatform</span>
       </div>
       <div style={s.main}>
         {error && <p style={{ color: 'var(--color-danger)' }}>{error}</p>}

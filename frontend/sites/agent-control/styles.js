@@ -1,25 +1,19 @@
 export const shell = {
-  display: 'flex', minHeight: '100vh',
+  display: 'flex', flexDirection: 'column', minHeight: '100vh',
 }
 
-export const sidebar = {
-  width: 200, flexShrink: 0, padding: '20px 14px',
-  background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)',
+// Compact topbalk i.p.v. het brede zijmenu (item 955) - sinds agent-eerst
+// navigatie (item 951) bevatte de sidebar alleen nog "Agents" als link en
+// stond verder leeg.
+export const header = {
+  display: 'flex', alignItems: 'baseline', gap: 8,
+  padding: '14px 24px', borderBottom: '1px solid var(--color-border)',
+  background: 'var(--color-surface)', flexShrink: 0,
 }
+export const headerTitle = { fontSize: 15, fontWeight: 600, cursor: 'pointer' }
+export const headerSub = { fontSize: 11, color: 'var(--color-text-light)' }
 
-export const sidebarTitle = { fontSize: 15, fontWeight: 600, marginBottom: 2 }
-export const sidebarSub = { fontSize: 11, color: 'var(--color-text-light)', marginBottom: 20 }
-
-export function navItem(active) {
-  return {
-    padding: '8px 10px', borderRadius: 'var(--radius-md)', fontSize: 13, cursor: 'pointer', marginBottom: 2,
-    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-    background: active ? 'var(--color-primary-light)' : 'transparent',
-    fontWeight: active ? 600 : 400,
-  }
-}
-
-export const main = { flex: 1, padding: '28px 36px', maxWidth: 980 }
+export const main = { flex: 1, padding: '28px 36px', maxWidth: 980, width: '100%', margin: '0 auto', boxSizing: 'border-box' }
 export const topbar = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }
 export const h2 = { fontSize: 20, margin: 0 }
 
