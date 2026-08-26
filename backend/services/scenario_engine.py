@@ -82,6 +82,63 @@ def sample_random(base_state: State, elements: Sequence[VariableElement], n: int
         yield _apply_all(base_state, elements, combo), dict(zip(keys, combo))
 
 
+@dataclass(frozen=True)
+class DistributionResult:
+    method_used: Literal["exact", "monte_carlo"]
+    combinations_total: int
+    combinations_considered: int
+    # waarde (bv. een eindpositie) -> in hoeveel beschouwde combo's die voorkwam
+    value_counts: Dict[Any, int]
+
+
+def run_distribution(
+    base_state: State,
+    elements: Sequence[VariableElement],
+    value_fn: Callable[[State], Any],
+    method: str = "auto",
+    *,
+    max_combinations: int = DEFAULT_MAX_COMBINATIONS,
+    sample_size: int = DEFAULT_SAMPLE_SIZE,
+    rng: Optional[random.Random] = None,
+) -> DistributionResult:
+    """Als run_scenario, maar voor een vraag met meerdere mogelijke uitkomsten
+    tegelijk (bv. "wat is de kans op elke eindpositie") in plaats van een
+    losse ja/nee-vraag - 1 enumeratie/steekproef in plaats van 1 per waarde."""
+    if method not in ("auto", "exact", "monte_carlo"):
+        raise ValueError(f"onbekende methode: {method}")
+
+    elements = list(elements)
+    total = combinations_count(elements)
+
+    if method == "exact" and total > max_combinations:
+        raise ValueError(
+            f"{total} combinaties overschrijdt max_combinations={max_combinations} voor method='exact' "
+            "- verhoog max_combinations of gebruik method='monte_carlo'/'auto'"
+        )
+    use_exact = method == "exact" or (method == "auto" and total <= max_combinations)
+
+    if use_exact:
+        source = enumerate_exact(base_state, elements)
+        method_used = "exact"
+    else:
+        source = sample_random(base_state, elements, sample_size, rng or random.Random())
+        method_used = "monte_carlo"
+
+    considered = 0
+    value_counts: Dict[Any, int] = {}
+    for state, _combo in source:
+        considered += 1
+        value = value_fn(state)
+        value_counts[value] = value_counts.get(value, 0) + 1
+
+    return DistributionResult(
+        method_used=method_used,
+        combinations_total=total,
+        combinations_considered=considered,
+        value_counts=value_counts,
+    )
+
+
 def run_scenario(
     spec: ScenarioSpec,
     method: str = "auto",

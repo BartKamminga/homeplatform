@@ -2,7 +2,7 @@
 SCENARIO_TYPE_REGISTRY; publieke, auth-loze conventie zoals hockey_public.py."""
 
 from dataclasses import asdict
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
@@ -30,7 +30,7 @@ def _parse_fixed(fixed: List[str]) -> dict:
 def simulate_poule_scenario(
     pid: int,
     team_id: int = Query(...),
-    target_position: int = Query(...),
+    target_position: Optional[int] = Query(None),
     scenario_type: str = Query("position", alias="type"),
     comparator: str = Query("lte"),
     method: str = Query("auto"),
@@ -44,6 +44,8 @@ def simulate_poule_scenario(
     scenario = SCENARIO_TYPE_REGISTRY.get(scenario_type)
     if not scenario:
         raise HTTPException(400, f"Onbekend simulatietype: {scenario_type}")
+    if scenario_type == "position" and target_position is None:
+        raise HTTPException(400, "target_position is verplicht voor type='position'")
     if comparator not in ("lte", "eq", "gte"):
         raise HTTPException(400, "comparator moet 'lte', 'eq' of 'gte' zijn")
     if method not in ("auto", "exact", "monte_carlo"):

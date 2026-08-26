@@ -17,9 +17,16 @@ export const getHockeyPouleStandings = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
 export const getHockeyPouleMatches = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
-export const getHockeyPouleSimulation = (pid, teamId, targetPosition, fixedOutcomes = {}) => {
-  const params = new URLSearchParams({ team_id: teamId, target_position: targetPosition })
+function withFixedOutcomes(params, fixedOutcomes = {}) {
   for (const [matchId, outcome] of Object.entries(fixedOutcomes)) params.append('fixed', `${matchId}:${outcome}`)
+  return params
+}
+export const getHockeyPouleSimulation = (pid, teamId, targetPosition, fixedOutcomes = {}) => {
+  const params = withFixedOutcomes(new URLSearchParams({ team_id: teamId, target_position: targetPosition }), fixedOutcomes)
+  return api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?${params.toString()}`)
+}
+export const getHockeyPoulePositionDistribution = (pid, teamId, fixedOutcomes = {}) => {
+  const params = withFixedOutcomes(new URLSearchParams({ team_id: teamId, type: 'position_distribution' }), fixedOutcomes)
   return api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?${params.toString()}`)
 }
 export const getCompetitionMatches = (cid) =>

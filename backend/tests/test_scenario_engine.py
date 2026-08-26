@@ -5,7 +5,7 @@ import random
 import pytest
 
 from services.scenario_engine import (
-    ScenarioSpec, VariableElement, combinations_count, run_scenario,
+    ScenarioSpec, VariableElement, combinations_count, run_distribution, run_scenario,
 )
 
 
@@ -62,3 +62,31 @@ def test_monte_carlo_explicit_method():
 def test_unknown_method_raises():
     with pytest.raises(ValueError):
         run_scenario(_make_two_element_spec(), method="quantum")
+
+
+def test_run_distribution_matches_hand_computed_truth_table():
+    def apply(state, outcome):
+        return {"score": state["score"] + (1 if outcome == "win" else 0)}
+
+    elements = [
+        VariableElement(key="a", outcomes=("win", "lose"), apply=apply),
+        VariableElement(key="b", outcomes=("win", "lose"), apply=apply),
+    ]
+    result = run_distribution({"score": 0}, elements, lambda s: s["score"], method="exact")
+    assert result.method_used == "exact"
+    assert result.combinations_total == 4
+    assert result.combinations_considered == 4
+    assert result.value_counts == {0: 1, 1: 2, 2: 1}
+
+
+def test_run_distribution_falls_back_to_monte_carlo():
+    def apply(state, outcome):
+        return {"score": state["score"] + (1 if outcome == "win" else 0)}
+
+    elements = [VariableElement(key=str(i), outcomes=("win", "lose"), apply=apply) for i in range(3)]
+    result = run_distribution(
+        {"score": 0}, elements, lambda s: s["score"],
+        method="auto", max_combinations=2, sample_size=100, rng=random.Random(1),
+    )
+    assert result.method_used == "monte_carlo"
+    assert sum(result.value_counts.values()) == 100

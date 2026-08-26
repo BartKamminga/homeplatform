@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { C } from './constants.js'
-import { useScenario } from './useScenario.js'
+import { useScenario, usePositionDistribution } from './useScenario.js'
 
 // Bottom-sheet modal voor het eindpositie-scenario van 1 team (item 963-
 // vervolg) - zelfde sjabloon als MatchModal.jsx. Toont het backend-verdict
@@ -49,6 +49,32 @@ function OutcomePills({ match, fixedOutcome, recommendedOutcome, onPick }) {
   )
 }
 
+// Balkjes met de kans op elke eindpositie tegelijk (item 963-vervolg) - geeft
+// in 1 oogopslag het hele beeld, los van de specifieke "Positie <= N"-vraag
+// hieronder (die blijft nuttig voor de doorslaggevende-wedstrijden-lijst).
+function PositionDistributionChart({ distribution }) {
+  if (!distribution) return null
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+        textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
+        Kans per eindpositie
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {Object.entries(distribution.position_probabilities).map(([position, p]) => (
+          <div key={position} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <span style={{ width: 14, color: C.muted, textAlign: 'right', flexShrink: 0 }}>{position}</span>
+            <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 4, height: 14, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round(p * 100)}%`, background: C.gold, height: '100%' }} />
+            </div>
+            <span style={{ width: 34, color: C.chalk, textAlign: 'right', flexShrink: 0 }}>{Math.round(p * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   const [targetPosition, setTargetPosition] = useState(1)
   const [fixed, setFixed] = useState({})           // { matchId: outcome }
@@ -59,6 +85,7 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   const [matchOrder, setMatchOrder] = useState([])
   const [matchInfo, setMatchInfo] = useState({})
   const { data, error } = useScenario(pid, teamId, targetPosition, fixed)
+  const { data: distribution } = usePositionDistribution(pid, teamId, fixed)
   const verdictInfo = data ? VERDICT_STYLE[data.verdict] : null
 
   useEffect(() => {
@@ -125,6 +152,8 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
         </div>
 
         <div style={{ padding: '14px 14px 32px' }}>
+          <PositionDistributionChart distribution={distribution} />
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <span style={{ fontSize: 12, color: C.muted }}>Positie ≤</span>
             <input

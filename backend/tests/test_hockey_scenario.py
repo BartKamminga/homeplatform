@@ -189,3 +189,18 @@ def test_simulate_endpoint_happy_path_and_errors(session, client):
         params={"team_id": 1, "target_position": 1, "fixed": "not-a-valid-value"},
     )
     assert res_bad_fixed.status_code == 400
+
+    res_distribution = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "type": "position_distribution"},
+    )
+    assert res_distribution.status_code == 200
+    body = res_distribution.json()
+    assert body["team_count"] == 2
+    assert abs(sum(body["position_probabilities"].values()) - 1.0) < 1e-9
+
+    res_missing_target = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1},  # type='position' (default) vereist target_position
+    )
+    assert res_missing_target.status_code == 400
