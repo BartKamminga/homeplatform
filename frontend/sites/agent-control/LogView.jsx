@@ -3,16 +3,16 @@ import { listAgents, getKnowledge, getRunLog } from './api.js'
 import * as s from './styles.js'
 import RunLogEntry from './RunLogEntry.jsx'
 
-export default function LogView({ onError }) {
+export default function LogView({ onError, lockedAgentKey }) {
   const [agents, setAgents] = useState(null)
-  const [agentKey, setAgentKey] = useState('')
+  const [agentKey, setAgentKey] = useState(lockedAgentKey || '')
   const [knowledge, setKnowledge] = useState(null)
   const [log, setLog] = useState(null)
 
   useEffect(() => {
     listAgents().then(items => {
       setAgents(items)
-      if (items.length > 0) setAgentKey(items[0].agent_key)
+      if (!lockedAgentKey && items.length > 0) setAgentKey(items[0].agent_key)
     }).catch(err => onError(err.message))
   }, [])
 
@@ -26,9 +26,11 @@ export default function LogView({ onError }) {
     <div>
       <div style={s.topbar}>
         <h2 style={s.h2}>Log</h2>
-        <select value={agentKey} onChange={e => setAgentKey(e.target.value)}>
-          {(agents || []).map(a => <option key={a.agent_key} value={a.agent_key}>{a.name}</option>)}
-        </select>
+        {!lockedAgentKey && (
+          <select value={agentKey} onChange={e => setAgentKey(e.target.value)}>
+            {(agents || []).map(a => <option key={a.agent_key} value={a.agent_key}>{a.name}</option>)}
+          </select>
+        )}
       </div>
 
       <div style={{ ...s.panel, marginBottom: 16 }}>

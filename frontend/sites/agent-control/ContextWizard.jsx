@@ -37,21 +37,24 @@ function SchemaTable({ title, rows, kind }) {
   )
 }
 
-export default function ContextWizard({ onClose, onCreated, onError }) {
+export default function ContextWizard({ onClose, onCreated, onError, defaultAgentKey }) {
   const [step, setStep] = useState(1)
   const [agents, setAgents] = useState([])
   const [registry, setRegistry] = useState(null)
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
   const [keyTouched, setKeyTouched] = useState(false)
-  const [agentKey, setAgentKey] = useState('')
+  const [agentKey, setAgentKey] = useState(defaultAgentKey || '')
   const [dataSourceKey, setDataSourceKey] = useState('')
   const [preRunInfo, setPreRunInfo] = useState('')
   const [postProcessKey, setPostProcessKey] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    listAgents().then(items => { setAgents(items); if (items.length > 0) setAgentKey(items[0].agent_key) })
+    listAgents().then(items => {
+      setAgents(items)
+      if (!defaultAgentKey && items.length > 0) setAgentKey(items[0].agent_key)
+    })
   }, [])
 
   useEffect(() => {

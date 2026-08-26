@@ -3,9 +3,9 @@ import { listAgents, listContexts, listTasks, addTask, getAgentRegistry, getRunL
 import * as s from './styles.js'
 import RunLogEntry from './RunLogEntry.jsx'
 
-export default function TasksView({ onError }) {
+export default function TasksView({ onError, lockedAgentKey }) {
   const [agents, setAgents] = useState(null)
-  const [agentKey, setAgentKey] = useState('')
+  const [agentKey, setAgentKey] = useState(lockedAgentKey || '')
   const [registry, setRegistry] = useState(null)
   const [contexts, setContexts] = useState([])
   const [tasks, setTasks] = useState(null)
@@ -19,7 +19,7 @@ export default function TasksView({ onError }) {
   useEffect(() => {
     listAgents().then(items => {
       setAgents(items)
-      if (items.length > 0) setAgentKey(items[0].agent_key)
+      if (!lockedAgentKey && items.length > 0) setAgentKey(items[0].agent_key)
     }).catch(err => onError(err.message))
   }, [])
 
@@ -62,12 +62,14 @@ export default function TasksView({ onError }) {
     <div>
       <div style={s.topbar}><h2 style={s.h2}>Opdrachten</h2></div>
       <div style={s.panel}>
-        <div style={s.field}>
-          <label style={s.label}>Agent</label>
-          <select value={agentKey} onChange={e => setAgentKey(e.target.value)}>
-            {(agents || []).map(a => <option key={a.agent_key} value={a.agent_key}>{a.name}</option>)}
-          </select>
-        </div>
+        {!lockedAgentKey && (
+          <div style={s.field}>
+            <label style={s.label}>Agent</label>
+            <select value={agentKey} onChange={e => setAgentKey(e.target.value)}>
+              {(agents || []).map(a => <option key={a.agent_key} value={a.agent_key}>{a.name}</option>)}
+            </select>
+          </div>
+        )}
         <div style={s.field}>
           <label style={s.label}>Context</label>
           <select value={contextKey} onChange={e => setContextKey(e.target.value)}>

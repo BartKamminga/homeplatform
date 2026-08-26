@@ -16,5 +16,6 @@ export const listTasks   = (agentKey) => api.get(`/api/agent-control/tasks?agent
 export const addTask     = (agentKey, instruction, contextKey, params) =>
   api.post('/api/agent-control/tasks', { agent_key: agentKey, instruction, context_key: contextKey || null, params: params || {} })
 
-export const getKnowledge = (agentKey) => api.get(`/api/agent-control/agents/${agentKey}/knowledge`)
+export const getKnowledge = (agentKey, contextKey) =>
+  api.get(`/api/agent-control/agents/${agentKey}/knowledge${contextKey ? `?context_key=${encodeURIComponent(contextKey)}` : ''}`)
 export const getRunLog    = (agentKey) => api.get(`/api/agent-control/agents/${agentKey}/log`)

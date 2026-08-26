@@ -519,15 +519,16 @@ def get_agent_context(
 @router.get("/agents/{agent_key}/knowledge")
 def get_agent_knowledge(
     agent_key: str,
+    context_key: Optional[str] = None,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    latest = session.exec(
-        select(AgentRunLog)
-        .where(AgentRunLog.agent_key == agent_key)
-        .order_by(col(AgentRunLog.created_at).desc())
-        .limit(1)
-    ).first()
+    """Kennis (laatste notes) van een agent - optioneel gescoped tot 1 context
+    (item 943), anders de laatste run ongeacht welke context 'm produceerde."""
+    q = select(AgentRunLog).where(AgentRunLog.agent_key == agent_key)
+    if context_key:
+        q = q.where(AgentRunLog.context_key == context_key)
+    latest = session.exec(q.order_by(col(AgentRunLog.created_at).desc()).limit(1)).first()
     return {"notes": latest.notes if latest else "", "updated_at": latest.created_at.isoformat() if latest else None}
 
 

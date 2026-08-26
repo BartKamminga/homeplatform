@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listAgents, listContexts, getAgentRegistry } from './api.js'
+import { listAgents, listContexts, getAgentRegistry, getKnowledge } from './api.js'
 import * as s from './styles.js'
 import Badge from '@components/Badge.jsx'
 import { BtnPrimary } from '@components/Modal.jsx'
@@ -9,6 +9,14 @@ import ContextEditModal from './ContextEditModal.jsx'
 function ContextDetail({ ctx, registry, onBack, onEdit }) {
   const dataSource = registry?.data_sources?.[ctx.data_source_key]
   const postProcess = registry?.post_processes?.[ctx.post_process_key]
+
+  // Kennis (laatste notes) specifiek van deze context - los van de kennis van
+  // andere contexten binnen dezelfde agent (item 943).
+  const [knowledge, setKnowledge] = useState(null)
+  useEffect(() => {
+    getKnowledge(ctx.agent_key, ctx.key).then(setKnowledge).catch(() => {})
+  }, [ctx.agent_key, ctx.key])
+
   return (
     <div>
       <div style={s.topbar}>
@@ -27,6 +35,15 @@ function ContextDetail({ ctx, registry, onBack, onEdit }) {
           <label style={s.label}>Opdracht (wat de agent vooraf te lezen krijgt en moet doen)</label>
           <textarea readOnly rows={5} value={ctx.pre_run_info} />
         </div>
+
+        {knowledge?.notes && (
+          <div style={s.field}>
+            <label style={s.label}>Kennis (notes van de laatste run van deze context, {new Date(knowledge.updated_at).toLocaleString('nl-NL')})</label>
+            <pre style={{ whiteSpace: 'pre-wrap', background: 'var(--color-surface-2)', padding: 10, borderRadius: 'var(--radius-md)', fontSize: 12, margin: 0 }}>
+              {knowledge.notes}
+            </pre>
+          </div>
+        )}
 
         <div style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 12 }}>
           <div style={{ ...s.label, marginBottom: 8 }}>DATABRON: {dataSource?.label || ctx.data_source_key}</div>
@@ -69,7 +86,7 @@ function ContextDetail({ ctx, registry, onBack, onEdit }) {
   )
 }
 
-export default function ContextsView({ onError }) {
+export default function ContextsView({ onError, lockedAgentKey }) {
   const [agents, setAgents] = useState([])
   const [contexts, setContexts] = useState(null)
   const [registries, setRegistries] = useState({})
@@ -112,6 +129,8 @@ export default function ContextsView({ onError }) {
     )
   }
 
+  const visibleContexts = lockedAgentKey ? (contexts || []).filter(c => c.agent_key === lockedAgentKey) : contexts
+
   return (
     <div>
       <div style={s.topbar}>
@@ -119,13 +138,13 @@ export default function ContextsView({ onError }) {
         <BtnPrimary onClick={() => setWizardOpen(true)}>+ Nieuwe context</BtnPrimary>
       </div>
       <div style={s.grid}>
-        {(contexts || []).map(c => {
+        {(visibleContexts || []).map(c => {
           const reg = registries[c.agent_key]
           const postProcess = reg?.post_processes?.[c.post_process_key]
           return (
             <div key={c.key} style={s.card} onClick={() => setSelected(c)}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{c.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-light)', marginBottom: 10 }}>agent: {reg?.label || c.agent_key}</div>
+              {!lockedAgentKey && <div style={{ fontSize: 11, color: 'var(--color-text-light)', marginBottom: 10 }}>agent: {reg?.label || c.agent_key}</div>}
               <Badge label={postProcess?.label || c.post_process_key} variant="primary" />
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 10, maxHeight: 54, overflow: 'hidden' }}>
                 {c.pre_run_info}
@@ -141,6 +160,7 @@ export default function ContextsView({ onError }) {
           onClose={() => setWizardOpen(false)}
           onError={onError}
           onCreated={() => { setWizardOpen(false); refresh() }}
+          defaultAgentKey={lockedAgentKey}
         />
       )}
     </div>
