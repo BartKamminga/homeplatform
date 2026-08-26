@@ -16,7 +16,7 @@ from sqlmodel import Session, col, select
 
 from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
-    HockeyClub, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
+    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
@@ -192,6 +192,49 @@ def _step_club_scan(session: Session, now: datetime, cap: int) -> int:
     return added
 
 
+def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> int:
+    """Competities met een bekend hl_comp_id (landelijke top-/subtopklasses) in 1x
+    via get_competition_detail scannen i.p.v. per poule - die poules zijn alleen
+    via de comp-detail-sync ontdekt en hebben dus geen team_id (item 945), dus
+    _step_new_or_empty_poules/_step_active_profiles slaan ze altijd stil over."""
+    hours = _get_int_setting(session, "landelijke_comp_scan_hours", 12)
+    cutoff = now - timedelta(hours=hours)
+
+    comps = session.exec(
+        select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))
+    ).all()
+    if not comps:
+        return 0
+
+    pending = session.exec(
+        select(VangerCmd)
+        .where(VangerCmd.cmd_type == "get_competition_detail")
+        .where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+    ).all()
+    queued_comp_ids = {json.loads(c.params).get("comp_id") for c in pending}
+
+    added = 0
+    for comp in comps:
+        if added >= cap:
+            break
+        if comp.hl_comp_id in queued_comp_ids:
+            continue
+        poules = session.exec(
+            select(HockeyPoule).where(HockeyPoule.competition_id == comp.id)
+        ).all()
+        due = not poules or any(p.last_scanned_at is None or p.last_scanned_at < cutoff for p in poules)
+        if not due:
+            continue
+        session.add(VangerCmd(
+            cmd_type="get_competition_detail",
+            params=json.dumps({"comp_id": comp.hl_comp_id, "label": comp.name}),
+            status="pending",
+        ))
+        queued_comp_ids.add(comp.hl_comp_id)
+        added += 1
+    return added
+
+
 def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
@@ -276,6 +319,7 @@ def run_scan_plan_pass(session: Session) -> dict:
         "club_list":         _step_club_list(session, now),
         "new_empty_poules":  _step_new_or_empty_poules(session, target_season, STEP_MAX_CMDS),
         "club_scan":         _step_club_scan(session, now, STEP_MAX_CMDS),
+        "landelijke_comps":  _step_landelijke_competitions(session, now, STEP_MAX_CMDS),
         "active_profiles":   _step_active_profiles(session, now, STEP_MAX_CMDS),
     }
     added = sum(steps.values())

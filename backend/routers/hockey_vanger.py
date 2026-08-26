@@ -1365,6 +1365,14 @@ def sync_competition(
     comp = session.get(HockeyCompetition, cid)
     if not comp:
         raise HTTPException(404, "Competitie niet gevonden")
+
+    if comp.hl_comp_id:
+        # Landelijke competitie met bekend comp_id: 1 comp-scan haalt alle poules
+        # in 1x op. Losse get_poule-cmds hebben hier geen team_id (item 945) - die
+        # poules zijn nooit via een team ontdekt, alleen via de comp-detail-sync.
+        result = add_vanger_cmd(session, "get_competition_detail", {"comp_id": comp.hl_comp_id, "label": comp.name})
+        return {"added": 1 if result["added"] else 0, "skipped": 0 if result["added"] else 1}
+
     poules = session.exec(
         select(HockeyPoule).where(HockeyPoule.competition_id == cid)
     ).all()

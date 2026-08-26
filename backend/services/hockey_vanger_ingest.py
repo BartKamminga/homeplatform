@@ -467,11 +467,13 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                 poule_row.name = poule_name
                 poule_row.competition_id = comp_row.id
                 poule_row.updated_at = now
+                poule_row.last_scanned_at = now
                 session.add(poule_row)
             else:
                 session.add(HockeyPoule(
                     poule_id=poule_id, name=poule_name, competition_id=comp_row.id,
                     season=season or "onbekend", discovered_at=now, updated_at=now,
+                    last_scanned_at=now,
                 ))
 
         standings = poule_data.get("standings") or []
