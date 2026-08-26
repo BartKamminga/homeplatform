@@ -81,6 +81,9 @@ export default function Users() {
   }
 
   const columns = [
+    { key: 'id', label: 'ID', render: v => (
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-muted)' }} title={v}>{v}</span>
+    )},
     { key: 'username', label: 'Gebruikersnaam' },
     { key: 'email',    label: 'Email' },
     { key: 'groups',   label: 'Groepen', render: v => v.map(g => (

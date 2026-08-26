@@ -50,6 +50,12 @@ export default function Monitoring() {
             placeholder="Stel EXTERNAL_URL in .env in"
           />
           <LinkCard
+            icon="🌍"
+            title="mijndomein.nl"
+            description="Domeinregistrar — hier staat het webheaven.nl-domein geregistreerd. DNS, verlenging en factuurbeheer."
+            href="https://www.mijndomein.nl/"
+          />
+          <LinkCard
             icon="🐛"
             title="Bugsink"
             description="Fout- en crash-monitoring. Sentry-compatible drop-in, draait op de G4."
