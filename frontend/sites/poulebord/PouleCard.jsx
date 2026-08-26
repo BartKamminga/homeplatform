@@ -18,8 +18,9 @@ import { PoolTable } from './PoolTable.jsx'
 //   onOpen:     fn — klik op titel opent wedstrijd-modal (optioneel)
 //   pinned:     bool — toont pin-status (optioneel, geen pin-knop als weggelaten)
 //   onTogglePin: fn
+//   note:       optioneel — AI-poulenotitie (item 957), toont een 💬-icoon met tooltip naast de titel
 export function PouleCard({
-  title, subtitle, tags, rows, club, density = 'full', onOpen, pinned, onTogglePin,
+  title, subtitle, tags, rows, club, density = 'full', onOpen, pinned, onTogglePin, note,
 }) {
   const [showLogos, setShowLogos] = useState(true)
   const compact = density === 'compact'
@@ -41,6 +42,9 @@ export function PouleCard({
           }}>
           {title}{clickable && <span style={{ color: C.muted, fontSize: 9 }}> ›</span>}
         </button>
+        {note && (
+          <span title={note} style={{ fontSize: 11, cursor: 'help', opacity: 0.75, flexShrink: 0 }}>💬</span>
+        )}
         {subtitle && (
           <span style={{ color: C.muted, fontWeight: 400, fontSize: 10, whiteSpace: 'nowrap',
             flexShrink: 0, maxWidth: '40%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</span>

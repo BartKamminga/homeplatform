@@ -5,7 +5,8 @@ import { TeamName } from './RankRow.jsx'
 // (browse-kaart, board-kaart, wedstrijd-detail-modal). Alle stat-kolommen
 // (W/G/V/GV-GT/DS/Pt) staan altijd aan; compact toont alleen #/Team/Pt.
 // Instelbaarheid per kaart (welke kolommen tonen) volgt later (item 667).
-// rows: [{id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?}]  (normalized format)
+// rows: [{id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?, note?}]  (normalized format)
+// note: optionele AI-teamnotitie (item 957) - toont een 💬-icoon met tooltip
 // club: string for club-row highlighting
 // compact: show only #/Team/Pt without column headers
 // showLogos: toon clublogo voor teamnaam indien beschikbaar (default aan)
@@ -32,7 +33,7 @@ export function PoolTable({ rows, club, compact = false, showLogos = true }) {
                 <td style={{ padding: '4px 3px', color: my ? C.goldBr : C.chalk,
                   fontWeight: my || i === 0 ? 600 : 400,
                   maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} />
+                  <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} />
                 </td>
                 <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
                   color: C.goldBr, fontWeight: 700, fontSize: 12, width: 26 }}>{r.pts}</td>
@@ -71,7 +72,7 @@ export function PoolTable({ rows, club, compact = false, showLogos = true }) {
               <td style={{ padding: pad.m, color: my ? C.goldBr : C.chalk,
                 fontWeight: my || i === 0 ? 600 : 400,
                 maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} />
+                <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} />
               </td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.w}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.d}</td>

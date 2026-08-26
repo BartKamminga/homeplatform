@@ -75,6 +75,7 @@ function PinnedPoolSlot({ pin, club, onUnpin }) {
           onOpen={poolRows.length > 0 ? () => setModal(true) : undefined}
           pinned={true}
           onTogglePin={onUnpin}
+          note={isDisc ? poolRows.ai_note : undefined}
         />
       )}
     </div>

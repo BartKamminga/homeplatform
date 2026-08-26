@@ -5,7 +5,7 @@ import { C } from './constants.js'
 // (TeamRows/ClubRankingRows, flex-rij). Kleinschalige eerste stap richting de
 // bredere Familie A/B-kaartunificatie (item 675/679), die apart wordt gepland.
 
-export function TeamName({ name, logoUrl, showLogos, highlighted }) {
+export function TeamName({ name, logoUrl, showLogos, highlighted, note }) {
   return (
     <>
       {showLogos && logoUrl && (
@@ -16,6 +16,7 @@ export function TeamName({ name, logoUrl, showLogos, highlighted }) {
       )}
       {highlighted && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
       {name}
+      {note && <span title={note} style={{ marginLeft: 4, fontSize: 10, cursor: 'help', opacity: 0.75 }}>💬</span>}
     </>
   )
 }

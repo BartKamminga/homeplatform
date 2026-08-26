@@ -9,7 +9,7 @@ import { PouleCard } from './PouleCard.jsx'
 export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) {
   const rows = (poule.standings || []).map(r => ({
     id: r.team_name, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
-    w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
+    w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
   }))
 
   return (
@@ -20,6 +20,7 @@ export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) 
       onOpen={onOpenMatches}
       pinned={onPin ? isPinned : undefined}
       onTogglePin={onPin}
+      note={poule.ai_note}
     />
   )
 }
