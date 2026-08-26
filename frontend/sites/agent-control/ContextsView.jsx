@@ -3,6 +3,7 @@ import { listAgents, listContexts, getAgentRegistry, getKnowledge, deleteContext
 import * as s from './styles.js'
 import Badge from '@components/Badge.jsx'
 import { BtnPrimary } from '@components/Modal.jsx'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 import ContextWizard from './ContextWizard.jsx'
 import ContextEditModal from './ContextEditModal.jsx'
 
@@ -17,13 +18,19 @@ function ContextDetail({ ctx, registry, onBack, onEdit, onDelete }) {
     getKnowledge(ctx.agent_key, ctx.key).then(setKnowledge).catch(() => {})
   }, [ctx.agent_key, ctx.key])
 
+  const [confirm, confirmDialog] = useConfirm()
+  async function handleDeleteClick() {
+    if (await confirm(`Context "${ctx.name}" weggooien?`)) onDelete()
+  }
+
   return (
     <div>
+      {confirmDialog}
       <div style={s.topbar}>
         <h2 style={s.h2}>{ctx.name}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onEdit}>Bewerken</button>
-          <button onClick={() => { if (confirm(`Context "${ctx.name}" weggooien?`)) onDelete() }}>Weggooien</button>
+          <button onClick={handleDeleteClick}>Weggooien</button>
           <button onClick={onBack}>← Terug</button>
         </div>
       </div>
