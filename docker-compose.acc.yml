@@ -40,6 +40,7 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
       - NAS_URL=${NAS_URL:-}
       - EXTERNAL_URL=${EXTERNAL_URL:-}
+      - WORKER_POLL_IDLE_SEC=300
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

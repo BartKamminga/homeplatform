@@ -11,10 +11,12 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func as sqla_func
 from sqlmodel import Session, col, select
 
 from core.auth import get_current_user, require_admin
 from core.database import get_session
+from core.settings import settings
 from models.agent_control import AgentContext, AgentNotification, AgentRunLog, AgentTask
 from models.core import User
 from models.settings import AppSetting
@@ -90,6 +92,13 @@ def list_agents(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
+    # item 961: pending-telling per agent in 1 query, i.p.v. N+1 aanroepen.
+    pending_counts = dict(session.exec(
+        select(AgentTask.agent_key, sqla_func.count(col(AgentTask.id)))
+        .where(AgentTask.status == "pending")
+        .group_by(AgentTask.agent_key)
+    ).all())
+
     result = []
     for agent_key, agent in AGENT_REGISTRY.items():
         status_row = session.get(AppSetting, f"agent_status:{agent_key}")
@@ -99,6 +108,11 @@ def list_agents(
             "name":      agent["label"],
             "enabled":   enabled_row.value != "0" if enabled_row else True,
             "status":    json.loads(status_row.value) if status_row and status_row.value else None,
+            "pending_tasks_count": pending_counts.get(agent_key, 0),
+            # item 962: er is geen echte per-agent schedule - de worker verwerkt elke
+            # ronde alle enabled agents met 1 vast poll-interval. "Volgende run" is dus
+            # een schatting: laatste heartbeat + dit interval, niet een harde garantie.
+            "poll_interval_sec": settings.WORKER_POLL_IDLE_SEC,
         })
     return result
 

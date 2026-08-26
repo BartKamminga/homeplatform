@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     FIETS_LAT: float = 51.9244  # MVP: vaste locatie (Rotterdam) — later instelbaar (roadmap-item)
     FIETS_LON: float = 4.4777
     FIETS_LOCATION_LABEL: str = "Rotterdam"
+    WORKER_POLL_IDLE_SEC: int = 300  # zelfde interval als agent_worker (item 962) - alleen voor de "volgende run"-schatting
 
     @property
     def is_dev(self) -> bool:

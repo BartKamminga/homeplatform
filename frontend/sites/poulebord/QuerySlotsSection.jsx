@@ -6,10 +6,12 @@ import { QueryCard } from './QueryCard.jsx'
 // niet gespeeld is, met kans op verwarrend identiek ogende kaarten omdat de
 // stat per kaart vrij instelbaar is. Kunnen terugkomen zodra er wedstrijden
 // gespeeld zijn - de templates/endpoints zelf blijven gewoon bestaan.
+// club_ranking is bewust weggehaald uit de standaard-slots (item 960) - de
+// template/endpoint blijft bestaan zodat al gepinde clubranglijst-kaarten
+// (localStorage pb_query_pins) niet stuk gaan.
 const QUERY_SLOTS = [
   { template: 'ranking',          stat: 'points' },
   { template: 'upcoming_matches', stat: '' },
-  { template: 'club_ranking',     stat: '' },
 ]
 
 // De 5 canonieke query-kaarten voor een publicatie(+tag), altijd zichtbaar onder
