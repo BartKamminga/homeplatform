@@ -1,11 +1,12 @@
 import { C } from './constants.js'
+import { OnFireBadge } from './OnFireBadge.jsx'
 
 // item 689: gedeelde bouwstenen voor "rang + logo + naam + waarde"-rijen,
 // eerder apart uitgeschreven in PoolTable.jsx (tabelrij) en QueryCard.jsx
 // (TeamRows/ClubRankingRows, flex-rij). Kleinschalige eerste stap richting de
 // bredere Familie A/B-kaartunificatie (item 675/679), die apart wordt gepland.
 
-export function TeamName({ name, logoUrl, showLogos, highlighted, note }) {
+export function TeamName({ name, logoUrl, showLogos, highlighted, note, streak }) {
   return (
     <>
       {showLogos && logoUrl && (
@@ -17,6 +18,7 @@ export function TeamName({ name, logoUrl, showLogos, highlighted, note }) {
       {highlighted && <span style={{ marginRight: 3, fontSize: 8 }}>▶</span>}
       {name}
       {note && <span title={note} style={{ marginLeft: 4, fontSize: 10, cursor: 'help', opacity: 0.75 }}>💬</span>}
+      <OnFireBadge streak={streak} />
     </>
   )
 }

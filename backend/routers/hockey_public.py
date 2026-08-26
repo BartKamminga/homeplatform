@@ -14,6 +14,7 @@ from models.hockey_discovery import (
     HockeyTeam,
 )
 from models.hockey import HockeyPublicationTagCategory
+from services.hockey_query_scope import compute_win_streaks
 from services.hockey_scope import get_comp_link_tags, get_visible_comp_links
 from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
@@ -71,6 +72,7 @@ def get_tournament_competition_standings(
             .order_by(HockeyPoule.name)
         ).all()
         match_counts: dict = {}
+        streaks: dict = {}
         if poules:
             ext_ids = [p.poule_id for p in poules]
             for m in session.exec(
@@ -80,6 +82,7 @@ def get_tournament_competition_standings(
                 mc["total"] += 1
                 if m.status == "finished":
                     mc["played"] += 1
+            streaks = compute_win_streaks(session, ext_ids)
 
         comp_entry = {
             "link_id":     lnk.id,
@@ -139,6 +142,7 @@ def get_tournament_competition_standings(
                         "lost":          r.lost,
                         "gf":            r.goals_for,
                         "ga":            r.goals_against,
+                        "streak":        streaks.get((poule.poule_id, r.team_id), 0),
                         "ai_note":       r.ai_note,
                     }
                     for r in rows
@@ -292,13 +296,15 @@ def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)
         .order_by(HockeyPouleStanding.position, HockeyPouleStanding.points.desc())  # type: ignore[attr-defined]
     ).all()
     teams, clubs = resolve_team_clubs(session, [r.team_id for r in rows])
+    streaks = compute_win_streaks(session, [poule.poule_id])
     return {
         "pool_name": poule.name,
         "ai_note":   poule.ai_note,
         "standings": [
             {"team_id": r.team_id, "team_name": r.team_name, "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
-             "pts": r.points, "won": r.won,
+             "pts": r.points, "played": r.played, "won": r.won,
              "drawn": r.drawn, "lost": r.lost, "gf": r.goals_for, "ga": r.goals_against,
+             "streak": streaks.get((poule.poule_id, r.team_id), 0),
              "ai_note": r.ai_note}
             for r in rows
         ],

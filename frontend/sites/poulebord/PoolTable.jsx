@@ -3,9 +3,9 @@ import { TeamName } from './RankRow.jsx'
 
 // Unified pool standings table — zelfde opmaak en kolommen in elke context
 // (browse-kaart, board-kaart, wedstrijd-detail-modal). Alle stat-kolommen
-// (W/G/V/GV-GT/DS/Pt) staan altijd aan; compact toont alleen #/Team/Pt.
+// (P/W/G/V/GV-GT/DS/Pt) staan altijd aan; compact toont alleen #/Team/Pt.
 // Instelbaarheid per kaart (welke kolommen tonen) volgt later (item 667).
-// rows: [{id?, team_id?, name, pts, w?, d?, l?, gf?, ga?, club_logo_url?, note?}]  (normalized format)
+// rows: [{id?, team_id?, name, pts, played?, w?, d?, l?, gf?, ga?, club_logo_url?, note?}]  (normalized format)
 // note: optionele AI-teamnotitie (item 957) - toont een 💬-icoon met tooltip
 // club: string for club-row highlighting
 // compact: show only #/Team/Pt without column headers
@@ -39,7 +39,7 @@ export function PoolTable({ rows, club, compact = false, showLogos = true, onSel
                   fontWeight: my || i === 0 ? 600 : 400,
                   maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   ...nameCellStyle(r) }}>
-                  <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} />
+                  <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} streak={r.streak} />
                 </td>
                 <td style={{ padding: '4px 8px 4px 3px', textAlign: 'center',
                   color: C.goldBr, fontWeight: 700, fontSize: 12, width: 26 }}>{r.pts}</td>
@@ -57,6 +57,7 @@ export function PoolTable({ rows, club, compact = false, showLogos = true, onSel
         <tr style={{ color: C.muted, fontSize: hfs }}>
           <th style={{ padding: hpad.l, textAlign: 'left', fontWeight: 500, width: 18 }}>#</th>
           <th style={{ padding: hpad.m, textAlign: 'left', fontWeight: 500 }}>Team</th>
+          <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>P</th>
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>W</th>
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>G</th>
           <th style={{ padding: hpad.cell, textAlign: 'center', fontWeight: 500, width: 24 }}>V</th>
@@ -79,8 +80,9 @@ export function PoolTable({ rows, club, compact = false, showLogos = true, onSel
                 fontWeight: my || i === 0 ? 600 : 400,
                 maxWidth: 0, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 ...nameCellStyle(r) }}>
-                <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} />
+                <TeamName name={r.name} logoUrl={r.club_logo_url} showLogos={showLogos} highlighted={my} note={r.note} streak={r.streak} />
               </td>
+              <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.played}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.w}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.d}</td>
               <td style={{ padding: pad.cell, textAlign: 'center', color: C.muted }}>{r.l}</td>

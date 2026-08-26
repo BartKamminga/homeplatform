@@ -50,7 +50,7 @@ export function useStandings(phaseId) {
         .then(d => {
           const rows = (d.standings || []).map((r, i) => ({
             id: i, team_id: r.team_id, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
-            w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
+            played: r.played, streak: r.streak, w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
           }))
           rows.ai_note = d.ai_note  // poule-niveau notitie (item 957) - meegelift op de array, zie PinnedBoard.jsx
           _standingsCache[phaseId] = { rows, ts: Date.now() }

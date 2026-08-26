@@ -11,7 +11,7 @@ export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) 
   const [scenarioTeam, setScenarioTeam] = useState(null)
   const rows = (poule.standings || []).map(r => ({
     id: r.team_name, team_id: r.team_id, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
-    w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
+    played: r.played, streak: r.streak, w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
   }))
 
   return (
@@ -153,7 +153,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
   const modalRows = matchesPoule
     ? (matchesPoule.standings || []).map(r => ({
         id: r.team_name, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
-        w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
+        played: r.played, streak: r.streak, w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga,
       }))
     : []
 
