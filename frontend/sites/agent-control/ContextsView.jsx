@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { listAgents, listContexts, getAgentRegistry, getKnowledge } from './api.js'
+import { listAgents, listContexts, getAgentRegistry, getKnowledge, deleteContext } from './api.js'
 import * as s from './styles.js'
 import Badge from '@components/Badge.jsx'
 import { BtnPrimary } from '@components/Modal.jsx'
 import ContextWizard from './ContextWizard.jsx'
 import ContextEditModal from './ContextEditModal.jsx'
 
-function ContextDetail({ ctx, registry, onBack, onEdit }) {
+function ContextDetail({ ctx, registry, onBack, onEdit, onDelete }) {
   const dataSource = registry?.data_sources?.[ctx.data_source_key]
   const postProcess = registry?.post_processes?.[ctx.post_process_key]
 
@@ -23,6 +23,7 @@ function ContextDetail({ ctx, registry, onBack, onEdit }) {
         <h2 style={s.h2}>{ctx.name}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onEdit}>Bewerken</button>
+          <button onClick={() => { if (confirm(`Context "${ctx.name}" weggooien?`)) onDelete() }}>Weggooien</button>
           <button onClick={onBack}>← Terug</button>
         </div>
       </div>
@@ -108,6 +109,10 @@ export default function ContextsView({ onError, lockedAgentKey }) {
 
   useEffect(refresh, [])
 
+  function handleDelete(key) {
+    deleteContext(key).then(() => { setSelected(null); refresh() }).catch(err => onError(err.message))
+  }
+
   if (selected) {
     return (
       <>
@@ -116,6 +121,7 @@ export default function ContextsView({ onError, lockedAgentKey }) {
           registry={registries[selected.agent_key]}
           onBack={() => setSelected(null)}
           onEdit={() => setEditing(true)}
+          onDelete={() => handleDelete(selected.key)}
         />
         {editing && (
           <ContextEditModal

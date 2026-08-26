@@ -222,6 +222,23 @@ def update_context(
     return {"ok": True}
 
 
+@router.delete("/contexts/{key}")
+def delete_context(
+    key: str,
+    session: Session = Depends(get_session),
+    _=Depends(require_admin),
+):
+    """Context weggooien (item 952) - historische taken/runlogs blijven staan
+    (context_key is puur een string-referentie, geen FK), alleen de definitie
+    zelf verdwijnt."""
+    c = session.get(AgentContext, key)
+    if not c:
+        raise HTTPException(status_code=404, detail="Niet gevonden")
+    session.delete(c)
+    session.commit()
+    return {"ok": True}
+
+
 # ── Notificaties ─────────────────────────────────────────────────
 
 class NotificationIn(BaseModel):

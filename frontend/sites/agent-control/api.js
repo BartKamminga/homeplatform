@@ -8,6 +8,7 @@ export const getAgentRegistry = (agentKey) => api.get(`/api/agent-control/agents
 export const listContexts   = (agentKey) => api.get(`/api/agent-control/contexts${agentKey ? `?agent_key=${encodeURIComponent(agentKey)}` : ''}`)
 export const createContext  = (body) => api.post('/api/agent-control/contexts', body)
 export const updateContext  = (key, body) => api.patch(`/api/agent-control/contexts/${key}`, body)
+export const deleteContext  = (key) => api.delete(`/api/agent-control/contexts/${key}`)
 
 export const listNotifications = () => api.get('/api/agent-control/notifications')
 export const markNotificationRead = (id) => api.post(`/api/agent-control/notifications/${id}/read`, {})

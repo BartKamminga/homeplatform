@@ -8,6 +8,9 @@ export default function LogView({ onError, lockedAgentKey }) {
   const [agentKey, setAgentKey] = useState(lockedAgentKey || '')
   const [knowledge, setKnowledge] = useState(null)
   const [log, setLog] = useState(null)
+  // Ook binnen 1 agent kunnen meerdere contexten door elkaar lopen in de
+  // runs-lijst - extra laag filtering bovenop de agent-filter (item 953).
+  const [contextFilter, setContextFilter] = useState('')
 
   useEffect(() => {
     listAgents().then(items => {
@@ -18,9 +21,13 @@ export default function LogView({ onError, lockedAgentKey }) {
 
   useEffect(() => {
     if (!agentKey) return
+    setContextFilter('')
     getKnowledge(agentKey).then(setKnowledge).catch(() => {})
     getRunLog(agentKey).then(setLog).catch(() => {})
   }, [agentKey])
+
+  const contextKeys = [...new Set((log || []).map(l => l.context_key).filter(Boolean))]
+  const visibleLog = contextFilter ? (log || []).filter(l => l.context_key === contextFilter) : log
 
   return (
     <div>
@@ -41,8 +48,16 @@ export default function LogView({ onError, lockedAgentKey }) {
       </div>
 
       <div style={s.panel}>
-        <div style={{ ...s.label, marginBottom: 8 }}>RUNS (input, output, afhandeling)</div>
-        {(log || []).map(entry => (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={s.label}>RUNS (input, output, afhandeling)</div>
+          {contextKeys.length > 0 && (
+            <select value={contextFilter} onChange={e => setContextFilter(e.target.value)} style={{ fontSize: 12 }}>
+              <option value="">Alle contexten</option>
+              {contextKeys.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          )}
+        </div>
+        {(visibleLog || []).map(entry => (
           <details key={entry.id} style={{ fontSize: 12, borderBottom: '1px solid var(--color-border)', padding: '6px 0' }}>
             <summary style={{ cursor: 'pointer' }}>
               {entry.created_at} — {entry.context_key || 'routine'}{entry.task_id && ` (taak ${entry.task_id})`}
@@ -50,7 +65,7 @@ export default function LogView({ onError, lockedAgentKey }) {
             <RunLogEntry entry={entry} />
           </details>
         ))}
-        {log && log.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>Nog geen runs.</p>}
+        {log && visibleLog.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>Nog geen runs.</p>}
       </div>
     </div>
   )
