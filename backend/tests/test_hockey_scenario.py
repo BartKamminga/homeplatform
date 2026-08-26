@@ -94,6 +94,37 @@ def test_monte_carlo_fallback_on_hockey_adapter():
     assert any("steekproef" in c for c in summary.caveats)
 
 
+def test_fixed_outcomes_bakes_assumption_into_standings_and_shrinks_search_space():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [
+        MatchFixture(match_id=1, home_team_id=1, away_team_id=2),
+        MatchFixture(match_id=2, home_team_id=1, away_team_id=2),
+    ]
+    baseline = simulate_position(standings, remaining, team_id=1, target_position=1)
+    assert baseline.verdict == "depends"
+    assert baseline.combinations_total == 9  # 3^2, geen aannames
+
+    # Neem aan dat A wint van B in match 1 - nog maar 1 wedstrijd (3 combos) over.
+    a_wins = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={1: "H"})
+    assert a_wins.verdict == "guaranteed"
+    assert a_wins.combinations_total == 0
+    assert any("Aanname" in c and "A wint" in c for c in a_wins.caveats)
+
+    b_wins = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={1: "A"})
+    assert b_wins.verdict == "depends"
+    assert b_wins.combinations_total == 3
+    assert len(b_wins.pivotal_matches) == 1
+    assert b_wins.pivotal_matches[0]["match_id"] == 2
+
+
+def test_fixed_outcomes_ignores_unknown_match_id():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={9999: "H"})
+    assert summary.verdict == "depends"
+    assert summary.combinations_total == 3
+
+
 def test_load_poule_inputs_reads_standing_and_scheduled_matches(session):
     session.add(HockeyPouleStanding(
         poule_id=99, team_id=1, team_name="A", played=5, won=3, drawn=1, lost=1,
@@ -145,3 +176,16 @@ def test_simulate_endpoint_happy_path_and_errors(session, client):
         params={"team_id": 1, "target_position": 1, "type": "unknown"},
     )
     assert res_400.status_code == 400
+
+    res_fixed = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "fixed": "1:H"},
+    )
+    assert res_fixed.status_code == 200
+    assert res_fixed.json()["verdict"] == "guaranteed"
+
+    res_bad_fixed = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "fixed": "not-a-valid-value"},
+    )
+    assert res_bad_fixed.status_code == 400

@@ -55,6 +55,7 @@ export function PinnedPoolSlot({ pin, club, onUnpin }) {
       )}
       {scenarioTeam && (
         <ScenarioModal
+          key={scenarioTeam.team_id}
           pid={pid} teamId={scenarioTeam.team_id} teamName={scenarioTeam.name}
           onClose={() => setScenarioTeam(null)}
         />

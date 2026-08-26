@@ -17,8 +17,11 @@ export const getHockeyPouleStandings = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
 export const getHockeyPouleMatches = (pid) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
-export const getHockeyPouleSimulation = (pid, teamId, targetPosition) =>
-  api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?team_id=${teamId}&target_position=${targetPosition}`)
+export const getHockeyPouleSimulation = (pid, teamId, targetPosition, fixedOutcomes = {}) => {
+  const params = new URLSearchParams({ team_id: teamId, target_position: targetPosition })
+  for (const [matchId, outcome] of Object.entries(fixedOutcomes)) params.append('fixed', `${matchId}:${outcome}`)
+  return api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?${params.toString()}`)
+}
 export const getCompetitionMatches = (cid) =>
   api.get(`/api/hockey/public/competitions/${cid}/matches`)
 // Bouwt een querystring met 0+ herhaalde tag=...-params (AND-logica op de backend) plus extra params.

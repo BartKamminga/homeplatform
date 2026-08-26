@@ -18,6 +18,7 @@ export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) 
     <>
       {scenarioTeam && (
         <ScenarioModal
+          key={scenarioTeam.team_id}
           pid={poule.id} teamId={scenarioTeam.team_id} teamName={scenarioTeam.name}
           onClose={() => setScenarioTeam(null)}
         />

@@ -20,10 +20,56 @@ const VERDICT_STYLE = {
   depends:    { label: 'Afhankelijk van resterende wedstrijden', color: C.gold },
 }
 
+// "Wat als"-uitslagknop: home/away-team-naam voor H/A, "Gelijk" voor D.
+function outcomeLabel(outcome, homeTeam, awayTeam) {
+  if (outcome === 'H') return homeTeam
+  if (outcome === 'A') return awayTeam
+  return 'Gelijk'
+}
+
+function OutcomePills({ match, fixedOutcome, recommendedOutcome, onPick }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+      {['H', 'D', 'A'].map(outcome => {
+        const active = fixedOutcome === outcome
+        const recommended = !fixedOutcome && recommendedOutcome === outcome
+        return (
+          <button key={outcome} onClick={() => onPick(outcome)} style={{
+            flex: 1, fontSize: 10, padding: '4px 2px', borderRadius: 6, cursor: 'pointer',
+            fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            background: active ? C.gold : 'transparent',
+            color: active ? C.deep : recommended ? '#6fbf8b' : C.muted,
+            border: `1px solid ${active ? C.gold : recommended ? '#6fbf8b' : C.border}`,
+          }}>
+            {outcomeLabel(outcome, match.home_team, match.away_team)}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   const [targetPosition, setTargetPosition] = useState(1)
-  const { data, error } = useScenario(pid, teamId, targetPosition)
+  const [fixed, setFixedRaw] = useState({})       // { matchId: outcome }
+  const [fixedMeta, setFixedMeta] = useState({})  // { matchId: {home_team, away_team, round} } - blijft zichtbaar nadat de wedstrijd uit pivotal_matches verdwijnt
+  const { data, error } = useScenario(pid, teamId, targetPosition, fixed)
   const verdictInfo = data ? VERDICT_STYLE[data.verdict] : null
+
+  function pickOutcome(match, outcome) {
+    const matchId = match.match_id
+    setFixedRaw(prev => {
+      const next = { ...prev }
+      if (next[matchId] === outcome) delete next[matchId]  // nogmaals klikken = aanname opheffen
+      else next[matchId] = outcome
+      return next
+    })
+    setFixedMeta(prev => ({ ...prev, [matchId]: match }))
+  }
+
+  function clearFixed(matchId) {
+    setFixedRaw(prev => { const next = { ...prev }; delete next[matchId]; return next })
+  }
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -86,6 +132,30 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                 </div>
               )}
 
+              {Object.keys(fixed).length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
+                    Wat als… (jouw aannames)
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                    {Object.entries(fixed).map(([matchId, outcome]) => {
+                      const m = fixedMeta[matchId] || {}
+                      return (
+                        <span key={matchId} style={{ display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 11, padding: '4px 8px', borderRadius: 12,
+                          background: 'rgba(207,159,63,0.15)', border: `1px solid ${C.gold}`, color: C.gold }}>
+                          {outcomeLabel(outcome, m.home_team, m.away_team)}
+                          <button onClick={() => clearFixed(matchId)} style={{
+                            background: 'none', border: 'none', padding: 0, color: C.gold,
+                            cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>✕</button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+
               {data.pivotal_matches?.length > 0 && (
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
@@ -112,6 +182,12 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                             {!m.hint.required && ` (${Math.round(m.hint.recommended_rate * 100)}% kans)`}
                           </div>
                         )}
+                        <OutcomePills
+                          match={m}
+                          fixedOutcome={fixed[m.match_id]}
+                          recommendedOutcome={m.hint?.recommended_outcome}
+                          onPick={outcome => pickOutcome(m, outcome)}
+                        />
                       </div>
                     ))}
                   </div>

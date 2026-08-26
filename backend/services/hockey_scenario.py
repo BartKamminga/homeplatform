@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 
 from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_scenario_bounds import bound_verdict, relevant_matches
+from services.hockey_scenario_format import describe_examples, describe_outcome, outcome_hint
 from services.hockey_scenario_types import MatchFixture, TeamStat
 from services.scenario_engine import ScenarioSpec, VariableElement, run_scenario
 
@@ -131,67 +132,48 @@ def _build_elements(matches: List[MatchFixture]) -> List[VariableElement]:
     ]
 
 
-def _describe_outcome(outcome: str, home_team: Optional[str], away_team: Optional[str]) -> str:
-    if outcome == "H":
-        return f"{home_team} wint"
-    if outcome == "A":
-        return f"{away_team} wint"
-    return "gelijkspel"
+def _apply_fixed_outcomes(
+    standings: List[TeamStat], remaining: List[MatchFixture], fixed_outcomes: Dict[int, str],
+) -> Tuple[List[TeamStat], List[MatchFixture], List[MatchFixture]]:
+    """"Wat als"-ondersteuning: verwerkt vooraf aangenomen uitslagen (op
+    match_id) direct in de stand, en haalt die wedstrijden uit de te
+    simuleren verzameling - de rest van de engine hoeft hier niets van te
+    weten. Onbekende match_id's of ongeldige uitkomsten worden genegeerd."""
+    fixed_matches = [m for m in remaining if m.match_id in fixed_outcomes]
+    free_remaining = [m for m in remaining if m.match_id not in fixed_outcomes]
 
-
-def _describe_requirement(outcome: str, home_team: Optional[str], away_team: Optional[str]) -> str:
-    if outcome == "H":
-        return f"{home_team} moet winnen"
-    if outcome == "A":
-        return f"{away_team} moet winnen"
-    return f"{home_team} en {away_team} moeten gelijkspelen"
-
-
-def _outcome_hint(breakdown: Dict[str, Tuple[int, int]], home_team: Optional[str], away_team: Optional[str]) -> Optional[dict]:
-    """Vertaalt de generieke outcome_breakdown van 1 wedstrijd naar een
-    mens-leesbare hint: welke uitslag helpt (het meest), en of die zelfs
-    noodzakelijk is (elk scenario dat het doel haalt heeft die uitslag)."""
-    present = {outcome: (n_total, n_ok) for outcome, (n_total, n_ok) in breakdown.items() if n_total > 0}
-    if not present:
-        return None
-    rates = {outcome: n_ok / n_total for outcome, (n_total, n_ok) in present.items()}
-    best_outcome = max(rates, key=rates.get)
-    required = len(present) > 1 and rates[best_outcome] >= 0.999
-    return {
-        "recommended_outcome": best_outcome,
-        "recommended_rate": round(rates[best_outcome], 3),
-        "required": required,
-        "label": _describe_requirement(best_outcome, home_team, away_team) if required
-        else _describe_outcome(best_outcome, home_team, away_team),
-    }
-
-
-def _describe_examples(examples: List[Dict[str, str]], by_key: Dict[str, MatchFixture], name_by_team: Dict[int, str]) -> List[list]:
-    return [
-        [
-            {
-                "match_id": by_key[key].match_id,
-                "round": by_key[key].round,
-                "home_team": name_by_team.get(by_key[key].home_team_id),
-                "away_team": name_by_team.get(by_key[key].away_team_id),
-                "outcome": outcome,
-            }
-            for key, outcome in combo.items()
-        ]
-        for combo in examples
-    ]
+    state = {s.team_id: s for s in standings}
+    for m in fixed_matches:
+        outcome = fixed_outcomes[m.match_id]
+        if outcome not in MATCH_OUTCOMES:
+            continue
+        state = _apply_outcome(state, m, outcome)
+    return list(state.values()), free_remaining, fixed_matches
 
 
 def simulate_position(
     standings: List[TeamStat], remaining: List[MatchFixture], team_id: int, target_position: int,
     comparator: str = "lte", method: str = "auto",
     max_combinations: int = MAX_EXACT_COMBINATIONS, sample_size: int = SAMPLE_SIZE,
+    fixed_outcomes: Optional[Dict[int, str]] = None,
 ) -> ScenarioSummary:
     target = next((s for s in standings if s.team_id == team_id), None)
     if target is None:
         raise ValueError(f"team {team_id} niet gevonden in deze poule-stand")
 
     caveats = list(CAVEATS)
+    fixed_applied: List[MatchFixture] = []
+    if fixed_outcomes:
+        standings, remaining, fixed_applied = _apply_fixed_outcomes(standings, remaining, fixed_outcomes)
+        target = next(s for s in standings if s.team_id == team_id)
+        name_lookup = {s.team_id: s.team_name for s in standings}
+        for m in fixed_applied:
+            outcome = fixed_outcomes[m.match_id]
+            caveats.append(
+                f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))} "
+                f"({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."
+            )
+
     verdict = bound_verdict(standings, remaining, team_id, target_position, comparator)
     if verdict is not None:
         return ScenarioSummary(
@@ -219,7 +201,7 @@ def simulate_position(
         home_name, away_name = name_by_team.get(m.home_team_id), name_by_team.get(m.away_team_id)
         pivotal.append({
             "match_id": m.match_id, "round": m.round, "home_team": home_name, "away_team": away_name,
-            "hint": _outcome_hint(result.outcome_breakdown.get(key, {}), home_name, away_name),
+            "hint": outcome_hint(result.outcome_breakdown.get(key, {}), home_name, away_name),
         })
     if len(pruned) < len(remaining):
         caveats.append(
@@ -245,8 +227,8 @@ def simulate_position(
         combinations_total=result.combinations_total, combinations_considered=result.combinations_considered,
         goal_probability=result.goal_probability,
         pivotal_matches=pivotal,
-        satisfying_examples=_describe_examples(result.satisfying_examples, by_key, name_by_team),
-        failing_examples=_describe_examples(result.failing_examples, by_key, name_by_team),
+        satisfying_examples=describe_examples(result.satisfying_examples, by_key, name_by_team),
+        failing_examples=describe_examples(result.failing_examples, by_key, name_by_team),
         caveats=caveats,
     )
 
@@ -261,6 +243,9 @@ POSITION_SCENARIO_TYPE = {
          "desc": "'lte' (standaard, op positie N of beter), 'eq' (precies N), 'gte' (op positie N of slechter)"},
         {"name": "method", "type": "string", "required": False,
          "desc": "'auto' (standaard), 'exact', of 'monte_carlo'"},
+        {"name": "fixed_outcomes", "type": "object", "required": False,
+         "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'} - deze wedstrijden worden alvast in de stand "
+                 "verwerkt en niet meer gesimuleerd."},
     ],
     "run": simulate_position,
 }

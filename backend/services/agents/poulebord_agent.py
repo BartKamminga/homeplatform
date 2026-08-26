@@ -95,11 +95,13 @@ def ds_scenario_simulation(session, params):
     if not poule_id or not team_id or not target_position:
         return {"note": "poule_id/team_id/target_position ontbreekt in de taak-params"}
 
+    fixed_outcomes = {int(k): v for k, v in (params.get("fixed_outcomes") or {}).items()}
     standings, remaining = load_poule_inputs(session, int(poule_id))
     try:
         summary = simulate_position(
             standings, remaining, team_id=int(team_id), target_position=int(target_position),
             comparator=params.get("comparator", "lte"), method=params.get("method", "auto"),
+            fixed_outcomes=fixed_outcomes,
         )
     except ValueError as e:
         return {"note": str(e)}
@@ -193,6 +195,8 @@ AGENT = {
                  "desc": "Doelpositie (1 = kampioenschap)"},
                 {"name": "comparator", "type": "string", "required": False, "desc": "'lte' (standaard), 'eq', 'gte'"},
                 {"name": "method", "type": "string", "required": False, "desc": "'auto' (standaard), 'exact', 'monte_carlo'"},
+                {"name": "fixed_outcomes", "type": "object", "required": False,
+                 "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'}"},
             ],
             "desc": "Berekent of team X gegarandeerd/onmogelijk/afhankelijk op een gekozen eindpositie uitkomt, "
                     "en welke resterende wedstrijden daarbij pivotal zijn.",
