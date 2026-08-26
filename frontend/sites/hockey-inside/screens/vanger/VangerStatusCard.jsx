@@ -139,7 +139,7 @@ const SCAN_PLAN_FIELDS = [
   { key: 'active_matchday_interval_min', label: 'Matchday-interval (min)',  width: 44 },
 ]
 
-function ScanPlanTuning({ settings, onSave }) {
+function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday }) {
   const [values, setValues] = useState({})
 
   useEffect(() => {
@@ -164,7 +164,7 @@ function ScanPlanTuning({ settings, onSave }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
       <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: '.05em' }}>SCAN-PLAN</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {SCAN_PLAN_FIELDS.map(f => (
           <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {f.label}
@@ -175,6 +175,13 @@ function ScanPlanTuning({ settings, onSave }) {
             />
           </label>
         ))}
+        <label
+          title="Alleen de event-driven matchday-boost voor publicatie-competities met scan_profile 'actief' aan/uit - bij uit blijven die competities gewoon op de dagelijkse interval scannen. Competities op 'handmatig' worden hoe dan ook nooit geraakt."
+          style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+        >
+          <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
+          Matchday-interval actief
+        </label>
       </div>
       <div>
         <button
@@ -220,11 +227,6 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
           onLabel="● Scan-plan actief" offLabel="○ Scan-plan uit"
           title="Zet de automatische scan-plan-pass (clublijst/club-cap + event-driven matchday-scan) volledig aan of uit"
         />
-        <Toggle
-          on={matchdayEnabled} onChange={onToggleMatchday} onVariant="muted" offVariant="partial"
-          onLabel="● Matchday-interval actief" offLabel="○ Matchday-interval uit"
-          title="Alleen de event-driven matchday-boost voor publicatie-competities aan/uit - bij uit blijven die competities gewoon op de dagelijkse interval scannen"
-        />
       </div>
       <div
         onClick={toggleSettingsOpen}
@@ -236,7 +238,10 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
       {settingsOpen && (
         <>
           <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
-          <ScanPlanTuning settings={vangerSettings} onSave={onSaveSettings} />
+          <ScanPlanTuning
+            settings={vangerSettings} onSave={onSaveSettings}
+            matchdayEnabled={matchdayEnabled} onToggleMatchday={onToggleMatchday}
+          />
         </>
       )}
     </div>
