@@ -175,6 +175,12 @@ export function useVangerState() {
       .catch(() => {})
   }
 
+  function toggleActiveMatchdayEnabled() {
+    api.post('/api/hockey/vanger/scan-plan/matchday-toggle', {})
+      .then(r => { setFillMsg(r.enabled ? 'Matchday-interval weer aangezet' : 'Matchday-interval uitgeschakeld — publicatie-competities scannen alleen nog op de dagelijkse interval'); setTimeout(() => setFillMsg(''), 6000); loadVangerStatus() })
+      .catch(() => {})
+  }
+
   function triggerScout() {
     setScoutBusy(true)
     api.post('/api/hockey/vanger/scout/trigger', {})
@@ -222,5 +228,6 @@ export function useVangerState() {
     saveFilter, toggleAge, toggleNiveau, toggleGender, toggleHt,
     toggle, resetPoule,
     startSmartScan, stopSmartScan, triggerGhost, triggerScout, toggleGhostEnabled, toggleScanPlanEnabled,
+    toggleActiveMatchdayEnabled,
   }
 }

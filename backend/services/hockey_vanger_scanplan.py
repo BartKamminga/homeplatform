@@ -24,12 +24,25 @@ from services.hockey_vanger_filters import _is_scoreless_youth
 
 STEP_MAX_CMDS = 10
 
+# item 968: aparte aan/uit-schakelaar voor de event-driven matchday-boost in
+# _step_active_profiles, los van de algehele scan_plan_enabled-schakelaar
+# (die zit in routers/hockey_vanger.py). Uitgeschakeld -> "active"-competities
+# (al gescoped op HockeyPublicationComp, dus alleen publicatie-gekoppelde
+# competities) vallen terug op de dagelijkse fallback-interval, ongeacht of
+# er vandaag een wedstrijd is.
+ACTIVE_MATCHDAY_ENABLED_KEY = "active_matchday_enabled"
+
 
 def _get_int_setting(session: Session, key: str, default: int) -> int:
     row = session.get(AppSetting, key)
     if row and row.value and row.value.lstrip("-").isdigit():
         return int(row.value)
     return default
+
+
+def _active_matchday_enabled(session: Session) -> bool:
+    row = session.get(AppSetting, ACTIVE_MATCHDAY_ENABLED_KEY)
+    return row.value != "0" if row else True
 
 
 def _pending_poule_ids(session: Session) -> set:
@@ -239,6 +252,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
+    matchday_enabled     = _active_matchday_enabled(session)
 
     active_comp_ids = set(session.exec(
         select(HockeyPublicationComp.competition_id)
@@ -263,34 +277,35 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
         if poule.poule_id in queued_poule_ids:
             continue
 
-        matches = session.exec(
-            select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
-        ).all()
-
-        known_ends = []
-        has_unknown_today = False
-        for m in matches:
-            if not m.match_date:
-                continue
-            info = _match_dt_info(m.match_date)
-            if not info:
-                continue
-            utc_naive, is_today, is_midnight = info
-            if not is_today:
-                continue
-            if is_midnight:
-                has_unknown_today = True
-            else:
-                known_ends.append(utc_naive + timedelta(minutes=match_duration))
-
         due = False
-        if known_ends:
-            if now >= min(known_ends):
+        if matchday_enabled:
+            matches = session.exec(
+                select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
+            ).all()
+
+            known_ends = []
+            has_unknown_today = False
+            for m in matches:
+                if not m.match_date:
+                    continue
+                info = _match_dt_info(m.match_date)
+                if not info:
+                    continue
+                utc_naive, is_today, is_midnight = info
+                if not is_today:
+                    continue
+                if is_midnight:
+                    has_unknown_today = True
+                else:
+                    known_ends.append(utc_naive + timedelta(minutes=match_duration))
+
+            if known_ends:
+                if now >= min(known_ends):
+                    cutoff = now - timedelta(minutes=matchday_interval_m)
+                    due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+            elif has_unknown_today:
                 cutoff = now - timedelta(minutes=matchday_interval_m)
                 due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
-        elif has_unknown_today:
-            cutoff = now - timedelta(minutes=matchday_interval_m)
-            due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
 
         if not due:
             cutoff = now - timedelta(hours=daily_fallback_h)

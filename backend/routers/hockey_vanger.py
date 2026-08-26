@@ -30,7 +30,7 @@ from services.hockey_vanger_smartscan import (
     _smart_scan_get_state, _smart_scan_set_state, _smart_scan_discovery_next,
     _smart_scan_try_advance, SMART_SCAN_MAX_CMDS,
 )
-from services.hockey_vanger_scanplan import run_scan_plan_pass
+from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY, run_scan_plan_pass
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -439,6 +439,8 @@ def get_vanger_status(
     result["ghost_enabled"] = ghost_row.value != "0" if ghost_row else True
     scan_plan_row = session.get(AppSetting, SCAN_PLAN_ENABLED_KEY)
     result["scan_plan_enabled"] = scan_plan_row.value != "0" if scan_plan_row else True
+    matchday_row = session.get(AppSetting, ACTIVE_MATCHDAY_ENABLED_KEY)
+    result["active_matchday_enabled"] = matchday_row.value != "0" if matchday_row else True
     return result
 
 
@@ -1227,6 +1229,25 @@ def scan_plan_toggle(
         row.value = value; session.add(row)
     else:
         session.add(AppSetting(key=SCAN_PLAN_ENABLED_KEY, value=value))
+    session.commit()
+    return {"enabled": enabled}
+
+
+@router.post("/vanger/scan-plan/matchday-toggle")
+def scan_plan_matchday_toggle(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """item 968: los van scan_plan_toggle - zet alleen de event-driven
+    matchday-boost in _step_active_profiles aan/uit; "active"-competities
+    (publicatie-gekoppeld) blijven bij uitschakelen gewoon dagelijks scannen."""
+    row = session.get(AppSetting, ACTIVE_MATCHDAY_ENABLED_KEY)
+    enabled = not (row.value != "0" if row else True)
+    value = "1" if enabled else "0"
+    if row:
+        row.value = value; session.add(row)
+    else:
+        session.add(AppSetting(key=ACTIVE_MATCHDAY_ENABLED_KEY, value=value))
     session.commit()
     return {"enabled": enabled}
 

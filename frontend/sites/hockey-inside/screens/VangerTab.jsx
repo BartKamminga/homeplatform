@@ -19,6 +19,7 @@ export default function VangerTab() {
         onStartScout={s.triggerScout} scoutBusy={s.scoutBusy}
         onToggleGhost={s.toggleGhostEnabled}
         onToggleScanPlan={s.toggleScanPlanEnabled}
+        onToggleMatchday={s.toggleActiveMatchdayEnabled}
         vangerSettings={s.vangerSettings} onSaveSettings={s.saveVangerSettings}
       />
 
