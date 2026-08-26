@@ -19,6 +19,7 @@ import Todo from "./pages/Todo.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
 import Backup from "./pages/Backup.jsx";
 import DataStorage from "./pages/DataStorage.jsx";
+import DataSources from "./pages/DataSources.jsx";
 import Workflows from "./pages/Workflows.jsx";
 import Infrastructure from "./pages/Infrastructure.jsx";
 import ErrorBoundary from "@components/ErrorBoundary.jsx";
@@ -60,6 +61,7 @@ createRoot(document.getElementById("root")).render(
                 <Route path="todo" element={<Todo />} />
                 <Route path="roadmap" element={<Roadmap />} />
                 <Route path="data-storage" element={<DataStorage />} />
+                <Route path="data-sources" element={<DataSources />} />
                 <Route path="workflows" element={<Workflows />} />
                 <Route path="infrastructure" element={<Infrastructure />} />
               </Routes>

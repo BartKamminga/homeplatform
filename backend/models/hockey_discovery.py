@@ -76,6 +76,7 @@ class HockeyPoule(SQLModel, table=True):
     discovered_at:   datetime       = Field(default_factory=datetime.utcnow)
     updated_at:      datetime       = Field(default_factory=datetime.utcnow)
     last_scanned_at: Optional[datetime] = None
+    ai_note:         Optional[str]  = Field(default=None)  # korte analyse-tekst van de poulebord-agent (item 957)
 
 
 class HockeyPouleStanding(SQLModel, table=True):
@@ -94,6 +95,7 @@ class HockeyPouleStanding(SQLModel, table=True):
     goals_against: int           = Field(default=0)
     points:        int           = Field(default=0)
     updated_at:    datetime      = Field(default_factory=datetime.utcnow)
+    ai_note:       Optional[str] = Field(default=None)  # korte team-analyse van de poulebord-agent (item 957)
 
 
 class VangerCmd(SQLModel, table=True):

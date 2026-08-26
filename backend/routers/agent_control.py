@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
@@ -18,6 +18,7 @@ from core.database import get_session
 from models.agent_control import AgentContext, AgentNotification, AgentRunLog, AgentTask
 from models.core import User
 from models.settings import AppSetting
+from routers.downloader_worker import run_download
 from services.agents import AGENT_REGISTRY
 
 router = APIRouter(prefix="/api/agent-control", tags=["agent-control"])
@@ -427,6 +428,25 @@ class AgentResultIn(BaseModel):
     # ai_score_graph (fiets)
     user_id:        Optional[str] = None
     ai_scores:      Optional[List[Dict[str, Any]]] = None
+    # poule_note / team_note (poulebord, item 957)
+    poule_id:       Optional[int] = None
+    poule_note:     Optional[str] = None
+    team_id:        Optional[int] = None
+    team_note:      Optional[str] = None
+    # poulebord_publication_info (item 917)
+    publication_id:   Optional[str] = None
+    publication_info: Optional[str] = None
+    # changelog_draft (roadmap-agent, item 934)
+    changelog_entry_id: Optional[str] = None
+    changelog_text:     Optional[str] = None
+    # mixmusic_genre_apply (item 919)
+    mixmusic_updates: Optional[List[Dict[str, Any]]] = None
+    # digest_publish / audit_digest_note (items 921, 935) - generieke tekstblob
+    digest_text:      Optional[str] = None
+    # beatcrades_sync_confirm (item 922)
+    sync_action_ids:  Optional[List[str]] = None
+    # beatcrades_retry_queue (item 924)
+    crade_ids:        Optional[List[str]] = None
 
 
 def _resolve_post_process_key(agent: dict, ctx: Optional[AgentContext]) -> str:
@@ -439,6 +459,7 @@ def _resolve_post_process_key(agent: dict, ctx: Optional[AgentContext]) -> str:
 def report_agent_result(
     agent_key: str,
     body: AgentResultIn,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -484,6 +505,13 @@ def report_agent_result(
         session.add(AgentNotification(agent_key=agent_key, message=body.notification, created_at=_now()))
 
     session.commit()
+
+    # Generieke fire-and-forget hook: een post-process kan {"kickoff": [job_id, ...]}
+    # teruggeven om na de commit een download-job daadwerkelijk te starten (zelfde
+    # achtergrondtaak als de bestaande handmatige herstart-knop, item 924).
+    for job_id in post_process_result.get("kickoff", []):
+        background_tasks.add_task(run_download, job_id)
+
     return {"ok": True, "post_process_result": post_process_result}
 
 

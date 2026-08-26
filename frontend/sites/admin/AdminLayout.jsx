@@ -16,6 +16,7 @@ const NAV = [
   { to: "/admin/infrastructure", icon: "🖥", label: "Infrastructuur" },
   { to: "/admin/workflows", icon: "⟳", label: "Workflows" },
   { to: "/admin/data-storage", icon: "◈", label: "Data & instellingen" },
+  { to: "/admin/data-sources", icon: "🔌", label: "Databronnen & API's" },
   { to: "/admin/backup", icon: "🗄", label: "Backup" },
   { to: "/admin/todo", icon: "☑", label: "Todo" },
   { to: "/admin/roadmap", icon: "◈", label: "Roadmap" },
