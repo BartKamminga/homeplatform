@@ -49,27 +49,35 @@ function OutcomePills({ match, fixedOutcome, recommendedOutcome, onPick }) {
   )
 }
 
-// Balkjes met de kans op elke eindpositie tegelijk (item 963-vervolg) - geeft
-// in 1 oogopslag het hele beeld, los van de specifieke "Positie <= N"-vraag
-// hieronder (die blijft nuttig voor de doorslaggevende-wedstrijden-lijst).
-function PositionDistributionChart({ distribution }) {
+// Balkjes met de kans op elke eindpositie tegelijk (item 963-vervolg) - elke
+// rij is klikbaar en bepaalt de "Positie <= N"-vraag voor de doorslaggevende-
+// wedstrijden-sectie eronder (vervangt het losse getalveld van eerst).
+function PositionDistributionChart({ distribution, selected, onSelect }) {
   if (!distribution) return null
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
         textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
-        Kans per eindpositie
+        Kans per eindpositie <span style={{ textTransform: 'none', fontWeight: 400 }}>(klik om te verkennen)</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {Object.entries(distribution.position_probabilities).map(([position, p]) => (
-          <div key={position} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-            <span style={{ width: 14, color: C.muted, textAlign: 'right', flexShrink: 0 }}>{position}</span>
-            <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 4, height: 14, overflow: 'hidden' }}>
-              <div style={{ width: `${Math.round(p * 100)}%`, background: C.gold, height: '100%' }} />
-            </div>
-            <span style={{ width: 34, color: C.chalk, textAlign: 'right', flexShrink: 0 }}>{Math.round(p * 100)}%</span>
-          </div>
-        ))}
+        {Object.entries(distribution.position_probabilities).map(([position, p]) => {
+          const isSelected = Number(position) === selected
+          return (
+            <button key={position} onClick={() => onSelect(Number(position))} style={{
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, background: 'none',
+              border: `1px solid ${isSelected ? C.gold : 'transparent'}`, borderRadius: 4,
+              padding: '2px 4px', margin: '-2px -4px', cursor: 'pointer', fontFamily: 'inherit', width: '100%',
+            }}>
+              <span style={{ width: 14, color: isSelected ? C.gold : C.muted, textAlign: 'right', flexShrink: 0,
+                fontWeight: isSelected ? 700 : 400 }}>{position}</span>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 4, height: 14, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.round(p * 100)}%`, background: isSelected ? C.goldBr : C.gold, height: '100%' }} />
+              </div>
+              <span style={{ width: 34, color: C.chalk, textAlign: 'right', flexShrink: 0 }}>{Math.round(p * 100)}%</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -152,18 +160,7 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
         </div>
 
         <div style={{ padding: '14px 14px 32px' }}>
-          <PositionDistributionChart distribution={distribution} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <span style={{ fontSize: 12, color: C.muted }}>Positie ≤</span>
-            <input
-              type="number" min={1} value={targetPosition}
-              onChange={e => setTargetPosition(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              style={{ width: 48, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
-                color: C.chalk, fontSize: 13, padding: '4px 6px', fontFamily: 'inherit' }}
-            />
-            <span style={{ fontSize: 11, color: C.muted }}>(1 = kampioenschap)</span>
-          </div>
+          <PositionDistributionChart distribution={distribution} selected={targetPosition} onSelect={setTargetPosition} />
 
           {error && (
             <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '12px 0' }}>{error}</div>
@@ -187,7 +184,7 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
                     textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
-                    Doorslaggevende wedstrijden
+                    Doorslaggevende wedstrijden voor positie ≤ {targetPosition}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
                     {matchOrder.map(matchId => {
