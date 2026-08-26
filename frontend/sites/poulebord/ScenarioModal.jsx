@@ -51,24 +51,46 @@ function OutcomePills({ match, fixedOutcome, recommendedOutcome, onPick }) {
 
 export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   const [targetPosition, setTargetPosition] = useState(1)
-  const [fixed, setFixedRaw] = useState({})       // { matchId: outcome }
-  const [fixedMeta, setFixedMeta] = useState({})  // { matchId: {home_team, away_team, round} } - blijft zichtbaar nadat de wedstrijd uit pivotal_matches verdwijnt
+  const [fixed, setFixed] = useState({})           // { matchId: outcome }
+  // Een wedstrijd blijft op zijn plek staan nadat 'm is vastgezet (ook al
+  // levert de backend 'm dan niet meer als pivotal terug) - matchOrder/
+  // matchInfo onthouden welke wedstrijden ooit getoond zijn en hoe ze eruit
+  // zagen, zodat de rij niet verdwijnt en het kruisje bereikbaar blijft.
+  const [matchOrder, setMatchOrder] = useState([])
+  const [matchInfo, setMatchInfo] = useState({})
   const { data, error } = useScenario(pid, teamId, targetPosition, fixed)
   const verdictInfo = data ? VERDICT_STYLE[data.verdict] : null
 
-  function pickOutcome(match, outcome) {
-    const matchId = match.match_id
-    setFixedRaw(prev => {
+  useEffect(() => {
+    setMatchOrder([])
+    setMatchInfo({})
+  }, [targetPosition])
+
+  useEffect(() => {
+    if (!data?.pivotal_matches) return
+    setMatchOrder(prev => {
+      const known = new Set(prev)
+      const additions = data.pivotal_matches.map(m => m.match_id).filter(id => !known.has(id))
+      return additions.length ? [...prev, ...additions] : prev
+    })
+    setMatchInfo(prev => {
+      const next = { ...prev }
+      for (const m of data.pivotal_matches) next[m.match_id] = m
+      return next
+    })
+  }, [data])
+
+  function pickOutcome(matchId, outcome) {
+    setFixed(prev => {
       const next = { ...prev }
       if (next[matchId] === outcome) delete next[matchId]  // nogmaals klikken = aanname opheffen
       else next[matchId] = outcome
       return next
     })
-    setFixedMeta(prev => ({ ...prev, [matchId]: match }))
   }
 
   function clearFixed(matchId) {
-    setFixedRaw(prev => { const next = { ...prev }; delete next[matchId]; return next })
+    setFixed(prev => { const next = { ...prev }; delete next[matchId]; return next })
   }
 
   useEffect(() => {
@@ -132,64 +154,53 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                 </div>
               )}
 
-              {Object.keys(fixed).length > 0 && (
-                <>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
-                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
-                    Wat als… (jouw aannames)
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-                    {Object.entries(fixed).map(([matchId, outcome]) => {
-                      const m = fixedMeta[matchId] || {}
-                      return (
-                        <span key={matchId} style={{ display: 'flex', alignItems: 'center', gap: 4,
-                          fontSize: 11, padding: '4px 8px', borderRadius: 12,
-                          background: 'rgba(207,159,63,0.15)', border: `1px solid ${C.gold}`, color: C.gold }}>
-                          {outcomeLabel(outcome, m.home_team, m.away_team)}
-                          <button onClick={() => clearFixed(matchId)} style={{
-                            background: 'none', border: 'none', padding: 0, color: C.gold,
-                            cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>✕</button>
-                        </span>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-
-              {data.pivotal_matches?.length > 0 && (
+              {matchOrder.length > 0 && (
                 <>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
                     textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
                     Doorslaggevende wedstrijden
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
-                    {data.pivotal_matches.map((m, i) => (
-                      <div key={m.match_id ?? i} style={{ background: C.card, borderRadius: 8,
-                        padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ flex: 1, color: C.chalk, textAlign: 'right',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home_team}</span>
-                          <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>vs</span>
-                          <span style={{ flex: 1, color: C.chalk,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away_team}</span>
-                          {m.round != null && (
-                            <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>R{m.round}</span>
-                          )}
-                        </div>
-                        {m.hint && (
-                          <div style={{ fontSize: 10, color: m.hint.required ? '#6fbf8b' : C.muted, textAlign: 'center' }}>
-                            {m.hint.required ? '✓ ' : ''}{m.hint.label}
-                            {!m.hint.required && ` (${Math.round(m.hint.recommended_rate * 100)}% kans)`}
+                    {matchOrder.map(matchId => {
+                      const m = matchInfo[matchId]
+                      if (!m) return null
+                      const isFixed = fixed[matchId] != null
+                      return (
+                        <div key={matchId} style={{ background: C.card, borderRadius: 8,
+                          padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ flex: 1, color: C.chalk, textAlign: 'right',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.home_team}</span>
+                            <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>vs</span>
+                            <span style={{ flex: 1, color: C.chalk,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.away_team}</span>
+                            {m.round != null && (
+                              <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>R{m.round}</span>
+                            )}
                           </div>
-                        )}
-                        <OutcomePills
-                          match={m}
-                          fixedOutcome={fixed[m.match_id]}
-                          recommendedOutcome={m.hint?.recommended_outcome}
-                          onPick={outcome => pickOutcome(m, outcome)}
-                        />
-                      </div>
-                    ))}
+                          {isFixed ? (
+                            <div style={{ fontSize: 10, color: C.gold, textAlign: 'center',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                              Aanname: {outcomeLabel(fixed[matchId], m.home_team, m.away_team)}
+                              <button onClick={() => clearFixed(matchId)} style={{
+                                background: 'none', border: 'none', padding: 0, color: C.gold,
+                                cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>✕ wis</button>
+                            </div>
+                          ) : m.hint && (
+                            <div style={{ fontSize: 10, color: m.hint.required ? '#6fbf8b' : C.muted, textAlign: 'center' }}>
+                              {m.hint.required ? '✓ ' : ''}{m.hint.label}
+                              {!m.hint.required && ` (${Math.round(m.hint.recommended_rate * 100)}% kans)`}
+                            </div>
+                          )}
+                          <OutcomePills
+                            match={m}
+                            fixedOutcome={fixed[matchId]}
+                            recommendedOutcome={m.hint?.recommended_outcome}
+                            onPick={outcome => pickOutcome(matchId, outcome)}
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
                 </>
               )}
