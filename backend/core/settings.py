@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""  # kommagescheiden; leeg = automatisch op basis van omgeving
     PROD_API_BASE: str = ""  # item 887: bug-reports schrijven altijd naar prod, ongeacht omgeving
     PROD_API_KEY: str = ""   # server-only API-key voor die forward - nooit naar de browser sturen
+    VAPID_PUBLIC_KEY: str = ""   # item 891: web push - publiek, mag naar de browser
+    VAPID_PRIVATE_KEY: str = ""  # server-only, nooit naar de browser sturen
+    VAPID_SUBJECT: str = "mailto:bartkamminga@hotmail.com"  # vereist contact-adres voor push-diensten
     FIETS_LAT: float = 51.9244  # MVP: vaste locatie (Rotterdam) — later instelbaar (roadmap-item)
     FIETS_LON: float = 4.4777
     FIETS_LOCATION_LABEL: str = "Rotterdam"

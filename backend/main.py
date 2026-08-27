@@ -39,7 +39,7 @@ if settings.SENTRY_DSN:
     )
 
 from routers import system_public, system_admin, auth, users, groups, themes, sites, audit  # noqa: E402
-from routers import mixmusic, changelog, tracking, dontforget, uploads, bug_reports  # noqa: E402
+from routers import mixmusic, changelog, tracking, dontforget, uploads, bug_reports, push  # noqa: E402
 from routers import tournix, fiets, backup  # noqa: E402
 from routers import tournix_import  # noqa: E402
 from routers.backup import backup_router  # noqa: E402
@@ -166,6 +166,7 @@ app.include_router(tracking.router)
 app.include_router(dontforget.router)
 app.include_router(uploads.router)
 app.include_router(bug_reports.router)
+app.include_router(push.router)
 app.include_router(tournix.router)
 app.include_router(tournix_import.router)
 app.include_router(fiets.router)

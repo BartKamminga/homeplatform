@@ -31,6 +31,7 @@ export default function System() {
       ) : (
         <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
           <EnvironmentCard data={data} />
+          <PushNotificationsCard data={data} />
           <HardwareCard data={data} />
           <UsersCard data={data} />
           <GroupsCard data={data} />
@@ -109,6 +110,52 @@ function EnvironmentCard({ data }) {
         }
         where=".env → PROD_API_BASE / PROD_API_KEY"
       />
+    </Card>
+  );
+}
+
+function PushNotificationsCard({ data }) {
+  const push = data.push_notifications || {};
+  const [testMsg, setTestMsg] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+
+  async function sendTest() {
+    setTestBusy(true);
+    setTestMsg('');
+    try {
+      const res = await api.post('/api/push/test', {});
+      setTestMsg(res.sent > 0
+        ? `✓ Verzonden naar ${res.sent} abonnement(en) van je eigen account`
+        : 'Geen abonnementen gevonden voor je eigen account - zet eerst 🔔 Meldingen aan op een site (bv. hockey-inside > Vanger-tab)');
+    } catch (e) {
+      setTestMsg(`Fout: ${e.message}`);
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Push-notificaties" icon="🔔">
+      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        Item 891: echte browser/telefoon-meldingen (Web Push), ook als de app niet open staat.
+        Elke site kan een 🔔-knop monteren (<code>components/NotificationSubscribeToggle.jsx</code>) die
+        om toestemming vraagt en een abonnement opslaat (<code>push_subscriptions</code>-tabel).
+        Backend-code roept overal <code>services/push.py</code>'s <code>send_push(user_id, titel, tekst)</code>-helper
+        aan om iemand een melding te sturen - los van agent-control, dus bruikbaar vanuit elke feature.
+        Eerste gebruik: hockey-inside (Vanger-tab, naast de Ghost/Scout-status).
+      </p>
+      <Row label="VAPID-sleutels"     value={push.vapid_configured ? 'geconfigureerd' : '⚠ niet ingesteld - 🔔-knop doet dan niets'} where=".env → VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY" />
+      <Row label="Abonnementen (deze omgeving)" value={push.subscriptions ?? 0} where="push_subscriptions-tabel" />
+      <div style={{ marginTop: '12px' }}>
+        <button
+          onClick={sendTest}
+          disabled={testBusy || !push.vapid_configured}
+          style={{ background: 'var(--color-primary)', color: '#fff', padding: '6px 14px', fontSize: '12px', opacity: testBusy || !push.vapid_configured ? 0.6 : 1 }}
+        >
+          {testBusy ? 'Bezig…' : 'Verstuur test-melding naar mezelf'}
+        </button>
+        {testMsg && <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>{testMsg}</p>}
+      </div>
     </Card>
   );
 }

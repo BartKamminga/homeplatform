@@ -28,3 +28,19 @@ self.addEventListener('fetch', e => {
     })
   )
 })
+
+// item 891: Web Push
+self.addEventListener('push', e => {
+  let data = {}
+  try { data = e.data.json() } catch {}
+  const title = data.title || 'HomePlatform'
+  const body = data.body || ''
+  const url = data.url || '/fiets/'
+  e.waitUntil(self.registration.showNotification(title, { body, icon: '/fiets/icon.svg', data: { url } }))
+})
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close()
+  const url = e.notification.data?.url || '/fiets/'
+  e.waitUntil(clients.openWindow(url))
+})

@@ -15,6 +15,7 @@ from core.auth import require_admin
 from core.limiter import limiter
 from core.stats import api_call_stats, api_call_since
 from models.core import AuditLog, Group, Site, SiteAccess, User, UserGroup
+from models.push import PushSubscription
 from routers.system_public import get_db_revision
 
 router = APIRouter(prefix="/api/admin", tags=["system-admin"])
@@ -91,6 +92,12 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         # roadmap-database - hier zichtbaar of deze omgeving lokaal opslaat
         # (is prod) of doorstuurt (PROD_API_BASE/PROD_API_KEY geconfigureerd).
         "bug_reports_forward_to_prod": settings.ENVIRONMENT != "production" and bool(settings.PROD_API_BASE and settings.PROD_API_KEY),
+        # item 891: web push - of VAPID geconfigureerd is (zonder werkt de
+        # 🔔-knop niet, geen crash) en hoeveel abonnementen deze omgeving heeft.
+        "push_notifications": {
+            "vapid_configured": bool(settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY),
+            "subscriptions": len(session.exec(select(PushSubscription)).all()),
+        },
         "music_dir": settings.MUSIC_DIR,
         "users": {
             "total": len(users),

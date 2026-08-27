@@ -12,6 +12,7 @@ import CmdQueueSection   from './vanger/CmdQueueSection.jsx'
 import QueueFilterBar    from './vanger/QueueFilterBar.jsx'
 import PouleQueueSection from './vanger/PouleQueueSection.jsx'
 import QueuesPanel       from './vanger/QueuesPanel.jsx'
+import NotificationSubscribeToggle from '@components/NotificationSubscribeToggle.jsx'
 
 export default function VangerTab() {
   // Tree-UI (expand/collapse van losse queue-items) - klein genoeg om lokaal
@@ -51,6 +52,10 @@ export default function VangerTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {discovery.error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{discovery.error}</p>}
       {discovery.loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <NotificationSubscribeToggle site="hockey-inside" />
+      </div>
 
       <VangerStatusCard
         vangerStatus={vangerStatus.vangerStatus}

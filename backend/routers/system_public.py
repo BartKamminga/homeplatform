@@ -44,6 +44,7 @@ def public_config():
         "sentry_dsn": settings.SENTRY_DSN or None,
         "environment": settings.ENVIRONMENT,
         "sentry_min_level": settings.SENTRY_MIN_LEVEL,
+        "vapid_public_key": settings.VAPID_PUBLIC_KEY or None,
     }
 
 
