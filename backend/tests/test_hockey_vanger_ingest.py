@@ -87,12 +87,28 @@ def test_call_competitions_list_releases_hl_comp_id_from_a_different_competition
     session.add(stale)
     session.commit()
 
-    _call_competitions_list({"competitions": [{"id": 24, "name": "Gold Cup Dames"}]}, session)
+    _call_competitions_list(
+        {"competitions": [{"team": None, "club": None, "competition": {"id": 24, "name": "Gold Cup Dames"}}]},
+        session,
+    )
 
     session.refresh(stale)
     assert stale.hl_comp_id is None
     real = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Gold Cup Dames")).first()
     assert real.hl_comp_id == 24
+
+
+def test_call_competitions_list_skips_team_and_club_search_hits(session):
+    raw = {"data": [
+        {"team": {"id": 1, "name": "Victoria JO18-2", "recent_poule_id": 111}, "competition": None, "club": None},
+        {"team": None, "competition": None, "club": {"federation_reference_id": "HH11QW6", "name": "HV Victoria"}},
+        {"team": None, "club": None, "competition": {"id": 19, "name": "Landelijk Jongens O18", "class_name": "Landelijke Topklasse"}},
+    ]}
+    result = _call_competitions_list(raw, session)
+
+    assert result == {"competitions_found": 3, "upserted": 1, "skipped": 2}
+    comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == 19)).first()
+    assert comp.name == "Landelijk Jongens O18"
 
 
 def test_call_competition_detail_releases_hl_comp_id_from_a_different_competition(session):

@@ -601,22 +601,35 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
 
 
 def _call_competitions_list(raw: dict, session: Session):
+    """get_competitions navigeert de vanger-extensie naar hockey.nl's
+    /search/competition - die zoekresultaten mixen teams/competities/clubs in
+    dezelfde lijst (elk item heeft een van "team"/"competition"/"club" gevuld,
+    de rest null). Alleen items met een geneste "competition"-object zijn
+    daadwerkelijk competities; team-/club-hits werden voorheen ook als
+    naamloze "Comp <search-result-id>"-competities aangemaakt (roadmap-melding:
+    "10 competities gevonden zonder naam")."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
-        competitions = raw.get("competitions") or raw.get("data") or []
-        if not isinstance(competitions, list):
+        items = raw.get("competitions") or raw.get("data") or []
+        if not isinstance(items, list):
             return None
     except Exception:
         return None
 
     target_season = _get_target_season(session)
     upserted = 0
-    for item in competitions:
-        comp_id = item.get("id")
-        if not comp_id:
+    skipped  = 0
+    for item in items:
+        comp = item.get("competition") if isinstance(item, dict) else None
+        if not isinstance(comp, dict):
+            skipped += 1
             continue
-        name       = item.get("name") or ("Comp " + str(comp_id))
-        class_name = item.get("class_name") or ""
+        comp_id = comp.get("id")
+        name    = comp.get("name")
+        if not comp_id or not name:
+            skipped += 1
+            continue
+        class_name = comp.get("class_name") or ""
         ht         = "ZA" if "Zaal" in name else "VE"
         ext_id     = name + "|" + target_season
 
@@ -643,7 +656,7 @@ def _call_competitions_list(raw: dict, session: Session):
         upserted += 1
 
     session.commit()
-    return {"competitions_found": len(competitions), "upserted": upserted}
+    return {"competitions_found": len(items), "upserted": upserted, "skipped": skipped}
 
 
 def _call_clubs_list_raw(raw_list: list, session: Session):
