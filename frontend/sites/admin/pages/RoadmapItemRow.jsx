@@ -10,13 +10,19 @@ function deployBadge(item, deployStatus) {
   return { commit: ver.short, onProd };
 }
 
-export default function RoadmapItemRow({ item, deployStatus, onStatusCycle, onEdit, onDelete }) {
+export default function RoadmapItemRow({ item, deployStatus, onStatusCycle, onEdit, onDelete, selected, onToggleSelect }) {
   const [hovering, setHovering] = useState(false);
 
   return (
-    <div style={s.card}>
+    <div style={{ ...s.card, ...(selected ? { outline: "2px solid var(--color-primary)", outlineOffset: "-1px" } : {}) }}>
       <div style={s.cardBody}>
         <div style={s.cardRow}>
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={() => onToggleSelect(item.id)}
+            style={{ marginTop: "5px", flexShrink: 0, cursor: "pointer" }}
+          />
           <div
             style={{
               ...s.statusDot(item.status),

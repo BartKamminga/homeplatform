@@ -7,6 +7,8 @@ import RoadmapItemForm from "./RoadmapItemForm.jsx";
 import RoadmapItemRow from "./RoadmapItemRow.jsx";
 import { s, SITES, STATUSES, PRIORITIES, PRIORITY_LABEL, STATUS_CYCLE, STATUS_LABEL, STATUS_COLOR, STATUS_ORDER } from "./roadmapConstants.js";
 
+const BULK_STATUSES = STATUSES.filter((v) => v !== "alle");
+
 export default function Roadmap() {
   const [items, setItems] = useState([]);
   const [deployStatus, setDeployStatus] = useState(null);
@@ -23,6 +25,11 @@ export default function Roadmap() {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, confirmDeleteDialog] = useConfirm();
+
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkStatus, setBulkStatus] = useState("pick_up");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [copyMsg, setCopyMsg] = useState("");
 
   useEffect(() => { load(); }, []);
 
@@ -85,6 +92,53 @@ export default function Roadmap() {
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelectedIds(new Set(visible.map((it) => it.id)));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function handleBulkStatus() {
+    setBulkBusy(true);
+    try {
+      const ids = [...selectedIds];
+      const updated = await Promise.all(
+        ids.map((id) => api.patch(`/api/roadmap/${id}`, { status: bulkStatus }))
+      );
+      const byId = new Map(updated.map((u) => [u.id, u]));
+      setItems((prev) => prev.map((it) => byId.get(it.id) || it));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  function handleCopyForClaude() {
+    const selected = items.filter((it) => selectedIds.has(it.id));
+    const text = selected.map((it) => {
+      const lines = [`#${it.id} [${it.site}/${it.priority}/${it.status}] ${it.title}`];
+      if (it.description) lines.push(`  ${it.description}`);
+      if (it.notes) lines.push(`  Notes: ${it.notes}`);
+      return lines.join("\n");
+    }).join("\n\n");
+    const header = `Roadmap-items (${selected.length}):\n\n`;
+    navigator.clipboard.writeText(header + text).then(() => {
+      setCopyMsg(`${selected.length} item(s) gekopieerd`);
+      setTimeout(() => setCopyMsg(""), 2500);
+    }).catch(() => setError("Kopiëren naar klembord mislukt"));
   }
 
   const searchLower = search.trim().toLowerCase();
@@ -184,6 +238,36 @@ export default function Roadmap() {
         </div>
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+        <button
+          style={{ ...s.filterBtn(false), fontSize: "11px" }}
+          onClick={selectedIds.size > 0 ? clearSelection : selectAllVisible}
+        >
+          {selectedIds.size > 0 ? `✕ Selectie wissen (${selectedIds.size})` : `☐ Selecteer alle zichtbare (${visible.length})`}
+        </button>
+
+        {selectedIds.size > 0 && (
+          <>
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              style={{ padding: "4px 8px", fontSize: "12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", fontFamily: "inherit" }}
+            >
+              {BULK_STATUSES.map((v) => (
+                <option key={v} value={v}>{STATUS_LABEL[v] || v}</option>
+              ))}
+            </select>
+            <button style={s.filterBtn(true)} onClick={handleBulkStatus} disabled={bulkBusy}>
+              {bulkBusy ? "Bezig…" : `→ Status zetten (${selectedIds.size})`}
+            </button>
+            <button style={{ ...s.filterBtn(false) }} onClick={handleCopyForClaude}>
+              📋 Kopieer voor Claude ({selectedIds.size})
+            </button>
+            {copyMsg && <span style={{ fontSize: "11px", color: "var(--color-success)" }}>{copyMsg}</span>}
+          </>
+        )}
+      </div>
+
       {showNewForm && (
         <RoadmapItemForm initialSite={lastSite} onSave={handleCreate} onCancel={() => setShowNewForm(false)} saving={saving} />
       )}
@@ -218,6 +302,8 @@ export default function Roadmap() {
                 onStatusCycle={handleStatusCycle}
                 onEdit={(it) => { setEditingId(it.id); setShowNewForm(false); }}
                 onDelete={handleDelete}
+                selected={selectedIds.has(item.id)}
+                onToggleSelect={toggleSelect}
               />
             )
           )}
