@@ -2,7 +2,11 @@ import { KNOWN_SEASONS } from '../../api.js'
 import { card, cardLabel, ghostBtn, inputStyle } from '../styles.js'
 import { Toggle } from '../ui.jsx'
 
-// ── ⚙ Beheer meta-paneel (item 635, uitgesplitst uit CompetitiesTab item 737) ──
+// ── ⚙ Beheer meta-paneel (item 635, uitgesplitst uit CompetitiesTab item 737).
+// RFTR-B6 (item 989): fase 6.3 - 31 losse props vervangen door 2 samengestelde
+// objecten (tagMgmt/categoryMgmt) uit de nieuwe hooks in ./hooks/. Fase 6.7 -
+// HTML5 drag-and-drop vervangen door ◀/▶-knoppen (werkt niet op touchscreens,
+// zelfde reden als item 883 bij PublicatieTab.jsx). ──
 
 // item 749: tags groeperen op categorie (puur presentatie - "Overig" voor tags
 // zonder categorie, altijd als laatste groep, categorieën zelf gesorteerd op order).
@@ -22,18 +26,38 @@ function groupTagsByCategory(globalTags) {
   })
 }
 
+function MoveButtons({ onMoveLeft, onMoveRight, isFirst, isLast }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: 1 }}>
+      <button type="button" title="Naar links" disabled={isFirst}
+        onClick={e => { e.stopPropagation(); onMoveLeft() }}
+        style={{ background: 'none', border: 'none', padding: 0, fontSize: 9, lineHeight: 1,
+          color: 'inherit', cursor: isFirst ? 'default' : 'pointer', opacity: isFirst ? 0.25 : 1 }}>◀</button>
+      <button type="button" title="Naar rechts" disabled={isLast}
+        onClick={e => { e.stopPropagation(); onMoveRight() }}
+        style={{ background: 'none', border: 'none', padding: 0, fontSize: 9, lineHeight: 1,
+          color: 'inherit', cursor: isLast ? 'default' : 'pointer', opacity: isLast ? 0.25 : 1 }}>▶</button>
+    </span>
+  )
+}
+
 export default function BeheerPanel({
   metaOpen, toggleMetaOpen,
   published, onTogglePublished,
   season, setSeason,
-  globalTags, onRequestDeleteTag, onAssignTagCategory,
-  newTagName, setNewTagName, addingTag, onAddTag, newTagCategoryId, setNewTagCategoryId,
-  categories, onRequestDeleteCategory,
-  newCatName, setNewCatName, addingCat, onAddCategory,
-  onCatDragStart, onCatDragOver, onCatDrop, catOverIdx,
+  tagMgmt, categoryMgmt,
   onDelete, setConfirmDel,
-  onTagDragStart, onTagDragOver, onTagDrop, tagOverIdx,
 }) {
+  const {
+    globalTags, setConfirmTag: onRequestDeleteTag, handleAssignTagCategory: onAssignTagCategory,
+    newTagName, setNewTagName, addingTag, handleAddTag: onAddTag,
+    newTagCategoryId, setNewTagCategoryId, moveTag,
+  } = tagMgmt
+  const {
+    categories, setConfirmCat: onRequestDeleteCategory,
+    newCatName, setNewCatName, addingCat, handleAddCategory: onAddCategory, moveCategory,
+  } = categoryMgmt
+
   const tagGroups = groupTagsByCategory(globalTags)
   return (
     <div style={card}>
@@ -106,19 +130,16 @@ export default function BeheerPanel({
               )}
               {categories.map((cat, i) => (
                 <span key={cat.id}
-                  draggable
-                  onDragStart={() => onCatDragStart(i)}
-                  onDragOver={e => { e.preventDefault(); onCatDragOver(i) }}
-                  onDrop={() => onCatDrop(i)}
-                  title="Sleep om volgorde te wijzigen"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                     fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
                     border: '1px solid var(--color-text-muted)',
-                    color: 'var(--color-text-muted)', cursor: 'grab',
-                    opacity: catOverIdx === i ? 0.5 : 1, transition: 'opacity 0.15s',
+                    color: 'var(--color-text-muted)',
                   }}>
-                  <span style={{ opacity: 0.5, fontSize: 10 }}>⠿</span>
+                  <MoveButtons
+                    onMoveLeft={() => moveCategory(i, -1)} onMoveRight={() => moveCategory(i, 1)}
+                    isFirst={i === 0} isLast={i === categories.length - 1}
+                  />
                   {cat.name}
                   <button onClick={() => onRequestDeleteCategory(cat)} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -159,20 +180,16 @@ export default function BeheerPanel({
                     const i = globalTags.indexOf(tag)
                     return (
                       <span key={tag.id}
-                        draggable={!!onTagDragStart}
-                        onDragStart={() => onTagDragStart?.(i)}
-                        onDragOver={e => { e.preventDefault(); onTagDragOver?.(i) }}
-                        onDrop={() => onTagDrop?.(i)}
-                        title={onTagDragStart ? 'Sleep om volgorde te wijzigen' : undefined}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 4,
                           fontSize: 11, padding: '3px 6px 3px 10px', borderRadius: 20,
                           border: '1px solid var(--color-primary)',
                           color: 'var(--color-primary)',
-                          cursor: onTagDragStart ? 'grab' : 'default',
-                          opacity: tagOverIdx === i ? 0.5 : 1, transition: 'opacity 0.15s',
                         }}>
-                        {onTagDragStart && <span style={{ opacity: 0.5, fontSize: 10 }}>⠿</span>}
+                        <MoveButtons
+                          onMoveLeft={() => moveTag(i, -1)} onMoveRight={() => moveTag(i, 1)}
+                          isFirst={i === 0} isLast={i === globalTags.length - 1}
+                        />
                         {tag.name}
                         <select
                           value={tag.category_id || ''}
