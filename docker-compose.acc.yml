@@ -43,6 +43,9 @@ services:
       - WORKER_POLL_IDLE_SEC=300
       - PROD_API_BASE=${PROD_API_BASE:-}
       - PROD_API_KEY=${PROD_API_KEY:-}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
