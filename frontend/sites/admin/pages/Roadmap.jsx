@@ -270,22 +270,25 @@ export default function Roadmap() {
 
         {selectedIds.size > 0 && (
           <>
-            <select
-              value={bulkStatus}
-              onChange={(e) => setBulkStatus(e.target.value)}
-              style={{ padding: "4px 8px", fontSize: "12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", fontFamily: "inherit" }}
-            >
-              {BULK_STATUSES.map((v) => (
-                <option key={v} value={v}>{STATUS_LABEL[v] || v}</option>
-              ))}
-            </select>
-            <button style={s.filterBtn(true)} onClick={handleBulkStatus} disabled={bulkBusy}>
-              {bulkBusy ? "Bezig…" : `→ Status zetten (${selectedIds.size})`}
-            </button>
             <button style={{ ...s.filterBtn(false) }} onClick={handleCopyForClaude}>
               📋 Kopieer voor Claude ({selectedIds.size})
             </button>
             {copyMsg && <span style={{ fontSize: "11px", color: "var(--color-success)" }}>{copyMsg}</span>}
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value)}
+                style={{ width: "auto", padding: "4px 8px", fontSize: "12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", fontFamily: "inherit" }}
+              >
+                {BULK_STATUSES.map((v) => (
+                  <option key={v} value={v}>{STATUS_LABEL[v] || v}</option>
+                ))}
+              </select>
+              <button style={s.filterBtn(true)} onClick={handleBulkStatus} disabled={bulkBusy}>
+                {bulkBusy ? "Bezig…" : `→ Status zetten (${selectedIds.size})`}
+              </button>
+            </div>
           </>
         )}
       </div>
