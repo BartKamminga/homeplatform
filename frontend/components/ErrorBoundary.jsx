@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import { reportError } from '@core/sentry.js'
+import ReportBugWidget from './ReportBugWidget.jsx'
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -16,10 +17,13 @@ export default class ErrorBoundary extends Component {
   }
 
   render() {
-    if (!this.state.error) return this.props.children
+    // item 887: op elke site gemount (enige component die alle 13 sites al
+    // gemeenschappelijk importeren) - rendert zelf niets voor niet-Admins.
+    if (!this.state.error) return <>{this.props.children}<ReportBugWidget /></>
 
     const { label = 'Onderdeel' } = this.props
     return (
+      <>
       <div style={{
         padding: '24px', margin: '12px',
         background: 'var(--bg2, #111)', border: '1px solid #ef444433',
@@ -42,6 +46,8 @@ export default class ErrorBoundary extends Component {
           Opnieuw proberen
         </button>
       </div>
+      <ReportBugWidget />
+      </>
     )
   }
 }

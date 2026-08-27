@@ -13,6 +13,14 @@ function getToken() {
   return localStorage.getItem("hp_token");
 }
 
+// Laatst-mislukte-request bijhouden (item 887: bug-report-widget) - handig
+// om automatisch mee te sturen bij een bug-melding, zonder ergens anders
+// een eigen error-tracking te hoeven bouwen.
+let _lastFailedRequest = null;
+export function getLastFailedRequest() {
+  return _lastFailedRequest;
+}
+
 export function setToken(token) {
   localStorage.setItem("hp_token", token);
 }
@@ -96,6 +104,7 @@ async function request(method, path, body = null) {
       ? err.detail.map(d => d.msg).join('; ')
       : (err.detail || "Onbekende fout");
     const error = new Error(detail);
+    _lastFailedRequest = { method, path, status: res.status, detail, ts: new Date().toISOString() };
     reportError(error, { "api.method": method, "api.path": path, "api.status": res.status });
     throw error;
   }

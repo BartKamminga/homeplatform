@@ -1,18 +1,7 @@
 import { useState, useRef } from "react";
 import { s, SITES, STATUSES, PRIORITIES, SCOPES, METER_VALUES, METER_COLOR, EMPTY_FORM } from "./roadmapConstants.js";
 import { InputField, SelectField, TextareaField, FormGroup, FormLabel } from "../AdminFormFields.jsx";
-
-async function uploadImageFile(file) {
-  const fd = new FormData();
-  fd.append("file", file, file.name || "paste.png");
-  const res = await fetch("/api/uploads?category=roadmap", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${localStorage.getItem("hp_token")}` },
-    body: fd,
-  });
-  if (!res.ok) throw new Error("Upload mislukt");
-  return (await res.json()).url;
-}
+import { uploadImageFile } from "@core/uploadImage.js";
 
 function MeterField({ label, name, value, onChange }) {
   return (
