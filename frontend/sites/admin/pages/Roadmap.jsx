@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../AdminLayout.jsx";
 import { api } from "@core/api.js";
 import { useUiPref } from "@core/useUiPref.js";
+import { useConfirm } from "@components/ConfirmDialog.jsx";
 import RoadmapItemForm from "./RoadmapItemForm.jsx";
 import RoadmapItemRow from "./RoadmapItemRow.jsx";
 import { s, SITES, STATUSES, PRIORITIES, PRIORITY_LABEL, STATUS_CYCLE, STATUS_LABEL, STATUS_COLOR, STATUS_ORDER } from "./roadmapConstants.js";
@@ -16,10 +17,12 @@ export default function Roadmap() {
   const [filterStatus, setFilterStatus] = useUiPref("rm_status", "alle");
   const [filterPriority, setFilterPriority] = useUiPref("rm_priority", "alle");
   const [lastSite, setLastSite] = useUiPref("rm_last_site", "platform");
+  const [search, setSearch] = useState("");
 
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, confirmDeleteDialog] = useConfirm();
 
   useEffect(() => { load(); }, []);
 
@@ -75,7 +78,7 @@ export default function Roadmap() {
   }
 
   async function handleDelete(item) {
-    if (!confirm(`"${item.title}" verwijderen?`)) return;
+    if (!(await confirmDelete(`"${item.title}" verwijderen?`))) return;
     try {
       await api.delete(`/api/roadmap/${item.id}`);
       setItems((prev) => prev.filter((it) => it.id !== item.id));
@@ -84,10 +87,16 @@ export default function Roadmap() {
     }
   }
 
+  const searchLower = search.trim().toLowerCase();
   const visible = items.filter((it) => {
     if (filterSite !== "alle" && it.site !== filterSite) return false;
     if (filterStatus !== "alle" && it.status !== filterStatus) return false;
     if (filterPriority !== "alle" && it.priority !== filterPriority) return false;
+    if (searchLower && !(
+      (it.title || "").toLowerCase().includes(searchLower) ||
+      (it.description || "").toLowerCase().includes(searchLower) ||
+      (it.notes || "").toLowerCase().includes(searchLower)
+    )) return false;
     return true;
   });
 
@@ -133,6 +142,16 @@ export default function Roadmap() {
           >✕</button>
         </div>
       )}
+
+      <div style={s.filterRow}>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={`Zoek in ${items.length} items…`}
+          style={{ width: "100%", padding: "6px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", fontSize: "13px", fontFamily: "inherit", boxSizing: "border-box", outline: "none", marginBottom: "8px" }}
+        />
+      </div>
 
       <div style={s.filterBar}>
         <div style={s.filterRow}>
@@ -204,6 +223,8 @@ export default function Roadmap() {
           )}
         </div>
       ))}
+
+      {confirmDeleteDialog}
     </AdminLayout>
   );
 }

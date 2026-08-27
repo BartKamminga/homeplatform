@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AccountLayout from '../AccountLayout.jsx';
 import { api } from '@core/api.js';
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx';
+import { useConfirm } from '@components/ConfirmDialog.jsx';
 
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
@@ -11,6 +12,7 @@ function ApiKeysSection() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(null);   // { key, name } — eenmalig tonen
   const [error, setError]     = useState('');
+  const [confirmRevoke, confirmRevokeDialog] = useConfirm();
 
   useEffect(() => { load(); }, []);
 
@@ -32,7 +34,7 @@ function ApiKeysSection() {
   }
 
   async function revoke(id) {
-    if (!confirm('API key intrekken?')) return;
+    if (!(await confirmRevoke('API key intrekken?'))) return;
     try {
       await api.delete(`/api/auth/api-keys/${id}`);
       setCreated(c => c?.id === id ? null : c);
@@ -118,6 +120,7 @@ function ApiKeysSection() {
         </button>
       </form>
       {error && <p style={{ fontSize: 13, color: 'var(--color-danger, #ef4444)', margin: '8px 0 0' }}>{error}</p>}
+      {confirmRevokeDialog}
     </div>
   );
 }

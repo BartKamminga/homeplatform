@@ -3,6 +3,7 @@ import AdminLayout from '../AdminLayout.jsx';
 import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
 import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
+import { useConfirm } from '@components/ConfirmDialog.jsx';
 import { api } from '@core/api.js';
 import { toggleEndpoint } from '../adminUtils.js';
 
@@ -14,6 +15,7 @@ export default function Groups() {
   const [form, setForm]       = useState({ name: '', slug: '' });
   const [saving, setSaving]   = useState(false);
   const [memberGroup, setMemberGroup] = useState(null); // groep waarvoor leden beheerd worden
+  const [confirmDelete, confirmDeleteDialog] = useConfirm();
 
   function load() {
     api.get('/api/admin/groups/').then(setGroups).catch(e => setError(e.message));
@@ -35,7 +37,7 @@ export default function Groups() {
   }
 
   async function deleteGroup(group) {
-    if (!confirm(`Groep '${group.name}' verwijderen?`)) return;
+    if (!(await confirmDelete(`Groep '${group.name}' verwijderen?`))) return;
     try {
       await api.delete(`/api/admin/groups/${group.id}`);
       load();
@@ -149,6 +151,8 @@ export default function Groups() {
           </ModalFooter>
         </Modal>
       )}
+
+      {confirmDeleteDialog}
     </AdminLayout>
   );
 }

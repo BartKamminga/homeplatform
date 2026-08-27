@@ -3,6 +3,7 @@ import AdminLayout from '../AdminLayout.jsx';
 import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
 import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
+import { useConfirm } from '@components/ConfirmDialog.jsx';
 import { api } from '@core/api.js';
 import { toggleEndpoint } from '../adminUtils.js';
 
@@ -18,6 +19,7 @@ export default function Users() {
   const [inviteGroup, setInviteGroup]   = useState('');
   const [inviteLink, setInviteLink]     = useState('');
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [confirmDelete, confirmDeleteDialog] = useConfirm();
 
   function load() {
     api.get('/api/admin/users/').then(setUsers).catch(e => setError(e.message));
@@ -59,7 +61,7 @@ export default function Users() {
   }
 
   async function deleteUser(user) {
-    if (!window.confirm(`Gebruiker "${user.username}" permanent verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return
+    if (!(await confirmDelete(`Gebruiker "${user.username}" permanent verwijderen? Dit kan niet ongedaan worden gemaakt.`))) return
     try {
       await api.delete(`/api/admin/users/${user.id}`)
       load()
@@ -252,6 +254,8 @@ export default function Users() {
           </ModalFooter>
         </Modal>
       )}
+
+      {confirmDeleteDialog}
     </AdminLayout>
   );
 }
