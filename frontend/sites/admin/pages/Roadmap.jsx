@@ -156,14 +156,8 @@ export default function Roadmap() {
 
   function handleCopyForClaude() {
     const selected = items.filter((it) => selectedIds.has(it.id));
-    const text = selected.map((it) => {
-      const lines = [`#${it.id} [${it.site}/${it.priority}/${it.status}] ${it.title}`];
-      if (it.description) lines.push(`  ${it.description}`);
-      if (it.notes) lines.push(`  Notes: ${it.notes}`);
-      return lines.join("\n");
-    }).join("\n\n");
-    const header = `Roadmap-items (${selected.length}):\n\n`;
-    copyText(header + text).then(() => {
+    const text = selected.map((it) => `#${it.id} ${it.title}`).join("\n");
+    copyText(text).then(() => {
       setCopyMsg(`${selected.length} item(s) gekopieerd`);
       setTimeout(() => setCopyMsg(""), 2500);
     }).catch(() => setError("Kopiëren naar klembord mislukt"));
