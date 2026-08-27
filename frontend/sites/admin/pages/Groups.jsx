@@ -59,7 +59,12 @@ export default function Groups() {
   }
 
   const columns = [
-    { key: 'name',         label: 'Naam' },
+    { key: 'name',         label: 'Naam', render: (v, row) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{v}</span>
+        {row.is_system && <Badge label="🔒 systeem" variant="neutral" />}
+      </div>
+    )},
     { key: 'slug',         label: 'Slug', render: v => (
       <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', background: 'var(--color-surface)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}>{v}</code>
     )},
@@ -74,7 +79,7 @@ export default function Groups() {
         >
           Leden
         </button>
-        {!['admins', 'members', 'guest'].includes(row.slug) && (
+        {!row.is_system && (
           <button
             onClick={() => deleteGroup(row)}
             style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger)', padding: '4px 10px', fontSize: '12px' }}

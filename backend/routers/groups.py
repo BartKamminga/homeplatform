@@ -16,6 +16,7 @@ class GroupOut(BaseModel):
     name: str
     slug: str
     member_count: int
+    is_system: bool
 
 
 class GroupCreate(BaseModel):
@@ -42,7 +43,7 @@ def list_groups(
     counts = dict(count_rows)
 
     return [
-        GroupOut(id=g.id, name=g.name, slug=g.slug, member_count=counts.get(g.id, 0))
+        GroupOut(id=g.id, name=g.name, slug=g.slug, member_count=counts.get(g.id, 0), is_system=g.slug in PROTECTED_GROUPS)
         for g in groups
     ]
 
@@ -58,7 +59,7 @@ def create_group(
 
     group = persist(session, Group(name=data.name, slug=data.slug))
     log_action(session, "group.create", user_id=admin.id, payload={"group": data.slug})
-    return GroupOut(id=group.id, name=group.name, slug=group.slug, member_count=0)
+    return GroupOut(id=group.id, name=group.name, slug=group.slug, member_count=0, is_system=False)
 
 
 @router.delete("/{group_id}")
