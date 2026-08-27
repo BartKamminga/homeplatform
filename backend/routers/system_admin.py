@@ -87,6 +87,10 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "sentry_enabled": bool(settings.SENTRY_DSN),
         "sentry_min_level": settings.SENTRY_MIN_LEVEL,
         "backend_version": settings.APP_VERSION,
+        # item 887: bug-report-widget (🐛-knop) schrijft altijd naar prod's
+        # roadmap-database - hier zichtbaar of deze omgeving lokaal opslaat
+        # (is prod) of doorstuurt (PROD_API_BASE/PROD_API_KEY geconfigureerd).
+        "bug_reports_forward_to_prod": settings.ENVIRONMENT != "production" and bool(settings.PROD_API_BASE and settings.PROD_API_KEY),
         "music_dir": settings.MUSIC_DIR,
         "users": {
             "total": len(users),

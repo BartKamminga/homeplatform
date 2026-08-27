@@ -98,6 +98,17 @@ function EnvironmentCard({ data }) {
       <Row label="Database bestand" value={data.database_file} mono where=".env → DATABASE_URL" />
       <Row label="Music map"       value={data.music_dir}     mono where=".env → MUSIC_DIR" />
       <Row label="Sentry"          value={data.sentry_enabled ? `actief (${data.sentry_min_level}+)` : 'uitgeschakeld'} where=".env → SENTRY_DSN" />
+      <Row
+        label="🐛 Bug-reports (widget)"
+        value={
+          data.environment === 'production'
+            ? 'komen hier lokaal binnen (dit IS prod)'
+            : data.bug_reports_forward_to_prod
+              ? 'worden doorgestuurd naar prod'
+              : '⚠ nog niet ingesteld - vallen terug op lokaal opslaan'
+        }
+        where=".env → PROD_API_BASE / PROD_API_KEY"
+      />
     </Card>
   );
 }
