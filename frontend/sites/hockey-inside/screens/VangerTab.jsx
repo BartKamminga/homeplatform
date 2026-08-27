@@ -1,4 +1,12 @@
-import { useVangerState } from './vanger/useVangerState.jsx'
+import { useState, useEffect } from 'react'
+import { useConfirm, useCollapse } from './ui.jsx'
+import { useDiscoveryData }  from './vanger/hooks/useDiscoveryData.jsx'
+import { usePluginErrors }   from './vanger/hooks/usePluginErrors.jsx'
+import { useCmdQueue }       from './vanger/hooks/useCmdQueue.jsx'
+import { useSmartScan }      from './vanger/hooks/useSmartScan.jsx'
+import { useVangerStatus }   from './vanger/hooks/useVangerStatus.jsx'
+import { useQueueFilter }    from './vanger/hooks/useQueueFilter.jsx'
+import { useVangerSettings } from './vanger/hooks/useVangerSettings.jsx'
 import VangerStatusCard  from './vanger/VangerStatusCard.jsx'
 import CmdQueueSection   from './vanger/CmdQueueSection.jsx'
 import QueueFilterBar    from './vanger/QueueFilterBar.jsx'
@@ -6,25 +14,56 @@ import PouleQueueSection from './vanger/PouleQueueSection.jsx'
 import QueuesPanel       from './vanger/QueuesPanel.jsx'
 
 export default function VangerTab() {
-  const s = useVangerState()
+  // Tree-UI (expand/collapse van losse queue-items) - klein genoeg om lokaal
+  // te blijven i.p.v. een eigen hook (RFTR-B6, item 989).
+  const [expanded, setExpanded] = useState(new Set())
+  function toggle(extId) {
+    setExpanded(prev => { const next = new Set(prev); next.has(extId) ? next.delete(extId) : next.add(extId); return next })
+  }
+  const [errOpen,   toggleErrOpen]   = useCollapse(false)
+  const [queueOpen, toggleQueueOpen] = useCollapse(true)
+  const [confirm, confirmDialog] = useConfirm()
+
+  const discovery      = useDiscoveryData()
+  const pluginErrors   = usePluginErrors()
+  const cmdQueue       = useCmdQueue(confirm)
+  const smartScan      = useSmartScan(cmdQueue.flash, cmdQueue.loadCmdQueue)
+  const vangerStatus   = useVangerStatus(cmdQueue.flash)
+  const queueFilter    = useQueueFilter(discovery.setQueue)
+  const vangerSettings = useVangerSettings(cmdQueue.flash)
+
+  // Gedeelde 8s-poll voor live status tijdens een achtergrond-scan (Ghost/Scout
+  // kunnen buiten deze pagina om draaien) - één gezamenlijke interval i.p.v. 3
+  // losse, zodat dit exact hetzelfde gedrag geeft als vóór de hook-opsplitsing.
+  useEffect(() => {
+    function poll() {
+      vangerStatus.loadVangerStatus()
+      cmdQueue.loadCmdQueue()
+      smartScan.loadSmartScan()
+    }
+    poll()
+    const t = setInterval(poll, 8000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {s.error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{s.error}</p>}
-      {s.loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
+      {discovery.error   && <p style={{ color: 'var(--color-danger)',     fontSize: 12 }}>{discovery.error}</p>}
+      {discovery.loading && <p style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Laden…</p>}
 
       <VangerStatusCard
-        vangerStatus={s.vangerStatus}
-        onStartGhost={s.triggerGhost} ghostBusy={s.ghostBusy}
-        onStartScout={s.triggerScout} scoutBusy={s.scoutBusy}
-        onToggleGhost={s.toggleGhostEnabled}
-        onToggleScanPlan={s.toggleScanPlanEnabled}
-        onToggleMatchday={s.toggleActiveMatchdayEnabled}
-        vangerSettings={s.vangerSettings} onSaveSettings={s.saveVangerSettings}
+        vangerStatus={vangerStatus.vangerStatus}
+        onStartGhost={vangerStatus.triggerGhost} ghostBusy={vangerStatus.ghostBusy}
+        onStartScout={vangerStatus.triggerScout} scoutBusy={vangerStatus.scoutBusy}
+        onToggleGhost={vangerStatus.toggleGhostEnabled}
+        onToggleScanPlan={vangerStatus.toggleScanPlanEnabled}
+        onToggleMatchday={vangerStatus.toggleActiveMatchdayEnabled}
+        vangerSettings={vangerSettings.vangerSettings} onSaveSettings={vangerSettings.saveVangerSettings}
       />
 
       {/* item 543: contextbadge when no clubs have been scanned yet */}
-      {!s.loading && s.clubs.length === 0 && (
+      {!discovery.loading && discovery.clubs.length === 0 && (
         <div style={{
           padding: '10px 14px', borderRadius: 8, fontSize: 12,
           background: 'color-mix(in srgb, var(--color-warning) 10%, var(--color-surface))',
@@ -36,46 +75,46 @@ export default function VangerTab() {
       )}
 
       <CmdQueueSection
-        cmdQueue={s.cmdQueue} cmdFilling={s.cmdFilling} fillMsg={s.fillMsg}
-        cmdOpen={s.cmdOpen} setCmdOpen={s.setCmdOpen}
-        onFill={s.fillCmdQueue} onClear={s.clearCmdQueue}
-        onRetryAll={s.retryAllFailed} onClearDone={s.clearDoneCmds}
-        onRetrySingle={s.retryCmdQueue}
-        cmdOps={s.cmdOps}
-        smartScan={s.smartScan} smartBusy={s.smartBusy}
-        onStartSmartScan={s.startSmartScan} onStopSmartScan={s.stopSmartScan}
+        cmdQueue={cmdQueue.cmdQueue} cmdFilling={cmdQueue.cmdFilling} fillMsg={cmdQueue.fillMsg}
+        cmdOpen={cmdQueue.cmdOpen} setCmdOpen={cmdQueue.toggleCmdOpen}
+        onFill={cmdQueue.fillCmdQueue} onClear={cmdQueue.clearCmdQueue}
+        onRetryAll={cmdQueue.retryAllFailed} onClearDone={cmdQueue.clearDoneCmds}
+        onRetrySingle={cmdQueue.retryCmdQueue}
+        cmdOps={cmdQueue.cmdOps}
+        smartScan={smartScan.smartScan} smartBusy={smartScan.smartBusy}
+        onStartSmartScan={smartScan.startSmartScan} onStopSmartScan={smartScan.stopSmartScan}
       />
 
       <QueuesPanel
-        pluginErrors={s.pluginErrors} setPluginErrors={s.setPluginErrors}
-        errOpen={s.errOpen} setErrOpen={s.setErrOpen}
+        pluginErrors={pluginErrors.pluginErrors} setPluginErrors={pluginErrors.setPluginErrors}
+        errOpen={errOpen} setErrOpen={toggleErrOpen}
       />
 
       <QueueFilterBar
-        qFilter={s.qFilter} queue={s.queue} clubs={s.clubs} showWaiting={s.showWaiting}
-        onToggleNiveau={s.toggleNiveau} onToggleGender={s.toggleGender}
-        onToggleHt={s.toggleHt} onToggleAge={s.toggleAge}
-        onSaveFilter={s.saveFilter} onSetShowWaiting={s.setShowWaiting}
+        qFilter={queueFilter.qFilter} queue={discovery.queue} clubs={discovery.clubs} showWaiting={queueFilter.showWaiting}
+        onToggleNiveau={queueFilter.toggleNiveau} onToggleGender={queueFilter.toggleGender}
+        onToggleHt={queueFilter.toggleHt} onToggleAge={queueFilter.toggleAge}
+        onSaveFilter={queueFilter.saveFilter} onSetShowWaiting={queueFilter.setShowWaiting}
       />
 
-      {s.queue.total > 0 && (
+      {discovery.queue.total > 0 && (
         <PouleQueueSection
-          queue={s.queue} qFilter={s.qFilter} allTeams={s.allTeams}
-          showWaiting={s.showWaiting} expanded={s.expanded}
-          queueOpen={s.queueOpen} setQueueOpen={s.setQueueOpen}
-          toggle={s.toggle} onResetPoule={s.resetPoule}
-          cmdOps={s.cmdOps}
-          onFillClubs={() => s.fillCmdQueue('clubs')}
-          clubsFilling={s.cmdFilling === 'clubs'}
+          queue={discovery.queue} qFilter={queueFilter.qFilter} allTeams={discovery.allTeams}
+          showWaiting={queueFilter.showWaiting} expanded={expanded}
+          queueOpen={queueOpen} setQueueOpen={toggleQueueOpen}
+          toggle={toggle} onResetPoule={discovery.resetPoule}
+          cmdOps={cmdQueue.cmdOps}
+          onFillClubs={() => cmdQueue.fillCmdQueue('clubs')}
+          clubsFilling={cmdQueue.cmdFilling === 'clubs'}
         />
       )}
 
-      {!s.loading && s.queue.total === 0 && (
+      {!discovery.loading && discovery.queue.total === 0 && (
         <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
           Geen poule queue — teams worden geladen zodra de vanger clubs heeft gescand
         </div>
       )}
-      {s.confirmDialog}
+      {confirmDialog}
     </div>
   )
 }
