@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { api } from '@core/api.js'
 import { statBox, statNum, statLbl } from './ui.jsx'
 import { ghostBtn } from './styles.js'
@@ -55,6 +55,27 @@ export default function StatsTab() {
       setDataQuality(dqRes)
     }).finally(() => setLoading(false))
   }, [])
+
+  const dqGroups = useMemo(() => {
+    if (!dataQuality) return []
+    const map = new Map()
+    for (const r of dataQuality.rows) {
+      const key = r.competition_name || '—'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(r)
+    }
+    return [...map.entries()].map(([name, rows]) => {
+      const week         = rows.reduce((n, r) => n + r.week, 0)
+      const geen_tijd     = rows.reduce((n, r) => n + r.geen_tijd, 0)
+      const mist_uitslag  = rows.reduce((n, r) => n + r.mist_uitslag, 0)
+      return {
+        name, rows,
+        poules:      rows.length,
+        wedstrijden: week + geen_tijd + mist_uitslag,
+        week, geen_tijd, mist_uitslag,
+      }
+    })
+  }, [dataQuality])
 
   const detailLoaded = clubs.filter(c => c.detail_loaded).length
   const noDetail     = clubs.length - detailLoaded
@@ -131,6 +152,9 @@ export default function StatsTab() {
       {dataQuality && (
         <div>
           {section(`Data-kwaliteit ${dataQuality.season || ''}`)}
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: -4, marginBottom: 10 }}>
+            📅/⏳ = wedstrijden t/m 7 dagen vooruit (met/zonder bekende kicktijd) · ❗ = wedstrijden van de afgelopen 7 dagen zonder uitslag
+          </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: dataQuality.rows.length > 0 ? 10 : 0 }}>
             <div style={statBox}><span style={statNum}>{dataQuality.rows.reduce((n, r) => n + r.mist_uitslag, 0)}</span><span style={statLbl}>❗ uitslag mist</span></div>
             <div style={statBox}><span style={statNum}>{dataQuality.rows.reduce((n, r) => n + r.geen_tijd, 0)}</span><span style={statLbl}>⏳ tijd onbekend</span></div>
@@ -139,26 +163,28 @@ export default function StatsTab() {
             <div style={statBox}><span style={statNum}>{dataQuality.ghost_poules}</span><span style={statLbl}>👻 ghost-poules</span></div>
             <div style={statBox}><span style={statNum}>{dataQuality.clubs_never_scanned}</span><span style={statLbl}>🏚️ clubs nooit gescand</span></div>
           </div>
-          {dataQuality.rows.length > 0 && (
+          {dqGroups.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', fontWeight: 600 }}>Poule</th>
-                    <th style={{ textAlign: 'left', padding: '4px 4px', fontWeight: 600 }}>Competitie</th>
-                    <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>📅 Week</th>
-                    <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>⏳ Tijd?</th>
-                    <th style={{ textAlign: 'right', padding: '4px 0 4px 4px', fontWeight: 600 }}>❗ Uitslag</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', fontWeight: 600 }}>Competitie</th>
+                    <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Poules</th>
+                    <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Wedstrijden</th>
+                    <th title="Wedstrijden t/m 7 dagen vooruit met bekende kicktijd" style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600, cursor: 'help' }}>📅 Komende week</th>
+                    <th title="Wedstrijden t/m 7 dagen vooruit waarvan de kicktijd nog niet bekend is" style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600, cursor: 'help' }}>⏳ Tijd onbekend</th>
+                    <th title="Wedstrijden van de afgelopen 7 dagen zonder uitslag" style={{ textAlign: 'right', padding: '4px 0 4px 4px', fontWeight: 600, cursor: 'help' }}>❗ Uitslag mist</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dataQuality.rows.map(r => (
-                    <tr key={r.poule_id} style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
-                      <td style={{ padding: '5px 8px 5px 0' }}>{r.poule_name}</td>
-                      <td style={{ padding: '5px 4px', color: 'var(--color-text-muted)' }}>{r.competition_name}</td>
-                      <td style={{ textAlign: 'right', padding: '5px 4px', color: r.week ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{r.week || '—'}</td>
-                      <td style={{ textAlign: 'right', padding: '5px 4px', color: r.geen_tijd ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>{r.geen_tijd || '—'}</td>
-                      <td style={{ textAlign: 'right', padding: '5px 0 5px 4px', color: r.mist_uitslag ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>{r.mist_uitslag || '—'}</td>
+                  {dqGroups.map(g => (
+                    <tr key={g.name} style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                      <td style={{ padding: '5px 8px 5px 0' }}>{g.name}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{g.poules}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{g.wedstrijden}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: g.week ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{g.week || '—'}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: g.geen_tijd ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>{g.geen_tijd || '—'}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 0 5px 4px', color: g.mist_uitslag ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>{g.mist_uitslag || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
