@@ -15,6 +15,7 @@ export default function StatsTab() {
   const [queue,       setQueue]       = useState(null)
   const [errors,      setErrors]      = useState([])
   const [seasonStats, setSeasonStats] = useState([])
+  const [dataQuality, setDataQuality] = useState(null)
   const [loading,     setLoading]     = useState(true)
   const [rangeData,   setRangeData]   = useState(null)
   const [isInferring, setIsInferring] = useState(false)
@@ -43,13 +44,15 @@ export default function StatsTab() {
       api.get('/api/hockey/plugin-errors?limit=5'),
       api.get('/api/hockey/stats/by-season'),
       api.get('/api/hockey/poule-ranges'),
-    ]).then(([clubsRes, teamsRes, queueRes, errRes, seasonRes, rangeRes]) => {
+      api.get('/api/hockey/stats/data-quality'),
+    ]).then(([clubsRes, teamsRes, queueRes, errRes, seasonRes, rangeRes, dqRes]) => {
       setClubs(clubsRes.clubs || [])
       setTeams(teamsRes.teams || [])
       setQueue(queueRes)
       setErrors(errRes.errors || [])
       setSeasonStats(seasonRes.stats || [])
       setRangeData(rangeRes)
+      setDataQuality(dqRes)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -125,6 +128,51 @@ export default function StatsTab() {
         </div>
       )}
 
+      {dataQuality && (
+        <div>
+          {section(`Data-kwaliteit ${dataQuality.season || ''}`)}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: dataQuality.rows.length > 0 ? 10 : 0 }}>
+            <div style={statBox}><span style={statNum}>{dataQuality.rows.reduce((n, r) => n + r.mist_uitslag, 0)}</span><span style={statLbl}>❗ uitslag mist</span></div>
+            <div style={statBox}><span style={statNum}>{dataQuality.rows.reduce((n, r) => n + r.geen_tijd, 0)}</span><span style={statLbl}>⏳ tijd onbekend</span></div>
+            <div style={statBox}><span style={statNum}>{dataQuality.poules_without_team}</span><span style={statLbl}>🕳️ geen team-koppeling</span></div>
+            <div style={statBox}><span style={statNum}>{dataQuality.teams_season_pending}</span><span style={statLbl}>⏸️ season pending</span></div>
+            <div style={statBox}><span style={statNum}>{dataQuality.ghost_poules}</span><span style={statLbl}>👻 ghost-poules</span></div>
+            <div style={statBox}><span style={statNum}>{dataQuality.clubs_never_scanned}</span><span style={statLbl}>🏚️ clubs nooit gescand</span></div>
+          </div>
+          {dataQuality.rows.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', fontWeight: 600 }}>Poule</th>
+                    <th style={{ textAlign: 'left', padding: '4px 4px', fontWeight: 600 }}>Competitie</th>
+                    <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>📅 Week</th>
+                    <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>⏳ Tijd?</th>
+                    <th style={{ textAlign: 'right', padding: '4px 0 4px 4px', fontWeight: 600 }}>❗ Uitslag</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dataQuality.rows.map(r => (
+                    <tr key={r.poule_id} style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
+                      <td style={{ padding: '5px 8px 5px 0' }}>{r.poule_name}</td>
+                      <td style={{ padding: '5px 4px', color: 'var(--color-text-muted)' }}>{r.competition_name}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: r.week ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{r.week || '—'}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: r.geen_tijd ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>{r.geen_tijd || '—'}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 0 5px 4px', color: r.mist_uitslag ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>{r.mist_uitslag || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {dataQuality.total_signaled_poules > dataQuality.rows.length && (
+                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6 }}>
+                  + {dataQuality.total_signaled_poules - dataQuality.rows.length} meer (top 30 getoond)
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {errors.length > 0 && (
         <div>
           {section(`Plugin fouten (${errors.length})`)}
@@ -144,22 +192,30 @@ export default function StatsTab() {
                   <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', fontWeight: 600 }}>Seizoen</th>
                   <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Comp.</th>
                   <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Poules</th>
-                  <th style={{ textAlign: 'right', padding: '4px 0 4px 4px', fontWeight: 600 }}>Gevangen</th>
+                  <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Gevangen</th>
+                  <th style={{ textAlign: 'right', padding: '4px 4px', fontWeight: 600 }}>Wedstrijden</th>
+                  <th style={{ textAlign: 'right', padding: '4px 0 4px 4px', fontWeight: 600 }}>Autoscan</th>
                 </tr>
               </thead>
               <tbody>
                 {seasonStats.map(s => {
-                  const pct = s.total_poules > 0 ? Math.round(s.captured_poules / s.total_poules * 100) : 0
+                  const pct         = s.total_poules > 0 ? Math.round(s.captured_poules / s.total_poules * 100) : 0
+                  const autoscanPct = s.total_poules > 0 ? Math.round((s.autoscan_poules || 0) / s.total_poules * 100) : 0
                   return (
                     <tr key={s.season} style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-border) 50%, transparent)' }}>
                       <td style={{ padding: '5px 8px 5px 0', fontWeight: s.season === queue?.target_season ? 700 : 400 }}>{s.season}</td>
                       <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{s.competitions}</td>
                       <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{s.total_poules}</td>
-                      <td style={{ textAlign: 'right', padding: '5px 0 5px 4px' }}>
+                      <td style={{ textAlign: 'right', padding: '5px 4px' }}>
                         <span style={{ color: pct === 100 && s.total_poules > 0 ? 'var(--color-success)' : pct > 50 ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
                           {s.captured_poules}/{s.total_poules}
                           <span style={{ fontSize: 10, color: 'var(--color-text-muted)', marginLeft: 4 }}>({pct}%)</span>
                         </span>
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '5px 4px', color: 'var(--color-text-muted)' }}>{s.total_matches ?? 0}</td>
+                      <td style={{ textAlign: 'right', padding: '5px 0 5px 4px', color: 'var(--color-text-muted)' }}>
+                        {s.autoscan_poules || 0}/{s.total_poules}
+                        <span style={{ fontSize: 10, marginLeft: 4 }}>({autoscanPct}%)</span>
                       </td>
                     </tr>
                   )

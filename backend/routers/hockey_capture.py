@@ -3,18 +3,20 @@
 import json
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
+from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
-    HockeyCompetition, HockeyPoule, HockeyPouleMatch,
+    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch,
     HockeyPouleStanding, HockeyTeam, VangerCmd,
 )
 from models.settings import AppSetting
@@ -418,6 +420,14 @@ def get_stats_by_season(
     captured_ids = set(session.exec(
         select(HockeyPouleStanding.poule_id).distinct()
     ).all())
+    active_comp_ids = set(session.exec(
+        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "active")
+    ).all())
+    match_counts: dict = defaultdict(int)
+    for poule_id, n in session.exec(
+        select(HockeyPouleMatch.poule_id, func.count()).group_by(HockeyPouleMatch.poule_id)
+    ).all():
+        match_counts[poule_id] = n
 
     comp_by_season: dict = defaultdict(list)
     for c in comps:
@@ -432,14 +442,103 @@ def get_stats_by_season(
         season_comps  = comp_by_season[season]
         season_poules = [p for c in season_comps for p in poule_by_comp.get(c.id, [])]
         captured = sum(1 for p in season_poules if p.poule_id in captured_ids)
+        autoscan = sum(1 for p in season_poules if p.competition_id in active_comp_ids)
+        total_matches = sum(match_counts.get(p.poule_id, 0) for p in season_poules)
         result.append({
             "season":          season,
             "competitions":    len(season_comps),
             "total_poules":    len(season_poules),
             "captured_poules": captured,
+            "total_matches":   total_matches,
+            "autoscan_poules": autoscan,
         })
 
     return {"stats": result}
+
+
+# ── Data-kwaliteit (item 974) ────────────────────────────
+@router.get("/stats/data-quality")
+def get_data_quality(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Signalen naast de scanplan-monitoring: per-poule (aankomende week /
+    kicktijd onbekend / uitslag mist) plus een aantal bredere tellingen."""
+    target_season = _get_target_season(session)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    today = now.date()
+
+    poules = session.exec(select(HockeyPoule).where(HockeyPoule.season == target_season)).all()
+    poule_by_id = {p.poule_id: p for p in poules}
+    comps = {
+        c.id: c for c in session.exec(
+            select(HockeyCompetition).where(col(HockeyCompetition.id).in_({p.competition_id for p in poules}))
+        ).all()
+    } if poules else {}
+
+    matches = session.exec(
+        select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_by_id.keys()))
+    ).all() if poule_by_id else []
+
+    signals: dict = defaultdict(lambda: {"week": 0, "geen_tijd": 0, "mist_uitslag": 0})
+    for m in matches:
+        if not m.match_date:
+            continue
+        try:
+            dt = datetime.fromisoformat(m.match_date)
+        except ValueError:
+            continue
+        match_date = dt.date()
+        if today <= match_date <= today + timedelta(days=7):
+            if dt.time() == dtime(0, 0):
+                signals[m.poule_id]["geen_tijd"] += 1
+            else:
+                signals[m.poule_id]["week"] += 1
+        elif today - timedelta(days=7) <= match_date <= today:
+            if m.status not in ("cancelled", "postponed") and (m.home_score is None or m.away_score is None):
+                signals[m.poule_id]["mist_uitslag"] += 1
+
+    rows = []
+    for poule_id, s in signals.items():
+        if not (s["week"] or s["geen_tijd"] or s["mist_uitslag"]):
+            continue
+        poule = poule_by_id.get(poule_id)
+        if not poule:
+            continue
+        comp = comps.get(poule.competition_id)
+        rows.append({
+            "poule_id": poule_id, "poule_name": poule.name,
+            "competition_name": comp.name if comp else None,
+            "week": s["week"], "geen_tijd": s["geen_tijd"], "mist_uitslag": s["mist_uitslag"],
+        })
+    rows.sort(key=lambda r: (-r["mist_uitslag"], -r["geen_tijd"], -r["week"]))
+
+    team_poule_ids = set(session.exec(
+        select(HockeyTeam.recent_poule_id).where(col(HockeyTeam.recent_poule_id).is_not(None))
+    ).all())
+    poules_without_team = sum(1 for p in poules if p.poule_id not in team_poule_ids)
+
+    season_pending_teams = session.exec(
+        select(func.count()).select_from(HockeyTeam).where(HockeyTeam.season_pending == True)  # noqa: E712
+    ).one()
+
+    standings_poule_ids = set(session.exec(select(HockeyPouleStanding.poule_id).distinct()).all())
+    match_poule_ids     = set(session.exec(select(HockeyPouleMatch.poule_id).distinct()).all())
+    ghost_poules = len(standings_poule_ids - match_poule_ids)
+
+    clubs_never_scanned = session.exec(
+        select(func.count()).select_from(HockeyClub).where(HockeyClub.detail_loaded == False)  # noqa: E712
+    ).one()
+
+    return {
+        "season": target_season,
+        "rows": rows[:30],
+        "total_signaled_poules": len(rows),
+        "poules_without_team":   poules_without_team,
+        "teams_season_pending":  season_pending_teams,
+        "ghost_poules":          ghost_poules,
+        "clubs_never_scanned":   clubs_never_scanned,
+    }
 
 
 # ── Cleanup lege competities ─────────────────────────────
