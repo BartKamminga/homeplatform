@@ -7,7 +7,7 @@ from typing import Dict, Optional
 
 from sqlmodel import Session, col, func, select
 
-from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
+from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _get_queue_filter, _is_scoreless_youth, _cmd_matches_filter, apply_team_filter
@@ -93,6 +93,34 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
                 continue
             seen_pids.add(pid)
             to_add.append({"poule_id": pid, "team_id": t.team_id, "label": t.name})
+
+        # item 990: ook extra (niet-primaire) poules van teams uit deze clubs
+        # meenemen - een team dat ook in een 2e competitie speelt.
+        club_team_ids = {t.team_id for t in session.exec(
+            select(HockeyTeam).where(col(HockeyTeam.club_external_id).in_(scanned_ext_ids))
+        ).all()}
+        if club_team_ids:
+            extra_rows = session.exec(
+                select(HockeyTeamPoule)
+                .where(col(HockeyTeamPoule.team_id).in_(club_team_ids))
+                .where(HockeyTeamPoule.no_new_poule_confirmed == False)  # noqa: E712
+                .where(HockeyTeamPoule.season_pending == False)  # noqa: E712
+            ).all()
+            if extra_rows:
+                extra_teams_q = apply_team_filter(
+                    select(HockeyTeam).where(col(HockeyTeam.team_id).in_({r.team_id for r in extra_rows})),
+                    cats, hts, genders,
+                )
+                extra_teams_by_id = {t.team_id: t for t in session.exec(extra_teams_q).all()}
+                for r in extra_rows:
+                    t = extra_teams_by_id.get(r.team_id)
+                    if not t or _is_scoreless_youth(t.short_name):
+                        continue
+                    pid = r.poule_id
+                    if pid in captured_ids or pid in queued_poule_ids or pid in seen_pids:
+                        continue
+                    seen_pids.add(pid)
+                    to_add.append({"poule_id": pid, "team_id": t.team_id, "label": t.name})
 
         if to_add:
             batch = to_add[:15]

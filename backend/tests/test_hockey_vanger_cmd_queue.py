@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import select
 
-from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
+from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from routers.hockey_vanger_cmd_queue import CmdFillIn, fill_cmd_queue
 
 
@@ -63,6 +63,32 @@ def test_fill_poules_does_not_duplicate_an_already_pending_cmd(session):
 
     result = fill_cmd_queue(CmdFillIn(type="poules"), session=session, _=None)
     assert result["added"] == 0
+
+
+def test_fill_poules_also_queues_a_teams_extra_poule_from_a_second_competition(session):
+    # item 990: een team dat ook in een 2e competitie speelt (hockey_team_poules)
+    # moet daarvoor ook een get_poule-cmd krijgen, naast zijn primaire poule.
+    session.add(_team(team_id=1, name="Team A", short_name="JO16-1", recent_poule_id=100))
+    session.add(HockeyTeamPoule(team_id=1, poule_id=200, season="2026-2027"))
+    session.commit()
+
+    result = fill_cmd_queue(CmdFillIn(type="poules"), session=session, _=None)
+
+    assert result["added"] == 2
+    poule_ids = {json.loads(c.params)["poule_id"] for c in session.exec(select(VangerCmd)).all()}
+    assert poule_ids == {100, 200}
+
+
+def test_fill_poules_skips_a_confirmed_extra_poule(session):
+    session.add(_team(team_id=1, name="Team A", short_name="JO16-1", recent_poule_id=100))
+    session.add(HockeyTeamPoule(team_id=1, poule_id=200, season="2026-2027", no_new_poule_confirmed=True))
+    session.commit()
+
+    result = fill_cmd_queue(CmdFillIn(type="poules"), session=session, _=None)
+
+    assert result["added"] == 1
+    poule_ids = {json.loads(c.params)["poule_id"] for c in session.exec(select(VangerCmd)).all()}
+    assert poule_ids == {100}
 
 
 # ── type=clubs ────────────────────────────────────────────

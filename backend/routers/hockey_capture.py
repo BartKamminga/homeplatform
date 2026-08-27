@@ -16,7 +16,7 @@ from models.capture import DataCapture, new_uuid
 from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch,
-    HockeyPouleStanding, HockeyTeam, VangerCmd,
+    HockeyPouleStanding, HockeyTeam, HockeyTeamPoule, VangerCmd,
 )
 from models.settings import AppSetting
 from services.hockey_poule_capture_core import apply_poule_capture
@@ -187,8 +187,19 @@ def skip_poule(
         t.no_new_poule_confirmed = True
         t.updated_at = datetime.utcnow()
         session.add(t)
+
+    # item 990: dezelfde poule kan ook als extra (niet-primaire) koppeling
+    # bij een ander team staan.
+    extra_links = session.exec(
+        select(HockeyTeamPoule).where(HockeyTeamPoule.poule_id == poule_id)
+    ).all()
+    for tp in extra_links:
+        tp.no_new_poule_confirmed = True
+        tp.updated_at = datetime.utcnow()
+        session.add(tp)
+
     session.commit()
-    return {"poule_id": poule_id, "marked": len(teams)}
+    return {"poule_id": poule_id, "marked": len(teams) + len(extra_links)}
 
 
 # ── Competitions query ───────────────────────────────────
@@ -527,6 +538,22 @@ def infer_season_pending(
             t.season_pending = False
             t.updated_at = now
             session.add(t)
+            cleared_pending += 1
+
+    # item 990: dezelfde inferentie voor extra (niet-primaire) team-poule-koppelingen
+    for tp in session.exec(select(HockeyTeamPoule)).all():
+        if tp.no_new_poule_confirmed:
+            continue
+        inferred = _infer(tp.poule_id)
+        if inferred != target_season and not tp.season_pending:
+            tp.season_pending = True
+            tp.updated_at = now
+            session.add(tp)
+            marked_pending += 1
+        elif inferred == target_season and tp.season_pending:
+            tp.season_pending = False
+            tp.updated_at = now
+            session.add(tp)
             cleared_pending += 1
 
     session.commit()

@@ -2,11 +2,12 @@
 (services/hockey_vanger_smartscan.py) - refactor-plan hockey-inside Fase 1
 (RFTR-B1). Twee beslisbomen in een functie, voorheen nul dekking."""
 
+import json
 from datetime import datetime, timedelta
 
 from sqlmodel import select
 
-from models.hockey_discovery import HockeyClub, HockeyTeam, VangerCmd
+from models.hockey_discovery import HockeyClub, HockeyTeam, HockeyTeamPoule, VangerCmd
 from services.hockey_vanger_smartscan import SMART_SCAN_MAX_CMDS, _smart_scan_discovery_next
 
 
@@ -38,8 +39,27 @@ def test_queues_poules_for_teams_of_a_club_scanned_this_session(session):
 
     assert result["added"] == 1
     assert result["type"] == "get_poule"
-    cmd = session.exec(select_all_cmds(session)).first()
+    cmd = session.exec(select(VangerCmd)).first()
     assert cmd.cmd_type == "get_poule"
+
+
+def test_queues_a_teams_extra_poule_too_when_its_club_was_scanned_this_session(session):
+    # item 990: naast de primaire poule ook een 2e-competitie-koppeling
+    # (hockey_team_poules) meenemen voor teams van een net gescande club.
+    started = datetime.utcnow() - timedelta(minutes=5)
+    session.add(HockeyClub(
+        external_id="HH11XX0", name="Club X", friendly_name="Club X",
+        last_scanned_at=started + timedelta(minutes=1),
+    ))
+    session.add(_team(team_id=1, name="Team A", short_name="JO16-1", recent_poule_id=100))
+    session.add(HockeyTeamPoule(team_id=1, poule_id=200, season="2026-2027"))
+    session.commit()
+
+    result = _smart_scan_discovery_next(session, started, 0)
+
+    assert result["added"] == 2
+    poule_ids = {json.loads(c.params)["poule_id"] for c in session.exec(select(VangerCmd)).all()}
+    assert poule_ids == {100, 200}
 
 
 def test_falls_back_to_club_priority_when_no_recently_scanned_club_has_pending_teams(session):
@@ -71,8 +91,3 @@ def test_skips_a_club_priority_pick_that_is_already_queued(session):
 
     result = _smart_scan_discovery_next(session, started, 0)
     assert result == {"added": 0, "reason": "already_queued"}
-
-
-def select_all_cmds(session):
-    from sqlmodel import select
-    return select(VangerCmd)

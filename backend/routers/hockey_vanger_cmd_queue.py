@@ -15,7 +15,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
-from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
+from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import (
     _GENDER_PREFIX, _age_group_of, _age_sort_key, _cmd_matches_filter, _get_queue_filter,
@@ -85,8 +85,10 @@ def get_cmd_queue(
 
 def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
     """Queuet get_poule-cmds voor teams met een nog-niet-gecaptured recente
-    poule. Retourneert (added, stale_poule_ids) - stale_poule_ids wordt door
-    de aanroeper teruggegeven als 'stale_skip'-telling."""
+    poule, plus (item 990) teams' extra (niet-primaire) poules uit
+    hockey_team_poules - een team dat ook in een 2e competitie speelt.
+    Retourneert (added, stale_poule_ids) - stale_poule_ids wordt door de
+    aanroeper teruggegeven als 'stale_skip'-telling."""
     target_season = _get_target_season(session)
     ages, club, cats, hts, genders = _get_queue_filter(session)
 
@@ -106,9 +108,12 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
 
     seen: set = set()
     candidates = []
+    club_poule_ids: set = set()
     for t in teams:
         if _is_scoreless_youth(t.short_name):
             continue
+        if club and t.club_external_id == club and t.recent_poule_id:
+            club_poule_ids.add(t.recent_poule_id)
         pid = t.recent_poule_id
         if not pid or pid in captured_ids or pid in seen or pid in skip_ids:
             continue
@@ -120,10 +125,33 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
             "hockey_type": t.hockey_type,
         })
 
+    extra_rows = session.exec(select(HockeyTeamPoule).where(HockeyTeamPoule.season == target_season)).all()
+    if extra_rows:
+        extra_teams_q = apply_team_filter(
+            select(HockeyTeam).where(col(HockeyTeam.team_id).in_({r.team_id for r in extra_rows})),
+            cats, hts, genders,
+        )
+        extra_teams_by_id = {t.team_id: t for t in session.exec(extra_teams_q).all()}
+        for r in extra_rows:
+            t = extra_teams_by_id.get(r.team_id)
+            if not t or _is_scoreless_youth(t.short_name):
+                continue
+            if club and t.club_external_id == club:
+                club_poule_ids.add(r.poule_id)
+            pid = r.poule_id
+            if pid in captured_ids or pid in seen or r.season_pending or r.no_new_poule_confirmed:
+                continue
+            seen.add(pid)
+            candidates.append({
+                "poule_id":    pid,
+                "team_id":     t.team_id,
+                "label":       t.name + " (#" + str(pid) + ")",
+                "hockey_type": t.hockey_type,
+            })
+
     if ages:
         candidates = [c for c in candidates if _age_group_of(c["label"]) in ages]
     if club:
-        club_poule_ids = {t.recent_poule_id for t in teams if t.club_external_id == club and t.recent_poule_id}
         candidates = [c for c in candidates if c["poule_id"] in club_poule_ids]
 
     candidates.sort(key=lambda x: -_age_sort_key("label")(x))
@@ -452,6 +480,12 @@ def post_cmd_result(
                 ).all():
                     t.no_new_poule_confirmed = True
                     session.add(t)
+                # item 990: ook een extra (niet-primaire) koppeling bijwerken
+                for tp in session.exec(
+                    select(HockeyTeamPoule).where(HockeyTeamPoule.poule_id == poule_id)
+                ).all():
+                    tp.no_new_poule_confirmed = True
+                    session.add(tp)
 
         session.commit()
         return {"ok": True, "status": cmd.status}

@@ -11,7 +11,7 @@ from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.database import get_session
-from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
+from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _is_scoreless_youth
 
@@ -52,12 +52,26 @@ def gap_fill_queue(
         if t.recent_poule_id and t.recent_poule_id not in team_by_poule:
             team_by_poule[t.recent_poule_id] = t
 
+    # item 990: fallback naar extra (niet-primaire) team-poule-koppelingen -
+    # een stale poule die niet de primaire poule van een team is (omdat dat
+    # team ook in een 2e competitie speelt) werd hiervoor stil overgeslagen:
+    # wel gevonden als stale, maar zonder team_id om de cmd mee te bouwen.
+    extra_team_id_by_poule: dict = {}
+    for r in session.exec(select(HockeyTeamPoule)).all():
+        if r.poule_id not in team_by_poule and r.poule_id not in extra_team_id_by_poule:
+            extra_team_id_by_poule[r.poule_id] = r.team_id
+    extra_teams_by_id = {t.team_id: t for t in session.exec(
+        select(HockeyTeam).where(col(HockeyTeam.team_id).in_(set(extra_team_id_by_poule.values())))
+    ).all()} if extra_team_id_by_poule else {}
+
     added_poules = 0
     for poule in stale_poules:
         pid_str = str(poule.poule_id)
         if pid_str in pending_params or poule.poule_id in pending_params:
             continue
         t = team_by_poule.get(poule.poule_id)
+        if not t:
+            t = extra_teams_by_id.get(extra_team_id_by_poule.get(poule.poule_id))
         if not t:
             continue
         if _is_scoreless_youth(t.short_name):
