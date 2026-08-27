@@ -487,6 +487,26 @@ def get_site_stats(_: User = Depends(require_admin)):
     return {"sites": result}
 
 
+@router.delete("/site-events")
+def delete_old_site_events(older_than_days: int, _: User = Depends(require_admin)):
+    """item 853: retentie-pad voor site_events - groeide ongelimiteerd zonder
+    delete/purge, in tegenstelling tot data_captures (DELETE /api/capture/
+    sessions?older_than_days=N). Geen SQLModel-model voor deze tabel (puur
+    raw-SQL via core/analytics.log_site_event), dus ook hier raw SQL."""
+    from sqlmodel import Session as _Session
+    from core.database import engine as _engine
+    from sqlalchemy import text as _text
+
+    with _Session(_engine) as session:
+        result = session.exec(
+            _text("DELETE FROM site_events WHERE ts < datetime('now', :cutoff)"),
+            params={"cutoff": f"-{older_than_days} days"},
+        )
+        deleted = result.rowcount
+        session.commit()
+    return {"deleted": deleted}
+
+
 # ── Admin: Audit log ──────────────────────────────────────────────────────────
 
 @router.get("/audit-log")

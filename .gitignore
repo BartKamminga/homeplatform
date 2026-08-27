@@ -23,6 +23,7 @@ backend/db/*.sqlite
 # Node
 node_modules/
 frontend/dist/
+frontend/sites/dist/
 frontend/sites/*/dist/
 
 # VS Code

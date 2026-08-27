@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+from sqlalchemy import Index
 from sqlmodel import Field, SQLModel, Column, JSON
 import uuid
 
@@ -133,6 +134,9 @@ class UserApiKey(SQLModel, table=True):
 
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_site_created_at", "site", "created_at"),
+    )
 
     id: str = Field(default_factory=new_uuid, primary_key=True)
     user_id: Optional[str] = Field(default=None, foreign_key="users.id")
@@ -149,6 +153,9 @@ class AuditLog(SQLModel, table=True):
 
 class RoadmapItem(SQLModel, table=True):
     __tablename__ = "roadmap_items"
+    __table_args__ = (
+        Index("ix_roadmap_items_site_status_priority", "site", "status", "priority"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     description: Optional[str] = None
