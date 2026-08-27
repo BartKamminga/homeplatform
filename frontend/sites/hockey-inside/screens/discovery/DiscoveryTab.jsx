@@ -29,7 +29,6 @@ export default function DiscoveryTab({ initialDistrict }) {
   const [clubs,          setClubs]          = useState([])
   const [competitions,   setCompetitions]   = useState([])
   const [allTeams,       setAllTeams]       = useState([])
-  const [queue,          setQueue]          = useState({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
   const [capturedPoules, setCapturedPoules] = useState([])
 
   const [season,       setSeason]       = useState('2026-2027')
@@ -54,14 +53,16 @@ export default function DiscoveryTab({ initialDistrict }) {
     const now = Date.now()
     if (!force && lastDetailAtRef.current && (now - lastDetailAtRef.current) < DETAIL_STALE_MS) return
     lastDetailAtRef.current = now
+    // item 994: /api/hockey/teams krijgt nu season mee, zodat recent_poule_id/
+    // extra_poule_ids al seizoensbewust zijn - dit was de root cause van de
+    // seizoen-wissel-bug uit item 993 (Clubs-view veranderde niet bij het
+    // wisselen van seizoen, omdat teams/poule-queue seizoen-onafhankelijk waren).
     Promise.all([
-      api.get('/api/hockey/teams'),
-      api.get('/api/hockey/poule-queue'),
+      api.get(`/api/hockey/teams?season=${currentSeason}`),
       api.get(`/api/hockey/poules?season=${currentSeason}`),
       api.get(`/api/hockey/competitions?season=${currentSeason}`),
-    ]).then(([teamsRes, queueRes, poulesRes, compsRes]) => {
+    ]).then(([teamsRes, poulesRes, compsRes]) => {
       setAllTeams(teamsRes.teams || [])
-      setQueue(queueRes)
       setCapturedPoules(poulesRes.poules || [])
       setCompetitions(compsRes.competitions || [])
       setDetailLoaded(true)
@@ -74,7 +75,6 @@ export default function DiscoveryTab({ initialDistrict }) {
     lastDetailAtRef.current = 0
     setDetailLoaded(false)
     setAllTeams([])
-    setQueue({ total: 0, captured: 0, missing: 0, stale: 0, waiting: 0, poules: [] })
     setCapturedPoules([])
 
     Promise.all([
@@ -111,10 +111,10 @@ export default function DiscoveryTab({ initialDistrict }) {
     teamsByClub[t.club_external_id].push(t)
   }
 
-  const queueByPouleId = {}
-  for (const p of queue.poules || []) {
-    if (p.poule_id) queueByPouleId[p.poule_id] = p
-  }
+  // item 994: allTeams komt nu al seizoensgefilterd terug (recent_poule_id/
+  // extra_poule_ids), dus "gevangen" simpelweg toetsen tegen de al
+  // seizoensgescopede capturedPoules i.p.v. de niet-seizoensbewuste poule-queue.
+  const capturedPouleIds = new Set(capturedPoules.map(p => p.poule_id))
 
   const poulesByClub = {}
   for (const t of allTeams) {
@@ -122,11 +122,9 @@ export default function DiscoveryTab({ initialDistrict }) {
     // hebben (extra_poule_ids) - allebei meetellen voor de club-voortgang.
     for (const pid of [t.recent_poule_id, ...(t.extra_poule_ids || [])]) {
       if (!pid) continue
-      const qp = queueByPouleId[pid]
-      if (!qp) continue
       if (!poulesByClub[t.club_external_id]) poulesByClub[t.club_external_id] = { total: 0, captured: 0 }
       poulesByClub[t.club_external_id].total++
-      if (qp.captured && !qp.stale) poulesByClub[t.club_external_id].captured++
+      if (capturedPouleIds.has(pid)) poulesByClub[t.club_external_id].captured++
     }
   }
 
@@ -179,7 +177,8 @@ export default function DiscoveryTab({ initialDistrict }) {
           clubs={clubs}
           teamsByClub={teamsByClub}
           poulesByClub={poulesByClub}
-          queueByPouleId={queueByPouleId}
+          capturedPouleIds={capturedPouleIds}
+          season={season}
           expanded={expanded}
           toggle={toggle}
           loading={loading}

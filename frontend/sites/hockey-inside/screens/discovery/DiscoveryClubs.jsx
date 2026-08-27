@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { pill } from '../ui.jsx'
 import { useQueueCmd } from '../queueShared.jsx'
 import { resolveHockeyType } from '../hockeyTypeHelpers.js'
+import TeamDetailModal from './TeamDetailModal.jsx'
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {
@@ -15,8 +16,9 @@ function sortCats(cats) {
 const HT_LABEL = { VE: '🏑 Veldhockey', ZA: '🏒 Zaalhockey' }
 const HT_ORDER = ['VE', 'ZA']
 
-export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queueByPouleId, expanded, toggle, loading }) {
+export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, capturedPouleIds, season, expanded, toggle, loading }) {
   const [clubSearch, setClubSearch] = useState('')
+  const [detailTeamId, setDetailTeamId] = useState(null)
   const { cmdBtn } = useQueueCmd()
 
   const sortedClubs = [...clubs].sort((a, b) => {
@@ -150,27 +152,26 @@ export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queue
                                 // item 990: een team kan naast zijn primaire poule ook een
                                 // 2e competitie hebben (extra_poule_ids) - dan een klein
                                 // stapeltje pilletjes i.p.v. één enkel pilletje.
+                                // item 994: recent_poule_id/extra_poule_ids komen al
+                                // seizoensgefilterd van de backend - een team zonder poule
+                                // in het geselecteerde seizoen toont dus terecht "geen poule".
                                 const pouleIds = [t.recent_poule_id, ...(t.extra_poule_ids || [])].filter(Boolean)
                                 if (pouleIds.length === 0) {
                                   return (
-                                    <span key={t.team_id} style={pill('muted')} title={t.name + ' · geen poule'}>
+                                    <span key={t.team_id} style={pill('muted')} title={t.name + ` · geen poule(s) gevonden voor ${season}`}>
                                       {t.short_name}
                                     </span>
                                   )
                                 }
                                 return pouleIds.map((pid, i) => {
-                                  const qp          = queueByPouleId[pid] ?? null
-                                  const hasCaptured = qp && qp.captured && !qp.stale
-                                  const isStale     = qp && qp.stale
-                                  const v           = hasCaptured ? 'ok' : isStale ? 'muted' : 'partial'
-                                  const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : ' · wacht op scan'
+                                  const hasCaptured = capturedPouleIds.has(pid)
+                                  const v           = hasCaptured ? 'ok' : 'partial'
                                   return (
-                                    <span key={t.team_id + '-' + pid} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
-                                      title={t.name + ' · poule ' + pid + titleSuffix}>
+                                    <span key={t.team_id + '-' + pid} style={{ ...pill(v), cursor: 'pointer' }}
+                                      onClick={() => setDetailTeamId(t.team_id)}
+                                      title={t.name + ' · poule ' + pid + (hasCaptured ? ' · gevangen · klik voor details' : ' · wacht op scan · klik voor details')}>
                                       {t.short_name}{pouleIds.length > 1 ? ' ' + (i + 1) : ''}
-                                      {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
-                                      {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
-                                      {!isStale && !hasCaptured && <span style={{ opacity: 0.65 }}>○</span>}
+                                      {hasCaptured ? <span style={{ opacity: 0.65 }}>✓</span> : <span style={{ opacity: 0.65 }}>○</span>}
                                     </span>
                                   )
                                 })
@@ -198,6 +199,10 @@ export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queue
         <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
           Geen clubs — surf naar www.hockey.nl met de hockey-vanger actief
         </div>
+      )}
+
+      {detailTeamId != null && (
+        <TeamDetailModal teamId={detailTeamId} season={season} onClose={() => setDetailTeamId(null)} />
       )}
     </div>
   )

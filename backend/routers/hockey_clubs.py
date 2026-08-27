@@ -11,7 +11,8 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
-from models.hockey_discovery import HockeyClub, HockeyTeam, HockeyTeamPoule
+from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule
+from routers.hockey_capture import _get_target_season
 from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-clubs"])
@@ -204,9 +205,16 @@ def upsert_club_detail(
 def list_youth_teams(
     category: Optional[str] = None,
     club_external_id: Optional[str] = None,
+    season: Optional[str] = None,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
+    """item 994: optionele season-scoping. Zonder season: ongewijzigd gedrag
+    (recent_poule_id + alle extra_poule_ids, seizoen-onafhankelijk - zoals de
+    Competities-view dit al gebruikte). Met season: recent_poule_id wordt
+    genuld als die (gecaptured) bij een ANDER seizoen hoort, en extra_poule_ids
+    wordt gefilterd op HockeyTeamPoule.season - zodat "hoeveel poules heeft dit
+    team in seizoen X" een betrouwbaar antwoord krijgt in de Clubs-view."""
     q = select(HockeyTeam)
     if category:
         q = q.where(HockeyTeam.category_group_name == category)
@@ -221,10 +229,31 @@ def list_youth_teams(
     extra_by_team: Dict[int, list] = {}
     if teams:
         team_ids = {t.team_id for t in teams}
-        for r in session.exec(
-            select(HockeyTeamPoule).where(col(HockeyTeamPoule.team_id).in_(team_ids))
-        ).all():
+        extra_q = select(HockeyTeamPoule).where(col(HockeyTeamPoule.team_id).in_(team_ids))
+        if season:
+            extra_q = extra_q.where(HockeyTeamPoule.season == season)
+        for r in session.exec(extra_q).all():
             extra_by_team.setdefault(r.team_id, []).append(r.poule_id)
+
+    # item 994: recent_poule_id heeft zelf geen season-veld (HockeyTeam
+    # bevat geen season-kolom) - pas herleidbaar via HockeyPoule.season zodra
+    # gecaptured. Nog niet gecaptured -> alleen tonen voor het actieve
+    # serverdoelseizoen (dezelfde aanname als de rest van de scan-queue).
+    primary_season_by_poule: Dict[int, str] = {}
+    if season and teams:
+        poule_ids = {t.recent_poule_id for t in teams if t.recent_poule_id}
+        if poule_ids:
+            for p in session.exec(select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(poule_ids))).all():
+                primary_season_by_poule[p.poule_id] = p.season
+        target_season = _get_target_season(session)
+
+    def _primary_for_season(t: HockeyTeam) -> Optional[int]:
+        if not season or not t.recent_poule_id:
+            return t.recent_poule_id
+        captured_season = primary_season_by_poule.get(t.recent_poule_id)
+        if captured_season is not None:
+            return t.recent_poule_id if captured_season == season else None
+        return t.recent_poule_id if season == target_season else None
 
     return {
         "total": len(teams),
@@ -237,7 +266,7 @@ def list_youth_teams(
                 "short_name": t.short_name,
                 "hockey_type": t.hockey_type,
                 "category_group_name": t.category_group_name,
-                "recent_poule_id": t.recent_poule_id,
+                "recent_poule_id": _primary_for_season(t),
                 "extra_poule_ids": extra_by_team.get(t.team_id, []),
             }
             for t in teams

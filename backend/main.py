@@ -48,6 +48,7 @@ from routers import downloader  # noqa: E402
 from routers import app_settings  # noqa: E402
 from routers import capture  # noqa: E402
 from routers import hockey_clubs  # noqa: E402
+from routers import hockey_team_detail  # noqa: E402
 from routers import hockey_capture  # noqa: E402
 from routers import hockey_plugin_errors  # noqa: E402
 from routers import hockey_vanger_queue_filters  # noqa: E402
@@ -173,6 +174,7 @@ app.include_router(downloader.router)
 app.include_router(app_settings.router)
 app.include_router(capture.router)
 app.include_router(hockey_clubs.router)
+app.include_router(hockey_team_detail.router)
 app.include_router(hockey_capture.router)
 app.include_router(hockey_plugin_errors.router)
 app.include_router(hockey_vanger_queue_filters.router)
