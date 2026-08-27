@@ -192,11 +192,12 @@ export default function ItemDetail({ item, onReprocess, reprocessing }) {
                             }}>
                               <span style={{ fontSize: 10 }}>{t.hockey_type === 'ZA' ? '🏒' : '🏑'}</span>
                               <span>{t.short_name || t.name}</span>
-                              {t.recent_poule_id && (
-                                <span style={{ fontSize: 9, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                                  #{t.recent_poule_id}
+                              {/* item 990: team kan naast recent_poule_id ook extra_poule_ids hebben (2e competitie) */}
+                              {[t.recent_poule_id, ...(t.extra_poule_ids || [])].filter(Boolean).map(pid => (
+                                <span key={pid} style={{ fontSize: 9, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                  #{pid}
                                 </span>
-                              )}
+                              ))}
                             </div>
                           ))}
                         </div>

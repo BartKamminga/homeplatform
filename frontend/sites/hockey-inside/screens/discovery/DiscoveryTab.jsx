@@ -118,12 +118,16 @@ export default function DiscoveryTab({ initialDistrict }) {
 
   const poulesByClub = {}
   for (const t of allTeams) {
-    if (!t.recent_poule_id) continue
-    const qp = queueByPouleId[t.recent_poule_id]
-    if (!qp) continue
-    if (!poulesByClub[t.club_external_id]) poulesByClub[t.club_external_id] = { total: 0, captured: 0 }
-    poulesByClub[t.club_external_id].total++
-    if (qp.captured && !qp.stale) poulesByClub[t.club_external_id].captured++
+    // item 990: een team kan naast zijn primaire poule ook een 2e competitie
+    // hebben (extra_poule_ids) - allebei meetellen voor de club-voortgang.
+    for (const pid of [t.recent_poule_id, ...(t.extra_poule_ids || [])]) {
+      if (!pid) continue
+      const qp = queueByPouleId[pid]
+      if (!qp) continue
+      if (!poulesByClub[t.club_external_id]) poulesByClub[t.club_external_id] = { total: 0, captured: 0 }
+      poulesByClub[t.club_external_id].total++
+      if (qp.captured && !qp.stale) poulesByClub[t.club_external_id].captured++
+    }
   }
 
   return (

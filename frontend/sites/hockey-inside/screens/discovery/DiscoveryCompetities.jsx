@@ -31,9 +31,13 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
   const teamsByPoule = useMemo(() => {
     const m = {}
     for (const t of allTeams) {
-      if (!t.recent_poule_id) continue
-      if (!m[t.recent_poule_id]) m[t.recent_poule_id] = []
-      m[t.recent_poule_id].push(t)
+      // item 990: een team kan naast zijn primaire poule (recent_poule_id)
+      // ook in een 2e competitie zitten (extra_poule_ids) - in beide poules tonen.
+      for (const pid of [t.recent_poule_id, ...(t.extra_poule_ids || [])]) {
+        if (!pid) continue
+        if (!m[pid]) m[pid] = []
+        m[pid].push(t)
+      }
     }
     for (const arr of Object.values(m)) arr.sort((a, b) => a.short_name.localeCompare(b.short_name, 'nl'))
     return m

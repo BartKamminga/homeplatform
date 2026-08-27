@@ -152,21 +152,33 @@ export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queue
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                               {catTeams.map(t => {
-                                const qp          = t.recent_poule_id ? (queueByPouleId[t.recent_poule_id] ?? null) : null
-                                const hasCaptured = qp && qp.captured && !qp.stale
-                                const isStale     = qp && qp.stale
-                                const hasPoule    = !!t.recent_poule_id
-                                const v           = hasCaptured ? 'ok' : isStale ? 'muted' : hasPoule ? 'partial' : 'muted'
-                                const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : hasPoule ? ' · wacht op scan' : ' · geen poule'
-                                return (
-                                  <span key={t.team_id} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
-                                    title={t.name + (t.recent_poule_id ? ' · poule ' + t.recent_poule_id : ' · geen poule') + titleSuffix}>
-                                    {t.short_name}
-                                    {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
-                                    {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
-                                    {!isStale && !hasCaptured && hasPoule && <span style={{ opacity: 0.65 }}>○</span>}
-                                  </span>
-                                )
+                                // item 990: een team kan naast zijn primaire poule ook een
+                                // 2e competitie hebben (extra_poule_ids) - dan een klein
+                                // stapeltje pilletjes i.p.v. één enkel pilletje.
+                                const pouleIds = [t.recent_poule_id, ...(t.extra_poule_ids || [])].filter(Boolean)
+                                if (pouleIds.length === 0) {
+                                  return (
+                                    <span key={t.team_id} style={pill('muted')} title={t.name + ' · geen poule'}>
+                                      {t.short_name}
+                                    </span>
+                                  )
+                                }
+                                return pouleIds.map((pid, i) => {
+                                  const qp          = queueByPouleId[pid] ?? null
+                                  const hasCaptured = qp && qp.captured && !qp.stale
+                                  const isStale     = qp && qp.stale
+                                  const v           = hasCaptured ? 'ok' : isStale ? 'muted' : 'partial'
+                                  const titleSuffix = isStale ? ' · oud seizoen' : hasCaptured ? ' · gevangen' : ' · wacht op scan'
+                                  return (
+                                    <span key={t.team_id + '-' + pid} style={{ ...pill(v), opacity: isStale ? 0.55 : 1 }}
+                                      title={t.name + ' · poule ' + pid + titleSuffix}>
+                                      {t.short_name}{pouleIds.length > 1 ? ' ' + (i + 1) : ''}
+                                      {isStale     && <span style={{ opacity: 0.65 }}>↩</span>}
+                                      {hasCaptured && <span style={{ opacity: 0.65 }}>✓</span>}
+                                      {!isStale && !hasCaptured && <span style={{ opacity: 0.65 }}>○</span>}
+                                    </span>
+                                  )
+                                })
                               })}
                             </div>
                           </div>

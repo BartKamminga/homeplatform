@@ -80,8 +80,10 @@ export default function PouleQueueSection({ queue, qFilter, allTeams, showWaitin
                   p.club_external_id === qFilter.club_external_id ||
                   (p.clubs_in_poule || []).includes(qFilter.club_external_id)
                 ).map(p => {
+                  // item 990: p.poule_id kan ook een team's extra (2e-competitie) poule zijn
                   const filterTeam = qFilter.club_external_id && p.club_external_id !== qFilter.club_external_id
-                    ? allTeams.find(t => t.club_external_id === qFilter.club_external_id && t.recent_poule_id === p.poule_id)
+                    ? allTeams.find(t => t.club_external_id === qFilter.club_external_id &&
+                        [t.recent_poule_id, ...(t.extra_poule_ids || [])].includes(p.poule_id))
                     : null
                   const addKey   = 'get_poule_' + p.poule_id
                   const addState = cmdAdding[addKey]
