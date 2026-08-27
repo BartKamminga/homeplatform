@@ -50,6 +50,25 @@ class HockeyTeam(SQLModel, table=True):
     last_scanned_at:          Optional[datetime] = None
 
 
+class HockeyTeamPoule(SQLModel, table=True):
+    """Extra (niet-primaire) poule-koppeling voor een team dat in hetzelfde
+    seizoen ook in een andere competitie speelt (bv. een bekertoernooi naast
+    de reguliere competitie) - item 990. De primaire poule blijft
+    HockeyTeam.recent_poule_id; deze tabel draagt uitsluitend de aanvullende
+    koppelingen zodat de veelvoorkomende 1-poule-teams ongewijzigd blijven."""
+    __tablename__ = "hockey_team_poules"
+
+    id:                     int           = Field(default=None, primary_key=True)
+    team_id:                int           = Field(index=True)   # hockey.nl team id (zelfde conventie als HockeyPouleStanding.team_id)
+    poule_id:               int           = Field(index=True)   # hockey.nl poule id (zelfde conventie als HockeyTeam.recent_poule_id)
+    season:                 str
+    no_new_poule_confirmed: bool          = Field(default=False)
+    season_pending:         bool          = Field(default=False)
+    discovered_at:          datetime      = Field(default_factory=datetime.utcnow)
+    updated_at:             datetime      = Field(default_factory=datetime.utcnow)
+    last_scanned_at:        Optional[datetime] = None
+
+
 class HockeyCompetition(SQLModel, table=True):
     __tablename__ = "hockey_competitions"
 
