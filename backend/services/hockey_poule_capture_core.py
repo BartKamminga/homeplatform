@@ -12,7 +12,7 @@ import re
 from sqlmodel import Session, select
 
 from models.hockey_discovery import (
-    HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam,
+    HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam, HockeyTeamPoule,
 )
 
 if TYPE_CHECKING:
@@ -41,6 +41,42 @@ class PouleCaptureResult:
     standings_saved: int = 0
     matches_saved: int = 0
     matches_played: int = 0
+    extra_poules_linked: int = 0
+
+
+def _is_different_competition(session: Session, poule_id: int, new_comp_id: int) -> bool:
+    """Item 990: bepaalt of een team al een primaire poule heeft die bij een
+    ANDERE competitie hoort dan de nieuw gecapturede poule - zo ja, is dit een
+    2e competitie (bv. bekertoernooi naast de reguliere competitie) die
+    ernaast moet komen te staan i.p.v. de primaire poule te overschrijven.
+    Als de huidige primaire poule niet resolvet (zou niet moeten gebeuren),
+    valt dit terug op het oude gedrag (overschrijven) - geen nieuwe aanname
+    voor een staat die niet voorkomt."""
+    existing_poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == poule_id)).first()
+    if not existing_poule:
+        return False
+    return existing_poule.competition_id != new_comp_id
+
+
+def _upsert_team_poule(session: Session, team_id: int, poule_id: int, season: str, now: datetime) -> None:
+    """Item 990: upsert van een 'extra' (niet-primaire) team-poule-koppeling."""
+    row = session.exec(
+        select(HockeyTeamPoule)
+        .where(HockeyTeamPoule.team_id == team_id)
+        .where(HockeyTeamPoule.poule_id == poule_id)
+    ).first()
+    if row:
+        row.season                 = season
+        row.season_pending         = False
+        row.no_new_poule_confirmed = False
+        row.updated_at             = now
+        row.last_scanned_at        = now
+        session.add(row)
+    else:
+        session.add(HockeyTeamPoule(
+            team_id=team_id, poule_id=poule_id, season=season,
+            discovered_at=now, updated_at=now, last_scanned_at=now,
+        ))
 
 
 def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season: str) -> PouleCaptureResult:
@@ -152,17 +188,24 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
         matches_played = sum(1 for m in body.matches_data if m.status == "final")
 
     is_target = body.season == target_season
-    teams_created = teams_updated = 0
+    teams_created = teams_updated = extra_poules_linked = 0
     for t_in in body.teams_in_poule:
         existing = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == t_in.id)).first()
         if existing:
             if is_target and existing.recent_poule_id != body.poule_id:
-                existing.recent_poule_id        = body.poule_id
-                existing.season_pending         = False
-                existing.no_new_poule_confirmed = False
-                existing.updated_at             = now
-                session.add(existing)
-                teams_updated += 1
+                # Team heeft al een primaire poule dit seizoen en die hoort bij
+                # een ANDERE competitie -> 2e competitie (item 990), toevoegen
+                # als extra koppeling i.p.v. de primaire te overschrijven.
+                if existing.recent_poule_id and _is_different_competition(session, existing.recent_poule_id, comp.id):
+                    _upsert_team_poule(session, existing.team_id, body.poule_id, body.season, now)
+                    extra_poules_linked += 1
+                else:
+                    existing.recent_poule_id        = body.poule_id
+                    existing.season_pending         = False
+                    existing.no_new_poule_confirmed = False
+                    existing.updated_at             = now
+                    session.add(existing)
+                    teams_updated += 1
         else:
             hockey_type = body.hockey_type or ("ZA" if t_in.name.startswith(("z", "Z")) else "VE")
             session.add(HockeyTeam(
@@ -179,10 +222,13 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
         for t in session.exec(select(HockeyTeam).where(HockeyTeam.recent_poule_id == body.poule_id)).all():
             t.season_pending = True
             session.add(t)
+        for tp in session.exec(select(HockeyTeamPoule).where(HockeyTeamPoule.poule_id == body.poule_id)).all():
+            tp.season_pending = True
+            session.add(tp)
 
     return PouleCaptureResult(
         comp=comp, poule=poule, poule_status=poule_status,
         teams_created=teams_created, teams_updated=teams_updated,
         standings_saved=standings_saved, matches_saved=matches_saved,
-        matches_played=matches_played,
+        matches_played=matches_played, extra_poules_linked=extra_poules_linked,
     )
