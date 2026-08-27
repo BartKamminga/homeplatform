@@ -1,31 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   syncCompetition, getCompetitionMatches, getHockeyPouleStandings,
 } from '../../api.js'
-import { ghostBtn } from '../styles.js'
+import { ghostBtn, mutedText } from '../styles.js'
 import { formatMatchDateTime } from '@core/matchDate.js'
+import { useAsyncData } from './hooks/useAsyncData.jsx'
 
 const TABS = ['Standen', 'Programma', 'Uitslagen']
+const emptyState = { padding: 20, ...mutedText(13) }
 
 // ── StandenTab ─────────────────────────────────────────────────────────────────
 
 function StandenTab({ lnk }) {
   const poules = lnk.poules || []
-  const [data, setData] = useState({})
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!poules.length) { setLoading(false); return }
-    Promise.all(poules.map(p => getHockeyPouleStandings(p.id).catch(() => null)))
+  const { data, loading } = useAsyncData(
+    () => Promise.all(poules.map(p => getHockeyPouleStandings(p.id).catch(() => null)))
       .then(results => {
         const map = {}
         results.forEach((r, i) => { map[poules[i].id] = r?.standings || [] })
-        setData(map)
-      }).finally(() => setLoading(false))
-  }, [lnk.id])
+        return map
+      }),
+    [lnk.id], {},
+  )
 
-  if (loading) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
-  if (!poules.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Geen poules gevonden.</div>
+  if (loading) return <div style={emptyState}>Laden…</div>
+  if (!poules.length) return <div style={emptyState}>Geen poules gevonden.</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -74,19 +73,17 @@ function StandenTab({ lnk }) {
 // ── ProgrammaTab ───────────────────────────────────────────────────────────────
 
 function ProgrammaTab({ lnk }) {
-  const [matches, setMatches] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: matches, loading } = useAsyncData(
+    () => {
+      const cid = lnk.competition_id
+      if (!cid) return Promise.resolve([])
+      return getCompetitionMatches(cid).catch(() => null).then(r => r?.poules?.flatMap(p => p.scheduled || []) || [])
+    },
+    [lnk.competition_id], [],
+  )
 
-  useEffect(() => {
-    const cid = lnk.competition_id
-    if (!cid) { setLoading(false); return }
-    getCompetitionMatches(cid).catch(() => null).then(r => {
-      setMatches(r?.poules?.flatMap(p => p.scheduled || []) || [])
-    }).finally(() => setLoading(false))
-  }, [lnk.competition_id])
-
-  if (loading) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
-  if (!matches.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Geen geplande wedstrijden.</div>
+  if (loading) return <div style={emptyState}>Laden…</div>
+  if (!matches.length) return <div style={emptyState}>Geen geplande wedstrijden.</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -105,20 +102,20 @@ function ProgrammaTab({ lnk }) {
 // ── UitslagenTab ───────────────────────────────────────────────────────────────
 
 function UitslagenTab({ lnk }) {
-  const [matches, setMatches] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: matches, loading } = useAsyncData(
+    () => {
+      const cid = lnk.competition_id
+      if (!cid) return Promise.resolve([])
+      return getCompetitionMatches(cid).catch(() => null).then(r => {
+        const all = r?.poules?.flatMap(p => p.finished || []) || []
+        return [...all].reverse()
+      })
+    },
+    [lnk.competition_id], [],
+  )
 
-  useEffect(() => {
-    const cid = lnk.competition_id
-    if (!cid) { setLoading(false); return }
-    getCompetitionMatches(cid).catch(() => null).then(r => {
-      const all = r?.poules?.flatMap(p => p.finished || []) || []
-      setMatches([...all].reverse())
-    }).finally(() => setLoading(false))
-  }, [lnk.competition_id])
-
-  if (loading) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Laden…</div>
-  if (!matches.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)', fontSize: 13 }}>Geen uitslagen beschikbaar.</div>
+  if (loading) return <div style={emptyState}>Laden…</div>
+  if (!matches.length) return <div style={emptyState}>Geen uitslagen beschikbaar.</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

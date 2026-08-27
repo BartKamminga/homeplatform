@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useCollapse, Toggle } from '../ui.jsx'
+import { useSettingsForm } from './hooks/useSettingsForm.jsx'
 
 // Twee client-types kunnen dezelfde cmd-queue bedienen, tegelijk:
 //   Scout — de Chrome-extensie, handmatig vanaf een laptop (debug/kleine acties)
@@ -73,31 +73,14 @@ const FIELDS = [
   { key: 'delay_max_sec',    label: 'Delay max (s)',       width: 40 },
 ]
 
-function VangerTuning({ settings, onSave }) {
-  const [values, setValues] = useState({})
+const VANGER_TUNING_KEYS = ['scout', 'ghost'].flatMap(client => FIELDS.map(f => `${client}_${f.key}`))
 
-  useEffect(() => {
-    if (!settings) return
-    const next = {}
-    for (const client of ['scout', 'ghost']) {
-      for (const f of FIELDS) {
-        next[`${client}_${f.key}`] = String(settings[`${client}_${f.key}`] ?? '')
-      }
-    }
-    setValues(next)
-  }, [settings])
+function VangerTuning({ settings, onSave }) {
+  const { values, set, save } = useSettingsForm(settings, VANGER_TUNING_KEYS, onSave)
 
   if (!settings) return null
 
   const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
-
-  function set(key, v) { setValues(prev => ({ ...prev, [key]: v })) }
-
-  function save() {
-    const patch = {}
-    for (const key of Object.keys(values)) patch[key] = Number(values[key]) || settings[key]
-    onSave(patch)
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
@@ -139,27 +122,14 @@ const SCAN_PLAN_FIELDS = [
   { key: 'active_matchday_interval_min', label: 'Matchday-interval (min)',  width: 44 },
 ]
 
-function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday }) {
-  const [values, setValues] = useState({})
+const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
 
-  useEffect(() => {
-    if (!settings) return
-    const next = {}
-    for (const f of SCAN_PLAN_FIELDS) next[f.key] = String(settings[f.key] ?? '')
-    setValues(next)
-  }, [settings])
+function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday }) {
+  const { values, set, save } = useSettingsForm(settings, SCAN_PLAN_KEYS, onSave)
 
   if (!settings) return null
 
   const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
-
-  function set(key, v) { setValues(prev => ({ ...prev, [key]: v })) }
-
-  function save() {
-    const patch = {}
-    for (const key of Object.keys(values)) patch[key] = Number(values[key]) || settings[key]
-    onSave(patch)
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
