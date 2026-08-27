@@ -1,0 +1,19 @@
+{
+  "id": "/landing/",
+  "name": "WebHeaven",
+  "short_name": "WebHeaven",
+  "description": "WebHeaven platform overzicht",
+  "start_url": "/landing/",
+  "scope": "/landing/",
+  "display": "standalone",
+  "background_color": "#0f0f11",
+  "theme_color": "#ff3e6c",
+  "icons": [
+    {
+      "src": "/landing/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
   "name": "Mix Music",
   "short_name": "Mix Music",
   "description": "Persoonlijke muziekspeler",
+  "id": "/mixmusic/",
   "start_url": "/mixmusic/",
   "scope": "/mixmusic/",
   "display": "standalone",

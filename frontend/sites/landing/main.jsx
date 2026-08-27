@@ -12,6 +12,13 @@ import EnvBanner from "@core/EnvBanner.jsx";
 initSentry();
 trackEvent("landing", "page.view", { path: window.location.pathname });
 loadTheme();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/landing/sw.js", { scope: "/landing/" });
+  });
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <EnvBanner />

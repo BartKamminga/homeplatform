@@ -1,0 +1,20 @@
+{
+  "id": "/beatcrades/",
+  "name": "BeatCrades",
+  "short_name": "BeatCrades",
+  "description": "Muziek downloaden en organiseren",
+  "start_url": "/beatcrades/",
+  "scope": "/beatcrades/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f11",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/beatcrades/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

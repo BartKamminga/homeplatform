@@ -2,6 +2,7 @@
   "name": "Poulebord",
   "short_name": "Poulebord",
   "description": "KNHB Jeugdcompetitie poule-indeling en uitslagen",
+  "id": "/poulebord/",
   "start_url": "/poulebord/",
   "scope": "/poulebord/",
   "display": "standalone",

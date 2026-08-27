@@ -12,6 +12,12 @@ initSentry();
 trackEvent("agent-control", "page.view", { path: window.location.pathname });
 loadTheme();
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/agent-control/sw.js", { scope: "/agent-control/" });
+  });
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <EnvBanner />

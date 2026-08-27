@@ -12,6 +12,12 @@ initSentry()
 trackEvent('beatcrades', 'page.view', { path: window.location.pathname })
 loadTheme()
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/beatcrades/sw.js', { scope: '/beatcrades/' })
+  })
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <EnvBanner />

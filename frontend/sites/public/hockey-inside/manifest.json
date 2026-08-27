@@ -1,0 +1,19 @@
+{
+  "id": "/hockey-inside/",
+  "name": "Hockey Inside",
+  "short_name": "Hockey Inside",
+  "description": "Hockey competities, poules en discovery",
+  "start_url": "/hockey-inside/",
+  "scope": "/hockey-inside/",
+  "display": "standalone",
+  "background_color": "#0f0f11",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "/hockey-inside/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
   "name": "DontForget",
   "short_name": "DontForget",
   "description": "Persoonlijke herinneringen en notities",
+  "id": "/dontforget/",
   "start_url": "/dontforget/",
   "scope": "/dontforget/",
   "display": "standalone",

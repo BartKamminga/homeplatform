@@ -30,6 +30,12 @@ import { initSentry } from "@core/sentry.js";
 initSentry();
 trackEvent("admin", "page.view", { path: window.location.pathname });
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/admin/sw.js", { scope: "/admin/" });
+  });
+}
+
 function PrivateRoute({ children }) {
   return isLoggedIn() ? children : <Navigate to="/admin/login" replace />;
 }

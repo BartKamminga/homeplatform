@@ -1,16 +1,16 @@
 {
-  "name": "Tournix",
-  "short_name": "Tournix",
-  "description": "Toernooi beheer en planning",
-  "id": "/tournix/",
-  "start_url": "/tournix/",
-  "scope": "/tournix/",
+  "id": "/admin/",
+  "name": "WebHeaven Admin",
+  "short_name": "Admin",
+  "description": "Platformbeheer",
+  "start_url": "/admin/",
+  "scope": "/admin/",
   "display": "standalone",
   "background_color": "#0f0f11",
   "theme_color": "#ff3e6c",
   "icons": [
     {
-      "src": "/tournix/icon.svg",
+      "src": "/admin/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

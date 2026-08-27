@@ -2,6 +2,7 @@
   "name": "FietsPrognose",
   "short_name": "Fiets",
   "description": "Fietsroute prognose en planning",
+  "id": "/fiets/",
   "start_url": "/fiets/",
   "scope": "/fiets/",
   "display": "standalone",

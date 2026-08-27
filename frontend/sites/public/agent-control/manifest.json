@@ -1,0 +1,19 @@
+{
+  "id": "/agent-control/",
+  "name": "Agent Control — WebHeaven",
+  "short_name": "Agent Control",
+  "description": "Control-plane voor alle smart agents",
+  "start_url": "/agent-control/",
+  "scope": "/agent-control/",
+  "display": "standalone",
+  "background_color": "#0f0f11",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/agent-control/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "/scrapster/",
+  "name": "Scrapster — HC Victoria Matches",
+  "short_name": "Scrapster",
+  "description": "HC Victoria wedstrijden en standen",
+  "start_url": "/scrapster/",
+  "scope": "/scrapster/",
+  "display": "standalone",
+  "background_color": "#006b3c",
+  "theme_color": "#006b3c",
+  "icons": [
+    {
+      "src": "/scrapster/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

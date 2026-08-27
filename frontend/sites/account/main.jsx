@@ -16,6 +16,12 @@ initSentry();
 trackEvent('account', 'page.view', { path: window.location.pathname });
 loadTheme();
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/account/sw.js', { scope: '/account/' });
+  });
+}
+
 function RequireAuth({ children }) {
   if (!isLoggedIn()) {
     window.location.href = '/landing/';

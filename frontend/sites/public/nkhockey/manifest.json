@@ -2,6 +2,7 @@
   "name": "NK Hockey",
   "short_name": "NK Hockey",
   "description": "NK Hockey standen en simulaties",
+  "id": "/nkhockey/",
   "start_url": "/nkhockey/",
   "scope": "/nkhockey/",
   "display": "standalone",
