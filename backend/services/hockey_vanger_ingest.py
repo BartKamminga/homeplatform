@@ -635,11 +635,20 @@ def _call_competitions_list(raw: dict, session: Session):
         if not comp_id or not name:
             skipped += 1
             continue
-        ht         = "ZA" if "Zaal" in name else "VE"
-        ext_id     = name + "|" + target_season
+        ht = "ZA" if "Zaal" in name else "VE"
 
+        # Matchen op (naam, klasse, seizoen) i.p.v. een zelfgebouwde
+        # naam|seizoen-sleutel - overal elders in de app is de external_id
+        # naam|klasse|district|seizoen (4 delen), en get_competitions kent
+        # het district van een landelijke competitie sowieso niet. Matchen op
+        # de letterlijke external_id-string vond de al bestaande, echte rij
+        # (met poules) dus nooit en maakte steeds een kale duplicaat aan
+        # (roadmap-melding: "ONBEKEND · Geen poules"-rijen naast de echte).
         existing = session.exec(
-            select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)
+            select(HockeyCompetition)
+            .where(HockeyCompetition.name == name)
+            .where(HockeyCompetition.class_name == class_name)
+            .where(HockeyCompetition.season == target_season)
         ).first()
         if existing:
             _release_stale_hl_comp_id(session, comp_id, keep_id=existing.id)
@@ -649,7 +658,7 @@ def _call_competitions_list(raw: dict, session: Session):
         else:
             _release_stale_hl_comp_id(session, comp_id, keep_id=None)
             session.add(HockeyCompetition(
-                external_id=ext_id,
+                external_id=name + "|" + class_name + "||" + target_season,
                 name=name,
                 class_name=class_name,
                 hockey_type=ht,

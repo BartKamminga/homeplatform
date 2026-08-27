@@ -123,6 +123,30 @@ def test_call_competitions_list_handles_the_flat_national_list_shape(session):
     assert comp.name == "Landelijk Jongens O16"
 
 
+def test_call_competitions_list_updates_the_existing_real_competition_instead_of_duplicating(session):
+    real = HockeyCompetition(
+        external_id="Landelijk Jongens O16|Landelijke Topklasse|Landelijk|2026-2027",
+        name="Landelijk Jongens O16", class_name="Landelijke Topklasse", district="Landelijk",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(real)
+    session.commit()
+    poule = HockeyPoule(poule_id=1, name="Poule A", competition_id=real.id, season="2026-2027")
+    session.add(poule)
+    session.commit()
+
+    raw = {"competitions": [
+        {"id": 21, "name": "Landelijk Jongens O16", "class_name": "Landelijke Topklasse", "poule_id": 180935},
+    ]}
+    result = _call_competitions_list(raw, session)
+
+    assert result == {"competitions_found": 1, "upserted": 1, "skipped": 0}
+    assert session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Landelijk Jongens O16")).all() == [real]
+    session.refresh(real)
+    assert real.hl_comp_id == 21
+    assert real.district == "Landelijk"
+
+
 def test_call_competition_detail_releases_hl_comp_id_from_a_different_competition(session):
     stale = HockeyCompetition(
         external_id="Landelijk Jongens O16|Landelijke Topklasse|Landelijk|2026-2027",
