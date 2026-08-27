@@ -19,8 +19,8 @@ from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import (
     DISC_FILTER_AGE, DISC_FILTER_CLUB, DISC_FILTER_CAT, DISC_FILTER_HT, DISC_FILTER_GENDER,
-    _AGE_RE_GENERIC, _GENDER_PREFIX, _age_group_of, _apply_gender_filter, _get_queue_filter,
-    _is_scoreless_youth, _cmd_matches_filter,
+    _GENDER_PREFIX, _age_group_of, _age_sort_key, _get_queue_filter,
+    _is_scoreless_youth, _cmd_matches_filter, apply_team_filter,
 )
 from services.hockey_vanger_ingest import (
     _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_club_detail,
@@ -31,6 +31,7 @@ from services.hockey_vanger_smartscan import (
     _smart_scan_try_advance, SMART_SCAN_MAX_CMDS,
 )
 from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY, run_scan_plan_pass
+from services.hockey_vanger_settings import _get_int_setting
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -108,16 +109,7 @@ def get_poule_queue(
     target_season = _get_target_season(session)
     ages, club, cats, hts, genders = _get_queue_filter(session)
 
-    def _age_key(short_name):
-        m = _AGE_RE_GENERIC.search(short_name or "")
-        return int(m.group(1)) if m else 0
-
-    q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
-    if cats:
-        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
-    if hts:
-        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-    q = _apply_gender_filter(q, genders)
+    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
     q = q.order_by(col(HockeyTeam.short_name))
     teams_with = session.exec(q).all()
 
@@ -166,17 +158,13 @@ def get_poule_queue(
                 info["stale"]    = False
 
     result = list(seen.values())
-    result.sort(key=lambda x: (-_age_key(x["short_name"]), x["short_name"]))
+    age_key = _age_sort_key("short_name")
+    result.sort(key=lambda x: (-age_key(x), x["short_name"]))
     total      = len(result)
     n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
     n_stale    = sum(1 for r in result if r["stale"])
 
-    q2 = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_(None))
-    if cats:
-        q2 = q2.where(col(HockeyTeam.category_group_name).in_(cats))
-    if hts:
-        q2 = q2.where(col(HockeyTeam.hockey_type).in_(hts))
-    q2 = _apply_gender_filter(q2, genders)
+    q2 = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_(None)), cats, hts, genders)
     q2 = q2.order_by(col(HockeyTeam.short_name))
     teams_waiting = session.exec(q2).all()
 
@@ -239,12 +227,7 @@ def get_poule_queue_next(
         select(HockeyPoule).where(HockeyPoule.season == target_season)
     ).all()}
 
-    q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
-    if cats:
-        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
-    if hts:
-        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-    q = _apply_gender_filter(q, genders)
+    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
     q = q.order_by(col(HockeyTeam.short_name))
     teams = session.exec(q).all()
 
@@ -284,11 +267,7 @@ def get_poule_queue_next(
     if not candidates:
         return {"done": True}
 
-    def _age_key(item):
-        m = _AGE_RE_GENERIC.search(item["short_name"] or "")
-        return int(m.group(1)) if m else 0
-
-    candidates.sort(key=lambda x: -_age_key(x))
+    candidates.sort(key=lambda x: -_age_sort_key("short_name")(x))
     return {"done": False, **candidates[0]}
 
 
@@ -299,14 +278,9 @@ def get_club_scan_queue(
 ):
     """Clubs waarvan teams no_new_poule_confirmed of season_pending hebben."""
     _, _, cats, hts, genders = _get_queue_filter(session)
-    q = select(HockeyTeam).where(
+    q = apply_team_filter(select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
-    )
-    if cats:
-        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
-    if hts:
-        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-    q = _apply_gender_filter(q, genders)
+    ), cats, hts, genders)
     teams = session.exec(q).all()
 
     counts: Dict[str, int] = {}
@@ -341,14 +315,9 @@ def get_club_scan_queue_next(
 ):
     """Volgende club om te scannen (meeste pending teams eerst)."""
     _, _, cats, hts, genders = _get_queue_filter(session)
-    q = select(HockeyTeam).where(
+    q = apply_team_filter(select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
-    )
-    if cats:
-        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
-    if hts:
-        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-    q = _apply_gender_filter(q, genders)
+    ), cats, hts, genders)
     teams = session.exec(q).all()
 
     if not teams:
@@ -470,13 +439,6 @@ SCAN_PLAN_DEFAULTS = {
     "active_daily_fallback_hours": 24,
     "active_matchday_interval_min": 45,
 }
-
-
-def _get_int_setting(session: Session, key: str, default: int) -> int:
-    row = session.get(AppSetting, key)
-    if row and row.value and row.value.lstrip("-").isdigit():
-        return int(row.value)
-    return default
 
 
 def _vanger_settings(session: Session) -> dict:
@@ -630,12 +592,7 @@ def fill_cmd_queue(
             select(HockeyPoule).where(HockeyPoule.season == target_season)
         ).all()}
 
-        q = select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None))
-        if cats:
-            q = q.where(col(HockeyTeam.category_group_name).in_(cats))
-        if hts:
-            q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-        q = _apply_gender_filter(q, genders)
+        q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
         q = q.order_by(col(HockeyTeam.short_name))
         teams = session.exec(q).all()
 
@@ -667,11 +624,7 @@ def fill_cmd_queue(
             club_poule_ids = {t.recent_poule_id for t in teams if t.club_external_id == club and t.recent_poule_id}
             candidates = [c for c in candidates if c["poule_id"] in club_poule_ids]
 
-        def _age_key(item):
-            m = _AGE_RE_GENERIC.search(item["label"] or "")
-            return int(m.group(1)) if m else 0
-
-        candidates.sort(key=lambda x: -_age_key(x))
+        candidates.sort(key=lambda x: -_age_sort_key("label")(x))
 
         for c in candidates:
             if c["poule_id"] not in pending_params:
@@ -684,14 +637,9 @@ def fill_cmd_queue(
 
     elif body.type == "clubs":
         _, _, cats, hts, genders = _get_queue_filter(session)
-        q = select(HockeyTeam).where(
+        q = apply_team_filter(select(HockeyTeam).where(
             (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
-        )
-        if cats:
-            q = q.where(col(HockeyTeam.category_group_name).in_(cats))
-        if hts:
-            q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-        q = _apply_gender_filter(q, genders)
+        ), cats, hts, genders)
         teams = session.exec(q).all()
 
         counts_by_club: Dict[str, int] = {}

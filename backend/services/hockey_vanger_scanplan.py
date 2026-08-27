@@ -21,6 +21,7 @@ from models.hockey_discovery import (
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _is_scoreless_youth
+from services.hockey_vanger_settings import _get_int_setting
 
 STEP_MAX_CMDS = 10
 
@@ -31,13 +32,6 @@ STEP_MAX_CMDS = 10
 # competities) vallen terug op de dagelijkse fallback-interval, ongeacht of
 # er vandaag een wedstrijd is.
 ACTIVE_MATCHDAY_ENABLED_KEY = "active_matchday_enabled"
-
-
-def _get_int_setting(session: Session, key: str, default: int) -> int:
-    row = session.get(AppSetting, key)
-    if row and row.value and row.value.lstrip("-").isdigit():
-        return int(row.value)
-    return default
 
 
 def _active_matchday_enabled(session: Session) -> bool:

@@ -106,16 +106,20 @@ def test_get_poule_result_does_not_duplicate_archive_for_same_session(session):
 
 
 def test_malformed_raw_marks_cmd_failed_via_exception_path(session):
-    # get_clubs met een niet-dict item in de lijst laat _call_clubs_list
-    # crashen (AttributeError op item.get(...)) - de except-tak moet dit
-    # netjes als "failed" afhandelen i.p.v. de hele request te laten
-    # stuklopen (partial-commit-pad).
-    cmd = _pending_cmd("get_clubs", {"label": "Alle clubs"})
+    # get_competition_detail met een niet-dict item in poules laat
+    # _call_competition_detail crashen (AttributeError op poule_data.get(...),
+    # buiten het try/except dat alleen de initiele raw-vorm afvangt) - de
+    # except-tak in post_cmd_result moet dit netjes als "failed" afhandelen
+    # i.p.v. de hele request te laten stuklopen (partial-commit-pad).
+    # (get_clubs zelf crasht hier niet meer op een None-item sinds RFTR-B2:
+    # apply_clubs_list slaat niet-dict items over i.p.v. te crashen.)
+    cmd = _pending_cmd("get_competition_detail", {"comp_id": 21, "label": "Jongens O16"})
     session.add(cmd)
     session.commit()
     session.refresh(cmd)
 
-    result = post_cmd_result(cmd.id, CmdResultIn(raw={"data": [None]}), session=session, _=None)
+    raw = {"data": {"data": {"name": "Jongens O16", "poules": [None]}}}
+    result = post_cmd_result(cmd.id, CmdResultIn(raw=raw), session=session, _=None)
 
     assert result["ok"] is False
     assert result["status"] == "failed"

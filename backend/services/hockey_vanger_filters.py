@@ -8,6 +8,14 @@ from sqlmodel import Session, col, select
 from models.hockey_discovery import HockeyCompetition, HockeyTeam
 from models.settings import AppSetting
 
+# _AGE_RE en _AGE_RE_GENERIC zijn bewust gescheiden (RFTR-B2, Fase 2g) -
+# geen duplicatie om samen te voegen, maar twee verschillende concepten:
+# _AGE_RE is een striktere match voor "is dit een geldige jeugd-leeftijd"
+# (O11-O18, hoofdlettergevoelig), _AGE_RE_GENERIC is de brede extractie
+# ("welk leeftijdsgetal staat hierin") die overal elders wordt gebruikt om
+# te sorteren/groeperen, ook buiten het jeugdbereik. _COMP_AGE_RE (verderop)
+# is weer een derde: matcht op vrije competitienaam-tekst i.p.v. het
+# teamnaam-prefixpatroon dat de andere twee verwachten.
 _AGE_RE         = re.compile(r"[JM][OZ](1[1-8])-")
 _AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
 
@@ -84,6 +92,31 @@ def _apply_gender_filter(q, genders):
     for c in conds[1:]:
         combined = combined | c
     return q.where(combined)
+
+
+def apply_team_filter(q, cats, hts, genders):
+    """Combineert het 3-voudige category/hockey_type/gender-queryfilter dat
+    9x herhaald stond over hockey_vanger.py/hockey_vanger_smartscan.py (RFTR-B2,
+    Fase 2e). Leeftijd (ages) en club zitten hier bewust niet in - die worden
+    per aanroeper op de al-uitgevoerde teamlijst toegepast (leeftijd via
+    _age_group_of op short_name, niet als kolomfilter)."""
+    if cats:
+        q = q.where(col(HockeyTeam.category_group_name).in_(cats))
+    if hts:
+        q = q.where(col(HockeyTeam.hockey_type).in_(hts))
+    return _apply_gender_filter(q, genders)
+
+
+def _age_sort_key(field=None):
+    """Factory voor de 3x herhaalde sorteer-closure in hockey_vanger.py
+    (RFTR-B2, Fase 2f): leeftijdsgetal uit een short_name/label-string.
+    Zonder field opereert de key direct op de string zelf; met field
+    (bv. "short_name"/"label") wordt die eerst uit het item-dict gehaald."""
+    def _key(item):
+        s = item[field] if field else item
+        m = _AGE_RE_GENERIC.search(s or "")
+        return int(m.group(1)) if m else 0
+    return _key
 
 
 def _age_in_range(short_name: str, age_min: int, age_max: int) -> bool:

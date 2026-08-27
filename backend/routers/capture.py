@@ -196,10 +196,8 @@ REPROCESSABLE = ("poule_capture", "comp_detail", "clubs_list", "club_detail")
 @router.post("/reprocess")
 def reprocess(body: ReprocessBody, session: Session = Depends(get_session), _=Depends(get_current_user)):
     """Herverwerk gearchiveerde captures (poule_capture en comp_detail) via de discovery-parser."""
-    from routers.hockey_vanger import (
-        _parse_raw_poule, _call_poule_capture, _call_competition_detail,
-        _call_clubs_list_raw, _call_club_detail_raw,
-    )
+    from routers.hockey_vanger import _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_competition_detail
+    from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 
     if body.session_id:
         captures = session.exec(
@@ -236,13 +234,14 @@ def reprocess(body: ReprocessBody, session: Session = Depends(get_session), _=De
                     continue
             elif capture.capture_type == "clubs_list":
                 raw_list = raw if isinstance(raw, list) else raw.get("clubs", [])
-                _call_clubs_list_raw(raw_list, session)
+                apply_clubs_list(session, raw_list)
             elif capture.capture_type == "club_detail":
-                result = _call_club_detail_raw(raw, session)
-                if not result:
+                detail_body = _parse_raw_club(raw, {})
+                if not detail_body:
                     failed += 1
                     errors.append(f"{capture.external_id}: parse mislukt")
                     continue
+                apply_club_detail(session, detail_body)
             session.commit()
             ok += 1
         except Exception as e:

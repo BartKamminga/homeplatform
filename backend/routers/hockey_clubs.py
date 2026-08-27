@@ -12,6 +12,7 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyTeam
+from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-clubs"])
 
@@ -38,34 +39,7 @@ def upsert_clubs(
     _=Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    created = 0
-    updated = 0
-    for club_in in body.clubs:
-        existing = session.exec(
-            select(HockeyClub).where(HockeyClub.external_id == club_in.federation_reference_id)
-        ).first()
-        if existing:
-            existing.name = club_in.name
-            existing.friendly_name = club_in.friendly_name
-            existing.city = club_in.city
-            existing.logo_url = club_in.logo
-            existing.club_type = club_in.type
-            existing.updated_at = now
-            session.add(existing)
-            updated += 1
-        else:
-            club = HockeyClub(
-                external_id=club_in.federation_reference_id,
-                name=club_in.name,
-                friendly_name=club_in.friendly_name,
-                city=club_in.city,
-                logo_url=club_in.logo,
-                club_type=club_in.type,
-                discovered_at=now,
-                updated_at=now,
-            )
-            session.add(club)
-            created += 1
+    result = apply_clubs_list(session, [c.model_dump() for c in body.clubs])
 
     # Archive: one entry per session (idempotent)
     if body.session_id:
@@ -87,7 +61,11 @@ def upsert_clubs(
             ))
 
     session.commit()
-    return {"created": created, "updated": updated, "total": created + updated}
+    return {
+        "created": result.clubs_created,
+        "updated": result.clubs_updated,
+        "total":   result.clubs_created + result.clubs_updated,
+    }
 
 
 @router.get("/clubs")
@@ -182,82 +160,11 @@ def upsert_club_detail(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-
-    existing = session.exec(
-        select(HockeyClub).where(HockeyClub.external_id == body.federation_reference_id)
-    ).first()
-    club = existing or HockeyClub(external_id=body.federation_reference_id, discovered_at=now)
-
-    if body.name: club.name = body.name
-    if body.friendly_name: club.friendly_name = body.friendly_name
-    club.city = body.city
-    club.logo_url = body.logo
-    club.address = body.address
-    club.zipcode = body.zipcode
-    club.phone = body.phone
-    club.email = body.email
-    club.website = body.website
-    club.tenue = body.tenue
-    club.district = body.district
-    club.payment_options = (
-        json.dumps(body.payment_options, ensure_ascii=False)
-        if isinstance(body.payment_options, list)
-        else body.payment_options
-    )
-    club.parking = body.parking
-    club.hockey_types = (
-        json.dumps(body.hockey_types, ensure_ascii=False)
-        if isinstance(body.hockey_types, list)
-        else body.hockey_types
-    )
-    club.detail_loaded = True
-    club.updated_at = now
-    club.last_scanned_at = now
-    session.add(club)
-
-    teams_created = 0
-    teams_updated = 0
-    youth_count = 0
-    for team_in in body.teams:
-        if team_in.category_group_name == "Junioren":
-            youth_count += 1
-        existing_team = session.exec(
-            select(HockeyTeam).where(HockeyTeam.team_id == team_in.id)
-        ).first()
-        if existing_team:
-            if team_in.name: existing_team.name = team_in.name
-            if team_in.short_name: existing_team.short_name = team_in.short_name
-            existing_team.logo_url = team_in.logo
-            existing_team.hockey_type = team_in.hockey_type
-            existing_team.category_group_name = team_in.category_group_name
-            if team_in.recent_poule_id != existing_team.recent_poule_id:
-                existing_team.recent_poule_id = team_in.recent_poule_id
-                existing_team.no_new_poule_confirmed = False
-                existing_team.season_pending = False
-            existing_team.updated_at = now
-            existing_team.last_scanned_at = now
-            session.add(existing_team)
-            teams_updated += 1
-        else:
-            team = HockeyTeam(
-                team_id=team_in.id,
-                club_external_id=body.federation_reference_id,
-                name=team_in.name,
-                short_name=team_in.short_name,
-                logo_url=team_in.logo,
-                hockey_type=team_in.hockey_type,
-                category_group_name=team_in.category_group_name,
-                recent_poule_id=team_in.recent_poule_id,
-                discovered_at=now,
-                updated_at=now,
-                last_scanned_at=now,
-            )
-            session.add(team)
-            teams_created += 1
+    result = apply_club_detail(session, body)
 
     # Archive per session (idempotent per club)
     if body.session_id:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         ext_id = "club_detail_" + body.federation_reference_id
         already = session.exec(
             select(DataCapture)
@@ -277,7 +184,7 @@ def upsert_club_detail(
                     "club": body.federation_reference_id,
                     "name": body.friendly_name,
                     "teams": len(body.teams),
-                    "youth_teams": youth_count,
+                    "youth_teams": result.youth_teams,
                 }, ensure_ascii=False),
                 captured_at=now,
             ))
@@ -285,10 +192,10 @@ def upsert_club_detail(
     session.commit()
     return {
         "club": body.federation_reference_id,
-        "teams_created": teams_created,
-        "teams_updated": teams_updated,
-        "total_teams": teams_created + teams_updated,
-        "youth_teams": youth_count,
+        "teams_created": result.teams_created,
+        "teams_updated": result.teams_updated,
+        "total_teams": result.teams_created + result.teams_updated,
+        "youth_teams": result.youth_teams,
     }
 
 

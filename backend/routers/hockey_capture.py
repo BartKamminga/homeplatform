@@ -1,7 +1,6 @@
 """Hockey — poule capture, competitions, plugin errors."""
 
 import json
-import re
 from collections import defaultdict
 from datetime import datetime, time as dtime, timedelta, timezone
 from typing import Dict, List, Optional
@@ -20,6 +19,7 @@ from models.hockey_discovery import (
     HockeyPouleStanding, HockeyTeam, VangerCmd,
 )
 from models.settings import AppSetting
+from services.hockey_poule_capture_core import apply_poule_capture
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-capture"])
 
@@ -29,20 +29,6 @@ DISC_TARGET_SEASON = "disc_target_season"
 def _get_target_season(session: Session) -> str:
     row = session.get(AppSetting, DISC_TARGET_SEASON)
     return row.value if row and row.value else "2026-2027"
-
-
-# ── Poule capture: structureer competitie + poule ────────
-_CAT_JUNIOR_RE = re.compile(r"^[zZ]?[JjMm][OoZz]\d")
-
-
-def _derive_category(name: str) -> str:
-    """Leidt category_group_name af uit teamnaam (J/M prefix = Junioren, H/D = Senioren)."""
-    n = name.lstrip("z").lstrip("Z")
-    if _CAT_JUNIOR_RE.match(name):
-        return "Junioren"
-    if n and n[0] in ("H", "h", "D", "d"):
-        return "Senioren"
-    return ""
 
 
 class TeamInPoule(BaseModel):
@@ -99,98 +85,11 @@ def upsert_poule_capture(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-
-    # Competition upsert
-    ext_id = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|" + body.season
-    comp = session.exec(
-        select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)
-    ).first()
-    if comp:
-        comp.class_name  = body.class_name
-        comp.district    = body.district or comp.district
-        comp.updated_at  = now
-        if body.hockey_type:
-            comp.hockey_type = body.hockey_type
-        session.add(comp)
-    else:
-        base_prefix = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|"
-        prev_comp = session.exec(
-            select(HockeyCompetition)
-            .where(HockeyCompetition.external_id.like(base_prefix + "%"))
-            .where(HockeyCompetition.season != body.season)
-            .order_by(HockeyCompetition.season.desc())
-        ).first()
-        # Alleen hergebruiken als de rij nog geen poules van een ander seizoen
-        # draagt - anders raken die poules gekoppeld aan een label dat niet meer
-        # bij ze hoort (zie roadmap-melding: "Jongens O14 Lente" bleef aan een
-        # oude 2025-2026-poule hangen nadat de rij naar 2026-2027 was omgezet).
-        prev_comp_has_poules = bool(prev_comp) and session.exec(
-            select(HockeyPoule.id).where(HockeyPoule.competition_id == prev_comp.id)
-        ).first() is not None
-        if prev_comp and not prev_comp_has_poules:
-            prev_comp.external_id = ext_id
-            prev_comp.season      = body.season
-            prev_comp.updated_at  = now
-            if body.hockey_type:
-                prev_comp.hockey_type = body.hockey_type
-            if body.district:
-                prev_comp.district = body.district
-            comp = prev_comp
-            session.add(comp)
-        else:
-            comp = HockeyCompetition(
-                external_id  = ext_id,
-                name         = body.competition_name,
-                class_name   = body.class_name,
-                district     = body.district or None,
-                hockey_type  = body.hockey_type,
-                season       = body.season,
-                discovered_at = now,
-                updated_at   = now,
-            )
-            session.add(comp)
-    session.flush()
-
-    # Poule upsert
-    poule = session.exec(
-        select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
-    ).first()
-    if poule:
-        status = "updated"
-        poule.name           = body.poule_name
-        poule.competition_id = comp.id
-        poule.updated_at     = now
-        poule.last_scanned_at = now
-        session.add(poule)
-    else:
-        prev_poule = session.exec(
-            select(HockeyPoule)
-            .where(HockeyPoule.name == body.poule_name)
-            .where(HockeyPoule.competition_id == comp.id)
-        ).first()
-        if prev_poule:
-            prev_poule.poule_id        = body.poule_id
-            prev_poule.season          = body.season
-            prev_poule.updated_at      = now
-            prev_poule.last_scanned_at = now
-            poule = prev_poule
-            status = "deduped"
-            session.add(poule)
-        else:
-            status = "created"
-            poule = HockeyPoule(
-                poule_id       = body.poule_id,
-                name           = body.poule_name,
-                competition_id = comp.id,
-                season         = body.season,
-                discovered_at  = now,
-                updated_at     = now,
-                last_scanned_at = now,
-            )
-            session.add(poule)
+    target_season = _get_target_season(session)
+    result = apply_poule_capture(session, body, target_season)
 
     if body.session_id:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         ext_cap = "poule_capture_" + str(body.poule_id)
         already = session.exec(
             select(DataCapture)
@@ -214,89 +113,16 @@ def upsert_poule_capture(
                 captured_at=now,
             ))
 
-    if body.standings_data:
-        for old in session.exec(
-            select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == body.poule_id)
-        ).all():
-            session.delete(old)
-        for sd in body.standings_data:
-            session.add(HockeyPouleStanding(
-                poule_id=body.poule_id, team_id=sd.team_id, team_name=sd.team_name,
-                position=sd.position, played=sd.played, won=sd.won, drawn=sd.drawn,
-                lost=sd.lost, goals_for=sd.goals_for, goals_against=sd.goals_against,
-                points=sd.points, updated_at=now,
-            ))
-
-    if body.matches_data:
-        for old in session.exec(
-            select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)
-        ).all():
-            session.delete(old)
-        for md in body.matches_data:
-            is_fin = md.status == "final"
-            session.add(HockeyPouleMatch(
-                poule_id=body.poule_id, match_id=md.match_id,
-                home_team_id=md.home_team_id, home_team_name=md.home_team_name,
-                away_team_id=md.away_team_id, away_team_name=md.away_team_name,
-                match_date=md.match_date, status=md.status,
-                home_score=md.home_score if is_fin else None,
-                away_score=md.away_score if is_fin else None,
-                round=md.round, updated_at=now,
-            ))
-
-    target_season = _get_target_season(session)
-    is_target     = body.season == target_season
-    teams_updated = 0
-    teams_created = 0
-
-    for t_in in body.teams_in_poule:
-        existing = session.exec(
-            select(HockeyTeam).where(HockeyTeam.team_id == t_in.id)
-        ).first()
-        if existing:
-            if is_target and existing.recent_poule_id != body.poule_id:
-                existing.recent_poule_id        = body.poule_id
-                existing.season_pending         = False
-                existing.no_new_poule_confirmed = False
-                existing.updated_at             = now
-                session.add(existing)
-                teams_updated += 1
-        else:
-            hockey_type = body.hockey_type or "VE"
-            if not hockey_type and t_in.name.startswith(("z", "Z")):
-                hockey_type = "ZA"
-            session.add(HockeyTeam(
-                team_id              = t_in.id,
-                club_external_id     = t_in.federation_reference_id or "",
-                name                 = t_in.name,
-                short_name           = t_in.short_name or t_in.name,
-                logo_url             = t_in.logo,
-                hockey_type          = hockey_type,
-                category_group_name  = _derive_category(t_in.name),
-                recent_poule_id      = body.poule_id,
-                season_pending       = not is_target,
-                discovered_at        = now,
-                updated_at           = now,
-            ))
-            teams_created += 1
-
-    if not is_target:
-        for t in session.exec(
-            select(HockeyTeam).where(HockeyTeam.recent_poule_id == body.poule_id)
-        ).all():
-            t.season_pending = True
-            session.add(t)
-
     session.commit()
     return {
         "poule_id":          body.poule_id,
         "competition_name":  body.competition_name,
-        "competition_id":    comp.id,
-        "status":            status,
-        "teams_updated":     teams_updated,
-        "teams_created":     teams_created,
-        "standings_saved":   len(body.standings_data),
-        "matches_saved":     len(body.matches_data),
+        "competition_id":    result.comp.id,
+        "status":            result.poule_status,
+        "teams_updated":     result.teams_updated,
+        "teams_created":     result.teams_created,
+        "standings_saved":   result.standings_saved,
+        "matches_saved":     result.matches_saved,
     }
 
 

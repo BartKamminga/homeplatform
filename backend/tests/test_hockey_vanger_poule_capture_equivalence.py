@@ -1,9 +1,10 @@
-"""Karakteriseringstests voor het _call_poule_capture/upsert_poule_capture-
-paar (refactor-plan hockey-inside Fase 1, RFTR-B1) - vastleggen van het
-huidige gedrag VOORDAT Fase 2 (RFTR-B2) ze samenvoegt tot een gedeelde kern.
-Inclusief een test die de bekende ZA-dead-code-divergentie in
-upsert_poule_capture bewust tegen het HUIDIGE (foute) gedrag test, zodat de
-samenvoeging in B2 een verifieerbare bugfix is, geen stille gedragswijziging."""
+"""Tests voor het _call_poule_capture/upsert_poule_capture-paar
+(refactor-plan hockey-inside Fase 1/2, RFTR-B1/B2) - beide paden delen nu
+apply_poule_capture (services/hockey_poule_capture_core.py). De
+ZA-dead-code-divergentie die upsert_poule_capture voorheen had (hockey_type
+= body.hockey_type or "VE" maakte de ZA-fallback onbereikbaar) is met de
+samenvoeging structureel opgelost - beide paden geven nu dezelfde,
+correcte ZA-fallback."""
 
 from sqlmodel import select
 
@@ -32,16 +33,14 @@ def test_call_poule_capture_falls_back_to_za_for_z_prefixed_team_without_hockey_
     assert team.hockey_type == "ZA"
 
 
-def test_upsert_poule_capture_dead_code_currently_defaults_to_ve_for_z_prefixed_team(session):
-    # BUG (bekend, wordt gefixt in RFTR-B2 door samenvoeging met apply_poule_capture):
-    # hockey_capture.py:265 zet hockey_type = body.hockey_type or "VE" - dat maakt
-    # hockey_type altijd truthy, dus de daaropvolgende "if not hockey_type"-tak
-    # (de ZA-fallback) is dode code. Deze test legt het HUIDIGE, foute gedrag vast.
+def test_upsert_poule_capture_falls_back_to_za_for_z_prefixed_team_without_hockey_type(session):
+    # Was de dode ZA-fallback-tak (RFTR-B2: gefixt door samenvoeging met
+    # _call_poule_capture's kern in apply_poule_capture).
     body = _body(poule_id=2, team_id=2, team_name="zJO16-2")
     upsert_poule_capture(body, session=session, _=None)
 
     team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == 2)).first()
-    assert team.hockey_type == "VE"  # zou "ZA" moeten zijn - zie RFTR-B2
+    assert team.hockey_type == "ZA"
 
 
 def test_both_paths_upsert_the_same_competition_and_poule_for_identical_input(session):

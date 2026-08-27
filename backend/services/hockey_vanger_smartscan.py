@@ -10,7 +10,7 @@ from sqlmodel import Session, col, func, select
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
 from models.settings import AppSetting
 from routers.hockey_capture import _get_target_season
-from services.hockey_vanger_filters import _apply_gender_filter, _get_queue_filter, _is_scoreless_youth, _cmd_matches_filter
+from services.hockey_vanger_filters import _get_queue_filter, _is_scoreless_youth, _cmd_matches_filter, apply_team_filter
 
 SMART_SCAN_MODE       = "smart_scan_mode"
 SMART_SCAN_STARTED_AT = "smart_scan_started_at"
@@ -80,11 +80,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
         tq = tq.where(col(HockeyTeam.recent_poule_id).is_not(None))
         tq = tq.where(HockeyTeam.no_new_poule_confirmed == False)  # noqa: E712
         tq = tq.where(HockeyTeam.season_pending == False)  # noqa: E712
-        if cats:
-            tq = tq.where(col(HockeyTeam.category_group_name).in_(cats))
-        if hts:
-            tq = tq.where(col(HockeyTeam.hockey_type).in_(hts))
-        tq = _apply_gender_filter(tq, genders)
+        tq = apply_team_filter(tq, cats, hts, genders)
         teams = session.exec(tq).all()
 
         seen_pids: set = set()
@@ -124,11 +120,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
     cq = select(HockeyTeam).where(
         HockeyTeam.no_new_poule_confirmed == False,  # noqa: E712
     )
-    if cats:
-        cq = cq.where(col(HockeyTeam.category_group_name).in_(cats))
-    if hts:
-        cq = cq.where(col(HockeyTeam.hockey_type).in_(hts))
-    cq = _apply_gender_filter(cq, genders)
+    cq = apply_team_filter(cq, cats, hts, genders)
     pending_teams = session.exec(cq).all()
 
     club_counts: Dict[str, int] = {}
