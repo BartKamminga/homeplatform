@@ -28,6 +28,7 @@ bereikbaar is (bv. http://localhost:8000 lokaal, of de acc-URL op afstand).
 de continue idle-poll-loop die de container gebruikt.
 """
 
+import json
 import os
 import re
 import sys
@@ -60,11 +61,6 @@ if os.environ.get("SENTRY_DSN"):
 
 POLL_IDLE_SEC    = int(os.environ.get("GHOST_POLL_IDLE_SEC", "15"))
 MAX_CMDS_PER_RUN = int(os.environ.get("GHOST_MAX_CMDS_PER_RUN", "200"))
-# Fallback-waarden als /vanger/settings niet bereikbaar is — normaal komen
-# idle-timeout en navigatie-delay centraal van de server (item 706/707).
-FALLBACK_DELAY_MIN_SEC = int(os.environ.get("GHOST_CMD_DELAY_MIN", "10"))
-FALLBACK_DELAY_MAX_SEC = int(os.environ.get("GHOST_CMD_DELAY_MAX", "15"))
-FALLBACK_IDLE_TIMEOUT_SEC = 20 * 60
 
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 USER_AGENT = (
@@ -72,20 +68,29 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 )
 
-# Zelfde regex-detectie als plugins/chrome/hockey-vanger/interceptor.js
-POULE_RE       = re.compile(r"/poules/(\d+)/teams/(\d+)")
-CLUB_DETAIL_RE = re.compile(r"/clubs/([A-Za-z0-9]+)(?:/|$)")
-COMP_RE        = re.compile(r"/competitions/national/(\d+)")
-TARGET_HOST    = "app.hockeyweerelt.nl"
+# Gedeeld met Scout (plugins/chrome/hockey-vanger/) via hockey-vanger-contract.json
+# - zie dat bestand voor waarom Scout het zelf niet runtime kan inladen
+# (item 988/RFTR-B5).
+with open(os.path.join(os.path.dirname(__file__), "hockey-vanger-contract.json"), encoding="utf-8") as _f:
+    _CONTRACT = json.load(_f)
 
-# Zelfde hash-navigatie als plugins/chrome/hockey-vanger/popup.js executeCmd()
-HASH_BY_CMD = {
-    "get_poule":              lambda p: f"/team/{p['team_id']}|{p['poule_id']}/standings",
-    "scan_club":              lambda p: f"/club/{p['external_id']}/field-teams",
-    "get_clubs":              lambda p: "/search/clubs",
-    "get_competition_detail": lambda p: f"/competitions/{p['comp_id']}",
-    "get_competitions":       lambda p: "/search/competition",
-}
+TARGET_HOST    = _CONTRACT["target_host"]
+POULE_RE       = re.compile(_CONTRACT["url_patterns"]["poule"])
+CLUB_DETAIL_RE = re.compile(_CONTRACT["url_patterns"]["club_detail"])
+COMP_RE        = re.compile(_CONTRACT["url_patterns"]["competition"])
+
+
+def _make_hash_fn(template):
+    return lambda p: template.format(**p)
+
+
+HASH_BY_CMD = {cmd: _make_hash_fn(tmpl) for cmd, tmpl in _CONTRACT["hash_templates"].items()}
+
+# Fallback-waarden als /vanger/settings niet bereikbaar is — normaal komen
+# idle-timeout en navigatie-delay centraal van de server (item 706/707).
+FALLBACK_DELAY_MIN_SEC = int(os.environ.get("GHOST_CMD_DELAY_MIN", _CONTRACT["defaults"]["delay_min_sec"]))
+FALLBACK_DELAY_MAX_SEC = int(os.environ.get("GHOST_CMD_DELAY_MAX", _CONTRACT["defaults"]["delay_max_sec"]))
+FALLBACK_IDLE_TIMEOUT_SEC = _CONTRACT["defaults"]["idle_timeout_min"] * 60
 
 
 def api_get(path):

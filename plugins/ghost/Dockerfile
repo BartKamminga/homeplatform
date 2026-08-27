@@ -7,5 +7,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ghost.py .
+COPY hockey-vanger-contract.json .
 
 CMD ["python", "ghost.py"]

@@ -19,7 +19,10 @@
 <div class="cnt hidden" id="settingsPane"></div>
 <div class="cnt hidden" id="logPane"></div>
 <div class="cnt hidden" id="helpPane">
-  <p class="help-intro">Scout v<span id="helpVersion">…</span> · interceptor.js v10 · bypassCache reload + willekeurige vertraging (10–15 s)</p>
+  <!-- item 988/RFTR-B5: geen los interceptor.js-versienummer meer hardcoden hier -
+       dat liep al eens uit de pas (stond op "v10" terwijl interceptor.js zelf v12
+       was). manifest.json (via helpVersion) is de enige autoritatieve versie. -->
+  <p class="help-intro">Scout v<span id="helpVersion">…</span> · bypassCache reload + willekeurige vertraging (10–15 s)</p>
   <div class="help-wrap">
     <table class="help-tbl">
       <thead>

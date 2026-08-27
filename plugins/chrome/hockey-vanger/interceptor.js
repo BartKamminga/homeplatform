@@ -10,6 +10,14 @@
   const DETAILS_KEY     = '__hw_club_details';
   const COMP_DETAIL_KEY = '__hw_comp_detail';
   const COMPS_KEY       = '__hw_competitions';
+  // Gedeeld met Ghost (plugins/ghost/hockey-vanger-contract.json) - item 988/
+  // RFTR-B5. Deze regex-literals kunnen NIET runtime uit dat bestand geladen
+  // worden: dit script draait als MAIN-world content script (zie regel 1) en
+  // heeft daardoor geen toegang tot chrome.* extension-APIs (chrome.runtime.
+  // getURL), dus geen manier om een extension-bestand te fetchen zonder een
+  // risicovolle cross-world handshake vóór de allereerste network-call.
+  // backend/tests/test_hockey_vanger_plugin_contract.py bewaakt dat deze
+  // letterlijke kopie niet stilzwijgend van het contract afwijkt.
   const POULE_RE        = /\/poules\/(\d+)\/teams\/(\d+)/;
   const COMP_RE         = /\/competitions\/national\/(\d+)/;
   // /clubs/HH11AR3 — club-id uit URL, ongeacht body-veldnamen

@@ -1,0 +1,21 @@
+{
+  "_comment": "Gedeeld contract tussen Ghost (ghost.py, dit bestand wordt echt runtime ingeladen) en Scout (plugins/chrome/hockey-vanger/interceptor.js + popup.js) - roadmap item 988 (RFTR-B5). Scout's interceptor.js draait als MAIN-world content script en heeft daardoor GEEN toegang tot chrome.* extension-APIs, dus kan dit bestand niet runtime laden zoals Ghost dat doet - de waarden staan daar bewust hardgecodeerd, met een verwijzing hierheen in commentaar. backend/tests/test_hockey_vanger_plugin_contract.py bewaakt dat die hardgecodeerde kopieen niet stilzwijgend van dit contract afdrijven. Dit bestand staat in plugins/ghost/ (niet een niveau hoger) omdat de Docker build-context van de Ghost-container beperkt is tot deze map (zie Dockerfile).",
+  "target_host": "app.hockeyweerelt.nl",
+  "url_patterns": {
+    "poule": "/poules/(\\d+)/teams/(\\d+)",
+    "club_detail": "/clubs/([A-Za-z0-9]+)(?:/|$)",
+    "competition": "/competitions/national/(\\d+)"
+  },
+  "hash_templates": {
+    "get_poule": "/team/{team_id}|{poule_id}/standings",
+    "scan_club": "/club/{external_id}/field-teams",
+    "get_clubs": "/search/clubs",
+    "get_competition_detail": "/competitions/{comp_id}",
+    "get_competitions": "/search/competition"
+  },
+  "defaults": {
+    "delay_min_sec": 10,
+    "delay_max_sec": 15,
+    "idle_timeout_min": 20
+  }
+}

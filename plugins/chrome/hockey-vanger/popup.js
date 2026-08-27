@@ -432,6 +432,14 @@ function executeCmd(cmd) {
   sendHeartbeat();
   cockpitSetCmd(cmd);
 
+  // Hash-templates hieronder gedeeld met Ghost (plugins/ghost/
+  // hockey-vanger-contract.json) - item 988/RFTR-B5. Hardgecodeerd gehouden
+  // i.p.v. runtime geladen: dat bestand staat in de Ghost-Docker-build-
+  // context, niet in dit extension-package, en de hash-waarde is hier
+  // sowieso verweven met Scout-eigen localStorage-boekhouding (lsKey/lsId) -
+  // een aparte contract-laad-stap zou hier meer complexiteit toevoegen dan
+  // opleveren. backend/tests/test_hockey_vanger_plugin_contract.py bewaakt
+  // dat deze letterlijke kopie niet stilzwijgend van het contract afwijkt.
   var hash, lsKey, lsId;
   if (cmd.cmd_type === 'get_poule') {
     if (!cmd.params.team_id) {
