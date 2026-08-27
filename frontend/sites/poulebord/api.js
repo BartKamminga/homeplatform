@@ -4,7 +4,6 @@ export const getDiscoverySeason     = ()    => api.get('/api/hockey/public/seaso
 export const getHockeyPublications  = ()    => api.get('/api/hockey/public/publications')
 export const getPhases         = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/phases`)
 export const getPhaseStandings = (pid) => api.get(`/api/tournix/public/phases/${pid}/standings`)
-export const getClubs          = ()    => api.get('/api/hockey/public/clubs')
 export const saveBoard         = (body) => api.post('/api/tournix/public/boards', body)
 export const getBoardByCode    = (code) => api.get(`/api/tournix/public/boards/${code}`)
 export const getPoolMatches    = (phaseId, poolName) =>

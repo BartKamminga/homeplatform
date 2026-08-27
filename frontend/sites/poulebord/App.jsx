@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { getClubs, saveBoard, getBoardByCode, searchDiscoveryPools } from './api.js'
+import { useFetch } from '@core/useFetch.js'
+import { saveBoard, getBoardByCode, searchDiscoveryPools } from './api.js'
 import { C, CLUB_KEY, BOARD_KEY, MY_BOARDS_KEY } from './constants.js'
 import { BoardView } from './PinnedBoard.jsx'
 import { usePublicationBrowse, usePoulebordPins } from './hooks.js'
@@ -27,7 +28,8 @@ export default function App() {
 
   const [club, setClub]                       = useState(() => localStorage.getItem(CLUB_KEY) || '')
   const [clubEdit, setClubEdit]               = useState(false)
-  const [clubs, setClubs]                     = useState([])
+  const { data: clubsData } = useFetch('/api/hockey/public/clubs')
+  const clubs = clubsData ?? []
   const [infoOpen, setInfoOpen]               = useState(false)
   const [boardOn, setBoardOn]                 = useState(() => localStorage.getItem(BOARD_KEY) === '1')
   const [myBoards, setMyBoards]               = useState(() => {
@@ -65,8 +67,6 @@ export default function App() {
       setSharedBoard({ id: b.id, name: b.name })
     }).catch(() => {})
   }, [])
-
-  useEffect(() => { getClubs().then(setClubs).catch(() => {}) }, [])
 
   useEffect(() => {
     if (!searchMode || searchQ.length < 2) { setSearchResults(null); return }

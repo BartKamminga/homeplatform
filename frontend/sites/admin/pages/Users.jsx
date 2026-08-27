@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import AdminLayout from '../AdminLayout.jsx';
 import Table from '@components/Table.jsx';
 import Badge from '@components/Badge.jsx';
 import Modal, { ModalFooter, BtnPrimary, BtnSecondary } from '@components/Modal.jsx';
 import { useConfirm } from '@components/ConfirmDialog.jsx';
 import { api } from '@core/api.js';
+import { useFetch } from '@core/useFetch.js';
 import { toggleEndpoint } from '../adminUtils.js';
 
 export default function Users() {
-  const [users, setUsers]       = useState([]);
-  const [groups, setGroups]     = useState([]);
+  const { data: usersData, error: loadError, reload: load } = useFetch('/api/admin/users/');
+  const { data: groupsData } = useFetch('/api/admin/groups/');
+  const users  = usersData ?? [];
+  const groups = groupsData ?? [];
   const [error, setError]       = useState('');
   const [showNew, setShowNew]       = useState(false);
   const [form, setForm]             = useState({ username: '', email: '', password: '', locale: 'nl' });
@@ -20,14 +23,6 @@ export default function Users() {
   const [inviteLink, setInviteLink]     = useState('');
   const [inviteCopied, setInviteCopied] = useState(false);
   const [confirmDelete, confirmDeleteDialog] = useConfirm();
-
-  function load() {
-    api.get('/api/admin/users/').then(setUsers).catch(e => setError(e.message));
-  }
-  useEffect(() => {
-    load();
-    api.get('/api/admin/groups/').then(setGroups).catch(() => {});
-  }, []);
 
   async function createUser() {
     setSaving(true);
@@ -145,7 +140,7 @@ export default function Users() {
         </div>
       </div>
 
-      {error && <p style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>{error}</p>}
+      {(error || loadError) && <p style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>{error || loadError}</p>}
 
       <div style={{ background: 'var(--color-background)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
         <Table columns={columns} rows={users} emptyMessage="Geen gebruikers gevonden" />
@@ -194,7 +189,7 @@ export default function Users() {
               ))}
             </select>
           </div>
-          {error && <p style={{ fontSize: '13px', color: 'var(--color-danger)', marginBottom: '12px' }}>{error}</p>}
+          {(error || loadError) && <p style={{ fontSize: '13px', color: 'var(--color-danger)', marginBottom: '12px' }}>{error || loadError}</p>}
           <ModalFooter>
             <BtnSecondary onClick={() => setShowInvite(false)}>Annuleren</BtnSecondary>
             <BtnPrimary onClick={createInvite}>Link genereren</BtnPrimary>
