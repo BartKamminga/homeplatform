@@ -189,11 +189,6 @@ export default function StatsTab() {
                   ))}
                 </tbody>
               </table>
-              {dataQuality.total_signaled_poules > dataQuality.rows.length && (
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6 }}>
-                  + {dataQuality.total_signaled_poules - dataQuality.rows.length} meer (top 30 getoond)
-                </div>
-              )}
             </div>
           )}
         </div>

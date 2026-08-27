@@ -532,7 +532,7 @@ def get_data_quality(
 
     return {
         "season": target_season,
-        "rows": rows[:30],
+        "rows": rows,
         "total_signaled_poules": len(rows),
         "poules_without_team":   poules_without_team,
         "teams_season_pending":  season_pending_teams,
