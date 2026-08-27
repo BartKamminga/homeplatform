@@ -4,6 +4,7 @@ import { ghostBtnSm } from '../styles.js'
 import { useQueueCmd } from '../queueShared.jsx'
 import { ConfirmDialog, useConfirm } from '../ui.jsx'
 import { isJeugd, AGE_GROUP_ORDER, normalizeDistrict, classRank } from './discoveryHelpers.js'
+import { DiscoveryTreeProvider } from './DiscoveryTreeContext.jsx'
 import NameGroup from './NameGroup.jsx'
 
 export default function DiscoveryCompetities({ competitions, capturedPoules, allTeams, clubMap, expanded, toggle, loading, detailLoaded, season, onReload }) {
@@ -93,12 +94,13 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
     } catch (e2) { setCleanupMsg('Fout: ' + e2.message); setTimeout(() => setCleanupMsg(''), 5000) }
   }
 
-  const nameGroupProps = {
+  const treeContextValue = {
     expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap,
     onDeletePoule: handleDeletePoule,
   }
 
   return (
+    <DiscoveryTreeProvider value={treeContextValue}>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
       {/* Toolbar */}
@@ -221,7 +223,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                               </div>
                             )}
                             {distOpen && detailLoaded && names.map(nm => (
-                              <NameGroup key={nm} nm={nm} nmComps={byName[nm]} keyPrefix={`ng_${dist}`} {...nameGroupProps} />
+                              <NameGroup key={nm} nm={nm} nmComps={byName[nm]} keyPrefix={`ng_${dist}`} />
                             ))}
                           </div>
                         )
@@ -250,7 +252,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                         (a.district || '').localeCompare(b.district || '', 'nl') ||
                         (a.class_name || '').localeCompare(b.class_name || '', 'nl')
                       )
-                      return <NameGroup key={nm} nm={nm} nmComps={nmComps} keyPrefix="ngv" showDistBadge {...nameGroupProps} />
+                      return <NameGroup key={nm} nm={nm} nmComps={nmComps} keyPrefix="ngv" showDistBadge />
                     })}
                   </div>
                 )
@@ -266,5 +268,6 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
         )}
       </div>
     </div>
+    </DiscoveryTreeProvider>
   )
 }

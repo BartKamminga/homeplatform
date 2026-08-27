@@ -1,21 +1,22 @@
 import { pill } from '../ui.jsx'
 import { classRank } from './discoveryHelpers.js'
+import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
 import CompEntry from './CompEntry.jsx'
 
 // Groepsheader voor competities met dezelfde naam — kolom-layout (geen extra
-// klik). Uitgesplitst uit DiscoveryCompetities.jsx (item 737).
+// klik). Uitgesplitst uit DiscoveryCompetities.jsx (item 737). De gedeelde
+// boom-props komen sinds RFTR-B6 (item 989, fase 6.2) uit DiscoveryTreeContext
+// i.p.v. props - alleen nm/nmComps/keyPrefix/showDistBadge zijn nog instantie-
+// specifieke props.
 
-export default function NameGroup({
-  nm, nmComps, keyPrefix, showDistBadge = false,
-  expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule,
-}) {
+export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = false }) {
+  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule } = useDiscoveryTree()
+
   if (nmComps.length === 1) {
     // item 636: in per-competitie view (showDistBadge) niet nested tonen — op zelfde niveau als multi-entry headers
     return (
       <CompEntry
         comp={nmComps[0]} nested={!showDistBadge} distBadge={showDistBadge ? (nmComps[0].district || 'Onbekend') : null}
-        expanded={expanded} toggle={toggle} capturedPoulesByComp={capturedPoulesByComp}
-        teamsByPoule={teamsByPoule} cmdBtn={cmdBtn} clubMap={clubMap} onDeletePoule={onDeletePoule}
       />
     )
   }

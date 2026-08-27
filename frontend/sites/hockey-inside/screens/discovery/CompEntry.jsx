@@ -1,14 +1,15 @@
 import { pill } from '../ui.jsx'
+import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
 
 // Competition entry: expandable → poules → teams (uitgesplitst uit
 // DiscoveryCompetities.jsx, item 737). nested=true: toon class_name ipv
 // volledige naam (naam staat al in parent). distBadge: optioneel
-// district-label (voor 'per competitie' view).
+// district-label (voor 'per competitie' view). De gedeelde boom-props komen
+// sinds RFTR-B6 (item 989, fase 6.2) uit DiscoveryTreeContext i.p.v. props.
 
-export default function CompEntry({
-  comp: c, nested = false, distBadge = null,
-  expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule,
-}) {
+export default function CompEntry({ comp: c, nested = false, distBadge = null }) {
+  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule } = useDiscoveryTree()
+
   const cKey    = 'comp_' + c.id
   const cOpen   = expanded.has(cKey)
   const cPoules = capturedPoulesByComp[c.id] || []
