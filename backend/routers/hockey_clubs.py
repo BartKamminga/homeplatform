@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -11,7 +11,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
-from models.hockey_discovery import HockeyClub, HockeyTeam
+from models.hockey_discovery import HockeyClub, HockeyTeam, HockeyTeamPoule
 from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-clubs"])
@@ -214,6 +214,18 @@ def list_youth_teams(
         q = q.where(HockeyTeam.club_external_id == club_external_id)
     q = q.order_by(col(HockeyTeam.name))
     teams = session.exec(q).all()
+
+    # item 990: teams die ook in een 2e competitie spelen (bv. bekertoernooi
+    # naast de reguliere competitie) hebben naast recent_poule_id (primair)
+    # ook 1 of meer extra koppelingen in hockey_team_poules.
+    extra_by_team: Dict[int, list] = {}
+    if teams:
+        team_ids = {t.team_id for t in teams}
+        for r in session.exec(
+            select(HockeyTeamPoule).where(col(HockeyTeamPoule.team_id).in_(team_ids))
+        ).all():
+            extra_by_team.setdefault(r.team_id, []).append(r.poule_id)
+
     return {
         "total": len(teams),
         "teams": [
@@ -226,6 +238,7 @@ def list_youth_teams(
                 "hockey_type": t.hockey_type,
                 "category_group_name": t.category_group_name,
                 "recent_poule_id": t.recent_poule_id,
+                "extra_poule_ids": extra_by_team.get(t.team_id, []),
             }
             for t in teams
         ],

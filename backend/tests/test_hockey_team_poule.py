@@ -8,6 +8,7 @@ from sqlmodel import select
 
 from models.hockey_discovery import HockeyPoule, HockeyTeam, HockeyTeamPoule
 from routers.hockey_capture import PouleCaptureIn, TeamInPoule, infer_season_pending, skip_poule
+from routers.hockey_clubs import list_youth_teams
 from services.hockey_poule_capture_core import apply_poule_capture
 
 TARGET_SEASON = "2026-2027"
@@ -103,3 +104,19 @@ def test_infer_season_pending_also_applies_to_extra_poule_links(session):
     assert result["marked_pending"] == 1
     row = session.exec(select(HockeyTeamPoule).where(HockeyTeamPoule.poule_id == 400)).first()
     assert row.season_pending is True
+
+
+def test_teams_endpoint_reports_extra_poule_ids(session):
+    session.add(HockeyTeam(
+        team_id=6, club_external_id="HH11XX0", name="Team F", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=600,
+    ))
+    session.add(HockeyTeamPoule(team_id=6, poule_id=700, season=TARGET_SEASON))
+    session.add(HockeyTeamPoule(team_id=6, poule_id=800, season=TARGET_SEASON))
+    session.commit()
+
+    result = list_youth_teams(category=None, club_external_id=None, session=session, _=None)
+
+    team = next(t for t in result["teams"] if t["team_id"] == 6)
+    assert team["recent_poule_id"] == 600
+    assert sorted(team["extra_poule_ids"]) == [700, 800]
