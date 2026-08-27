@@ -34,6 +34,9 @@ export default function ReportBugWidget() {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [includeScreenshot, setIncludeScreenshot] = useState(true);
+  const [screenshotBlob, setScreenshotBlob] = useState(null);
+  const [screenshotUrl, setScreenshotUrl] = useState(null);
+  const [capturing, setCapturing] = useState(false);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -44,22 +47,38 @@ export default function ReportBugWidget() {
 
   if (!isAdmin) return null;
 
+  async function handleOpen() {
+    // item 998: eerder werd de screenshot pas bij Versturen gemaakt - dan
+    // stond dit dialoog zelf al open en kwam die (i.p.v. de pagina erachter)
+    // in beeld. Nu direct bij openen capturen, vóór het dialoog rendert.
+    setOpen(true);
+    setCapturing(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(document.body, { logging: false, useCORS: true });
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      setScreenshotBlob(blob);
+      setScreenshotUrl(blob ? URL.createObjectURL(blob) : null);
+    } catch {
+      // Screenshot mislukken mag de melding zelf niet blokkeren.
+    } finally {
+      setCapturing(false);
+    }
+  }
+
+  function handleClose() {
+    if (sending) return;
+    setOpen(false);
+    if (screenshotUrl) URL.revokeObjectURL(screenshotUrl);
+    setScreenshotBlob(null);
+    setScreenshotUrl(null);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!description.trim() || sending) return;
     setSending(true);
     setError("");
-
-    let screenshotBlob = null;
-    if (includeScreenshot) {
-      try {
-        const html2canvas = (await import("html2canvas")).default;
-        const canvas = await html2canvas(document.body, { logging: false, useCORS: true });
-        screenshotBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      } catch {
-        // Screenshot mislukken mag de melding zelf niet blokkeren.
-      }
-    }
 
     const notesParts = [`URL: ${window.location.href}`, `Browser: ${navigator.userAgent}`];
     const lastFailed = getLastFailedRequest();
@@ -74,7 +93,7 @@ export default function ReportBugWidget() {
       fd.append("description", description.trim());
       fd.append("site", currentSiteSlug());
       fd.append("notes", notesParts.join("\n\n"));
-      if (screenshotBlob) fd.append("screenshot", screenshotBlob, "bug-screenshot.png");
+      if (includeScreenshot && screenshotBlob) fd.append("screenshot", screenshotBlob, "bug-screenshot.png");
 
       const res = await fetch("/api/bug-reports", {
         method: "POST",
@@ -86,7 +105,7 @@ export default function ReportBugWidget() {
 
       setDone(true);
       setDescription("");
-      setTimeout(() => { setOpen(false); setDone(false); }, 2000);
+      setTimeout(() => { handleClose(); setDone(false); }, 2000);
     } catch (e2) {
       setError(e2.message);
     } finally {
@@ -98,7 +117,7 @@ export default function ReportBugWidget() {
     <>
       {!open && (
         <button
-          onClick={() => setOpen(true)}
+          onClick={handleOpen}
           title="Bug melden"
           style={{
             position: "fixed", bottom: 16, right: 16, zIndex: 9998,
@@ -115,7 +134,7 @@ export default function ReportBugWidget() {
       {open && (
         <div
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
-          onClick={(e) => e.target === e.currentTarget && !sending && setOpen(false)}
+          onClick={(e) => e.target === e.currentTarget && handleClose()}
         >
           <div style={{ background: "var(--color-surface, #1a1a22)", borderRadius: 14, padding: "20px 22px", width: "100%", maxWidth: 380, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", fontFamily: "inherit" }}>
             {done ? (
@@ -143,16 +162,24 @@ export default function ReportBugWidget() {
                     style={{ width: 13, height: 13, padding: 0, margin: 0, cursor: "pointer" }}
                   />
                   Screenshot meesturen
+                  {capturing && <span>(bezig…)</span>}
                 </label>
+                {includeScreenshot && screenshotUrl && (
+                  <img
+                    src={screenshotUrl}
+                    alt="Screenshot-preview"
+                    style={{ width: "100%", maxHeight: 140, objectFit: "contain", borderRadius: 8, border: "1px solid var(--color-border, #333)", marginBottom: 8, background: "var(--color-background, #111)" }}
+                  />
+                )}
                 <div style={{ fontSize: 11, color: "var(--color-text-muted, #888)", marginBottom: 10 }}>
                   URL, browser en recente foutmeldingen worden altijd meegestuurd.
                 </div>
                 {error && <div style={{ fontSize: 12, color: "var(--color-danger, #ef4444)", marginBottom: 8 }}>{error}</div>}
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <button type="button" onClick={() => setOpen(false)} disabled={sending} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, background: "transparent", border: "1px solid var(--color-border, #333)", color: "var(--color-text, #fff)", cursor: "pointer" }}>
+                  <button type="button" onClick={handleClose} disabled={sending} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, background: "transparent", border: "1px solid var(--color-border, #333)", color: "var(--color-text, #fff)", cursor: "pointer" }}>
                     Annuleren
                   </button>
-                  <button type="submit" disabled={sending || !description.trim()} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "var(--color-primary, #6366f1)", color: "#fff", border: "none", cursor: sending ? "default" : "pointer", opacity: sending ? 0.6 : 1 }}>
+                  <button type="submit" disabled={sending || capturing || !description.trim()} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "var(--color-primary, #6366f1)", color: "#fff", border: "none", cursor: sending ? "default" : "pointer", opacity: sending || capturing ? 0.6 : 1 }}>
                     {sending ? "Bezig…" : "Versturen"}
                   </button>
                 </div>
