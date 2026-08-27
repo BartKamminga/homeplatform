@@ -74,7 +74,7 @@ def ds_ai_note_gaps(session, params):
             played = len(session.exec(
                 select(HockeyPouleMatch)
                 .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
-                .where(HockeyPouleMatch.status == "finished")
+                .where(HockeyPouleMatch.status == "final")
             ).all())
         rows.append({
             "link_id": link.id, "competition_name": comp.name if comp else None,

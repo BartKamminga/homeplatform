@@ -222,7 +222,7 @@ def get_upcoming_matches(
     scheduled = session.exec(
         select(HockeyPouleMatch)
         .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
-        .where(HockeyPouleMatch.status != "finished")
+        .where(HockeyPouleMatch.status != "final")
     ).all()
     if not scheduled:
         return {"tags": tag, "rows": []}

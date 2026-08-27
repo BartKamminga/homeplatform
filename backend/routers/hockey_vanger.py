@@ -952,8 +952,8 @@ def post_cmd_result(
                     "poule_name":        capture_body.poule_name,
                     "class_name":        capture_body.class_name,
                     "team_count":        len(capture_body.teams_in_poule),
-                    "matches_played":    sum(1 for m in (capture_body.matches_data or []) if m.status == "finished"),
-                    "matches_remaining": sum(1 for m in (capture_body.matches_data or []) if m.status != "finished"),
+                    "matches_played":    sum(1 for m in (capture_body.matches_data or []) if m.status == "final"),
+                    "matches_remaining": sum(1 for m in (capture_body.matches_data or []) if m.status != "final"),
                 })
             else:
                 summary_data["parse_failed"] = True

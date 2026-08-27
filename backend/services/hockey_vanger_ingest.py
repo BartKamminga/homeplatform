@@ -226,7 +226,7 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
         for old in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)).all():
             session.delete(old)
         for md in body.matches_data:
-            is_fin = md.status == "finished"
+            is_fin = md.status == "final"
             session.add(HockeyPouleMatch(
                 poule_id=body.poule_id, match_id=md.match_id,
                 home_team_id=md.home_team_id, home_team_name=md.home_team_name,
@@ -264,7 +264,7 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
             t.season_pending = True
             session.add(t)
 
-    matches_played = sum(1 for m in (body.matches_data or []) if m.status == "finished")
+    matches_played = sum(1 for m in (body.matches_data or []) if m.status == "final")
     return {
         "teams":          len(body.teams_in_poule),
         "standings":      len(body.standings_data or []),

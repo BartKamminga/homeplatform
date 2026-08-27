@@ -78,7 +78,7 @@ def load_poule_inputs(session: Session, poule_id: int) -> Tuple[List[TeamStat], 
         for m in session.exec(
             select(HockeyPouleMatch)
             .where(HockeyPouleMatch.poule_id == poule_id)
-            .where(HockeyPouleMatch.status != "finished")
+            .where(HockeyPouleMatch.status != "final")
         ).all()
         if m.home_team_id is not None and m.away_team_id is not None
     ]

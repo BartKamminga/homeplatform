@@ -80,7 +80,7 @@ def get_tournament_competition_standings(
             ).all():
                 mc = match_counts.setdefault(m.poule_id, {"total": 0, "played": 0})
                 mc["total"] += 1
-                if m.status == "finished":
+                if m.status == "final":
                     mc["played"] += 1
             streaks = compute_win_streaks(session, ext_ids)
 
@@ -159,8 +159,8 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
         .where(HockeyPouleMatch.poule_id == poule.poule_id)
         .order_by(HockeyPouleMatch.match_date, HockeyPouleMatch.match_id)
     ).all()
-    finished  = [m for m in matches if m.status == "finished"]
-    scheduled = [m for m in matches if m.status != "finished"]
+    finished  = [m for m in matches if m.status == "final"]
+    scheduled = [m for m in matches if m.status != "final"]
     return {
         "finished": [
             {

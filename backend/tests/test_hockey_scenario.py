@@ -152,7 +152,7 @@ def test_load_poule_inputs_reads_standing_and_scheduled_matches(session):
         goals_for=8, goals_against=6, points=7,
     ))
     session.add(HockeyPouleMatch(
-        poule_id=99, match_id=501, home_team_id=1, away_team_id=2, status="finished",
+        poule_id=99, match_id=501, home_team_id=1, away_team_id=2, status="final",
         home_score=2, away_score=1,
     ))
     session.add(HockeyPouleMatch(

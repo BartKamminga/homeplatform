@@ -224,7 +224,7 @@ def upsert_poule_capture(
         ).all():
             session.delete(old)
         for md in body.matches_data:
-            is_fin = md.status == "finished"
+            is_fin = md.status == "final"
             session.add(HockeyPouleMatch(
                 poule_id=body.poule_id, match_id=md.match_id,
                 home_team_id=md.home_team_id, home_team_name=md.home_team_name,

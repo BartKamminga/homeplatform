@@ -47,7 +47,7 @@ def finished_matches(session: Session, poule_ext_ids: list):
     return session.exec(
         select(HockeyPouleMatch)
         .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
-        .where(HockeyPouleMatch.status == "finished")
+        .where(HockeyPouleMatch.status == "final")
     ).all()
 
 
