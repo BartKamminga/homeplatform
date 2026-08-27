@@ -1,3 +1,5 @@
+import { ageGroupFromShortName } from '../categoryHelpers.js'
+
 const HT_LABEL = { VE: '🏑 Veldhockey', ZA: '🏒 Zaalhockey' }
 
 export default function QueueFilterBar({ qFilter, queue, clubs, showWaiting, onToggleNiveau, onToggleGender, onToggleHt, onToggleAge, onSaveFilter, onSetShowWaiting }) {
@@ -5,10 +7,8 @@ export default function QueueFilterBar({ qFilter, queue, clubs, showWaiting, onT
   const hasSen = qFilter.categories.includes('Senioren')
   const genderOptions = [...(hasJun ? ['Jongens', 'Meisjes'] : []), ...(hasSen ? ['Heren', 'Dames'] : [])]
 
-  const AGE_RE_G = /[JMjm][OZoz](\d+)-/
-  const ageOfG   = sn => { const m = AGE_RE_G.exec(sn || ''); return m ? 'O' + m[1] : null }
   const availAges = hasJun ? [...new Set(
-    (queue.poules || []).filter(p => p.has_poule !== false).map(p => ageOfG(p.short_name)).filter(Boolean)
+    (queue.poules || []).filter(p => p.has_poule !== false).map(p => ageGroupFromShortName(p.short_name)).filter(Boolean)
   )].sort((a, b) => parseInt(b.slice(1)) - parseInt(a.slice(1))) : []
 
   function togBtn(on, label, onClick) {

@@ -2,12 +2,7 @@
 import { api } from '@core/api.js'
 import { statBox, statNum, statLbl } from './ui.jsx'
 import { ghostBtn } from './styles.js'
-
-function resolveHockeyType(t) {
-  if (t.hockey_type === 'VE' || t.hockey_type === 'ZA') return t.hockey_type
-  if (t.short_name && t.short_name[0] === 'z') return 'ZA'
-  return 'VE'
-}
+import { resolveHockeyType } from './hockeyTypeHelpers.js'
 
 export default function StatsTab() {
   const [clubs,       setClubs]       = useState([])

@@ -52,3 +52,19 @@ export function classRank(name) {
   if (/^Afdeling/i.test(bare))        return 13
   return 99
 }
+
+// Groepeer competities op naam, gesorteerd op klasse-hiërarchie (RFTR-B6,
+// item 989, fase 6.5) - was 2x identiek in DiscoveryCompetities.jsx
+// (per-district- en per-competitie-weergave).
+export function groupByNameSorted(items) {
+  const byName = {}
+  for (const c of items) {
+    if (!byName[c.name]) byName[c.name] = []
+    byName[c.name].push(c)
+  }
+  const names = Object.keys(byName).sort((a, b) => {
+    const d = classRank(a) - classRank(b)
+    return d !== 0 ? d : a.localeCompare(b, 'nl')
+  })
+  return { byName, names }
+}

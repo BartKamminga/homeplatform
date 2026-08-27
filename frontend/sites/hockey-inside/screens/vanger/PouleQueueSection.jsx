@@ -1,8 +1,8 @@
 import { api } from '@core/api.js'
 import { pill } from '../ui.jsx'
+import { ageGroupFromShortName } from '../categoryHelpers.js'
 
-const AGE_RE = /[JMjm][OZoz](\d+)-/
-const ageOf  = sn => { const m = AGE_RE.exec(sn || ''); return m ? 'O' + m[1] : '?' }
+const ageOf = sn => ageGroupFromShortName(sn, '?')
 
 export default function PouleQueueSection({ queue, qFilter, allTeams, showWaiting, expanded, queueOpen, setQueueOpen, toggle, onResetPoule, cmdOps, onFillClubs, clubsFilling }) {
   const { addSingleCmd, cmdAdding } = cmdOps

@@ -32,6 +32,13 @@ export const teamChip       = { padding: '3px 10px', fontSize: 12, borderRadius:
 export const slotChip       = { padding: '3px 10px', fontSize: 12, borderRadius: 99, fontStyle: 'italic', background: 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))', border: '1px dashed var(--color-primary)', color: 'var(--color-primary)' }
 export const actionRow      = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12, marginTop: 4 }
 export const doorGangBox    = { padding: '12px 14px', background: 'rgba(0,0,0,0.03)', border: '1px dashed var(--color-border)', borderRadius: 8, marginBottom: 12 }
+// item 989, fase 6.6: fontSize 11 + var(--color-text-muted) komt tientallen
+// keren letterlijk voor - additieve helper, GEEN mechanische vervanging van
+// bestaande plekken in dit refactor-traject (apart, lager-risico vervolgitem).
+export function mutedText(size = 11) {
+  return { fontSize: size, color: 'var(--color-text-muted)' }
+}
+
 export function perPoolBtnStyle(active) {
   return {
     width: 32, height: 32, borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: 14,

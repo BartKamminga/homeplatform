@@ -3,7 +3,7 @@ import { previewEmptyCompetitions, deleteEmptyCompetitions, deletePoule } from '
 import { ghostBtnSm } from '../styles.js'
 import { useQueueCmd } from '../queueShared.jsx'
 import { ConfirmDialog, useConfirm } from '../ui.jsx'
-import { isJeugd, AGE_GROUP_ORDER, normalizeDistrict, classRank } from './discoveryHelpers.js'
+import { isJeugd, AGE_GROUP_ORDER, normalizeDistrict, groupByNameSorted } from './discoveryHelpers.js'
 import { DiscoveryTreeProvider } from './DiscoveryTreeContext.jsx'
 import NameGroup from './NameGroup.jsx'
 
@@ -198,16 +198,8 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                       {districts.map(dist => {
                         const distKey  = `dist_${ht}_${ag}_${dist}`
                         const distOpen = expanded.has(distKey)
-                        const byName = {}
-                        for (const c of byDist[dist]) {
-                          if (!byName[c.name]) byName[c.name] = []
-                          byName[c.name].push(c)
-                        }
                         // item 633: klasse-hiërarchie sortering
-                        const names = Object.keys(byName).sort((a, b) => {
-                          const d = classRank(a) - classRank(b)
-                          return d !== 0 ? d : a.localeCompare(b, 'nl')
-                        })
+                        const { byName, names } = groupByNameSorted(byDist[dist])
                         return (
                           <div key={dist} style={{ marginBottom: 6 }}>
                             {/* item 632: district inklapbaar */}
@@ -233,16 +225,8 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                 }
 
                 // ── Per competitie ────────────────────────────────────
-                const byName = {}
-                for (const c of ageGroup) {
-                  if (!byName[c.name]) byName[c.name] = []
-                  byName[c.name].push(c)
-                }
                 // item 633: klasse-hiërarchie sortering
-                const names = Object.keys(byName).sort((a, b) => {
-                  const d = classRank(a) - classRank(b)
-                  return d !== 0 ? d : a.localeCompare(b, 'nl')
-                })
+                const { byName, names } = groupByNameSorted(ageGroup)
                 return (
                   <div key={ag}>
                     {agHeader}

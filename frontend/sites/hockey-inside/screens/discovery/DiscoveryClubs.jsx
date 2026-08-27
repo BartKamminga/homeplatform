@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { pill } from '../ui.jsx'
 import { useQueueCmd } from '../queueShared.jsx'
+import { resolveHockeyType } from '../hockeyTypeHelpers.js'
 
 const CAT_ORDER = ['Junioren', 'Meisjes', 'Senioren', 'Heren', 'Dames', "Mini's", 'Recreanten']
 function sortCats(cats) {
@@ -13,12 +14,6 @@ function sortCats(cats) {
 
 const HT_LABEL = { VE: '🏑 Veldhockey', ZA: '🏒 Zaalhockey' }
 const HT_ORDER = ['VE', 'ZA']
-
-function resolveHockeyType(t) {
-  if (t.hockey_type === 'VE' || t.hockey_type === 'ZA') return t.hockey_type
-  if (t.short_name && t.short_name[0] === 'z') return 'ZA'
-  return 'VE'
-}
 
 export default function DiscoveryClubs({ clubs, teamsByClub, poulesByClub, queueByPouleId, expanded, toggle, loading }) {
   const [clubSearch, setClubSearch] = useState('')

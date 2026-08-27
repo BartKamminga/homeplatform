@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { mutedText } from './styles.js'
 
 // Generieke UI-bouwstenen voor hockey-inside, losstaand van queue/cmd-logica
 // (die staat in queueShared.jsx). Item 738/740: was eerder allemaal samen in
@@ -9,6 +10,14 @@ import { useState } from 'react'
 // i.p.v. window.confirm() of een eigen variant - hier alleen doorgegeven
 // zodat bestaande imports in dit bestand blijven werken.
 export { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
+
+// ── Muted (item 989, fase 6.6: additieve stijl-token, geen mechanische
+// vervanging van bestaande inline `fontSize: 11, color: 'var(--color-text-
+// muted)'`-plekken) ───────────────────────────────────────────────────────────
+
+export function Muted({ size = 11, style, children }) {
+  return <span style={{ ...mutedText(size), ...style }}>{children}</span>
+}
 
 // ── InfoTooltip ───────────────────────────────────────────────────────────────
 
