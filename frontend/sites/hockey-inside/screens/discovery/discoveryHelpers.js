@@ -1,7 +1,17 @@
 // Zuivere helpers voor Discovery-competities, losgetrokken uit
 // DiscoveryCompetities.jsx (item 737 - bestand was >300 regels).
 
-export function isJeugd(comp) { return /O\d+/i.test(comp.name) }
+// roadmap-melding: senioren-competities als "Heren O25 NK Zaal" bevatten ook
+// een O-getal (reserve/masters-klasse), waardoor de kale /O\d+/-regex ze
+// onterecht als Jeugd classificeerde - een expliciet heren/dames-woord
+// krijgt voorrang, en O25+ geldt sowieso als senioren (jeugd loopt t/m O19).
+const _SENIOR_KEYWORD_RE = /\b(heren|dames)\b/i
+const _AGE_NUM_RE = /O(\d+)/i
+export function isJeugd(comp) {
+  if (_SENIOR_KEYWORD_RE.test(comp.name)) return false
+  const m = _AGE_NUM_RE.exec(comp.name)
+  return m ? parseInt(m[1], 10) < 20 : false
+}
 export const AGE_GROUP_ORDER = ['Senioren', 'Jeugd']
 
 // Normaliseer KNHB-districtnamen naar de canonieke kaart-sleutels (item 650).

@@ -26,12 +26,18 @@ _COMP_AGE_RE = re.compile(r"\bO\d{1,2}\b", re.IGNORECASE)
 
 
 def _derive_competition_category(name: str) -> str:
-    """Best-effort Niveau-classificatie voor een competitienaam."""
+    """Best-effort Niveau-classificatie voor een competitienaam.
+
+    "heren"/"dames" wordt EERST gecheckt (roadmap-melding: "Heren O25 NK Zaal"
+    kwam door een Junioren-only filter heen omdat _COMP_AGE_RE ook op "O25"
+    matcht - senioren-reserve/masters-competities bevatten vaak een O-getal
+    zonder jeugd te zijn, dus een expliciet heren/dames-woord moet voorrang
+    krijgen boven de generieke leeftijd-regex)."""
     n = (name or "").lower()
-    if "jongens" in n or "meisjes" in n or _COMP_AGE_RE.search(name or ""):
-        return "Junioren"
     if "dames" in n or "heren" in n:
         return "Senioren"
+    if "jongens" in n or "meisjes" in n or _COMP_AGE_RE.search(name or ""):
+        return "Junioren"
     return ""
 
 
@@ -129,7 +135,15 @@ def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, clu
             select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == comp_id)
         ).first() if comp_id else None
         label = params.get("label") or (comp.name if comp else "")
-        if hts and comp and comp.hockey_type not in hts:
+        # roadmap-melding: als de hl_comp_id-lookup faalt (stale/dubbel id)
+        # werd deze hockey_type-check stilzwijgend overgeslagen ("if comp and
+        # ...") waardoor een Zaal-competitie zonder resolvende comp alsnog
+        # door een Veld-only filter kwam. Val terug op dezelfde z-prefix-
+        # conventie als elders (hockey_vanger_ingest.py) als comp niet resolvet.
+        hockey_type = comp.hockey_type if (comp and comp.hockey_type) else (
+            "ZA" if label.strip().lower().startswith("z") else "VE"
+        )
+        if hts and hockey_type not in hts:
             return False
         if cats and _derive_competition_category(label) not in cats:
             return False

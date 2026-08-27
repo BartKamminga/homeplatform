@@ -22,6 +22,15 @@ def test_derive_competition_category_unclassifiable_returns_empty():
     assert _derive_competition_category("Gold Cup") == ""
 
 
+def test_derive_competition_category_o25_reserve_competitions_are_senior_not_junior():
+    # roadmap-melding: "Heren O25 NK Zaal" kwam door een Junioren-only filter
+    # heen omdat _COMP_AGE_RE ook op "O25" matcht - een expliciet heren/dames-
+    # woord moet voorrang krijgen boven de generieke leeftijd-regex.
+    assert _derive_competition_category("Heren O25 NK Zaal") == "Senioren"
+    assert _derive_competition_category("Dames O25 NK Zaal") == "Senioren"
+    assert _derive_competition_category("Landelijk Jongens O16") == "Junioren"  # regressie
+
+
 def test_derive_competition_gender():
     assert _derive_competition_gender("Gold Cup Dames") == "Dames"
     assert _derive_competition_gender("Landelijk Jongens O18") == "Jongens"
@@ -58,6 +67,18 @@ def test_junior_competition_passes_default_junioren_only_queue(session):
         ages=[], club=None, cats=["Junioren"], hts=["VE"], genders=[],
     )
     assert matches is True
+
+
+def test_zaal_competition_excluded_from_veld_only_filter_even_when_comp_lookup_fails(session):
+    # roadmap-melding, 2e helft van de bug: als de hl_comp_id-lookup faalt
+    # (comp is None) werd de hockey_type-check voorheen stilzwijgend
+    # overgeslagen. Nu moet het z-prefix in het label als fallback dienen.
+    params = {"comp_id": None, "label": "zHeren O25 NK Zaal"}
+    matches = _cmd_matches_filter(
+        session, "get_competition_detail", params,
+        ages=[], club=None, cats=["Senioren"], hts=["VE"], genders=[],
+    )
+    assert matches is False
 
 
 def test_unknown_comp_id_is_excluded_when_unclassifiable(session):
