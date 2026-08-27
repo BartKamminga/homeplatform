@@ -220,9 +220,29 @@ def capture_for_cmd(page, cmd_type):
                 body = response.json()
                 if body and isinstance(body.get("data"), dict) and body["data"].get("poules") is not None:
                     captured["data"] = {"data": body}
-            elif cmd_type in ("get_clubs", "get_competitions"):
+            elif cmd_type == "get_clubs":
                 body = response.json()
-                if isinstance(body, dict) and isinstance(body.get("data"), list) and body["data"]:
+                data = body.get("data") if isinstance(body, dict) else None
+                # Zelfde vorm-check als interceptor.js's isClubList - anders
+                # kan elke willekeurige "data"-array-response (bv. een
+                # competitie-lijst) hier per ongeluk als clublijst gelden.
+                if isinstance(data, list) and data and isinstance(data[0], dict) \
+                        and data[0].get("federation_reference_id") is not None:
+                    captured["data"] = body
+            elif cmd_type == "get_competitions":
+                body = response.json()
+                data = body.get("data") if isinstance(body, dict) else None
+                # Zelfde vorm-check als interceptor.js's isCompetitionList.
+                # /search/competition levert soms ook een gemixte team/
+                # competitie/club-zoekresultatenlijst op i.p.v. de echte
+                # /competitions/national-lijst - zonder deze check greep Ghost
+                # willekeurig welke "data"-array-response het laatst binnenkwam
+                # (roadmap-melding: "10 competities gevonden zonder naam").
+                if isinstance(data, list) and data and isinstance(data[0], dict) \
+                        and isinstance(data[0].get("id"), int) \
+                        and isinstance(data[0].get("class_name"), str) \
+                        and isinstance(data[0].get("poule_id"), int) \
+                        and data[0].get("federation_reference_id") is None:
                     captured["data"] = body
         except Exception:
             pass

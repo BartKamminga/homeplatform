@@ -601,13 +601,14 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
 
 
 def _call_competitions_list(raw: dict, session: Session):
-    """get_competitions navigeert de vanger-extensie naar hockey.nl's
-    /search/competition - die zoekresultaten mixen teams/competities/clubs in
-    dezelfde lijst (elk item heeft een van "team"/"competition"/"club" gevuld,
-    de rest null). Alleen items met een geneste "competition"-object zijn
-    daadwerkelijk competities; team-/club-hits werden voorheen ook als
-    naamloze "Comp <search-result-id>"-competities aangemaakt (roadmap-melding:
-    "10 competities gevonden zonder naam")."""
+    """get_competitions navigeert naar hockey.nl's /search/competition, wat
+    behalve de echte /competitions/national-lijst (platte objecten met
+    id/name/class_name/poule_id) soms ook een gemixte team/competitie/club-
+    zoekresultatenlijst oplevert (elk item heeft dan "team"/"competition"/
+    "club" gevuld, de rest null) - Ghost's response-capture kon dat voorheen
+    niet onderscheiden (roadmap-melding: "10 competities gevonden zonder
+    naam", en zie interceptor.js's isCompetitionList voor hetzelfde
+    onderscheid aan de Scout-kant). Hier per item beide vormen herkennen."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
         items = raw.get("competitions") or raw.get("data") or []
@@ -620,16 +621,20 @@ def _call_competitions_list(raw: dict, session: Session):
     upserted = 0
     skipped  = 0
     for item in items:
-        comp = item.get("competition") if isinstance(item, dict) else None
-        if not isinstance(comp, dict):
+        if not isinstance(item, dict):
             skipped += 1
             continue
-        comp_id = comp.get("id")
-        name    = comp.get("name")
+        if isinstance(item.get("id"), int) and isinstance(item.get("class_name"), str) \
+                and "federation_reference_id" not in item:
+            comp_id, name, class_name = item.get("id"), item.get("name"), item.get("class_name") or ""
+        else:
+            comp = item.get("competition")
+            comp_id    = comp.get("id") if isinstance(comp, dict) else None
+            name       = comp.get("name") if isinstance(comp, dict) else None
+            class_name = (comp.get("class_name") or "") if isinstance(comp, dict) else ""
         if not comp_id or not name:
             skipped += 1
             continue
-        class_name = comp.get("class_name") or ""
         ht         = "ZA" if "Zaal" in name else "VE"
         ext_id     = name + "|" + target_season
 

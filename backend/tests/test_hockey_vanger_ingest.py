@@ -111,6 +111,18 @@ def test_call_competitions_list_skips_team_and_club_search_hits(session):
     assert comp.name == "Landelijk Jongens O18"
 
 
+def test_call_competitions_list_handles_the_flat_national_list_shape(session):
+    raw = {"competitions": [
+        {"id": 21, "name": "Landelijk Jongens O16", "class_name": "Landelijke Topklasse", "poule_id": 180935},
+        {"id": 2, "name": "Staatsloterij Hoofdklasse Dames", "class_name": "Hoofdklasse", "poule_id": 180863},
+    ]}
+    result = _call_competitions_list(raw, session)
+
+    assert result == {"competitions_found": 2, "upserted": 2, "skipped": 0}
+    comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == 21)).first()
+    assert comp.name == "Landelijk Jongens O16"
+
+
 def test_call_competition_detail_releases_hl_comp_id_from_a_different_competition(session):
     stale = HockeyCompetition(
         external_id="Landelijk Jongens O16|Landelijke Topklasse|Landelijk|2026-2027",
