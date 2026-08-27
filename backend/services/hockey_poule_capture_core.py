@@ -4,7 +4,7 @@ Fase 2a, RFTR-B2). Was 2x bijna-identiek geimplementeerd: routers/hockey_capture
 enige plek waar de upsert-domeinlogica leeft; de aanroepers blijven zelf
 verantwoordelijk voor HTTP-zorgen (archivering, commit, response-vorm)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 import re
@@ -14,6 +14,8 @@ from sqlmodel import Session, select
 from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam, HockeyTeamPoule,
 )
+from services.hockey_vanger_settings import get_notify_team_ids
+from services.push import send_push
 
 if TYPE_CHECKING:
     from routers.hockey_capture import PouleCaptureIn
@@ -42,6 +44,34 @@ class PouleCaptureResult:
     matches_saved: int = 0
     matches_played: int = 0
     extra_poules_linked: int = 0
+    newly_finished: list = field(default_factory=list)  # item 1001: wedstrijden die in DEZE capture voor het eerst "final" werden
+
+
+def notify_finished_matches(session: Session, newly_finished: list) -> int:
+    """item 1001, Fase A: stuurt een pushmelding voor elke net-afgeronde
+    wedstrijd waar een gevolgd team (notify_team_ids-instelling) bij betrokken
+    is. Los van apply_poule_capture zelf aangeroepen door de callers (HTTP-
+    route en raw-ingest-pad), zodat de capture-kernlogica geen kennis van
+    push hoeft te dragen."""
+    if not newly_finished:
+        return 0
+    team_ids = get_notify_team_ids(session)
+    if not team_ids:
+        return 0
+
+    sent = 0
+    for m in newly_finished:
+        if str(m["home_team_id"]) not in team_ids and str(m["away_team_id"]) not in team_ids:
+            continue
+        title = f"{m['home_team_name']} {m['home_score']} - {m['away_score']} {m['away_team_name']}"
+        sent += send_push(
+            user_id=None,
+            title=title,
+            body="Wedstrijd afgelopen",
+            url="/hockey-inside/",
+            site="hockey-inside",
+        )
+    return sent
 
 
 def _is_different_competition(session: Session, poule_id: int, new_comp_id: int) -> bool:
@@ -170,9 +200,17 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
 
     matches_saved = 0
     matches_played = 0
+    newly_finished = []
     if body.matches_data:
-        for old in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)).all():
+        existing_matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == body.poule_id)).all()
+        old_status_by_match_id = {m.match_id: m.status for m in existing_matches}
+        for old in existing_matches:
             session.delete(old)
+        # Expliciete flush: forceert de deletes vóór de nieuwe inserts hieronder
+        # (anders kan een latere autoflush - bv. door de team-upsert-select
+        # verderop - de insert vóór de delete uitvoeren en de unique
+        # constraint op (poule_id, match_id) breken bij een recapture).
+        session.flush()
         for md in body.matches_data:
             is_fin = md.status == "final"
             session.add(HockeyPouleMatch(
@@ -184,6 +222,15 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
                 away_score=md.away_score if is_fin else None,
                 round=md.round, updated_at=now,
             ))
+            # item 1001: wedstrijd is in deze capture voor het eerst "final"
+            # geworden - kandidaat voor een eindstand-pushmelding.
+            if is_fin and old_status_by_match_id.get(md.match_id) != "final":
+                newly_finished.append({
+                    "poule_id": body.poule_id,
+                    "home_team_id": md.home_team_id, "home_team_name": md.home_team_name,
+                    "away_team_id": md.away_team_id, "away_team_name": md.away_team_name,
+                    "home_score": md.home_score, "away_score": md.away_score,
+                })
         matches_saved = len(body.matches_data)
         matches_played = sum(1 for m in body.matches_data if m.status == "final")
 
@@ -231,4 +278,5 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
         teams_created=teams_created, teams_updated=teams_updated,
         standings_saved=standings_saved, matches_saved=matches_saved,
         matches_played=matches_played, extra_poules_linked=extra_poules_linked,
+        newly_finished=newly_finished,
     )

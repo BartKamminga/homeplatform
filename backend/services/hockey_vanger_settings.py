@@ -7,6 +7,7 @@ from sqlmodel import Session
 from models.settings import AppSetting
 
 DISC_TARGET_SEASON = "disc_target_season"
+NOTIFY_TEAM_IDS_KEY = "notify_team_ids"
 
 
 def _get_int_setting(session: Session, key: str, default: int) -> int:
@@ -14,6 +15,18 @@ def _get_int_setting(session: Session, key: str, default: int) -> int:
     if row and row.value and row.value.lstrip("-").isdigit():
         return int(row.value)
     return default
+
+
+def _get_str_setting(session: Session, key: str, default: str = "") -> str:
+    row = session.get(AppSetting, key)
+    return row.value if row and row.value else default
+
+
+def get_notify_team_ids(session: Session) -> set:
+    """item 1001: team_ids (hockey.nl) waarvoor een pushmelding moet gaan bij
+    een afgeronde wedstrijd - komma-gescheiden setting, leeg = geen meldingen."""
+    raw = _get_str_setting(session, NOTIFY_TEAM_IDS_KEY, "")
+    return {p.strip() for p in raw.split(",") if p.strip()}
 
 
 def get_target_season(session: Session) -> str:

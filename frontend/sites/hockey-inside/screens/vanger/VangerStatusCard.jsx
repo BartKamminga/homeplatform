@@ -124,8 +124,12 @@ const SCAN_PLAN_FIELDS = [
 
 const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
 
+// item 1001, Fase A: comma-gescheiden hockey.nl team_ids die een pushmelding
+// krijgen zodra hun wedstrijd eindstand krijgt - los tekstveld, geen getal.
+const NOTIFY_KEY = 'notify_team_ids'
+
 function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday }) {
-  const { values, set, save } = useSettingsForm(settings, SCAN_PLAN_KEYS, onSave)
+  const { values, set, save } = useSettingsForm(settings, [...SCAN_PLAN_KEYS, NOTIFY_KEY], onSave, [NOTIFY_KEY])
 
   if (!settings) return null
 
@@ -151,6 +155,18 @@ function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday })
         >
           <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
           Matchday-interval actief
+        </label>
+        <label
+          title="Comma-gescheiden hockey.nl team_ids - zodra een wedstrijd van een van deze teams eindstand krijgt, gaat er een pushmelding uit (item 1001)"
+          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          Meldingen voor team-id(s)
+          <input
+            type="text" placeholder="bv. 123456,789012"
+            style={{ ...inputStyle(140) }}
+            value={values[NOTIFY_KEY] ?? ''}
+            onChange={e => set(NOTIFY_KEY, e.target.value)}
+          />
         </label>
       </div>
       <div>

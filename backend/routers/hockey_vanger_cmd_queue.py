@@ -25,6 +25,7 @@ from services.hockey_vanger_ingest import (
     _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_club_detail,
     _call_clubs_list, _call_competition_detail, _call_competitions_list,
 )
+from services.hockey_poule_capture_core import notify_finished_matches
 from services.hockey_vanger_settings import get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
 
@@ -524,10 +525,12 @@ def post_cmd_result(
     # (item 708). Basisversie hier, aangevuld/geschreven na de parse-stap.
     archive_meta = {"label": result_label, "cmd_id": cmd_id}
 
+    newly_finished = []
     try:
         handler = _CMD_RESULT_DISPATCH.get(cmd.cmd_type)
         if handler:
             summary_updates, meta_updates = handler(session, body, params)
+            newly_finished = summary_updates.pop("newly_finished", [])
             summary_data.update(summary_updates)
             archive_meta.update(meta_updates)
     except Exception as e:
@@ -556,6 +559,7 @@ def post_cmd_result(
     cmd.result_summary = json.dumps(summary_data)
     session.add(cmd)
     session.commit()
+    notify_finished_matches(session, newly_finished)
     _smart_scan_try_advance(session)
     return {"ok": True, "status": "done", "label": result_label}
 

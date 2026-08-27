@@ -18,7 +18,7 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch,
     HockeyPouleStanding, HockeyTeam, HockeyTeamPoule, VangerCmd,
 )
-from services.hockey_poule_capture_core import apply_poule_capture
+from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
 from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-capture"])
@@ -107,6 +107,7 @@ def upsert_poule_capture(
             ))
 
     session.commit()
+    notify_finished_matches(session, result.newly_finished)
     return {
         "poule_id":          body.poule_id,
         "competition_name":  body.competition_name,

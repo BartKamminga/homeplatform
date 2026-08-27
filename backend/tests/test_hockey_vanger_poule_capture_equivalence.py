@@ -6,11 +6,16 @@ ZA-dead-code-divergentie die upsert_poule_capture voorheen had (hockey_type
 samenvoeging structureel opgelost - beide paden geven nu dezelfde,
 correcte ZA-fallback."""
 
+from unittest.mock import patch
+
 from sqlmodel import select
 
 from models.hockey_discovery import HockeyCompetition, HockeyTeam
-from routers.hockey_capture import PouleCaptureIn, TeamInPoule, upsert_poule_capture
+from models.settings import AppSetting
+from routers.hockey_capture import MatchIn, PouleCaptureIn, TeamInPoule, upsert_poule_capture
+from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
 from services.hockey_vanger_ingest import _call_poule_capture
+from services.hockey_vanger_settings import get_target_season
 
 
 def _body(poule_id, team_id, team_name, **kw):
@@ -56,3 +61,77 @@ def test_both_paths_upsert_the_same_competition_and_poule_for_identical_input(se
     # naam+klasse+seizoen - geen duplicaat per capture-pad.
     assert len(comps) == 1
     assert comps[0].class_name == "1e klasse"
+
+
+# ── item 1001, Fase A: "wedstrijd net final geworden"-detectie ──────────
+
+def _match(match_id, status, home_score=None, away_score=None):
+    return MatchIn(
+        match_id=match_id, home_team_id=100, home_team_name="Home",
+        away_team_id=200, away_team_name="Away", match_date="2026-08-29",
+        status=status, home_score=home_score, away_score=away_score,
+    )
+
+
+def test_apply_poule_capture_reports_a_match_that_just_became_final(session):
+    target_season = get_target_season(session)
+    body1 = _body(poule_id=50, team_id=50, team_name="JO16-50",
+                   matches_data=[_match(1, "scheduled")])
+    result1 = apply_poule_capture(session, body1, target_season)
+    session.commit()
+    assert result1.newly_finished == []
+
+    body2 = _body(poule_id=50, team_id=50, team_name="JO16-50",
+                   matches_data=[_match(1, "final", home_score=3, away_score=1)])
+    result2 = apply_poule_capture(session, body2, target_season)
+    session.commit()
+
+    assert len(result2.newly_finished) == 1
+    assert result2.newly_finished[0]["home_score"] == 3
+    assert result2.newly_finished[0]["away_score"] == 1
+
+
+def test_apply_poule_capture_does_not_report_an_already_final_match_again(session):
+    # Voorkomt dubbele meldingen bij een gewone herscan van een al-afgeronde
+    # wedstrijd (bv. late standen-correctie).
+    target_season = get_target_season(session)
+    body1 = _body(poule_id=51, team_id=51, team_name="JO16-51",
+                   matches_data=[_match(2, "final", home_score=2, away_score=2)])
+    apply_poule_capture(session, body1, target_season)
+    session.commit()
+
+    body2 = _body(poule_id=51, team_id=51, team_name="JO16-51",
+                   matches_data=[_match(2, "final", home_score=2, away_score=2)])
+    result2 = apply_poule_capture(session, body2, target_season)
+    session.commit()
+
+    assert result2.newly_finished == []
+
+
+def test_notify_finished_matches_skips_teams_not_in_notify_setting(session):
+    session.add(AppSetting(key="notify_team_ids", value="999"))
+    session.commit()
+
+    with patch("services.hockey_poule_capture_core.send_push") as mock_send_push:
+        sent = notify_finished_matches(session, [
+            {"home_team_id": 100, "home_team_name": "Home", "away_team_id": 200,
+             "away_team_name": "Away", "home_score": 1, "away_score": 0},
+        ])
+
+    assert sent == 0
+    mock_send_push.assert_not_called()
+
+
+def test_notify_finished_matches_sends_for_a_followed_team(session):
+    session.add(AppSetting(key="notify_team_ids", value="200, 300"))
+    session.commit()
+
+    with patch("services.hockey_poule_capture_core.send_push", return_value=1) as mock_send_push:
+        sent = notify_finished_matches(session, [
+            {"home_team_id": 100, "home_team_name": "Home", "away_team_id": 200,
+             "away_team_name": "Away", "home_score": 1, "away_score": 0},
+        ])
+
+    assert sent == 1
+    mock_send_push.assert_called_once()
+    assert "Home 1 - 0 Away" in mock_send_push.call_args.kwargs["title"]

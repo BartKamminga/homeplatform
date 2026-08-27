@@ -17,7 +17,7 @@ from routers.hockey_vanger_smartscan_control import (
     GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY,
 )
 from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY
-from services.hockey_vanger_settings import _get_int_setting
+from services.hockey_vanger_settings import NOTIFY_TEAM_IDS_KEY, _get_int_setting, _get_str_setting
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -128,6 +128,7 @@ def _vanger_settings(session: Session) -> dict:
         result[key] = _get_int_setting(session, key, default)
     for key, default in SCAN_PLAN_DEFAULTS.items():
         result[key] = _get_int_setting(session, key, default)
+    result["notify_team_ids"] = _get_str_setting(session, NOTIFY_TEAM_IDS_KEY, "")
     return result
 
 
@@ -144,6 +145,7 @@ class VangerSettingsIn(BaseModel):
     match_duration_min:            Optional[int] = None
     active_daily_fallback_hours:   Optional[int] = None
     active_matchday_interval_min:  Optional[int] = None
+    notify_team_ids:               Optional[str] = None  # item 1001: comma-gescheiden hockey.nl team_ids
 
 
 @router.get("/vanger/settings")
@@ -183,5 +185,14 @@ def update_vanger_settings(
             row.value = str(val); session.add(row)
         else:
             session.add(AppSetting(key=key, value=str(val)))
+
+    if body.notify_team_ids is not None:
+        cleaned = ",".join(p.strip() for p in body.notify_team_ids.split(",") if p.strip())
+        row = session.get(AppSetting, NOTIFY_TEAM_IDS_KEY)
+        if row:
+            row.value = cleaned; session.add(row)
+        else:
+            session.add(AppSetting(key=NOTIFY_TEAM_IDS_KEY, value=cleaned))
+
     session.commit()
     return _vanger_settings(session)

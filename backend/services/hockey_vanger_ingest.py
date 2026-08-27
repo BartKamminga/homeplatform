@@ -176,6 +176,7 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
         "matches_played": result.matches_played,
         "competition":    body.competition_name,
         "season":         body.season,
+        "newly_finished": result.newly_finished,
     }
 
 

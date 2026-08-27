@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 // Gedeelde instellingen-formulier-boilerplate (RFTR-B6, item 989, fase 6.5) -
 // VangerTuning en ScanPlanTuning (VangerStatusCard.jsx) hadden identieke
 // load/set/save-logica, alleen met een andere fieldKeys-lijst.
-export function useSettingsForm(settings, fieldKeys, onSave) {
+export function useSettingsForm(settings, fieldKeys, onSave, stringKeys = []) {
   const [values, setValues] = useState({})
 
   useEffect(() => {
@@ -18,7 +18,9 @@ export function useSettingsForm(settings, fieldKeys, onSave) {
 
   function save() {
     const patch = {}
-    for (const key of Object.keys(values)) patch[key] = Number(values[key]) || settings[key]
+    for (const key of Object.keys(values)) {
+      patch[key] = stringKeys.includes(key) ? values[key] : (Number(values[key]) || settings[key])
+    }
     onSave(patch)
   }
 
