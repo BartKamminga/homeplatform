@@ -119,7 +119,14 @@ def upsert_poule_capture(
             .where(HockeyCompetition.season != body.season)
             .order_by(HockeyCompetition.season.desc())
         ).first()
-        if prev_comp:
+        # Alleen hergebruiken als de rij nog geen poules van een ander seizoen
+        # draagt - anders raken die poules gekoppeld aan een label dat niet meer
+        # bij ze hoort (zie roadmap-melding: "Jongens O14 Lente" bleef aan een
+        # oude 2025-2026-poule hangen nadat de rij naar 2026-2027 was omgezet).
+        prev_comp_has_poules = bool(prev_comp) and session.exec(
+            select(HockeyPoule.id).where(HockeyPoule.competition_id == prev_comp.id)
+        ).first() is not None
+        if prev_comp and not prev_comp_has_poules:
             prev_comp.external_id = ext_id
             prev_comp.season      = body.season
             prev_comp.updated_at  = now

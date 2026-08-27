@@ -87,10 +87,14 @@ def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = Non
             name = poule_data.get("name", "")
             hockey_type = "ZA" if name.lower().startswith("z") else "VE"
 
-        season = raw.get("seizoen")
+        # Datum van de wedstrijden zelf is leidend, niet raw["seizoen"] (dat
+        # reflecteert de site-context van de pagina die gescand is, niet per se
+        # het seizoen van de getoonde poule - zie roadmap-melding: een lente-poule
+        # (maart-juni) kreeg zo het "actieve" seizoen van de scan-datum in augustus).
+        match_dates = sorted(m.match_date for m in matches_list if m.match_date)
+        season = _season_from_date(match_dates[0]) if match_dates else None
         if not season:
-            match_dates = sorted(m.match_date for m in matches_list if m.match_date)
-            season = _season_from_date(match_dates[0]) if match_dates else None
+            season = raw.get("seizoen")
         if not season:
             season = target_season or "2026-2027"
 
@@ -167,7 +171,14 @@ def _call_poule_capture(body: PouleCaptureIn, session: Session):
             .where(HockeyCompetition.season != body.season)
             .order_by(HockeyCompetition.season.desc())
         ).first()
-        if prev_comp:
+        # Alleen hergebruiken als de rij nog geen poules van een ander seizoen
+        # draagt - anders raken die poules gekoppeld aan een label dat niet meer
+        # bij ze hoort (zie roadmap-melding: "Jongens O14 Lente" bleef aan een
+        # oude 2025-2026-poule hangen nadat de rij naar 2026-2027 was omgezet).
+        prev_comp_has_poules = bool(prev_comp) and session.exec(
+            select(HockeyPoule.id).where(HockeyPoule.competition_id == prev_comp.id)
+        ).first() is not None
+        if prev_comp and not prev_comp_has_poules:
             prev_comp.external_id = ext_id
             prev_comp.season      = body.season
             prev_comp.updated_at  = now
