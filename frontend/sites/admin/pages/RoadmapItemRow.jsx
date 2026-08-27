@@ -21,7 +21,7 @@ export default function RoadmapItemRow({ item, deployStatus, onStatusCycle, onEd
             type="checkbox"
             checked={!!selected}
             onChange={() => onToggleSelect(item.id)}
-            style={{ marginTop: "5px", flexShrink: 0, cursor: "pointer" }}
+            style={{ width: "13px", height: "13px", padding: 0, margin: 0, marginTop: "5px", flexShrink: 0, cursor: "pointer" }}
           />
           <div
             style={{

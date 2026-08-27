@@ -9,6 +9,34 @@ import { s, SITES, STATUSES, PRIORITIES, PRIORITY_LABEL, STATUS_CYCLE, STATUS_LA
 
 const BULK_STATUSES = STATUSES.filter((v) => v !== "alle");
 
+// navigator.clipboard bestaat alleen in secure contexts (HTTPS/localhost) -
+// acc draait over plain HTTP op een LAN-IP, dus navigator.clipboard is daar
+// undefined en navigator.clipboard.writeText() gooit synchroon (buiten de
+// promise-chain, dus niet gevangen door .catch()). Fallback op de oudere
+// execCommand('copy')-route via een tijdelijke textarea.
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    try {
+      const ok = document.execCommand("copy");
+      document.body.removeChild(el);
+      ok ? resolve() : reject(new Error("execCommand('copy') gaf false terug"));
+    } catch (e) {
+      document.body.removeChild(el);
+      reject(e);
+    }
+  });
+}
+
 export default function Roadmap() {
   const [items, setItems] = useState([]);
   const [deployStatus, setDeployStatus] = useState(null);
@@ -135,7 +163,7 @@ export default function Roadmap() {
       return lines.join("\n");
     }).join("\n\n");
     const header = `Roadmap-items (${selected.length}):\n\n`;
-    navigator.clipboard.writeText(header + text).then(() => {
+    copyText(header + text).then(() => {
       setCopyMsg(`${selected.length} item(s) gekopieerd`);
       setTimeout(() => setCopyMsg(""), 2500);
     }).catch(() => setError("Kopiëren naar klembord mislukt"));
