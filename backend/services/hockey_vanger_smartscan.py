@@ -9,8 +9,8 @@ from sqlmodel import Session, col, func, select
 
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from models.settings import AppSetting
-from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _get_queue_filter, _is_scoreless_youth, _cmd_matches_filter, apply_team_filter
+from services.hockey_vanger_settings import get_target_season
 
 SMART_SCAN_MODE       = "smart_scan_mode"
 SMART_SCAN_STARTED_AT = "smart_scan_started_at"
@@ -140,7 +140,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
     # Alleen teams tellen waarvan de poule nog niet gecaptured is voor dit seizoen,
     # of die explicitly herscand moeten worden (season_pending). Teams waarvan de
     # huidige-seizoen poule al in de DB staat hoeven geen club-scan meer.
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     captured_target_ids = {p.poule_id for p in session.exec(
         select(HockeyPoule).where(HockeyPoule.season == target_season)
     ).all()}

@@ -14,7 +14,7 @@ from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding,
     HockeyTeam, HockeyTeamPoule,
 )
-from routers.hockey_capture import _get_target_season
+from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-clubs"])
 
@@ -90,7 +90,7 @@ def get_team_detail(
     if not team:
         raise HTTPException(status_code=404, detail="Team niet gevonden")
 
-    target_season = season or _get_target_season(session)
+    target_season = season or get_target_season(session)
 
     poule_ids: list = []
     if team.recent_poule_id:
@@ -113,7 +113,7 @@ def get_team_detail(
         if poule is None:
             # Nog niet gevangen - alleen relevant voor het huidige seizoen
             # (zie list_youth_teams voor dezelfde aanname).
-            if is_primary and target_season == _get_target_season(session):
+            if is_primary and target_season == get_target_season(session):
                 poules_out.append({
                     "poule_id": pid, "poule_name": None, "season": target_season,
                     "is_primary": True, "captured": False,

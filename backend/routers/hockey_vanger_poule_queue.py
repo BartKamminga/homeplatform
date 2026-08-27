@@ -9,8 +9,8 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule
-from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _age_group_of, _age_sort_key, _get_queue_filter, apply_team_filter
+from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -39,7 +39,7 @@ def get_poule_queue(
     _=Depends(get_current_user),
 ):
     """Generieke poule-queue — filter volledig vanuit AppSettings."""
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     ages, club, cats, hts, genders = _get_queue_filter(session)
 
     q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
@@ -170,7 +170,7 @@ def get_poule_queue_next(
     _=Depends(get_current_user),
 ):
     """Volgende niet-gecaptured poule item (hoog leeftijdsgetal eerst)."""
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     ages, club, cats, hts, genders = _get_queue_filter(session)
 
     captured_ids = {p.poule_id for p in session.exec(

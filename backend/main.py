@@ -38,7 +38,7 @@ if settings.SENTRY_DSN:
         before_send=_before_send,
     )
 
-from routers import system, auth, users, groups, themes, sites, audit  # noqa: E402
+from routers import system_public, system_admin, auth, users, groups, themes, sites, audit  # noqa: E402
 from routers import mixmusic, changelog, tracking, dontforget, uploads  # noqa: E402
 from routers import tournix, fiets, backup  # noqa: E402
 from routers import tournix_import  # noqa: E402
@@ -152,7 +152,8 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
     return JSONResponse(status_code=409, content={"detail": "Dubbele waarde of database-conflict"})
 
 
-app.include_router(system.router)
+app.include_router(system_public.router)
+app.include_router(system_admin.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(groups.router)

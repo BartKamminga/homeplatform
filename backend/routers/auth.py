@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from core.database import get_session
 from core.auth import verify_password, create_access_token, get_current_user, hash_password
+from core.crud import get_or_create_user_pref
 from core.limiter import limiter
 from core.logging import log_action
 from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken, UserPreference, UserApiKey
@@ -236,11 +237,7 @@ async def set_ui_prefs(
     data = await request.json()
     if not isinstance(data, dict):
         raise HTTPException(status_code=422, detail="Body moet een object zijn")
-    row = session.exec(select(UserPreference).where(UserPreference.user_id == current_user.id)).first()
-    if not row:
-        row = UserPreference(user_id=current_user.id, extra={})
-        session.add(row)
-        session.flush()
+    row = get_or_create_user_pref(session, current_user.id)
     row.extra = {**(row.extra or {}), **data}
     session.add(row)
     session.commit()

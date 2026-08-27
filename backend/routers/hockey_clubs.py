@@ -12,8 +12,8 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule
-from routers.hockey_capture import _get_target_season
 from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
+from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-clubs"])
 
@@ -245,7 +245,7 @@ def list_youth_teams(
         if poule_ids:
             for p in session.exec(select(HockeyPoule).where(col(HockeyPoule.poule_id).in_(poule_ids))).all():
                 primary_season_by_poule[p.poule_id] = p.season
-        target_season = _get_target_season(session)
+        target_season = get_target_season(session)
 
     def _primary_for_season(t: HockeyTeam) -> Optional[int]:
         if not season or not t.recent_poule_id:

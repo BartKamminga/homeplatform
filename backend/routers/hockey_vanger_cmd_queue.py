@@ -16,7 +16,6 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
-from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import (
     _GENDER_PREFIX, _age_group_of, _age_sort_key, _cmd_matches_filter, _get_queue_filter,
     _is_scoreless_youth, apply_team_filter,
@@ -25,6 +24,7 @@ from services.hockey_vanger_ingest import (
     _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_club_detail,
     _call_clubs_list, _call_competition_detail, _call_competitions_list,
 )
+from services.hockey_vanger_settings import get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -89,7 +89,7 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
     hockey_team_poules - een team dat ook in een 2e competitie speelt.
     Retourneert (added, stale_poule_ids) - stale_poule_ids wordt door de
     aanroeper teruggegeven als 'stale_skip'-telling."""
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     ages, club, cats, hts, genders = _get_queue_filter(session)
 
     captured_ids = {p.poule_id for p in session.exec(
@@ -215,7 +215,7 @@ def _fill_poules_refresh(session: Session, now: datetime, pending_params: set, m
     die langer dan max_age_days niet gescand zijn."""
     cutoff  = now - timedelta(days=max_age_days)
 
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     _, _, cats, hts, genders = _get_queue_filter(session)
 
     q = (
@@ -388,7 +388,7 @@ def get_cmd_queue_next(
 
 
 def _dispatch_get_poule(session: Session, body: CmdResultIn, params: dict) -> tuple:
-    capture_body = _parse_raw_poule(body.raw, params, _get_target_season(session))
+    capture_body = _parse_raw_poule(body.raw, params, get_target_season(session))
     if not capture_body:
         return {"parse_failed": True}, {}
     poule_sum = _call_poule_capture(capture_body, session)

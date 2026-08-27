@@ -19,9 +19,8 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 from models.settings import AppSetting
-from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _is_scoreless_youth
-from services.hockey_vanger_settings import _get_int_setting
+from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
 STEP_MAX_CMDS = 10
 
@@ -322,7 +321,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
 
 def run_scan_plan_pass(session: Session) -> dict:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
 
     steps = {
         "club_list":         _step_club_list(session, now),

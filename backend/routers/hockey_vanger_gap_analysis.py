@@ -12,8 +12,8 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
-from routers.hockey_capture import _get_target_season
 from services.hockey_vanger_filters import _is_scoreless_youth
+from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -26,7 +26,7 @@ def gap_fill_queue(
     _=Depends(get_current_user),
 ):
     """Vul de queue automatisch op basis van de gap-analyse."""
-    target = season or _get_target_season(session)
+    target = season or get_target_season(session)
     now    = datetime.now(timezone.utc).replace(tzinfo=None)
 
     pending_cmds = session.exec(

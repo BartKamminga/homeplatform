@@ -12,12 +12,11 @@ from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch,
     HockeyPouleStanding, HockeyTeam, VangerCmd,
 )
-from routers.hockey_capture import (
-    MatchIn, PouleCaptureIn, StandingIn, TeamInPoule, _get_target_season,
-)
+from routers.hockey_capture import MatchIn, PouleCaptureIn, StandingIn, TeamInPoule
 from routers.hockey_clubs import ClubDetailIn, TeamIn
 from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 from services.hockey_poule_capture_core import _derive_category, apply_poule_capture
+from services.hockey_vanger_settings import get_target_season
 
 
 def _release_stale_hl_comp_id(session: Session, hl_cid: Optional[int], keep_id: Optional[int]) -> None:
@@ -168,7 +167,7 @@ def _parse_raw_club(raw: dict, params: dict) -> Optional[ClubDetailIn]:
 # ── Internal _call_* helpers (no HTTP layer) ─────────────
 
 def _call_poule_capture(body: PouleCaptureIn, session: Session):
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     result = apply_poule_capture(session, body, target_season)
     return {
         "teams":          len(body.teams_in_poule),
@@ -410,7 +409,7 @@ def _call_competitions_list(raw: dict, session: Session):
     except Exception:
         return None
 
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     upserted = 0
     skipped  = 0
     for item in items:

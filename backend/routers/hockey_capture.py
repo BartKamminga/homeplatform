@@ -18,17 +18,10 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch,
     HockeyPouleStanding, HockeyTeam, HockeyTeamPoule, VangerCmd,
 )
-from models.settings import AppSetting
 from services.hockey_poule_capture_core import apply_poule_capture
+from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-capture"])
-
-DISC_TARGET_SEASON = "disc_target_season"
-
-
-def _get_target_season(session: Session) -> str:
-    row = session.get(AppSetting, DISC_TARGET_SEASON)
-    return row.value if row and row.value else "2026-2027"
 
 
 class TeamInPoule(BaseModel):
@@ -85,7 +78,7 @@ def upsert_poule_capture(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     result = apply_poule_capture(session, body, target_season)
 
     if body.session_id:
@@ -301,7 +294,7 @@ def get_data_quality(
 ):
     """Signalen naast de scanplan-monitoring: per-poule (aankomende week /
     kicktijd onbekend / uitslag mist) plus een aantal bredere tellingen."""
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     today = now.date()
 
@@ -494,7 +487,7 @@ def infer_season_pending(
     _=Depends(get_current_user),
 ):
     """Markeert teams als season_pending als hun recent_poule_id in een oud seizoen valt."""
-    target_season = _get_target_season(session)
+    target_season = get_target_season(session)
 
     poules = session.exec(select(HockeyPoule)).all()
     season_ranges: Dict[str, dict] = {}

@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, Request
+"""System — admin-only monitoring (overview/deploy-status/beatport-provider/
+api-stats/scrapster-cache/site-events/site-stats/audit-log). Opgesplitst uit
+routers/system.py (item 844) - dat bestand bundelde dit met de publieke
+health/version/config/sites-endpoints in 1 kitchen-sink router."""
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from sqlalchemy import inspect as sa_inspect, text, update as sa_update
+from sqlalchemy import inspect as sa_inspect, text
 from sqlmodel import Session, select
 from typing import Optional
 
@@ -12,96 +15,14 @@ from core.auth import require_admin
 from core.limiter import limiter
 from core.stats import api_call_stats, api_call_since
 from models.core import AuditLog, Group, Site, SiteAccess, User, UserGroup
+from routers.system_public import get_db_revision
 
-router = APIRouter(prefix="/api", tags=["system"])
-
-_optional_token = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
-
-
-def get_db_revision() -> str:
-    try:
-        from alembic.runtime.migration import MigrationContext  # type: ignore
-        with engine.connect() as conn:
-            context = MigrationContext.configure(conn)
-            return context.get_current_revision() or "geen migraties"
-    except Exception:
-        return "onbekend"
-
-
-@router.get("/health")
-def health():
-    return {"status": "ok", "environment": settings.ENVIRONMENT}
-
-
-@router.get("/version")
-def version():
-    return {"core": settings.APP_VERSION, "db_revision": get_db_revision(), "sites": {}}
-
-
-@router.get("/config")
-def public_config():
-    return {
-        "sentry_dsn": settings.SENTRY_DSN or None,
-        "environment": settings.ENVIRONMENT,
-        "sentry_min_level": settings.SENTRY_MIN_LEVEL,
-    }
-
-
-@router.get("/sites")
-def public_sites(
-    session: Session = Depends(get_session),
-    token: Optional[str] = Depends(_optional_token),
-):
-    """Retourneert alleen sites die zichtbaar zijn voor de aanvrager.
-
-    Onbeperkte sites (geen SiteAccess-rijen) zijn altijd zichtbaar.
-    Beperkte sites zijn alleen zichtbaar voor ingelogde gebruikers met de juiste groep.
-    """
-    restricted_ids = {sa.site_id for sa in session.exec(select(SiteAccess)).all()}
-
-    accessible_ids: set[str] = set()
-    if token:
-        try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            user_id = payload.get("sub")
-            if user_id:
-                group_ids = set(session.exec(
-                    select(UserGroup.group_id).where(UserGroup.user_id == user_id)
-                ).all())
-                if group_ids:
-                    accessible_ids = {
-                        sa.site_id
-                        for sa in session.exec(
-                            select(SiteAccess).where(SiteAccess.group_id.in_(group_ids))
-                        ).all()
-                    }
-                # Admingroep heeft altijd toegang tot admin-module sites
-                admin_group = session.exec(
-                    select(Group).where(Group.slug == "admins")
-                ).first()
-                if admin_group and admin_group.id in group_ids:
-                    admin_site_ids = {
-                        s.id for s in session.exec(
-                            select(Site).where(Site.module == "admin")
-                        ).all()
-                    }
-                    accessible_ids |= admin_site_ids
-        except (JWTError, Exception):
-            pass
-
-    sites = session.exec(
-        select(Site).where(Site.is_active.is_(True)).order_by(Site.name)
-    ).all()
-    return [
-        {"name": s.name, "slug": s.slug, "module": s.module, "icon": s.icon}
-        for s in sites
-        if s.id not in restricted_ids or s.id in accessible_ids
-    ]
+router = APIRouter(prefix="/api/admin", tags=["system-admin"])
 
 
 # ── Admin: System overview ────────────────────────────────────────────────────
 
-@router.get("/admin/system/overview")
+@router.get("/system/overview")
 def system_overview(session: Session = Depends(get_session), _: User = Depends(require_admin)):
     users      = session.exec(select(User)).all()
     groups     = session.exec(select(Group)).all()
@@ -213,7 +134,7 @@ class DeployVersionIn(BaseModel):
     short: str = ""
 
 
-@router.get("/admin/deploy-status")
+@router.get("/deploy-status")
 def get_deploy_status(_: User = Depends(require_admin)):
     import json as _json, os as _os
     def read_info(path):
@@ -239,7 +160,7 @@ def get_deploy_status(_: User = Depends(require_admin)):
     }
 
 
-@router.post("/admin/deploy-versions")
+@router.post("/deploy-versions")
 def post_deploy_version(body: DeployVersionIn, _: User = Depends(require_admin)):
     import json as _json
     from models.settings import AppSetting
@@ -331,13 +252,10 @@ def _build_links() -> dict:
 
 # ── Admin: Beatport provider ──────────────────────────────────────────────────
 
-from fastapi import HTTPException
-from pydantic import BaseModel
-
 class ProviderBody(BaseModel):
     provider: str
 
-@router.get("/admin/beatport-provider")
+@router.get("/beatport-provider")
 def get_beatport_provider(_: User = Depends(require_admin)):
     from routers.providers.factory import get_active_beatport_provider, _provider_override
     active = get_active_beatport_provider()
@@ -347,7 +265,7 @@ def get_beatport_provider(_: User = Depends(require_admin)):
         "options": ["binary", "native"],
     }
 
-@router.put("/admin/beatport-provider")
+@router.put("/beatport-provider")
 def put_beatport_provider(body: ProviderBody, _: User = Depends(require_admin)):
     from routers.providers.factory import set_beatport_provider
     if body.provider not in ("binary", "native"):
@@ -358,7 +276,7 @@ def put_beatport_provider(body: ProviderBody, _: User = Depends(require_admin)):
 
 # ── Admin: API call stats ─────────────────────────────────────────────────────
 
-@router.get("/admin/api-stats")
+@router.get("/api-stats")
 def get_api_stats(_: User = Depends(require_admin)):
     total = sum(api_call_stats.values())
     entries = sorted(api_call_stats.items(), key=lambda x: x[1], reverse=True)
@@ -379,7 +297,7 @@ def get_api_stats(_: User = Depends(require_admin)):
 
 # ── Admin: Site analytics ─────────────────────────────────────────────────────
 
-@router.get("/admin/scrapster-cache-status")
+@router.get("/scrapster-cache-status")
 def get_scrapster_cache_status(_: User = Depends(require_admin)):
     """Realtime cache- en achtergrond-refresh status van Scrapster."""
     import time as _time
@@ -409,7 +327,7 @@ def get_scrapster_cache_status(_: User = Depends(require_admin)):
     }
 
 
-@router.post("/admin/scrapster-cache-status/toggle")
+@router.post("/scrapster-cache-status/toggle")
 def toggle_scrapster_refresh(_: User = Depends(require_admin)):
     """Zet de automatische achtergrond-refresh aan of uit en sla op in DB."""
     from routers.scrapster import _refresh_ctrl
@@ -431,7 +349,7 @@ class ScrapsterIntervalIn(BaseModel):
     interval: int
 
 
-@router.patch("/admin/scrapster-cache-status/interval")
+@router.patch("/scrapster-cache-status/interval")
 def set_scrapster_interval(body: ScrapsterIntervalIn, _: User = Depends(require_admin)):
     """Stel de refresh-interval in (minimaal 10 seconden) en sla op in DB."""
     from routers.scrapster import _refresh_ctrl
@@ -450,7 +368,7 @@ def set_scrapster_interval(body: ScrapsterIntervalIn, _: User = Depends(require_
     return {"interval": interval}
 
 
-@router.get("/admin/site-events")
+@router.get("/site-events")
 def get_site_events(
     site: str,
     hour: Optional[str] = None,
@@ -496,7 +414,7 @@ def get_site_events(
     ]}
 
 
-@router.get("/admin/site-stats")
+@router.get("/site-stats")
 def get_site_stats(_: User = Depends(require_admin)):
     """Return aggregated analytics per public site from site_events."""
     from core.analytics import log_site_event  # noqa: F401 — ensures module is importable
@@ -571,7 +489,7 @@ def get_site_stats(_: User = Depends(require_admin)):
 
 # ── Admin: Audit log ──────────────────────────────────────────────────────────
 
-@router.get("/admin/audit-log")
+@router.get("/audit-log")
 @limiter.limit("60/minute")
 def get_audit_log(
     request: Request,

@@ -8,9 +8,9 @@ from models.hockey_discovery import (
     HockeyTeam, HockeyTeamPoule,
 )
 from models.settings import AppSetting
-from routers.hockey_capture import DISC_TARGET_SEASON
 from routers.hockey_clubs import list_youth_teams
 from routers.hockey_team_detail import get_team_detail
+from services.hockey_vanger_settings import DISC_TARGET_SEASON
 
 CURRENT_SEASON = "2026-2027"
 OLD_SEASON = "2024-2025"
