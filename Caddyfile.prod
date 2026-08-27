@@ -10,6 +10,13 @@
         reverse_proxy backend:8000
     }
 
+    @sw path_regexp ^/[^/]+/sw\.js$
+    handle @sw {
+        root * /srv/www
+        header Cache-Control "no-cache"
+        file_server
+    }
+
     handle /admin/* {
         root * /srv/www
         try_files {path} /admin/index.html
