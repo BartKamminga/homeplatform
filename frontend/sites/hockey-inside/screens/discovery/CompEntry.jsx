@@ -21,7 +21,12 @@ export default function CompEntry({
           {cPoules.length > 0 ? (cOpen ? '▾' : '▸') : ''}
         </span>
         {!nested && <span style={{ flex: 1 }}>{c.name}</span>}
-        {nested  && <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>{c.class_name || c.name}</span>}
+        {nested  && (
+          <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>
+            {c.name}
+            {c.class_name && <span style={{ opacity: 0.7 }}> · {c.class_name}</span>}
+          </span>
+        )}
         {!nested && c.class_name && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{c.class_name}</span>}
         {distBadge && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic', opacity: 0.75 }}>📍 {distBadge}</span>}
         {c.hl_comp_id && <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>#{c.hl_comp_id}</span>}
