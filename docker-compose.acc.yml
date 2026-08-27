@@ -41,6 +41,8 @@ services:
       - NAS_URL=${NAS_URL:-}
       - EXTERNAL_URL=${EXTERNAL_URL:-}
       - WORKER_POLL_IDLE_SEC=300
+      - PROD_API_BASE=${PROD_API_BASE:-}
+      - PROD_API_KEY=${PROD_API_KEY:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
