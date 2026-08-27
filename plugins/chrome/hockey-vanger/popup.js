@@ -1,5 +1,5 @@
-// popup.js v11.6 — navigatie-delay ook centraal instelbaar via
-// /vanger/settings (item 707), lokale Instellingen-save synct nu mee
+// popup.js v11.7 — heartbeat-fouten (verkeerde URL/API-key, netwerkfout) niet
+// langer stil weggeslikt, maar zichtbaar via addLog/toast
 var HP = { url: '', key: '', delayMin: 10000, delayMax: 15000 };
 var LOG = [];
 var IDLE_TIMEOUT_MS  = 20 * 60 * 1000; // default — overschreven door /vanger/settings (loadIdleTimeout)
@@ -11,6 +11,7 @@ var _vanger = {
   tabOk: false, tabUrlListener: null
 };
 var _heartbeatTimer = null;
+var _heartbeatFailing = false;
 
 var $ = function(id) { return document.getElementById(id); };
 
@@ -162,7 +163,22 @@ function postHeartbeat(fields) {
       running: false, mode: null, task: null, cmd_id: null,
       done_count: 0, fail_count: 0, queue_total: 0, client: 'scout', state: 'online',
     }, fields))
-  }).catch(function() {});
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (_heartbeatFailing) {
+      _heartbeatFailing = false;
+      addLog('ok', '✓ Heartbeat hersteld');
+    }
+  }).catch(function(e) {
+    // Was voorheen een stille no-op - een verkeerde/verlopen URL of API-key
+    // (of gewoon de verkeerde omgeving) liet de statuskaart dan permanent
+    // "Offline" tonen zonder enige aanwijzing waarom.
+    if (!_heartbeatFailing) {
+      _heartbeatFailing = true;
+      addLog('err', '⚠ Heartbeat mislukt (' + (e && e.message ? e.message : 'netwerkfout') + ') - check URL/API-key bij Instellingen');
+      toast('⚠ Heartbeat mislukt - check Instellingen');
+    }
+  });
 }
 function sendHeartbeat() {
   var cmd = _vanger.currentCmd;
