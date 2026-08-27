@@ -1,3 +1,13 @@
+import os
+
+# core/limiter.py geeft elke request een unieke rate-limit-key zodra TESTING
+# gezet is (i.p.v. het gedeelde test-client IP) - stond hier nooit gezet, dus
+# alle tests in 1 pytest-run deelden stilzwijgend 1 rate-limit-bucket per
+# gelimiteerd endpoint. Onschadelijk bij een kleine testset, maar veroorzaakte
+# cascaderende 429's (i.p.v. de verwachte 200/4xx) zodra genoeg tests in
+# dezelfde sessie een gelimiteerd endpoint raakten (zie test_dontforget.py).
+os.environ["TESTING"] = "1"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, create_engine

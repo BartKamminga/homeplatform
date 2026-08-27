@@ -114,36 +114,28 @@ def test_panic_reason_fallback():
 # ── BinaryBeatportProvider._prepare ───────────────────────────────────────────
 
 def test_prepare_geen_config_dir_geeft_none(tmp_path):
+    # _prepare() zelf roept geen update_job aan - dat doet de caller (download(),
+    # via _prepare_error -> DownloadResult.error -> downloader_worker._run_inner)
+    # zodra ctx None is. Hier alleen de eigen contract van _prepare() checken.
     provider = BinaryBeatportProvider()
-    job_updates = {}
 
-    def fake_update(job_id, **kwargs):
-        job_updates.update(kwargs)
-
-    with patch("routers.providers.beatport.binary.settings") as s, \
-         patch("routers.providers.beatport.binary.update_job", side_effect=fake_update):
+    with patch("routers.providers.beatport.binary.settings") as s:
         s.BEATPORTDL_CONFIG_DIR = ""
         ctx = provider._prepare("https://beatport.com/playlists/x/1", str(tmp_path), "job1")
 
     assert ctx is None
-    assert job_updates.get("status") == "error"
-    assert "geconfigureerd" in job_updates.get("error", "").lower()
+    assert "geconfigureerd" in provider._prepare_error.lower()
 
 
 def test_prepare_config_bestand_ontbreekt(tmp_path):
     provider = BinaryBeatportProvider()
-    job_updates = {}
 
-    def fake_update(job_id, **kwargs):
-        job_updates.update(kwargs)
-
-    with patch("routers.providers.beatport.binary.settings") as s, \
-         patch("routers.providers.beatport.binary.update_job", side_effect=fake_update):
+    with patch("routers.providers.beatport.binary.settings") as s:
         s.BEATPORTDL_CONFIG_DIR = str(tmp_path)  # bestaat, maar geen config.yml
         ctx = provider._prepare("https://beatport.com/playlists/x/1", str(tmp_path / "dl"), "job2")
 
     assert ctx is None
-    assert job_updates.get("status") == "error"
+    assert provider._prepare_error is not None
 
 
 def test_prepare_genereert_config_met_show_progress_false(tmp_path):
