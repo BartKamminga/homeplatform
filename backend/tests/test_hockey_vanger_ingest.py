@@ -5,7 +5,9 @@ from sqlmodel import select
 
 from models.hockey_discovery import HockeyCompetition, HockeyPoule
 from routers.hockey_capture import PouleCaptureIn
-from services.hockey_vanger_ingest import _call_poule_capture, _parse_raw_poule
+from services.hockey_vanger_ingest import (
+    _call_competition_detail, _call_competitions_list, _call_poule_capture, _parse_raw_poule,
+)
 
 
 def test_poule_capture_does_not_reuse_a_competition_that_still_has_poules(session):
@@ -75,3 +77,44 @@ def test_parse_raw_poule_prefers_match_dates_over_raw_seizoen_field():
     }
     result = _parse_raw_poule(raw, params={"poule_id": 42})
     assert result.season == "2025-2026"
+
+
+def test_call_competitions_list_releases_hl_comp_id_from_a_different_competition(session):
+    stale = HockeyCompetition(
+        external_id="Landelijk Jongens O16|2026-2027", name="Landelijk Jongens O16",
+        class_name="Landelijke Topklasse", hockey_type="VE", season="2026-2027", hl_comp_id=24,
+    )
+    session.add(stale)
+    session.commit()
+
+    _call_competitions_list({"competitions": [{"id": 24, "name": "Gold Cup Dames"}]}, session)
+
+    session.refresh(stale)
+    assert stale.hl_comp_id is None
+    real = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Gold Cup Dames")).first()
+    assert real.hl_comp_id == 24
+
+
+def test_call_competition_detail_releases_hl_comp_id_from_a_different_competition(session):
+    stale = HockeyCompetition(
+        external_id="Landelijk Jongens O16|Landelijke Topklasse|Landelijk|2026-2027",
+        name="Landelijk Jongens O16", class_name="Landelijke Topklasse", district="Landelijk",
+        hockey_type="VE", season="2026-2027", hl_comp_id=24,
+    )
+    session.add(stale)
+    session.commit()
+
+    raw = {"data": {"data": {
+        "name": "Gold Cup Dames",
+        "poules": [{
+            "id": 175612, "name": "Poule A",
+            "competition": {"class_name": "Gold Cup", "district_name": "Landelijk"},
+            "matches": [{"date": "2025-09-11T20:30:00+02:00", "status": "final"}],
+        }],
+    }}}
+    _call_competition_detail(raw, session, params={"comp_id": 24, "label": "Gold Cup Dames"})
+
+    session.refresh(stale)
+    assert stale.hl_comp_id is None
+    real = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Gold Cup Dames")).first()
+    assert real.hl_comp_id == 24

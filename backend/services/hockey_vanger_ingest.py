@@ -19,6 +19,20 @@ from routers.hockey_capture import (
 from routers.hockey_clubs import ClubDetailIn, TeamIn
 
 
+def _release_stale_hl_comp_id(session: Session, hl_cid: Optional[int], keep_id: Optional[int]) -> None:
+    """Voorkomt dat twee competities hetzelfde hl_comp_id dragen (roadmap-melding:
+    "Landelijk Jongens O16" hield per ongeluk het hl_comp_id van "Gold Cup Dames"
+    vast, waardoor het scanplan bij elke landelijke-comp-scan de verkeerde data
+    ophaalde). hockey.nl-competitie-ids zijn uniek, dus zodra een nummer opnieuw
+    wordt toegekend is elke andere rij die het nog droeg per definitie fout."""
+    if not hl_cid:
+        return
+    for c in session.exec(select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == hl_cid)).all():
+        if c.id != keep_id:
+            c.hl_comp_id = None
+            session.add(c)
+
+
 def _season_from_date(date_str: str) -> Optional[str]:
     """NL hockeyseizoen loopt van zomer tot zomer (Sep t/m Jun) - juli/aug tellen als start nieuw seizoen."""
     try:
@@ -459,10 +473,12 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
             comp_row.class_name = class_name or comp_row.class_name
             comp_row.district   = district or comp_row.district
             if hl_cid:
+                _release_stale_hl_comp_id(session, hl_cid, keep_id=comp_row.id)
                 comp_row.hl_comp_id = hl_cid
             comp_row.updated_at = now
             session.add(comp_row)
         else:
+            _release_stale_hl_comp_id(session, hl_cid, keep_id=None)
             comp_row = HockeyCompetition(
                 external_id=ext_id, name=comp_name, class_name=class_name,
                 district=district or None,
@@ -608,10 +624,12 @@ def _call_competitions_list(raw: dict, session: Session):
             select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)
         ).first()
         if existing:
+            _release_stale_hl_comp_id(session, comp_id, keep_id=existing.id)
             existing.hl_comp_id = comp_id
             existing.updated_at = now
             session.add(existing)
         else:
+            _release_stale_hl_comp_id(session, comp_id, keep_id=None)
             session.add(HockeyCompetition(
                 external_id=ext_id,
                 name=name,
