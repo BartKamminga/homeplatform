@@ -13,9 +13,9 @@ from models.capture import DataCapture
 from models.core import RoadmapItem
 from models.hockey_discovery import HockeyClub, HockeyTeam, VangerCmd
 from models.settings import AppSetting
-from routers.hockey_vanger import (
-    GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY, VANGER_STATUS_KEYS, add_vanger_cmd,
-)
+from routers.hockey_vanger_cmd_queue import add_vanger_cmd
+from routers.hockey_vanger_heartbeat import VANGER_STATUS_KEYS
+from routers.hockey_vanger_smartscan_control import GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY
 from routers.roadmap import RoadmapItemCreate, create_item
 from services.agents.common import NONE_POST_PROCESS
 

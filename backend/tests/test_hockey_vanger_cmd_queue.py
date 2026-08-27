@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from sqlmodel import select
 
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, VangerCmd
-from routers.hockey_vanger import CmdFillIn, fill_cmd_queue
+from routers.hockey_vanger_cmd_queue import CmdFillIn, fill_cmd_queue
 
 
 def _team(**kw):

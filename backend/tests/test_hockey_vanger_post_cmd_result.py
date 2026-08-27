@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from models.capture import DataCapture
 from models.hockey_discovery import HockeyTeam, VangerCmd
-from routers.hockey_vanger import CmdResultIn, post_cmd_result
+from routers.hockey_vanger_cmd_queue import CmdResultIn, post_cmd_result
 
 
 def _pending_cmd(cmd_type, params, **kw):

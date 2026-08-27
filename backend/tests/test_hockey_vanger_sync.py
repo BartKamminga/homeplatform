@@ -6,7 +6,7 @@ import json
 from sqlmodel import select
 
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyTeam, VangerCmd
-from routers.hockey_vanger import sync_competition
+from routers.hockey_vanger_sync import sync_competition
 
 
 def test_sync_skips_poules_without_a_resolvable_team(session):

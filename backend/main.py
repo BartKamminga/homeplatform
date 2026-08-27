@@ -50,7 +50,13 @@ from routers import capture  # noqa: E402
 from routers import hockey_clubs  # noqa: E402
 from routers import hockey_capture  # noqa: E402
 from routers import hockey_plugin_errors  # noqa: E402
-from routers import hockey_vanger  # noqa: E402
+from routers import hockey_vanger_queue_filters  # noqa: E402
+from routers import hockey_vanger_poule_queue  # noqa: E402
+from routers import hockey_vanger_heartbeat  # noqa: E402
+from routers import hockey_vanger_cmd_queue  # noqa: E402
+from routers import hockey_vanger_smartscan_control  # noqa: E402
+from routers import hockey_vanger_gap_analysis  # noqa: E402
+from routers import hockey_vanger_sync  # noqa: E402
 from routers import hockey_public  # noqa: E402
 from routers import hockey_publication  # noqa: E402
 from routers import hockey_query  # noqa: E402
@@ -169,7 +175,13 @@ app.include_router(capture.router)
 app.include_router(hockey_clubs.router)
 app.include_router(hockey_capture.router)
 app.include_router(hockey_plugin_errors.router)
-app.include_router(hockey_vanger.router)
+app.include_router(hockey_vanger_queue_filters.router)
+app.include_router(hockey_vanger_poule_queue.router)
+app.include_router(hockey_vanger_heartbeat.router)
+app.include_router(hockey_vanger_cmd_queue.router)
+app.include_router(hockey_vanger_smartscan_control.router)
+app.include_router(hockey_vanger_gap_analysis.router)
+app.include_router(hockey_vanger_sync.router)
 app.include_router(hockey_public.router)
 app.include_router(hockey_publication.router)
 app.include_router(hockey_query.router)
