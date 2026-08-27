@@ -1,7 +1,19 @@
 import json
 from datetime import datetime
 from typing import Optional
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
+
+# Gemengde FK-conventie (RFTR-B4, roadmap 987 - vastgelegd, niet gestandaardiseerd):
+# HockeyPoule.competition_id / HockeyPublicationComp.competition_id verwijzen naar
+# de INTERNE PK van HockeyCompetition (id). HockeyPouleStanding.poule_id /
+# HockeyPouleMatch.poule_id / HockeyTeam.recent_poule_id / HockeyTeamPoule.poule_id
+# verwijzen naar het EXTERNE HockeyPoule.poule_id (hockey.nl's eigen id) - net als
+# HockeyPouleStanding.team_id / HockeyTeamPoule.team_id naar het externe
+# HockeyTeam.team_id verwijzen, niet naar de interne PK. Dit is bewust zo gelaten
+# (zie routers/hockey_scenario.py waar beide conventies samenkomen): standaardiseren
+# zou elk schrijfpad in hockey_vanger_ingest.py/hockey_capture.py/hockey_clubs.py
+# raken voor een zuiver stijl-argument, geen bug.
 
 
 class HockeyClub(SQLModel, table=True):
@@ -36,7 +48,7 @@ class HockeyTeam(SQLModel, table=True):
 
     id:                  int           = Field(default=None, primary_key=True)
     team_id:             int           = Field(unique=True, index=True)   # hockey.nl team id
-    club_external_id:    str           = Field(index=True)               # → hockey_clubs.external_id
+    club_external_id:    str           = Field(index=True, foreign_key="hockey_clubs.external_id")
     name:                str
     short_name:          str
     logo_url:            Optional[str] = None
@@ -79,7 +91,7 @@ class HockeyCompetition(SQLModel, table=True):
     district:     Optional[str] = None
     hockey_type:  str           = Field(default="")  # VE / ZA
     season:       str
-    hl_comp_id:   Optional[int] = None   # hockey.nl competition id
+    hl_comp_id:   Optional[int] = Field(default=None, unique=True, index=True)   # hockey.nl competition id
     discovered_at: datetime     = Field(default_factory=datetime.utcnow)
     updated_at:    datetime     = Field(default_factory=datetime.utcnow)
 
@@ -90,7 +102,7 @@ class HockeyPoule(SQLModel, table=True):
     id:              int            = Field(default=None, primary_key=True)
     poule_id:        int            = Field(unique=True, index=True)  # hockey.nl poule id
     name:            str
-    competition_id:  int            = Field(index=True)               # → hockey_competitions.id
+    competition_id:  int            = Field(index=True, foreign_key="hockey_competitions.id")
     season:          str
     discovered_at:   datetime       = Field(default_factory=datetime.utcnow)
     updated_at:      datetime       = Field(default_factory=datetime.utcnow)
@@ -100,6 +112,9 @@ class HockeyPoule(SQLModel, table=True):
 
 class HockeyPouleStanding(SQLModel, table=True):
     __tablename__ = "hockey_poule_standings"
+    __table_args__ = (
+        UniqueConstraint("poule_id", "team_id", name="ux_hockey_poule_standings_poule_team"),
+    )
 
     id:            int           = Field(default=None, primary_key=True)
     poule_id:      int           = Field(index=True)
@@ -133,6 +148,9 @@ class VangerCmd(SQLModel, table=True):
 
 class HockeyPouleMatch(SQLModel, table=True):
     __tablename__ = "hockey_poule_matches"
+    __table_args__ = (
+        UniqueConstraint("poule_id", "match_id", name="ux_hockey_poule_matches_poule_match"),
+    )
 
     id:             int           = Field(default=None, primary_key=True)
     poule_id:       int           = Field(index=True)
