@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@core/api.js'
+import SettingsRow from '@components/SettingsRow.jsx'
 import { t } from '../i18n.js'
 
 const DIRECTION_KEYS = [
@@ -187,21 +188,24 @@ function NumberRow({ icon, label, unit, field, defaultValue, min = -20, max = 45
   useEffect(() => { setLocal(prefs[field] ?? defaultValue) }, [prefs[field]])
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
-      borderBottom: last ? 'none' : '1px solid var(--color-border)',
-    }}>
-      <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
-      <span style={{ flex: 1, fontSize: 13 }}>{label}</span>
-      <input
-        type="number" min={min} max={max} step={step} disabled={saving}
-        value={local}
-        onChange={e => setLocal(e.target.value)}
-        onBlur={() => onSave({ [field]: Number(local) })}
-        style={{ ...controlStyle(saving), width: 64, textAlign: 'right', cursor: saving ? 'default' : 'text' }}
-      />
-      <span style={{ fontSize: 12, color: 'var(--color-text-muted)', width: 36 }}>{unit}</span>
-    </div>
+    <SettingsRow
+      icon={icon}
+      label={label}
+      last={last}
+      style={{ padding: '12px 16px', gap: 14 }}
+      end={
+        <>
+          <input
+            type="number" min={min} max={max} step={step} disabled={saving}
+            value={local}
+            onChange={e => setLocal(e.target.value)}
+            onBlur={() => onSave({ [field]: Number(local) })}
+            style={{ ...controlStyle(saving), width: 64, textAlign: 'right', cursor: saving ? 'default' : 'text' }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', width: 36 }}>{unit}</span>
+        </>
+      }
+    />
   )
 }
 

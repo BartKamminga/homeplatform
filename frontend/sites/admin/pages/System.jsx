@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '../AdminLayout.jsx';
 import { api } from '@core/api.js';
+import SettingsRow from '@components/SettingsRow.jsx';
 
 export default function System() {
   const [data, setData] = useState(null);
@@ -65,27 +66,26 @@ function Card({ title, icon, children, wide }) {
 
 function Row({ label, value, mono, where }) {
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-      padding: '6px 0', borderBottom: '1px solid var(--color-border)',
-      gap: '12px',
-    }}>
-      <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', flexShrink: 0 }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-        <span style={{
-          fontSize: '13px', fontWeight: 500,
-          fontFamily: mono ? 'var(--font-mono)' : undefined,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{value}</span>
-        {where && (
+    <SettingsRow
+      label={label}
+      mono={mono}
+      end={
+        <>
           <span style={{
-            fontSize: '11px', color: 'var(--color-text-light)',
-            background: 'var(--color-background)', border: '1px solid var(--color-border)',
-            borderRadius: '4px', padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
-          }}>{where}</span>
-        )}
-      </div>
-    </div>
+            fontSize: '13px', fontWeight: 500,
+            fontFamily: mono ? 'var(--font-mono)' : undefined,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{value}</span>
+          {where && (
+            <span style={{
+              fontSize: '11px', color: 'var(--color-text-light)',
+              background: 'var(--color-background)', border: '1px solid var(--color-border)',
+              borderRadius: '4px', padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
+            }}>{where}</span>
+          )}
+        </>
+      }
+    />
   );
 }
 
