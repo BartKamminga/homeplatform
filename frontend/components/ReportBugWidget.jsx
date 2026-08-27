@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import * as Sentry from "@sentry/react";
 import { api, getLastFailedRequest } from "@core/api.js";
-import { uploadImageFile } from "@core/uploadImage.js";
 
 // Bug-report-widget (item 887): vaste knop, alleen zichtbaar voor leden van
 // de Admins-groep, op elke site (geimporteerd via ErrorBoundary.jsx - de
 // enige plek die alle 13 sites al gemeenschappelijk importeren). Pakt bij
-// het versturen automatisch een screenshot, de URL, browser/OS, recente
-// console-fouten (via de al bestaande Sentry-integratie, sentry.js) en de
-// laatst-mislukte API-call (core/api.js) mee, en maakt er direct een nieuw
-// roadmap-item van via de bestaande POST /api/roadmap + POST /api/uploads
-// (zelfde upload-mechanisme als item 639) - geen nieuwe backend nodig.
+// het versturen automatisch de URL, browser/OS en recente console-fouten
+// mee (via de al bestaande Sentry-integratie, sentry.js), optioneel een
+// screenshot (aan/uit, default aan), en stuurt alles naar POST
+// /api/bug-reports - die schrijft altijd naar prod's roadmap-database,
+// ongeacht vanuit welke omgeving de melding wordt gemaakt (acc/prod hebben
+// elk hun eigen, losse database).
 
 function getRecentBreadcrumbs(limit = 15) {
   try {
@@ -33,6 +33,7 @@ export default function ReportBugWidget() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
+  const [includeScreenshot, setIncludeScreenshot] = useState(true);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -49,17 +50,15 @@ export default function ReportBugWidget() {
     setSending(true);
     setError("");
 
-    let imageUrl = null;
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(document.body, { logging: false, useCORS: true });
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (blob) {
-        const file = new File([blob], "bug-screenshot.png", { type: "image/png" });
-        imageUrl = await uploadImageFile(file, "roadmap");
+    let screenshotBlob = null;
+    if (includeScreenshot) {
+      try {
+        const html2canvas = (await import("html2canvas")).default;
+        const canvas = await html2canvas(document.body, { logging: false, useCORS: true });
+        screenshotBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      } catch {
+        // Screenshot mislukken mag de melding zelf niet blokkeren.
       }
-    } catch {
-      // Screenshot mislukken mag de melding zelf niet blokkeren.
     }
 
     const notesParts = [`URL: ${window.location.href}`, `Browser: ${navigator.userAgent}`];
@@ -71,20 +70,25 @@ export default function ReportBugWidget() {
     if (breadcrumbs) notesParts.push(`Recente console-meldingen:\n${breadcrumbs}`);
 
     try {
-      await api.post("/api/roadmap", {
-        title: description.trim().slice(0, 80),
-        description: description.trim(),
-        site: currentSiteSlug(),
-        priority: "medium",
-        status: "idea",
-        images: imageUrl ? JSON.stringify([imageUrl]) : null,
-        notes: notesParts.join("\n\n"),
+      const fd = new FormData();
+      fd.append("description", description.trim());
+      fd.append("site", currentSiteSlug());
+      fd.append("notes", notesParts.join("\n\n"));
+      if (screenshotBlob) fd.append("screenshot", screenshotBlob, "bug-screenshot.png");
+
+      const res = await fetch("/api/bug-reports", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("hp_token")}` },
+        body: fd,
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || data.detail || "Versturen mislukt");
+
       setDone(true);
       setDescription("");
       setTimeout(() => { setOpen(false); setDone(false); }, 2000);
-    } catch (e) {
-      setError(e.message);
+    } catch (e2) {
+      setError(e2.message);
     } finally {
       setSending(false);
     }
@@ -130,8 +134,18 @@ export default function ReportBugWidget() {
                   disabled={sending}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", fontSize: 13, borderRadius: 8, border: "1px solid var(--color-border, #333)", background: "var(--color-background, #111)", color: "var(--color-text, #fff)", fontFamily: "inherit", resize: "vertical", marginBottom: 8 }}
                 />
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--color-text-muted, #888)", marginBottom: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includeScreenshot}
+                    onChange={(e) => setIncludeScreenshot(e.target.checked)}
+                    disabled={sending}
+                    style={{ width: 13, height: 13, padding: 0, margin: 0, cursor: "pointer" }}
+                  />
+                  Screenshot meesturen
+                </label>
                 <div style={{ fontSize: 11, color: "var(--color-text-muted, #888)", marginBottom: 10 }}>
-                  Screenshot, URL, browser en recente foutmeldingen worden automatisch meegestuurd.
+                  URL, browser en recente foutmeldingen worden altijd meegestuurd.
                 </div>
                 {error && <div style={{ fontSize: 12, color: "var(--color-danger, #ef4444)", marginBottom: 8 }}>{error}</div>}
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
