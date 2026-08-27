@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import Optional
 
+from core.crud import get_or_404
 from core.database import get_session
 from core.auth import require_admin
 from core.logging import log_action
@@ -95,9 +96,7 @@ def toggle_site(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    site = session.get(Site, site_id)
-    if not site:
-        raise HTTPException(status_code=404, detail="Site niet gevonden")
+    site = get_or_404(session, Site, site_id, "Site")
 
     site.is_active = not site.is_active
     session.add(site)

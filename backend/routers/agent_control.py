@@ -15,6 +15,7 @@ from sqlalchemy import func as sqla_func
 from sqlmodel import Session, col, select
 
 from core.auth import get_current_user, require_admin
+from core.crud import get_or_404
 from core.database import get_session
 from core.settings import settings
 from models.agent_control import AgentContext, AgentNotification, AgentRunLog, AgentTask
@@ -221,9 +222,7 @@ def update_context(
     session: Session = Depends(get_session),
     _=Depends(require_admin),
 ):
-    c = session.get(AgentContext, key)
-    if not c:
-        raise HTTPException(status_code=404, detail="Niet gevonden")
+    c = get_or_404(session, AgentContext, key, "Context")
     data = body.model_dump(exclude_unset=True)
     agent_key = data.get("agent_key", c.agent_key)
     data_source_key = data.get("data_source_key", c.data_source_key)
@@ -246,9 +245,7 @@ def delete_context(
     """Context weggooien (item 952) - historische taken/runlogs blijven staan
     (context_key is puur een string-referentie, geen FK), alleen de definitie
     zelf verdwijnt."""
-    c = session.get(AgentContext, key)
-    if not c:
-        raise HTTPException(status_code=404, detail="Niet gevonden")
+    c = get_or_404(session, AgentContext, key, "Context")
     session.delete(c)
     session.commit()
     return {"ok": True}
@@ -311,9 +308,7 @@ def mark_notification_read(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    n = session.get(AgentNotification, notification_id)
-    if not n:
-        raise HTTPException(status_code=404, detail="Niet gevonden")
+    n = get_or_404(session, AgentNotification, notification_id, "Melding")
     n.read_at = _now()
     session.add(n)
     session.commit()
@@ -402,9 +397,7 @@ def report_task_result(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    t = session.get(AgentTask, task_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Niet gevonden")
+    t = get_or_404(session, AgentTask, task_id, "Taak")
     t.status = "failed" if body.error else "done"
     t.result = body.error or body.result
     t.finished_at = _now()

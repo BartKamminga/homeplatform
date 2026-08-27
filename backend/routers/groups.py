@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from sqlalchemy import func
 from pydantic import BaseModel, Field, field_validator
 
+from core.crud import get_or_404
 from core.database import get_session, persist
 from core.auth import require_admin, PROTECTED_GROUPS
 from core.logging import log_action
@@ -68,9 +69,7 @@ def delete_group(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    group = session.get(Group, group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Groep niet gevonden")
+    group = get_or_404(session, Group, group_id, "Groep")
     if group.slug in PROTECTED_GROUPS:
         raise HTTPException(status_code=400, detail="Standaard groepen kunnen niet worden verwijderd")
 

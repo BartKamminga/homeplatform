@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
+from core.crud import get_or_404
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
@@ -460,9 +461,7 @@ def post_cmd_result(
     _=Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    cmd = session.get(VangerCmd, cmd_id)
-    if not cmd:
-        raise HTTPException(status_code=404, detail="Cmd niet gevonden")
+    cmd = get_or_404(session, VangerCmd, cmd_id, "Cmd")
 
     params = json.loads(cmd.params)
 
@@ -590,9 +589,7 @@ def retry_cmd(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
-    cmd = session.get(VangerCmd, cmd_id)
-    if not cmd:
-        raise HTTPException(status_code=404, detail="Cmd niet gevonden")
+    cmd = get_or_404(session, VangerCmd, cmd_id, "Cmd")
     cmd.status         = "pending"
     cmd.error          = None
     cmd.started_at     = None
