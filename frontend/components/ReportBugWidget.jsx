@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import * as Sentry from "@sentry/react";
 import { api, getLastFailedRequest } from "@core/api.js";
+import { isLoggedIn } from "@core/auth.js";
 
 // Bug-report-widget (item 887): vaste knop, alleen zichtbaar voor leden van
 // de Admins-groep, op elke site (geimporteerd via ErrorBoundary.jsx - de
@@ -42,6 +43,10 @@ export default function ReportBugWidget() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Geen token -> gegarandeerd 401, en die 401-afhandeling (api.js) kan de
+    // pagina wegnavigeren - dus hier al overslaan i.p.v. de call sowieso te
+    // proberen (was de trigger achter een redirect-lus op de login-pagina).
+    if (!isLoggedIn()) return;
     api.get("/api/auth/me").then((me) => setIsAdmin(me?.groups?.includes("admins") ?? false)).catch(() => {});
   }, []);
 

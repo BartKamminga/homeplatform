@@ -90,8 +90,13 @@ async function request(method, path, body = null) {
   });
 
   if (res.status === 401) {
-    reportMessage(`Sessie verlopen: ${method} ${path}`, "warning", { "api.path": path });
     clearToken();
+    // Al op de login-pagina (bv. ReportBugWidget's eigen auth/me-check daar) -
+    // niet opnieuw redirecten, anders bevat window.location.href al een
+    // redirect-param die bij elke cyclus dubbel geencodeerd wordt, tot de
+    // server de URL als 414 afwijst.
+    if (window.location.pathname === "/admin/login") return;
+    reportMessage(`Sessie verlopen: ${method} ${path}`, "warning", { "api.path": path });
     await Sentry.flush(1500);
     const returnUrl = encodeURIComponent(window.location.href);
     window.location.href = `/admin/login?redirect=${returnUrl}`;
