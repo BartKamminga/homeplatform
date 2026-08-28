@@ -24,8 +24,11 @@ def upgrade() -> None:
         INSERT OR IGNORE INTO sites (id, name, slug, module, is_active)
         VALUES ('site-mixmusic', 'Mix Music', 'mixmusic', 'mixmusic', 1)
     """)
-    op.execute("UPDATE sites SET icon = '🏑' WHERE slug = 'nkhockey'")
-    op.execute("UPDATE sites SET icon = '♫' WHERE slug = 'mixmusic'")
+    # item 995: de icon-UPDATEs die hier stonden zijn verplaatst naar
+    # <nieuwe-revisie>_backfill_nkhockey_mixmusic_icons.py (draait ná
+    # 040802d331e2, add_icon_to_sites - de sites.icon-kolom bestaat op dit
+    # punt in de keten nog niet, dus deze UPDATEs faalden op een lege/verse
+    # database met "no such column: icon").
 
 
 def downgrade() -> None:

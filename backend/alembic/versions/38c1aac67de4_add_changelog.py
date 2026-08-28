@@ -19,6 +19,27 @@ def upgrade() -> None:
     import uuid
     from datetime import datetime
 
+    # item 995: deze migratie heette "add_changelog" maar maakte de tabel zelf
+    # nooit aan - op acc/prod bestond hij al via create_db_and_tables()
+    # (app-startup, core/database.py) tegen de tijd dat dit draaide. Een verse
+    # database die alembic upgrade head draait zonder ooit gebootet te hebben
+    # heeft die tabel nog niet - vandaar hier alsnog aanmaken, idempotent.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "changelog" not in inspector.get_table_names():
+        op.create_table(
+            "changelog",
+            sa.Column("id", sa.String, primary_key=True),
+            sa.Column("version", sa.String, nullable=False),
+            sa.Column("site", sa.String, nullable=False, server_default="core"),
+            sa.Column("title", sa.String, nullable=False),
+            sa.Column("description", sa.String, nullable=True),
+            sa.Column("released_at", sa.DateTime, nullable=False),
+            sa.Column("created_at", sa.DateTime, nullable=False),
+        )
+        op.create_index("ix_changelog_version", "changelog", ["version"])
+        op.create_index("ix_changelog_site", "changelog", ["site"])
+
     now = datetime.utcnow().isoformat()
 
     op.execute(f"""
