@@ -112,16 +112,39 @@ def _upsert_team_poule(session: Session, team_id: int, poule_id: int, season: st
 def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season: str) -> PouleCaptureResult:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
+    # item 1013: een landelijke competitie (hl_comp_id gezet via
+    # get_competition_detail) is de canonieke bron - een losse get_poule-scan
+    # van 1 poule daaruit leidt class_name/district/season opnieuw af en kan
+    # daarbij net iets anders uitkomen (bv. een leeg district), wat een
+    # DUPLICAAT HockeyCompetition-rij oplevert naast de gepubliceerde rij
+    # (roadmap-melding: Landelijk Jongens O18 verdween van Poulebord doordat
+    # alle poules op de duplicaat-rij belandden i.p.v. de gepubliceerde).
+    # Bestaat de poule al en hoort 'ie bij een hl_comp_id-rij, dan die rij
+    # gewoon hergebruiken i.p.v. opnieuw af te leiden via ext_id.
+    existing_poule_for_comp = session.exec(
+        select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
+    ).first()
+    comp = None
+    if existing_poule_for_comp and existing_poule_for_comp.competition_id:
+        prior_comp = session.get(HockeyCompetition, existing_poule_for_comp.competition_id)
+        if prior_comp and prior_comp.hl_comp_id:
+            comp = prior_comp
+            comp.updated_at = now
+            if body.hockey_type:
+                comp.hockey_type = body.hockey_type
+            session.add(comp)
+
     ext_id = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|" + body.season
-    comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
-    if comp:
+    if not comp:
+        comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
+    if comp and comp.external_id == ext_id:
         comp.class_name = body.class_name
         comp.district   = body.district or comp.district
         comp.updated_at = now
         if body.hockey_type:
             comp.hockey_type = body.hockey_type
         session.add(comp)
-    else:
+    elif not comp:
         base_prefix = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|"
         prev_comp = session.exec(
             select(HockeyCompetition)
@@ -155,7 +178,7 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
             session.add(comp)
     session.flush()
 
-    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)).first()
+    poule = existing_poule_for_comp
     if poule:
         poule_status = "updated"
         poule.name = body.poule_name

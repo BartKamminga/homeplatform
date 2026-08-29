@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from sqlmodel import select
 
-from models.hockey_discovery import HockeyCompetition, HockeyTeam
+from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyTeam
 from models.settings import AppSetting
 from routers.hockey_capture import MatchIn, PouleCaptureIn, StandingIn, TeamInPoule, upsert_poule_capture
 from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
@@ -153,3 +153,39 @@ def test_apply_poule_capture_recaptures_standings_for_the_same_poule_without_err
     session.commit()
 
     assert result2.standings_saved == 1
+
+
+def test_apply_poule_capture_keeps_a_landelijke_poule_on_its_hl_comp_id_competition(session):
+    # Roadmap-melding 29-08-2026: een losse get_poule-scan van een poule die
+    # bij een landelijke (hl_comp_id-gekoppelde) competitie hoort leidde
+    # class_name/district/season opnieuw af, wat bij een net iets andere
+    # district-waarde (bv. leeg) een DUPLICAAT HockeyCompetition-rij
+    # opleverde - de poule verhuisde daar dan naartoe, weg bij de
+    # gepubliceerde rij (Poulebord toonde geen data meer).
+    target_season = get_target_season(session)
+    canonical = HockeyCompetition(
+        external_id="Landelijk Jongens O18|Landelijke Topklasse|Landelijk|2026-2027",
+        name="Landelijk Jongens O18", class_name="Landelijke Topklasse", district="Landelijk",
+        hockey_type="VE", season="2026-2027", hl_comp_id=19,
+    )
+    session.add(canonical)
+    session.commit()
+    session.refresh(canonical)
+    poule = HockeyPoule(poule_id=700, name="Poule A", competition_id=canonical.id, season="2026-2027")
+    session.add(poule)
+    session.commit()
+
+    # Losse get_poule-scan van dezelfde poule, met een ander (leeg) district
+    # dan de canonieke rij - zou zonder de fix een duplicaat-rij aanmaken.
+    body = _body(
+        poule_id=700, team_id=700, team_name="Team A",
+        poule_name="Poule A", competition_name="Landelijk Jongens O18",
+        class_name="Landelijke Topklasse", district="",
+    )
+    apply_poule_capture(session, body, target_season)
+    session.commit()
+
+    comps = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Landelijk Jongens O18")).all()
+    assert len(comps) == 1
+    session.refresh(poule)
+    assert poule.competition_id == canonical.id
