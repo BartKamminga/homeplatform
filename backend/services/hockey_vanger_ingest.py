@@ -308,6 +308,10 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         if standings and poule_id:
             for old in session.exec(select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == poule_id)).all():
                 session.delete(old)
+            # zelfde flush-fix als apply_poule_capture (item 1010) - deze
+            # standings/matches-upsert is hier gedupliceerd i.p.v. gedeeld,
+            # dus kreeg de fix daar niet automatisch mee.
+            session.flush()
             for s in standings:
                 team = s.get("team") or {}
                 tid  = team.get("id")
@@ -340,6 +344,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         if matches and poule_id:
             for old in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all():
                 session.delete(old)
+            session.flush()
             for m in matches:
                 home = m.get("home") or {}
                 away = m.get("away") or {}

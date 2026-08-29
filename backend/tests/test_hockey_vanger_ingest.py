@@ -201,3 +201,35 @@ def test_call_competition_detail_handles_two_poules_with_different_seasons_claim
     assert len(comps) == 2
     with_hl = [c for c in comps if c.hl_comp_id == 22]
     assert len(with_hl) == 1
+
+
+def test_call_competition_detail_recaptures_matches_and_standings_for_the_same_poule_without_error(session):
+    # Bijvangst 29-08-2026: deze standings/matches-upsert is gedupliceerd
+    # i.p.v. gedeeld met apply_poule_capture, dus kreeg de flush-fix daar
+    # (item 1010) niet automatisch mee - crashte live op prod met UNIQUE
+    # constraint failed: hockey_poule_matches.poule_id, match_id bij een
+    # herscan van een landelijke competitie.
+    def _raw():
+        return {"data": {"data": {
+            "name": "Landelijk Jongens O16",
+            "poules": [{
+                "id": 500, "name": "Poule Z",
+                "competition": {"class_name": "Landelijke Klasse", "district_name": "Landelijk"},
+                "standings": [{
+                    "team": {"id": 700, "name": "Team A", "short_name": "A", "federation_reference_id": "HH11ZZ0"},
+                    "rank": 1, "played": 1, "wins": 1, "points": 3,
+                }],
+                "matches": [{
+                    "id": 900, "date": "2026-08-29T14:00:00+02:00", "status": "final",
+                    "home": {"id": 700, "name": "Team A"}, "away": {"id": 701, "name": "Team B"},
+                    "score": {"home": 3, "away": 1},
+                }],
+            }],
+        }}}
+
+    result1 = _call_competition_detail(_raw(), session, params={"comp_id": 21, "label": "Landelijk Jongens O16"})
+    assert result1 is not None
+
+    result2 = _call_competition_detail(_raw(), session, params={"comp_id": 21, "label": "Landelijk Jongens O16"})
+    assert result2 is not None
+    assert result2["poules_processed"] == 1
