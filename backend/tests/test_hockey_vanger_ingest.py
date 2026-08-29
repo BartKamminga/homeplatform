@@ -233,3 +233,35 @@ def test_call_competition_detail_recaptures_matches_and_standings_for_the_same_p
     result2 = _call_competition_detail(_raw(), session, params={"comp_id": 21, "label": "Landelijk Jongens O16"})
     assert result2 is not None
     assert result2["poules_processed"] == 1
+
+
+def test_call_competition_detail_reports_a_match_that_just_became_final(session):
+    # item 1001/1013: get_competition_detail moet dezelfde "net final
+    # geworden"-detectie doen als apply_poule_capture, anders krijgen
+    # eindstand-meldingen nooit iets te melden voor gevolgde teams uit een
+    # landelijke (hl_comp_id-gekoppelde) competitie - precies wat er live
+    # gebeurde met Victoria MO16-1/MO18-1 op 29-08-2026.
+    def _raw(status, home_score=None, away_score=None):
+        score = {} if home_score is None else {"home": home_score, "away": away_score}
+        return {"data": {"data": {
+            "name": "Landelijk Meisjes O16",
+            "poules": [{
+                "id": 600, "name": "Poule A",
+                "competition": {"class_name": "Landelijke Klasse", "district_name": "Landelijk"},
+                "matches": [{
+                    "id": 900, "date": "2026-08-29T12:30:00+02:00", "status": status,
+                    "home": {"id": 7455, "name": "Victoria MO16-1"},
+                    "away": {"id": 707, "name": "Groningen MO16-1"},
+                    "score": score,
+                }],
+            }],
+        }}}
+
+    result1 = _call_competition_detail(_raw("scheduled"), session, params={"comp_id": 22, "label": "Landelijk Meisjes O16"})
+    assert result1["newly_finished"] == []
+
+    result2 = _call_competition_detail(_raw("final", 4, 1), session, params={"comp_id": 22, "label": "Landelijk Meisjes O16"})
+
+    assert len(result2["newly_finished"]) == 1
+    assert result2["newly_finished"][0]["home_score"] == 4
+    assert result2["newly_finished"][0]["away_score"] == 1

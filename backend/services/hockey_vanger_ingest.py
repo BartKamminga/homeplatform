@@ -238,6 +238,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
     poules_processed = 0
     teams_found_set: set = set()
     current_poule_map: Dict[int, int] = {}
+    newly_finished: list = []  # item 1001/1013: zelfde "net final geworden"-detectie als apply_poule_capture
 
     for poule_data in poules_list:
         poule_id   = poule_data.get("id")
@@ -342,6 +343,10 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                 ))
 
         if matches and poule_id:
+            old_status_by_match_id = {
+                m.match_id: m.status
+                for m in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all()
+            }
             for old in session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all():
                 session.delete(old)
             session.flush()
@@ -370,6 +375,13 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                     field_type=field.get("type"),
                     updated_at=now,
                 ))
+                if is_final and old_status_by_match_id.get(m.get("id")) != "final":
+                    newly_finished.append({
+                        "poule_id": poule_id,
+                        "home_team_id": home.get("id"), "home_team_name": home.get("name", ""),
+                        "away_team_id": away.get("id"), "away_team_name": away.get("name", ""),
+                        "home_score": score.get("home"), "away_score": score.get("away"),
+                    })
 
         poules_processed += 1
 
@@ -403,6 +415,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         "teams_found":           len(teams_found_set),
         "get_poule_cmds_queued": cmds_queued,
         "competition":           comp_name,
+        "newly_finished":        newly_finished,
     }
 
 
