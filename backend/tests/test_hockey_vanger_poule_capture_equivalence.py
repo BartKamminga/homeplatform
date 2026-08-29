@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from models.hockey_discovery import HockeyCompetition, HockeyTeam
 from models.settings import AppSetting
-from routers.hockey_capture import MatchIn, PouleCaptureIn, TeamInPoule, upsert_poule_capture
+from routers.hockey_capture import MatchIn, PouleCaptureIn, StandingIn, TeamInPoule, upsert_poule_capture
 from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
 from services.hockey_vanger_ingest import _call_poule_capture
 from services.hockey_vanger_settings import get_target_season
@@ -135,3 +135,21 @@ def test_notify_finished_matches_sends_for_a_followed_team(session):
     assert sent == 1
     mock_send_push.assert_called_once()
     assert "Home 1 - 0 Away" in mock_send_push.call_args.kwargs["title"]
+
+
+def test_apply_poule_capture_recaptures_standings_for_the_same_poule_without_error(session):
+    # Bijvangst 29-08-2026: standings heeft dezelfde delete+reinsert-vorm als
+    # matches en brak live op prod met UNIQUE constraint failed
+    # (hockey_poule_standings.poule_id, team_id) bij een recapture in dezelfde
+    # sessie - de matches-tak kreeg destijds als enige een flush() mee.
+    target_season = get_target_season(session)
+    standing = StandingIn(team_id=300, team_name="Team A", position=1, played=1, won=1, points=3)
+    body1 = _body(poule_id=60, team_id=300, team_name="Team A", standings_data=[standing])
+    apply_poule_capture(session, body1, target_season)
+    session.commit()
+
+    body2 = _body(poule_id=60, team_id=300, team_name="Team A", standings_data=[standing])
+    result2 = apply_poule_capture(session, body2, target_season)
+    session.commit()
+
+    assert result2.standings_saved == 1

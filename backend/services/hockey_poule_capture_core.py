@@ -189,6 +189,11 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
     if body.standings_data:
         for old in session.exec(select(HockeyPouleStanding).where(HockeyPouleStanding.poule_id == body.poule_id)).all():
             session.delete(old)
+        # zelfde fix als bij matches hieronder: forceert de deletes vóór de
+        # nieuwe inserts, anders kan een latere autoflush (team-upsert-select
+        # verderop) de insert vóór de delete uitvoeren en de unique constraint
+        # op (poule_id, team_id) breken bij een recapture.
+        session.flush()
         for sd in body.standings_data:
             session.add(HockeyPouleStanding(
                 poule_id=body.poule_id, team_id=sd.team_id, team_name=sd.team_name,
