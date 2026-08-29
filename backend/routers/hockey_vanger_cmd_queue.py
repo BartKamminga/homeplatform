@@ -534,6 +534,12 @@ def post_cmd_result(
             summary_data.update(summary_updates)
             archive_meta.update(meta_updates)
     except Exception as e:
+        # Roadmap-melding 29-08-2026: een DB-fout in de handler (bv. een
+        # IntegrityError) laat de sessie in een PendingRollbackError-staat
+        # achter - zonder expliciete rollback crasht deze recovery-poging
+        # dan zelf ook, waardoor de cmd nooit als failed werd gemarkeerd
+        # (geen archief, geen zichtbare fout, voor altijd in_progress).
+        session.rollback()
         cmd.status         = "failed"
         cmd.error          = str(e)
         cmd.finished_at    = now

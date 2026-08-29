@@ -125,3 +125,37 @@ def test_malformed_raw_marks_cmd_failed_via_exception_path(session):
     assert result["status"] == "failed"
     session.refresh(cmd)
     assert cmd.status == "failed"
+
+
+def test_a_db_integrity_error_in_the_handler_still_marks_cmd_failed_cleanly(session):
+    # Bijvangst 29-08-2026: een IntegrityError midden in een dispatch-handler
+    # (bv. de hl_comp_id-race) liet de sessie in een PendingRollbackError-
+    # staat achter - de except-tak probeerde toen zelf ook nog te schrijven
+    # en crashte daardoor OOK, met een 500 als gevolg (geen archief, geen
+    # zichtbare fout, cmd bleef voor altijd in_progress). session.rollback()
+    # vóór de recovery-write lost dit op.
+    import routers.hockey_vanger_cmd_queue as cmd_queue_module
+
+    def _boom(session, body, params):
+        session.add(HockeyTeam(team_id=999, club_external_id="X", name="A", short_name="A", hockey_type="VE"))
+        session.add(HockeyTeam(team_id=999, club_external_id="X", name="B", short_name="B", hockey_type="VE"))
+        session.flush()  # UNIQUE constraint failed: hockey_teams.team_id
+        return {}, {}
+
+    original = cmd_queue_module._CMD_RESULT_DISPATCH["get_poule"]
+    cmd_queue_module._CMD_RESULT_DISPATCH["get_poule"] = _boom
+    try:
+        cmd = _pending_cmd("get_poule", {"poule_id": 1})
+        session.add(cmd)
+        session.commit()
+        session.refresh(cmd)
+
+        result = post_cmd_result(cmd.id, CmdResultIn(raw={"ok": True}), session=session, _=None)
+
+        assert result["ok"] is False
+        assert result["status"] == "failed"
+        session.refresh(cmd)
+        assert cmd.status == "failed"
+        assert "IntegrityError" in cmd.error
+    finally:
+        cmd_queue_module._CMD_RESULT_DISPATCH["get_poule"] = original
