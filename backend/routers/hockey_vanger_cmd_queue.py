@@ -16,7 +16,7 @@ from core.auth import get_current_user
 from core.crud import get_or_404
 from core.database import get_session
 from models.capture import DataCapture, new_uuid
-from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from services.hockey_vanger_filters import (
     _GENDER_PREFIX, _age_group_of, _age_sort_key, _cmd_matches_filter, _get_queue_filter,
     _is_scoreless_youth, apply_team_filter,
@@ -331,6 +331,18 @@ def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any]) -> D
         ))
         session.commit()
         return {"added": True}
+
+    # item 1013: een poule van een landelijke (hl_comp_id-gekoppelde)
+    # competitie los scannen is inefficient (1 get_competition_detail dekt
+    # de hele competitie in 1x) en kan bij een net iets andere class/
+    # district-uitkomst een duplicaat-competitierij opleveren naast de
+    # gepubliceerde rij (roadmap-melding: Poulebord verloor zo alle data voor
+    # Landelijk Jongens O18). Omleiden naar een competitie-brede herscan.
+    if cmd_type == "get_poule":
+        poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == params.get("poule_id"))).first()
+        comp = session.get(HockeyCompetition, poule.competition_id) if poule and poule.competition_id else None
+        if comp and comp.hl_comp_id:
+            return add_vanger_cmd(session, "get_competition_detail", {"comp_id": comp.hl_comp_id, "label": comp.name})
 
     key_field = {"get_poule": "poule_id", "scan_club": "external_id", "get_competition_detail": "comp_id"}.get(cmd_type)
     target_id = params.get(key_field)

@@ -155,3 +155,39 @@ def test_fill_poules_refresh_skips_poule_without_a_linked_team(session):
 
     result = fill_cmd_queue(CmdFillIn(type="poules_refresh"), session=session, _=None)
     assert result["added"] == 0
+
+
+# ── item 1013: get_poule van een landelijke competitie omleiden ─────────
+
+def test_add_vanger_cmd_redirects_a_landelijke_poule_to_competition_detail(session):
+    from models.hockey_discovery import HockeyCompetition
+    from routers.hockey_vanger_cmd_queue import add_vanger_cmd
+
+    comp = HockeyCompetition(
+        external_id="test|hl", name="Landelijk Test", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=21,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPoule(poule_id=800, name="Poule A", competition_id=comp.id, season="2026-2027"))
+    session.commit()
+
+    result = add_vanger_cmd(session, "get_poule", {"poule_id": 800, "team_id": 1, "label": "Test"})
+
+    assert result["added"] is True
+    cmds = session.exec(select(VangerCmd)).all()
+    assert len(cmds) == 1
+    assert cmds[0].cmd_type == "get_competition_detail"
+    assert json.loads(cmds[0].params)["comp_id"] == 21
+
+
+def test_add_vanger_cmd_does_not_redirect_a_regular_poule(session):
+    from routers.hockey_vanger_cmd_queue import add_vanger_cmd
+
+    result = add_vanger_cmd(session, "get_poule", {"poule_id": 801, "team_id": 1, "label": "Test"})
+
+    assert result["added"] is True
+    cmds = session.exec(select(VangerCmd)).all()
+    assert len(cmds) == 1
+    assert cmds[0].cmd_type == "get_poule"

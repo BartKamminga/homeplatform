@@ -9,6 +9,7 @@ from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleM
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import (
     ACTIVE_MATCHDAY_ENABLED_KEY, _reclaim_stale_in_progress, _step_active_profiles,
+    _step_new_or_empty_poules,
 )
 
 
@@ -118,3 +119,40 @@ def test_reclaim_timeout_is_configurable(session):
     reclaimed = _reclaim_stale_in_progress(session, now)
 
     assert reclaimed == 1
+
+
+# ── item 1013: landelijke competities niet los per poule scannen ────────
+
+def test_step_active_profiles_skips_a_poule_from_an_hl_comp_id_competition(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
+    comp = session.get(HockeyCompetition, poule.competition_id)
+    comp.hl_comp_id = 21
+    session.add(comp)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0  # zou zonder de guard due zijn (25u > 24u fallback)
+
+
+def test_step_new_or_empty_poules_skips_a_poule_from_an_hl_comp_id_competition(session):
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|hl-comp", name="Landelijk Test", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=99,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    poule = HockeyPoule(poule_id=555, name="Poule Z", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=42, club_external_id="HH11ZZ0", name="Test Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=555,
+    ))
+    session.commit()
+
+    added = _step_new_or_empty_poules(session, "2026-2027", cap=10)
+
+    assert added == 0  # poule heeft geen matches, zou anders opgepakt worden

@@ -165,11 +165,20 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
         select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
     ).all()) if poule_ids else set()
     team_by_poule = _team_by_poule(session)
+    # item 1013: zelfde reden als in _step_active_profiles - een landelijke
+    # competitie wordt al in 1x ververst via _step_landelijke_competitions.
+    hl_linked_comp_ids = {
+        c.id for c in session.exec(
+            select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))
+        ).all()
+    }
 
     for p in poules:
         if added >= cap:
             break
         if p.poule_id in match_poule_ids or p.poule_id in queued_poule_ids or p.poule_id in seen:
+            continue
+        if p.competition_id in hl_linked_comp_ids:
             continue
         t = team_by_poule.get(p.poule_id)
         if not t:
@@ -286,12 +295,26 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
 
     queued_poule_ids = _pending_poule_ids(session)
     team_by_poule = _team_by_poule(session)
+    # item 1013: landelijke (hl_comp_id-gekoppelde) competities worden al in
+    # 1x via _step_landelijke_competitions ververst (1 get_competition_detail
+    # i.p.v. losse get_poule per poule - veel efficienter, en voorkomt de
+    # duplicaat-competitie-rij-race bij losse poule-scans). Poules van zo'n
+    # competitie hier overslaan i.p.v. individueel te (her)scannen.
+    hl_linked_comp_ids = {
+        c.id for c in session.exec(
+            select(HockeyCompetition)
+            .where(col(HockeyCompetition.id).in_(active_comp_ids))
+            .where(col(HockeyCompetition.hl_comp_id).is_not(None))
+        ).all()
+    }
 
     added = 0
     for poule in poules:
         if added >= cap:
             break
         if poule.poule_id in queued_poule_ids:
+            continue
+        if poule.competition_id in hl_linked_comp_ids:
             continue
 
         due = False
