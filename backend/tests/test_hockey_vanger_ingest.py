@@ -170,3 +170,34 @@ def test_call_competition_detail_releases_hl_comp_id_from_a_different_competitio
     assert stale.hl_comp_id is None
     real = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Gold Cup Dames")).first()
     assert real.hl_comp_id == 24
+
+
+def test_call_competition_detail_handles_two_poules_with_different_seasons_claiming_the_same_hl_comp_id(session):
+    # Bijvangst 29-08-2026: crashte live met UNIQUE constraint failed
+    # (hockey_competitions.hl_comp_id) - twee poules binnen 1 competitie-
+    # detail-response kunnen een verschillend seizoen berekenen (elk uit hun
+    # eigen matches), dus een verschillende ext_id, dus twee verschillende
+    # HockeyCompetition-rijen die allebei hetzelfde hl_comp_id claimen.
+    raw = {"data": {"data": {
+        "name": "Landelijk Meisjes O16",
+        "poules": [
+            {
+                "id": 1, "name": "Poule A",
+                "competition": {"class_name": "Landelijke Klasse", "district_name": "Landelijk"},
+                "matches": [{"date": "2025-09-11T20:30:00+02:00", "status": "final"}],
+            },
+            {
+                "id": 2, "name": "Poule B",
+                "competition": {"class_name": "Landelijke Klasse", "district_name": "Landelijk"},
+                "matches": [{"date": "2026-09-12T20:30:00+02:00", "status": "final"}],
+            },
+        ],
+    }}}
+
+    result = _call_competition_detail(raw, session, params={"comp_id": 22, "label": "Landelijk Meisjes O16"})
+
+    assert result is not None
+    comps = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Landelijk Meisjes O16")).all()
+    assert len(comps) == 2
+    with_hl = [c for c in comps if c.hl_comp_id == 22]
+    assert len(with_hl) == 1

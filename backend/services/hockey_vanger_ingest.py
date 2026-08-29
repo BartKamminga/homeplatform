@@ -267,11 +267,19 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
             comp_row.district   = district or comp_row.district
             if hl_cid:
                 _release_stale_hl_comp_id(session, hl_cid, keep_id=comp_row.id)
+                # flush vóór het toekennen: forceert het "loskoppelen" van het
+                # oude hl_comp_id vóór de nieuwe toekenning, anders kan SQLite
+                # de update-volgorde omdraaien en de unique constraint breken
+                # (roadmap-melding 29-08-2026: meerdere poules binnen dezelfde
+                # landelijke competitie-detail-response claimen hetzelfde
+                # hl_comp_id, elk met hun eigen ext_id door seizoen-verschillen).
+                session.flush()
                 comp_row.hl_comp_id = hl_cid
             comp_row.updated_at = now
             session.add(comp_row)
         else:
             _release_stale_hl_comp_id(session, hl_cid, keep_id=None)
+            session.flush()
             comp_row = HockeyCompetition(
                 external_id=ext_id, name=comp_name, class_name=class_name,
                 district=district or None,
@@ -445,11 +453,13 @@ def _call_competitions_list(raw: dict, session: Session):
         ).first()
         if existing:
             _release_stale_hl_comp_id(session, comp_id, keep_id=existing.id)
+            session.flush()
             existing.hl_comp_id = comp_id
             existing.updated_at = now
             session.add(existing)
         else:
             _release_stale_hl_comp_id(session, comp_id, keep_id=None)
+            session.flush()
             session.add(HockeyCompetition(
                 external_id=name + "|" + class_name + "||" + target_season,
                 name=name,
