@@ -79,6 +79,30 @@ def _match_dt_info(raw: str) -> Optional[Tuple[datetime, bool, bool]]:
     return utc_naive, is_today, is_midnight
 
 
+def _reclaim_stale_in_progress(session: Session, now: datetime) -> int:
+    """Roadmap-melding (29-08-2026, live wedstrijddag): cmd-queue/next zet een
+    cmd meteen op in_progress zodra Scout/Ghost 'm ophaalt, vóór er ook maar
+    iets verwerkt is. Crasht/herstart Scout/Ghost daarna (bv. een hockey.nl-
+    timeout die niet netjes afgevangen wordt) dan wordt nooit meer /result
+    aangeroepen - de cmd blijft voor altijd in_progress hangen, en blokkeert
+    zijn poule/club permanent voor herscannen (_pending_poule_ids/
+    _pending_club_ext_ids tellen in_progress net zo goed mee als pending).
+    Elke pass: cmd's die te lang in_progress staan terugzetten naar failed,
+    zodat hun poule/club de eerstvolgende pass weer opnieuw gequeued kan
+    worden. Timeout ruim boven een normale doorlooptijd (~15-30s per cmd)."""
+    timeout_min = _get_int_setting(session, "stale_cmd_timeout_min", 10)
+    cutoff = now - timedelta(minutes=timeout_min)
+    stale = session.exec(
+        select(VangerCmd).where(VangerCmd.status == "in_progress").where(VangerCmd.started_at < cutoff)
+    ).all()
+    for cmd in stale:
+        cmd.status = "failed"
+        cmd.error = f"Timeout - geen resultaat ontvangen binnen {timeout_min} min (Scout/Ghost waarschijnlijk gecrasht of herstart)"
+        cmd.finished_at = now
+        session.add(cmd)
+    return len(stale)
+
+
 def _step_club_list(session: Session, now: datetime) -> int:
     days = _get_int_setting(session, "club_list_scan_days", 7)
     pending = session.exec(
@@ -324,6 +348,7 @@ def run_scan_plan_pass(session: Session) -> dict:
     target_season = get_target_season(session)
 
     steps = {
+        "reclaimed_stale":   _reclaim_stale_in_progress(session, now),
         "club_list":         _step_club_list(session, now),
         "new_empty_poules":  _step_new_or_empty_poules(session, target_season, STEP_MAX_CMDS),
         "club_scan":         _step_club_scan(session, now, STEP_MAX_CMDS),

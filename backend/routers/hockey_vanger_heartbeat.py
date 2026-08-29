@@ -115,6 +115,7 @@ SCAN_PLAN_DEFAULTS = {
     "match_duration_min":          90,
     "active_daily_fallback_hours": 24,
     "active_matchday_interval_min": 45,
+    "stale_cmd_timeout_min":       10,
 }
 
 
@@ -145,6 +146,7 @@ class VangerSettingsIn(BaseModel):
     match_duration_min:            Optional[int] = None
     active_daily_fallback_hours:   Optional[int] = None
     active_matchday_interval_min:  Optional[int] = None
+    stale_cmd_timeout_min:         Optional[int] = None
     notify_team_ids:               Optional[str] = None  # item 1001: comma-gescheiden hockey.nl team_ids
 
 
@@ -175,6 +177,7 @@ def update_vanger_settings(
         ("match_duration_min", body.match_duration_min),
         ("active_daily_fallback_hours", body.active_daily_fallback_hours),
         ("active_matchday_interval_min", body.active_matchday_interval_min),
+        ("stale_cmd_timeout_min", body.stale_cmd_timeout_min),
     ]
     for key, val in pairs:
         if val is None:

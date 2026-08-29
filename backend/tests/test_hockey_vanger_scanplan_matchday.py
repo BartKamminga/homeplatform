@@ -2,10 +2,14 @@
 
 from datetime import datetime, timedelta
 
+from sqlmodel import select
+
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam
+from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd
 from models.settings import AppSetting
-from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY, _step_active_profiles
+from services.hockey_vanger_scanplan import (
+    ACTIVE_MATCHDAY_ENABLED_KEY, _reclaim_stale_in_progress, _step_active_profiles,
+)
 
 
 def _setup_active_competition(session, now, last_scanned_at):
@@ -66,3 +70,51 @@ def test_matchday_boost_disabled_still_uses_daily_fallback_when_stale(session):
 
     added = _step_active_profiles(session, now, cap=10)
     assert added == 1  # ouder dan de dagelijkse fallback -> alsnog due
+
+
+# ── stale in_progress reclaim (roadmap-melding 29-08-2026) ──────────────
+
+def test_reclaim_resets_a_cmd_stuck_in_progress_past_the_timeout(session):
+    now = datetime.utcnow()
+    session.add(VangerCmd(
+        cmd_type="get_poule", params='{"poule_id": 1}', status="in_progress",
+        started_at=now - timedelta(minutes=20),
+    ))
+    session.commit()
+
+    reclaimed = _reclaim_stale_in_progress(session, now)
+
+    assert reclaimed == 1
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.status == "failed"
+    assert cmd.finished_at == now
+    assert "Timeout" in cmd.error
+
+
+def test_reclaim_leaves_a_recently_started_cmd_alone(session):
+    now = datetime.utcnow()
+    session.add(VangerCmd(
+        cmd_type="get_poule", params='{"poule_id": 1}', status="in_progress",
+        started_at=now - timedelta(minutes=2),
+    ))
+    session.commit()
+
+    reclaimed = _reclaim_stale_in_progress(session, now)
+
+    assert reclaimed == 0
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.status == "in_progress"
+
+
+def test_reclaim_timeout_is_configurable(session):
+    now = datetime.utcnow()
+    session.add(AppSetting(key="stale_cmd_timeout_min", value="2"))
+    session.add(VangerCmd(
+        cmd_type="get_poule", params='{"poule_id": 1}', status="in_progress",
+        started_at=now - timedelta(minutes=5),
+    ))
+    session.commit()
+
+    reclaimed = _reclaim_stale_in_progress(session, now)
+
+    assert reclaimed == 1

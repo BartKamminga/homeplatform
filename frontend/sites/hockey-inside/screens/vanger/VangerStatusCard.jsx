@@ -120,6 +120,7 @@ const SCAN_PLAN_FIELDS = [
   { key: 'match_duration_min',           label: 'Wedstrijdduur (min)',      width: 44 },
   { key: 'active_daily_fallback_hours',  label: 'Dagelijkse fallback (u)',  width: 44 },
   { key: 'active_matchday_interval_min', label: 'Matchday-interval (min)',  width: 44 },
+  { key: 'stale_cmd_timeout_min',        label: 'Stuck-cmd-timeout (min)',  width: 44 },
 ]
 
 const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
