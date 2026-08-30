@@ -103,7 +103,7 @@ def test_hl_linked_poule_is_excluded_from_poule_events(session):
     assert not any(e["target_type"] == "poule" and e["target_id"] == 444 for e in events)
 
 
-def test_landelijke_cadence_event_is_generated(session):
+def test_landelijke_cadence_event_is_generated_at_a_fixed_interval_from_now(session):
     now = datetime.utcnow()
     comp = HockeyCompetition(
         external_id="test|hl-schedule", name="Landelijk Test", class_name="Topklasse",
@@ -122,6 +122,25 @@ def test_landelijke_cadence_event_is_generated(session):
     matches = [e for e in events if e["reason"] == "landelijke_cadence" and e["target_id"] == 77]
     assert matches
     assert matches[0]["cmd_type"] == "get_competition_detail"
+    assert matches[0]["planned_at"] == now + timedelta(hours=12)  # landelijke_comp_scan_hours default
+
+
+def test_landelijke_cadence_event_is_generated_even_without_any_poule_yet(session):
+    """Regressie: de vorige versie baseerde de cadans op last_scanned_at van de
+    poules en negeerde daarbij stilzwijgend een nooit-gescande poule
+    (last_scanned_at=None) - nu een vaste cadans vanaf nu, ongeacht of er
+    al poules bekend zijn."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|hl-schedule-empty", name="Landelijk Nieuw", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=78,
+    )
+    session.add(comp)
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert any(e["reason"] == "landelijke_cadence" and e["target_id"] == 78 for e in events)
 
 
 def test_manual_weekly_event_is_generated_on_the_assigned_weekday(session):

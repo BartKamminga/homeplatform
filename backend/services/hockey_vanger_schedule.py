@@ -138,14 +138,16 @@ def _poule_daily_fallback_events(
 
 
 def _landelijke_cadence_events(session: Session, now: datetime, horizon_end: datetime, hours: int) -> List[dict]:
+    """Vaste cadans vanaf nu i.p.v. gebaseerd op last_scanned_at van de poules -
+    dat laatste behandelde een nooit-gescande poule (last_scanned_at=None)
+    stilzwijgend anders dan _step_landelijke_competitions (die 'm juist
+    meteen als due beschouwt), dus onnodig fragiel voor wat een simpele
+    vaste cadans kan zijn. Echt-overdue detectie blijft bij de bestaande
+    _step_landelijke_competitions (schaduw-modus stuurt de uitvoering nog
+    niet aan)."""
     events = []
     for comp in session.exec(select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))).all():
-        poules = session.exec(select(HockeyPoule).where(HockeyPoule.competition_id == comp.id)).all()
-        last_scanned = [p.last_scanned_at for p in poules if p.last_scanned_at]
-        base = min(last_scanned) if last_scanned else now
-        tick = base + timedelta(hours=hours)
-        while tick < now:
-            tick += timedelta(hours=hours)
+        tick = now + timedelta(hours=hours)
         params = {"comp_id": comp.hl_comp_id, "label": comp.name}
         while tick <= horizon_end:
             events.append(_event("competition", comp.hl_comp_id, "get_competition_detail", params, tick, "landelijke_cadence"))
