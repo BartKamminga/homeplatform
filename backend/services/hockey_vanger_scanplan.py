@@ -410,14 +410,23 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     return added
 
 
+MANUAL_SCAN_WEEKDAYS = 5  # maandag t/m vrijdag (0..4) - _manual_scan_weekday spreidt de load hierover
+
+
+def _manual_scan_weekday(competition_id: int) -> int:
+    """Welke werkdag (0=maandag..4=vrijdag) een scan_profile='manual'-competitie
+    krijgt toegewezen voor haar wekelijkse herscan - gedeeld tussen het
+    scan-plan zelf en de kalender-weergave, zodat ze nooit uit de pas lopen."""
+    return competition_id % MANUAL_SCAN_WEEKDAYS
+
+
 def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> int:
     """Gepubliceerde competities die niet op scan_profile='active' staan
     (scan_profile='manual') worden door _step_active_profiles genegeerd -
     maar moeten alsnog periodiek ververst worden, alleen minder vaak. 1x per
-    week, verdeeld over maandag en vrijdag (op basis van even/oneven
-    competitie-id) zodat ze niet allemaal op dezelfde dag/moment gescand
-    worden."""
-    if now.weekday() not in (0, 4):  # maandag=0, vrijdag=4 (ISO-weekday via .weekday())
+    week, verdeeld over de 5 werkdagen (op basis van competitie-id) zodat ze
+    niet allemaal op dezelfde dag/moment gescand worden."""
+    if now.weekday() >= MANUAL_SCAN_WEEKDAYS:  # weekend - geen ronde
         return 0
 
     manual_comp_ids = set(session.exec(
@@ -449,8 +458,7 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
             break
         if poule.poule_id in queued_poule_ids or poule.competition_id in hl_linked_comp_ids:
             continue
-        target_weekday = 0 if poule.competition_id % 2 == 0 else 4
-        if now.weekday() != target_weekday:
+        if now.weekday() != _manual_scan_weekday(poule.competition_id):
             continue
         cutoff = now - timedelta(days=6)
         if not (poule.last_scanned_at is None or poule.last_scanned_at < cutoff):

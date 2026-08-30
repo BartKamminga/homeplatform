@@ -8,8 +8,8 @@ from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import (
-    ACTIVE_MATCHDAY_ENABLED_KEY, _reclaim_stale_in_progress, _step_active_profiles,
-    _step_manual_profiles_weekly, _step_new_or_empty_poules,
+    ACTIVE_MATCHDAY_ENABLED_KEY, _manual_scan_weekday, _reclaim_stale_in_progress,
+    _step_active_profiles, _step_manual_profiles_weekly, _step_new_or_empty_poules,
 )
 
 
@@ -346,7 +346,7 @@ def _setup_manual_competition(session, comp_id_hint, last_scanned_at):
 
 def test_manual_profile_scans_on_its_assigned_weekday(session):
     comp, poule = _setup_manual_competition(session, comp_id_hint=1, last_scanned_at=datetime.utcnow() - timedelta(days=10))
-    target_weekday = 0 if comp.id % 2 == 0 else 4
+    target_weekday = _manual_scan_weekday(comp.id)
     now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
 
     added = _step_manual_profiles_weekly(session, now, cap=10)
@@ -356,8 +356,8 @@ def test_manual_profile_scans_on_its_assigned_weekday(session):
 
 def test_manual_profile_does_not_scan_on_the_other_weekday(session):
     comp, poule = _setup_manual_competition(session, comp_id_hint=2, last_scanned_at=datetime.utcnow() - timedelta(days=10))
-    target_weekday = 0 if comp.id % 2 == 0 else 4
-    other_weekday = 4 if target_weekday == 0 else 0
+    target_weekday = _manual_scan_weekday(comp.id)
+    other_weekday = (target_weekday + 1) % 5
     now = _next_weekday(datetime.utcnow(), other_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
 
     added = _step_manual_profiles_weekly(session, now, cap=10)
@@ -367,7 +367,7 @@ def test_manual_profile_does_not_scan_on_the_other_weekday(session):
 
 def test_manual_profile_skips_if_recently_scanned(session):
     comp, poule = _setup_manual_competition(session, comp_id_hint=3, last_scanned_at=datetime.utcnow() - timedelta(days=10))
-    target_weekday = 0 if comp.id % 2 == 0 else 4
+    target_weekday = _manual_scan_weekday(comp.id)
     now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
     poule.last_scanned_at = now - timedelta(days=1)
     session.add(poule)
@@ -392,7 +392,7 @@ def test_manual_profiles_weekly_skips_a_landelijke_competition(session):
     comp.hl_comp_id = 55
     session.add(comp)
     session.commit()
-    target_weekday = 0 if comp.id % 2 == 0 else 4
+    target_weekday = _manual_scan_weekday(comp.id)
     now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
 
     added = _step_manual_profiles_weekly(session, now, cap=10)

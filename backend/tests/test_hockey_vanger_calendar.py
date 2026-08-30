@@ -178,7 +178,7 @@ def test_manual_profile_poule_is_reported_with_its_assigned_weekday(session):
 
     entry = next((p for p in result["manual_poules"] if p["poule_id"] == 11), None)
     assert entry is not None
-    assert entry["assigned_weekday"] in (0, 4)
+    assert entry["assigned_weekday"] in (0, 1, 2, 3, 4)
 
 
 def test_manual_profile_poule_with_hl_comp_id_is_excluded(session):

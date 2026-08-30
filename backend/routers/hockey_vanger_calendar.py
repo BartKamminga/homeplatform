@@ -18,7 +18,7 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
-from services.hockey_vanger_scanplan import _team_by_poule
+from services.hockey_vanger_scanplan import _manual_scan_weekday, _team_by_poule
 from services.hockey_vanger_settings import _get_int_setting, get_notify_team_ids
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -76,7 +76,7 @@ def get_scan_calendar(
     team_by_poule = _team_by_poule(session)
 
     # item: publicaties die niet op scan_profile='active' staan worden 1x per
-    # week gescand (verdeeld over maandag/vrijdag, zie
+    # week gescand (verdeeld over de 5 werkdagen, zie
     # _step_manual_profiles_weekly) - dat moet ook zichtbaar zijn, anders lijkt
     # het alsof die poules helemaal niet worden ververst.
     manual_poules = []
@@ -91,7 +91,7 @@ def get_scan_calendar(
                 "poule_id": poule.poule_id,
                 "poule_name": poule.name,
                 "competition_name": comp.name if comp else None,
-                "assigned_weekday": 0 if poule.competition_id % 2 == 0 else 4,  # 0=maandag, 4=vrijdag
+                "assigned_weekday": _manual_scan_weekday(poule.competition_id),  # 0=maandag..4=vrijdag
                 "last_scanned_at": poule.last_scanned_at.isoformat() if poule.last_scanned_at else None,
             })
 
