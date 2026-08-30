@@ -12,6 +12,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, ScanScheduleEntry
+from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -122,9 +123,20 @@ def browse_schedule(
     total = len(matching)
     page = matching[offset:offset + limit]
 
+    # Fase C, item 1015: een 'cancelled'-entry kan 2 oorzaken hebben -
+    # onparseerbare params (zeldzaam) of buiten het queue-filter gevallen
+    # bij promotie. Net als bij de Vanger-queue-debug (filtered_out) wordt
+    # dit dynamisch herberekend i.p.v. opgeslagen, zodat het altijd de
+    # HUIDIGE filterinstelling weerspiegelt.
+    ages, club, cats, hts, genders = _get_queue_filter(session)
+
     items = []
     for entry in page:
         params = params_by_id[entry.id]
+        filtered_out = (
+            entry.status == "cancelled" and bool(params)
+            and not _cmd_matches_filter(session, entry.cmd_type, params, ages, club, cats, hts, genders)
+        )
         items.append({
             "id": entry.id,
             "target_type": entry.target_type,
@@ -135,6 +147,7 @@ def browse_schedule(
             "planned_at": _iso(entry.planned_at),
             "reason": entry.reason,
             "status": entry.status,
+            "filtered_out": filtered_out,
             "vanger_cmd_id": entry.vanger_cmd_id,
             "created_at": _iso(entry.created_at),
         })

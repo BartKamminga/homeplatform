@@ -6,7 +6,8 @@ debug.py)."""
 import json
 
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, ScanScheduleEntry
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam, ScanScheduleEntry
+from models.settings import AppSetting
 from routers.hockey_vanger_schedule_debug import browse_schedule, schedule_summary
 
 
@@ -170,6 +171,49 @@ def test_browse_filters_by_date(session):
 
     assert result["total"] == 1
     assert result["items"][0]["target_id"] == 1
+
+
+def test_browse_flags_a_cancelled_entry_that_falls_outside_the_queue_filter(session):
+    """Fase C, item 1015 (Bart, 30-08-2026): filtered_out wordt dynamisch
+    herberekend voor 'cancelled'-entries, net als bij de Vanger-queue-debug
+    - laat zien of een gecancelde rij specifiek OMDAT hij buiten het
+    queue-filter viel is overgeslagen bij promotie."""
+    from datetime import datetime
+    now = datetime.utcnow()
+    poule = _setup_poule(session, poule_id=200)
+    session.add(HockeyTeam(
+        team_id=77, club_external_id="HH77ZZ0", name="Filter Test Team", short_name="H77",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule.poule_id,
+    ))
+    session.add(AppSetting(key="disc_queue_category", value="Junioren"))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id, "team_id": 77, "label": "Filter Test Team"}),
+        planned_at=now, reason="daily_fallback", status="cancelled",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    assert result["items"][0]["filtered_out"] is True
+
+
+def test_browse_does_not_flag_a_planned_entry_as_filtered_out(session):
+    """filtered_out is alleen relevant voor 'cancelled'-rijen - een gewone
+    'planned'-rij die (nog) niet is beoordeeld mag niet als buiten-filter
+    getoond worden."""
+    from datetime import datetime
+    now = datetime.utcnow()
+    session.add(AppSetting(key="disc_queue_category", value="Junioren"))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=1, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 1, "team_id": 999}), planned_at=now, reason="daily_fallback", status="planned",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    assert result["items"][0]["filtered_out"] is False
 
 
 def test_summary_counts_by_status_and_reason(session):

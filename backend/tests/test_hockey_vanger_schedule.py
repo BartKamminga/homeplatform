@@ -502,8 +502,21 @@ def test_rebuild_schedule_persists_planned_entries_and_replaces_stale_ones(sessi
     assert second_count == added_second
 
 
+def _allow_all_categories(session):
+    """De queue-filter valt standaard terug op cats=['Junioren'] als er geen
+    AppSetting-override is (_get_queue_filter) - sinds de Fase C-migratie
+    (item 1015) wordt dat ook toegepast bij promotie, niet meer alleen bij
+    het oppakken. De meeste promote-tests testen dedup/cap/due-logica, niet
+    het filter zelf, dus die zetten dit expliciet open zodat hun (meestal
+    'Senioren') testfixtures niet per ongeluk als 'buiten filter' worden
+    gecanceld."""
+    session.add(AppSetting(key="disc_queue_category", value=""))
+    session.commit()
+
+
 def test_promote_due_schedule_entries_creates_a_vanger_cmd(session):
     now = datetime.utcnow()
+    _allow_all_categories(session)
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=30))
     session.add(ScanScheduleEntry(
         target_type="poule", target_id=444, cmd_type="get_poule",
@@ -525,6 +538,7 @@ def test_promote_due_schedule_entries_creates_a_vanger_cmd(session):
 
 def test_promote_due_schedule_entries_does_not_duplicate_an_already_queued_cmd(session):
     now = datetime.utcnow()
+    _allow_all_categories(session)
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=30))
     session.add(VangerCmd(
         cmd_type="get_poule", params=json.dumps({"poule_id": 444, "team_id": 9}), status="pending",
@@ -542,6 +556,50 @@ def test_promote_due_schedule_entries_does_not_duplicate_an_already_queued_cmd(s
     assert len(all_cmds) == 1  # geen dubbele rij - add_vanger_cmd's dedup blijft van kracht
     entry = session.exec(select(ScanScheduleEntry)).first()
     assert entry.status == "promoted"
+
+
+def test_promote_due_schedule_entries_cancels_an_entry_outside_the_queue_filter(session):
+    """Fase C, item 1015 (Bart, 30-08-2026, akkoord): het queue-filter wordt
+    nu ook toegepast bij PROMOTIE, niet meer alleen bij het oppakken - een
+    entry die niet past wordt gecanceld i.p.v. gepromoveerd tot VangerCmd."""
+    now = datetime.utcnow()
+    session.add(AppSetting(key="disc_queue_category", value="Junioren"))
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=30))
+    team = session.exec(select(HockeyTeam).where(HockeyTeam.recent_poule_id == poule.poule_id)).first()
+    assert team.category_group_name == "Senioren"  # buiten het Junioren-only filter
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444, "team_id": team.team_id, "label": "Test"}),
+        planned_at=now - timedelta(minutes=1), reason="daily_fallback",
+    ))
+    session.commit()
+
+    promoted = promote_due_schedule_entries(session, now)
+
+    assert promoted == 0
+    entry = session.exec(select(ScanScheduleEntry)).first()
+    assert entry.status == "cancelled"
+    assert session.exec(select(VangerCmd)).first() is None
+
+
+def test_promote_due_schedule_entries_promotes_an_entry_matching_the_queue_filter(session):
+    now = datetime.utcnow()
+    session.add(AppSetting(key="disc_queue_category", value="Senioren"))
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=30))
+    team = session.exec(select(HockeyTeam).where(HockeyTeam.recent_poule_id == poule.poule_id)).first()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444, "team_id": team.team_id, "label": "Test"}),
+        planned_at=now - timedelta(minutes=1), reason="daily_fallback",
+    ))
+    session.commit()
+
+    promoted = promote_due_schedule_entries(session, now)
+
+    assert promoted == 1
+    entry = session.exec(select(ScanScheduleEntry)).first()
+    assert entry.status == "promoted"
+    assert session.exec(select(VangerCmd)).first() is not None
 
 
 def test_immediate_events_are_capped_like_the_real_steps(session):

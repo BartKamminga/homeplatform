@@ -549,8 +549,23 @@ def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STE
     1x honderden 'inmiddels due' entries willen promoveren (roadmap-melding:
     900 promoties in 1 keer op acc bij het invoeren van deze functie).
     Oudste planned_at eerst, zodat de achterstand geleidelijk wegwerkt over
-    meerdere passes i.p.v. willekeurig."""
+    meerdere passes i.p.v. willekeurig.
+
+    Fase C, item 1015 (Bart, 30-08-2026, akkoord): de queue-filter (leeftijd/
+    geslacht/hockeytype/club) wordt hier toegepast, op het moment van
+    PROMOTIE - niet pas bij het oppakken zoals vandaag nog gebeurt in
+    GET /vanger/cmd-queue/next (die check blijft voorlopig als vangnet
+    staan, defense in depth). Een entry die niet bij het filter past wordt
+    NIET gepromoveerd maar op status='cancelled' gezet, zodat de Debug-tab
+    expliciet kan tonen dat 'm bewust is overgeslagen i.p.v. onzichtbaar te
+    laten verdwijnen. Handmatige/ad-hoc toevoegingen (Discovery 'scan nu',
+    POST /vanger/cmd-queue/add) gaan hier nooit doorheen - die roepen
+    add_vanger_cmd rechtstreeks aan, buiten het scanschema om, en blijven
+    dus het filter omzeilen zoals bedoeld."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
+    from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
+
+    ages, club, cats, hts, genders = _get_queue_filter(session)
 
     due = session.exec(
         select(ScanScheduleEntry)
@@ -564,6 +579,10 @@ def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STE
         try:
             params = json.loads(entry.params)
         except (ValueError, TypeError):
+            entry.status = "cancelled"
+            session.add(entry)
+            continue
+        if not _cmd_matches_filter(session, entry.cmd_type, params, ages, club, cats, hts, genders):
             entry.status = "cancelled"
             session.add(entry)
             continue

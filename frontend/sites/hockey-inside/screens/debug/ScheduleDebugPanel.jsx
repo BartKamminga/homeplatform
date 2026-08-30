@@ -164,7 +164,14 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
                     {item.label}
                   </td>
                   <td style={{ padding: '4px 6px' }}>{item.reason}</td>
-                  <td style={{ padding: '4px 6px', color: STATUS_COLORS[item.status] || 'inherit' }}>{item.status}</td>
+                  <td style={{ padding: '4px 6px', color: STATUS_COLORS[item.status] || 'inherit' }}>
+                    {item.status}
+                    {item.filtered_out && (
+                      <span style={{ color: 'var(--color-warning)', fontSize: 10, marginLeft: 4 }} title="Bij promotie buiten het queue-filter gevallen (leeftijd/geslacht/hockeytype) - daarom niet naar de Vanger-queue gestuurd">
+                        · buiten filter
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '4px 6px' }}>{fmtTime(item.planned_at)}</td>
                   <td style={{ padding: '4px 6px' }}>{item.vanger_cmd_id ?? '—'}</td>
                 </tr>
