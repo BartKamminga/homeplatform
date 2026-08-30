@@ -139,7 +139,18 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
       {loading && <div style={muted}>Laden…</div>}
 
-      {!loading && data.items.length === 0 && <div style={muted}>Geen scanschema-rijen gevonden voor deze filters.</div>}
+      {!loading && data.items.length === 0 && (
+        <div style={muted}>
+          {targetType === 'competition'
+            // Landelijke competities staan bewust NIET in het scanschema -
+            // die worden apart, buiten dit schema om, in 1x ververst via
+            // _step_landelijke_competitions (elke landelijke_comp_scan_hours
+            // uur, zie de Vanger-instellingen). 0 rijen hier is dus verwacht
+            // gedrag, geen fout - anders lijkt dit stuk kapot.
+            ? 'Geen scanschema-rijen voor deze competitie - landelijke competities worden niet via het scanschema gepland, maar apart en rechtstreeks ververst (elke landelijke_comp_scan_hours uur, zie _step_landelijke_competitions). Dit is verwacht, geen fout.'
+            : 'Geen scanschema-rijen gevonden voor deze filters.'}
+        </div>
+      )}
 
       {!loading && data.items.length > 0 && (
         <>
