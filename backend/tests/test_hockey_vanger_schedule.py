@@ -14,7 +14,9 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
 from models.settings import AppSetting
-from services.hockey_vanger_schedule import build_schedule_events, promote_due_schedule_entries, rebuild_schedule
+from services.hockey_vanger_schedule import (
+    build_schedule_events, promote_due_schedule_entries, rebuild_schedule, rebuild_schedule_for_target,
+)
 
 
 def _setup_active_competition(session, now, last_scanned_at, match_offset_hours=-3, status="finished"):
@@ -500,6 +502,95 @@ def test_rebuild_schedule_persists_planned_entries_and_replaces_stale_ones(sessi
     added_second = rebuild_schedule(session, now, horizon_days=14)
     second_count = len(session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")).all())
     assert second_count == added_second
+
+
+def test_rebuild_schedule_for_target_does_not_touch_other_poules(session):
+    """Bart, 30-08-2026: 'ik neem aan dat je alleen de relevante delen
+    herbouwt?' - de reactieve rebuild na een enkel scanresultaat mag NIET
+    de hele dataset herberekenen, alleen het doel waar het resultaat
+    daadwerkelijk over ging."""
+    now = datetime.utcnow()
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=999999, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 999999, "team_id": 1, "label": "Untouched"}),
+        planned_at=now + timedelta(hours=1), reason="daily_fallback",
+    ))
+    session.commit()
+    untouched_id = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 999999)).first().id
+
+    rebuild_schedule_for_target(session, now, 14, "poule", 444)
+
+    still_there = session.get(ScanScheduleEntry, untouched_id)
+    assert still_there is not None
+    assert still_there.status == "planned"
+
+
+def test_rebuild_schedule_for_target_refreshes_that_poules_own_entries(session):
+    now = datetime.utcnow()
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+    stale_at = now + timedelta(days=5)
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444, "team_id": 9, "label": "Stale"}),
+        planned_at=stale_at, reason="daily_fallback",
+    ))
+    session.commit()
+
+    n = rebuild_schedule_for_target(session, now, 14, "poule", 444)
+
+    assert n > 0
+    entries = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444)).all()
+    assert entries
+    assert all(e.planned_at != stale_at for e in entries)  # de verouderde rij is vervangen
+
+
+def test_rebuild_schedule_for_target_skips_a_manual_profile_poule(session):
+    """Alleen scan_profile='active'-poules krijgen matchday-gebaseerde
+    events - een 'manual'-poule heeft niets om reactief te verversen (haar
+    manual_weekly-timing hangt niet af van een scanresultaat)."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|target-manual", name="Target Manual", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(poule_id=888, name="Manual Poule", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(days=10))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=80, club_external_id="HH80ZZ0", name="Manual Team", short_name="H80",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=888,
+    ))
+    session.commit()
+
+    n = rebuild_schedule_for_target(session, now, 14, "poule", 888)
+
+    assert n == 0
+
+
+def test_rebuild_schedule_for_target_handles_a_landelijke_competition(session):
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|target-hl", name="Target HL Test", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=42,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    poule = HockeyPoule(poule_id=889, name="HL Poule", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(hours=30))
+    session.add(poule)
+    session.commit()
+
+    n = rebuild_schedule_for_target(session, now, 14, "competition", 42)
+
+    assert n > 0
+    entries = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 42)).all()
+    assert all(e.target_type == "competition" for e in entries)
 
 
 def _allow_all_categories(session):

@@ -514,6 +514,121 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
     return events
 
 
+def _target_events(session: Session, now: datetime, horizon_end: datetime, target_type: str, target_id: int) -> List[dict]:
+    """match_start_check/match_end_check/unknown_start_recheck/daily_fallback
+    voor 1 poule of 1 landelijke competitie - het doel-specifieke deel van
+    build_schedule_events, hergebruikt door rebuild_schedule_for_target.
+    manual_weekly/new_or_empty/club_scan/club_list horen hier bewust niet
+    bij - die hangen niet af van het resultaat van 1 scan."""
+    match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
+    matchday_interval_m = _get_int_setting(session, "active_matchday_interval_min", 45)
+    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
+    burst_stop_h        = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
+    daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
+    unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+    unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
+    window_start_h      = _get_int_setting(session, "scan_window_start_hour", DEFAULT_SCAN_WINDOW_START_HOUR)
+    window_end_h        = _get_int_setting(session, "scan_window_end_hour", DEFAULT_SCAN_WINDOW_END_HOUR)
+
+    if target_type == "poule":
+        poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == target_id)).first()
+        if not poule:
+            return []
+        # Zelfde gating als de poule-lus in build_schedule_events: alleen
+        # scan_profile='active'-competities krijgen matchday-gebaseerde
+        # events, en een aan hl_comp_id gekoppelde poule wordt sowieso al
+        # via haar competitie (target_type='competition') ververst.
+        comp = session.get(HockeyCompetition, poule.competition_id)
+        if not comp or comp.hl_comp_id is not None:
+            return []
+        is_active = session.exec(
+            select(HockeyPublicationComp)
+            .where(HockeyPublicationComp.competition_id == poule.competition_id)
+            .where(HockeyPublicationComp.scan_profile == "active")
+        ).first() is not None
+        if not is_active:
+            return []
+        team = _team_by_poule(session).get(poule.poule_id)
+        if not team:
+            return []
+        matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).all()
+        matchday_evts = _poule_matchday_events(
+            poule, team, matches, now, horizon_end,
+            match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+        )
+        preempt = sorted(e["planned_at"] for e in matchday_evts)
+        unknown_evts = _poule_unknown_start_events(
+            poule, team, matches, now, horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+            preempting_at=preempt,
+        )
+        preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
+        fallback_evts = _poule_daily_fallback_events(
+            poule, team, matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+        )
+        return matchday_evts + unknown_evts + fallback_evts
+
+    if target_type == "competition":
+        comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == target_id)).first()
+        if not comp:
+            return []
+        poules = session.exec(select(HockeyPoule).where(HockeyPoule.competition_id == comp.id)).all()
+        if not poules:
+            return [_event(
+                "competition", comp.hl_comp_id, "get_competition_detail",
+                {"comp_id": comp.hl_comp_id, "label": comp.name}, now, "new_or_empty",
+            )]
+        poule_ids = [p.poule_id for p in poules]
+        matches = session.exec(select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))).all()
+        last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
+        matchday_evts = _landelijke_matchday_events(
+            comp, matches, now, horizon_end, match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+        )
+        preempt = sorted(e["planned_at"] for e in matchday_evts)
+        unknown_evts = _landelijke_unknown_start_events(
+            comp, matches, last_scanned_at, now, horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+            preempting_at=preempt,
+        )
+        preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
+        fallback_evts = _landelijke_daily_fallback_events(
+            comp, matches, last_scanned_at, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+        )
+        return matchday_evts + unknown_evts + fallback_evts
+
+    return []
+
+
+def rebuild_schedule_for_target(
+    session: Session, now: datetime, horizon_days: int, target_type: str, target_id: int,
+) -> int:
+    """Lichtgewicht, doel-specifieke variant van rebuild_schedule (Bart,
+    30-08-2026: 'ik neem aan dat je alleen de relevante delen herbouwt?') -
+    herberekent alleen de events voor 1 poule of 1 landelijke competitie,
+    i.p.v. de HELE dataset (~900 relevante poules, ~1-1.3s per keer). Nodig
+    omdat post_cmd_result dit na ELK get_poule/get_competition_detail-
+    resultaat aanroept (Wijziging 1) - een volledige rebuild bij elke
+    binnenkomende scan zou tijdens een drukke wedstrijddag met veel
+    gelijktijdige captures onnodig veel tijd kosten voor doelen die niet
+    eens net zijn ververst. De periodieke rebuild (_maybe_run_scan_plan_
+    pass) blijft de volledige rebuild_schedule gebruiken - die loopt
+    hooguit elke profile_scan_interval_min, geen probleem."""
+    horizon_end = now + timedelta(days=horizon_days)
+    stale = session.exec(
+        select(ScanScheduleEntry)
+        .where(ScanScheduleEntry.status == "planned")
+        .where(ScanScheduleEntry.target_type == target_type)
+        .where(ScanScheduleEntry.target_id == target_id)
+        .where(ScanScheduleEntry.planned_at <= horizon_end)
+    ).all()
+    for entry in stale:
+        session.delete(entry)
+
+    events = _target_events(session, now, horizon_end, target_type, target_id)
+    for ev in events:
+        session.add(ScanScheduleEntry(**ev))
+    session.commit()
+    return len(events)
+
+
 def rebuild_schedule(session: Session, now: datetime, horizon_days: int = DEFAULT_HORIZON_DAYS) -> int:
     """Wist alle nog niet-gepromoveerde ('planned') rijen binnen het venster en
     zet de vers berekende set terug - simpeler dan incrementeel diffen, en een

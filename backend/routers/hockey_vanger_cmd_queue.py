@@ -27,7 +27,7 @@ from services.hockey_vanger_ingest import (
 )
 from services.hockey_poule_capture_core import notify_finished_matches
 from services.hockey_vanger_scan_history import record_scan_outcome
-from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
+from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule_for_target
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
 
@@ -40,11 +40,28 @@ def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: 
     profile_scan_interval_min later) houdt match_start_check/
     match_end_check-rijen in het schema actueel. scan_club/get_clubs/
     get_competitions raken geen wedstrijd-timing, dus die triggeren dit
-    bewust niet."""
+    bewust niet.
+
+    Gebruikt de doel-specifieke rebuild_schedule_for_target (niet de volle
+    rebuild_schedule) - Bart, 30-08-2026: "ik neem aan dat je alleen de
+    relevante delen herbouwt?" - een volledige rebuild van de ~900
+    relevante poules (~1-1.3s) na ELKE binnenkomende scan zou tijdens een
+    drukke wedstrijddag met veel gelijktijdige captures onnodig veel tijd
+    kosten voor doelen die niet eens net zijn ververst."""
     if cmd.cmd_type not in ("get_poule", "get_competition_detail"):
         return
+    try:
+        params = json.loads(cmd.params)
+    except (ValueError, TypeError):
+        return
+    if cmd.cmd_type == "get_poule":
+        target_type, target_id = "poule", params.get("poule_id")
+    else:
+        target_type, target_id = "competition", params.get("comp_id")
+    if not target_id:
+        return
     horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
-    rebuild_schedule(session, now, horizon_days)
+    rebuild_schedule_for_target(session, now, horizon_days, target_type, target_id)
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
