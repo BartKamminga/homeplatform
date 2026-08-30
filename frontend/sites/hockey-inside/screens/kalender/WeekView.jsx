@@ -1,4 +1,5 @@
 const COL_GOOD = '#0ca30c'
+const COL_SCHEDULED = '#eda100'
 
 function startOfWeek(date) {
   const d = new Date(date)
@@ -33,6 +34,17 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     return items
   })
 
+  // Naast "hoeveel wedstrijden" ook "hoeveel scans" per dag - echte captures
+  // (DataCapture) en cmds die zijn ingepland/uitgevoerd (VangerCmd), zelfde
+  // twee databronnen als de Dag-view.
+  const capturesByDay = days.map(day =>
+    (data.recent_captures || []).filter(c => sameDay(new Date(c.captured_at), day)).length
+  )
+  const scheduledByDay = days.map(day => {
+    const entries = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
+    return { executed: entries.filter(c => c.executed).length, pending: entries.filter(c => !c.executed).length }
+  })
+
   function shiftWeek(delta) {
     const next = new Date(monday)
     next.setDate(next.getDate() + delta * 7)
@@ -53,8 +65,14 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
             onClick={() => onSelectDay(day)}
             style={{ padding: 8, borderRight: i < 6 ? '1px solid var(--color-border)' : 'none', cursor: 'pointer', minHeight: 120 }}
           >
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 2 }}>
               {day.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}
+            </div>
+            <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+              {matchesByDay[i].length} wedstrijd{matchesByDay[i].length === 1 ? '' : 'en'}
+              {!!capturesByDay[i] && <span> · ⏺ {capturesByDay[i]}</span>}
+              {!!scheduledByDay[i].executed && <span style={{ color: COL_SCHEDULED }}> · ▲ {scheduledByDay[i].executed}</span>}
+              {!!scheduledByDay[i].pending && <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}> · △ {scheduledByDay[i].pending}</span>}
             </div>
             {matchesByDay[i].slice(0, 8).map((m, j) => (
               <div key={j} style={{ fontSize: 10, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

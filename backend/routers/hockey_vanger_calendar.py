@@ -64,11 +64,27 @@ def get_scan_calendar(
         if t.recent_poule_id
     }
 
+    # item: Week/Maand-view moeten het ECHTE aantal wedstrijden tonen, niet
+    # alleen die van de 15 active-profile competities - dus ook de 200+
+    # manual-profile publicaties meenemen (anders lijkt de maand vrijwel leeg
+    # terwijl er wel degelijk wedstrijden gepland staan, alleen niet
+    # auto-scanned).
+    all_known_comp_ids = active_comp_ids | manual_comp_ids
     poules = session.exec(
         select(HockeyPoule).where(
-            col(HockeyPoule.competition_id).in_(active_comp_ids) | col(HockeyPoule.poule_id).in_(followed_poule_ids)
+            col(HockeyPoule.competition_id).in_(all_known_comp_ids) | col(HockeyPoule.poule_id).in_(followed_poule_ids)
         )
-    ).all() if (active_comp_ids or followed_poule_ids) else []
+    ).all() if (all_known_comp_ids or followed_poule_ids) else []
+
+    # 1 query voor alle wedstrijden i.p.v. 1 per poule (N+1) - met 1000+
+    # poules in bereik scheelt dat aanzienlijk.
+    poule_ids_all = [p.poule_id for p in poules]
+    matches_by_poule: dict = {}
+    if poule_ids_all:
+        for m in session.exec(
+            select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids_all))
+        ).all():
+            matches_by_poule.setdefault(m.poule_id, []).append(m)
 
     all_comps = session.exec(select(HockeyCompetition)).all()
     comp_by_id = {c.id: c for c in all_comps}
@@ -98,9 +114,7 @@ def get_scan_calendar(
     poule_results = []
     for poule in poules:
         comp = comp_by_id.get(poule.competition_id)
-        matches = session.exec(
-            select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
-        ).all()
+        matches = matches_by_poule.get(poule.poule_id, [])
         matches_in_range = [m for m in matches if _match_in_range(m.match_date, range_from, range_to)]
         if not matches_in_range:
             continue
@@ -114,12 +128,19 @@ def get_scan_calendar(
             team = team_by_poule.get(poule.poule_id)
             params = {"team_id": team.team_id} if team else {}
             in_filter = _cmd_matches_filter(session, "get_poule", params, ages, club, cats, hts, genders)
+        if poule.competition_id in active_comp_ids:
+            scan_profile = "active"
+        elif poule.competition_id in manual_comp_ids:
+            scan_profile = "manual"
+        else:
+            scan_profile = "followed_only"  # gevolgd team, competitie zelf niet (meer) gepubliceerd
         poule_results.append({
             "poule_id": poule.poule_id,
             "poule_name": poule.name,
             "competition_name": comp.name if comp else None,
             "hl_comp_id": comp.hl_comp_id if comp else None,
             "is_landelijke": is_landelijke,
+            "scan_profile": scan_profile,
             "last_scanned_at": poule.last_scanned_at.isoformat() if poule.last_scanned_at else None,
             "followed": poule.poule_id in followed_poule_ids,
             "in_active_filter": in_filter,

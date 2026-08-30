@@ -1,4 +1,5 @@
 const COL_GOOD = '#0ca30c'
+const COL_SCHEDULED = '#eda100'
 const WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
 
 function sameDay(a, b) {
@@ -32,7 +33,11 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
         }
       }
     }
-    return { total, followed }
+    const captures = (data.recent_captures || []).filter(c => sameDay(new Date(c.captured_at), day)).length
+    const scheduled = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
+    const executed = scheduled.filter(c => c.executed).length
+    const pending = scheduled.length - executed
+    return { total, followed, captures, executed, pending }
   }
 
   function shiftMonth(delta) {
@@ -53,7 +58,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {cells.map((day, i) => {
-          const { total, followed } = countFor(day)
+          const { total, followed, captures, executed, pending } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
           return (
@@ -72,6 +77,13 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
                 <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 2 }}>
                   {followed > 0 && <span style={{ color: COL_GOOD }}>★ </span>}
                   {total} wedstrijd{total === 1 ? '' : 'en'}
+                </div>
+              )}
+              {(!!captures || !!executed || !!pending) && (
+                <div style={{ fontSize: 9, color: COL_SCHEDULED, marginTop: 1 }}>
+                  {!!captures && <span>⏺{captures}</span>}
+                  {!!executed && <span> ▲{executed}</span>}
+                  {!!pending && <span style={{ opacity: 0.6 }}> △{pending}</span>}
                 </div>
               )}
             </div>

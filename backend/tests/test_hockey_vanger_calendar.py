@@ -181,6 +181,32 @@ def test_manual_profile_poule_is_reported_with_its_assigned_weekday(session):
     assert entry["assigned_weekday"] in (0, 1, 2, 3, 4)
 
 
+def test_manual_profile_poule_also_appears_in_the_main_poules_list_with_its_real_matches(session):
+    """Week/Maand-view moeten het ECHTE aantal wedstrijden tonen - dus ook
+    manual-profile poules met hun matches, niet alleen de active-profile
+    poules (anders lijkt de kalender bijna leeg terwijl er wel wedstrijden
+    gepland staan)."""
+    comp, poule = _setup_poule(session, poule_id=13, competition_id=13, team_id=1300, published=False)
+    session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    entry = next((p for p in result["poules"] if p["poule_id"] == 13), None)
+    assert entry is not None
+    assert entry["scan_profile"] == "manual"
+    assert len(entry["matches"]) == 1
+
+
+def test_active_profile_poule_is_tagged_with_its_scan_profile(session):
+    _setup_poule(session, poule_id=14, competition_id=14, team_id=1400)
+
+    result = get_scan_calendar(session=session, _=None)
+
+    entry = next(p for p in result["poules"] if p["poule_id"] == 14)
+    assert entry["scan_profile"] == "active"
+
+
 def test_manual_profile_poule_with_hl_comp_id_is_excluded(session):
     comp, poule = _setup_poule(session, poule_id=12, competition_id=12, team_id=1200, published=False)
     comp.hl_comp_id = 33
