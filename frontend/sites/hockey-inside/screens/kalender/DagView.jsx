@@ -247,12 +247,12 @@ export default function DagView({ data, date, onDateChange }) {
               {poule.followed && <span style={{ color: COL_GOOD, marginRight: 3 }}>★</span>}
               {poule.is_landelijke
                 ? poule.competition_name
-                : (matches.length === 1 ? `${matches[0].home_team_name} – ${matches[0].away_team_name}` : `${matches.length} wedstrijden`)}
+                : `${poule.poule_name} · ${matches.length} wedstrijd${matches.length === 1 ? '' : 'en'}`}
             </div>
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>
               {poule.is_landelijke
                 ? `${poule.memberPouleIds.length} poules samen · 1 get_competition_detail-call ververst ze allemaal · elke ${settings.landelijke_comp_scan_hours}u`
-                : (item.grouped ? poule.poule_name : `${poule.poule_name} · ${poule.competition_name}`)}
+                : (item.grouped ? '' : poule.competition_name)}
             </div>
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
               {isAutoscan
