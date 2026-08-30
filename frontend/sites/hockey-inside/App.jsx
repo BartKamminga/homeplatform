@@ -3,6 +3,7 @@ import PublicatieTab     from './screens/publicatie/PublicatieTab.jsx'
 import DiscoveryTab      from './screens/discovery/DiscoveryTab.jsx'
 import DistrictKaartTab  from './screens/discovery/DistrictKaartTab.jsx'
 import VangerTab         from './screens/VangerTab.jsx'
+import KalenderTab       from './screens/kalender/KalenderTab.jsx'
 import StatsTab          from './screens/StatsTab.jsx'
 import ArchiefTab        from './screens/ArchiefTab.jsx'
 import { getMe }         from './api.js'
@@ -21,6 +22,7 @@ export default function App() {
     ...(isAdmin ? [{ key: 'kaart', label: 'Kaart' }] : []),
     { key: 'discovery',   label: 'Discovery' },
     { key: 'vanger',      label: 'Scout' },
+    { key: 'kalender',    label: 'Kalender' },
     { key: 'stats',       label: 'Statistieken' },
     { key: 'archief',     label: 'Archief' },
   ]
@@ -54,6 +56,7 @@ export default function App() {
       {tab === 'kaart'       && <DistrictKaartTab onNavigateToDistrict={dist => { setSelectedDistrict(dist); setTab('discovery') }} />}
       {tab === 'discovery'   && <DiscoveryTab initialDistrict={selectedDistrict} />}
       {tab === 'vanger'      && <VangerTab />}
+      {tab === 'kalender'    && <KalenderTab />}
       {tab === 'stats'       && <StatsTab />}
       {tab === 'archief'     && <ArchiefTab />}
     </div>
