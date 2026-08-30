@@ -17,6 +17,7 @@ from routers.hockey_vanger_smartscan_control import (
     GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY,
 )
 from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY
+from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
 from services.hockey_vanger_settings import NOTIFY_TEAM_IDS_KEY, _get_int_setting, _get_str_setting
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -219,4 +220,14 @@ def update_vanger_settings(
             session.add(AppSetting(key=NOTIFY_TEAM_IDS_KEY, value=cleaned))
 
     session.commit()
+
+    # Bart, 30-08-2026: het scanschema is een momentopname, gebouwd met de
+    # instellingen zoals ze WAREN bij de laatste rebuild - zonder dit bleef
+    # een gewijzigde instelling (bv. active_matchday_interval_min) onzichtbaar
+    # in de Debug-tab/Kalender totdat er toevallig weer een scan-plan-pass
+    # draaide (die uitstaat zolang scan_plan_enabled=0, dus in de praktijk
+    # nooit vanzelf).
+    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+    rebuild_schedule(session, datetime.now(timezone.utc).replace(tzinfo=None), horizon_days=horizon_days)
+
     return _vanger_settings(session)
