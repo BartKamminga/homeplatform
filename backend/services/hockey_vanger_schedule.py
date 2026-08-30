@@ -137,24 +137,6 @@ def _poule_daily_fallback_events(
     return events
 
 
-def _landelijke_cadence_events(session: Session, now: datetime, horizon_end: datetime, hours: int) -> List[dict]:
-    """Vaste cadans vanaf nu i.p.v. gebaseerd op last_scanned_at van de poules -
-    dat laatste behandelde een nooit-gescande poule (last_scanned_at=None)
-    stilzwijgend anders dan _step_landelijke_competitions (die 'm juist
-    meteen als due beschouwt), dus onnodig fragiel voor wat een simpele
-    vaste cadans kan zijn. Echt-overdue detectie blijft bij de bestaande
-    _step_landelijke_competitions (schaduw-modus stuurt de uitvoering nog
-    niet aan)."""
-    events = []
-    for comp in session.exec(select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))).all():
-        tick = now + timedelta(hours=hours)
-        params = {"comp_id": comp.hl_comp_id, "label": comp.name}
-        while tick <= horizon_end:
-            events.append(_event("competition", comp.hl_comp_id, "get_competition_detail", params, tick, "landelijke_cadence"))
-            tick += timedelta(hours=hours)
-    return events
-
-
 def _manual_weekly_events(
     session: Session, now: datetime, horizon_end: datetime, team_by_poule: Dict[int, HockeyTeam],
 ) -> List[dict]:
@@ -263,7 +245,6 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h        = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
     daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
-    landelijke_hours    = _get_int_setting(session, "landelijke_comp_scan_hours", 12)
     unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
     unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
 
@@ -297,7 +278,6 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             events += _poule_unknown_start_events(poule, team, matches, now, horizon_end, unknown_lookahead_d, unknown_fallback_h)
             events += _poule_daily_fallback_events(poule, team, now, horizon_end, daily_fallback_h)
 
-    events += _landelijke_cadence_events(session, now, horizon_end, landelijke_hours)
     events += _manual_weekly_events(session, now, horizon_end, team_by_poule)
     events += _immediate_events(session, now, get_target_season(session), STEP_MAX_CMDS)
     return events

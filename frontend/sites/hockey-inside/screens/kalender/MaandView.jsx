@@ -2,6 +2,28 @@ const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
 const WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
 
+// Zie WeekView.jsx voor toelichting - landelijke_cadence bestaat niet meer
+// als los reason-type.
+const REASON_LABELS = [
+  ['matchday_burst',        'Matchday-burst'],
+  ['daily_fallback',        'Dagelijkse fallback'],
+  ['live_check',            'Live-check'],
+  ['manual_weekly',         'Niet-autoscan (wekelijks)'],
+  ['unknown_start_recheck', 'Onbekende starttijd'],
+  ['new_or_empty',          'Nieuwe/lege poules'],
+  ['club_scan',             'Club-scan'],
+  ['club_list',             'Clublijst'],
+]
+
+function reasonCountsFor(scheduleEntries, inRange) {
+  const counts = {}
+  for (const e of (scheduleEntries || [])) {
+    if (e.status !== 'planned' || !inRange(new Date(e.planned_at))) continue
+    counts[e.reason] = (counts[e.reason] || 0) + 1
+  }
+  return counts
+}
+
 function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
@@ -48,6 +70,10 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
     return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned }
   }
 
+  const gridEnd = new Date(gridStart)
+  gridEnd.setDate(gridEnd.getDate() + 42)
+  const reasonCounts = reasonCountsFor(data.schedule_entries, d => d >= gridStart && d < gridEnd)
+
   function shiftMonth(delta) {
     onDateChange(new Date(year, month + delta, 1))
   }
@@ -65,6 +91,13 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
         <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}>△ cmd nog niet uitgevoerd</span>
         <span>◇ gepland in scanschema (nog niet gepromoveerd)</span>
       </div>
+      {Object.keys(reasonCounts).length > 0 && (
+        <div style={{ display: 'flex', gap: 12, padding: '6px 14px', fontSize: 10, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+          {REASON_LABELS.filter(([key]) => reasonCounts[key]).map(([key, label]) => (
+            <span key={key}>{label}: <strong>{reasonCounts[key]}</strong></span>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--color-border)' }}>
         {WEEKDAYS.map(w => (
           <div key={w} style={{ padding: '4px 6px', fontSize: 9, fontWeight: 700, color: 'var(--color-text-muted)', textAlign: 'center' }}>{w}</div>

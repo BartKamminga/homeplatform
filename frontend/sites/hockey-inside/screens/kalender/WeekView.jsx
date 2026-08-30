@@ -1,6 +1,29 @@
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
 
+// Volgorde + leesbare labels voor de reason-uitsplitsing van het scanschema
+// (services/hockey_vanger_schedule.py) - landelijke_cadence bestaat niet meer
+// als los reason-type (die info staat al in de landelijke-groep-rij zelf).
+const REASON_LABELS = [
+  ['matchday_burst',        'Matchday-burst'],
+  ['daily_fallback',        'Dagelijkse fallback'],
+  ['live_check',            'Live-check'],
+  ['manual_weekly',         'Niet-autoscan (wekelijks)'],
+  ['unknown_start_recheck', 'Onbekende starttijd'],
+  ['new_or_empty',          'Nieuwe/lege poules'],
+  ['club_scan',             'Club-scan'],
+  ['club_list',             'Clublijst'],
+]
+
+function reasonCountsFor(scheduleEntries, inRange) {
+  const counts = {}
+  for (const e of (scheduleEntries || [])) {
+    if (e.status !== 'planned' || !inRange(new Date(e.planned_at))) continue
+    counts[e.reason] = (counts[e.reason] || 0) + 1
+  }
+  return counts
+}
+
 function startOfWeek(date) {
   const d = new Date(date)
   const day = (d.getDay() + 6) % 7 // maandag = 0
@@ -52,6 +75,10 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned }
   })
 
+  const weekEnd = new Date(monday)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+  const reasonCounts = reasonCountsFor(data.schedule_entries, d => d >= monday && d < weekEnd)
+
   function shiftWeek(delta) {
     const next = new Date(monday)
     next.setDate(next.getDate() + delta * 7)
@@ -71,6 +98,13 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
         <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}>△ cmd nog niet uitgevoerd</span>
         <span>◇ gepland in scanschema (nog niet gepromoveerd)</span>
       </div>
+      {Object.keys(reasonCounts).length > 0 && (
+        <div style={{ display: 'flex', gap: 12, padding: '6px 14px', fontSize: 10, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+          {REASON_LABELS.filter(([key]) => reasonCounts[key]).map(([key, label]) => (
+            <span key={key}>{label}: <strong>{reasonCounts[key]}</strong></span>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {days.map((day, i) => {
           const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned } = countsByDay[i]
