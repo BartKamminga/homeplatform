@@ -5,10 +5,12 @@ debug.py)."""
 
 import json
 
+from sqlmodel import select
+
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam, ScanScheduleEntry
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry
 from models.settings import AppSetting
-from routers.hockey_vanger_schedule_debug import browse_schedule, schedule_summary
+from routers.hockey_vanger_schedule_debug import browse_schedule, rebuild_schedule_now, schedule_summary
 
 
 def _setup_poule(session, poule_id, name="Poule A"):
@@ -240,3 +242,30 @@ def test_summary_counts_by_status_and_reason(session):
     assert result["by_status"]["promoted"] == 1
     assert result["by_reason_planned"]["daily_fallback"] == 2
     assert "club_scan" not in result["by_reason_planned"]  # die rij is al gepromoveerd
+
+
+def test_rebuild_schedule_now_populates_the_schedule_on_demand(session):
+    """Bart, 30-08-2026: 'kan er niet een button komen dan ik het zelf kan
+    doen?' - handmatige rebuild-trigger voor als scan_plan_enabled=0 en de
+    periodieke pass dus niet vanzelf draait. Puur de PREVIEW herberekenen,
+    geen echte scan."""
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    poule = _setup_poule(session, poule_id=333)
+    session.add(HockeyTeam(
+        team_id=88, club_external_id="HH88ZZ0", name="Rebuild Now Team", short_name="H88",
+        hockey_type="VE", category_group_name="Junioren", recent_poule_id=poule.poule_id,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=poule.poule_id, match_id=5001, home_team_id=88, away_team_id=89,
+        status="scheduled", round=1, match_date=(now + timedelta(hours=2)).isoformat(),
+    ))
+    session.commit()
+    assert session.exec(select(ScanScheduleEntry)).all() == []
+
+    result = rebuild_schedule_now(session=session, _=None)
+
+    assert result["ok"] is True
+    assert result["event_count"] > 0
+    rows = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == poule.poule_id)).all()
+    assert any(r.reason == "match_end_check" for r in rows)

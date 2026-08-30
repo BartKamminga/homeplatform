@@ -1,6 +1,10 @@
 """Debug-pagina voor het SCANSCHEMA (ScanScheduleEntry, item 1015) - niet te
 verwarren met de echte uitvoeringsqueue (VangerCmd, zie
-hockey_vanger_cmd_queue_debug.py). Puur lezend, muteert niets."""
+hockey_vanger_cmd_queue_debug.py). Puur lezend op 1 uitzondering na: de
+handmatige rebuild-trigger (Bart, 30-08-2026: "kan er niet een button komen
+dan ik het zelf kan doen?") - herberekent alleen de PREVIEW
+(ScanScheduleEntry), muteert geen echte wedstrijd-/team-data en start geen
+enkele hockey.nl-scan (dat blijft scan_plan_enabled/ghost_enabled)."""
 
 import json
 from datetime import datetime, timedelta
@@ -13,6 +17,8 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, ScanScheduleEntry
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
+from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
+from services.hockey_vanger_settings import _get_int_setting
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -169,3 +175,20 @@ def schedule_summary(
         if e.status == "planned":
             by_reason[e.reason] = by_reason.get(e.reason, 0) + 1
     return {"total": len(entries), "by_status": by_status, "by_reason_planned": by_reason}
+
+
+@router.post("/vanger/schedule/rebuild")
+def rebuild_schedule_now(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """Handmatige rebuild-trigger (Bart, 30-08-2026) - vult dezelfde rol als
+    de periodieke rebuild in _maybe_run_scan_plan_pass, maar dan on-demand,
+    zodat de Debug-tab niet stale blijft zolang scan_plan_enabled=0 (die
+    periodieke pass draait dan niet vanzelf). Herberekent alleen de
+    scanschema-PREVIEW, geen echte scan - safe om te draaien ongeacht ghost_
+    enabled/scan_plan_enabled."""
+    now = datetime.utcnow()
+    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+    count = rebuild_schedule(session, now, horizon_days)
+    return {"ok": True, "rebuilt_at": now.isoformat() + "Z", "event_count": count}

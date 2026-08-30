@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { browseSchedule, getScheduleSummary } from '../../api.js'
+import { browseSchedule, getScheduleSummary, rebuildScheduleNow } from '../../api.js'
 import { inputStyle, ghostBtn, muted } from '../styles.js'
 
 const PAGE_SIZE = 50
@@ -35,6 +35,8 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [rebuilding, setRebuilding] = useState(false)
+  const [rebuildMsg, setRebuildMsg] = useState('')
 
   // Doorgelinkt vanuit de Kalender-tab (🔍 debug op een poule-rij) - vult
   // target_type/target_id/date alvast in, status wordt bewust leeg gelaten
@@ -75,8 +77,26 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
       })
   }, [status, reason, targetType, targetId, dateFilter, search, offset])
 
+  const loadSummary = useCallback(() => { getScheduleSummary().then(setSummary).catch(() => {}) }, [])
   useEffect(() => { load() }, [load])
-  useEffect(() => { getScheduleSummary().then(setSummary).catch(() => {}) }, [])
+  useEffect(() => { loadSummary() }, [loadSummary])
+
+  // Handmatige rebuild-trigger (Bart, 30-08-2026: "kan er niet een button
+  // komen dan ik het zelf kan doen?") - nodig zolang scan_plan_enabled=0 en
+  // de periodieke rebuild dus niet vanzelf draait. Herberekent alleen de
+  // scanschema-PREVIEW, start geen echte scan.
+  function rebuildNow() {
+    setRebuilding(true)
+    setRebuildMsg('')
+    rebuildScheduleNow()
+      .then(r => {
+        setRebuildMsg(`Herbouwd: ${r.event_count} events`)
+        load()
+        loadSummary()
+      })
+      .catch(e => setRebuildMsg(e.message || 'Herbouwen mislukt'))
+      .finally(() => setRebuilding(false))
+  }
 
   function clearLinkedFilter() {
     setTargetId(null)
@@ -134,6 +154,15 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
           style={{ ...inputStyle, minWidth: 220 }}
         />
         <button onClick={load} style={ghostBtn}>Ververs</button>
+        <button
+          onClick={rebuildNow}
+          disabled={rebuilding}
+          title="Herberekent het scanschema nu meteen (geen echte scan) - handig zolang Scan-plan actief uit staat en de periodieke rebuild dus niet vanzelf draait."
+          style={{ ...ghostBtn, opacity: rebuilding ? 0.6 : 1 }}
+        >
+          🔄 {rebuilding ? 'Bezig...' : 'Nu herbouwen'}
+        </button>
+        {rebuildMsg && <span style={muted}>{rebuildMsg}</span>}
       </div>
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
