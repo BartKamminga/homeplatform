@@ -12,8 +12,10 @@ function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-// item 1009: compacte week-weergave - per dag alleen team-namen + tijd, geen
-// volledige tijdlijn-balken (dat is de Dag-view). Klik op een dag -> Dag-view.
+// item 1009: compacte week-weergave - alleen aantallen per dag (wedstrijden +
+// scan-activiteit), geen losse wedstrijdregels (dat leverde bij drukke dagen
+// met honderden placeholder-wedstrijden een onleesbare lijst op). Voor de
+// details van 1 dag: klik door naar de Dag-view.
 export default function WeekView({ data, date, onDateChange, onSelectDay }) {
   const monday = startOfWeek(date)
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -22,27 +24,22 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     return d
   })
 
-  const matchesByDay = days.map(day => {
-    const items = []
+  const countsByDay = days.map(day => {
+    let total = 0
+    let followed = 0
     for (const poule of data.poules) {
       for (const m of poule.matches) {
-        const dt = new Date(m.date)
-        if (sameDay(dt, day)) items.push({ ...m, dateObj: dt, poule })
+        if (sameDay(new Date(m.date), day)) {
+          total++
+          if (poule.followed) followed++
+        }
       }
     }
-    items.sort((a, b) => a.dateObj - b.dateObj)
-    return items
-  })
-
-  // Naast "hoeveel wedstrijden" ook "hoeveel scans" per dag - echte captures
-  // (DataCapture) en cmds die zijn ingepland/uitgevoerd (VangerCmd), zelfde
-  // twee databronnen als de Dag-view.
-  const capturesByDay = days.map(day =>
-    (data.recent_captures || []).filter(c => sameDay(new Date(c.captured_at), day)).length
-  )
-  const scheduledByDay = days.map(day => {
-    const entries = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
-    return { executed: entries.filter(c => c.executed).length, pending: entries.filter(c => !c.executed).length }
+    const captures = (data.recent_captures || []).filter(c => sameDay(new Date(c.captured_at), day)).length
+    const scheduled = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
+    const executed = scheduled.filter(c => c.executed).length
+    const pending = scheduled.length - executed
+    return { total, followed, captures, executed, pending }
   })
 
   function shiftWeek(delta) {
@@ -59,32 +56,31 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
         <button onClick={() => shiftWeek(1)} style={navBtnStyle}>→</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-        {days.map((day, i) => (
-          <div
-            key={i}
-            onClick={() => onSelectDay(day)}
-            style={{ padding: 8, borderRight: i < 6 ? '1px solid var(--color-border)' : 'none', cursor: 'pointer', minHeight: 120 }}
-          >
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 2 }}>
-              {day.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}
-            </div>
-            <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginBottom: 4 }}>
-              {matchesByDay[i].length} wedstrijd{matchesByDay[i].length === 1 ? '' : 'en'}
-              {!!capturesByDay[i] && <span> · ⏺ {capturesByDay[i]}</span>}
-              {!!scheduledByDay[i].executed && <span style={{ color: COL_SCHEDULED }}> · ▲ {scheduledByDay[i].executed}</span>}
-              {!!scheduledByDay[i].pending && <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}> · △ {scheduledByDay[i].pending}</span>}
-            </div>
-            {matchesByDay[i].slice(0, 8).map((m, j) => (
-              <div key={j} style={{ fontSize: 10, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {m.poule.followed && <span style={{ color: COL_GOOD }}>★</span>}
-                {' '}{m.dateObj.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} {m.home_team_name}-{m.away_team_name}
+        {days.map((day, i) => {
+          const { total, followed, captures, executed, pending } = countsByDay[i]
+          return (
+            <div
+              key={i}
+              onClick={() => onSelectDay(day)}
+              style={{ padding: 10, borderRight: i < 6 ? '1px solid var(--color-border)' : 'none', cursor: 'pointer', minHeight: 76 }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                {day.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}
               </div>
-            ))}
-            {matchesByDay[i].length > 8 && (
-              <div style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>+{matchesByDay[i].length - 8} meer</div>
-            )}
-          </div>
-        ))}
+              <div style={{ fontSize: 11 }}>
+                {followed > 0 && <span style={{ color: COL_GOOD }}>★ </span>}
+                {total} wedstrijd{total === 1 ? '' : 'en'}
+              </div>
+              {(!!captures || !!executed || !!pending) && (
+                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  {!!captures && <span>⏺ {captures}</span>}
+                  {!!executed && <span style={{ color: COL_SCHEDULED }}> · ▲ {executed}</span>}
+                  {!!pending && <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}> · △ {pending}</span>}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
