@@ -92,9 +92,7 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
                       <span style={{ flex: 1 }}>{p.name}</span>
                       {p.busy && <span title="Er loopt nu een wedstrijd in deze poule">🔴</span>}
                       {p.overdue_result && <span title="Een wedstrijd is gespeeld maar heeft nog geen uitslag">⚠</span>}
-                      {/* unknown_start NIET per rij (bijna elke poule heeft dit bij
-                          seizoensstart) - alleen de kolom-rollup hierboven, anders
-                          verdrinkt elke rij hier constant in hetzelfde icoon. */}
+                      {p.unknown_start && <span style={{ opacity: 0.6 }} title="Onbekende starttijd binnen een week (normaal bij seizoensstart)">❔</span>}
                       {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length}</span>}
                       {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
                       <button onClick={e => onDeletePoule(e, p)} title="Poule verwijderen"
