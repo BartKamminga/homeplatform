@@ -88,6 +88,56 @@ def test_match_end_check_shows_only_the_next_tick_not_the_whole_series(session):
     assert len(match_end_checks) == 1
 
 
+def test_match_end_check_keeps_ticking_for_later_matches_the_same_day(session):
+    """Bart, 30-08-2026 (competition #21, Sept 5): een landelijke competitie
+    met wedstrijden verspreid over de middag toonde na de eerste
+    match_end_check helemaal geen volgende meer, terwijl er nog 1 wedstrijd
+    moest BEGINNEN - de "alleen eerstvolgende tick"-fix hierboven gold voor
+    de speculatieve HERHALING van dezelfde nog-onbekende uitslag, niet voor
+    een echt-nieuwe, al-vooraf-bekende toekomstige wedstrijd. Zolang er nog
+    een bekende wedstrijd is die volgens schema niet eens is afgelopen, kan
+    de dag onmogelijk al 'all_final' zijn - die vervolg-ticks zijn dus geen
+    gok en mogen gewoon getoond worden."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|schedule-comp-spread", name="Schedule Test Spread", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=555, name="Poule Spread", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=19, club_external_id="HH12ZZ0", name="Spread Team", short_name="H19",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=555,
+    ))
+    # Wedstrijd A eindigde 30 min geleden (duration_min default 90).
+    session.add(HockeyPouleMatch(
+        poule_id=555, match_id=8001, home_team_id=19, away_team_id=20,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=2)).isoformat(),
+    ))
+    # Wedstrijd B begint pas over 1 uur, dus eindigt over 2,5 uur.
+    session.add(HockeyPouleMatch(
+        poule_id=555, match_id=8002, home_team_id=19, away_team_id=20,
+        status="scheduled", round=2, match_date=(now + timedelta(hours=1)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    match_end_checks = sorted(
+        e["planned_at"] for e in events if e["reason"] == "match_end_check" and e["target_id"] == 555
+    )
+    # Wedstrijd B kan onmogelijk al klaar zijn vóórdat hij zelfs maar is
+    # afgelopen (over 2,5u) - dus minstens 1 tick moet ná wedstrijd B's
+    # eigen (voorspelde) starttijd liggen, niet alleen de allereerste
+    # (die alleen wedstrijd A dekt).
+    assert len(match_end_checks) > 1
+    assert match_end_checks[-1] >= now + timedelta(hours=2, minutes=25)
+
+
 def test_matchday_burst_stops_once_all_of_the_days_matches_are_final(session):
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=50), status="final")

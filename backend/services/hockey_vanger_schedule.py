@@ -74,14 +74,18 @@ def _matchday_events(
     (_poule_matchday_events) en de vereniging van alle wedstrijden in de
     poules van 1 landelijke competitie (_landelijke_matchday_events).
 
-    match_end_check toont bewust maar 1 (de eerstvolgende) tick per
-    match_end_check-reeks, niet de hele resterende serie tot burst_deadline
-    (Bart, 30-08-2026: "de wedstrijd 3 keer te veel match_end_check - dat
-    zou alleen gebeuren als de eerste geen resultaat geeft -> rebuild
-    queue"). post_cmd_result herbouwt het schema al meteen na elk echt
-    resultaat (Wijziging 1) - als de wedstrijd dan nog niet final is,
-    berekent de VOLGENDE rebuild vanzelf de eerstvolgende tick opnieuw.
-    Zonder een echt resultaat schuift "de eerstvolgende tick" ook gewoon
+    match_end_check toont alle ticks die GEGARANDEERD nodig zijn (er is nog
+    een bekende wedstrijd die volgens schema niet eens is afgelopen, dus de
+    dag kan onmogelijk al "all_final" zijn) plus precies 1 ticks daarna -
+    het eerste moment waarop dat niet meer zeker is (Bart, 30-08-2026: "de
+    wedstrijd 3 keer te veel match_end_check - dat zou alleen gebeuren als
+    de eerste geen resultaat geeft -> rebuild queue" - die fix gold voor de
+    SPECULATIEVE herhaling van dezelfde nog-onbekende uitslag, niet voor
+    echt-nieuwe, al-vooraf-bekende toekomstige wedstrijden verderop op
+    dezelfde dag). post_cmd_result herbouwt het schema al meteen na elk
+    echt resultaat (Wijziging 1) - als de wedstrijd dan nog niet final is,
+    berekent de VOLGENDE rebuild vanzelf de eerstvolgende onzekere tick
+    opnieuw. Zonder een echt resultaat schuift die laatste tick ook gewoon
     vanzelf door zodra hij verstrijkt (elke periodieke rebuild kijkt
     opnieuw wat nu de eerste tick >= now is)."""
     by_date: Dict = {}
@@ -118,13 +122,31 @@ def _matchday_events(
         all_final = all(m.status == "final" for _s, m in day_matches)
         burst_deadline = max(ends) if all_final else max(ends) + timedelta(hours=burst_stop_h)
         burst_start = min(ends)
+        last_known_end = max(ends)
         tick = burst_start
         while tick < burst_deadline and tick <= horizon_end:
             if tick >= now:
                 if tick not in seen_at:
                     seen_at.add(tick)
                     events.append(_event(target_type, target_id, cmd_type, params, tick, "match_end_check"))
-                break  # alleen de eerstvolgende tick, niet de hele resterende reeks
+                # Zolang er nog een wedstrijd is die (per schema) nog niet
+                # eens is afgelopen, kan de dag onmogelijk al "all_final"
+                # zijn - de VOLGENDE tick is dan gegarandeerd nodig, geen
+                # gok op een nog onbekend scanresultaat, dus gewoon
+                # doortellen (Bart, 30-08-2026: bij een landelijke
+                # competitie met wedstrijden verspreid over de middag
+                # ontbraken de match_end_check-ticks voor de latere
+                # wedstrijden helemaal - de "alleen eerstvolgende tick"-fix
+                # was bedoeld voor de speculatieve HERHALING van dezelfde
+                # nog-onbekende uitslag, niet om echt-nieuwe, al-vooraf-
+                # bekende toekomstige controles te onderdrukken). Vanaf het
+                # moment dat alle bekende wedstrijden hun voorspelde einde
+                # al gepasseerd zouden moeten zijn, is voortzetting wel
+                # afhankelijk van een echt (nog onbekend) scanresultaat -
+                # dan stopt de vooruitblik, en vult de reactieve rebuild de
+                # rest vanzelf aan zodra dat resultaat binnenkomt.
+                if tick >= last_known_end:
+                    break
             tick += timedelta(minutes=matchday_interval_m)
 
         for (start, m), end in zip(day_matches, ends):
