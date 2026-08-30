@@ -40,7 +40,12 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
     const scheduled = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
     const executed = scheduled.filter(c => c.executed).length
     const pending = scheduled.length - executed
-    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending }
+    // Scanschema (item 1015): zie WeekView.jsx voor dezelfde toelichting -
+    // scheduled_cmds is voor toekomstige dagen altijd leeg, dit is de
+    // vooruitblik uit het vooraf berekende schema.
+    const schemaPlanned = (data.schedule_entries || [])
+      .filter(e => e.status === 'planned' && sameDay(new Date(e.planned_at), day)).length
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned }
   }
 
   function shiftMonth(delta) {
@@ -54,6 +59,12 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
         <strong style={{ fontSize: 13 }}>{date.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}</strong>
         <button onClick={() => shiftMonth(1)} style={navBtnStyle}>→</button>
       </div>
+      <div style={{ display: 'flex', gap: 14, padding: '6px 14px', fontSize: 10, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+        <span>⏺ echte capture</span>
+        <span style={{ color: COL_SCHEDULED }}>▲ cmd uitgevoerd</span>
+        <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}>△ cmd nog niet uitgevoerd</span>
+        <span>◇ gepland in scanschema (nog niet gepromoveerd)</span>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--color-border)' }}>
         {WEEKDAYS.map(w => (
           <div key={w} style={{ padding: '4px 6px', fontSize: 9, fontWeight: 700, color: 'var(--color-text-muted)', textAlign: 'center' }}>{w}</div>
@@ -61,7 +72,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {cells.map((day, i) => {
-          const { total, confirmed, placeholder, followed, captures, executed, pending } = countFor(day)
+          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
           return (
@@ -85,9 +96,14 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
               )}
               {(!!captures || !!executed || !!pending) && (
                 <div style={{ fontSize: 9, color: COL_SCHEDULED, marginTop: 1 }}>
-                  {!!captures && <span>⏺{captures}</span>}
+                  {!!captures && <span style={{ color: 'var(--color-text-muted)' }}>⏺{captures}</span>}
                   {!!executed && <span> ▲{executed}</span>}
                   {!!pending && <span style={{ opacity: 0.6 }}> △{pending}</span>}
+                </div>
+              )}
+              {!!schemaPlanned && (
+                <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                  ◇{schemaPlanned}
                 </div>
               )}
             </div>

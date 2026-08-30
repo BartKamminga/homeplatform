@@ -42,7 +42,14 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     const scheduled = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
     const executed = scheduled.filter(c => c.executed).length
     const pending = scheduled.length - executed
-    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending }
+    // Scanschema (item 1015): vooraf berekende, toekomstgerichte planning -
+    // scheduled_cmds hierboven komt uit de ECHTE vanger-queue en is voor
+    // toekomstige dagen altijd leeg (er is nog niets gepromoveerd), dus dit
+    // is de enige manier om "hoeveel scans gaan we naar verwachting doen"
+    // voor een dag die nog moet komen te beantwoorden.
+    const schemaPlanned = (data.schedule_entries || [])
+      .filter(e => e.status === 'planned' && sameDay(new Date(e.planned_at), day)).length
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned }
   })
 
   function shiftWeek(delta) {
@@ -58,9 +65,15 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
         <strong style={{ fontSize: 13 }}>Week van {monday.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })}</strong>
         <button onClick={() => shiftWeek(1)} style={navBtnStyle}>→</button>
       </div>
+      <div style={{ display: 'flex', gap: 14, padding: '6px 14px', fontSize: 10, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+        <span>⏺ echte capture</span>
+        <span style={{ color: COL_SCHEDULED }}>▲ cmd uitgevoerd</span>
+        <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}>△ cmd nog niet uitgevoerd</span>
+        <span>◇ gepland in scanschema (nog niet gepromoveerd)</span>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {days.map((day, i) => {
-          const { total, confirmed, placeholder, followed, captures, executed, pending } = countsByDay[i]
+          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned } = countsByDay[i]
           return (
             <div
               key={i}
@@ -84,6 +97,11 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
                   {!!captures && <span>⏺ {captures}</span>}
                   {!!executed && <span style={{ color: COL_SCHEDULED }}> · ▲ {executed}</span>}
                   {!!pending && <span style={{ color: COL_SCHEDULED, opacity: 0.6 }}> · △ {pending}</span>}
+                </div>
+              )}
+              {!!schemaPlanned && (
+                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  ◇ {schemaPlanned} gepland
                 </div>
               )}
             </div>

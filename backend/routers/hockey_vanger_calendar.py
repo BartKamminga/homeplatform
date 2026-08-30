@@ -15,7 +15,7 @@ from core.database import get_session
 from models.capture import DataCapture
 from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
-    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
+    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _manual_scan_weekday, _team_by_poule
@@ -244,6 +244,26 @@ def get_scan_calendar(
                 "cmd_type": "get_clubs",
             })
 
+    # Scanschema (Fase A/B, item 1015): het vooraf berekende, toekomstgerichte
+    # schema - i.t.t. scheduled_cmds (uit VangerCmd, alleen wat al echt in de
+    # uitvoeringsqueue staat) laat dit ook zien wat er de komende dagen NOG
+    # gepland staat, ongeacht of het al gepromoveerd is. Beantwoordt "hoeveel
+    # scans gaan we naar verwachting uitvoeren" voor toekomstige dagen.
+    schedule_entries = [
+        {
+            "target_type": e.target_type,
+            "target_id": e.target_id,
+            "planned_at": e.planned_at.isoformat(),
+            "reason": e.reason,
+            "status": e.status,
+        }
+        for e in session.exec(
+            select(ScanScheduleEntry)
+            .where(ScanScheduleEntry.planned_at >= range_from)
+            .where(ScanScheduleEntry.planned_at <= range_to)
+        ).all()
+    ]
+
     return {
         "settings": settings,
         "queue_filter": queue_filter,
@@ -253,6 +273,7 @@ def get_scan_calendar(
         "scheduled_cmds": scheduled_cmds,
         "club_captures": club_captures,
         "manual_poules": manual_poules,
+        "schedule_entries": schedule_entries,
     }
 
 

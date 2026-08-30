@@ -6,7 +6,9 @@ from datetime import datetime, timedelta
 
 from models.capture import DataCapture, new_uuid
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam
+from models.hockey_discovery import (
+    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry,
+)
 from models.settings import AppSetting
 from routers.hockey_vanger_calendar import get_scan_calendar
 
@@ -273,3 +275,34 @@ def test_scheduled_cmds_finds_a_done_cmd_via_finished_at_even_if_created_far_out
     assert entry is not None
     assert entry["executed"] is True
     assert entry["event_at"] == (now - timedelta(hours=1)).isoformat()
+
+
+def test_schedule_entries_within_range_are_reported(session):
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444, "team_id": 9}),
+        planned_at=now + timedelta(hours=3), reason="matchday_burst",
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    entry = next((e for e in result["schedule_entries"] if e["target_id"] == 444), None)
+    assert entry is not None
+    assert entry["reason"] == "matchday_burst"
+    assert entry["status"] == "planned"
+
+
+def test_schedule_entries_outside_range_are_excluded(session):
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=555, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 555, "team_id": 9}),
+        planned_at=now + timedelta(days=60), reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)  # default bereik: nu +/- 45 dagen
+
+    assert not any(e["target_id"] == 555 for e in result["schedule_entries"])
