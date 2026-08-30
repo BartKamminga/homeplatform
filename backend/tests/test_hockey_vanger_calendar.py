@@ -167,3 +167,40 @@ def test_scheduled_cmds_reports_a_get_competition_detail_cmd_for_all_its_poules(
     result = get_scan_calendar(session=session, _=None)
 
     assert any(c["poule_id"] == 8 for c in result["scheduled_cmds"])
+
+
+def test_scheduled_cmds_marks_a_pending_cmd_as_not_executed(session):
+    from models.hockey_discovery import VangerCmd
+
+    _setup_poule(session, poule_id=9, competition_id=9, team_id=900)
+    session.add(VangerCmd(
+        cmd_type="get_poule", params=json.dumps({"poule_id": 9, "team_id": 900}), status="pending",
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    entry = next(c for c in result["scheduled_cmds"] if c["poule_id"] == 9)
+    assert entry["executed"] is False
+
+
+def test_scheduled_cmds_finds_a_done_cmd_via_finished_at_even_if_created_far_outside_range(session):
+    """Een cmd kan lang geleden zijn aangemaakt (created_at) maar pas kortgeleden
+    zijn uitgevoerd (finished_at) - filteren op created_at alleen zou de 'echt
+    uitgevoerd'-marker op oudere dagen laten verdwijnen zodra je terugbladert."""
+    from models.hockey_discovery import VangerCmd
+
+    _setup_poule(session, poule_id=10, competition_id=10, team_id=1000)
+    now = datetime.utcnow()
+    session.add(VangerCmd(
+        cmd_type="get_poule", params=json.dumps({"poule_id": 10, "team_id": 1000}), status="done",
+        created_at=now - timedelta(days=60), finished_at=now - timedelta(hours=1),
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)  # default bereik: nu +/- 45 dagen
+
+    entry = next((c for c in result["scheduled_cmds"] if c["poule_id"] == 10), None)
+    assert entry is not None
+    assert entry["executed"] is True
+    assert entry["event_at"] == (now - timedelta(hours=1)).isoformat()

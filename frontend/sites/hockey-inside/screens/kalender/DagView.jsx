@@ -86,13 +86,35 @@ export default function DagView({ data, date, onDateChange }) {
         .filter(d => sameDay(d, date))
       const scheduled = (data.scheduled_cmds || [])
         .filter(c => memberIds.includes(c.poule_id))
-        .map(c => ({ dateObj: new Date(c.scheduled_at), status: c.status }))
+        .map(c => ({ dateObj: new Date(c.event_at || c.scheduled_at), status: c.status, executed: c.executed }))
         .filter(c => sameDay(c.dateObj, date))
       const scanCount = poule.is_landelijke ? 1 : ticks.length
       return { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount }
     })
     .filter(Boolean)
     .sort((a, b) => a.matches[0].dateObj - b.matches[0].dateObj)
+
+  // Niet-landelijke poules van dezelfde competitie visueel groeperen onder
+  // 1 kop (bv. "Jongens O18 Voorcompetitie" met Poule F/J/A/B eronder) -
+  // in tegenstelling tot de landelijke groep hierboven worden deze poules
+  // ECHT los gescand (elk hun eigen get_poule-cmd); dit is dus puur
+  // leesbaarheid, geen samengevoegde-scan-rij zoals bij landelijk.
+  const landelijkeRows = rows.filter(r => r.poule.is_landelijke)
+  const byCompetition = new Map()
+  for (const row of rows) {
+    if (row.poule.is_landelijke) continue
+    const key = row.poule.competition_name || '(onbekende competitie)'
+    if (!byCompetition.has(key)) byCompetition.set(key, [])
+    byCompetition.get(key).push(row)
+  }
+  const renderItems = landelijkeRows.map(row => ({ type: 'row', row, grouped: false }))
+  for (const [competitionName, groupRows] of byCompetition) {
+    groupRows.sort((a, b) => (a.poule.poule_name || '').localeCompare(b.poule.poule_name || ''))
+    if (groupRows.length > 1) {
+      renderItems.push({ type: 'header', label: competitionName, count: groupRows.length })
+    }
+    for (const row of groupRows) renderItems.push({ type: 'row', row, grouped: groupRows.length > 1 })
+  }
 
   const clubCapturesToday = (data.club_captures || [])
     .map(c => ({ ...c, dateObj: new Date(c.captured_at) }))
@@ -119,7 +141,8 @@ export default function DagView({ data, date, onDateChange }) {
         <span><span style={{ display: 'inline-block', width: 12, height: 7, background: `repeating-linear-gradient(45deg, ${COL_BURST}, ${COL_BURST} 2px, transparent 2px, transparent 4px)`, border: `1px solid ${COL_BURST}`, borderRadius: 2, marginRight: 4 }} />Burst-scanvenster</span>
         <span style={{ color: COL_GOOD }}>★ Gevolgd team</span>
         <span>⏺ Echte capture</span>
-        <span style={{ color: COL_SCHEDULED }}>▲ Cmd ingepland</span>
+        <span style={{ color: COL_SCHEDULED }}>▲ Cmd echt uitgevoerd</span>
+        <span style={{ color: COL_SCHEDULED, opacity: 0.4 }}>▲ Cmd (nog) niet uitgevoerd</span>
         <span style={{ opacity: 0.5 }}>Grijs = buiten actieve queue-filter</span>
       </div>
 
@@ -140,7 +163,13 @@ export default function DagView({ data, date, onDateChange }) {
         </div>
       )}
 
-      {rows.map(({ poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount }) => (
+      {renderItems.map((item, idx) => item.type === 'header' ? (
+        <div key={`hdr-${idx}`} style={{ padding: '5px 10px', fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
+          {item.label} · {item.count} poules
+        </div>
+      ) : (() => {
+        const { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount } = item.row
+        return (
         <div
           key={poule.poule_id}
           style={{
@@ -149,7 +178,7 @@ export default function DagView({ data, date, onDateChange }) {
           }}
           title={poule.in_active_filter ? undefined : 'Buiten de actieve queue-filter - wordt niet opgepakt door Ghost/Scout'}
         >
-          <div style={{ padding: '6px 10px', fontSize: 11, overflow: 'hidden' }}>
+          <div style={{ padding: '6px 10px', paddingLeft: item.grouped ? 20 : 10, fontSize: 11, overflow: 'hidden' }}>
             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {poule.followed && <span style={{ color: COL_GOOD, marginRight: 3 }}>★</span>}
               {poule.is_landelijke
@@ -159,7 +188,7 @@ export default function DagView({ data, date, onDateChange }) {
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>
               {poule.is_landelijke
                 ? `${poule.memberPouleIds.length} poules samen · 1 get_competition_detail-call ververst ze allemaal · elke ${settings.landelijke_comp_scan_hours}u`
-                : `${poule.poule_name} · ${poule.competition_name}`}
+                : (item.grouped ? poule.poule_name : `${poule.poule_name} · ${poule.competition_name}`)}
             </div>
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
               {scanCount} scan{scanCount === 1 ? '' : 's'} gepland vandaag
@@ -223,17 +252,26 @@ export default function DagView({ data, date, onDateChange }) {
             {scheduled.map((s, i) => (
               <div
                 key={i}
-                onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: `Cmd ingepland (${s.status})\n${fmtTime(s.dateObj)}` })}
+                onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: s.executed
+                  ? `Cmd echt uitgevoerd\n${fmtTime(s.dateObj)}`
+                  : `Cmd ingepland (${s.status})\n${fmtTime(s.dateObj)}` })}
                 onMouseLeave={() => setTooltip(null)}
                 style={{
                   position: 'absolute', left: `${timeToPct(s.dateObj)}%`, top: 23, width: 0, height: 0,
-                  borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: `6px solid ${COL_SCHEDULED}`,
+                  borderLeft: '4px solid transparent', borderRight: '4px solid transparent',
+                  borderBottom: `6px solid ${COL_SCHEDULED}`,
+                  // echt uitgevoerd (status=done) = volle driehoek, nog niet
+                  // uitgevoerd/mislukt = uitgesneden/lichter, zodat je op
+                  // oudere dagen kunt zien wat er ECHT is gebeurd i.p.v.
+                  // enkel wat ooit is ingepland.
+                  opacity: s.executed ? 1 : 0.4,
                 }}
               />
             ))}
           </div>
         </div>
-      ))}
+        )
+      })())}
 
       {!!clubCapturesToday.length && (
         <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)' }}>

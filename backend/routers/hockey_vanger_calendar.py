@@ -132,15 +132,21 @@ def get_scan_calendar(
             })
 
     # item: naast de ECHTE captures (recent_captures, uit DataCapture) ook
-    # laten zien WANNEER een cmd voor deze poule is ingepland (aangemaakt),
-    # ongeacht of Ghost/Scout 'm al heeft opgepakt - eigen kleur in de UI.
+    # laten zien WANNEER een cmd voor deze poule is ingepland (aangemaakt) EN
+    # of hij daadwerkelijk is uitgevoerd. Geen status-filter op created_at
+    # alleen: een cmd kan een dag eerder zijn aangemaakt maar pas vandaag
+    # zijn afgehandeld (finished_at), dus filteren we op created_at OF
+    # finished_at binnen bereik, zodat 'm op de juiste dag terugkomt. Status
+    # gaat mee zodat de front-end "echt uitgevoerd" (done) kan onderscheiden
+    # van "gepland maar (nog) niet uitgevoerd" (pending/in_progress/failed).
     scheduled_cmds = []
     for cmd in session.exec(
         select(VangerCmd)
         .where(col(VangerCmd.cmd_type).in_(["get_poule", "get_competition_detail"]))
-        .where(col(VangerCmd.status).in_(["pending", "in_progress"]))
-        .where(VangerCmd.created_at >= range_from)
-        .where(VangerCmd.created_at <= range_to)
+        .where(
+            (VangerCmd.created_at.between(range_from, range_to))
+            | (VangerCmd.finished_at.is_not(None) & VangerCmd.finished_at.between(range_from, range_to))
+        )
     ).all():
         try:
             params = json.loads(cmd.params)
@@ -152,10 +158,17 @@ def get_scan_calendar(
         else:
             comp = comp_by_hl_id.get(params.get("comp_id"))
             target_poule_ids = poule_ids_by_comp_id.get(comp.id, []) if comp else []
+        executed = cmd.status == "done"
+        # Voor een echt uitgevoerde cmd is finished_at het relevante moment
+        # (wanneer het resultaat binnenkwam); voor nog niet (klaar) uitgevoerde
+        # cmds is dat created_at (wanneer 'm werd ingepland).
+        event_at = cmd.finished_at if (executed and cmd.finished_at) else cmd.created_at
         for poule_id in target_poule_ids:
             scheduled_cmds.append({
                 "poule_id": poule_id,
                 "scheduled_at": cmd.created_at.isoformat(),
+                "event_at": event_at.isoformat(),
+                "executed": executed,
                 "status": cmd.status,
                 "cmd_type": cmd.cmd_type,
             })
