@@ -14,6 +14,17 @@ const REASON_LABELS = [
   ['club_scan',             'Club-scan'],
   ['club_list',             'Clublijst'],
 ]
+// Korte labels voor in de kleine maand-cel (56px) - inline i.p.v. popup.
+const REASON_LABELS_SHORT = [
+  ['matchday_burst',        'Burst'],
+  ['daily_fallback',        'Fallback'],
+  ['live_check',            'Live'],
+  ['manual_weekly',         'Wekelijks'],
+  ['unknown_start_recheck', '?tijd'],
+  ['new_or_empty',          'Nieuw'],
+  ['club_scan',             'Club'],
+  ['club_list',             'Clubs'],
+]
 
 function reasonCountsFor(scheduleEntries, inRange) {
   const counts = {}
@@ -68,9 +79,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
     // (hover op de ◇-regel).
     const schemaByReason = reasonCountsFor(data.schedule_entries, d => sameDay(d, day))
     const schemaPlanned = Object.values(schemaByReason).reduce((a, b) => a + b, 0)
-    const schemaTitle = REASON_LABELS.filter(([key]) => schemaByReason[key])
-      .map(([key, label]) => `${label}: ${schemaByReason[key]}`).join('\n')
-    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle }
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason }
   }
 
   const gridEnd = new Date(gridStart)
@@ -108,7 +117,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {cells.map((day, i) => {
-          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle } = countFor(day)
+          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
           return (
@@ -138,11 +147,13 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
                 </div>
               )}
               {!!schemaPlanned && (
-                <div
-                  title={schemaTitle}
-                  style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1, cursor: 'help', textDecoration: 'underline dotted' }}
-                >
-                  ◇{schemaPlanned}
+                <div style={{ marginTop: 1 }}>
+                  <div style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>◇{schemaPlanned}</div>
+                  {REASON_LABELS_SHORT.filter(([key]) => schemaByReason[key]).map(([key, label]) => (
+                    <div key={key} style={{ fontSize: 8, color: 'var(--color-text-muted)', opacity: 0.75 }}>
+                      {label} {schemaByReason[key]}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

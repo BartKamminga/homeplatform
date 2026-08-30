@@ -73,9 +73,7 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     // reason (hover op de ◇-regel) zodat je ziet WELK soort scan het is.
     const schemaByReason = reasonCountsFor(data.schedule_entries, d => sameDay(d, day))
     const schemaPlanned = Object.values(schemaByReason).reduce((a, b) => a + b, 0)
-    const schemaTitle = REASON_LABELS.filter(([key]) => schemaByReason[key])
-      .map(([key, label]) => `${label}: ${schemaByReason[key]}`).join('\n')
-    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle }
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason }
   })
 
   const weekEnd = new Date(monday)
@@ -110,7 +108,7 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {days.map((day, i) => {
-          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle } = countsByDay[i]
+          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason } = countsByDay[i]
           return (
             <div
               key={i}
@@ -137,11 +135,13 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
                 </div>
               )}
               {!!schemaPlanned && (
-                <div
-                  title={schemaTitle}
-                  style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2, cursor: 'help', textDecoration: 'underline dotted' }}
-                >
-                  ◇ {schemaPlanned} gepland
+                <div style={{ marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>◇ {schemaPlanned} gepland</div>
+                  {REASON_LABELS.filter(([key]) => schemaByReason[key]).map(([key, label]) => (
+                    <div key={key} style={{ fontSize: 9, color: 'var(--color-text-muted)', opacity: 0.75, paddingLeft: 8 }}>
+                      {label}: {schemaByReason[key]}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
