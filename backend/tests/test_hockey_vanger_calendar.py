@@ -54,6 +54,25 @@ def test_active_published_poule_appears_in_calendar(session):
     assert result["poules"][0]["is_landelijke"] is False
 
 
+def test_schedule_entry_planned_at_is_serialized_with_an_explicit_utc_suffix(session):
+    """Regressie: alle datetime-velden hier zijn naive-maar-UTC. Zonder
+    expliciete 'Z' interpreteert de browser new Date('...T12:00:00') als
+    LOKALE tijd (2 uur mis in CEST) i.p.v. UTC - zie _iso() in
+    hockey_vanger_calendar.py."""
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444, "team_id": 9}),
+        planned_at=now + timedelta(hours=3), reason="matchday_burst",
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    entry = next(e for e in result["schedule_entries"] if e["target_id"] == 444)
+    assert entry["planned_at"].endswith("Z")
+
+
 def test_unpublished_poule_of_a_followed_team_still_appears(session):
     session.add(AppSetting(key="notify_team_ids", value="200"))
     session.commit()
@@ -274,7 +293,7 @@ def test_scheduled_cmds_finds_a_done_cmd_via_finished_at_even_if_created_far_out
     entry = next((c for c in result["scheduled_cmds"] if c["poule_id"] == 10), None)
     assert entry is not None
     assert entry["executed"] is True
-    assert entry["event_at"] == (now - timedelta(hours=1)).isoformat()
+    assert entry["event_at"] == (now - timedelta(hours=1)).isoformat() + "Z"
 
 
 def test_schedule_entries_within_range_are_reported(session):

@@ -23,6 +23,15 @@ from services.hockey_vanger_settings import _get_int_setting, get_notify_team_id
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
+
+def _iso(dt: datetime) -> str:
+    """Alle datetime-velden hier zijn naive-maar-UTC (datetime.utcnow()) -
+    .isoformat() zonder tijdzone-aanduiding wordt door de browser als LOKALE
+    tijd geinterpreteerd (new Date('...T12:00:00') = 12:00 lokaal, niet UTC),
+    2 uur mis in CEST. Expliciete 'Z' voorkomt dat."""
+    return dt.isoformat() + "Z"
+
+
 SCAN_PLAN_SETTINGS = {
     "match_duration_min":          90,
     "active_matchday_interval_min": 45,
@@ -108,7 +117,7 @@ def get_scan_calendar(
                 "poule_name": poule.name,
                 "competition_name": comp.name if comp else None,
                 "assigned_weekday": _manual_scan_weekday(poule.competition_id),  # 0=maandag..4=vrijdag
-                "last_scanned_at": poule.last_scanned_at.isoformat() if poule.last_scanned_at else None,
+                "last_scanned_at": _iso(poule.last_scanned_at) if poule.last_scanned_at else None,
             })
 
     poule_results = []
@@ -142,7 +151,7 @@ def get_scan_calendar(
             "hl_comp_id": comp.hl_comp_id if comp else None,
             "is_landelijke": is_landelijke,
             "scan_profile": scan_profile,
-            "last_scanned_at": poule.last_scanned_at.isoformat() if poule.last_scanned_at else None,
+            "last_scanned_at": _iso(poule.last_scanned_at) if poule.last_scanned_at else None,
             "followed": poule.poule_id in followed_poule_ids,
             "in_active_filter": in_filter,
             "matches": [
@@ -173,7 +182,7 @@ def get_scan_calendar(
         for poule_id in _poule_ids_for_capture(cap, comp_by_hl_id, poule_ids_by_comp_id, poule_ids_in_result):
             recent_captures.append({
                 "poule_id": poule_id,
-                "captured_at": cap.captured_at.isoformat(),
+                "captured_at": _iso(cap.captured_at),
                 "cmd_type": cap.capture_type,
             })
 
@@ -212,8 +221,8 @@ def get_scan_calendar(
         for poule_id in target_poule_ids:
             scheduled_cmds.append({
                 "poule_id": poule_id,
-                "scheduled_at": cmd.created_at.isoformat(),
-                "event_at": event_at.isoformat(),
+                "scheduled_at": _iso(cmd.created_at),
+                "event_at": _iso(event_at),
                 "executed": executed,
                 "status": cmd.status,
                 "cmd_type": cmd.cmd_type,
@@ -233,14 +242,14 @@ def get_scan_calendar(
             club_captures.append({
                 "club_external_id": ext_id,
                 "club_name": club.friendly_name if club else ext_id,
-                "captured_at": cap.captured_at.isoformat(),
+                "captured_at": _iso(cap.captured_at),
                 "cmd_type": "scan_club",
             })
         else:
             club_captures.append({
                 "club_external_id": None,
                 "club_name": "Alle clubs (clublijst)",
-                "captured_at": cap.captured_at.isoformat(),
+                "captured_at": _iso(cap.captured_at),
                 "cmd_type": "get_clubs",
             })
 
@@ -253,7 +262,7 @@ def get_scan_calendar(
         {
             "target_type": e.target_type,
             "target_id": e.target_id,
-            "planned_at": e.planned_at.isoformat(),
+            "planned_at": _iso(e.planned_at),
             "reason": e.reason,
             "status": e.status,
         }
