@@ -27,18 +27,28 @@ def _iso(dt) -> Optional[str]:
     return dt.isoformat() + "Z" if dt else None
 
 
-def _label_for(entry: ScanScheduleEntry, poule_by_id: dict, comp_by_hl_id: dict, club_by_id: dict) -> str:
+def _label_for(entry: ScanScheduleEntry, params: dict, poule_by_id: dict, comp_by_hl_id: dict, club_by_id: dict) -> str:
     if entry.target_type == "poule":
         poule = poule_by_id.get(entry.target_id)
-        if not poule:
-            return f"poule {entry.target_id} (onbekend/verwijderd)"
-        return f"{poule.name} · poule {entry.target_id}"
+        if poule:
+            return f"{poule.name} · poule {entry.target_id}"
+        # new_or_empty-poules zijn per definitie nog niet gescand/ontdekt (het
+        # team verwijst er al naar via recent_poule_id, maar er is nog geen
+        # HockeyPoule-rij) - "onbekend/verwijderd" was hier misleidend, params
+        # bevat meestal al de teamnaam als label.
+        if params.get("label"):
+            return f"{params['label']} (nog niet ontdekt) · poule {entry.target_id}"
+        return f"poule {entry.target_id} (nog niet ontdekt)"
     if entry.target_type == "competition":
         comp = comp_by_hl_id.get(entry.target_id)
-        return comp.name if comp else f"competitie {entry.target_id} (onbekend)"
+        if comp:
+            return comp.name
+        return params.get("label") or f"competitie {entry.target_id} (onbekend)"
     if entry.target_type == "club":
         club = club_by_id.get(entry.target_id)
-        return club.friendly_name or club.name if club else f"club {entry.target_id}"
+        if club:
+            return club.friendly_name or club.name
+        return params.get("label") or f"club {entry.target_id}"
     return str(entry.target_id)
 
 
@@ -96,26 +106,30 @@ def browse_schedule(
         select(HockeyClub).where(col(HockeyClub.id).in_(club_ids))
     ).all()} if club_ids else {}
 
+    params_by_id = {}
+    for e in matching:
+        try:
+            params_by_id[e.id] = json.loads(e.params)
+        except (ValueError, TypeError):
+            params_by_id[e.id] = {}
+
     if search:
         needle = search.lower()
         matching = [
             e for e in matching
-            if needle in e.params.lower() or needle in _label_for(e, poule_by_id, comp_by_hl_id, club_by_id).lower()
+            if needle in e.params.lower() or needle in _label_for(e, params_by_id[e.id], poule_by_id, comp_by_hl_id, club_by_id).lower()
         ]
     total = len(matching)
     page = matching[offset:offset + limit]
 
     items = []
     for entry in page:
-        try:
-            params = json.loads(entry.params)
-        except (ValueError, TypeError):
-            params = {}
+        params = params_by_id[entry.id]
         items.append({
             "id": entry.id,
             "target_type": entry.target_type,
             "target_id": entry.target_id,
-            "label": _label_for(entry, poule_by_id, comp_by_hl_id, club_by_id),
+            "label": _label_for(entry, params, poule_by_id, comp_by_hl_id, club_by_id),
             "cmd_type": entry.cmd_type,
             "params": params,
             "planned_at": _iso(entry.planned_at),

@@ -80,6 +80,25 @@ def test_browse_enriches_a_poule_entry_with_its_real_name(session):
     assert "Poule Z" in result["items"][0]["label"]
 
 
+def test_browse_labels_a_not_yet_discovered_poule_using_the_params_label(session):
+    """new_or_empty-poules hebben per definitie nog geen HockeyPoule-rij (dat
+    IS het punt van new_or_empty) - de label moet dan uit params.label
+    komen i.p.v. een verwarrende 'onbekend/verwijderd'-melding te tonen."""
+    from datetime import datetime
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=999999, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 999999, "team_id": 1, "label": "Alkmaar JO16-1"}),
+        planned_at=now, reason="new_or_empty",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    assert "Alkmaar JO16-1" in result["items"][0]["label"]
+    assert "verwijderd" not in result["items"][0]["label"]
+
+
 def test_browse_orders_by_planned_at_ascending(session):
     from datetime import datetime, timedelta
     now = datetime.utcnow()

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { browseVangerQueue, previewNextVangerCmd } from '../../api.js'
 import { inputStyle, ghostBtn, muted } from '../styles.js'
 
@@ -30,12 +30,25 @@ export default function VangerQueueDebugPanel() {
   const [preview, setPreview] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
 
+  // "Laatste aanvraag wint" i.p.v. "laatst binnengekomen antwoord wint" - zie
+  // ScheduleDebugPanel.jsx voor de volledige toelichting (dezelfde bugklasse
+  // kan hier ook optreden bij snel achter elkaar wisselende filters).
+  const requestIdRef = useRef(0)
   const load = useCallback(() => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     browseVangerQueue({ status, cmd_type: cmdType, search, limit: PAGE_SIZE, offset })
-      .then(d => { setData(d); setError('') })
-      .catch(e => setError(e.message || 'Laden mislukt'))
-      .finally(() => setLoading(false))
+      .then(d => {
+        if (requestIdRef.current !== requestId) return
+        setData(d); setError('')
+      })
+      .catch(e => {
+        if (requestIdRef.current !== requestId) return
+        setError(e.message || 'Laden mislukt')
+      })
+      .finally(() => {
+        if (requestIdRef.current === requestId) setLoading(false)
+      })
   }, [status, cmdType, search, offset])
 
   useEffect(() => { load() }, [load])

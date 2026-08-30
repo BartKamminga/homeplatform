@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { browseSchedule, getScheduleSummary } from '../../api.js'
 import { inputStyle, ghostBtn, muted } from '../styles.js'
 
@@ -51,12 +51,28 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
     onFilterConsumed?.()
   }, [initialFilter, onFilterConsumed])
 
+  // "Laatste aanvraag wint" i.p.v. "laatst binnengekomen antwoord wint" - een
+  // doorgelinkt filter vanuit de Kalender zet meerdere states tegelijk (via
+  // de useEffect hierboven), wat 2 fetches vlak na elkaar triggert (1x met
+  // de oude, nog-lege filterwaarden, 1x met de nieuwe). Zonder deze guard
+  // kan het antwoord van de EERSTE (verouderde, ongefilterde) aanvraag later
+  // binnenkomen en de correcte, gefilterde resultaten overschrijven.
+  const requestIdRef = useRef(0)
   const load = useCallback(() => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     browseSchedule({ status, reason, target_type: targetType, target_id: targetId, date: dateFilter, search, limit: PAGE_SIZE, offset })
-      .then(d => { setData(d); setError('') })
-      .catch(e => setError(e.message || 'Laden mislukt'))
-      .finally(() => setLoading(false))
+      .then(d => {
+        if (requestIdRef.current !== requestId) return
+        setData(d); setError('')
+      })
+      .catch(e => {
+        if (requestIdRef.current !== requestId) return
+        setError(e.message || 'Laden mislukt')
+      })
+      .finally(() => {
+        if (requestIdRef.current === requestId) setLoading(false)
+      })
   }, [status, reason, targetType, targetId, dateFilter, search, offset])
 
   useEffect(() => { load() }, [load])
