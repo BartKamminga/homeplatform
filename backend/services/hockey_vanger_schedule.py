@@ -32,7 +32,7 @@ from models.hockey_discovery import (
 from services.hockey_vanger_filters import _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
     STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _manual_scan_weekday, _match_dt_info,
-    _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _team_by_poule,
+    _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _team_by_poule, _team_for_poule,
 )
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
@@ -548,7 +548,7 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
         ).first() is not None
         if not is_active:
             return []
-        team = _team_by_poule(session).get(poule.poule_id)
+        team = _team_for_poule(session, poule.poule_id)
         if not team:
             return []
         matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).all()

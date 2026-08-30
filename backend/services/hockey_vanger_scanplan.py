@@ -61,6 +61,19 @@ def _team_by_poule(session: Session) -> Dict[int, HockeyTeam]:
     return result
 
 
+def _team_for_poule(session: Session, poule_id: int) -> Optional[HockeyTeam]:
+    """Doel-specifieke variant van _team_by_poule (Bart, 30-08-2026: 'ik
+    neem aan dat je alleen de relevante delen herbouwt?') - een gerichte
+    query voor 1 poule i.p.v. eerst de HELE ~3700-team-tabel in een dict op
+    te bouwen om er dan 1 uit te pakken (0.487s vs 0.001s, gemeten op acc).
+    Zelfde filtering/eerste-match-wint-semantiek als _team_by_poule."""
+    for t in session.exec(select(HockeyTeam).where(HockeyTeam.recent_poule_id == poule_id)).all():
+        if _is_scoreless_youth(t.short_name):
+            continue
+        return t
+    return None
+
+
 def _match_dt_info(raw: str) -> Optional[Tuple[datetime, bool, bool]]:
     """Parseer match_date. Retourneert (utc_naive_dt, is_vandaag, is_middernacht_placeholder)."""
     try:
