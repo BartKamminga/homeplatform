@@ -135,6 +135,16 @@ export default function DagView({ data, date, onDateChange }) {
   // de backend (comp.id % 2 bepaalt maandag of vrijdag).
   const pyWeekday = (date.getDay() + 6) % 7
   const manualPoulesToday = (data.manual_poules || []).filter(p => p.assigned_weekday === pyWeekday)
+  // Kan in de praktijk honderden poules per dag zijn (alle niet-autoscan
+  // publicaties samen) - per competitie samenvatten i.p.v. 1 badge per poule,
+  // anders wordt de sectie onleesbaar.
+  const manualByCompetition = new Map()
+  for (const p of manualPoulesToday) {
+    const key = p.competition_name || '(onbekende competitie)'
+    manualByCompetition.set(key, (manualByCompetition.get(key) || 0) + 1)
+  }
+  const manualCompetitionEntries = [...manualByCompetition.entries()].sort((a, b) => b[1] - a[1])
+  const MANUAL_COMP_SHOWN = 20
 
   const clubCapturesToday = (data.club_captures || [])
     .map(c => ({ ...c, dateObj: new Date(c.captured_at) }))
@@ -301,18 +311,22 @@ export default function DagView({ data, date, onDateChange }) {
       {!!manualPoulesToday.length && (
         <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
-            NIET-AUTOSCAN · WEKELIJKS ({pyWeekday === 0 ? 'MAANDAG' : 'VRIJDAG'})
+            NIET-AUTOSCAN · WEKELIJKS ({pyWeekday === 0 ? 'MAANDAG' : 'VRIJDAG'}) · {manualPoulesToday.length} poules in {manualCompetitionEntries.length} competities
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {manualPoulesToday.map(p => (
+            {manualCompetitionEntries.slice(0, MANUAL_COMP_SHOWN).map(([name, count]) => (
               <span
-                key={p.poule_id}
-                title={p.last_scanned_at ? `Laatst gescand: ${fmtTime(new Date(p.last_scanned_at))} ${new Date(p.last_scanned_at).toLocaleDateString('nl-NL')}` : 'Nog niet eerder gescand'}
+                key={name}
                 style={{ fontSize: 10, color: 'var(--color-text-muted)', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 5, padding: '2px 7px' }}
               >
-                {p.poule_name} · {p.competition_name}
+                {name} ({count})
               </span>
             ))}
+            {manualCompetitionEntries.length > MANUAL_COMP_SHOWN && (
+              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                +{manualCompetitionEntries.length - MANUAL_COMP_SHOWN} meer competities
+              </span>
+            )}
           </div>
         </div>
       )}
