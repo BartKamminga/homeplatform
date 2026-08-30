@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useConfirm, useCollapse } from './ui.jsx'
 import { useDiscoveryData }  from './vanger/hooks/useDiscoveryData.jsx'
 import { usePluginErrors }   from './vanger/hooks/usePluginErrors.jsx'
@@ -10,19 +10,12 @@ import { useVangerSettings } from './vanger/hooks/useVangerSettings.jsx'
 import VangerStatusCard  from './vanger/VangerStatusCard.jsx'
 import CmdQueueSection   from './vanger/CmdQueueSection.jsx'
 import QueueFilterBar    from './vanger/QueueFilterBar.jsx'
-import PouleQueueSection from './vanger/PouleQueueSection.jsx'
+import QueueRulesInfo    from './vanger/QueueRulesInfo.jsx'
 import QueuesPanel       from './vanger/QueuesPanel.jsx'
 import NotificationSubscribeToggle from '@components/NotificationSubscribeToggle.jsx'
 
 export default function VangerTab() {
-  // Tree-UI (expand/collapse van losse queue-items) - klein genoeg om lokaal
-  // te blijven i.p.v. een eigen hook (RFTR-B6, item 989).
-  const [expanded, setExpanded] = useState(new Set())
-  function toggle(extId) {
-    setExpanded(prev => { const next = new Set(prev); next.has(extId) ? next.delete(extId) : next.add(extId); return next })
-  }
-  const [errOpen,   toggleErrOpen]   = useCollapse(false)
-  const [queueOpen, toggleQueueOpen] = useCollapse(true)
+  const [errOpen, toggleErrOpen] = useCollapse(false)
   const [confirm, confirmDialog] = useConfirm()
 
   const discovery      = useDiscoveryData()
@@ -95,6 +88,8 @@ export default function VangerTab() {
         errOpen={errOpen} setErrOpen={toggleErrOpen}
       />
 
+      <QueueRulesInfo />
+
       <QueueFilterBar
         qFilter={queueFilter.qFilter} queue={discovery.queue} clubs={discovery.clubs} showWaiting={queueFilter.showWaiting}
         onToggleNiveau={queueFilter.toggleNiveau} onToggleGender={queueFilter.toggleGender}
@@ -102,23 +97,6 @@ export default function VangerTab() {
         onSaveFilter={queueFilter.saveFilter} onSetShowWaiting={queueFilter.setShowWaiting}
       />
 
-      {discovery.queue.total > 0 && (
-        <PouleQueueSection
-          queue={discovery.queue} qFilter={queueFilter.qFilter} allTeams={discovery.allTeams}
-          showWaiting={queueFilter.showWaiting} expanded={expanded}
-          queueOpen={queueOpen} setQueueOpen={toggleQueueOpen}
-          toggle={toggle} onResetPoule={discovery.resetPoule}
-          cmdOps={cmdQueue.cmdOps}
-          onFillClubs={() => cmdQueue.fillCmdQueue('clubs')}
-          clubsFilling={cmdQueue.cmdFilling === 'clubs'}
-        />
-      )}
-
-      {!discovery.loading && discovery.queue.total === 0 && (
-        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
-          Geen poule queue — teams worden geladen zodra de vanger clubs heeft gescand
-        </div>
-      )}
       {confirmDialog}
     </div>
   )

@@ -112,24 +112,66 @@ function VangerTuning({ settings, onSave }) {
 }
 
 // Scan-plan instellingen (item 720): tijdgestuurde queuing los van Scout/Ghost —
-// globaal, niet per client, dus eigen FIELDS-lijst zonder client-prefix.
-const SCAN_PLAN_FIELDS = [
-  { key: 'club_list_scan_days',          label: 'Clublijst (dagen)',        width: 40 },
-  { key: 'club_scan_days',               label: 'Club-scan (dagen)',        width: 40 },
-  { key: 'profile_scan_interval_min',    label: 'Scan-plan interval (min)', width: 44 },
-  { key: 'match_duration_min',           label: 'Wedstrijdduur (min)',      width: 44 },
-  { key: 'active_daily_fallback_hours',  label: 'Dagelijkse fallback (u)',  width: 44 },
-  { key: 'active_matchday_interval_min', label: 'Matchday-interval (min)',  width: 44 },
-  { key: 'stale_cmd_timeout_min',        label: 'Stuck-cmd-timeout (min)',  width: 44 },
-  { key: 'live_check_delay_min',         label: 'Match-start-check na start (min)', width: 44 },
-  { key: 'burst_stop_hours_after_last_match', label: 'Burst-stop na laatste wedstrijd (u)', width: 44 },
-  { key: 'unknown_start_lookahead_days', label: 'Onbekende starttijd - vooruitkijken (dagen)', width: 44 },
-  { key: 'unknown_start_fallback_hours', label: 'Onbekende starttijd - hercheck (u)', width: 44 },
-  { key: 'schedule_horizon_days', label: 'Scanschema-horizon (dagen)', width: 44 },
-  { key: 'scan_window_start_hour', label: 'Scan-venster start (uur)', width: 40 },
-  { key: 'scan_window_end_hour', label: 'Scan-venster eind (uur)', width: 40 },
+// globaal, niet per client. Gegroepeerd per categorie i.p.v. 1 platte lijst
+// (Bart, 30-08-2026: "de settings moeten echt duidelijker op de vanger tab
+// komen") - elk veld heeft een korte uitleg via de title-tooltip.
+const SCAN_PLAN_GROUPS = [
+  {
+    title: 'Wedstrijd-timing',
+    fields: [
+      { key: 'match_duration_min', label: 'Wedstrijdduur (min)', width: 44,
+        help: 'Aangenomen duur van een wedstrijd - bepaalt wanneer match_end_check begint (het voorspelde einde).' },
+      { key: 'live_check_delay_min', label: 'Match-start-check na start (min)', width: 44,
+        help: 'Hoe lang na de voorspelde starttijd 1x gecheckt wordt of de wedstrijd live staat.' },
+      { key: 'active_matchday_interval_min', label: 'Match-end-check interval (min)', width: 44,
+        help: 'Hoe vaak match_end_check herhaalt zolang de uitslag nog niet bekend is.' },
+      { key: 'burst_stop_hours_after_last_match', label: 'Match-end-check stop (u na laatste wedstrijd)', width: 44,
+        help: 'Uiterste tijd dat match_end_check nog doorgaat als de uitslag maar niet verschijnt.' },
+    ],
+  },
+  {
+    title: 'Dagelijkse fallback',
+    fields: [
+      { key: 'active_daily_fallback_hours', label: 'Interval (u)', width: 44,
+        help: 'Hoe vaak een poule zonder wedstrijd vandaag alsnog ververst wordt - vangnet voor correcties.' },
+    ],
+  },
+  {
+    title: 'Onbekende starttijd',
+    fields: [
+      { key: 'unknown_start_lookahead_days', label: 'Vooruitkijken (dagen)', width: 44,
+        help: 'Tot hoeveel dagen vooruit een wedstrijd zonder bekende starttijd extra vaak gecheckt wordt.' },
+      { key: 'unknown_start_fallback_hours', label: 'Hercheck-interval (u)', width: 44,
+        help: 'Hoe vaak zo\'n wedstrijd zonder starttijd binnen dat venster wordt herchecked.' },
+    ],
+  },
+  {
+    title: 'Club-discovery',
+    fields: [
+      { key: 'club_list_scan_days', label: 'Clublijst (dagen)', width: 40,
+        help: 'Hoe vaak de volledige clublijst van de bond wordt opgehaald.' },
+      { key: 'club_scan_days', label: 'Club-scan (dagen)', width: 40,
+        help: 'Hoe vaak een individuele club opnieuw gescand wordt voor nieuwe poules. Nooit in het weekend.' },
+    ],
+  },
+  {
+    title: 'Systeem',
+    fields: [
+      { key: 'profile_scan_interval_min', label: 'Scan-plan interval (min)', width: 44,
+        help: 'Hoe vaak de scan-plan-pass als geheel draait - bepaalt ook hoe snel het scanschema ververst.' },
+      { key: 'stale_cmd_timeout_min', label: 'Stuck-cmd-timeout (min)', width: 44,
+        help: 'Na hoeveel minuten een vastgelopen cmd (bezig zonder resultaat) als mislukt wordt teruggezet.' },
+      { key: 'schedule_horizon_days', label: 'Scanschema-horizon (dagen)', width: 44,
+        help: 'Hoeveel dagen vooruit het scanschema plant (zichtbaar in de Kalender/Debug-tab).' },
+      { key: 'scan_window_start_hour', label: 'Scan-venster start (uur)', width: 40,
+        help: 'Niet-wedstrijd-gebonden scans (fallback, wekelijks) worden niet vóór dit uur ingepland.' },
+      { key: 'scan_window_end_hour', label: 'Scan-venster eind (uur)', width: 40,
+        help: 'Niet-wedstrijd-gebonden scans worden niet na dit uur ingepland - schuift door naar de volgende ochtend.' },
+    ],
+  },
 ]
 
+const SCAN_PLAN_FIELDS = SCAN_PLAN_GROUPS.flatMap(g => g.fields)
 const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
 
 // item 1001, Fase A: comma-gescheiden hockey.nl team_ids die een pushmelding
@@ -144,39 +186,52 @@ function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday })
   const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
       <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: '.05em' }}>SCAN-PLAN</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {SCAN_PLAN_FIELDS.map(f => (
-          <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {f.label}
+
+      {SCAN_PLAN_GROUPS.map(group => (
+        <div key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text)', opacity: 0.75 }}>{group.title}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingLeft: 2 }}>
+            {group.fields.map(f => (
+              <label key={f.key} title={f.help} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
+                {f.label}
+                <input
+                  type="number" min="1" style={inputStyle(f.width)}
+                  value={values[f.key] ?? ''}
+                  onChange={e => set(f.key, e.target.value)}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text)', opacity: 0.75 }}>Overig</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingLeft: 2 }}>
+          <label
+            title="Alleen de event-driven matchday-boost voor publicatie-competities met scan_profile 'actief' aan/uit - bij uit blijven die competities gewoon op de dagelijkse interval scannen. Competities op 'handmatig' worden hoe dan ook nooit geraakt."
+            style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+          >
+            <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
+            Matchday-interval actief
+          </label>
+          <label
+            title="Comma-gescheiden hockey.nl team_ids - zodra een wedstrijd van een van deze teams eindstand krijgt, gaat er een pushmelding uit (item 1001)"
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            Meldingen voor team-id(s)
             <input
-              type="number" min="1" style={inputStyle(f.width)}
-              value={values[f.key] ?? ''}
-              onChange={e => set(f.key, e.target.value)}
+              type="text" placeholder="bv. 123456,789012"
+              style={{ ...inputStyle(140) }}
+              value={values[NOTIFY_KEY] ?? ''}
+              onChange={e => set(NOTIFY_KEY, e.target.value)}
             />
           </label>
-        ))}
-        <label
-          title="Alleen de event-driven matchday-boost voor publicatie-competities met scan_profile 'actief' aan/uit - bij uit blijven die competities gewoon op de dagelijkse interval scannen. Competities op 'handmatig' worden hoe dan ook nooit geraakt."
-          style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
-        >
-          <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
-          Matchday-interval actief
-        </label>
-        <label
-          title="Comma-gescheiden hockey.nl team_ids - zodra een wedstrijd van een van deze teams eindstand krijgt, gaat er een pushmelding uit (item 1001)"
-          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-        >
-          Meldingen voor team-id(s)
-          <input
-            type="text" placeholder="bv. 123456,789012"
-            style={{ ...inputStyle(140) }}
-            value={values[NOTIFY_KEY] ?? ''}
-            onChange={e => set(NOTIFY_KEY, e.target.value)}
-          />
-        </label>
+        </div>
       </div>
+
       <div>
         <button
           onClick={save}
