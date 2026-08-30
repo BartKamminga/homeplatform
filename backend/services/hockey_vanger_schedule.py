@@ -64,31 +64,38 @@ def _event(target_type: str, target_id: int, cmd_type: str, params: dict, planne
 
 def _matchday_events(
     target_type: str, target_id, cmd_type: str, params: dict, matches: List[HockeyPouleMatch],
-    now: datetime, horizon_end: datetime,
-    match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
+    last_scanned_at: Optional[datetime], now: datetime, horizon_end: datetime,
+    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int,
 ) -> List[dict]:
-    """match_end_check-ticks + match_start_check-moment(en), per kalenderdag
-    met een bekende (niet-placeholder) starttijd binnen het venster - zelfde
-    regels als _matchday_due_reason in hockey_vanger_scanplan.py, maar voor
-    elke dag in het venster i.p.v. alleen 'vandaag'. Gedeeld tussen 1 poule
-    (_poule_matchday_events) en de vereniging van alle wedstrijden in de
-    poules van 1 landelijke competitie (_landelijke_matchday_events).
+    """Max. 2 vooraf geplande momenten per wedstrijd - match_start_check kort
+    na aanvang, match_end_check op het voorspelde einde - zelfde regels als
+    _matchday_due_reason in hockey_vanger_scanplan.py. Gedeeld tussen 1
+    poule (_poule_matchday_events) en de vereniging van alle wedstrijden in
+    de poules van 1 landelijke competitie (_landelijke_matchday_events).
 
-    match_end_check toont alle ticks die GEGARANDEERD nodig zijn (er is nog
-    een bekende wedstrijd die volgens schema niet eens is afgelopen, dus de
-    dag kan onmogelijk al "all_final" zijn) plus precies 1 ticks daarna -
-    het eerste moment waarop dat niet meer zeker is (Bart, 30-08-2026: "de
-    wedstrijd 3 keer te veel match_end_check - dat zou alleen gebeuren als
-    de eerste geen resultaat geeft -> rebuild queue" - die fix gold voor de
-    SPECULATIEVE herhaling van dezelfde nog-onbekende uitslag, niet voor
-    echt-nieuwe, al-vooraf-bekende toekomstige wedstrijden verderop op
-    dezelfde dag). post_cmd_result herbouwt het schema al meteen na elk
-    echt resultaat (Wijziging 1) - als de wedstrijd dan nog niet final is,
-    berekent de VOLGENDE rebuild vanzelf de eerstvolgende onzekere tick
-    opnieuw. Zonder een echt resultaat schuift die laatste tick ook gewoon
-    vanzelf door zodra hij verstrijkt (elke periodieke rebuild kijkt
-    opnieuw wat nu de eerste tick >= now is)."""
-    by_date: Dict = {}
+    Volledig PER WEDSTRIJD (Bart, 30-08-2026: "per wedstrijd zijn er
+    maximaal 2 geplande scans, een start en een end... als de match end
+    scan het gewenste resultaat oplevert dan geen extra scan, anders
+    schedulen en rebuild") - GEEN gedeelde dag-brede cadans meer tussen los
+    van elkaar staande wedstrijden. Een eerdere dag-brede aanpak liet een
+    poule met bv. een wedstrijd om 10:20 en een om 14:30 de hele dode
+    periode ertussen (waarin niets te ontdekken viel) toch doorscannen,
+    puur omdat de dag als geheel nog niet "af" was.
+
+    Een vervolgscan is altijd DYNAMISCH, nooit vooraf als losse reeks
+    gepland: match_end_check zonder 'final' resultaat -> retry_match_end
+    (Bart: "als daar niets uitkomt komt er dynamisch weer een queue item
+    bij"), match_start_check die een levende wedstrijd blijkt -> match_live
+    (Bart: "net als bij match_start_scan -> blijkt live wedstrijd te zijn ->
+    match_live events inplannen"). Onderscheid eerste-check-vs-retry:
+    last_scanned_at (poule-breed, 1 get_poule ververst alle wedstrijden
+    tegelijk) nog van vóór het eigen einde van DEZE wedstrijd -> eerste
+    check (match_end_check); al minstens 1x gecheckt ná het einde, nog
+    steeds niet final -> retry_match_end, retry_match_end_m minuten later.
+    post_cmd_result herbouwt het schema al meteen na elk echt resultaat
+    (Wijziging 1), dus de volgende rebuild berekent vanzelf de eerstvolgende
+    tick voor DIE wedstrijd opnieuw."""
+    valid_matches: List[Tuple[datetime, HockeyPouleMatch]] = []
     for m in matches:
         if not m.match_date:
             continue
@@ -100,103 +107,78 @@ def _matchday_events(
             continue
         if utc_naive.date() > horizon_end.date():
             continue
-        by_date.setdefault(utc_naive.date(), []).append((utc_naive, m))
+        valid_matches.append((utc_naive, m))
 
     events: List[dict] = []
     # Meerdere wedstrijden (in 1 poule, of - bij een landelijke competitie -
-    # verspreid over meerdere poules) kunnen ervoor zorgen dat de dag-brede
-    # match_end_check-tick en een per-wedstrijd match_start_check/
-    # match_end_check toevallig op exact hetzelfde moment uitkomen - het
-    # zijn allemaal dezelfde get_poule/get_competition_detail-call voor
-    # hetzelfde doel, dus bij promotie zou dat toch tot 1 VangerCmd
-    # samenvallen (add_vanger_cmd dedupt al). 1 gedeelde seen_at-set
-    # voorkomt dat zo'n samenval als 2 losse geplande rijen verschijnt.
+    # verspreid over meerdere poules) kunnen ervoor zorgen dat 2 losse
+    # momenten toevallig op exact hetzelfde tijdstip uitkomen - het zijn
+    # allemaal dezelfde get_poule/get_competition_detail-call voor hetzelfde
+    # doel, dus bij promotie zou dat toch tot 1 VangerCmd samenvallen
+    # (add_vanger_cmd dedupt al). 1 gedeelde seen_at-set voorkomt dat zo'n
+    # samenval als 2 losse geplande rijen verschijnt.
     seen_at: set = set()
-    for day_matches in by_date.values():
-        starts = [s for s, _m in day_matches]
-        ends = [s + timedelta(minutes=match_duration_m) for s in starts]
-        # match_end_check stopt zodra ofwel alle wedstrijden van die dag al
-        # "final" zijn, ofwel er meer dan burst_stop_h uur voorbij is sinds
-        # de LAATSTE wedstrijd eindigde - deze uiterste stop-tijd is niet
-        # onderhandelbaar, match_end_check mag nooit langer doorlopen.
-        all_final = all(m.status == "final" for _s, m in day_matches)
-        burst_deadline = max(ends) if all_final else max(ends) + timedelta(hours=burst_stop_h)
-        burst_start = min(ends)
-        last_known_end = max(ends)
-        tick = burst_start
-        while tick < burst_deadline and tick <= horizon_end:
-            if tick >= now:
-                if tick not in seen_at:
-                    seen_at.add(tick)
-                    events.append(_event(target_type, target_id, cmd_type, params, tick, "match_end_check"))
-                # Zolang er nog een wedstrijd is die (per schema) nog niet
-                # eens is afgelopen, kan de dag onmogelijk al "all_final"
-                # zijn - de VOLGENDE tick is dan gegarandeerd nodig, geen
-                # gok op een nog onbekend scanresultaat, dus gewoon
-                # doortellen (Bart, 30-08-2026: bij een landelijke
-                # competitie met wedstrijden verspreid over de middag
-                # ontbraken de match_end_check-ticks voor de latere
-                # wedstrijden helemaal - de "alleen eerstvolgende tick"-fix
-                # was bedoeld voor de speculatieve HERHALING van dezelfde
-                # nog-onbekende uitslag, niet om echt-nieuwe, al-vooraf-
-                # bekende toekomstige controles te onderdrukken). Vanaf het
-                # moment dat alle bekende wedstrijden hun voorspelde einde
-                # al gepasseerd zouden moeten zijn, is voortzetting wel
-                # afhankelijk van een echt (nog onbekend) scanresultaat -
-                # dan stopt de vooruitblik, en vult de reactieve rebuild de
-                # rest vanzelf aan zodra dat resultaat binnenkomt.
-                if tick >= last_known_end:
-                    break
-            tick += timedelta(minutes=matchday_interval_m)
 
-        for (start, m), end in zip(day_matches, ends):
-            check_at = start + timedelta(minutes=live_check_delay_m)
-            if now <= check_at <= horizon_end and check_at not in seen_at:
-                seen_at.add(check_at)
-                events.append(_event(target_type, target_id, cmd_type, params, check_at, "match_start_check"))
+    def _plan(tick: datetime, deadline: datetime, reason: str):
+        # Een berekend moment kan in het verleden liggen (bv. last_scanned_at
+        # is allang stale) - dan gewoon meteen inplannen ("nu") i.p.v. hem
+        # stilzwijgend te laten vallen, zolang dat nog vóór de deadline is.
+        tick = max(tick, now)
+        if tick < deadline and tick <= horizon_end and tick not in seen_at:
+            seen_at.add(tick)
+            events.append(_event(target_type, target_id, cmd_type, params, tick, reason))
 
-            # De dode zone tussen het 1x match_start_check-moment en het
-            # moment waarop het match_end_check-blok hierboven overneemt
-            # (burst_start, de EERSTE wedstrijd van de dag die afloopt) -
-            # zolang DEZE wedstrijd nog loopt, periodiek doorscannen (zelfde
-            # interval, zelfde reason). Net als in _matchday_due_reason:
-            # alleen als een eerdere scan al bevestigd heeft dat de
-            # wedstrijd echt live staat (m.status == "live") - vooraf blind
-            # inplannen voor een wedstrijd die (nog) niet blijkt te leven
-            # zou onnodige calls in het schema tonen.
-            if m.status != "live":
-                continue
-            check_window_end = check_at + timedelta(minutes=matchday_interval_m)
-            live_tick = check_window_end
-            while live_tick < burst_start and live_tick < end and live_tick <= horizon_end:
-                if live_tick >= now:
-                    if live_tick not in seen_at:
-                        seen_at.add(live_tick)
-                        events.append(_event(target_type, target_id, cmd_type, params, live_tick, "match_end_check"))
-                    break  # alleen de eerstvolgende tick, niet de hele resterende reeks
-                live_tick += timedelta(minutes=matchday_interval_m)
+    for start, m in valid_matches:
+        end = start + timedelta(minutes=match_duration_m)
+        deadline = end + timedelta(hours=burst_stop_h)
+
+        if m.status != "final":
+            is_first = last_scanned_at is None or last_scanned_at < end
+            if is_first:
+                _plan(end, deadline, "match_end_check")
+            else:
+                _plan(last_scanned_at + timedelta(minutes=retry_match_end_m), deadline, "retry_match_end")
+
+        check_at = start + timedelta(minutes=live_check_delay_m)
+        if now <= check_at <= horizon_end and check_at not in seen_at:
+            seen_at.add(check_at)
+            events.append(_event(target_type, target_id, cmd_type, params, check_at, "match_start_check"))
+
+        # match_live (Bart, 30-08-2026): zodra een eerdere scan al heeft
+        # bevestigd dat de wedstrijd echt live staat (m.status == "live") -
+        # niet elke wedstrijd krijgt live-status op hockey.nl (item 969),
+        # dus vooraf blind inplannen voor een wedstrijd die (nog) niet
+        # blijkt te leven zou onnodige calls in het schema tonen. Dynamisch,
+        # 1 eerstvolgende tick op de retry_match_end_m-cadans - net als
+        # retry_match_end hierboven.
+        if m.status != "live":
+            continue
+        min_live_tick = start + timedelta(minutes=live_check_delay_m + retry_match_end_m)
+        base = last_scanned_at + timedelta(minutes=retry_match_end_m) if last_scanned_at else min_live_tick
+        _plan(max(base, min_live_tick), deadline, "match_live")
     return events
 
 
 def _poule_matchday_events(
     poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
-    match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
+    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int,
 ) -> List[dict]:
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     return _matchday_events(
-        "poule", poule.poule_id, "get_poule", params, matches, now, horizon_end,
-        match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+        "poule", poule.poule_id, "get_poule", params, matches, poule.last_scanned_at, now, horizon_end,
+        match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
     )
 
 
 def _landelijke_matchday_events(
-    comp: HockeyCompetition, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
-    match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
+    comp: HockeyCompetition, matches: List[HockeyPouleMatch], last_scanned_at: Optional[datetime],
+    now: datetime, horizon_end: datetime,
+    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int,
 ) -> List[dict]:
     params = {"comp_id": comp.hl_comp_id, "label": comp.name}
     return _matchday_events(
-        "competition", comp.hl_comp_id, "get_competition_detail", params, matches, now, horizon_end,
-        match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+        "competition", comp.hl_comp_id, "get_competition_detail", params, matches, last_scanned_at, now, horizon_end,
+        match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
     )
 
 
@@ -463,7 +445,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
     bijwerkingen, puur een lijst events. rebuild_schedule persisteert dit."""
     horizon_end = now + timedelta(days=horizon_days)
     match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
-    matchday_interval_m = _get_int_setting(session, "active_matchday_interval_min", 45)
+    retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h        = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
     daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
@@ -497,7 +479,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).all()
             matchday_evts = _poule_matchday_events(
                 poule, team, matches, now, horizon_end,
-                match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+                match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
             )
             # Prioriteitsvolgorde zoals _matchday_due_reason: een matchday-
             # burst/live-check-scan werkt last_scanned_at al bij, wat de
@@ -531,7 +513,8 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
         matches = session.exec(select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))).all()
         last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
         matchday_evts = _landelijke_matchday_events(
-            comp, matches, now, horizon_end, match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+            comp, matches, last_scanned_at, now, horizon_end,
+            match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
         )
         preempt = sorted(e["planned_at"] for e in matchday_evts)
         unknown_evts = _landelijke_unknown_start_events(
@@ -556,7 +539,7 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
     manual_weekly/new_or_empty/club_scan/club_list horen hier bewust niet
     bij - die hangen niet af van het resultaat van 1 scan."""
     match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
-    matchday_interval_m = _get_int_setting(session, "active_matchday_interval_min", 45)
+    retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h        = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
     daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
@@ -589,7 +572,7 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
         matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).all()
         matchday_evts = _poule_matchday_events(
             poule, team, matches, now, horizon_end,
-            match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+            match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
         )
         preempt = sorted(e["planned_at"] for e in matchday_evts)
         unknown_evts = _poule_unknown_start_events(
@@ -616,7 +599,8 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
         matches = session.exec(select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))).all()
         last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
         matchday_evts = _landelijke_matchday_events(
-            comp, matches, now, horizon_end, match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+            comp, matches, last_scanned_at, now, horizon_end,
+            match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
         )
         preempt = sorted(e["planned_at"] for e in matchday_evts)
         unknown_evts = _landelijke_unknown_start_events(

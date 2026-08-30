@@ -306,6 +306,7 @@ def _matchday_due_reason(
     *,
     match_duration: int,
     matchday_interval_m: int,
+    retry_match_end_m: int,
     live_check_delay_m: int,
     burst_stop_h: int,
     unknown_start_lookahead_d: int,
@@ -314,14 +315,21 @@ def _matchday_due_reason(
     matchday_enabled: bool,
 ) -> Tuple[bool, Optional[str]]:
     """Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
-    heeft: match_end_check tijdens/na een wedstrijd van vandaag ("blijf
-    checken tot de uitslag bekend is"), 1x match_start_check kort na
-    aanvang (item 970), vaker checken bij een nog onbekende starttijd
-    binnen afzienbare tijd (item 992), anders de trage dagelijkse
-    fallback. Gedeeld tussen _step_active_profiles (matches van 1 poule)
-    en _step_landelijke_competitions (matches van ALLE poules in de
-    competitie samen, Bart 30-08-2026: een landelijke competitie wordt
-    hiermee behandeld als 1 grote poule, geen aparte cadans meer)."""
+    heeft: max. 2 vooraf geplande scans per wedstrijd - 1x match_start_check
+    kort na aanvang (item 970), en 1x match_end_check op het voorspelde
+    einde. Levert een van beide geen definitief resultaat op, dan is de
+    vervolgscan altijd DYNAMISCH (Bart, 30-08-2026: "als daar niets uitkomt
+    komt er dynamisch weer een queue item bij -> rebuild"): match_end_check
+    zonder 'final' -> retry_match_end, match_start_check met status=='live'
+    -> match_live, allebei op de retry_match_end_m-cadans totdat de
+    wedstrijd final is of burst_stop_h uur na HAAR EIGEN einde is verstreken
+    (geen dag-brede cadans meer tussen los van elkaar staande wedstrijden).
+    Daarnaast: vaker checken bij een nog onbekende starttijd binnen
+    afzienbare tijd (item 992), anders de trage dagelijkse fallback.
+    Gedeeld tussen _step_active_profiles (matches van 1 poule) en
+    _step_landelijke_competitions (matches van ALLE poules in de competitie
+    samen, Bart 30-08-2026: een landelijke competitie wordt hiermee
+    behandeld als 1 grote poule, geen aparte cadans meer)."""
     due = False
     reason = None
 
@@ -350,19 +358,27 @@ def _matchday_due_reason(
                 today_matches.append(m)
 
         if known_ends:
-            # match_end_check stopt zodra ofwel alle wedstrijden van vandaag
-            # al "final" zijn (niets meer te halen), ofwel er meer dan
-            # burst_stop_h uur voorbij is sinds de LAATSTE wedstrijd
-            # eindigde - deze uiterste stop-tijd is niet onderhandelbaar,
-            # match_end_check mag nooit langer doorlopen.
-            all_final = all(m.status == "final" for m in today_matches)
-            burst_deadline = max(known_ends) + timedelta(hours=burst_stop_h)
-            burst_active = now < burst_deadline and not all_final
-            if burst_active and now >= min(known_ends):
-                cutoff = now - timedelta(minutes=matchday_interval_m)
+            # match_end_check/retry_match_end is PER WEDSTRIJD (Bart,
+            # 30-08-2026: "per wedstrijd zijn er maximaal 2 geplande scans,
+            # een start en een end... als de match end scan het gewenste
+            # resultaat oplevert dan geen extra scan, anders schedulen en
+            # rebuild") - geen gedeelde dag-brede cadans meer tussen los van
+            # elkaar staande wedstrijden. Is dit de EERSTE check na het
+            # einde (last_scanned_at nog van vóór het einde) dan is de
+            # reason match_end_check, anders (al minstens 1x gecheckt na
+            # het einde, nog steeds niet final) retry_match_end - op de
+            # kortere retry_match_end_m-cadans i.p.v. de trage
+            # matchday_interval_m.
+            candidates = [
+                (end, m) for end, m in zip(known_ends, today_matches)
+                if end <= now < end + timedelta(hours=burst_stop_h) and m.status != "final"
+            ]
+            if candidates:
+                is_first = any(last_scanned_at is None or last_scanned_at < end for end, _m in candidates)
+                cutoff = now - timedelta(minutes=matchday_interval_m if is_first else retry_match_end_m)
                 due = last_scanned_at is None or last_scanned_at < cutoff
                 if due:
-                    reason = "match_end_check"
+                    reason = "match_end_check" if is_first else "retry_match_end"
         elif has_unknown_today:
             cutoff = now - timedelta(minutes=matchday_interval_m)
             due = last_scanned_at is None or last_scanned_at < cutoff
@@ -380,28 +396,27 @@ def _matchday_due_reason(
                     reason = "match_start_check"
                     break
 
-        # Bart, 30-08-2026: tussen het 1x match_start_check-moment en het
-        # einde van de EERSTE wedstrijd van de dag (waarna het bovenstaande
-        # match_end_check-blok overneemt) zat een dode zone - een wedstrijd
-        # die al langer bezig is dan het match_start_check-venster, maar nog
-        # niet is afgelopen, werd helemaal niet herscand. Dit blok dekt dat
-        # gat met dezelfde match_end_check-reason, MAAR alleen als een
-        # eerdere scan al bevestigd heeft dat de wedstrijd echt live staat
-        # (m.status == "live") - niet elke wedstrijd krijgt live-status op
-        # hockey.nl (item 969), dus blind doorscannen op basis van de
-        # voorspelde starttijd alleen zou onnodige calls opleveren voor
-        # wedstrijden die (nog) niet blijken te leven.
+        # match_live (Bart, 30-08-2026: "net als bij match_start_scan ->
+        # blijkt live wedstrijd te zijn -> match_live events inplannen ->
+        # rebuild"): zodra een eerdere scan al heeft bevestigd dat de
+        # wedstrijd echt live staat (m.status == "live") - niet elke
+        # wedstrijd krijgt live-status op hockey.nl (item 969), dus blind
+        # doorscannen op basis van de voorspelde starttijd alleen zou
+        # onnodige calls opleveren voor wedstrijden die (nog) niet blijken
+        # te leven - dynamisch doorchecken op de retry_match_end_m-cadans
+        # totdat ze niet meer live is (final, of terugvalt op
+        # retry_match_end hierboven).
         if not due:
             for start, end, m in zip(known_starts, known_ends, today_matches):
                 if not (start <= now < end) or m.status != "live":
                     continue
-                check_window_end = start + timedelta(minutes=live_check_delay_m + matchday_interval_m)
+                check_window_end = start + timedelta(minutes=live_check_delay_m + retry_match_end_m)
                 if now < check_window_end:
                     continue
-                cutoff = now - timedelta(minutes=matchday_interval_m)
+                cutoff = now - timedelta(minutes=retry_match_end_m)
                 if last_scanned_at is None or last_scanned_at < cutoff:
                     due = True
-                    reason = "match_end_check"
+                    reason = "match_live"
                 break
 
         # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
@@ -446,6 +461,7 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
+    retry_match_end_m    = _get_int_setting(session, "retry_match_end_min", 10)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
     unknown_start_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
@@ -488,6 +504,7 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
             due, reason = _matchday_due_reason(
                 now, matches, last_scanned_at,
                 match_duration=match_duration, matchday_interval_m=matchday_interval_m,
+                retry_match_end_m=retry_match_end_m,
                 live_check_delay_m=live_check_delay_m, burst_stop_h=burst_stop_h,
                 unknown_start_lookahead_d=unknown_start_lookahead_d, unknown_start_fallback_h=unknown_start_fallback_h,
                 daily_fallback_h=daily_fallback_h, matchday_enabled=matchday_enabled,
@@ -509,6 +526,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
+    retry_match_end_m    = _get_int_setting(session, "retry_match_end_min", 10)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
     unknown_start_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
@@ -558,6 +576,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
         due, reason = _matchday_due_reason(
             now, matches, poule.last_scanned_at,
             match_duration=match_duration, matchday_interval_m=matchday_interval_m,
+            retry_match_end_m=retry_match_end_m,
             live_check_delay_m=live_check_delay_m, burst_stop_h=burst_stop_h,
             unknown_start_lookahead_d=unknown_start_lookahead_d, unknown_start_fallback_h=unknown_start_fallback_h,
             daily_fallback_h=daily_fallback_h, matchday_enabled=matchday_enabled,

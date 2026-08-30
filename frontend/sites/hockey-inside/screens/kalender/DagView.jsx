@@ -19,6 +19,8 @@ const COL_SCHEDULED = '#eda100' // cmd aangemaakt/ingepland - los van of hij al 
 const REASON_META = {
   match_start_check:     { label: 'Match-start-check',      color: '#2ab7ca' },
   match_end_check:       { label: 'Match-end-check',        color: '#eb6834' },
+  retry_match_end:       { label: 'Retry match-end',        color: '#f2994a' },
+  match_live:            { label: 'Match-live',             color: '#0ca30c' },
   daily_fallback:        { label: 'Dagelijkse fallback',    color: '#8a5cf6' },
   unknown_start_recheck: { label: 'Onbekende starttijd',    color: '#c026d3' },
   new_or_empty:          { label: 'Nieuwe/lege poule',      color: '#64748b' },

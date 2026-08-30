@@ -6,8 +6,8 @@ const PAGE_SIZE = 50
 
 const STATUS_OPTIONS = ['', 'planned', 'promoted', 'cancelled']
 const REASON_OPTIONS = [
-  '', 'match_start_check', 'match_end_check', 'daily_fallback', 'manual_weekly',
-  'unknown_start_recheck', 'new_or_empty', 'club_scan', 'club_list',
+  '', 'match_start_check', 'match_end_check', 'retry_match_end', 'match_live', 'daily_fallback',
+  'manual_weekly', 'unknown_start_recheck', 'new_or_empty', 'club_scan', 'club_list',
 ]
 const TARGET_TYPE_OPTIONS = ['', 'poule', 'competition', 'club']
 

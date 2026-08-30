@@ -261,6 +261,52 @@ def test_burst_stop_hours_after_last_match_is_configurable(session):
     assert added == 1  # met een ruimere deadline (5u) valt de wedstrijd nog binnen burst-bereik
 
 
+def test_burst_mode_does_not_fire_in_the_dead_zone_between_2_unrelated_matches(session):
+    """Bart, 30-08-2026 (poule #180929): een poule met een wedstrijd om 10:20
+    en een om 14:30 werd tussen die 2 in nog steeds elke
+    active_matchday_interval_min opnieuw gescand, puur omdat de wedstrijd
+    van 14:30 de dag als geheel nog niet "af" liet zijn - terwijl wedstrijd
+    A's eigen burst_stop_h-deadline allang was verstreken en wedstrijd B nog
+    niet eens was afgelopen. match_end_check is per wedstrijd: geen van
+    beide is op dit moment individueel due, dus hoort er hier GEEN scan te
+    zijn."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|matchday-deadzone", name="Matchday Deadzone Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(
+        poule_id=777, name="Poule Deadzone", competition_id=comp.id, season="2026-2027",
+        last_scanned_at=now - timedelta(hours=6),
+    )
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=29, club_external_id="HH13ZZ0", name="Deadzone Team", short_name="H29",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=777,
+    ))
+    # Wedstrijd A eindigde ruim voorbij haar eigen burst_stop_h-deadline
+    # (standaard 2u): einde over 3.5u geleden (duration 90 min), dus
+    # deadline lag al 1.5u geleden.
+    session.add(HockeyPouleMatch(
+        poule_id=777, match_id=9001, home_team_id=29, away_team_id=30,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=5)).isoformat(),
+    ))
+    # Wedstrijd B begint pas over 2u, dus is nog lang niet afgelopen.
+    session.add(HockeyPouleMatch(
+        poule_id=777, match_id=9002, home_team_id=29, away_team_id=30,
+        status="scheduled", round=2, match_date=(now + timedelta(hours=2)).isoformat(),
+    ))
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
+
+
 def test_live_check_delay_is_configurable(session):
     now = datetime.utcnow()
     session.add(AppSetting(key="live_check_delay_min", value="5"))
@@ -437,18 +483,20 @@ def test_match_start_check_cmd_is_tagged_with_its_reason(session):
     assert cmd.reason == "match_start_check"
 
 
-def test_match_end_check_during_play_cmd_is_tagged_with_its_reason(session):
+def test_match_live_during_play_cmd_is_tagged_with_its_reason(session):
     """Bart, 30-08-2026: tussen het 1x match_start_check-moment en het einde
     van de wedstrijd zat een dode zone - een wedstrijd die al langer bezig
     is dan het match_start_check-venster, maar nog niet is afgelopen, moet
-    periodiek doorscannen met reason match_end_check (ook al voor het
-    voorspelde einde, zolang de wedstrijd bevestigd live staat)."""
+    periodiek doorscannen met reason match_live (dynamisch, "net als bij
+    match_start_scan -> blijkt live wedstrijd te zijn -> match_live events
+    inplannen"), ook al vóór het voorspelde einde, zolang de wedstrijd
+    bevestigd live staat."""
     now = datetime.utcnow()
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
     match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
     # Gestart 70 min geleden, standaardduur 90 min -> nog 20 min te gaan, en
-    # het match_start_check-venster (15 min delay + 45 min interval = 60
-    # min) is al voorbij.
+    # het match_start_check-venster (15 min delay + 10 min retry_match_end
+    # = 25 min) is al voorbij.
     match.match_date = (now - timedelta(minutes=70)).isoformat()
     match.status = "live"
     session.add(match)
@@ -457,7 +505,7 @@ def test_match_end_check_during_play_cmd_is_tagged_with_its_reason(session):
     _step_active_profiles(session, now, cap=10)
 
     cmd = session.exec(select(VangerCmd)).first()
-    assert cmd.reason == "match_end_check"
+    assert cmd.reason == "match_live"
 
 
 def test_daily_fallback_cmd_is_tagged_with_its_reason(session):

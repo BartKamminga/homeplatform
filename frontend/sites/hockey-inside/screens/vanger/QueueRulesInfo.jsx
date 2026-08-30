@@ -7,7 +7,9 @@ import { useCollapse } from '../ui.jsx'
 // _matchday_due_reason/_step_*/hockey_vanger_schedule.py.
 const RULES = [
   { reason: 'match_start_check', text: '15 min na de voorspelde start van een wedstrijd, 1x, om te zien of hij live staat.' },
-  { reason: 'match_end_check', text: 'Zodra een wedstrijd voorbij zou moeten zijn, herhaald tot de uitslag bekend is (stopt uiterlijk een paar uur later, ook als er nog niets bekend is).' },
+  { reason: 'match_end_check', text: 'Op het voorspelde einde van een wedstrijd, 1x. Geen resultaat? Dan volgt dynamisch een retry_match_end een paar minuten later - net zolang tot de uitslag bekend is of de uiterste stoptijd verstrijkt.' },
+  { reason: 'retry_match_end', text: 'Dynamische vervolgcheck ná een match_end_check zonder resultaat - verschijnt pas als de vorige check niets opleverde, niet vooraf gepland.' },
+  { reason: 'match_live', text: 'Dynamisch, periodiek checken zolang een wedstrijd bevestigd live staat (ontdekt via match_start_check) - stopt zodra de uitslag bekend is.' },
   { reason: 'daily_fallback', text: '1x per dag voor poules zonder wedstrijd vandaag - vangnet voor latere correcties. Slaat over als de eerstvolgende wedstrijd nog ver weg is, of als het seizoen voor die poule voorbij is.' },
   { reason: 'unknown_start_recheck', text: 'Vaker gecheckt dan de dagelijkse fallback voor een wedstrijd waarvan de datum al bekend is, maar de starttijd nog niet.' },
   { reason: 'manual_weekly', text: '1x per week voor competities die niet automatisch rond wedstrijddagen gevolgd worden (scan_profile "handmatig").' },

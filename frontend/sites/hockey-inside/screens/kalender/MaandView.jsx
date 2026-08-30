@@ -7,6 +7,8 @@ const WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
 const REASON_LABELS = [
   ['match_start_check',     'Match-start-check'],
   ['match_end_check',       'Match-end-check'],
+  ['retry_match_end',       'Retry match-end'],
+  ['match_live',            'Match-live'],
   ['daily_fallback',        'Dagelijkse fallback'],
   ['manual_weekly',         'Niet-autoscan (wekelijks)'],
   ['unknown_start_recheck', 'Onbekende starttijd'],
@@ -18,6 +20,8 @@ const REASON_LABELS = [
 const REASON_LABELS_SHORT = [
   ['match_start_check',     'Start'],
   ['match_end_check',       'Eind'],
+  ['retry_match_end',       'Retry'],
+  ['match_live',            'Live'],
   ['daily_fallback',        'Fallback'],
   ['manual_weekly',         'Wekelijks'],
   ['unknown_start_recheck', '?tijd'],

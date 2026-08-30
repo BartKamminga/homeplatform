@@ -12,7 +12,7 @@ from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleM
 from routers.hockey_vanger_heartbeat import VangerSettingsIn, update_vanger_settings
 
 
-def _setup_active_competition(session, now):
+def _setup_active_competition(session, now, last_scanned_at):
     comp = HockeyCompetition(
         external_id="test|settings-rebuild", name="Settings Rebuild Test", class_name="District",
         hockey_type="VE", season="2026-2027",
@@ -22,18 +22,14 @@ def _setup_active_competition(session, now):
     session.refresh(comp)
     session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
     poule = HockeyPoule(poule_id=444, name="Poule Z", competition_id=comp.id, season="2026-2027",
-                         last_scanned_at=now - timedelta(hours=2))
+                         last_scanned_at=last_scanned_at)
     session.add(poule)
     session.add(HockeyTeam(
         team_id=9, club_external_id="HH11ZZ0", name="Settings Team", short_name="H9",
         hockey_type="VE", category_group_name="Senioren", recent_poule_id=444,
     ))
     # Gestart 103 min geleden, standaardduur 90 min -> 13 min geleden
-    # afgelopen. 13 is bewust geen mooi veelvoud van de geteste intervallen
-    # (45/10 min) - anders zou de eerstvolgende tick toevallig exact op
-    # "now" kunnen uitkomen, een randgeval qua timing tussen het moment dat
-    # de test "now" vastlegt en het moment dat de rebuild zijn eigen verse
-    # "now" opvraagt.
+    # afgelopen.
     session.add(HockeyPouleMatch(
         poule_id=444, match_id=7001, home_team_id=9, away_team_id=10,
         status="scheduled", round=1, match_date=(now - timedelta(minutes=103)).isoformat(),
@@ -43,25 +39,28 @@ def _setup_active_competition(session, now):
 
 
 def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
-    """match_end_check toont bewust maar 1 (de eerstvolgende) tick per
-    rebuild, niet de hele reeks (Bart, 30-08-2026) - deze test verifieert
-    daarom dat DIE ENE tick verschuift zodra active_matchday_interval_min
-    wijzigt, niet de tussenruimte tussen 2 tonen (die zijn er niet meer)."""
+    """match_end_check/retry_match_end is volledig PER WEDSTRIJD (Bart,
+    30-08-2026) - deze test verifieert dat een gewijzigde retry_match_end_min
+    de eerstvolgende retry-tick verschuift. last_scanned_at ligt hier NA het
+    voorspelde einde van de wedstrijd (13 min geleden) - dus is dit al een
+    retry_match_end-scenario (er is al 1x gecheckt ná het einde), niet de
+    initiele match_end_check (die altijd op het vaste, voorspelde einde zelf
+    valt en dus niet van een interval-instelling afhangt)."""
     now = datetime.utcnow()
-    _setup_active_competition(session, now)
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=5))
 
-    update_vanger_settings(VangerSettingsIn(active_matchday_interval_min=45), session=session, _=None)
+    update_vanger_settings(VangerSettingsIn(retry_match_end_min=45), session=session, _=None)
     ticks_45 = sorted(
         e.planned_at for e in session.exec(
-            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "match_end_check")
+            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "retry_match_end")
         ).all()
     )
     assert len(ticks_45) == 1
 
-    update_vanger_settings(VangerSettingsIn(active_matchday_interval_min=10), session=session, _=None)
+    update_vanger_settings(VangerSettingsIn(retry_match_end_min=10), session=session, _=None)
     ticks_10 = sorted(
         e.planned_at for e in session.exec(
-            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "match_end_check")
+            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "retry_match_end")
         ).all()
     )
     assert len(ticks_10) == 1

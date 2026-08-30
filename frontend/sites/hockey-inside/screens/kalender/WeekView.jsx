@@ -7,6 +7,8 @@ const COL_SCHEDULED = '#eda100'
 const REASON_LABELS = [
   ['match_start_check',     'Match-start-check'],
   ['match_end_check',       'Match-end-check'],
+  ['retry_match_end',       'Retry match-end'],
+  ['match_live',            'Match-live'],
   ['daily_fallback',        'Dagelijkse fallback'],
   ['manual_weekly',         'Niet-autoscan (wekelijks)'],
   ['unknown_start_recheck', 'Onbekende starttijd'],

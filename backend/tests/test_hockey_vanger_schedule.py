@@ -88,16 +88,21 @@ def test_match_end_check_shows_only_the_next_tick_not_the_whole_series(session):
     assert len(match_end_checks) == 1
 
 
-def test_match_end_check_keeps_ticking_for_later_matches_the_same_day(session):
-    """Bart, 30-08-2026 (competition #21, Sept 5): een landelijke competitie
-    met wedstrijden verspreid over de middag toonde na de eerste
-    match_end_check helemaal geen volgende meer, terwijl er nog 1 wedstrijd
-    moest BEGINNEN - de "alleen eerstvolgende tick"-fix hierboven gold voor
-    de speculatieve HERHALING van dezelfde nog-onbekende uitslag, niet voor
-    een echt-nieuwe, al-vooraf-bekende toekomstige wedstrijd. Zolang er nog
-    een bekende wedstrijd is die volgens schema niet eens is afgelopen, kan
-    de dag onmogelijk al 'all_final' zijn - die vervolg-ticks zijn dus geen
-    gok en mogen gewoon getoond worden."""
+def test_match_end_check_is_independent_per_match_with_no_scans_in_the_dead_zone(session):
+    """Bart, 30-08-2026 (competition #21/#20, Sept 5; poule #180929): eerst
+    liet een dag-brede aanpak (1 gedeelde cadans van de EERSTE tot de
+    LAATSTE wedstrijd van de dag) de match_end_check-ticks voor latere
+    wedstrijden helemaal wegvallen; de daaropvolgende fix loste dat op door
+    de dag-brede cadans door te laten tikken zolang de dag nog niet 'af' kon
+    zijn - maar dat bleek zelf ook fout: een poule met een wedstrijd om
+    10:20 en een om 14:30 (poule #180929) kreeg dan om de 45 min een scan
+    IN DE DODE PERIODE ERTUSSEN, terwijl er niets te ontdekken viel zolang
+    wedstrijd B nog niet eens was begonnen. Bart: "per wedstrijd zijn er
+    maximaal 2 geplande scans, een start en een end... als de match end scan
+    het gewenste resultaat oplevert dan geen extra scan, anders schedulen en
+    rebuild" - match_end_check is dus volledig PER WEDSTRIJD, losstaand van
+    andere wedstrijden diezelfde dag: precies 1 tick per wedstrijd, op haar
+    EIGEN voorspelde einde, en niks in de dode periode ertussen."""
     now = datetime.utcnow()
     comp = HockeyCompetition(
         external_id="test|schedule-comp-spread", name="Schedule Test Spread", class_name="District",
@@ -130,12 +135,14 @@ def test_match_end_check_keeps_ticking_for_later_matches_the_same_day(session):
     match_end_checks = sorted(
         e["planned_at"] for e in events if e["reason"] == "match_end_check" and e["target_id"] == 555
     )
-    # Wedstrijd B kan onmogelijk al klaar zijn vóórdat hij zelfs maar is
-    # afgelopen (over 2,5u) - dus minstens 1 tick moet ná wedstrijd B's
-    # eigen (voorspelde) starttijd liggen, niet alleen de allereerste
-    # (die alleen wedstrijd A dekt).
-    assert len(match_end_checks) > 1
-    assert match_end_checks[-1] >= now + timedelta(hours=2, minutes=25)
+    # Precies 2 ticks - 1 per wedstrijd, elk op haar EIGEN eerstvolgende
+    # moment (wedstrijd A's retry vlak na nu, wedstrijd B's eigen einde over
+    # 2,5u) - met een gat van ruim 2u ertussen waarin niets gepland staat,
+    # want er valt in die dode periode niets te ontdekken.
+    assert len(match_end_checks) == 2
+    assert match_end_checks[0] < now + timedelta(hours=1)
+    assert match_end_checks[1] >= now + timedelta(hours=2, minutes=25)
+    assert match_end_checks[1] - match_end_checks[0] >= timedelta(hours=2)
 
 
 def test_matchday_burst_stops_once_all_of_the_days_matches_are_final(session):
@@ -158,25 +165,26 @@ def test_match_start_check_event_is_generated_shortly_after_kickoff(session):
     assert match_start_checks[0]["planned_at"] >= now
 
 
-def test_match_end_check_fills_the_gap_between_match_start_check_and_the_predicted_end(session):
+def test_match_live_fills_the_gap_between_match_start_check_and_the_predicted_end(session):
     """Bart, 30-08-2026: tussen het 1x match_start_check-moment en het
     voorspelde einde van de wedstrijd zat een dode zone in het schema -
-    match_end_check dekt dat gat nu ook AL tijdens de wedstrijd (zolang
-    die bevestigd live staat), niet pas na het voorspelde einde."""
+    reason match_live (dynamisch, "blijkt live wedstrijd te zijn ->
+    match_live events inplannen") dekt dat gat nu AL tijdens de wedstrijd
+    (zolang die bevestigd live staat), niet pas na het voorspelde einde."""
     now = datetime.utcnow()
     # Gestart 60 min geleden (exact het einde van het match_start_check-
-    # venster: 15 min delay + 45 min interval), standaardduur 90 min -> nog
-    # 30 min te gaan tot het voorspelde einde.
+    # venster: 15 min delay + 10 min retry_match_end), standaardduur 90 min
+    # -> nog 30 min te gaan tot het voorspelde einde.
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1, status="live")
 
     events = build_schedule_events(session, now, horizon_days=1)
 
-    match_end_checks = sorted(e["planned_at"] for e in events if e["reason"] == "match_end_check" and e["target_id"] == 444)
-    assert match_end_checks
-    assert all(t >= now for t in match_end_checks)
+    match_live_ticks = sorted(e["planned_at"] for e in events if e["reason"] == "match_live" and e["target_id"] == 444)
+    assert match_live_ticks
+    assert all(t >= now for t in match_live_ticks)
     predicted_end = now + timedelta(minutes=30)
-    assert any(t < predicted_end for t in match_end_checks)  # het "live"-gedeelte, vóór het voorspelde einde
-    assert len(match_end_checks) == len(set(match_end_checks))  # geen dubbelen op hetzelfde moment
+    assert any(t < predicted_end for t in match_live_ticks)  # vóór het voorspelde einde
+    assert len(match_live_ticks) == len(set(match_live_ticks))  # geen dubbelen op hetzelfde moment
 
 
 def test_match_end_check_is_not_planned_early_for_a_match_that_is_not_confirmed_live(session):

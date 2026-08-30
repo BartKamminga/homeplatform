@@ -116,6 +116,7 @@ SCAN_PLAN_DEFAULTS = {
     "match_duration_min":          90,
     "active_daily_fallback_hours": 24,
     "active_matchday_interval_min": 45,
+    "retry_match_end_min":         10,
     "stale_cmd_timeout_min":       10,
     "live_check_delay_min":        15,
     "burst_stop_hours_after_last_match": 2,
@@ -154,6 +155,7 @@ class VangerSettingsIn(BaseModel):
     match_duration_min:            Optional[int] = None
     active_daily_fallback_hours:   Optional[int] = None
     active_matchday_interval_min:  Optional[int] = None
+    retry_match_end_min:           Optional[int] = None
     stale_cmd_timeout_min:         Optional[int] = None
     live_check_delay_min:          Optional[int] = None
     burst_stop_hours_after_last_match: Optional[int] = None
@@ -192,6 +194,7 @@ def update_vanger_settings(
         ("match_duration_min", body.match_duration_min),
         ("active_daily_fallback_hours", body.active_daily_fallback_hours),
         ("active_matchday_interval_min", body.active_matchday_interval_min),
+        ("retry_match_end_min", body.retry_match_end_min),
         ("stale_cmd_timeout_min", body.stale_cmd_timeout_min),
         ("live_check_delay_min", body.live_check_delay_min),
         ("burst_stop_hours_after_last_match", body.burst_stop_hours_after_last_match),
