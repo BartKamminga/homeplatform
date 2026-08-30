@@ -12,8 +12,18 @@ const VIEWS = [
   { key: 'jaar',   label: 'Jaar' },
 ]
 
+// LOKALE datumcomponenten, NIET toISOString() (UTC) - alle datums hier komen
+// uit lokale Date-rekenkunde (setDate/getDay/new Date(y,m,d)). In CEST
+// (UTC+2) schuift een lokale middernacht via toISOString terug naar 22:00 de
+// vorige UTC-dag, dus elk bereik vroeg stilzwijgend 1 dag te vroeg op - de
+// nauwe Dag-view-fetch sneed daardoor bijna alle wedstrijden van de
+// eigenlijke geselecteerde dag eraf (backend behandelt "to" als exacte
+// middernacht, niet einde-van-dag).
 function toDateStr(d) {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 // Bereik afstemmen op de actieve weergave i.p.v. altijd de volle +/-45 dagen
