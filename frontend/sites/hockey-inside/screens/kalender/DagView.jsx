@@ -24,7 +24,17 @@ function sameDay(a, b) {
 
 export default function DagView({ data, date, onDateChange }) {
   const [tooltip, setTooltip] = useState(null)
-  const { settings, poules, recent_captures: recentCaptures } = data
+  const { settings, recent_captures: recentCaptures } = data
+
+  // De Dag-view draait om scan-ACTIVITEIT (burst/live-check), niet om een
+  // volledig wedstrijdoverzicht (dat is Week/Maand-view, die bewust ook
+  // manual-profile-wedstrijden meetelt). Manual-profile poules hebben geen
+  // dag-specifieke scan-activiteit - die zitten al in de "NIET-AUTOSCAN ·
+  // WEKELIJKS"-sectie onderaan. Zonder deze filter renderde deze view op
+  // een drukke zaterdag 700+ losse rijen die allemaal "niet-autoscan"
+  // bleken te zijn - onleesbaar en niet waar deze view voor bedoeld is.
+  // Gevolgde teams blijven wel altijd zichtbaar, ongeacht scan_profile.
+  const poules = data.poules.filter(p => p.is_landelijke || p.scan_profile === 'active' || p.followed)
 
   // item: landelijke competities worden met 1 get_competition_detail-command
   // in hun geheel ververst (item 1013) - dus 1 rij per competitie i.p.v. 1
@@ -58,6 +68,14 @@ export default function DagView({ data, date, onDateChange }) {
       if (!matches.length) return null
       const ends = matches.map(m => new Date(m.dateObj.getTime() + settings.match_duration_min * 60000))
       const burstStart = new Date(Math.min(...ends.map(d => d.getTime())))
+      // Alleen scan_profile='active'-poules krijgen matchday-burst/live-check
+      // van het echte scan-plan (_step_active_profiles) - manual-profile en
+      // followed_only-poules (competitie zelf niet op autoscan) krijgen
+      // hoogstens de wekelijkse niet-autoscan-ronde. Zonder deze check liet
+      // DagView een burst-balk + "N scans gepland" zien voor ELKE poule,
+      // ook de ~200 manual-profile competities die in werkelijkheid maar
+      // 1x per week gescand worden - misleidend.
+      const isAutoscan = poule.is_landelijke || poule.scan_profile === 'active'
       // De echte scan-plan-code (_step_active_profiles) heeft GEEN harde
       // stop voor burst-modus - hij blijft actief zolang het "vandaag" is,
       // dus minimaal tot de LAATSTE wedstrijd van de poule is afgelopen
@@ -72,13 +90,13 @@ export default function DagView({ data, date, onDateChange }) {
       // (dat kostte onnodige calls naar hockey.nl, tegen het uitgangspunt
       // "zo min mogelijk calls" in).
       const burstDeadline = new Date(lastEnd.getTime() + settings.burst_stop_hours_after_last_match * 3600000)
-      const burstEnd = poule.is_landelijke
+      const burstEnd = !isAutoscan ? null : poule.is_landelijke
         // landelijke competities volgen de eigen 12u-cadans, niet de
         // matchday-burst - het venster hier is dus alleen indicatief voor
         // "wanneer wordt de HELE competitie weer in 1x ververst".
         ? new Date(burstStart.getTime() + settings.landelijke_comp_scan_hours * 3600000)
         : (allFinal ? lastEnd : burstDeadline)
-      const ticks = (poule.is_landelijke || allFinal) ? [] : (() => {
+      const ticks = (!isAutoscan || poule.is_landelijke || allFinal) ? [] : (() => {
         const t = []
         for (let time = burstStart.getTime(); time < burstEnd.getTime(); time += settings.active_matchday_interval_min * 60000) {
           t.push(new Date(time))
@@ -94,15 +112,15 @@ export default function DagView({ data, date, onDateChange }) {
         .filter(c => memberIds.includes(c.poule_id))
         .map(c => ({ dateObj: new Date(c.event_at || c.scheduled_at), status: c.status, executed: c.executed }))
         .filter(c => sameDay(c.dateObj, date))
-      const scanCount = poule.is_landelijke ? 1 : ticks.length
+      const scanCount = !isAutoscan ? 0 : (poule.is_landelijke ? 1 : ticks.length)
       // Zodra de burst-modus is gestopt (allFinal of voorbij de deadline),
       // is de dagelijkse fallback het eerstvolgende scanmoment - zichtbaar
       // maken i.p.v. dat het lijkt alsof er niets meer gepland staat.
-      const burstOver = !poule.is_landelijke && (allFinal || date < new Date() && burstEnd < new Date())
+      const burstOver = isAutoscan && !poule.is_landelijke && (allFinal || date < new Date() && burstEnd < new Date())
       const nextFallbackScan = (burstOver && poule.last_scanned_at)
         ? new Date(new Date(poule.last_scanned_at).getTime() + settings.active_daily_fallback_hours * 3600000)
         : null
-      return { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan }
+      return { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan, isAutoscan }
     })
     .filter(Boolean)
     .sort((a, b) => a.matches[0].dateObj - b.matches[0].dateObj)
@@ -214,7 +232,7 @@ export default function DagView({ data, date, onDateChange }) {
           {item.label} · {item.count} poules
         </div>
       ) : (() => {
-        const { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan } = item.row
+        const { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan, isAutoscan } = item.row
         return (
         <div
           key={poule.poule_id}
@@ -237,7 +255,9 @@ export default function DagView({ data, date, onDateChange }) {
                 : (item.grouped ? poule.poule_name : `${poule.poule_name} · ${poule.competition_name}`)}
             </div>
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
-              {scanCount} scan{scanCount === 1 ? '' : 's'} gepland vandaag
+              {isAutoscan
+                ? `${scanCount} scan${scanCount === 1 ? '' : 's'} gepland vandaag`
+                : 'niet-autoscan · wekelijkse ronde (zie onderaan)'}
             </div>
             {nextFallbackScan && (
               <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
@@ -276,17 +296,19 @@ export default function DagView({ data, date, onDateChange }) {
               )
             })}
 
-            <div
-              onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: poule.is_landelijke
-                ? `Competitie-brede herscan\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.landelijke_comp_scan_hours}u, ververst alle ${poule.memberPouleIds.length} poules in 1x`
-                : `Burst-scanvenster\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd` })}
-              onMouseLeave={() => setTooltip(null)}
-              style={{
-                position: 'absolute', left: `${timeToPct(burstStart)}%`, width: `${Math.max(0.6, timeToPct(burstEnd) - timeToPct(burstStart))}%`,
-                top: 7, height: 16, borderRadius: 3, border: `1px solid ${COL_BURST}`,
-                background: `repeating-linear-gradient(45deg, ${COL_BURST} 0, ${COL_BURST} 3px, color-mix(in srgb, ${COL_BURST} 25%, transparent) 3px, color-mix(in srgb, ${COL_BURST} 25%, transparent) 6px)`,
-              }}
-            />
+            {isAutoscan && (
+              <div
+                onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: poule.is_landelijke
+                  ? `Competitie-brede herscan\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.landelijke_comp_scan_hours}u, ververst alle ${poule.memberPouleIds.length} poules in 1x`
+                  : `Burst-scanvenster\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd` })}
+                onMouseLeave={() => setTooltip(null)}
+                style={{
+                  position: 'absolute', left: `${timeToPct(burstStart)}%`, width: `${Math.max(0.6, timeToPct(burstEnd) - timeToPct(burstStart))}%`,
+                  top: 7, height: 16, borderRadius: 3, border: `1px solid ${COL_BURST}`,
+                  background: `repeating-linear-gradient(45deg, ${COL_BURST} 0, ${COL_BURST} 3px, color-mix(in srgb, ${COL_BURST} 25%, transparent) 3px, color-mix(in srgb, ${COL_BURST} 25%, transparent) 6px)`,
+                }}
+              />
+            )}
             {ticks.map((t, i) => (
               <div key={i} style={{ position: 'absolute', left: `${timeToPct(t)}%`, top: 4, width: 2, height: 22, background: COL_BURST, opacity: 0.55, borderRadius: 1 }} />
             ))}
