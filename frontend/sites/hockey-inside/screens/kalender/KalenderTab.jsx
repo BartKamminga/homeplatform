@@ -16,9 +16,38 @@ function toDateStr(d) {
   return d.toISOString().slice(0, 10)
 }
 
-// item 1009: 1 brede fetch (huidig seizoen-achtig venster), alle vier de
-// weergaven aggregeren client-side uit dezelfde dataset i.p.v. aparte
-// endpoints per zoom-niveau.
+// Bereik afstemmen op de actieve weergave i.p.v. altijd de volle +/-45 dagen
+// op te vragen - met manual-profile publicaties meegeteld (item: Week/Maand
+// echte wedstrijdaantallen) groeide de brede fetch naar ~900 poules/3,5MB,
+// merkbaar traag voor een view die maar 1 dag of 1 week nodig heeft.
+function computeRange(view, date) {
+  const d = new Date(date)
+  if (view === 'week') {
+    const offset = (d.getDay() + 6) % 7 // maandag = 0
+    const from = new Date(d); from.setDate(from.getDate() - offset - 1)
+    const to = new Date(from); to.setDate(to.getDate() + 9)
+    return { from, to }
+  }
+  if (view === 'maand') {
+    const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1)
+    const startOffset = (firstOfMonth.getDay() + 6) % 7
+    const from = new Date(firstOfMonth); from.setDate(from.getDate() - startOffset - 2)
+    const to = new Date(from); to.setDate(to.getDate() + 44)
+    return { from, to }
+  }
+  if (view === 'jaar') {
+    return { from: new Date(d.getFullYear(), 0, 1), to: new Date(d.getFullYear(), 11, 31) }
+  }
+  // dag (default)
+  const from = new Date(d); from.setDate(from.getDate() - 1)
+  const to = new Date(d); to.setDate(to.getDate() + 1)
+  return { from, to }
+}
+
+// item 1009: 1 fetch per (view, datum)-combinatie, alle vier de weergaven
+// aggregeren client-side uit dezelfde dataset i.p.v. aparte endpoints per
+// zoom-niveau - maar wel met een bereik dat bij de weergave past (zie
+// computeRange), anders schaalt dit niet met het aantal poules.
 export default function KalenderTab() {
   const [view, setView] = useState('dag')
   const [selectedDate, setSelectedDate] = useState(() => new Date())
@@ -26,14 +55,19 @@ export default function KalenderTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const { from, to } = computeRange(view, selectedDate)
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
+
   const load = useCallback(() => {
-    api.get('/api/hockey/vanger/scan-calendar').then(d => {
+    api.get(`/api/hockey/vanger/scan-calendar?from=${fromStr}&to=${toStr}`).then(d => {
       setData(d)
       setError('')
     }).catch(e => setError(e.message || 'Laden mislukt')).finally(() => setLoading(false))
-  }, [])
+  }, [fromStr, toStr])
 
   useEffect(() => {
+    setLoading(true)
     load()
     // item 1009: minder tijdkritisch dan de Scout-status-poll (8s) - dit is
     // een overzicht, geen live-regieknop, dus een ruimere cadans volstaat.
