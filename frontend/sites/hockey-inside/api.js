@@ -50,6 +50,11 @@ export const previewEmptyCompetitions = (season) => api.get(`/api/hockey/competi
 export const deleteEmptyCompetitions  = (season) => api.delete(`/api/hockey/competitions/empty${season ? `?season=${season}` : ''}`)
 export const deletePoule             = (pouleId) => api.delete(`/api/hockey/poules/${pouleId}`)
 export const getVangerQueue          = (status) => api.get(`/api/hockey/vanger/cmd-queue${status ? `?status=${status}` : ''}`)
+export const browseVangerQueue = (params) => {
+  const qs = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return api.get(`/api/hockey/vanger/cmd-queue/browse${qs.toString() ? `?${qs}` : ''}`)
+}
+export const previewNextVangerCmd = () => api.get('/api/hockey/vanger/cmd-queue/preview-next')
 
 // Publieke detail-endpoints (wedstrijden + stand per poule)
 export const getCompetitionMatches   = (cid)    => api.get(`/api/hockey/public/competitions/${cid}/matches`)

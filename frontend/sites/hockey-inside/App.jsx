@@ -6,6 +6,7 @@ import VangerTab         from './screens/VangerTab.jsx'
 import KalenderTab       from './screens/kalender/KalenderTab.jsx'
 import StatsTab          from './screens/StatsTab.jsx'
 import ArchiefTab        from './screens/ArchiefTab.jsx'
+import QueueDebugTab     from './screens/debug/QueueDebugTab.jsx'
 import { getMe }         from './api.js'
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
     { key: 'kalender',    label: 'Kalender' },
     { key: 'stats',       label: 'Statistieken' },
     { key: 'archief',     label: 'Archief' },
+    ...(isAdmin ? [{ key: 'debug', label: 'Debug' }] : []),
   ]
 
   return (
@@ -59,6 +61,7 @@ export default function App() {
       {tab === 'kalender'    && <KalenderTab />}
       {tab === 'stats'       && <StatsTab />}
       {tab === 'archief'     && <ArchiefTab />}
+      {tab === 'debug'       && <QueueDebugTab />}
     </div>
   )
 }
