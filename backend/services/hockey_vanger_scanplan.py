@@ -278,6 +278,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
+    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     matchday_enabled     = _active_matchday_enabled(session)
 
     active_comp_ids = set(session.exec(
@@ -323,6 +324,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                 select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
             ).all()
 
+            known_starts = []
             known_ends = []
             has_unknown_today = False
             for m in matches:
@@ -337,6 +339,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                 if is_midnight:
                     has_unknown_today = True
                 else:
+                    known_starts.append(utc_naive)
                     known_ends.append(utc_naive + timedelta(minutes=match_duration))
 
             if known_ends:
@@ -346,6 +349,19 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
             elif has_unknown_today:
                 cutoff = now - timedelta(minutes=matchday_interval_m)
                 due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+
+            # item 970: kort na aanvang van een wedstrijd 1x checken of hij
+            # live-status heeft gekregen (niet elke wedstrijd heeft dat, item
+            # 969) - i.p.v. pas na afloop te reageren. Vuurt maximaal 1x per
+            # wedstrijd (last_scanned_at schuift na deze scan voorbij start,
+            # dus de voorwaarde hieronder is daarna niet meer waar).
+            if not due:
+                for start in known_starts:
+                    check_at = start + timedelta(minutes=live_check_delay_m)
+                    check_window_end = check_at + timedelta(minutes=matchday_interval_m)
+                    if check_at <= now < check_window_end and (poule.last_scanned_at is None or poule.last_scanned_at < start):
+                        due = True
+                        break
 
         if not due:
             cutoff = now - timedelta(hours=daily_fallback_h)

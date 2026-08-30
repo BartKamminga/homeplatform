@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from models.capture import DataCapture, new_uuid
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam
 from models.settings import AppSetting
 from routers.hockey_vanger_calendar import get_scan_calendar
 
@@ -109,3 +109,61 @@ def test_recent_captures_maps_comp_detail_to_all_its_poules(session):
     result = get_scan_calendar(session=session, _=None)
 
     assert any(c["poule_id"] == 6 for c in result["recent_captures"])
+
+
+def test_club_captures_are_reported_with_club_name(session):
+    session.add(HockeyClub(external_id="HH11QW6", name="Victoria", friendly_name="Victoria"))
+    session.add(DataCapture(
+        id=new_uuid(), source="hockey-vanger", capture_type="club_detail", external_id="club_detail_HH11QW6",
+        session_id="s1", payload="{}", meta="{}", captured_at=datetime.utcnow(),
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    assert len(result["club_captures"]) == 1
+    assert result["club_captures"][0]["club_name"] == "Victoria"
+    assert result["club_captures"][0]["cmd_type"] == "scan_club"
+
+
+def test_clubs_list_capture_is_reported(session):
+    session.add(DataCapture(
+        id=new_uuid(), source="hockey-vanger", capture_type="clubs_list", external_id="clubs_list_99",
+        session_id="s1", payload="{}", meta="{}", captured_at=datetime.utcnow(),
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    assert len(result["club_captures"]) == 1
+    assert result["club_captures"][0]["cmd_type"] == "get_clubs"
+
+
+def test_scheduled_cmds_reports_a_pending_get_poule_cmd(session):
+    from models.hockey_discovery import VangerCmd
+
+    _setup_poule(session, poule_id=7, competition_id=7, team_id=700)
+    session.add(VangerCmd(
+        cmd_type="get_poule", params=json.dumps({"poule_id": 7, "team_id": 700}), status="pending",
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    assert any(c["poule_id"] == 7 and c["status"] == "pending" for c in result["scheduled_cmds"])
+
+
+def test_scheduled_cmds_reports_a_get_competition_detail_cmd_for_all_its_poules(session):
+    from models.hockey_discovery import VangerCmd
+
+    comp, poule = _setup_poule(session, poule_id=8, competition_id=8, team_id=800)
+    comp.hl_comp_id = 22
+    session.add(comp)
+    session.add(VangerCmd(
+        cmd_type="get_competition_detail", params=json.dumps({"comp_id": 22, "label": "Test"}), status="pending",
+    ))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    assert any(c["poule_id"] == 8 for c in result["scheduled_cmds"])

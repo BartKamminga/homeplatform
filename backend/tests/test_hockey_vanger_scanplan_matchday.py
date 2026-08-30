@@ -156,3 +156,55 @@ def test_step_new_or_empty_poules_skips_a_poule_from_an_hl_comp_id_competition(s
     added = _step_new_or_empty_poules(session, "2026-2027", cap=10)
 
     assert added == 0  # poule heeft geen matches, zou anders opgepakt worden
+
+
+# ── item 970: live-check kort na aanvang van de wedstrijd ────────────────
+
+def test_step_active_profiles_triggers_a_one_time_live_check_shortly_after_kickoff(session):
+    now = datetime.utcnow()
+    # Wedstrijd 20 minuten geleden begonnen, nog lang niet afgelopen (90 min
+    # duur) - buiten de matchday-boost (die pas na afloop reageert) en
+    # buiten de dagelijkse fallback (recent gescand). Default
+    # live_check_delay_min=15 -> we zitten nu in het live-check-venster.
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.match_date = (now - timedelta(minutes=20)).isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1
+
+
+def test_live_check_does_not_fire_again_after_it_already_ran(session):
+    now = datetime.utcnow()
+    match_start = now - timedelta(minutes=20)
+    # last_scanned_at ligt NA de wedstrijdstart - de live-check is dus al
+    # eerder deze wedstrijd gedaan, mag niet nogmaals vuren.
+    poule = _setup_active_competition(session, now, last_scanned_at=match_start + timedelta(minutes=1))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.match_date = match_start.isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_live_check_delay_is_configurable(session):
+    now = datetime.utcnow()
+    session.add(AppSetting(key="live_check_delay_min", value="5"))
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.match_date = (now - timedelta(minutes=6)).isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1

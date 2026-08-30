@@ -14,7 +14,9 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.capture import DataCapture
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam
+from models.hockey_discovery import (
+    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
+)
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _team_by_poule
 from services.hockey_vanger_settings import _get_int_setting, get_notify_team_ids
@@ -92,6 +94,7 @@ def get_scan_calendar(
             "poule_id": poule.poule_id,
             "poule_name": poule.name,
             "competition_name": comp.name if comp else None,
+            "hl_comp_id": comp.hl_comp_id if comp else None,
             "is_landelijke": is_landelijke,
             "last_scanned_at": poule.last_scanned_at.isoformat() if poule.last_scanned_at else None,
             "followed": poule.poule_id in followed_poule_ids,
@@ -128,12 +131,68 @@ def get_scan_calendar(
                 "cmd_type": cap.capture_type,
             })
 
+    # item: naast de ECHTE captures (recent_captures, uit DataCapture) ook
+    # laten zien WANNEER een cmd voor deze poule is ingepland (aangemaakt),
+    # ongeacht of Ghost/Scout 'm al heeft opgepakt - eigen kleur in de UI.
+    scheduled_cmds = []
+    for cmd in session.exec(
+        select(VangerCmd)
+        .where(col(VangerCmd.cmd_type).in_(["get_poule", "get_competition_detail"]))
+        .where(col(VangerCmd.status).in_(["pending", "in_progress"]))
+        .where(VangerCmd.created_at >= range_from)
+        .where(VangerCmd.created_at <= range_to)
+    ).all():
+        try:
+            params = json.loads(cmd.params)
+        except (ValueError, TypeError):
+            continue
+        if cmd.cmd_type == "get_poule":
+            poule_id = params.get("poule_id")
+            target_poule_ids = [poule_id] if poule_id in poule_ids_in_result else []
+        else:
+            comp = comp_by_hl_id.get(params.get("comp_id"))
+            target_poule_ids = poule_ids_by_comp_id.get(comp.id, []) if comp else []
+        for poule_id in target_poule_ids:
+            scheduled_cmds.append({
+                "poule_id": poule_id,
+                "scheduled_at": cmd.created_at.isoformat(),
+                "status": cmd.status,
+                "cmd_type": cmd.cmd_type,
+            })
+
+    club_by_ext_id = {c.external_id: c for c in session.exec(select(HockeyClub)).all()}
+    club_captures = []
+    for cap in session.exec(
+        select(DataCapture)
+        .where(col(DataCapture.capture_type).in_(["club_detail", "clubs_list"]))
+        .where(DataCapture.captured_at >= range_from)
+        .where(DataCapture.captured_at <= range_to)
+    ).all():
+        if cap.capture_type == "club_detail":
+            ext_id = cap.external_id.replace("club_detail_", "")
+            club = club_by_ext_id.get(ext_id)
+            club_captures.append({
+                "club_external_id": ext_id,
+                "club_name": club.friendly_name if club else ext_id,
+                "captured_at": cap.captured_at.isoformat(),
+                "cmd_type": "scan_club",
+            })
+        else:
+            club_captures.append({
+                "club_external_id": None,
+                "club_name": "Alle clubs (clublijst)",
+                "captured_at": cap.captured_at.isoformat(),
+                "cmd_type": "get_clubs",
+            })
+
     return {
         "settings": settings,
         "queue_filter": queue_filter,
         "notify_team_ids": notify_team_ids,
         "poules": poule_results,
         "recent_captures": recent_captures,
+        "scheduled_cmds": scheduled_cmds,
+        "club_captures": club_captures,
     }
 
 
