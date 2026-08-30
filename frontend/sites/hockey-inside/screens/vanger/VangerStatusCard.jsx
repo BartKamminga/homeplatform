@@ -127,6 +127,8 @@ const SCAN_PLAN_FIELDS = [
   { key: 'unknown_start_lookahead_days', label: 'Onbekende starttijd - vooruitkijken (dagen)', width: 44 },
   { key: 'unknown_start_fallback_hours', label: 'Onbekende starttijd - hercheck (u)', width: 44 },
   { key: 'schedule_horizon_days', label: 'Scanschema-horizon (dagen)', width: 44 },
+  { key: 'scan_window_start_hour', label: 'Scan-venster start (uur)', width: 40 },
+  { key: 'scan_window_end_hour', label: 'Scan-venster eind (uur)', width: 40 },
 ]
 
 const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)

@@ -35,7 +35,22 @@ from services.hockey_vanger_scanplan import (
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
 DEFAULT_HORIZON_DAYS = 14
-_MANUAL_WEEKLY_HOUR = 9  # willekeurig maar vast weergave-uur voor de wekelijkse niet-autoscan-ronde
+DEFAULT_SCAN_WINDOW_START_HOUR = 9
+DEFAULT_SCAN_WINDOW_END_HOUR = 18
+
+
+def _clamp_to_window(dt: datetime, start_hour: int, end_hour: int) -> datetime:
+    """Niet-wedstrijd-gebonden scan-momenten (dagelijkse fallback, onbekende-
+    starttijd-recheck, wekelijkse niet-autoscan-ronde) horen binnen een
+    ingesteld dagvenster te vallen (default 09:00-18:00) i.p.v. op een
+    willekeurig berekend uur (bv. 03:00) - matchday-burst/live-check blijven
+    ONGEMOEID, die tijden zijn al aan een echte wedstrijd gebonden."""
+    if dt.hour < start_hour:
+        return dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    if dt.hour >= end_hour:
+        next_day = dt + timedelta(days=1)
+        return next_day.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    return dt
 
 
 def _event(target_type: str, target_id: int, cmd_type: str, params: dict, planned_at: datetime, reason: str) -> dict:
@@ -89,7 +104,7 @@ def _poule_matchday_events(
 
 def _poule_unknown_start_events(
     poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
-    lookahead_days: int, fallback_h: int,
+    lookahead_days: int, fallback_h: int, window_start_h: int, window_end_h: int,
 ) -> List[dict]:
     """Rechecks voor wedstrijden met een bekende datum maar nog geen starttijd
     (middernacht-placeholder), zolang er zo'n datum binnen lookahead_days ligt.
@@ -117,13 +132,14 @@ def _poule_unknown_start_events(
         tick += timedelta(hours=fallback_h)
     events = []
     while tick <= horizon_end:
-        events.append(_event("poule", poule.poule_id, "get_poule", params, tick, "unknown_start_recheck"))
+        events.append(_event("poule", poule.poule_id, "get_poule", params, _clamp_to_window(tick, window_start_h, window_end_h), "unknown_start_recheck"))
         tick += timedelta(hours=fallback_h)
     return events
 
 
 def _poule_daily_fallback_events(
     poule: HockeyPoule, team: HockeyTeam, now: datetime, horizon_end: datetime, daily_fallback_h: int,
+    window_start_h: int, window_end_h: int,
 ) -> List[dict]:
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     base = poule.last_scanned_at or now
@@ -132,13 +148,13 @@ def _poule_daily_fallback_events(
         tick += timedelta(hours=daily_fallback_h)
     events = []
     while tick <= horizon_end:
-        events.append(_event("poule", poule.poule_id, "get_poule", params, tick, "daily_fallback"))
+        events.append(_event("poule", poule.poule_id, "get_poule", params, _clamp_to_window(tick, window_start_h, window_end_h), "daily_fallback"))
         tick += timedelta(hours=daily_fallback_h)
     return events
 
 
 def _manual_weekly_events(
-    session: Session, now: datetime, horizon_end: datetime, team_by_poule: Dict[int, HockeyTeam],
+    session: Session, now: datetime, horizon_end: datetime, team_by_poule: Dict[int, HockeyTeam], window_start_h: int,
 ) -> List[dict]:
     manual_comp_ids = set(session.exec(
         select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "manual")
@@ -153,7 +169,7 @@ def _manual_weekly_events(
         ).all()
     }
     events = []
-    day = now.replace(hour=_MANUAL_WEEKLY_HOUR, minute=0, second=0, microsecond=0)
+    day = now.replace(hour=window_start_h, minute=0, second=0, microsecond=0)
     if day < now:
         day += timedelta(days=1)
     while day <= horizon_end:
@@ -247,6 +263,8 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
     daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
     unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
     unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
+    window_start_h      = _get_int_setting(session, "scan_window_start_hour", DEFAULT_SCAN_WINDOW_START_HOUR)
+    window_end_h        = _get_int_setting(session, "scan_window_end_hour", DEFAULT_SCAN_WINDOW_END_HOUR)
 
     events: List[dict] = []
 
@@ -275,10 +293,12 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
                 poule, team, matches, now, horizon_end,
                 match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
             )
-            events += _poule_unknown_start_events(poule, team, matches, now, horizon_end, unknown_lookahead_d, unknown_fallback_h)
-            events += _poule_daily_fallback_events(poule, team, now, horizon_end, daily_fallback_h)
+            events += _poule_unknown_start_events(
+                poule, team, matches, now, horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+            )
+            events += _poule_daily_fallback_events(poule, team, now, horizon_end, daily_fallback_h, window_start_h, window_end_h)
 
-    events += _manual_weekly_events(session, now, horizon_end, team_by_poule)
+    events += _manual_weekly_events(session, now, horizon_end, team_by_poule, window_start_h)
     events += _immediate_events(session, now, get_target_season(session), STEP_MAX_CMDS)
     return events
 

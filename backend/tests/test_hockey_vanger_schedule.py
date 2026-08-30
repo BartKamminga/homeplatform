@@ -285,3 +285,99 @@ def test_promote_ignores_entries_not_yet_due(session):
     assert promoted == 0
     entry = session.exec(select(ScanScheduleEntry)).first()
     assert entry.status == "planned"
+
+
+# ── scan-venster (niet-wedstrijd-gebonden momenten binnen 09:00-18:00) ────
+
+def test_daily_fallback_is_clamped_into_the_scan_window(session):
+    # now = 03:00 zodat de fallback-tick (24u na last_scanned_at, dus ook
+    # 03:00) ruim buiten het standaard venster (09:00-18:00) valt.
+    now = datetime(2026, 9, 1, 3, 0, 0)
+    poule = _setup_active_competition(
+        session, now, last_scanned_at=now - timedelta(hours=24), match_offset_hours=-28, status="final",
+    )
+
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
+    assert fallback["planned_at"].hour == 9
+    assert fallback["planned_at"].date() == now.date()
+
+
+def test_daily_fallback_within_the_window_is_unchanged(session):
+    now = datetime(2026, 9, 1, 3, 0, 0)
+    poule = _setup_active_competition(
+        session, now, last_scanned_at=now - timedelta(hours=17), match_offset_hours=-28, status="final",
+    )  # tick = now - 17u + 24u = 10:00, al binnen het venster
+
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
+    assert fallback["planned_at"].hour == 10
+
+
+def test_daily_fallback_past_the_window_rolls_to_the_next_day(session):
+    now = datetime(2026, 9, 1, 3, 0, 0)
+    poule = _setup_active_competition(
+        session, now, last_scanned_at=now - timedelta(hours=3), match_offset_hours=-28, status="final",
+    )  # tick = now - 3u + 24u = 2026-09-02 00:00 -> na 18:00 het venster ervoor
+
+    events = build_schedule_events(session, now, horizon_days=3)
+
+    fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
+    assert fallback["planned_at"].hour == 9
+    assert fallback["planned_at"].date() == (now + timedelta(days=1)).date()
+
+
+def test_scan_window_is_configurable(session):
+    now = datetime(2026, 9, 1, 3, 0, 0)
+    session.add(AppSetting(key="scan_window_start_hour", value="7"))
+    session.add(AppSetting(key="scan_window_end_hour", value="20"))
+    poule = _setup_active_competition(
+        session, now, last_scanned_at=now - timedelta(hours=24), match_offset_hours=-28, status="final",
+    )
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
+    assert fallback["planned_at"].hour == 7
+
+
+def test_matchday_burst_and_live_check_are_not_clamped_to_the_scan_window(session):
+    """Wedstrijd-gebonden momenten (burst/live-check) hangen aan de echte
+    wedstrijdtijd (kan 's avonds zijn) en mogen NIET verschoven worden naar
+    het scan-venster - alleen niet-wedstrijd-gebonden momenten wel."""
+    now = datetime(2026, 9, 1, 20, 30, 0)  # ruim buiten het standaard venster
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-0.5, status="scheduled")
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    burst = [e for e in events if e["reason"] == "matchday_burst" and e["target_id"] == 444]
+    assert burst
+    assert burst[0]["planned_at"].hour >= 20  # niet verplaatst naar 09:00-18:00
+
+
+def test_manual_weekly_uses_the_configurable_window_start_hour(session):
+    now = datetime(2026, 9, 1, 3, 0, 0)  # dinsdag
+    session.add(AppSetting(key="scan_window_start_hour", value="11"))
+    comp = HockeyCompetition(
+        external_id="test|manual-window", name="Manual Window Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(poule_id=999, name="Poule M", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=99, club_external_id="HH11ZZ0", name="Manual Team", short_name="M1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=999,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    manual = next(e for e in events if e["reason"] == "manual_weekly" and e["target_id"] == 999)
+    assert manual["planned_at"].hour == 11
