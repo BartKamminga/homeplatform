@@ -137,6 +137,7 @@ def get_scan_calendar(
         poule_results.append({
             "poule_id": poule.poule_id,
             "poule_name": poule.name,
+            "competition_id": poule.competition_id,
             "competition_name": comp.name if comp else None,
             "hl_comp_id": comp.hl_comp_id if comp else None,
             "is_landelijke": is_landelijke,

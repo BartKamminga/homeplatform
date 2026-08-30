@@ -112,19 +112,25 @@ export default function DagView({ data, date, onDateChange }) {
   // in tegenstelling tot de landelijke groep hierboven worden deze poules
   // ECHT los gescand (elk hun eigen get_poule-cmd); dit is dus puur
   // leesbaarheid, geen samengevoegde-scan-rij zoals bij landelijk.
+  // Groeperen op competition_id, NIET op competition_name: dezelfde
+  // generieke naam ("Jongens O18 Voorcompetitie") wordt door meerdere
+  // losse competities (verschillende klasses/seizoenen) gebruikt - op naam
+  // groeperen gooide die dan onterecht op 1 hoop (bv. "Poule A" van 1e
+  // klasse en "Poule A" van 2e klasse leken dan dezelfde rij).
   const landelijkeRows = rows.filter(r => r.poule.is_landelijke)
   const byCompetition = new Map()
   for (const row of rows) {
     if (row.poule.is_landelijke) continue
-    const key = row.poule.competition_name || '(onbekende competitie)'
+    const key = row.poule.competition_id ?? row.poule.competition_name ?? '(onbekende competitie)'
     if (!byCompetition.has(key)) byCompetition.set(key, [])
     byCompetition.get(key).push(row)
   }
   const renderItems = landelijkeRows.map(row => ({ type: 'row', row, grouped: false }))
-  for (const [competitionName, groupRows] of byCompetition) {
+  for (const groupRows of byCompetition.values()) {
     groupRows.sort((a, b) => (a.poule.poule_name || '').localeCompare(b.poule.poule_name || ''))
     if (groupRows.length > 1) {
-      renderItems.push({ type: 'header', label: competitionName, count: groupRows.length })
+      const label = groupRows[0].poule.competition_name || '(onbekende competitie)'
+      renderItems.push({ type: 'header', label, count: groupRows.length })
     }
     for (const row of groupRows) renderItems.push({ type: 'row', row, grouped: groupRows.length > 1 })
   }

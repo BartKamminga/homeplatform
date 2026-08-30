@@ -207,6 +207,25 @@ def test_active_profile_poule_is_tagged_with_its_scan_profile(session):
     assert entry["scan_profile"] == "active"
 
 
+def test_two_competitions_with_the_same_name_are_reported_with_different_competition_ids(session):
+    """Regressie: DagView groepeerde regelmatige poules eerst op
+    competition_name, maar meerdere losse competities (verschillende
+    klasses/seizoenen) delen vaak dezelfde generieke naam - de front-end
+    moet op competition_id kunnen groeperen om ze niet op 1 hoop te gooien."""
+    _setup_poule(session, poule_id=15, competition_id=15, team_id=1500)
+    comp16, _poule16 = _setup_poule(session, poule_id=16, competition_id=16, team_id=1600)
+    comp16.name = "Comp 15"  # zelfde naam als competitie 15, maar een andere rij
+    session.add(comp16)
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    p15 = next(p for p in result["poules"] if p["poule_id"] == 15)
+    p16 = next(p for p in result["poules"] if p["poule_id"] == 16)
+    assert p15["competition_name"] == p16["competition_name"]
+    assert p15["competition_id"] != p16["competition_id"]
+
+
 def test_manual_profile_poule_with_hl_comp_id_is_excluded(session):
     comp, poule = _setup_poule(session, poule_id=12, competition_id=12, team_id=1200, published=False)
     comp.hl_comp_id = 33
