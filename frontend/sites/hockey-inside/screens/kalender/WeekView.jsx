@@ -69,10 +69,13 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     // scheduled_cmds hierboven komt uit de ECHTE vanger-queue en is voor
     // toekomstige dagen altijd leeg (er is nog niets gepromoveerd), dus dit
     // is de enige manier om "hoeveel scans gaan we naar verwachting doen"
-    // voor een dag die nog moet komen te beantwoorden.
-    const schemaPlanned = (data.schedule_entries || [])
-      .filter(e => e.status === 'planned' && sameDay(new Date(e.planned_at), day)).length
-    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned }
+    // voor een dag die nog moet komen te beantwoorden. Uitgesplitst per
+    // reason (hover op de ◇-regel) zodat je ziet WELK soort scan het is.
+    const schemaByReason = reasonCountsFor(data.schedule_entries, d => sameDay(d, day))
+    const schemaPlanned = Object.values(schemaByReason).reduce((a, b) => a + b, 0)
+    const schemaTitle = REASON_LABELS.filter(([key]) => schemaByReason[key])
+      .map(([key, label]) => `${label}: ${schemaByReason[key]}`).join('\n')
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle }
   })
 
   const weekEnd = new Date(monday)
@@ -107,7 +110,7 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {days.map((day, i) => {
-          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned } = countsByDay[i]
+          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle } = countsByDay[i]
           return (
             <div
               key={i}
@@ -134,7 +137,10 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
                 </div>
               )}
               {!!schemaPlanned && (
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                <div
+                  title={schemaTitle}
+                  style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2, cursor: 'help', textDecoration: 'underline dotted' }}
+                >
                   ◇ {schemaPlanned} gepland
                 </div>
               )}

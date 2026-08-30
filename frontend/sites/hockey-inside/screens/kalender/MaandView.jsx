@@ -64,10 +64,13 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
     const pending = scheduled.length - executed
     // Scanschema (item 1015): zie WeekView.jsx voor dezelfde toelichting -
     // scheduled_cmds is voor toekomstige dagen altijd leeg, dit is de
-    // vooruitblik uit het vooraf berekende schema.
-    const schemaPlanned = (data.schedule_entries || [])
-      .filter(e => e.status === 'planned' && sameDay(new Date(e.planned_at), day)).length
-    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned }
+    // vooruitblik uit het vooraf berekende schema. Uitgesplitst per reason
+    // (hover op de ◇-regel).
+    const schemaByReason = reasonCountsFor(data.schedule_entries, d => sameDay(d, day))
+    const schemaPlanned = Object.values(schemaByReason).reduce((a, b) => a + b, 0)
+    const schemaTitle = REASON_LABELS.filter(([key]) => schemaByReason[key])
+      .map(([key, label]) => `${label}: ${schemaByReason[key]}`).join('\n')
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle }
   }
 
   const gridEnd = new Date(gridStart)
@@ -105,7 +108,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {cells.map((day, i) => {
-          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned } = countFor(day)
+          const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaTitle } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
           return (
@@ -135,7 +138,10 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
                 </div>
               )}
               {!!schemaPlanned && (
-                <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                <div
+                  title={schemaTitle}
+                  style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1, cursor: 'help', textDecoration: 'underline dotted' }}
+                >
                   ◇{schemaPlanned}
                 </div>
               )}
