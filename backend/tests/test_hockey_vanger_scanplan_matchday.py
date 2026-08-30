@@ -398,3 +398,55 @@ def test_manual_profiles_weekly_skips_a_landelijke_competition(session):
     added = _step_manual_profiles_weekly(session, now, cap=10)
 
     assert added == 0  # al gedekt door _step_landelijke_competitions
+
+
+# ── reason wordt getagd op de aangemaakte VangerCmd (scan-historie) ──────
+
+def test_matchday_burst_cmd_is_tagged_with_its_reason(session):
+    now = datetime.utcnow()
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+
+    _step_active_profiles(session, now, cap=10)
+
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "matchday_burst"
+
+
+def test_live_check_cmd_is_tagged_with_its_reason(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.match_date = (now - timedelta(minutes=20)).isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    _step_active_profiles(session, now, cap=10)
+
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "live_check"
+
+
+def test_daily_fallback_cmd_is_tagged_with_its_reason(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.status = "final"  # burst uitgeschakeld, puur de dagelijkse fallback testen
+    session.add(match)
+    session.commit()
+
+    _step_active_profiles(session, now, cap=10)
+
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "daily_fallback"
+
+
+def test_manual_weekly_cmd_is_tagged_with_its_reason(session):
+    comp, poule = _setup_manual_competition(session, comp_id_hint=10, last_scanned_at=datetime.utcnow() - timedelta(days=10))
+    target_weekday = _manual_scan_weekday(comp.id)
+    now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    _step_manual_profiles_weekly(session, now, cap=10)
+
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "manual_weekly"

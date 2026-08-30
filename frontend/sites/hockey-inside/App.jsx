@@ -13,6 +13,14 @@ export default function App() {
   const [tab,              setTab]              = useState('publicaties')
   const [isAdmin,          setIsAdmin]          = useState(false)
   const [selectedDistrict, setSelectedDistrict] = useState(null)
+  const [debugFilter,      setDebugFilter]      = useState(null)
+
+  // Kalender -> Debug-tab (scanschema) doorlinken met de dag/poule waar je
+  // vandaan komt al ingevuld, i.p.v. zelf opnieuw te moeten filteren.
+  function navigateToDebug(filter) {
+    setDebugFilter(filter)
+    setTab('debug')
+  }
 
   useEffect(() => {
     getMe().then(me => setIsAdmin(me?.groups?.includes('admins') ?? false)).catch(() => {})
@@ -58,10 +66,10 @@ export default function App() {
       {tab === 'kaart'       && <DistrictKaartTab onNavigateToDistrict={dist => { setSelectedDistrict(dist); setTab('discovery') }} />}
       {tab === 'discovery'   && <DiscoveryTab initialDistrict={selectedDistrict} />}
       {tab === 'vanger'      && <VangerTab />}
-      {tab === 'kalender'    && <KalenderTab />}
+      {tab === 'kalender'    && <KalenderTab onNavigateToDebug={navigateToDebug} />}
       {tab === 'stats'       && <StatsTab />}
       {tab === 'archief'     && <ArchiefTab />}
-      {tab === 'debug'       && <QueueDebugTab />}
+      {tab === 'debug'       && <QueueDebugTab initialFilter={debugFilter} onFilterConsumed={() => setDebugFilter(null)} />}
     </div>
   )
 }

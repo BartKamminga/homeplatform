@@ -23,10 +23,12 @@ function fmtTime(iso) {
 // toekomstgerichte planning (Fase A, schaduw-modus: stuurt de echte
 // uitvoering nog niet aan). Los van de echte uitvoeringsqueue (VangerCmd,
 // zie VangerQueueDebugPanel.jsx).
-export default function ScheduleDebugPanel() {
-  const [status, setStatus] = useState('planned')
+export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) {
+  const [status, setStatus] = useState('')
   const [reason, setReason] = useState('')
   const [targetType, setTargetType] = useState('')
+  const [targetId, setTargetId] = useState(null)
+  const [dateFilter, setDateFilter] = useState(null)
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
   const [data, setData] = useState({ total: 0, items: [] })
@@ -34,16 +36,37 @@ export default function ScheduleDebugPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // Doorgelinkt vanuit de Kalender-tab (🔍 debug op een poule-rij) - vult
+  // target_type/target_id/date alvast in, status wordt bewust leeg gelaten
+  // (je wilt dan zowel planned als al gepromoveerde momenten voor die dag zien).
+  useEffect(() => {
+    if (!initialFilter) return
+    setTargetType(initialFilter.target_type || '')
+    setTargetId(initialFilter.target_id ?? null)
+    setDateFilter(initialFilter.date || null)
+    setStatus('')
+    setReason('')
+    setSearch('')
+    setOffset(0)
+    onFilterConsumed?.()
+  }, [initialFilter, onFilterConsumed])
+
   const load = useCallback(() => {
     setLoading(true)
-    browseSchedule({ status, reason, target_type: targetType, search, limit: PAGE_SIZE, offset })
+    browseSchedule({ status, reason, target_type: targetType, target_id: targetId, date: dateFilter, search, limit: PAGE_SIZE, offset })
       .then(d => { setData(d); setError('') })
       .catch(e => setError(e.message || 'Laden mislukt'))
       .finally(() => setLoading(false))
-  }, [status, reason, targetType, search, offset])
+  }, [status, reason, targetType, targetId, dateFilter, search, offset])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { getScheduleSummary().then(setSummary).catch(() => {}) }, [])
+
+  function clearLinkedFilter() {
+    setTargetId(null)
+    setDateFilter(null)
+    setOffset(0)
+  }
 
   function updateFilter(setter) {
     return e => { setter(e.target.value); setOffset(0) }
@@ -64,6 +87,17 @@ export default function ScheduleDebugPanel() {
           {Object.entries(summary.by_reason_planned).map(([k, v]) => (
             <span key={k}>{k}: <strong>{v}</strong></span>
           ))}
+        </div>
+      )}
+
+      {(targetId != null || dateFilter) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--color-surface-2)', borderRadius: 8, fontSize: 12 }}>
+          <span>Doorgelinkt vanuit de Kalender:{' '}
+            {targetId != null && <strong>{targetType} #{targetId}</strong>}
+            {targetId != null && dateFilter && ' · '}
+            {dateFilter && <strong>{dateFilter}</strong>}
+          </span>
+          <button onClick={clearLinkedFilter} style={ghostBtn}>Wis</button>
         </div>
       )}
 

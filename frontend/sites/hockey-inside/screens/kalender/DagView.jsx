@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toDateStr } from './KalenderTab.jsx'
 
 // Gevalideerde categorale kleuren (dataviz-skill, validate_palette.js) -
 // blauw=wedstrijd, oranje=burst-scanvenster. Los van het thema omdat dit een
@@ -22,7 +23,7 @@ function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-export default function DagView({ data, date, onDateChange }) {
+export default function DagView({ data, date, onDateChange, onNavigateToDebug }) {
   const [tooltip, setTooltip] = useState(null)
   const { settings, recent_captures: recentCaptures } = data
 
@@ -251,14 +252,29 @@ export default function DagView({ data, date, onDateChange }) {
             </div>
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>
               {poule.is_landelijke
-                ? `${poule.memberPouleIds.length} poules samen · 1 get_competition_detail-call ververst ze allemaal · elke ${settings.landelijke_comp_scan_hours}u`
+                ? `${poule.memberPouleIds.length} poules samen`
                 : (item.grouped ? '' : poule.competition_name)}
             </div>
-            <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
-              {isAutoscan
-                ? `${scanCount} scan${scanCount === 1 ? '' : 's'} gepland vandaag`
-                : 'niet-autoscan · wekelijkse ronde (zie onderaan)'}
-            </div>
+            {onNavigateToDebug && (
+              <span
+                onClick={() => onNavigateToDebug({
+                  target_type: poule.is_landelijke ? 'competition' : 'poule',
+                  target_id: poule.is_landelijke ? poule.hl_comp_id : poule.poule_id,
+                  date: toDateStr(date),
+                })}
+                title="Bekijk het scanschema voor deze poule/dag in de Debug-tab"
+                style={{ fontSize: 9, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                🔍 debug
+              </span>
+            )}
+            {!poule.is_landelijke && (
+              <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                {isAutoscan
+                  ? `${scanCount} scan${scanCount === 1 ? '' : 's'} gepland vandaag`
+                  : 'niet-autoscan · wekelijkse ronde (zie onderaan)'}
+              </div>
+            )}
             {nextFallbackScan && (
               <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
                 burst gestopt · volgende scan (dagelijkse fallback) {fmtTime(nextFallbackScan)} {nextFallbackScan.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}

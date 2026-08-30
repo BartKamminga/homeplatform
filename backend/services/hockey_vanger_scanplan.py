@@ -124,6 +124,7 @@ def _step_club_list(session: Session, now: datetime) -> int:
         cmd_type="get_clubs",
         params=json.dumps({"label": "Alle clubs (scan-plan)"}),
         status="pending",
+        reason="club_list",
     ))
     return 1
 
@@ -153,6 +154,7 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
             cmd_type="get_poule",
             params=json.dumps({"poule_id": pid, "team_id": t.team_id, "label": t.name}),
             status="pending",
+            reason="new_or_empty",
         ))
         added += 1
 
@@ -187,6 +189,7 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
             cmd_type="get_poule",
             params=json.dumps({"poule_id": p.poule_id, "team_id": t.team_id, "label": t.name + " — " + (p.name or "")}),
             status="pending",
+            reason="new_or_empty",
         ))
         added += 1
     return added
@@ -226,6 +229,7 @@ def _step_club_scan(session: Session, now: datetime, cap: int) -> int:
             cmd_type="scan_club",
             params=json.dumps({"external_id": ext_id, "label": club.friendly_name or club.name}),
             status="pending",
+            reason="club_scan",
         ))
         added += 1
     return added
@@ -268,6 +272,7 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
             cmd_type="get_competition_detail",
             params=json.dumps({"comp_id": comp.hl_comp_id, "label": comp.name}),
             status="pending",
+            reason="landelijke_cadence",
         ))
         queued_comp_ids.add(comp.hl_comp_id)
         added += 1
@@ -322,6 +327,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
             continue
 
         due = False
+        reason = None  # welk due-blok hieronder 'm getriggerd heeft - voor de scan-historie-telling
         if matchday_enabled:
             matches = session.exec(
                 select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
@@ -363,9 +369,13 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                 if burst_active and now >= min(known_ends):
                     cutoff = now - timedelta(minutes=matchday_interval_m)
                     due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+                    if due:
+                        reason = "matchday_burst"
             elif has_unknown_today:
                 cutoff = now - timedelta(minutes=matchday_interval_m)
                 due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+                if due:
+                    reason = "matchday_burst"
 
             # item 970: kort na aanvang van een wedstrijd 1x checken of hij
             # live-status heeft gekregen (niet elke wedstrijd heeft dat, item
@@ -378,6 +388,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                     check_window_end = check_at + timedelta(minutes=matchday_interval_m)
                     if check_at <= now < check_window_end and (poule.last_scanned_at is None or poule.last_scanned_at < start):
                         due = True
+                        reason = "live_check"
                         break
 
             # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
@@ -390,10 +401,14 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                 if any(now.date() <= d <= lookahead_end for d in unknown_start_dates):
                     cutoff = now - timedelta(hours=unknown_start_fallback_h)
                     due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+                    if due:
+                        reason = "unknown_start_recheck"
 
         if not due:
             cutoff = now - timedelta(hours=daily_fallback_h)
             due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+            if due:
+                reason = "daily_fallback"
 
         if not due:
             continue
@@ -405,6 +420,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
             cmd_type="get_poule",
             params=json.dumps({"poule_id": poule.poule_id, "team_id": t.team_id, "label": t.name + " — " + (poule.name or "")}),
             status="pending",
+            reason=reason,
         ))
         added += 1
     return added
@@ -470,6 +486,7 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
             cmd_type="get_poule",
             params=json.dumps({"poule_id": poule.poule_id, "team_id": t.team_id, "label": t.name + " — " + (poule.name or "")}),
             status="pending",
+            reason="manual_weekly",
         ))
         added += 1
     return added

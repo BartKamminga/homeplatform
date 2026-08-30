@@ -26,6 +26,7 @@ from services.hockey_vanger_ingest import (
     _call_clubs_list, _call_competition_detail, _call_competitions_list,
 )
 from services.hockey_poule_capture_core import notify_finished_matches
+from services.hockey_vanger_scan_history import record_scan_outcome
 from services.hockey_vanger_settings import get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
 
@@ -303,11 +304,13 @@ class CmdAddIn(BaseModel):
     params:   Dict[str, Any]
 
 
-def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any], reason: Optional[str] = None) -> Dict[str, Any]:
     """Dedupt tegen bestaande pending/in_progress cmd's van hetzelfde type+doel en
     voegt zo nodig toe. Losgetrokken van de route zodat andere plekken (bv. de
     agent-control result-endpoint) dezelfde dedup-logica hergebruiken i.p.v. 'm
-    te dupliceren."""
+    te dupliceren. reason = zelfde waarden als ScanScheduleEntry.reason, alleen
+    voor de scan-totalen-telling (services/hockey_vanger_scan_history.py) -
+    None voor handmatige/ad-hoc toevoegingen."""
     valid = ("get_poule", "scan_club", "get_clubs", "get_competition_detail", "get_competitions")
     if cmd_type not in valid:
         return {"added": False, "reason": "invalid_cmd_type"}
@@ -328,6 +331,7 @@ def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any]) -> D
             cmd_type=cmd_type,
             params=json.dumps({"label": params.get("label", default_label)}),
             created_at=now,
+            reason=reason,
         ))
         session.commit()
         return {"added": True}
@@ -342,7 +346,7 @@ def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any]) -> D
         poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == params.get("poule_id"))).first()
         comp = session.get(HockeyCompetition, poule.competition_id) if poule and poule.competition_id else None
         if comp and comp.hl_comp_id:
-            return add_vanger_cmd(session, "get_competition_detail", {"comp_id": comp.hl_comp_id, "label": comp.name})
+            return add_vanger_cmd(session, "get_competition_detail", {"comp_id": comp.hl_comp_id, "label": comp.name}, reason=reason)
 
     key_field = {"get_poule": "poule_id", "scan_club": "external_id", "get_competition_detail": "comp_id"}.get(cmd_type)
     target_id = params.get(key_field)
@@ -355,7 +359,7 @@ def add_vanger_cmd(session: Session, cmd_type: str, params: Dict[str, Any]) -> D
         if e.cmd_type == cmd_type and ep.get(key_field) == target_id:
             return {"added": False, "reason": "already_queued"}
 
-    session.add(VangerCmd(cmd_type=cmd_type, params=json.dumps(params), created_at=now))
+    session.add(VangerCmd(cmd_type=cmd_type, params=json.dumps(params), created_at=now, reason=reason))
     session.commit()
     return {"added": True}
 
@@ -483,6 +487,7 @@ def post_cmd_result(
         cmd.error       = body.error
         cmd.finished_at = now
         session.add(cmd)
+        record_scan_outcome(session, cmd.reason, success=False, when=now)
 
         if cmd.cmd_type == "get_poule" and not body.error:
             poule_id = params.get("poule_id")
@@ -557,6 +562,7 @@ def post_cmd_result(
         cmd.finished_at    = now
         cmd.result_summary = json.dumps(summary_data)
         session.add(cmd)
+        record_scan_outcome(session, cmd.reason, success=False, when=now)
         session.commit()
         return {"ok": False, "status": "failed", "error": str(e)}
 
@@ -576,6 +582,7 @@ def post_cmd_result(
     cmd.finished_at    = now
     cmd.result_summary = json.dumps(summary_data)
     session.add(cmd)
+    record_scan_outcome(session, cmd.reason, success=True, when=now)
     session.commit()
     notify_finished_matches(session, newly_finished)
     _smart_scan_try_advance(session)

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlmodel import select
 
 from models.capture import DataCapture
-from models.hockey_discovery import HockeyTeam, VangerCmd
+from models.hockey_discovery import HockeyTeam, ScanHistoryDaily, VangerCmd
 from routers.hockey_vanger_cmd_queue import CmdResultIn, post_cmd_result
 
 
@@ -50,6 +50,20 @@ def test_missing_raw_without_error_marks_cmd_skipped_and_confirms_no_new_poule(s
     assert team.no_new_poule_confirmed is True
 
 
+def test_error_result_records_a_failed_scan_history_entry(session):
+    cmd = _pending_cmd("get_poule", {"poule_id": 1}, reason="daily_fallback")
+    session.add(cmd)
+    session.commit()
+    session.refresh(cmd)
+
+    post_cmd_result(cmd.id, CmdResultIn(error="timeout"), session=session, _=None)
+
+    row = session.exec(select(ScanHistoryDaily)).first()
+    assert row.reason == "daily_fallback"
+    assert row.outcome == "failed"
+    assert row.count == 1
+
+
 def test_unknown_cmd_id_raises_404(session):
     with pytest.raises(HTTPException) as exc:
         post_cmd_result(999999, CmdResultIn(raw={}), session=session, _=None)
@@ -81,6 +95,25 @@ def test_get_poule_result_captures_data_and_archives_it(session):
     capture = session.exec(select(DataCapture).where(DataCapture.external_id == "poule_capture_100")).first()
     assert capture is not None
     assert json.loads(capture.meta)["competition"] == "Test Comp"
+
+
+def test_get_poule_result_records_a_successful_scan_history_entry(session):
+    raw = {"data": {"data": {"poule": {
+        "id": 102, "name": "Poule C",
+        "competition": {"name": "Test Comp 3", "subcompetition": {"class": "1e klasse"}},
+        "standings": [], "matches": [],
+    }}}}
+    cmd = _pending_cmd("get_poule", {"poule_id": 102, "team_id": 1, "label": "Team A"}, reason="matchday_burst")
+    session.add(cmd)
+    session.commit()
+    session.refresh(cmd)
+
+    post_cmd_result(cmd.id, CmdResultIn(raw=raw, session_id="sess-history"), session=session, _=None)
+
+    row = session.exec(select(ScanHistoryDaily)).first()
+    assert row.reason == "matchday_burst"
+    assert row.outcome == "success"
+    assert row.count == 1
 
 
 def test_get_poule_result_does_not_duplicate_archive_for_same_session(session):

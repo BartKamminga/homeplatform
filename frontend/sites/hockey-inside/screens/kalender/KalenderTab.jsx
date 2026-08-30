@@ -58,7 +58,7 @@ function computeRange(view, date) {
 // aggregeren client-side uit dezelfde dataset i.p.v. aparte endpoints per
 // zoom-niveau - maar wel met een bereik dat bij de weergave past (zie
 // computeRange), anders schaalt dit niet met het aantal poules.
-export default function KalenderTab() {
+export default function KalenderTab({ onNavigateToDebug }) {
   const [view, setView] = useState('dag')
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [data, setData] = useState(null)
@@ -116,7 +116,7 @@ export default function KalenderTab() {
         {error && <span style={{ fontSize: 11, color: 'var(--color-danger)' }}>{error}</span>}
       </div>
 
-      {data && view === 'dag'   && <DagView data={data} date={selectedDate} onDateChange={setSelectedDate} />}
+      {data && view === 'dag'   && <DagView data={data} date={selectedDate} onDateChange={setSelectedDate} onNavigateToDebug={onNavigateToDebug} />}
       {data && view === 'week'  && <WeekView data={data} date={selectedDate} onDateChange={setSelectedDate} onSelectDay={goToDay} />}
       {data && view === 'maand' && <MaandView data={data} date={selectedDate} onDateChange={setSelectedDate} onSelectDay={goToDay} />}
       {data && view === 'jaar'  && <JaarView data={data} onSelectMonth={goToMonth} />}

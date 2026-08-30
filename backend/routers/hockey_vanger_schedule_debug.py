@@ -3,6 +3,7 @@ verwarren met de echte uitvoeringsqueue (VangerCmd, zie
 hockey_vanger_cmd_queue_debug.py). Puur lezend, muteert niets."""
 
 import json
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends
@@ -46,6 +47,8 @@ def browse_schedule(
     status: Optional[str] = None,
     reason: Optional[str] = None,
     target_type: Optional[str] = None,
+    target_id: Optional[int] = None,
+    date: Optional[str] = None,
     search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
@@ -54,7 +57,9 @@ def browse_schedule(
 ):
     """Filterbare, gepagineerde lijst van het scanschema (ScanScheduleEntry) -
     de vooraf berekende, toekomstgerichte planning (Fase A, schaduw-modus),
-    los van de echte uitvoeringsqueue (VangerCmd)."""
+    los van de echte uitvoeringsqueue (VangerCmd). date/target_id maken het
+    mogelijk om vanuit de Kalender-tab direct door te linken naar "wat staat
+    er gepland voor DEZE dag/poule" (item: link vanaf de kalender-rij)."""
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
 
@@ -65,6 +70,15 @@ def browse_schedule(
         query = query.where(ScanScheduleEntry.reason == reason)
     if target_type in VALID_TARGET_TYPES:
         query = query.where(ScanScheduleEntry.target_type == target_type)
+    if target_id is not None:
+        query = query.where(ScanScheduleEntry.target_id == target_id)
+    if date:
+        try:
+            day_start = datetime.fromisoformat(date)
+            day_end = day_start + timedelta(days=1)
+            query = query.where(ScanScheduleEntry.planned_at >= day_start).where(ScanScheduleEntry.planned_at < day_end)
+        except ValueError:
+            pass
     query = query.order_by(col(ScanScheduleEntry.planned_at).asc())
 
     matching = session.exec(query).all()

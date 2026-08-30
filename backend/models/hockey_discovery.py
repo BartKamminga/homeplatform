@@ -144,6 +144,26 @@ class VangerCmd(SQLModel, table=True):
     finished_at:    Optional[datetime] = None
     error:          Optional[str] = None
     result_summary: Optional[str] = None  # JSON: {raw_bytes, duration_ms, teams, matches_total, ...}
+    reason:         Optional[str] = Field(default=None, index=True)  # zelfde waarden als ScanScheduleEntry.reason,
+                                                                       # None = handmatig/ad-hoc toegevoegd
+
+
+class ScanHistoryDaily(SQLModel, table=True):
+    """Permanente, nooit-opgeruimde telling van ECHT afgehandelde scans (item:
+    'zowel de vanger-queue als het archief zijn te clearen, dus geen van
+    beide is een betrouwbare historie'). Bijgewerkt in post_cmd_result op het
+    moment dat een resultaat binnenkomt (succes of mislukt) - dus onafhankelijk
+    van of de onderliggende VangerCmd/DataCapture-rij later wordt gewist."""
+    __tablename__ = "scan_history_daily"
+    __table_args__ = (
+        UniqueConstraint("date", "reason", "outcome", name="ux_scan_history_daily_date_reason_outcome"),
+    )
+
+    id:      int = Field(default=None, primary_key=True)
+    date:    str = Field(index=True)  # "YYYY-MM-DD", UTC
+    reason:  str = Field(index=True)  # zelfde waarden als VangerCmd.reason, "onbekend" als er geen reason bekend is
+    outcome: str = Field(index=True)  # success | failed
+    count:   int = Field(default=0)
 
 
 class ScanScheduleEntry(SQLModel, table=True):

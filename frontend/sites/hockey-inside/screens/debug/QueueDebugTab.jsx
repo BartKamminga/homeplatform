@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ScheduleDebugPanel from './ScheduleDebugPanel.jsx'
 import VangerQueueDebugPanel from './VangerQueueDebugPanel.jsx'
 
@@ -7,8 +7,17 @@ import VangerQueueDebugPanel from './VangerQueueDebugPanel.jsx'
 // berekende planning, Fase A schaduw-modus) en de echte uitvoeringsqueue
 // (VangerCmd - wat Ghost/Scout daadwerkelijk afwerkt). Scanschema is de
 // default sub-tab (dat is waar de meeste debug-vragen over gaan).
-export default function QueueDebugTab() {
+//
+// initialFilter: meegegeven vanuit de Kalender-tab (🔍 debug-link op een
+// poule-rij) - forceert de Scanschema-sub-tab met dat filter alvast
+// ingevuld. onFilterConsumed leegt de state in App.jsx zodat een latere,
+// handmatige tab-wissel niet opnieuw hetzelfde filter opdringt.
+export default function QueueDebugTab({ initialFilter, onFilterConsumed }) {
   const [view, setView] = useState('schedule')
+
+  useEffect(() => {
+    if (initialFilter) setView('schedule')
+  }, [initialFilter])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -29,7 +38,7 @@ export default function QueueDebugTab() {
         ))}
       </div>
 
-      {view === 'schedule' && <ScheduleDebugPanel />}
+      {view === 'schedule' && <ScheduleDebugPanel initialFilter={initialFilter} onFilterConsumed={onFilterConsumed} />}
       {view === 'queue' && <VangerQueueDebugPanel />}
     </div>
   )

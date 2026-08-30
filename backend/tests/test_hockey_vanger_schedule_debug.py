@@ -116,6 +116,43 @@ def test_browse_pagination(session):
     assert page1["items"][0]["target_id"] != page2["items"][0]["target_id"]
 
 
+def test_browse_filters_by_target_id(session):
+    from datetime import datetime
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444}), planned_at=now, reason="daily_fallback",
+    ))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=555, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 555}), planned_at=now, reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(target_id=444, session=session, _=None)
+
+    assert result["total"] == 1
+    assert result["items"][0]["target_id"] == 444
+
+
+def test_browse_filters_by_date(session):
+    from datetime import datetime, timedelta
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=1, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 1}), planned_at=datetime(2026, 9, 5, 10, 0, 0), reason="daily_fallback",
+    ))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=2, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 2}), planned_at=datetime(2026, 9, 6, 10, 0, 0), reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(date="2026-09-05", session=session, _=None)
+
+    assert result["total"] == 1
+    assert result["items"][0]["target_id"] == 1
+
+
 def test_summary_counts_by_status_and_reason(session):
     from datetime import datetime
     now = datetime.utcnow()
