@@ -176,6 +176,23 @@ def test_step_new_or_empty_poules_skips_a_poule_from_an_hl_comp_id_competition(s
     assert added == 0  # poule heeft geen matches, zou anders opgepakt worden
 
 
+def test_step_new_or_empty_poules_skips_a_team_outside_the_queue_filter(session):
+    """Bart, 30-08-2026: 'dit zijn allemaal senioren poules' - new_or_empty
+    moet het actieve queue-filter (default Junioren-only) al bij het
+    AANMAKEN respecteren, niet pas bij promotie/pickup - anders vullen
+    buiten-filter-ontdekkingen dezelfde cap als de echte ontdekkingen en
+    blijven ze als nutteloze clutter in de queue staan."""
+    session.add(HockeyTeam(
+        team_id=77, club_external_id="HH77ZZ0", name="Senior Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=999999,
+    ))
+    session.commit()
+
+    added = _step_new_or_empty_poules(session, "2026-2027", cap=10)
+
+    assert added == 0
+
+
 # ── item 970: live-check kort na aanvang van de wedstrijd ────────────────
 
 def test_step_active_profiles_triggers_a_one_time_live_check_shortly_after_kickoff(session):

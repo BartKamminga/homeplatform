@@ -29,7 +29,7 @@ from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
-from services.hockey_vanger_filters import _is_scoreless_youth
+from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
     STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _manual_scan_weekday, _match_dt_info,
     _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _team_by_poule, _team_for_poule,
@@ -381,11 +381,18 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
     _step_club_scan/_step_club_list blijft ongewijzigd bij de echte stappen).
     Zelfde cap als de echte stappen (STEP_MAX_CMDS) - zonder cap zou een
     volle acc-dataset (roadmap-melding: 900 kandidaten) in 1 rebuild+promote-
-    cyclus ineens gequeued worden i.p.v. geleidelijk over meerdere passes."""
+    cyclus ineens gequeued worden i.p.v. geleidelijk over meerdere passes.
+
+    Alleen teams BINNEN het actieve queue-filter (Bart, 30-08-2026: 'dit
+    zijn allemaal senioren poules') - zelfde check als _step_new_or_empty_
+    poules, anders vult een reeks buiten-filter-ontdekkingen dezelfde cap
+    als de echte (Junioren-)ontdekkingen en blijft het als nutteloze
+    clutter in het scanschema staan."""
     events: List[dict] = []
     queued_poule_ids = _pending_poule_ids(session)
     captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
     seen: set = set()
+    ages, club, cats, hts, genders = _get_queue_filter(session)
 
     for t in session.exec(
         select(HockeyTeam)
@@ -396,6 +403,8 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
         if len(events) >= cap:
             break
         if _is_scoreless_youth(t.short_name):
+            continue
+        if not _cmd_matches_filter(session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders):
             continue
         pid = t.recent_poule_id
         if pid in captured_ids or pid in queued_poule_ids or pid in seen:
@@ -697,7 +706,6 @@ def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STE
     add_vanger_cmd rechtstreeks aan, buiten het scanschema om, en blijven
     dus het filter omzeilen zoals bedoeld."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
-    from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
 
     ages, club, cats, hts, genders = _get_queue_filter(session)
 

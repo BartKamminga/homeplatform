@@ -19,7 +19,7 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 from models.settings import AppSetting
-from services.hockey_vanger_filters import _is_scoreless_youth
+from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
 STEP_MAX_CMDS = 10
@@ -188,10 +188,17 @@ def _step_club_list(session: Session, now: datetime) -> int:
 
 
 def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) -> int:
+    """Nieuwe/lege poules - alleen voor teams die BINNEN het actieve queue-
+    filter vallen (Bart, 30-08-2026: 'dit zijn allemaal senioren poules' -
+    zonder deze check consumeerde een reeks Senioren-ontdekkingen dezelfde
+    cap als de echte Junioren-ontdekkingen, en bleven ze als nutteloze
+    clutter in de queue/het scanschema staan totdat een latere promotie-
+    pass ze alsnog afwees)."""
     added = 0
     queued_poule_ids = _pending_poule_ids(session)
     captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
     seen: set = set()
+    ages, club, cats, hts, genders = _get_queue_filter(session)
 
     teams = session.exec(
         select(HockeyTeam)
@@ -203,6 +210,8 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
         if added >= cap:
             return added
         if _is_scoreless_youth(t.short_name):
+            continue
+        if not _cmd_matches_filter(session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders):
             continue
         pid = t.recent_poule_id
         if pid in captured_ids or pid in queued_poule_ids or pid in seen:
@@ -242,6 +251,8 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
             continue
         t = team_by_poule.get(p.poule_id)
         if not t:
+            continue
+        if not _cmd_matches_filter(session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders):
             continue
         session.add(VangerCmd(
             cmd_type="get_poule",

@@ -789,18 +789,22 @@ def test_immediate_events_are_capped_like_the_real_steps(session):
     session.commit()
     session.refresh(comp)
     session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    # category_group_name="Junioren" (i.p.v. Senioren): valt binnen het
+    # default queue-filter (item: new_or_empty respecteert het filter al bij
+    # het aanmaken) - anders test dit sinds die fix per ongeluk alleen nog
+    # de filter-uitsluiting (altijd 0) i.p.v. de cap zelf.
     for i in range(20):
         poule_id = 5000 + i
         session.add(HockeyTeam(
             team_id=6000 + i, club_external_id="HH11ZZ0", name=f"Cap Team {i}", short_name=f"H{i}",
-            hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule_id,
+            hockey_type="VE", category_group_name="Junioren", recent_poule_id=poule_id,
         ))
     session.commit()
 
     events = build_schedule_events(session, now, horizon_days=14)
 
     new_or_empty = [e for e in events if e["reason"] == "new_or_empty"]
-    assert len(new_or_empty) <= 10
+    assert 0 < len(new_or_empty) <= 10
 
 
 def test_promote_due_schedule_entries_is_capped_per_call(session):
