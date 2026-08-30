@@ -220,6 +220,53 @@ def test_promote_due_schedule_entries_does_not_duplicate_an_already_queued_cmd(s
     assert entry.status == "promoted"
 
 
+def test_immediate_events_are_capped_like_the_real_steps(session):
+    """Roadmap-melding (30-08-2026): op acc leverde een eerste rebuild+promote
+    in 1x 900 nieuwe VangerCmd-rijen op omdat new_or_empty/club_scan geen cap
+    hadden (in tegenstelling tot de echte _step_new_or_empty_poules/
+    _step_club_scan, die altijd STEP_MAX_CMDS hanteren)."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|cap-comp", name="Cap Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    for i in range(20):
+        poule_id = 5000 + i
+        session.add(HockeyTeam(
+            team_id=6000 + i, club_external_id="HH11ZZ0", name=f"Cap Team {i}", short_name=f"H{i}",
+            hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule_id,
+        ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=14)
+
+    new_or_empty = [e for e in events if e["reason"] == "new_or_empty"]
+    assert len(new_or_empty) <= 10
+
+
+def test_promote_due_schedule_entries_is_capped_per_call(session):
+    now = datetime.utcnow()
+    for i in range(20):
+        session.add(ScanScheduleEntry(
+            target_type="poule", target_id=5000 + i, cmd_type="get_poule",
+            params=json.dumps({"poule_id": 5000 + i, "team_id": 6000 + i, "label": "Test"}),
+            planned_at=now - timedelta(minutes=1), reason="daily_fallback",
+        ))
+    session.commit()
+
+    promoted = promote_due_schedule_entries(session, now)
+
+    assert promoted <= 10
+    remaining_planned = session.exec(
+        select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")
+    ).all()
+    assert len(remaining_planned) >= 10
+
+
 def test_promote_ignores_entries_not_yet_due(session):
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=30))

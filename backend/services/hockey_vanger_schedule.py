@@ -29,7 +29,7 @@ from models.hockey_discovery import (
 )
 from services.hockey_vanger_filters import _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
-    MANUAL_SCAN_WEEKDAYS, _manual_scan_weekday, _match_dt_info, _pending_club_ext_ids,
+    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _manual_scan_weekday, _match_dt_info, _pending_club_ext_ids,
     _pending_poule_ids, _team_by_poule,
 )
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
@@ -190,11 +190,14 @@ def _manual_weekly_events(
     return events
 
 
-def _immediate_events(session: Session, now: datetime, target_season: str) -> List[dict]:
+def _immediate_events(session: Session, now: datetime, target_season: str, cap: int) -> List[dict]:
     """Nieuwe/lege poules en club-scans zijn niet tijd-gepland maar 'zodra van
     toepassing' - hier alleen zichtbaar gemaakt als planned_at=now, geen
     nieuwe toekomst-planningslogica (dekking van _step_new_or_empty_poules/
-    _step_club_scan/_step_club_list blijft ongewijzigd bij de echte stappen)."""
+    _step_club_scan/_step_club_list blijft ongewijzigd bij de echte stappen).
+    Zelfde cap als de echte stappen (STEP_MAX_CMDS) - zonder cap zou een
+    volle acc-dataset (roadmap-melding: 900 kandidaten) in 1 rebuild+promote-
+    cyclus ineens gequeued worden i.p.v. geleidelijk over meerdere passes."""
     events: List[dict] = []
     queued_poule_ids = _pending_poule_ids(session)
     captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
@@ -206,6 +209,8 @@ def _immediate_events(session: Session, now: datetime, target_season: str) -> Li
         .where(HockeyTeam.no_new_poule_confirmed == False)  # noqa: E712
         .where(HockeyTeam.season_pending == False)  # noqa: E712
     ).all():
+        if len(events) >= cap:
+            break
         if _is_scoreless_youth(t.short_name):
             continue
         pid = t.recent_poule_id
@@ -227,12 +232,16 @@ def _immediate_events(session: Session, now: datetime, target_season: str) -> Li
         club = session.exec(select(HockeyClub).where(HockeyClub.external_id == ext_id)).first()
         if club:
             club_candidates[ext_id] = club
+    club_events = 0
     for ext_id, club in club_candidates.items():
+        if club_events >= cap:
+            break
         if ext_id in queued_ext_ids:
             continue
         events.append(_event(
             "club", club.id, "scan_club", {"external_id": ext_id, "label": club.friendly_name or club.name}, now, "club_scan",
         ))
+        club_events += 1
 
     pending_clubs_list = session.exec(
         select(VangerCmd).where(VangerCmd.cmd_type == "get_clubs").where(col(VangerCmd.status).in_(["pending", "in_progress"]))
@@ -288,7 +297,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
 
     events += _landelijke_cadence_events(session, now, horizon_end, landelijke_hours)
     events += _manual_weekly_events(session, now, horizon_end, team_by_poule)
-    events += _immediate_events(session, now, get_target_season(session))
+    events += _immediate_events(session, now, get_target_season(session), STEP_MAX_CMDS)
     return events
 
 
@@ -313,20 +322,29 @@ def rebuild_schedule(session: Session, now: datetime, horizon_days: int = DEFAUL
     return len(events)
 
 
-def promote_due_schedule_entries(session: Session, now: datetime) -> int:
+def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STEP_MAX_CMDS) -> int:
     """Hevelt scanschema-rijen waarvan planned_at is aangebroken over naar de
     echte vanger-queue (VangerCmd), via de bestaande add_vanger_cmd (dedup +
     landelijke-redirect ongewijzigd hergebruikt). In schaduw-modus (Fase A)
     zullen de meeste van deze aanroepen gewoon 'already_queued' teruggeven
     omdat de bestaande _step_*-functies in hockey_vanger_scanplan.py het doel
     al hebben aangemaakt - dat bevestigt dat het schema klopt, zonder dat de
-    echte uitvoering verandert."""
+    echte uitvoering verandert.
+
+    Gecapt op STEP_MAX_CMDS per aanroep (net als elke _step_*-functie) - een
+    eerste rebuild op een dataset met een oude scan-historie kan anders in
+    1x honderden 'inmiddels due' entries willen promoveren (roadmap-melding:
+    900 promoties in 1 keer op acc bij het invoeren van deze functie).
+    Oudste planned_at eerst, zodat de achterstand geleidelijk wegwerkt over
+    meerdere passes i.p.v. willekeurig."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
 
     due = session.exec(
         select(ScanScheduleEntry)
         .where(ScanScheduleEntry.status == "planned")
         .where(ScanScheduleEntry.planned_at <= now)
+        .order_by(col(ScanScheduleEntry.planned_at).asc())
+        .limit(cap)
     ).all()
     promoted = 0
     for entry in due:

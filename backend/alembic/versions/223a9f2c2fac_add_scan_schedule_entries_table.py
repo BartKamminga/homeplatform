@@ -16,6 +16,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    existing = bind.execute(sa.text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+    if "scan_schedule_entries" in {r[0] for r in existing}:
+        # create_db_and_tables() (SQLModel create_all) draait bij backend-herstart
+        # al vóór deze alembic-stap en heeft de tabel dan al aangemaakt.
+        return
+
     op.create_table(
         "scan_schedule_entries",
         sa.Column("id", sa.Integer(), primary_key=True),
