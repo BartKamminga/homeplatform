@@ -13,6 +13,7 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY, run_scan_plan_pass
+from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
 from services.hockey_vanger_settings import _get_int_setting
 from services.hockey_vanger_smartscan import (
     _smart_scan_get_state, _smart_scan_set_state, _smart_scan_discovery_next, SMART_SCAN_MAX_CMDS,
@@ -115,6 +116,16 @@ def _maybe_run_scan_plan_pass(session: Session):
     session.commit()
 
     result = run_scan_plan_pass(session)
+
+    # Scanschema (Fase A, schaduw-modus): bouwt een vooruitblik-lijst van
+    # scan-momenten en hevelt verlopen momenten over naar de vanger-queue.
+    # Draait NAAST de _step_*-stappen hierboven, die de echte uitvoering
+    # voorlopig ongewijzigd blijven aansturen - add_vanger_cmd's bestaande
+    # dedup zorgt dat promotie nooit een dubbele VangerCmd-rij oplevert.
+    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+    rebuild_schedule(session, now, horizon_days)
+    promote_due_schedule_entries(session, now)
+
     if result.get("added", 0) > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()

@@ -126,6 +126,7 @@ const SCAN_PLAN_FIELDS = [
   { key: 'burst_stop_hours_after_last_match', label: 'Burst-stop na laatste wedstrijd (u)', width: 44 },
   { key: 'unknown_start_lookahead_days', label: 'Onbekende starttijd - vooruitkijken (dagen)', width: 44 },
   { key: 'unknown_start_fallback_hours', label: 'Onbekende starttijd - hercheck (u)', width: 44 },
+  { key: 'schedule_horizon_days', label: 'Scanschema-horizon (dagen)', width: 44 },
 ]
 
 const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)

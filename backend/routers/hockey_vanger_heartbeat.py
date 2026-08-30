@@ -121,6 +121,7 @@ SCAN_PLAN_DEFAULTS = {
     "burst_stop_hours_after_last_match": 2,
     "unknown_start_lookahead_days": 5,
     "unknown_start_fallback_hours": 8,
+    "schedule_horizon_days": 14,
 }
 
 
@@ -157,6 +158,7 @@ class VangerSettingsIn(BaseModel):
     burst_stop_hours_after_last_match: Optional[int] = None
     unknown_start_lookahead_days:  Optional[int] = None
     unknown_start_fallback_hours:  Optional[int] = None
+    schedule_horizon_days:         Optional[int] = None
     notify_team_ids:               Optional[str] = None  # item 1001: comma-gescheiden hockey.nl team_ids
 
 
@@ -193,6 +195,7 @@ def update_vanger_settings(
         ("burst_stop_hours_after_last_match", body.burst_stop_hours_after_last_match),
         ("unknown_start_lookahead_days", body.unknown_start_lookahead_days),
         ("unknown_start_fallback_hours", body.unknown_start_fallback_hours),
+        ("schedule_horizon_days", body.schedule_horizon_days),
     ]
     for key, val in pairs:
         if val is None:

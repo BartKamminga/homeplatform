@@ -146,6 +146,28 @@ class VangerCmd(SQLModel, table=True):
     result_summary: Optional[str] = None  # JSON: {raw_bytes, duration_ms, teams, matches_total, ...}
 
 
+class ScanScheduleEntry(SQLModel, table=True):
+    """Scanschema: vooraf berekende, toekomstgerichte scan-momenten - los van
+    de vanger_cmd_queue (VangerCmd, de daadwerkelijke uitvoeringsqueue).
+    Wordt periodiek herbouwd door services/hockey_vanger_schedule.py; zodra
+    planned_at aanbreekt wordt een rij gepromoveerd naar VangerCmd via
+    add_vanger_cmd (zelfde dedup/redirect-logica als handmatige toevoegingen)."""
+    __tablename__ = "scan_schedule_entries"
+
+    id:             int           = Field(default=None, primary_key=True)
+    target_type:    str           = Field(index=True)   # poule | competition | club
+    target_id:      int           = Field(index=True)
+    cmd_type:       str                                 # zelfde waarden als VangerCmd.cmd_type
+    params:         str                                 # JSON, zelfde vorm als add_vanger_cmd's params
+    planned_at:     datetime      = Field(index=True)
+    reason:         str           = Field(index=True)   # matchday_burst | daily_fallback | live_check |
+                                                          # manual_weekly | landelijke_cadence |
+                                                          # unknown_start_recheck | new_or_empty | club_scan | club_list
+    status:         str           = Field(default="planned", index=True)  # planned | promoted | cancelled
+    vanger_cmd_id:  Optional[int] = None
+    created_at:     datetime      = Field(default_factory=datetime.utcnow)
+
+
 class HockeyPouleMatch(SQLModel, table=True):
     __tablename__ = "hockey_poule_matches"
     __table_args__ = (
