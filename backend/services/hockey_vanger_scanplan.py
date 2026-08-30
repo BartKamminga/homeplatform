@@ -318,11 +318,15 @@ def _matchday_due_reason(
         # de EERSTE wedstrijd van de dag (waarna matchday_burst overneemt)
         # zat een dode zone - een wedstrijd die al langer bezig is dan het
         # live_check-venster, maar nog niet is afgelopen, werd helemaal niet
-        # herscand. live_update dekt dat gat: zelfde interval als burst,
-        # zolang de wedstrijd loopt.
+        # herscand. live_update dekt dat gat, MAAR alleen als een eerdere
+        # scan al bevestigd heeft dat de wedstrijd echt live staat
+        # (m.status == "live") - niet elke wedstrijd krijgt live-status op
+        # hockey.nl (item 969), dus blind doorscannen op basis van de
+        # voorspelde starttijd alleen zou onnodige calls opleveren voor
+        # wedstrijden die (nog) niet blijken te leven.
         if not due:
-            for start, end in zip(known_starts, known_ends):
-                if not (start <= now < end):
+            for start, end, m in zip(known_starts, known_ends, today_matches):
+                if not (start <= now < end) or m.status != "live":
                     continue
                 check_window_end = start + timedelta(minutes=live_check_delay_m + matchday_interval_m)
                 if now < check_window_end:

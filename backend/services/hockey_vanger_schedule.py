@@ -110,7 +110,7 @@ def _matchday_events(
                 events.append(_event(target_type, target_id, cmd_type, params, tick, "matchday_burst"))
             tick += timedelta(minutes=matchday_interval_m)
 
-        for start, end in zip(starts, ends):
+        for (start, m), end in zip(day_matches, ends):
             check_at = start + timedelta(minutes=live_check_delay_m)
             if now <= check_at <= horizon_end and check_at not in seen_at:
                 seen_at.add(check_at)
@@ -119,7 +119,13 @@ def _matchday_events(
             # De dode zone tussen het 1x live_check-moment en het moment
             # waarop matchday_burst overneemt (burst_start, de EERSTE
             # wedstrijd van de dag die afloopt) - zolang DEZE wedstrijd nog
-            # loopt, periodiek doorscannen (zelfde interval als burst).
+            # loopt, periodiek doorscannen (zelfde interval als burst). Net
+            # als in _matchday_due_reason: alleen als een eerdere scan al
+            # bevestigd heeft dat de wedstrijd echt live staat (m.status ==
+            # "live") - vooraf blind inplannen voor een wedstrijd die (nog)
+            # niet blijkt te leven zou onnodige calls in het schema tonen.
+            if m.status != "live":
+                continue
             check_window_end = check_at + timedelta(minutes=matchday_interval_m)
             live_update_tick = check_window_end
             while live_update_tick < burst_start and live_update_tick < end and live_update_tick <= horizon_end:
@@ -169,7 +175,13 @@ def _cadence_events(
     same_day_preempt (Bart, 30-08-2026, alleen voor daily_fallback): een
     dagelijkse fallback is overbodig zodra er die kalenderdag AL een
     matchday-scan gepland staat, ook als die later op de dag valt dan de
-    berekende fallback-tick - de dag wordt toch al ververst."""
+    berekende fallback-tick - de dag wordt toch al ververst. Vergelijkt
+    tegen de GEKLEMDE (_clamp_to_window) datum, niet de ruwe tick-datum: een
+    late-avond tick (bv. 23:00) klemt door naar de volgende ochtend (09:00)
+    voor weergave, en zou zonder deze correctie tegen de VERKEERDE dag
+    vergeleken worden - precies zo verscheen een fallback op 5 sep 09:00
+    terwijl de dag ervoor (4 sep) geen wedstrijd had, maar de klem 'm alsnog
+    op 5 sep liet landen, de dag die WEL matchday-activiteit had."""
     preempting = sorted(preempting_at or [])
     idx = 0
     base = last_scanned_at or now
@@ -177,13 +189,15 @@ def _cadence_events(
     events = []
     while tick <= horizon_end:
         moved = False
+        display_date = _clamp_to_window(tick, window_start_h, window_end_h).date()
         while idx < len(preempting) and (
-            preempting[idx].date() <= tick.date() if same_day_preempt else preempting[idx] <= tick
+            preempting[idx].date() <= display_date if same_day_preempt else preempting[idx] <= tick
         ):
             base = preempting[idx]
             tick = base + timedelta(hours=interval_h)
             idx += 1
             moved = True
+            display_date = _clamp_to_window(tick, window_start_h, window_end_h).date()
         if moved:
             continue
         if tick >= now:

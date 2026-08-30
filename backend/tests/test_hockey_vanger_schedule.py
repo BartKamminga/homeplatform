@@ -95,6 +95,20 @@ def test_live_update_events_fill_the_gap_between_live_check_and_the_burst_start(
     assert not (set(e["planned_at"] for e in live_updates) & burst_ticks)
 
 
+def test_live_update_is_not_planned_for_a_match_that_is_not_confirmed_live(session):
+    """Bart, 30-08-2026: 'dit is toch pas een item, zodra we weten of er een
+    livewedstrijd is' - live_update mag alleen gepland worden als een
+    eerdere scan al bevestigd heeft dat de wedstrijd echt live staat
+    (m.status == 'live'), niet louter op basis van de voorspelde
+    starttijd/duur (status hier bewust 'scheduled', niet 'live')."""
+    now = datetime.utcnow()
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1, status="scheduled")
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert not any(e["reason"] == "live_update" and e["target_id"] == 444 for e in events)
+
+
 def test_matchday_burst_and_live_check_do_not_duplicate_when_they_land_on_the_same_instant(session):
     """Bart, 30-08-2026: matchday_burst (dag-breed, gebaseerd op de EERSTE
     wedstrijd die afloopt) en live_check (per wedstrijd) kunnen toevallig op
@@ -199,6 +213,31 @@ def test_daily_fallback_is_skipped_when_a_matchday_scan_is_already_planned_that_
         if e["target_id"] == 444 and e["reason"] == "daily_fallback" and e["planned_at"].date() == now.date()
     ]
     assert not fallback_today
+
+
+def test_daily_fallback_is_absorbed_when_the_clamped_display_date_lands_on_a_matchday(session):
+    """Bart, 30-08-2026, echte acc-observatie: een late-avond fallback-tick
+    (bv. 20:13) klemt (_clamp_to_window) door naar de volgende ochtend
+    (09:00) voor weergave - de same_day_preempt-vergelijking moet tegen die
+    GEKLEMDE datum checken, niet de ruwe tick-datum, anders lijkt de dag
+    ervoor (zonder wedstrijd) geen conflict te hebben terwijl de klem 'm
+    alsnog op de matchday laat landen."""
+    now = datetime(2026, 9, 1, 10, 0, 0)
+    # Naive eerste fallback-tick: last_scanned_at + 24u = 2026-09-01 20:00
+    # (avond, geen wedstrijd die dag) -> klemt door naar 2026-09-02 09:00,
+    # de dag met de wedstrijd hieronder.
+    _setup_active_competition(
+        session, now, last_scanned_at=now - timedelta(hours=14),
+        match_offset_hours=22, status="scheduled",  # wedstrijd op 2026-09-02 08:00
+    )
+
+    events = build_schedule_events(session, now, horizon_days=3)
+
+    fallback_on_matchday = [
+        e for e in events
+        if e["target_id"] == 444 and e["reason"] == "daily_fallback" and e["planned_at"].date() == datetime(2026, 9, 2).date()
+    ]
+    assert not fallback_on_matchday
 
 
 def test_hl_linked_poule_is_excluded_from_poule_events(session):
