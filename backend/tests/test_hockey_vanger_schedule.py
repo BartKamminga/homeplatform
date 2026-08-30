@@ -66,6 +66,26 @@ def test_matchday_burst_event_is_generated_for_an_ended_match(session):
     assert any(e["reason"] == "match_end_check" and e["target_id"] == 444 for e in events)
 
 
+def test_match_end_check_shows_only_the_next_tick_not_the_whole_series(session):
+    """Bart, 30-08-2026: 'de wedstrijd 3 keer te veel match_end_check - dat
+    zou alleen gebeuren als de eerste geen resultaat geeft -> rebuild
+    queue'. Het schema mag niet de hele resterende match_end_check-reeks
+    tot burst_deadline in 1x tonen - alleen de eerstvolgende tick.
+    post_cmd_result herbouwt het schema al meteen na elk echt resultaat
+    (Wijziging 1); zonder resultaat schuift de eerstvolgende tick vanzelf
+    door bij de volgende rebuild zodra hij verstrijkt."""
+    now = datetime.utcnow()
+    # Wedstrijd eindigde 10 min geleden -> burst-venster loopt, met de
+    # standaardinstellingen (interval 45 min, stop 2u na de laatste
+    # wedstrijd) zou een volledige reeks minstens 3 ticks opleveren.
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1.667, status="scheduled")
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    match_end_checks = [e for e in events if e["reason"] == "match_end_check" and e["target_id"] == 444]
+    assert len(match_end_checks) == 1
+
+
 def test_matchday_burst_stops_once_all_of_the_days_matches_are_final(session):
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=50), status="final")

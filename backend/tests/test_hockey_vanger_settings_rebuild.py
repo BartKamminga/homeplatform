@@ -28,17 +28,25 @@ def _setup_active_competition(session, now):
         team_id=9, club_external_id="HH11ZZ0", name="Settings Team", short_name="H9",
         hockey_type="VE", category_group_name="Senioren", recent_poule_id=444,
     ))
-    # Gestart 100 min geleden, standaardduur 90 min -> 10 min geleden
-    # afgelopen (ruim binnen het burst-venster, geen randgeval qua timing).
+    # Gestart 103 min geleden, standaardduur 90 min -> 13 min geleden
+    # afgelopen. 13 is bewust geen mooi veelvoud van de geteste intervallen
+    # (45/10 min) - anders zou de eerstvolgende tick toevallig exact op
+    # "now" kunnen uitkomen, een randgeval qua timing tussen het moment dat
+    # de test "now" vastlegt en het moment dat de rebuild zijn eigen verse
+    # "now" opvraagt.
     session.add(HockeyPouleMatch(
         poule_id=444, match_id=7001, home_team_id=9, away_team_id=10,
-        status="scheduled", round=1, match_date=(now - timedelta(minutes=100)).isoformat(),
+        status="scheduled", round=1, match_date=(now - timedelta(minutes=103)).isoformat(),
     ))
     session.commit()
     return poule
 
 
 def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
+    """match_end_check toont bewust maar 1 (de eerstvolgende) tick per
+    rebuild, niet de hele reeks (Bart, 30-08-2026) - deze test verifieert
+    daarom dat DIE ENE tick verschuift zodra active_matchday_interval_min
+    wijzigt, niet de tussenruimte tussen 2 tonen (die zijn er niet meer)."""
     now = datetime.utcnow()
     _setup_active_competition(session, now)
 
@@ -48,8 +56,7 @@ def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
             select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "match_end_check")
         ).all()
     )
-    assert len(ticks_45) >= 2
-    assert (ticks_45[1] - ticks_45[0]) == timedelta(minutes=45)
+    assert len(ticks_45) == 1
 
     update_vanger_settings(VangerSettingsIn(active_matchday_interval_min=10), session=session, _=None)
     ticks_10 = sorted(
@@ -57,5 +64,6 @@ def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
             select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "match_end_check")
         ).all()
     )
-    assert len(ticks_10) >= 2
-    assert (ticks_10[1] - ticks_10[0]) == timedelta(minutes=10)
+    assert len(ticks_10) == 1
+    assert ticks_10[0] != ticks_45[0]  # instelling is echt doorgevoerd
+    assert ticks_10[0] < ticks_45[0]  # kortere interval -> eerdere eerstvolgende tick

@@ -72,7 +72,18 @@ def _matchday_events(
     regels als _matchday_due_reason in hockey_vanger_scanplan.py, maar voor
     elke dag in het venster i.p.v. alleen 'vandaag'. Gedeeld tussen 1 poule
     (_poule_matchday_events) en de vereniging van alle wedstrijden in de
-    poules van 1 landelijke competitie (_landelijke_matchday_events)."""
+    poules van 1 landelijke competitie (_landelijke_matchday_events).
+
+    match_end_check toont bewust maar 1 (de eerstvolgende) tick per
+    match_end_check-reeks, niet de hele resterende serie tot burst_deadline
+    (Bart, 30-08-2026: "de wedstrijd 3 keer te veel match_end_check - dat
+    zou alleen gebeuren als de eerste geen resultaat geeft -> rebuild
+    queue"). post_cmd_result herbouwt het schema al meteen na elk echt
+    resultaat (Wijziging 1) - als de wedstrijd dan nog niet final is,
+    berekent de VOLGENDE rebuild vanzelf de eerstvolgende tick opnieuw.
+    Zonder een echt resultaat schuift "de eerstvolgende tick" ook gewoon
+    vanzelf door zodra hij verstrijkt (elke periodieke rebuild kijkt
+    opnieuw wat nu de eerste tick >= now is)."""
     by_date: Dict = {}
     for m in matches:
         if not m.match_date:
@@ -109,9 +120,11 @@ def _matchday_events(
         burst_start = min(ends)
         tick = burst_start
         while tick < burst_deadline and tick <= horizon_end:
-            if tick >= now and tick not in seen_at:
-                seen_at.add(tick)
-                events.append(_event(target_type, target_id, cmd_type, params, tick, "match_end_check"))
+            if tick >= now:
+                if tick not in seen_at:
+                    seen_at.add(tick)
+                    events.append(_event(target_type, target_id, cmd_type, params, tick, "match_end_check"))
+                break  # alleen de eerstvolgende tick, niet de hele resterende reeks
             tick += timedelta(minutes=matchday_interval_m)
 
         for (start, m), end in zip(day_matches, ends):
@@ -134,9 +147,11 @@ def _matchday_events(
             check_window_end = check_at + timedelta(minutes=matchday_interval_m)
             live_tick = check_window_end
             while live_tick < burst_start and live_tick < end and live_tick <= horizon_end:
-                if live_tick >= now and live_tick not in seen_at:
-                    seen_at.add(live_tick)
-                    events.append(_event(target_type, target_id, cmd_type, params, live_tick, "match_end_check"))
+                if live_tick >= now:
+                    if live_tick not in seen_at:
+                        seen_at.add(live_tick)
+                        events.append(_event(target_type, target_id, cmd_type, params, live_tick, "match_end_check"))
+                    break  # alleen de eerstvolgende tick, niet de hele resterende reeks
                 live_tick += timedelta(minutes=matchday_interval_m)
     return events
 
@@ -371,29 +386,33 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
         seen.add(pid)
         events.append(_event("poule", pid, "get_poule", {"poule_id": pid, "team_id": t.team_id, "label": t.name}, now, "new_or_empty"))
 
-    queued_ext_ids = _pending_club_ext_ids(session)
-    season_pending_ext = {
-        t.club_external_id for t in session.exec(select(HockeyTeam).where(HockeyTeam.season_pending == True)).all()  # noqa: E712
-    }
-    club_candidates: Dict[str, HockeyClub] = {
-        c.external_id: c for c in session.exec(select(HockeyClub).where(HockeyClub.detail_loaded == False)).all()  # noqa: E712
-    }
-    for ext_id in season_pending_ext:
-        if ext_id in club_candidates:
-            continue
-        club = session.exec(select(HockeyClub).where(HockeyClub.external_id == ext_id)).first()
-        if club:
-            club_candidates[ext_id] = club
-    club_events = 0
-    for ext_id, club in club_candidates.items():
-        if club_events >= cap:
-            break
-        if ext_id in queued_ext_ids:
-            continue
-        events.append(_event(
-            "club", club.id, "scan_club", {"external_id": ext_id, "label": club.friendly_name or club.name}, now, "club_scan",
-        ))
-        club_events += 1
+    # Bart, 30-08-2026: geen club-scans in het weekend (zelfde regel als
+    # _step_club_scan) - niet tijdsgevoelig, laat de scan-capaciteit dan
+    # over aan matchday-scans.
+    if now.weekday() < 5:  # 5=zaterdag, 6=zondag
+        queued_ext_ids = _pending_club_ext_ids(session)
+        season_pending_ext = {
+            t.club_external_id for t in session.exec(select(HockeyTeam).where(HockeyTeam.season_pending == True)).all()  # noqa: E712
+        }
+        club_candidates: Dict[str, HockeyClub] = {
+            c.external_id: c for c in session.exec(select(HockeyClub).where(HockeyClub.detail_loaded == False)).all()  # noqa: E712
+        }
+        for ext_id in season_pending_ext:
+            if ext_id in club_candidates:
+                continue
+            club = session.exec(select(HockeyClub).where(HockeyClub.external_id == ext_id)).first()
+            if club:
+                club_candidates[ext_id] = club
+        club_events = 0
+        for ext_id, club in club_candidates.items():
+            if club_events >= cap:
+                break
+            if ext_id in queued_ext_ids:
+                continue
+            events.append(_event(
+                "club", club.id, "scan_club", {"external_id": ext_id, "label": club.friendly_name or club.name}, now, "club_scan",
+            ))
+            club_events += 1
 
     pending_clubs_list = session.exec(
         select(VangerCmd).where(VangerCmd.cmd_type == "get_clubs").where(col(VangerCmd.status).in_(["pending", "in_progress"]))

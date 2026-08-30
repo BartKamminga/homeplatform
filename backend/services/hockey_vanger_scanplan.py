@@ -241,6 +241,12 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
 
 
 def _step_club_scan(session: Session, now: datetime, cap: int) -> int:
+    # Bart, 30-08-2026: club-detail-scans zijn niet tijdsgevoelig (geen
+    # wedstrijd-uitslag die kan verouderen) - in het weekend is de
+    # scan-capaciteit beter besteed aan matchday-scans, dus club-scans
+    # wachten dan tot maandag.
+    if now.weekday() >= 5:  # 5=zaterdag, 6=zondag
+        return 0
     days = _get_int_setting(session, "club_scan_days", 1)
     cutoff = now - timedelta(days=days)
     queued_ext_ids = _pending_club_ext_ids(session)
