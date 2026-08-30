@@ -145,6 +145,14 @@ export default function DagView({ data, date, onDateChange }) {
   }
   const manualCompetitionEntries = [...manualByCompetition.entries()].sort((a, b) => b[1] - a[1])
   const MANUAL_COMP_SHOWN = 20
+  const totalManualPoules = (data.manual_poules || []).length
+  // Op de meeste dagen (di/wo/do/za/zo) gebeurt er bewust niets - de ronde
+  // is verdeeld over ma/vr. Toch altijd de sectie tonen (i.p.v. 'm gewoon
+  // weg te laten) zodat duidelijk is dat dit een ontwerpkeuze is, geen bug -
+  // met de eerstvolgende ronde-datum erbij.
+  const daysUntilNextManualRound = pyWeekday < 4 ? 4 - pyWeekday : 7 - pyWeekday  // volgende vrijdag, of volgende maandag
+  const nextManualRoundDate = new Date(date)
+  nextManualRoundDate.setDate(nextManualRoundDate.getDate() + daysUntilNextManualRound)
 
   const clubCapturesToday = (data.club_captures || [])
     .map(c => ({ ...c, dateObj: new Date(c.captured_at) }))
@@ -307,6 +315,12 @@ export default function DagView({ data, date, onDateChange }) {
         </div>
         )
       })())}
+
+      {!!totalManualPoules && !manualPoulesToday.length && (
+        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)', fontSize: 10, color: 'var(--color-text-muted)' }}>
+          NIET-AUTOSCAN · WEKELIJKS (ma/vr) · vandaag geen ronde · eerstvolgende: {nextManualRoundDate.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'short' })}
+        </div>
+      )}
 
       {!!manualPoulesToday.length && (
         <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)' }}>
