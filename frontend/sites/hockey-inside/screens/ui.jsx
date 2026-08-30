@@ -52,6 +52,7 @@ export const VARIANT = {
   ok:      { bg: 'color-mix(in srgb, var(--color-success) 15%, var(--color-surface))', fg: 'var(--color-success)', border: 'var(--color-success)' },
   partial: { bg: 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))', fg: 'var(--color-warning)', border: 'var(--color-warning)' },
   muted:   { bg: 'var(--color-surface)', fg: 'var(--color-text-muted)', border: 'var(--color-border)' },
+  danger:  { bg: 'color-mix(in srgb, var(--color-danger) 15%, var(--color-surface))', fg: 'var(--color-danger)', border: 'var(--color-danger)' },
 }
 
 export function pill(variant) {

@@ -49,6 +49,10 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
             ? (c.district || 'Onbekend')
             : (c.class_name || c.district || 'Onbekend')
           const colSub   = showDistBadge ? c.class_name : null
+          // Poule-health rollup (zie CompEntry.jsx) - ook hier tonen, deze
+          // multi-kolom weergave rendert poules zelf i.p.v. via CompEntry.
+          const colBusyCount      = cPoules.filter(p => p.busy).length
+          const colNeedsScanCount = cPoules.filter(p => p.needs_scan).length
           return (
             <div key={c.id} style={{
               flex: '1 1 140px', minWidth: 120, maxWidth: 260,
@@ -63,7 +67,11 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
                   </span>
                   {colSub && <span style={{ fontSize: 9, color: 'var(--color-text-muted)', opacity: 0.65 }}>{colSub}</span>}
                 </div>
-                {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳', 'var(--color-border)')}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {colBusyCount > 0 && <span style={pill('danger')} title="Aantal poules met een wedstrijd die nu loopt">🔴 {colBusyCount}</span>}
+                  {colNeedsScanCount > 0 && <span style={pill('partial')} title="Aantal poules met een onbekende starttijd binnen een week, of een gespeelde wedstrijd zonder uitslag">⚠ {colNeedsScanCount}</span>}
+                  {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳', 'var(--color-border)')}
+                </div>
               </div>
               {/* Poules in deze kolom */}
               {cPoules.length > 0 ? cPoules.map(p => {
@@ -79,6 +87,8 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
                         {pTeams.length > 0 ? (pOpen ? '▾' : '▸') : '·'}
                       </span>
                       <span style={{ flex: 1 }}>{p.name}</span>
+                      {p.busy && <span title="Er loopt nu een wedstrijd in deze poule">🔴</span>}
+                      {p.needs_scan && <span title="Onbekende starttijd binnen een week, of een gespeelde wedstrijd zonder uitslag">⚠</span>}
                       {pTeams.length > 0 && <span style={pill('ok')}>{pTeams.length}</span>}
                       {pTeams[0]?.team_id && cmdBtn('get_poule', { poule_id: p.poule_id, team_id: pTeams[0].team_id, label: p.name }, '+ cmd', 'var(--color-border)')}
                       <button onClick={e => onDeletePoule(e, p)} title="Poule verwijderen"

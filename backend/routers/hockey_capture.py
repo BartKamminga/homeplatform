@@ -19,7 +19,8 @@ from models.hockey_discovery import (
     HockeyPouleStanding, HockeyTeam, HockeyTeamPoule, VangerCmd,
 )
 from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
-from services.hockey_vanger_settings import get_target_season
+from services.hockey_vanger_scanplan import _match_dt_info
+from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-capture"])
 
@@ -421,6 +422,42 @@ def delete_empty_competitions(
 
 
 # ── Poules query ─────────────────────────────────────────
+def _poule_health(session: Session, poule_ids: List[int]) -> Dict[int, dict]:
+    """Bart, 30-08-2026: 'is er nog onbekende wedstrijdtijd binnen een week,
+    of een gespeelde wedstrijd zonder uitslag - dat is een scan waard' +
+    'wedstrijden zijn bezig (hoeven niet perse live te zijn)'. Puur uit
+    match-data afgeleid (geen scan-geschiedenis/cadans nodig) - 1 gebatchte
+    query voor alle meegegeven poules i.p.v. per poule, zodat de Discovery-
+    boom (honderden poules) niet N+1 wordt."""
+    if not poule_ids:
+        return {}
+    match_duration_m = _get_int_setting(session, "match_duration_min", 90)
+    now = datetime.utcnow()
+    lookahead_end = (now + timedelta(days=7)).date()
+    health: Dict[int, dict] = {}
+    matches = session.exec(
+        select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
+    ).all()
+    for m in matches:
+        if not m.match_date:
+            continue
+        info = _match_dt_info(m.match_date)
+        if not info:
+            continue
+        utc_naive, _is_today, is_midnight = info
+        h = health.setdefault(m.poule_id, {"busy": False, "needs_scan": False})
+        if is_midnight:
+            if now.date() <= utc_naive.date() <= lookahead_end:
+                h["needs_scan"] = True
+            continue
+        end = utc_naive + timedelta(minutes=match_duration_m)
+        if utc_naive <= now < end:
+            h["busy"] = True
+        if end < now and m.status != "final":
+            h["needs_scan"] = True
+    return health
+
+
 @router.get("/poules")
 def list_poules(
     season: Optional[str] = "2026-2027",
@@ -431,6 +468,7 @@ def list_poules(
     if season and season != "all":
         q = q.where(HockeyPoule.season == season)
     poules = session.exec(q).all()
+    health = _poule_health(session, [p.poule_id for p in poules])
     return {
         "total": len(poules),
         "poules": [
@@ -440,6 +478,8 @@ def list_poules(
                 "name":          p.name,
                 "competition_id": p.competition_id,
                 "season":        p.season,
+                "busy":          health.get(p.poule_id, {}).get("busy", False),
+                "needs_scan":    health.get(p.poule_id, {}).get("needs_scan", False),
             }
             for p in poules
         ],
