@@ -3,8 +3,10 @@ lijst van scan-momenten - los van de vanger_cmd_queue (VangerCmd, de
 daadwerkelijke uitvoeringsqueue die Ghost/Scout aflopen).
 
 Herbruikt dezelfde regels als services/hockey_vanger_scanplan.py (matchday-
-burst, dagelijkse fallback, live-check, landelijke cadans, wekelijkse
-niet-autoscan-ronde, onbekende-starttijd-recheck), maar dan als
+burst, live-check, dagelijkse fallback - ook voor landelijke competities,
+die als 1 grote poule worden behandeld over de vereniging van alle
+wedstrijden in hun poules - wekelijkse niet-autoscan-ronde, onbekende-
+starttijd-recheck), maar dan als
 EVENT-GENERATOREN die een heel venster [now, now+horizon] vooruitplannen
 i.p.v. alleen "is dit nu due" te beantwoorden. Doel: de Kalender-tab kan het
 schema straks gewoon TONEN i.p.v. zelf (in JS) dezelfde regels te
@@ -60,14 +62,17 @@ def _event(target_type: str, target_id: int, cmd_type: str, params: dict, planne
     }
 
 
-def _poule_matchday_events(
-    poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
+def _matchday_events(
+    target_type: str, target_id, cmd_type: str, params: dict, matches: List[HockeyPouleMatch],
+    now: datetime, horizon_end: datetime,
     match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
 ) -> List[dict]:
     """Burst-ticks + live-check-moment(en), per kalenderdag met een bekende
     (niet-placeholder) starttijd binnen het venster - zelfde regels als
-    _step_active_profiles, maar voor elke dag in het venster i.p.v. alleen
-    'vandaag'."""
+    _matchday_due_reason in hockey_vanger_scanplan.py, maar voor elke dag in
+    het venster i.p.v. alleen 'vandaag'. Gedeeld tussen 1 poule
+    (_poule_matchday_events) en de vereniging van alle wedstrijden in de
+    poules van 1 landelijke competitie (_landelijke_matchday_events)."""
     by_date: Dict = {}
     for m in matches:
         if not m.match_date:
@@ -83,7 +88,6 @@ def _poule_matchday_events(
         by_date.setdefault(utc_naive.date(), []).append((utc_naive, m))
 
     events: List[dict] = []
-    params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     for day_matches in by_date.values():
         starts = [s for s, _m in day_matches]
         ends = [s + timedelta(minutes=match_duration_m) for s in starts]
@@ -92,26 +96,58 @@ def _poule_matchday_events(
         tick = min(ends)
         while tick < burst_deadline and tick <= horizon_end:
             if tick >= now:
-                events.append(_event("poule", poule.poule_id, "get_poule", params, tick, "matchday_burst"))
+                events.append(_event(target_type, target_id, cmd_type, params, tick, "matchday_burst"))
             tick += timedelta(minutes=matchday_interval_m)
 
         for start, _m in day_matches:
             check_at = start + timedelta(minutes=live_check_delay_m)
             if now <= check_at <= horizon_end:
-                events.append(_event("poule", poule.poule_id, "get_poule", params, check_at, "live_check"))
+                events.append(_event(target_type, target_id, cmd_type, params, check_at, "live_check"))
     return events
 
 
-def _poule_unknown_start_events(
+def _poule_matchday_events(
     poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
-    lookahead_days: int, fallback_h: int, window_start_h: int, window_end_h: int,
+    match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
 ) -> List[dict]:
-    """Rechecks voor wedstrijden met een bekende datum maar nog geen starttijd
-    (middernacht-placeholder), zolang er zo'n datum binnen lookahead_days ligt.
-    Best-effort vooruitblik (elke rebuild ververst dit toch), dus 1 vaste
-    cadans vanaf nu i.p.v. per placeholder-datum te herberekenen."""
+    params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
+    return _matchday_events(
+        "poule", poule.poule_id, "get_poule", params, matches, now, horizon_end,
+        match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+    )
+
+
+def _landelijke_matchday_events(
+    comp: HockeyCompetition, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
+    match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
+) -> List[dict]:
+    params = {"comp_id": comp.hl_comp_id, "label": comp.name}
+    return _matchday_events(
+        "competition", comp.hl_comp_id, "get_competition_detail", params, matches, now, horizon_end,
+        match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+    )
+
+
+def _cadence_events(
+    target_type: str, target_id, cmd_type: str, params: dict, last_scanned_at, now: datetime, horizon_end: datetime,
+    interval_h: int, reason: str, window_start_h: int, window_end_h: int,
+) -> List[dict]:
+    base = last_scanned_at or now
+    tick = base + timedelta(hours=interval_h)
+    while tick < now:
+        tick += timedelta(hours=interval_h)
+    events = []
+    while tick <= horizon_end:
+        events.append(_event(target_type, target_id, cmd_type, params, _clamp_to_window(tick, window_start_h, window_end_h), reason))
+        tick += timedelta(hours=interval_h)
+    return events
+
+
+def _has_upcoming_unknown_start(matches: List[HockeyPouleMatch], now: datetime, lookahead_days: int) -> bool:
+    """Wedstrijd met een bekende datum maar nog geen starttijd (middernacht-
+    placeholder), binnen lookahead_days - zowel voor 1 poule als voor de
+    vereniging van wedstrijden van een landelijke competitie."""
     lookahead_end = (now + timedelta(days=lookahead_days)).date()
-    has_upcoming_unknown = False
     for m in matches:
         if not m.match_date:
             continue
@@ -120,21 +156,38 @@ def _poule_unknown_start_events(
             continue
         utc_naive, _is_today, is_midnight = info
         if is_midnight and now.date() <= utc_naive.date() <= lookahead_end:
-            has_upcoming_unknown = True
-            break
-    if not has_upcoming_unknown:
-        return []
+            return True
+    return False
 
+
+def _poule_unknown_start_events(
+    poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
+    lookahead_days: int, fallback_h: int, window_start_h: int, window_end_h: int,
+) -> List[dict]:
+    """Rechecks voor wedstrijden met een bekende datum maar nog geen starttijd,
+    zolang er zo'n datum binnen lookahead_days ligt. Best-effort vooruitblik
+    (elke rebuild ververst dit toch), dus 1 vaste cadans vanaf nu i.p.v. per
+    placeholder-datum te herberekenen."""
+    if not _has_upcoming_unknown_start(matches, now, lookahead_days):
+        return []
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
-    base = poule.last_scanned_at or now
-    tick = base + timedelta(hours=fallback_h)
-    while tick < now:
-        tick += timedelta(hours=fallback_h)
-    events = []
-    while tick <= horizon_end:
-        events.append(_event("poule", poule.poule_id, "get_poule", params, _clamp_to_window(tick, window_start_h, window_end_h), "unknown_start_recheck"))
-        tick += timedelta(hours=fallback_h)
-    return events
+    return _cadence_events(
+        "poule", poule.poule_id, "get_poule", params, poule.last_scanned_at, now, horizon_end,
+        fallback_h, "unknown_start_recheck", window_start_h, window_end_h,
+    )
+
+
+def _landelijke_unknown_start_events(
+    comp: HockeyCompetition, matches: List[HockeyPouleMatch], last_scanned_at, now: datetime, horizon_end: datetime,
+    lookahead_days: int, fallback_h: int, window_start_h: int, window_end_h: int,
+) -> List[dict]:
+    if not _has_upcoming_unknown_start(matches, now, lookahead_days):
+        return []
+    params = {"comp_id": comp.hl_comp_id, "label": comp.name}
+    return _cadence_events(
+        "competition", comp.hl_comp_id, "get_competition_detail", params, last_scanned_at, now, horizon_end,
+        fallback_h, "unknown_start_recheck", window_start_h, window_end_h,
+    )
 
 
 def _poule_daily_fallback_events(
@@ -142,15 +195,21 @@ def _poule_daily_fallback_events(
     window_start_h: int, window_end_h: int,
 ) -> List[dict]:
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
-    base = poule.last_scanned_at or now
-    tick = base + timedelta(hours=daily_fallback_h)
-    while tick < now:
-        tick += timedelta(hours=daily_fallback_h)
-    events = []
-    while tick <= horizon_end:
-        events.append(_event("poule", poule.poule_id, "get_poule", params, _clamp_to_window(tick, window_start_h, window_end_h), "daily_fallback"))
-        tick += timedelta(hours=daily_fallback_h)
-    return events
+    return _cadence_events(
+        "poule", poule.poule_id, "get_poule", params, poule.last_scanned_at, now, horizon_end,
+        daily_fallback_h, "daily_fallback", window_start_h, window_end_h,
+    )
+
+
+def _landelijke_daily_fallback_events(
+    comp: HockeyCompetition, last_scanned_at, now: datetime, horizon_end: datetime, daily_fallback_h: int,
+    window_start_h: int, window_end_h: int,
+) -> List[dict]:
+    params = {"comp_id": comp.hl_comp_id, "label": comp.name}
+    return _cadence_events(
+        "competition", comp.hl_comp_id, "get_competition_detail", params, last_scanned_at, now, horizon_end,
+        daily_fallback_h, "daily_fallback", window_start_h, window_end_h,
+    )
 
 
 def _manual_weekly_events(
@@ -297,6 +356,31 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
                 poule, team, matches, now, horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
             )
             events += _poule_daily_fallback_events(poule, team, now, horizon_end, daily_fallback_h, window_start_h, window_end_h)
+
+    # Landelijke competities (hl_comp_id gezet) worden - net als in
+    # _step_landelijke_competitions - behandeld als 1 grote poule over de
+    # vereniging van alle wedstrijden in AL haar poules, ongeacht
+    # scan_profile (die stap kijkt niet naar HockeyPublicationComp).
+    for comp in session.exec(select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))).all():
+        poules = session.exec(select(HockeyPoule).where(HockeyPoule.competition_id == comp.id)).all()
+        if not poules:
+            events.append(_event(
+                "competition", comp.hl_comp_id, "get_competition_detail",
+                {"comp_id": comp.hl_comp_id, "label": comp.name}, now, "new_or_empty",
+            ))
+            continue
+        poule_ids = [p.poule_id for p in poules]
+        matches = session.exec(select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))).all()
+        last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
+        events += _landelijke_matchday_events(
+            comp, matches, now, horizon_end, match_duration_m, matchday_interval_m, live_check_delay_m, burst_stop_h,
+        )
+        events += _landelijke_unknown_start_events(
+            comp, matches, last_scanned_at, now, horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+        )
+        events += _landelijke_daily_fallback_events(
+            comp, last_scanned_at, now, horizon_end, daily_fallback_h, window_start_h, window_end_h,
+        )
 
     events += _manual_weekly_events(session, now, horizon_end, team_by_poule, window_start_h)
     events += _immediate_events(session, now, get_target_season(session), STEP_MAX_CMDS)

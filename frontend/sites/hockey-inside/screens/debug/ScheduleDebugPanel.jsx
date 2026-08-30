@@ -140,17 +140,7 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
       {loading && <div style={muted}>Laden…</div>}
 
       {!loading && data.items.length === 0 && (
-        <div style={muted}>
-          {targetType === 'competition'
-            // Landelijke competities staan bewust NIET in het scanschema -
-            // die worden apart, buiten dit schema om, rechtstreeks
-            // aangestuurd door _step_landelijke_competitions (behandelt de
-            // competitie als 1 grote poule: matchday-burst/live-check/
-            // dagelijkse fallback over alle wedstrijden in haar poules
-            // samen). 0 rijen hier is dus verwacht gedrag, geen fout.
-            ? 'Geen scanschema-rijen voor deze competitie - landelijke competities worden niet via het scanschema gepland, maar rechtstreeks behandeld als 1 grote poule (matchday-burst/live-check/dagelijkse fallback, zie _step_landelijke_competitions). Dit is verwacht, geen fout.'
-            : 'Geen scanschema-rijen gevonden voor deze filters.'}
-        </div>
+        <div style={muted}>Geen scanschema-rijen gevonden voor deze filters.</div>
       )}
 
       {!loading && data.items.length > 0 && (

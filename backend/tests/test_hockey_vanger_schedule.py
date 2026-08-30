@@ -103,12 +103,13 @@ def test_hl_linked_poule_is_excluded_from_poule_events(session):
     assert not any(e["target_type"] == "poule" and e["target_id"] == 444 for e in events)
 
 
-def test_landelijke_competitions_produce_no_schedule_events(session):
-    """Landelijke competities worden niet meer los in het scanschema getoond -
-    de 12u-cadans staat al in de beschrijving van de landelijke-groep-rij in
-    DagView ('ververst ze allemaal · elke 12u'), een apart landelijke_cadence-
-    reason was dubbelop."""
-    now = datetime.utcnow()
+def test_landelijke_competitions_are_scheduled_like_a_poule(session):
+    """Sinds 30-08-2026 wordt een landelijke competitie ook in het scanschema
+    behandeld als 1 grote poule (unie van alle wedstrijden in haar poules) -
+    dezelfde matchday-burst/live-check/dagelijkse-fallback-regels, met
+    cmd_type get_competition_detail i.p.v. get_poule, target_type
+    'competition'."""
+    now = datetime(2026, 9, 1, 10, 0, 0)
     comp = HockeyCompetition(
         external_id="test|hl-schedule", name="Landelijk Test", class_name="Topklasse",
         hockey_type="VE", season="2026-2027", hl_comp_id=77,
@@ -121,10 +122,29 @@ def test_landelijke_competitions_produce_no_schedule_events(session):
     session.add(poule)
     session.commit()
 
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    hl_events = [e for e in events if e["target_type"] == "competition" and e["target_id"] == 77]
+    assert hl_events
+    assert all(e["cmd_type"] == "get_competition_detail" for e in hl_events)
+    assert any(e["reason"] == "daily_fallback" for e in hl_events)
+
+
+def test_landelijke_competition_without_poules_yet_gets_an_immediate_event(session):
+    now = datetime(2026, 9, 1, 10, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|hl-empty", name="Landelijk Leeg", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=88,
+    )
+    session.add(comp)
+    session.commit()
+
     events = build_schedule_events(session, now, horizon_days=1)
 
-    assert not any(e["target_id"] == 77 for e in events)
-    assert not any(e["reason"] == "landelijke_cadence" for e in events)
+    matching = [e for e in events if e["target_type"] == "competition" and e["target_id"] == 88]
+    assert len(matching) == 1
+    assert matching[0]["reason"] == "new_or_empty"
+    assert matching[0]["planned_at"] == now
 
 
 def test_manual_weekly_event_is_generated_on_the_assigned_weekday(session):
