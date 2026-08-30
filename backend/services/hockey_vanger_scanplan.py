@@ -235,13 +235,124 @@ def _step_club_scan(session: Session, now: datetime, cap: int) -> int:
     return added
 
 
+def _matchday_due_reason(
+    now: datetime,
+    matches,
+    last_scanned_at: Optional[datetime],
+    *,
+    match_duration: int,
+    matchday_interval_m: int,
+    live_check_delay_m: int,
+    burst_stop_h: int,
+    unknown_start_lookahead_d: int,
+    unknown_start_fallback_h: int,
+    daily_fallback_h: int,
+    matchday_enabled: bool,
+) -> Tuple[bool, Optional[str]]:
+    """Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
+    heeft: matchday-burst tijdens/na een wedstrijd van vandaag, 1x
+    live-check kort na aanvang (item 970), vaker checken bij een nog
+    onbekende starttijd binnen afzienbare tijd (item 992), anders de trage
+    dagelijkse fallback. Gedeeld tussen _step_active_profiles (matches van 1
+    poule) en _step_landelijke_competitions (matches van ALLE poules in de
+    competitie samen, Bart 30-08-2026: een landelijke competitie wordt
+    hiermee behandeld als 1 grote poule, geen aparte cadans meer)."""
+    due = False
+    reason = None
+
+    if matchday_enabled:
+        known_starts = []
+        known_ends = []
+        today_matches = []
+        has_unknown_today = False
+        unknown_start_dates = []  # niet-vandaag, wel al een datum maar nog geen starttijd (middernacht-placeholder)
+        for m in matches:
+            if not m.match_date:
+                continue
+            info = _match_dt_info(m.match_date)
+            if not info:
+                continue
+            utc_naive, is_today, is_midnight = info
+            if not is_today:
+                if is_midnight:
+                    unknown_start_dates.append(utc_naive.date())
+                continue
+            if is_midnight:
+                has_unknown_today = True
+            else:
+                known_starts.append(utc_naive)
+                known_ends.append(utc_naive + timedelta(minutes=match_duration))
+                today_matches.append(m)
+
+        if known_ends:
+            # Burst-modus stopt zodra ofwel alle wedstrijden van vandaag al
+            # "final" zijn (niets meer te halen), ofwel er meer dan
+            # burst_stop_h uur voorbij is sinds de LAATSTE wedstrijd
+            # eindigde.
+            all_final = all(m.status == "final" for m in today_matches)
+            burst_deadline = max(known_ends) + timedelta(hours=burst_stop_h)
+            burst_active = now < burst_deadline and not all_final
+            if burst_active and now >= min(known_ends):
+                cutoff = now - timedelta(minutes=matchday_interval_m)
+                due = last_scanned_at is None or last_scanned_at < cutoff
+                if due:
+                    reason = "matchday_burst"
+        elif has_unknown_today:
+            cutoff = now - timedelta(minutes=matchday_interval_m)
+            due = last_scanned_at is None or last_scanned_at < cutoff
+            if due:
+                reason = "matchday_burst"
+
+        # item 970: kort na aanvang van een wedstrijd 1x checken of hij
+        # live-status heeft gekregen i.p.v. pas na afloop te reageren.
+        if not due:
+            for start in known_starts:
+                check_at = start + timedelta(minutes=live_check_delay_m)
+                check_window_end = check_at + timedelta(minutes=matchday_interval_m)
+                if check_at <= now < check_window_end and (last_scanned_at is None or last_scanned_at < start):
+                    due = True
+                    reason = "live_check"
+                    break
+
+        # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
+        # zonder starttijd - vaker checken dan de trage dagelijkse fallback.
+        if not due and unknown_start_dates:
+            lookahead_end = (now + timedelta(days=unknown_start_lookahead_d)).date()
+            if any(now.date() <= d <= lookahead_end for d in unknown_start_dates):
+                cutoff = now - timedelta(hours=unknown_start_fallback_h)
+                due = last_scanned_at is None or last_scanned_at < cutoff
+                if due:
+                    reason = "unknown_start_recheck"
+
+    if not due:
+        cutoff = now - timedelta(hours=daily_fallback_h)
+        due = last_scanned_at is None or last_scanned_at < cutoff
+        if due:
+            reason = "daily_fallback"
+
+    return due, reason
+
+
 def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> int:
     """Competities met een bekend hl_comp_id (landelijke top-/subtopklasses) in 1x
     via get_competition_detail scannen i.p.v. per poule - die poules zijn alleen
     via de comp-detail-sync ontdekt en hebben dus geen team_id (item 945), dus
-    _step_new_or_empty_poules/_step_active_profiles slaan ze altijd stil over."""
-    hours = _get_int_setting(session, "landelijke_comp_scan_hours", 12)
-    cutoff = now - timedelta(hours=hours)
+    _step_new_or_empty_poules/_step_active_profiles slaan ze altijd stil over.
+
+    Behandelt de competitie als 1 grote "poule": dezelfde matchday-burst/
+    live-check/dagelijkse-fallback-regels als _step_active_profiles, maar
+    dan over de VERENIGING van alle wedstrijden in al haar poules (1
+    get_competition_detail-call ververst ze toch in 1x). De eerdere vaste
+    landelijke_comp_scan_hours-cadans (matchday-blind, elke N uur ongeacht
+    of er een wedstrijd bezig is) is vervallen (Bart, 30-08-2026)."""
+    match_duration      = _get_int_setting(session, "match_duration_min", 90)
+    daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
+    matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
+    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
+    burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
+    unknown_start_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+    unknown_start_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
+    matchday_enabled     = _active_matchday_enabled(session)
 
     comps = session.exec(
         select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))
@@ -265,14 +376,31 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
         poules = session.exec(
             select(HockeyPoule).where(HockeyPoule.competition_id == comp.id)
         ).all()
-        due = not poules or any(p.last_scanned_at is None or p.last_scanned_at < cutoff for p in poules)
+        if not poules:
+            # Competitie zelf al ontdekt, maar poules nog niet (die komen pas
+            # binnen via deze zelfde get_competition_detail-call) - meteen
+            # scannen, net als new_or_empty voor losse poules.
+            due, reason = True, "new_or_empty"
+        else:
+            poule_ids = [p.poule_id for p in poules]
+            matches = session.exec(
+                select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
+            ).all()
+            last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
+            due, reason = _matchday_due_reason(
+                now, matches, last_scanned_at,
+                match_duration=match_duration, matchday_interval_m=matchday_interval_m,
+                live_check_delay_m=live_check_delay_m, burst_stop_h=burst_stop_h,
+                unknown_start_lookahead_d=unknown_start_lookahead_d, unknown_start_fallback_h=unknown_start_fallback_h,
+                daily_fallback_h=daily_fallback_h, matchday_enabled=matchday_enabled,
+            )
         if not due:
             continue
         session.add(VangerCmd(
             cmd_type="get_competition_detail",
             params=json.dumps({"comp_id": comp.hl_comp_id, "label": comp.name}),
             status="pending",
-            reason="landelijke_cadence",
+            reason=reason,
         ))
         queued_comp_ids.add(comp.hl_comp_id)
         added += 1
@@ -326,90 +454,16 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
         if poule.competition_id in hl_linked_comp_ids:
             continue
 
-        due = False
-        reason = None  # welk due-blok hieronder 'm getriggerd heeft - voor de scan-historie-telling
-        if matchday_enabled:
-            matches = session.exec(
-                select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
-            ).all()
-
-            known_starts = []
-            known_ends = []
-            today_matches = []
-            has_unknown_today = False
-            unknown_start_dates = []  # niet-vandaag, wel al een datum maar nog geen starttijd (middernacht-placeholder)
-            for m in matches:
-                if not m.match_date:
-                    continue
-                info = _match_dt_info(m.match_date)
-                if not info:
-                    continue
-                utc_naive, is_today, is_midnight = info
-                if not is_today:
-                    if is_midnight:
-                        unknown_start_dates.append(utc_naive.date())
-                    continue
-                if is_midnight:
-                    has_unknown_today = True
-                else:
-                    known_starts.append(utc_naive)
-                    known_ends.append(utc_naive + timedelta(minutes=match_duration))
-                    today_matches.append(m)
-
-            if known_ends:
-                # Burst-modus stopt zodra ofwel alle wedstrijden van vandaag
-                # al "final" zijn (niets meer te halen), ofwel er meer dan
-                # burst_stop_h uur voorbij is sinds de LAATSTE wedstrijd
-                # eindigde - anders zou burst-modus de rest van de dag
-                # onnodig door blijven scannen (indruist tegen het doel: zo
-                # min mogelijk calls naar hockey.nl).
-                all_final = all(m.status == "final" for m in today_matches)
-                burst_deadline = max(known_ends) + timedelta(hours=burst_stop_h)
-                burst_active = now < burst_deadline and not all_final
-                if burst_active and now >= min(known_ends):
-                    cutoff = now - timedelta(minutes=matchday_interval_m)
-                    due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
-                    if due:
-                        reason = "matchday_burst"
-            elif has_unknown_today:
-                cutoff = now - timedelta(minutes=matchday_interval_m)
-                due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
-                if due:
-                    reason = "matchday_burst"
-
-            # item 970: kort na aanvang van een wedstrijd 1x checken of hij
-            # live-status heeft gekregen (niet elke wedstrijd heeft dat, item
-            # 969) - i.p.v. pas na afloop te reageren. Vuurt maximaal 1x per
-            # wedstrijd (last_scanned_at schuift na deze scan voorbij start,
-            # dus de voorwaarde hieronder is daarna niet meer waar).
-            if not due:
-                for start in known_starts:
-                    check_at = start + timedelta(minutes=live_check_delay_m)
-                    check_window_end = check_at + timedelta(minutes=matchday_interval_m)
-                    if check_at <= now < check_window_end and (poule.last_scanned_at is None or poule.last_scanned_at < start):
-                        due = True
-                        reason = "live_check"
-                        break
-
-            # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
-            # zonder starttijd (alleen een datum/middernacht-placeholder) -
-            # vaker checken dan de trage dagelijkse fallback, zodat de echte
-            # starttijd zo snel mogelijk bekend is zodra hockey.nl 'm publiceert
-            # (nodig om de matchday-burst op tijd te kunnen plannen).
-            if not due and unknown_start_dates:
-                lookahead_end = (now + timedelta(days=unknown_start_lookahead_d)).date()
-                if any(now.date() <= d <= lookahead_end for d in unknown_start_dates):
-                    cutoff = now - timedelta(hours=unknown_start_fallback_h)
-                    due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
-                    if due:
-                        reason = "unknown_start_recheck"
-
-        if not due:
-            cutoff = now - timedelta(hours=daily_fallback_h)
-            due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
-            if due:
-                reason = "daily_fallback"
-
+        matches = session.exec(
+            select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)
+        ).all()
+        due, reason = _matchday_due_reason(
+            now, matches, poule.last_scanned_at,
+            match_duration=match_duration, matchday_interval_m=matchday_interval_m,
+            live_check_delay_m=live_check_delay_m, burst_stop_h=burst_stop_h,
+            unknown_start_lookahead_d=unknown_start_lookahead_d, unknown_start_fallback_h=unknown_start_fallback_h,
+            daily_fallback_h=daily_fallback_h, matchday_enabled=matchday_enabled,
+        )
         if not due:
             continue
 

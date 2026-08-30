@@ -116,7 +116,6 @@ SCAN_PLAN_DEFAULTS = {
     "active_daily_fallback_hours": 24,
     "active_matchday_interval_min": 45,
     "stale_cmd_timeout_min":       10,
-    "landelijke_comp_scan_hours":  12,
     "live_check_delay_min":        15,
     "burst_stop_hours_after_last_match": 2,
     "unknown_start_lookahead_days": 5,
@@ -155,7 +154,6 @@ class VangerSettingsIn(BaseModel):
     active_daily_fallback_hours:   Optional[int] = None
     active_matchday_interval_min:  Optional[int] = None
     stale_cmd_timeout_min:         Optional[int] = None
-    landelijke_comp_scan_hours:    Optional[int] = None
     live_check_delay_min:          Optional[int] = None
     burst_stop_hours_after_last_match: Optional[int] = None
     unknown_start_lookahead_days:  Optional[int] = None
@@ -194,7 +192,6 @@ def update_vanger_settings(
         ("active_daily_fallback_hours", body.active_daily_fallback_hours),
         ("active_matchday_interval_min", body.active_matchday_interval_min),
         ("stale_cmd_timeout_min", body.stale_cmd_timeout_min),
-        ("landelijke_comp_scan_hours", body.landelijke_comp_scan_hours),
         ("live_check_delay_min", body.live_check_delay_min),
         ("burst_stop_hours_after_last_match", body.burst_stop_hours_after_last_match),
         ("unknown_start_lookahead_days", body.unknown_start_lookahead_days),

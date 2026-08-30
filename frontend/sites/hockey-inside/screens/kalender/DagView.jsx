@@ -49,7 +49,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
       landelijkeGroups.set(key, {
         poule_id: `hl-${key}`, poule_name: poule.competition_name, competition_name: poule.competition_name,
         hl_comp_id: poule.hl_comp_id, is_landelijke: true, followed: false, in_active_filter: false,
-        matches: [], memberPouleIds: [],
+        matches: [], memberPouleIds: [], last_scanned_at: undefined,
       })
     }
     const group = landelijkeGroups.get(key)
@@ -57,6 +57,16 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
     group.memberPouleIds.push(poule.poule_id)
     group.followed = group.followed || poule.followed
     group.in_active_filter = group.in_active_filter || poule.in_active_filter
+    // Zelfde semantiek als backend (_step_landelijke_competitions): de
+    // competitie is pas "gescand" als ELKE poule een last_scanned_at heeft -
+    // 1 nooit-gescande poule maakt de hele groep "nooit gescand" (oudste/
+    // ontbrekende wint), consistent met wanneer de echte scan due wordt.
+    if (poule.last_scanned_at == null) {
+      group.last_scanned_at = null
+    } else if (group.last_scanned_at !== null) {
+      group.last_scanned_at = (group.last_scanned_at === undefined || poule.last_scanned_at < group.last_scanned_at)
+        ? poule.last_scanned_at : group.last_scanned_at
+    }
   }
   const groupedPoules = [...regularPoules, ...landelijkeGroups.values()]
 
@@ -91,13 +101,13 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
       // (dat kostte onnodige calls naar hockey.nl, tegen het uitgangspunt
       // "zo min mogelijk calls" in).
       const burstDeadline = new Date(lastEnd.getTime() + settings.burst_stop_hours_after_last_match * 3600000)
-      const burstEnd = !isAutoscan ? null : poule.is_landelijke
-        // landelijke competities volgen de eigen 12u-cadans, niet de
-        // matchday-burst - het venster hier is dus alleen indicatief voor
-        // "wanneer wordt de HELE competitie weer in 1x ververst".
-        ? new Date(burstStart.getTime() + settings.landelijke_comp_scan_hours * 3600000)
-        : (allFinal ? lastEnd : burstDeadline)
-      const ticks = (!isAutoscan || poule.is_landelijke || allFinal) ? [] : (() => {
+      // Een landelijke competitie wordt sinds 30-08-2026 als 1 grote poule
+      // behandeld (_step_landelijke_competitions): dezelfde matchday-burst/
+      // live-check/dagelijkse-fallback-regels, alleen over de vereniging van
+      // alle wedstrijden in al haar poules - geen aparte cadans meer, dus
+      // ook geen aparte weergave-tak hier nodig.
+      const burstEnd = !isAutoscan ? null : (allFinal ? lastEnd : burstDeadline)
+      const ticks = (!isAutoscan || allFinal) ? [] : (() => {
         const t = []
         for (let time = burstStart.getTime(); time < burstEnd.getTime(); time += settings.active_matchday_interval_min * 60000) {
           t.push(new Date(time))
@@ -113,11 +123,11 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
         .filter(c => memberIds.includes(c.poule_id))
         .map(c => ({ dateObj: new Date(c.event_at || c.scheduled_at), status: c.status, executed: c.executed }))
         .filter(c => sameDay(c.dateObj, date))
-      const scanCount = !isAutoscan ? 0 : (poule.is_landelijke ? 1 : ticks.length)
+      const scanCount = !isAutoscan ? 0 : ticks.length
       // Zodra de burst-modus is gestopt (allFinal of voorbij de deadline),
       // is de dagelijkse fallback het eerstvolgende scanmoment - zichtbaar
       // maken i.p.v. dat het lijkt alsof er niets meer gepland staat.
-      const burstOver = isAutoscan && !poule.is_landelijke && (allFinal || date < new Date() && burstEnd < new Date())
+      const burstOver = isAutoscan && (allFinal || date < new Date() && burstEnd < new Date())
       const nextFallbackScan = (burstOver && poule.last_scanned_at)
         ? new Date(new Date(poule.last_scanned_at).getTime() + settings.active_daily_fallback_hours * 3600000)
         : null
@@ -247,7 +257,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {poule.followed && <span style={{ color: COL_GOOD, marginRight: 3 }}>★</span>}
               {poule.is_landelijke
-                ? poule.competition_name
+                ? `${poule.competition_name} · ${matches.length} wedstrijd${matches.length === 1 ? '' : 'en'}`
                 : `${poule.poule_name} · ${matches.length} wedstrijd${matches.length === 1 ? '' : 'en'}`}
             </div>
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>
@@ -268,13 +278,11 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
                 🔍 debug
               </span>
             )}
-            {!poule.is_landelijke && (
-              <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
-                {isAutoscan
-                  ? `${scanCount} scan${scanCount === 1 ? '' : 's'} gepland vandaag`
-                  : 'niet-autoscan · wekelijkse ronde (zie onderaan)'}
-              </div>
-            )}
+            <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
+              {isAutoscan
+                ? `${scanCount} scan${scanCount === 1 ? '' : 's'} gepland vandaag`
+                : 'niet-autoscan · wekelijkse ronde (zie onderaan)'}
+            </div>
             {nextFallbackScan && (
               <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
                 burst gestopt · volgende scan (dagelijkse fallback) {fmtTime(nextFallbackScan)} {nextFallbackScan.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
@@ -315,7 +323,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
             {isAutoscan && (
               <div
                 onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: poule.is_landelijke
-                  ? `Competitie-brede herscan\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.landelijke_comp_scan_hours}u, ververst alle ${poule.memberPouleIds.length} poules in 1x`
+                  ? `Burst-scanvenster (competitie-breed)\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min, ververst alle ${poule.memberPouleIds.length} poules in 1x\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd`
                   : `Burst-scanvenster\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd` })}
                 onMouseLeave={() => setTooltip(null)}
                 style={{
