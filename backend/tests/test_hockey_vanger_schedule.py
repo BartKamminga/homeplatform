@@ -90,6 +90,50 @@ def test_daily_fallback_event_is_generated_within_horizon(session):
     assert fallback[0]["planned_at"] == expected
 
 
+def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(session):
+    """Bart, 30-08-2026: een naar last_scanned_at berekende daily_fallback-
+    tick kwam soms midden in een actief burst-venster terecht (bv. een
+    daily_fallback-rij tussen live_check/matchday_burst-rijen op dezelfde
+    dag) - in werkelijkheid zou de burst-scan last_scanned_at allang voorbij
+    dat moment hebben geschoven, dus de fallback-cadans moet daar rekening
+    mee houden i.p.v. onafhankelijk vanaf de oude last_scanned_at te tellen."""
+    now = datetime(2026, 9, 5, 12, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|fallback-preempt", name="Fallback Preempt Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(
+        poule_id=555, name="Poule Fallback", competition_id=comp.id, season="2026-2027",
+        last_scanned_at=now - timedelta(hours=23, minutes=30),
+    )
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=50, club_external_id="HH50ZZ0", name="Fallback Team", short_name="H50",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=555,
+    ))
+    # Wedstrijd startte 2u geleden, standaardduur 90 min -> 30 min geleden
+    # afgelopen -> burst-modus loopt nu (tot 2u na afloop, default).
+    match_start = now - timedelta(hours=2)
+    session.add(HockeyPouleMatch(
+        poule_id=555, match_id=8001, home_team_id=50, away_team_id=51,
+        status="live", round=1, match_date=match_start.isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    burst_ticks = sorted(e["planned_at"] for e in events if e["target_id"] == 555 and e["reason"] == "matchday_burst")
+    fallback = [e for e in events if e["target_id"] == 555 and e["reason"] == "daily_fallback"]
+    assert burst_ticks
+    assert fallback
+    assert fallback[0]["planned_at"] > burst_ticks[-1]
+    assert fallback[0]["planned_at"] == burst_ticks[-1] + timedelta(hours=24)
+
+
 def test_hl_linked_poule_is_excluded_from_poule_events(session):
     now = datetime.utcnow()
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
