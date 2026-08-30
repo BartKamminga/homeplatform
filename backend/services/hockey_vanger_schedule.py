@@ -88,6 +88,12 @@ def _matchday_events(
         by_date.setdefault(utc_naive.date(), []).append((utc_naive, m))
 
     events: List[dict] = []
+    # Meerdere wedstrijden (in 1 poule, of - bij een landelijke competitie -
+    # verspreid over meerdere poules) die op exact hetzelfde moment starten
+    # zouden anders elk hun eigen live_check-rij krijgen, terwijl 1
+    # get_poule/get_competition_detail-call ze toch in 1x ververst - dedupe
+    # op het exacte check-moment.
+    seen_live_check_at: set = set()
     for day_matches in by_date.values():
         starts = [s for s, _m in day_matches]
         ends = [s + timedelta(minutes=match_duration_m) for s in starts]
@@ -101,7 +107,8 @@ def _matchday_events(
 
         for start, _m in day_matches:
             check_at = start + timedelta(minutes=live_check_delay_m)
-            if now <= check_at <= horizon_end:
+            if now <= check_at <= horizon_end and check_at not in seen_live_check_at:
+                seen_live_check_at.add(check_at)
                 events.append(_event(target_type, target_id, cmd_type, params, check_at, "live_check"))
     return events
 

@@ -130,6 +130,36 @@ def test_landelijke_competitions_are_scheduled_like_a_poule(session):
     assert any(e["reason"] == "daily_fallback" for e in hl_events)
 
 
+def test_landelijke_live_check_is_deduplicated_across_simultaneous_matches(session):
+    """Meerdere poules van dezelfde landelijke competitie kunnen op exact
+    hetzelfde moment een wedstrijd laten starten (Bart, 30-08-2026: bv.
+    Landelijk Jongens O18, 6 van de 8 poules om 14:00) - dat mag geen 6
+    losse live_check-rijen op hetzelfde tijdstip opleveren, 1
+    get_competition_detail-call ververst ze toch in 1x."""
+    now = datetime(2026, 9, 1, 10, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|hl-dedup", name="Landelijk Dedup Test", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=99,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    same_start = now + timedelta(hours=2)
+    for i, poule_id in enumerate((901, 902, 903)):
+        session.add(HockeyPoule(poule_id=poule_id, name=f"Poule {i}", competition_id=comp.id,
+                                 season="2026-2027", last_scanned_at=now - timedelta(hours=1)))
+        session.add(HockeyPouleMatch(
+            poule_id=poule_id, match_id=1000 + i, home_team_id=1, away_team_id=2,
+            status="scheduled", round=1, match_date=same_start.isoformat(),
+        ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    live_checks = [e for e in events if e["target_type"] == "competition" and e["target_id"] == 99 and e["reason"] == "live_check"]
+    assert len(live_checks) == 1
+
+
 def test_landelijke_competition_without_poules_yet_gets_an_immediate_event(session):
     now = datetime(2026, 9, 1, 10, 0, 0)
     comp = HockeyCompetition(
