@@ -53,6 +53,10 @@ export const VARIANT = {
   partial: { bg: 'color-mix(in srgb, var(--color-warning) 15%, var(--color-surface))', fg: 'var(--color-warning)', border: 'var(--color-warning)' },
   muted:   { bg: 'var(--color-surface)', fg: 'var(--color-text-muted)', border: 'var(--color-border)' },
   danger:  { bg: 'color-mix(in srgb, var(--color-danger) 15%, var(--color-surface))', fg: 'var(--color-danger)', border: 'var(--color-danger)' },
+  // info: net als 'muted' informationeel (geen actie nodig), maar met genoeg
+  // contrast om als losse badge herkenbaar te blijven i.p.v. te verdwijnen
+  // tegen de kaart-achtergrond (Bart, 30-08-2026: "badge iets duidelijker").
+  info:    { bg: 'color-mix(in srgb, var(--color-text-muted) 18%, var(--color-surface))', fg: 'var(--color-text)', border: 'var(--color-text-muted)' },
 }
 
 export function pill(variant) {
