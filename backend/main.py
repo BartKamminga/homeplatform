@@ -57,6 +57,7 @@ from routers import hockey_vanger_heartbeat  # noqa: E402
 from routers import hockey_vanger_calendar  # noqa: E402
 from routers import hockey_vanger_cmd_queue  # noqa: E402
 from routers import hockey_vanger_cmd_queue_debug  # noqa: E402
+from routers import hockey_vanger_schedule_debug  # noqa: E402
 from routers import hockey_vanger_smartscan_control  # noqa: E402
 from routers import hockey_vanger_gap_analysis  # noqa: E402
 from routers import hockey_vanger_sync  # noqa: E402
@@ -188,6 +189,7 @@ app.include_router(hockey_vanger_heartbeat.router)
 app.include_router(hockey_vanger_calendar.router)
 app.include_router(hockey_vanger_cmd_queue.router)
 app.include_router(hockey_vanger_cmd_queue_debug.router)
+app.include_router(hockey_vanger_schedule_debug.router)
 app.include_router(hockey_vanger_smartscan_control.router)
 app.include_router(hockey_vanger_gap_analysis.router)
 app.include_router(hockey_vanger_sync.router)

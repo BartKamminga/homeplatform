@@ -56,6 +56,12 @@ export const browseVangerQueue = (params) => {
 }
 export const previewNextVangerCmd = () => api.get('/api/hockey/vanger/cmd-queue/preview-next')
 
+export const browseSchedule = (params) => {
+  const qs = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return api.get(`/api/hockey/vanger/schedule/browse${qs.toString() ? `?${qs}` : ''}`)
+}
+export const getScheduleSummary = () => api.get('/api/hockey/vanger/schedule/summary')
+
 // Publieke detail-endpoints (wedstrijden + stand per poule)
 export const getCompetitionMatches   = (cid)    => api.get(`/api/hockey/public/competitions/${cid}/matches`)
 export const getHockeyPouleStandings = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)
