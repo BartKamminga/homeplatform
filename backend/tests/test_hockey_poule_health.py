@@ -3,7 +3,14 @@
 gespeelde wedstrijd zonder uitslag - dat is een scan waard' + 'wedstrijden
 zijn bezig, hoeven niet perse live te zijn'). Puur uit match-data afgeleid,
 los van scan-geschiedenis/cadans - zie routers/hockey_capture.py::
-_poule_health."""
+_poule_health.
+
+unknown_start en overdue_result zijn bewust 2 losse velden (niet 1
+gecombineerde 'needs_scan') - bij een eerste acc-check stond 927 van de
+1023 poules op 'needs_scan' aan het begin van een nieuw seizoen, puur
+omdat hockey.nl starttijden vaak pas 1-2 weken van tevoren publiceert.
+overdue_result blijft dan het enige echt selectieve signaal (199
+wedstrijden op hetzelfde moment)."""
 
 from datetime import datetime, timedelta
 
@@ -44,10 +51,11 @@ def test_poule_with_a_match_in_progress_is_flagged_busy(session):
 
     row = _result_for(result, 700)
     assert row["busy"] is True
-    assert row["needs_scan"] is False
+    assert row["unknown_start"] is False
+    assert row["overdue_result"] is False
 
 
-def test_poule_with_an_overdue_unresolved_match_needs_a_scan(session):
+def test_poule_with_an_overdue_unresolved_match_is_flagged(session):
     """Gespeeld (voorspeld einde al voorbij) maar nog geen 'final' status."""
     now = datetime.utcnow()
     poule = _setup_poule(session, 701)
@@ -60,11 +68,12 @@ def test_poule_with_an_overdue_unresolved_match_needs_a_scan(session):
     result = list_poules(season=SEASON, session=session, _=None)
 
     row = _result_for(result, 701)
-    assert row["needs_scan"] is True
+    assert row["overdue_result"] is True
     assert row["busy"] is False
+    assert row["unknown_start"] is False
 
 
-def test_poule_with_a_finished_match_does_not_need_a_scan(session):
+def test_poule_with_a_finished_match_is_not_flagged(session):
     now = datetime.utcnow()
     poule = _setup_poule(session, 702)
     session.add(HockeyPouleMatch(
@@ -76,11 +85,11 @@ def test_poule_with_a_finished_match_does_not_need_a_scan(session):
     result = list_poules(season=SEASON, session=session, _=None)
 
     row = _result_for(result, 702)
-    assert row["needs_scan"] is False
+    assert row["overdue_result"] is False
     assert row["busy"] is False
 
 
-def test_poule_with_an_unknown_start_time_within_a_week_needs_a_scan(session):
+def test_poule_with_an_unknown_start_time_within_a_week_is_flagged(session):
     now = datetime.utcnow()
     poule = _setup_poule(session, 703)
     placeholder = (now + timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -93,10 +102,11 @@ def test_poule_with_an_unknown_start_time_within_a_week_needs_a_scan(session):
     result = list_poules(season=SEASON, session=session, _=None)
 
     row = _result_for(result, 703)
-    assert row["needs_scan"] is True
+    assert row["unknown_start"] is True
+    assert row["overdue_result"] is False
 
 
-def test_poule_with_an_unknown_start_time_beyond_a_week_does_not_need_a_scan_yet(session):
+def test_poule_with_an_unknown_start_time_beyond_a_week_is_not_flagged_yet(session):
     now = datetime.utcnow()
     poule = _setup_poule(session, 704)
     placeholder = (now + timedelta(days=20)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -109,10 +119,10 @@ def test_poule_with_an_unknown_start_time_beyond_a_week_does_not_need_a_scan_yet
     result = list_poules(season=SEASON, session=session, _=None)
 
     row = _result_for(result, 704)
-    assert row["needs_scan"] is False
+    assert row["unknown_start"] is False
 
 
-def test_quiet_poule_with_only_future_known_matches_needs_no_scan(session):
+def test_quiet_poule_with_only_future_known_matches_is_not_flagged(session):
     now = datetime.utcnow()
     poule = _setup_poule(session, 705)
     session.add(HockeyPouleMatch(
@@ -124,5 +134,6 @@ def test_quiet_poule_with_only_future_known_matches_needs_no_scan(session):
     result = list_poules(season=SEASON, session=session, _=None)
 
     row = _result_for(result, 705)
-    assert row["needs_scan"] is False
+    assert row["unknown_start"] is False
+    assert row["overdue_result"] is False
     assert row["busy"] is False

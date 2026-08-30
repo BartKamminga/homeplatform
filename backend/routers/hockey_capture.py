@@ -428,7 +428,15 @@ def _poule_health(session: Session, poule_ids: List[int]) -> Dict[int, dict]:
     'wedstrijden zijn bezig (hoeven niet perse live te zijn)'. Puur uit
     match-data afgeleid (geen scan-geschiedenis/cadans nodig) - 1 gebatchte
     query voor alle meegegeven poules i.p.v. per poule, zodat de Discovery-
-    boom (honderden poules) niet N+1 wordt."""
+    boom (honderden poules) niet N+1 wordt.
+
+    unknown_start en overdue_result zijn BEWUST 2 losse velden i.p.v. 1
+    gecombineerde 'needs_scan' (Bart, 30-08-2026, na een eerste acc-check:
+    927 van de 1023 poules stonden op 'needs_scan' aan het begin van een
+    nieuw seizoen, puur omdat hockey.nl de starttijden van de eerste ronden
+    vaak pas 1-2 weken van tevoren publiceert - unknown_start is dan bijna
+    overal waar, en overspoelt het echt selectieve signaal (overdue_result,
+    slechts 199 wedstrijden op hetzelfde moment) als ze samen 1 vlag delen."""
     if not poule_ids:
         return {}
     match_duration_m = _get_int_setting(session, "match_duration_min", 90)
@@ -445,16 +453,16 @@ def _poule_health(session: Session, poule_ids: List[int]) -> Dict[int, dict]:
         if not info:
             continue
         utc_naive, _is_today, is_midnight = info
-        h = health.setdefault(m.poule_id, {"busy": False, "needs_scan": False})
+        h = health.setdefault(m.poule_id, {"busy": False, "unknown_start": False, "overdue_result": False})
         if is_midnight:
             if now.date() <= utc_naive.date() <= lookahead_end:
-                h["needs_scan"] = True
+                h["unknown_start"] = True
             continue
         end = utc_naive + timedelta(minutes=match_duration_m)
         if utc_naive <= now < end:
             h["busy"] = True
         if end < now and m.status != "final":
-            h["needs_scan"] = True
+            h["overdue_result"] = True
     return health
 
 
@@ -478,8 +486,9 @@ def list_poules(
                 "name":          p.name,
                 "competition_id": p.competition_id,
                 "season":        p.season,
-                "busy":          health.get(p.poule_id, {}).get("busy", False),
-                "needs_scan":    health.get(p.poule_id, {}).get("needs_scan", False),
+                "busy":            health.get(p.poule_id, {}).get("busy", False),
+                "unknown_start":   health.get(p.poule_id, {}).get("unknown_start", False),
+                "overdue_result":  health.get(p.poule_id, {}).get("overdue_result", False),
             }
             for p in poules
         ],
