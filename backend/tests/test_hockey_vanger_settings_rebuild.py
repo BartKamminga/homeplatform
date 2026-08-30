@@ -45,7 +45,7 @@ def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
     update_vanger_settings(VangerSettingsIn(active_matchday_interval_min=45), session=session, _=None)
     ticks_45 = sorted(
         e.planned_at for e in session.exec(
-            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "matchday_burst")
+            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "match_end_check")
         ).all()
     )
     assert len(ticks_45) >= 2
@@ -54,7 +54,7 @@ def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
     update_vanger_settings(VangerSettingsIn(active_matchday_interval_min=10), session=session, _=None)
     ticks_10 = sorted(
         e.planned_at for e in session.exec(
-            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "matchday_burst")
+            select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "match_end_check")
         ).all()
     )
     assert len(ticks_10) >= 2

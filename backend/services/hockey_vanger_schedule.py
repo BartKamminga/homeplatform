@@ -2,11 +2,11 @@
 lijst van scan-momenten - los van de vanger_cmd_queue (VangerCmd, de
 daadwerkelijke uitvoeringsqueue die Ghost/Scout aflopen).
 
-Herbruikt dezelfde regels als services/hockey_vanger_scanplan.py (matchday-
-burst, live-check, dagelijkse fallback - ook voor landelijke competities,
-die als 1 grote poule worden behandeld over de vereniging van alle
-wedstrijden in hun poules - wekelijkse niet-autoscan-ronde, onbekende-
-starttijd-recheck), maar dan als
+Herbruikt dezelfde regels als services/hockey_vanger_scanplan.py
+(match_start_check, match_end_check, dagelijkse fallback - ook voor
+landelijke competities, die als 1 grote poule worden behandeld over de
+vereniging van alle wedstrijden in hun poules - wekelijkse niet-autoscan-
+ronde, onbekende-starttijd-recheck), maar dan als
 EVENT-GENERATOREN die een heel venster [now, now+horizon] vooruitplannen
 i.p.v. alleen "is dit nu due" te beantwoorden. Doel: de Kalender-tab kan het
 schema straks gewoon TONEN i.p.v. zelf (in JS) dezelfde regels te
@@ -32,7 +32,7 @@ from models.hockey_discovery import (
 from services.hockey_vanger_filters import _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
     STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _manual_scan_weekday, _match_dt_info,
-    _pending_club_ext_ids, _pending_poule_ids, _team_by_poule,
+    _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _team_by_poule,
 )
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
@@ -67,10 +67,10 @@ def _matchday_events(
     now: datetime, horizon_end: datetime,
     match_duration_m: int, matchday_interval_m: int, live_check_delay_m: int, burst_stop_h: int,
 ) -> List[dict]:
-    """Burst-ticks + live-check-moment(en), per kalenderdag met een bekende
-    (niet-placeholder) starttijd binnen het venster - zelfde regels als
-    _matchday_due_reason in hockey_vanger_scanplan.py, maar voor elke dag in
-    het venster i.p.v. alleen 'vandaag'. Gedeeld tussen 1 poule
+    """match_end_check-ticks + match_start_check-moment(en), per kalenderdag
+    met een bekende (niet-placeholder) starttijd binnen het venster - zelfde
+    regels als _matchday_due_reason in hockey_vanger_scanplan.py, maar voor
+    elke dag in het venster i.p.v. alleen 'vandaag'. Gedeeld tussen 1 poule
     (_poule_matchday_events) en de vereniging van alle wedstrijden in de
     poules van 1 landelijke competitie (_landelijke_matchday_events)."""
     by_date: Dict = {}
@@ -89,17 +89,21 @@ def _matchday_events(
 
     events: List[dict] = []
     # Meerdere wedstrijden (in 1 poule, of - bij een landelijke competitie -
-    # verspreid over meerdere poules) kunnen ervoor zorgen dat matchday_burst
-    # (dag-breed) en live_check/live_update (per wedstrijd) toevallig op
-    # exact hetzelfde moment uitkomen - het zijn allemaal dezelfde
-    # get_poule/get_competition_detail-call voor hetzelfde doel, dus bij
-    # promotie zou dat toch tot 1 VangerCmd samenvallen (add_vanger_cmd
-    # dedupt al). 1 gedeelde seen_at-set over alle 3 reasons voorkomt dat
-    # zo'n samenval als 2 losse geplande rijen in het schema verschijnt.
+    # verspreid over meerdere poules) kunnen ervoor zorgen dat de dag-brede
+    # match_end_check-tick en een per-wedstrijd match_start_check/
+    # match_end_check toevallig op exact hetzelfde moment uitkomen - het
+    # zijn allemaal dezelfde get_poule/get_competition_detail-call voor
+    # hetzelfde doel, dus bij promotie zou dat toch tot 1 VangerCmd
+    # samenvallen (add_vanger_cmd dedupt al). 1 gedeelde seen_at-set
+    # voorkomt dat zo'n samenval als 2 losse geplande rijen verschijnt.
     seen_at: set = set()
     for day_matches in by_date.values():
         starts = [s for s, _m in day_matches]
         ends = [s + timedelta(minutes=match_duration_m) for s in starts]
+        # match_end_check stopt zodra ofwel alle wedstrijden van die dag al
+        # "final" zijn, ofwel er meer dan burst_stop_h uur voorbij is sinds
+        # de LAATSTE wedstrijd eindigde - deze uiterste stop-tijd is niet
+        # onderhandelbaar, match_end_check mag nooit langer doorlopen.
         all_final = all(m.status == "final" for _s, m in day_matches)
         burst_deadline = max(ends) if all_final else max(ends) + timedelta(hours=burst_stop_h)
         burst_start = min(ends)
@@ -107,32 +111,33 @@ def _matchday_events(
         while tick < burst_deadline and tick <= horizon_end:
             if tick >= now and tick not in seen_at:
                 seen_at.add(tick)
-                events.append(_event(target_type, target_id, cmd_type, params, tick, "matchday_burst"))
+                events.append(_event(target_type, target_id, cmd_type, params, tick, "match_end_check"))
             tick += timedelta(minutes=matchday_interval_m)
 
         for (start, m), end in zip(day_matches, ends):
             check_at = start + timedelta(minutes=live_check_delay_m)
             if now <= check_at <= horizon_end and check_at not in seen_at:
                 seen_at.add(check_at)
-                events.append(_event(target_type, target_id, cmd_type, params, check_at, "live_check"))
+                events.append(_event(target_type, target_id, cmd_type, params, check_at, "match_start_check"))
 
-            # De dode zone tussen het 1x live_check-moment en het moment
-            # waarop matchday_burst overneemt (burst_start, de EERSTE
-            # wedstrijd van de dag die afloopt) - zolang DEZE wedstrijd nog
-            # loopt, periodiek doorscannen (zelfde interval als burst). Net
-            # als in _matchday_due_reason: alleen als een eerdere scan al
-            # bevestigd heeft dat de wedstrijd echt live staat (m.status ==
-            # "live") - vooraf blind inplannen voor een wedstrijd die (nog)
-            # niet blijkt te leven zou onnodige calls in het schema tonen.
+            # De dode zone tussen het 1x match_start_check-moment en het
+            # moment waarop het match_end_check-blok hierboven overneemt
+            # (burst_start, de EERSTE wedstrijd van de dag die afloopt) -
+            # zolang DEZE wedstrijd nog loopt, periodiek doorscannen (zelfde
+            # interval, zelfde reason). Net als in _matchday_due_reason:
+            # alleen als een eerdere scan al bevestigd heeft dat de
+            # wedstrijd echt live staat (m.status == "live") - vooraf blind
+            # inplannen voor een wedstrijd die (nog) niet blijkt te leven
+            # zou onnodige calls in het schema tonen.
             if m.status != "live":
                 continue
             check_window_end = check_at + timedelta(minutes=matchday_interval_m)
-            live_update_tick = check_window_end
-            while live_update_tick < burst_start and live_update_tick < end and live_update_tick <= horizon_end:
-                if live_update_tick >= now and live_update_tick not in seen_at:
-                    seen_at.add(live_update_tick)
-                    events.append(_event(target_type, target_id, cmd_type, params, live_update_tick, "live_update"))
-                live_update_tick += timedelta(minutes=matchday_interval_m)
+            live_tick = check_window_end
+            while live_tick < burst_start and live_tick < end and live_tick <= horizon_end:
+                if live_tick >= now and live_tick not in seen_at:
+                    seen_at.add(live_tick)
+                    events.append(_event(target_type, target_id, cmd_type, params, live_tick, "match_end_check"))
+                live_tick += timedelta(minutes=matchday_interval_m)
     return events
 
 
@@ -162,13 +167,14 @@ def _cadence_events(
     target_type: str, target_id, cmd_type: str, params: dict, last_scanned_at, now: datetime, horizon_end: datetime,
     interval_h: int, reason: str, window_start_h: int, window_end_h: int,
     preempting_at: Optional[List[datetime]] = None, same_day_preempt: bool = False,
+    require_match_within_days: Optional[int] = None, matches: Optional[List[HockeyPouleMatch]] = None,
 ) -> List[dict]:
     """Vaste cadans (daily_fallback/unknown_start_recheck) vanaf
     last_scanned_at. preempting_at is een gesorteerde lijst van momenten
-    waarop een HOGER-prioriteit scan (matchday_burst/live_check/live_update,
-    en voor daily_fallback ook unknown_start_recheck) al gepland staat -
-    zo'n scan zou in werkelijkheid last_scanned_at al hebben bijgewerkt en
-    dus deze cadans-klok resetten. Zonder dit verscheen bv. een
+    waarop een HOGER-prioriteit scan (match_start_check/match_end_check, en
+    voor daily_fallback ook unknown_start_recheck) al gepland staat - zo'n
+    scan zou in werkelijkheid last_scanned_at al hebben bijgewerkt en dus
+    deze cadans-klok resetten. Zonder dit verscheen bv. een
     daily_fallback-rij midden in een actief burst-venster (Bart,
     30-08-2026), wat in de praktijk nooit gebeurt.
 
@@ -181,7 +187,16 @@ def _cadence_events(
     voor weergave, en zou zonder deze correctie tegen de VERKEERDE dag
     vergeleken worden - precies zo verscheen een fallback op 5 sep 09:00
     terwijl de dag ervoor (4 sep) geen wedstrijd had, maar de klem 'm alsnog
-    op 5 sep liet landen, de dag die WEL matchday-activiteit had."""
+    op 5 sep liet landen, de dag die WEL matchday-activiteit had.
+
+    require_match_within_days (Bart, 30-08-2026, alleen voor
+    daily_fallback): sla een tick over zolang er geen wedstrijd binnen dat
+    aantal dagen VAN DIE TICK af valt - een rustige week levert toch niets
+    op om te ontdekken. De cadans blijft intern gewoon elke interval_h uur
+    doortikken (base/tick schuiven altijd door), alleen het WEERGEVEN van
+    een tick wordt overgeslagen - zodra een latere tick weer binnen het
+    lookahead-venster van een wedstrijd valt, verschijnt de fallback
+    vanzelf weer."""
     preempting = sorted(preempting_at or [])
     idx = 0
     base = last_scanned_at or now
@@ -200,7 +215,7 @@ def _cadence_events(
             display_date = _clamp_to_window(tick, window_start_h, window_end_h).date()
         if moved:
             continue
-        if tick >= now:
+        if tick >= now and (require_match_within_days is None or _next_match_within(matches, tick, require_match_within_days)):
             events.append(_event(target_type, target_id, cmd_type, params, _clamp_to_window(tick, window_start_h, window_end_h), reason))
         base = tick
         tick = base + timedelta(hours=interval_h)
@@ -256,6 +271,9 @@ def _landelijke_unknown_start_events(
     )
 
 
+DAILY_FALLBACK_LOOKAHEAD_DAYS = 7
+
+
 def _poule_daily_fallback_events(
     poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
     daily_fallback_h: int, window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
@@ -269,6 +287,7 @@ def _poule_daily_fallback_events(
     return _cadence_events(
         "poule", poule.poule_id, "get_poule", params, poule.last_scanned_at, now, horizon_end,
         daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at, same_day_preempt=True,
+        require_match_within_days=DAILY_FALLBACK_LOOKAHEAD_DAYS, matches=matches,
     )
 
 
@@ -282,6 +301,7 @@ def _landelijke_daily_fallback_events(
     return _cadence_events(
         "competition", comp.hl_comp_id, "get_competition_detail", params, last_scanned_at, now, horizon_end,
         daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at, same_day_preempt=True,
+        require_match_within_days=DAILY_FALLBACK_LOOKAHEAD_DAYS, matches=matches,
     )
 
 

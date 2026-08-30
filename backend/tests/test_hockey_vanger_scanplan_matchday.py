@@ -46,13 +46,15 @@ def _setup_active_competition(session, now, last_scanned_at):
         poule_id=444, match_id=7001, home_team_id=9, away_team_id=10,
         status="finished", round=1, match_date=match_start.isoformat(),
     ))
-    # Altijd ook een wedstrijd verderop in het seizoen (item 1016: een poule
-    # zonder ENIGE toekomstige wedstrijd is "klaar" en krijgt geen
-    # daily_fallback meer) - deze helper test de cadans-logica, niet het
-    # einde-van-seizoen-gedrag (dat heeft een eigen test).
+    # Altijd ook een wedstrijd verderop in het seizoen, binnen 7 dagen
+    # (item 1016 + de latere 7-dagen-vooruitkijk-uitbreiding: een poule
+    # zonder ENIGE toekomstige wedstrijd, of zonder wedstrijd binnen 7
+    # dagen, krijgt geen daily_fallback meer) - deze helper test de
+    # cadans-logica, niet het einde-van-seizoen-gedrag (dat heeft een eigen
+    # test).
     session.add(HockeyPouleMatch(
         poule_id=444, match_id=79999, home_team_id=9, away_team_id=10,
-        status="scheduled", round=2, match_date=(now + timedelta(days=30)).isoformat(),
+        status="scheduled", round=2, match_date=(now + timedelta(days=3)).isoformat(),
     ))
     session.commit()
     return poule
@@ -410,17 +412,17 @@ def test_manual_profiles_weekly_skips_a_landelijke_competition(session):
 
 # ── reason wordt getagd op de aangemaakte VangerCmd (scan-historie) ──────
 
-def test_matchday_burst_cmd_is_tagged_with_its_reason(session):
+def test_match_end_check_cmd_is_tagged_with_its_reason(session):
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
 
     _step_active_profiles(session, now, cap=10)
 
     cmd = session.exec(select(VangerCmd)).first()
-    assert cmd.reason == "matchday_burst"
+    assert cmd.reason == "match_end_check"
 
 
-def test_live_check_cmd_is_tagged_with_its_reason(session):
+def test_match_start_check_cmd_is_tagged_with_its_reason(session):
     now = datetime.utcnow()
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
     match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
@@ -432,20 +434,21 @@ def test_live_check_cmd_is_tagged_with_its_reason(session):
     _step_active_profiles(session, now, cap=10)
 
     cmd = session.exec(select(VangerCmd)).first()
-    assert cmd.reason == "live_check"
+    assert cmd.reason == "match_start_check"
 
 
-def test_live_update_cmd_is_tagged_with_its_reason(session):
-    """Bart, 30-08-2026: tussen het 1x live_check-moment en het einde van de
-    wedstrijd zat een dode zone - een wedstrijd die al langer bezig is dan
-    het live_check-venster, maar nog niet is afgelopen, moet periodiek
-    doorscannen met reason live_update."""
+def test_match_end_check_during_play_cmd_is_tagged_with_its_reason(session):
+    """Bart, 30-08-2026: tussen het 1x match_start_check-moment en het einde
+    van de wedstrijd zat een dode zone - een wedstrijd die al langer bezig
+    is dan het match_start_check-venster, maar nog niet is afgelopen, moet
+    periodiek doorscannen met reason match_end_check (ook al voor het
+    voorspelde einde, zolang de wedstrijd bevestigd live staat)."""
     now = datetime.utcnow()
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
     match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
     # Gestart 70 min geleden, standaardduur 90 min -> nog 20 min te gaan, en
-    # het live_check-venster (15 min delay + 45 min interval = 60 min) is
-    # al voorbij.
+    # het match_start_check-venster (15 min delay + 45 min interval = 60
+    # min) is al voorbij.
     match.match_date = (now - timedelta(minutes=70)).isoformat()
     match.status = "live"
     session.add(match)
@@ -454,7 +457,7 @@ def test_live_update_cmd_is_tagged_with_its_reason(session):
     _step_active_profiles(session, now, cap=10)
 
     cmd = session.exec(select(VangerCmd)).first()
-    assert cmd.reason == "live_update"
+    assert cmd.reason == "match_end_check"
 
 
 def test_daily_fallback_cmd_is_tagged_with_its_reason(session):
@@ -500,6 +503,72 @@ def test_daily_fallback_is_skipped_once_the_season_is_over(session):
     added = _step_active_profiles(session, now, cap=10)
 
     assert added == 0
+
+
+def test_daily_fallback_is_skipped_during_a_quiet_week(session):
+    """Bart, 30-08-2026: 'als alles van een poule of comp bekend is ...
+    kunnen de daily_fallback voor die poule/comp vervallen voor de komende
+    week' - een poule die stale genoeg is voor de dagelijkse fallback, maar
+    waarvan de eerstvolgende wedstrijd nog meer dan 7 dagen weg is, heeft
+    niets te ontdekken tot die dichterbij komt."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|quiet-week", name="Quiet Week Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=777, name="Poule Rustig", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(hours=25))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=30, club_external_id="HH30ZZ0", name="Rustig Team", short_name="H30",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=777,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=777, match_id=8501, home_team_id=30, away_team_id=31,
+        status="scheduled", round=1, match_date=(now + timedelta(days=10)).isoformat(),
+    ))
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0  # 10 dagen weg -> buiten het 7-dagen-lookahead-venster
+
+
+def test_daily_fallback_resumes_once_the_quiet_week_is_over(session):
+    """Zelfde scenario als hierboven, maar nu 5 dagen tot de eerstvolgende
+    wedstrijd (binnen het 7-dagen-venster) - de dagelijkse fallback moet
+    dan gewoon weer aanslaan."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|quiet-week-resume", name="Quiet Week Resume Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=778, name="Poule Bijna", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(hours=25))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=31, club_external_id="HH31ZZ0", name="Bijna Team", short_name="H31",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=778,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=778, match_id=8502, home_team_id=31, away_team_id=32,
+        status="scheduled", round=1, match_date=(now + timedelta(days=5)).isoformat(),
+    ))
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "daily_fallback"
 
 
 def test_manual_weekly_cmd_is_tagged_with_its_reason(session):

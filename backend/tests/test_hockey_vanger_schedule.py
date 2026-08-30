@@ -41,13 +41,17 @@ def _setup_active_competition(session, now, last_scanned_at, match_offset_hours=
         poule_id=444, match_id=7001, home_team_id=9, away_team_id=10,
         status=status, round=1, match_date=match_start.isoformat(),
     ))
-    # Altijd ook een wedstrijd verderop in het seizoen (item 1016: een poule
-    # zonder ENIGE toekomstige wedstrijd is "klaar" en krijgt geen
-    # daily_fallback meer) - deze helper test de cadans-logica, niet het
-    # einde-van-seizoen-gedrag (dat heeft een eigen test).
+    # Altijd ook een wedstrijd verderop in het seizoen, binnen 7 dagen
+    # (item 1016 + de latere 7-dagen-vooruitkijk-uitbreiding: een poule
+    # zonder ENIGE toekomstige wedstrijd, of zonder wedstrijd binnen 7
+    # dagen, krijgt geen daily_fallback meer) - deze helper test de
+    # cadans-logica, niet het einde-van-seizoen-gedrag (dat heeft een eigen
+    # test). status="final" zodat deze wedstrijd zelf geen eigen
+    # match_end_check/burst-ticks genereert en de tests die daarop checken
+    # niet per ongeluk raakt.
     session.add(HockeyPouleMatch(
         poule_id=444, match_id=79999, home_team_id=9, away_team_id=10,
-        status="scheduled", round=2, match_date=(now + timedelta(days=30)).isoformat(),
+        status="final", round=2, match_date=(now + timedelta(days=3)).isoformat(),
     ))
     session.commit()
     return poule
@@ -59,7 +63,7 @@ def test_matchday_burst_event_is_generated_for_an_ended_match(session):
 
     events = build_schedule_events(session, now, horizon_days=14)
 
-    assert any(e["reason"] == "matchday_burst" and e["target_id"] == 444 for e in events)
+    assert any(e["reason"] == "match_end_check" and e["target_id"] == 444 for e in events)
 
 
 def test_matchday_burst_stops_once_all_of_the_days_matches_are_final(session):
@@ -68,64 +72,72 @@ def test_matchday_burst_stops_once_all_of_the_days_matches_are_final(session):
 
     events = build_schedule_events(session, now, horizon_days=14)
 
-    assert not any(e["reason"] == "matchday_burst" and e["target_id"] == 444 for e in events)
+    assert not any(e["reason"] == "match_end_check" and e["target_id"] == 444 for e in events)
 
 
-def test_live_check_event_is_generated_shortly_after_kickoff(session):
+def test_match_start_check_event_is_generated_shortly_after_kickoff(session):
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-0.25, status="scheduled")
 
     events = build_schedule_events(session, now, horizon_days=14)
 
-    live_checks = [e for e in events if e["reason"] == "live_check" and e["target_id"] == 444]
-    assert live_checks
-    assert live_checks[0]["planned_at"] >= now
+    match_start_checks = [e for e in events if e["reason"] == "match_start_check" and e["target_id"] == 444]
+    assert match_start_checks
+    assert match_start_checks[0]["planned_at"] >= now
 
 
-def test_live_update_events_fill_the_gap_between_live_check_and_the_burst_start(session):
-    """Bart, 30-08-2026: tussen het 1x live_check-moment en het moment
-    waarop matchday_burst overneemt (na afloop van de wedstrijd) zat een
-    dode zone in het schema - live_update dekt dat gat, zolang de
-    wedstrijd loopt."""
+def test_match_end_check_fills_the_gap_between_match_start_check_and_the_predicted_end(session):
+    """Bart, 30-08-2026: tussen het 1x match_start_check-moment en het
+    voorspelde einde van de wedstrijd zat een dode zone in het schema -
+    match_end_check dekt dat gat nu ook AL tijdens de wedstrijd (zolang
+    die bevestigd live staat), niet pas na het voorspelde einde."""
     now = datetime.utcnow()
-    # Gestart 60 min geleden (exact het einde van het live_check-venster:
-    # 15 min delay + 45 min interval), standaardduur 90 min -> nog 30 min
-    # te gaan tot matchday_burst overneemt.
+    # Gestart 60 min geleden (exact het einde van het match_start_check-
+    # venster: 15 min delay + 45 min interval), standaardduur 90 min -> nog
+    # 30 min te gaan tot het voorspelde einde.
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1, status="live")
 
     events = build_schedule_events(session, now, horizon_days=1)
 
-    live_updates = [e for e in events if e["reason"] == "live_update" and e["target_id"] == 444]
-    assert live_updates
-    assert all(e["planned_at"] >= now for e in live_updates)
-    # Mag niet overlappen met een matchday_burst-tick op hetzelfde moment.
-    burst_ticks = {e["planned_at"] for e in events if e["reason"] == "matchday_burst" and e["target_id"] == 444}
-    assert not (set(e["planned_at"] for e in live_updates) & burst_ticks)
+    match_end_checks = sorted(e["planned_at"] for e in events if e["reason"] == "match_end_check" and e["target_id"] == 444)
+    assert match_end_checks
+    assert all(t >= now for t in match_end_checks)
+    predicted_end = now + timedelta(minutes=30)
+    assert any(t < predicted_end for t in match_end_checks)  # het "live"-gedeelte, vóór het voorspelde einde
+    assert len(match_end_checks) == len(set(match_end_checks))  # geen dubbelen op hetzelfde moment
 
 
-def test_live_update_is_not_planned_for_a_match_that_is_not_confirmed_live(session):
+def test_match_end_check_is_not_planned_early_for_a_match_that_is_not_confirmed_live(session):
     """Bart, 30-08-2026: 'dit is toch pas een item, zodra we weten of er een
-    livewedstrijd is' - live_update mag alleen gepland worden als een
-    eerdere scan al bevestigd heeft dat de wedstrijd echt live staat
-    (m.status == 'live'), niet louter op basis van de voorspelde
-    starttijd/duur (status hier bewust 'scheduled', niet 'live')."""
+    livewedstrijd is' - de vroege (nog-lopende-wedstrijd) match_end_check-
+    ticks mogen alleen gepland worden als een eerdere scan al bevestigd
+    heeft dat de wedstrijd echt live staat (m.status == 'live'), niet
+    louter op basis van de voorspelde starttijd/duur (status hier bewust
+    'scheduled', niet 'live'). De REGULIERE match_end_check NA het
+    voorspelde einde is wel gewoon verwacht, ongeacht live-status."""
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1, status="scheduled")
 
     events = build_schedule_events(session, now, horizon_days=1)
 
-    assert not any(e["reason"] == "live_update" and e["target_id"] == 444 for e in events)
+    predicted_end = now + timedelta(minutes=30)  # gestart 60 min geleden, standaardduur 90 min
+    early_checks = [
+        e for e in events
+        if e["reason"] == "match_end_check" and e["target_id"] == 444 and e["planned_at"] < predicted_end
+    ]
+    assert not early_checks
 
 
-def test_matchday_burst_and_live_check_do_not_duplicate_when_they_land_on_the_same_instant(session):
-    """Bart, 30-08-2026: matchday_burst (dag-breed, gebaseerd op de EERSTE
-    wedstrijd die afloopt) en live_check (per wedstrijd) kunnen toevallig op
-    exact hetzelfde moment uitkomen - dat mag geen 2 losse rijen opleveren,
-    ze zouden bij promotie toch tot dezelfde VangerCmd samenvallen."""
+def test_match_end_check_and_match_start_check_do_not_duplicate_when_they_land_on_the_same_instant(session):
+    """Bart, 30-08-2026: match_end_check (dag-breed, gebaseerd op de EERSTE
+    wedstrijd die afloopt) en match_start_check (per wedstrijd) kunnen
+    toevallig op exact hetzelfde moment uitkomen - dat mag geen 2 losse
+    rijen opleveren, ze zouden bij promotie toch tot dezelfde VangerCmd
+    samenvallen."""
     now = datetime(2026, 9, 5, 10, 0, 0)
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-0.5, status="scheduled")
-    # 2e wedstrijd zo getimed dat haar live_check (start + 15 min) exact
-    # samenvalt met het moment waarop de EERSTE wedstrijd afloopt
+    # 2e wedstrijd zo getimed dat haar match_start_check (start + 15 min)
+    # exact samenvalt met het moment waarop de EERSTE wedstrijd afloopt
     # (burst_start = start1 + 90 min standaardduur = now + 60 min).
     second_start = now + timedelta(minutes=45)
     session.add(HockeyPouleMatch(
@@ -160,8 +172,8 @@ def test_daily_fallback_event_is_generated_within_horizon(session):
 def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(session):
     """Bart, 30-08-2026: een naar last_scanned_at berekende daily_fallback-
     tick kwam soms midden in een actief burst-venster terecht (bv. een
-    daily_fallback-rij tussen live_check/matchday_burst-rijen op dezelfde
-    dag) - in werkelijkheid zou de burst-scan last_scanned_at allang voorbij
+    daily_fallback-rij tussen match_start_check/match_end_check-rijen op
+    dezelfde dag) - in werkelijkheid zou de burst-scan last_scanned_at allang voorbij
     dat moment hebben geschoven, dus de fallback-cadans moet daar rekening
     mee houden i.p.v. onafhankelijk vanaf de oude last_scanned_at te tellen."""
     now = datetime(2026, 9, 5, 12, 0, 0)
@@ -189,18 +201,19 @@ def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(ses
         poule_id=555, match_id=8001, home_team_id=50, away_team_id=51,
         status="live", round=1, match_date=match_start.isoformat(),
     ))
-    # Wedstrijd verderop in het seizoen (item 1016: zonder toekomstige
-    # wedstrijd is de poule "klaar" en krijgt ze geen daily_fallback meer -
-    # deze test toetst de cadans-logica, niet het einde-van-seizoen-gedrag).
+    # Wedstrijd verderop in het seizoen, binnen 7 dagen (item 1016 + de
+    # 7-dagen-vooruitkijk-uitbreiding: zonder toekomstige wedstrijd binnen
+    # 7 dagen krijgt de poule geen daily_fallback meer - deze test toetst
+    # de cadans-logica, niet dat gedrag).
     session.add(HockeyPouleMatch(
         poule_id=555, match_id=89999, home_team_id=50, away_team_id=51,
-        status="scheduled", round=2, match_date=(now + timedelta(days=30)).isoformat(),
+        status="final", round=2, match_date=(now + timedelta(days=3)).isoformat(),
     ))
     session.commit()
 
     events = build_schedule_events(session, now, horizon_days=2)
 
-    burst_ticks = sorted(e["planned_at"] for e in events if e["target_id"] == 555 and e["reason"] == "matchday_burst")
+    burst_ticks = sorted(e["planned_at"] for e in events if e["target_id"] == 555 and e["reason"] == "match_end_check")
     fallback = [e for e in events if e["target_id"] == 555 and e["reason"] == "daily_fallback"]
     assert burst_ticks
     assert fallback
@@ -260,6 +273,47 @@ def test_daily_fallback_is_not_generated_once_the_season_is_over(session):
     events = build_schedule_events(session, now, horizon_days=14)
 
     assert not any(e["target_id"] == 666 for e in events)
+
+
+def test_daily_fallback_is_not_generated_during_a_quiet_week(session):
+    """Bart, 30-08-2026: 'als alles van een poule of comp bekend is ...
+    kunnen de daily_fallback voor die poule/comp vervallen voor de komende
+    week' - geen daily_fallback-ticks zolang de eerstvolgende wedstrijd nog
+    meer dan 7 dagen weg is; de cadans hervat vanzelf zodra die wedstrijd
+    dichterbij komt."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|schedule-quiet-week", name="Schedule Quiet Week", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=667, name="Poule Rustig", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(hours=25))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=61, club_external_id="HH61ZZ0", name="Rustig Team", short_name="H61",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=667,
+    ))
+    # Eerstvolgende wedstrijd pas over 10 dagen - de eerste ~3 dagen van het
+    # 14-dagen-horizon vallen dus in een "rustige week" (buiten het
+    # 7-dagen-lookahead-venster).
+    session.add(HockeyPouleMatch(
+        poule_id=667, match_id=9101, home_team_id=61, away_team_id=62,
+        status="scheduled", round=1, match_date=(now + timedelta(days=10)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=14)
+
+    fallback = sorted(e["planned_at"] for e in events if e["target_id"] == 667 and e["reason"] == "daily_fallback")
+    assert fallback
+    # De eerste fallback-tick mag pas verschijnen zodra de wedstrijd (dag
+    # 10) binnen het 7-dagen-lookahead-venster valt, dus niet eerder dan
+    # rond dag 3.
+    assert fallback[0] >= now + timedelta(days=2, hours=12)
 
 
 def test_daily_fallback_is_absorbed_when_the_clamped_display_date_lands_on_a_matchday(session):
@@ -327,11 +381,11 @@ def test_landelijke_competitions_are_scheduled_like_a_poule(session):
     assert any(e["reason"] == "daily_fallback" for e in hl_events)
 
 
-def test_landelijke_live_check_is_deduplicated_across_simultaneous_matches(session):
+def test_landelijke_match_start_check_is_deduplicated_across_simultaneous_matches(session):
     """Meerdere poules van dezelfde landelijke competitie kunnen op exact
     hetzelfde moment een wedstrijd laten starten (Bart, 30-08-2026: bv.
     Landelijk Jongens O18, 6 van de 8 poules om 14:00) - dat mag geen 6
-    losse live_check-rijen op hetzelfde tijdstip opleveren, 1
+    losse match_start_check-rijen op hetzelfde tijdstip opleveren, 1
     get_competition_detail-call ververst ze toch in 1x."""
     now = datetime(2026, 9, 1, 10, 0, 0)
     comp = HockeyCompetition(
@@ -353,8 +407,8 @@ def test_landelijke_live_check_is_deduplicated_across_simultaneous_matches(sessi
 
     events = build_schedule_events(session, now, horizon_days=1)
 
-    live_checks = [e for e in events if e["target_type"] == "competition" and e["target_id"] == 99 and e["reason"] == "live_check"]
-    assert len(live_checks) == 1
+    match_start_checks = [e for e in events if e["target_type"] == "competition" and e["target_id"] == 99 and e["reason"] == "match_start_check"]
+    assert len(match_start_checks) == 1
 
 
 def test_landelijke_competition_without_poules_yet_gets_an_immediate_event(session):
@@ -591,16 +645,17 @@ def test_scan_window_is_configurable(session):
     assert fallback["planned_at"].hour == 7
 
 
-def test_matchday_burst_and_live_check_are_not_clamped_to_the_scan_window(session):
-    """Wedstrijd-gebonden momenten (burst/live-check) hangen aan de echte
-    wedstrijdtijd (kan 's avonds zijn) en mogen NIET verschoven worden naar
-    het scan-venster - alleen niet-wedstrijd-gebonden momenten wel."""
+def test_match_end_check_and_match_start_check_are_not_clamped_to_the_scan_window(session):
+    """Wedstrijd-gebonden momenten (match_end_check/match_start_check) hangen
+    aan de echte wedstrijdtijd (kan 's avonds zijn) en mogen NIET verschoven
+    worden naar het scan-venster - alleen niet-wedstrijd-gebonden momenten
+    wel."""
     now = datetime(2026, 9, 1, 20, 30, 0)  # ruim buiten het standaard venster
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-0.5, status="scheduled")
 
     events = build_schedule_events(session, now, horizon_days=1)
 
-    burst = [e for e in events if e["reason"] == "matchday_burst" and e["target_id"] == 444]
+    burst = [e for e in events if e["reason"] == "match_end_check" and e["target_id"] == 444]
     assert burst
     assert burst[0]["planned_at"].hour >= 20  # niet verplaatst naar 09:00-18:00
 

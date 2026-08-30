@@ -100,6 +100,30 @@ def _has_remaining_matches(matches, now: datetime) -> bool:
     return False
 
 
+def _next_match_within(matches, now: datetime, days: int) -> bool:
+    """True als er een wedstrijd binnen `days` dagen valt - bekend (met of
+    zonder starttijd, dat kan alsnog binnen de periode vallen) of nog
+    helemaal geen wedstrijd bekend (conservatief: kan nog van alles komen).
+    Gebruikt om de dagelijkse fallback over te slaan tijdens een rustige
+    periode (Bart 30-08-2026): zolang de eerstvolgende wedstrijd nog ver
+    weg is, valt er toch niets te ontdekken via een dagelijkse
+    heartbeat-scan - de cadans hervat vanzelf zodra die wedstrijd
+    dichterbij komt."""
+    if not matches:
+        return True
+    horizon = now + timedelta(days=days)
+    for m in matches:
+        if not m.match_date:
+            return True
+        info = _match_dt_info(m.match_date)
+        if not info:
+            return True
+        utc_naive, _is_today, _is_midnight = info
+        if now <= utc_naive <= horizon:
+            return True
+    return False
+
+
 def _reclaim_stale_in_progress(session: Session, now: datetime) -> int:
     """Roadmap-melding (29-08-2026, live wedstrijddag): cmd-queue/next zet een
     cmd meteen op in_progress zodra Scout/Ghost 'm ophaalt, vóór er ook maar
@@ -271,11 +295,12 @@ def _matchday_due_reason(
     matchday_enabled: bool,
 ) -> Tuple[bool, Optional[str]]:
     """Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
-    heeft: matchday-burst tijdens/na een wedstrijd van vandaag, 1x
-    live-check kort na aanvang (item 970), vaker checken bij een nog
-    onbekende starttijd binnen afzienbare tijd (item 992), anders de trage
-    dagelijkse fallback. Gedeeld tussen _step_active_profiles (matches van 1
-    poule) en _step_landelijke_competitions (matches van ALLE poules in de
+    heeft: match_end_check tijdens/na een wedstrijd van vandaag ("blijf
+    checken tot de uitslag bekend is"), 1x match_start_check kort na
+    aanvang (item 970), vaker checken bij een nog onbekende starttijd
+    binnen afzienbare tijd (item 992), anders de trage dagelijkse
+    fallback. Gedeeld tussen _step_active_profiles (matches van 1 poule)
+    en _step_landelijke_competitions (matches van ALLE poules in de
     competitie samen, Bart 30-08-2026: een landelijke competitie wordt
     hiermee behandeld als 1 grote poule, geen aparte cadans meer)."""
     due = False
@@ -306,10 +331,11 @@ def _matchday_due_reason(
                 today_matches.append(m)
 
         if known_ends:
-            # Burst-modus stopt zodra ofwel alle wedstrijden van vandaag al
-            # "final" zijn (niets meer te halen), ofwel er meer dan
+            # match_end_check stopt zodra ofwel alle wedstrijden van vandaag
+            # al "final" zijn (niets meer te halen), ofwel er meer dan
             # burst_stop_h uur voorbij is sinds de LAATSTE wedstrijd
-            # eindigde.
+            # eindigde - deze uiterste stop-tijd is niet onderhandelbaar,
+            # match_end_check mag nooit langer doorlopen.
             all_final = all(m.status == "final" for m in today_matches)
             burst_deadline = max(known_ends) + timedelta(hours=burst_stop_h)
             burst_active = now < burst_deadline and not all_final
@@ -317,12 +343,12 @@ def _matchday_due_reason(
                 cutoff = now - timedelta(minutes=matchday_interval_m)
                 due = last_scanned_at is None or last_scanned_at < cutoff
                 if due:
-                    reason = "matchday_burst"
+                    reason = "match_end_check"
         elif has_unknown_today:
             cutoff = now - timedelta(minutes=matchday_interval_m)
             due = last_scanned_at is None or last_scanned_at < cutoff
             if due:
-                reason = "matchday_burst"
+                reason = "match_end_check"
 
         # item 970: kort na aanvang van een wedstrijd 1x checken of hij
         # live-status heeft gekregen i.p.v. pas na afloop te reageren.
@@ -332,15 +358,16 @@ def _matchday_due_reason(
                 check_window_end = check_at + timedelta(minutes=matchday_interval_m)
                 if check_at <= now < check_window_end and (last_scanned_at is None or last_scanned_at < start):
                     due = True
-                    reason = "live_check"
+                    reason = "match_start_check"
                     break
 
-        # Bart, 30-08-2026: tussen het 1x live_check-moment en het einde van
-        # de EERSTE wedstrijd van de dag (waarna matchday_burst overneemt)
-        # zat een dode zone - een wedstrijd die al langer bezig is dan het
-        # live_check-venster, maar nog niet is afgelopen, werd helemaal niet
-        # herscand. live_update dekt dat gat, MAAR alleen als een eerdere
-        # scan al bevestigd heeft dat de wedstrijd echt live staat
+        # Bart, 30-08-2026: tussen het 1x match_start_check-moment en het
+        # einde van de EERSTE wedstrijd van de dag (waarna het bovenstaande
+        # match_end_check-blok overneemt) zat een dode zone - een wedstrijd
+        # die al langer bezig is dan het match_start_check-venster, maar nog
+        # niet is afgelopen, werd helemaal niet herscand. Dit blok dekt dat
+        # gat met dezelfde match_end_check-reason, MAAR alleen als een
+        # eerdere scan al bevestigd heeft dat de wedstrijd echt live staat
         # (m.status == "live") - niet elke wedstrijd krijgt live-status op
         # hockey.nl (item 969), dus blind doorscannen op basis van de
         # voorspelde starttijd alleen zou onnodige calls opleveren voor
@@ -355,7 +382,7 @@ def _matchday_due_reason(
                 cutoff = now - timedelta(minutes=matchday_interval_m)
                 if last_scanned_at is None or last_scanned_at < cutoff:
                     due = True
-                    reason = "live_update"
+                    reason = "match_end_check"
                 break
 
         # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
@@ -372,8 +399,11 @@ def _matchday_due_reason(
     # geweest, is het seizoen voor deze poule/competitie voorbij - een
     # dagelijkse heartbeat-scan heeft dan geen zin meer (niets nieuws te
     # ontdekken). Poules zonder ENIGE bekende wedstrijd blijven wel de
-    # dagelijkse fallback krijgen (kan nog van alles binnenkomen).
-    if not due and _has_remaining_matches(matches, now):
+    # dagelijkse fallback krijgen (kan nog van alles binnenkomen). Bart,
+    # 30-08-2026: zelfde redenering voor een RUSTIGE WEEK - als de
+    # eerstvolgende wedstrijd nog meer dan 7 dagen weg is, valt er
+    # sowieso niets te ontdekken tot die dichterbij komt.
+    if not due and _has_remaining_matches(matches, now) and _next_match_within(matches, now, 7):
         cutoff = now - timedelta(hours=daily_fallback_h)
         due = last_scanned_at is None or last_scanned_at < cutoff
         if due:

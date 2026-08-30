@@ -180,8 +180,8 @@ class ScanScheduleEntry(SQLModel, table=True):
     cmd_type:       str                                 # zelfde waarden als VangerCmd.cmd_type
     params:         str                                 # JSON, zelfde vorm als add_vanger_cmd's params
     planned_at:     datetime      = Field(index=True)
-    reason:         str           = Field(index=True)   # matchday_burst | daily_fallback | live_check |
-                                                          # live_update | manual_weekly | unknown_start_recheck |
+    reason:         str           = Field(index=True)   # match_start_check | match_end_check | daily_fallback |
+                                                          # manual_weekly | unknown_start_recheck |
                                                           # new_or_empty | club_scan | club_list
     status:         str           = Field(default="planned", index=True)  # planned | promoted | cancelled
     vanger_cmd_id:  Optional[int] = None

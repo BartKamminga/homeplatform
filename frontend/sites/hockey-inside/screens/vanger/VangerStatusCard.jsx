@@ -121,7 +121,7 @@ const SCAN_PLAN_FIELDS = [
   { key: 'active_daily_fallback_hours',  label: 'Dagelijkse fallback (u)',  width: 44 },
   { key: 'active_matchday_interval_min', label: 'Matchday-interval (min)',  width: 44 },
   { key: 'stale_cmd_timeout_min',        label: 'Stuck-cmd-timeout (min)',  width: 44 },
-  { key: 'live_check_delay_min',         label: 'Live-check na start (min)', width: 44 },
+  { key: 'live_check_delay_min',         label: 'Match-start-check na start (min)', width: 44 },
   { key: 'burst_stop_hours_after_last_match', label: 'Burst-stop na laatste wedstrijd (u)', width: 44 },
   { key: 'unknown_start_lookahead_days', label: 'Onbekende starttijd - vooruitkijken (dagen)', width: 44 },
   { key: 'unknown_start_fallback_hours', label: 'Onbekende starttijd - hercheck (u)', width: 44 },

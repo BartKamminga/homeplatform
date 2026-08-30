@@ -4,13 +4,17 @@ ondanks dat het de centrale ontvangst-functie is voor alle Ghost/Scout-
 scanresultaten (5 cmd_type-dispatch-paden + archivering + foutafhandeling)."""
 
 import json
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
 
 from models.capture import DataCapture
-from models.hockey_discovery import HockeyTeam, ScanHistoryDaily, VangerCmd
+from models.hockey import HockeyPublicationComp
+from models.hockey_discovery import (
+    HockeyCompetition, HockeyPoule, HockeyTeam, ScanHistoryDaily, ScanScheduleEntry, VangerCmd,
+)
 from routers.hockey_vanger_cmd_queue import CmdResultIn, post_cmd_result
 
 
@@ -95,6 +99,56 @@ def test_get_poule_result_captures_data_and_archives_it(session):
     capture = session.exec(select(DataCapture).where(DataCapture.external_id == "poule_capture_100")).first()
     assert capture is not None
     assert json.loads(capture.meta)["competition"] == "Test Comp"
+
+
+def test_get_poule_result_triggers_a_reactive_schedule_rebuild(session):
+    """Bart, 30-08-2026: een net binnengekomen get_poule-resultaat moet het
+    scanschema meteen laten herberekenen, i.p.v. te wachten op de
+    eerstvolgende periodieke scan-plan-pass - anders blijft een net
+    ontdekte (live) wedstrijd tot profile_scan_interval_min onzichtbaar in
+    het schema. Zonder de reactieve rebuild in post_cmd_result zou
+    ScanScheduleEntry hier na afloop nog steeds leeg zijn - niets anders
+    in deze test roept rebuild_schedule aan."""
+    # external_id moet exact matchen met wat _call_poule_capture zelf
+    # berekent (name|class_name|district|season) - anders herkent de
+    # ingest deze competitie niet en maakt hij een NIEUWE (ongepubliceerde)
+    # rij aan, waarna de poule alsnog buiten active_comp_ids valt.
+    comp = HockeyCompetition(
+        external_id="Reactive Rebuild Test|District||2026-2027", name="Reactive Rebuild Test",
+        class_name="District", hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=500, name="Poule Reactive", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=50, club_external_id="HH50ZZ0", name="Reactive Team", short_name="H50",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=500,
+    ))
+    session.commit()
+
+    assert session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 500)).first() is None
+
+    match_start = datetime.utcnow() - timedelta(minutes=20)
+    raw = {"data": {"data": {"poule": {
+        "id": 500, "name": "Poule Reactive",
+        "competition": {"name": "Reactive Rebuild Test", "subcompetition": {"class": "District"}},
+        "standings": [],
+        "matches": [{"id": 1, "date": match_start.isoformat(), "status": "live",
+                     "home": {"id": 50, "name": "Reactive Team"}, "away": {"id": 51, "name": "Other Team"},
+                     "score": {"home": 0, "away": 0}}],
+    }}}}
+    cmd = _pending_cmd("get_poule", {"poule_id": 500, "team_id": 50, "label": "Reactive Team"})
+    session.add(cmd)
+    session.commit()
+    session.refresh(cmd)
+
+    post_cmd_result(cmd.id, CmdResultIn(raw=raw, session_id="sess-reactive"), session=session, _=None)
+
+    entries = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 500)).all()
+    assert entries
 
 
 def test_get_poule_result_records_a_successful_scan_history_entry(session):

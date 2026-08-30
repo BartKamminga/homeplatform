@@ -96,24 +96,24 @@ def test_matchday_burst_triggers_from_a_match_in_any_member_poule(session):
 
     assert added == 1
     _, reason = _added_reason(session)
-    assert reason == "matchday_burst"
+    assert reason == "match_end_check"
 
 
-def test_live_check_triggers_shortly_after_a_match_starts_in_one_poule(session):
+def test_match_start_check_triggers_shortly_after_a_match_starts_in_one_poule(session):
     comp = _make_hl_competition(session)
     now = datetime.utcnow()
     _make_poule(session, comp, poule_id=1, last_scanned_at=now - timedelta(hours=2))
     _make_poule(session, comp, poule_id=2, last_scanned_at=now - timedelta(hours=2))
     # Wedstrijd 20 min geleden gestart, standaardduur 90 min -> nog niet
-    # afgelopen (dus geen burst-trigger), wel binnen het live-check-venster
-    # (live_check_delay_min=15 na start).
+    # afgelopen (dus geen match_end_check-trigger), wel binnen het
+    # match_start_check-venster (live_check_delay_min=15 na start).
     _make_match(session, poule_id=1, match_id=2, match_date=now - timedelta(minutes=20), status="live")
 
     added = _step_landelijke_competitions(session, now, cap=10)
 
     assert added == 1
     _, reason = _added_reason(session)
-    assert reason == "live_check"
+    assert reason == "match_start_check"
 
 
 def test_daily_fallback_is_skipped_once_all_poules_are_done_for_the_season(session):

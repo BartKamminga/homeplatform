@@ -5,10 +5,9 @@ const COL_SCHEDULED = '#eda100'
 // (services/hockey_vanger_schedule.py) - landelijke_cadence bestaat niet meer
 // als los reason-type (die info staat al in de landelijke-groep-rij zelf).
 const REASON_LABELS = [
-  ['matchday_burst',        'Matchday-burst'],
+  ['match_start_check',     'Match-start-check'],
+  ['match_end_check',       'Match-end-check'],
   ['daily_fallback',        'Dagelijkse fallback'],
-  ['live_check',            'Live-check'],
-  ['live_update',           'Live-update'],
   ['manual_weekly',         'Niet-autoscan (wekelijks)'],
   ['unknown_start_recheck', 'Onbekende starttijd'],
   ['new_or_empty',          'Nieuwe/lege poules'],

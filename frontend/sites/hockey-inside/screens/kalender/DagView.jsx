@@ -25,8 +25,8 @@ function sameDay(a, b) {
 
 // "N scans gepland vandaag" moet uit het echte scanschema komen (target_type/
 // target_id/planned_at) i.p.v. clientside herberekend uit de burst-ticks
-// (die alleen matchday_burst kennen) - anders klopt de teller niet meer
-// zodra er ook live_check/live_update-momenten gepland staan (Bart,
+// (die alleen match_end_check kennen) - anders klopt de teller niet meer
+// zodra er ook match_start_check-momenten gepland staan (Bart,
 // 30-08-2026: "3 scans gepland" terwijl de Debug-tab er 4 liet zien).
 function scheduleCountFor(scheduleEntries, targetType, targetId, date) {
   return (scheduleEntries || []).filter(e =>

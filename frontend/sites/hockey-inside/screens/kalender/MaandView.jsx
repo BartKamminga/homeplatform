@@ -5,10 +5,9 @@ const WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
 // Zie WeekView.jsx voor toelichting - landelijke_cadence bestaat niet meer
 // als los reason-type.
 const REASON_LABELS = [
-  ['matchday_burst',        'Matchday-burst'],
+  ['match_start_check',     'Match-start-check'],
+  ['match_end_check',       'Match-end-check'],
   ['daily_fallback',        'Dagelijkse fallback'],
-  ['live_check',            'Live-check'],
-  ['live_update',           'Live-update'],
   ['manual_weekly',         'Niet-autoscan (wekelijks)'],
   ['unknown_start_recheck', 'Onbekende starttijd'],
   ['new_or_empty',          'Nieuwe/lege poules'],
@@ -17,10 +16,9 @@ const REASON_LABELS = [
 ]
 // Korte labels voor in de kleine maand-cel (56px) - inline i.p.v. popup.
 const REASON_LABELS_SHORT = [
-  ['matchday_burst',        'Burst'],
+  ['match_start_check',     'Start'],
+  ['match_end_check',       'Eind'],
   ['daily_fallback',        'Fallback'],
-  ['live_check',            'Live'],
-  ['live_update',           'Live+'],
   ['manual_weekly',         'Wekelijks'],
   ['unknown_start_recheck', '?tijd'],
   ['new_or_empty',          'Nieuw'],

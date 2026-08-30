@@ -27,8 +27,24 @@ from services.hockey_vanger_ingest import (
 )
 from services.hockey_poule_capture_core import notify_finished_matches
 from services.hockey_vanger_scan_history import record_scan_outcome
-from services.hockey_vanger_settings import get_target_season
+from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
+from services.hockey_vanger_settings import _get_int_setting, get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
+
+
+def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: datetime) -> None:
+    """Bart, 30-08-2026: een net binnengekomen get_poule/get_competition_
+    detail-resultaat kan een wedstrijd-status wijzigen (bv. net "final"
+    geworden, of net "live") - het scanschema meteen laten herberekenen
+    i.p.v. te wachten op de eerstvolgende periodieke pass (tot
+    profile_scan_interval_min later) houdt match_start_check/
+    match_end_check-rijen in het schema actueel. scan_club/get_clubs/
+    get_competitions raken geen wedstrijd-timing, dus die triggeren dit
+    bewust niet."""
+    if cmd.cmd_type not in ("get_poule", "get_competition_detail"):
+        return
+    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+    rebuild_schedule(session, now, horizon_days)
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -504,6 +520,7 @@ def post_cmd_result(
                     tp.no_new_poule_confirmed = True
                     session.add(tp)
 
+        _maybe_rebuild_schedule_after_result(session, cmd, now)
         session.commit()
         return {"ok": True, "status": cmd.status}
 
@@ -563,6 +580,7 @@ def post_cmd_result(
         cmd.result_summary = json.dumps(summary_data)
         session.add(cmd)
         record_scan_outcome(session, cmd.reason, success=False, when=now)
+        _maybe_rebuild_schedule_after_result(session, cmd, now)
         session.commit()
         return {"ok": False, "status": "failed", "error": str(e)}
 
@@ -583,6 +601,7 @@ def post_cmd_result(
     cmd.result_summary = json.dumps(summary_data)
     session.add(cmd)
     record_scan_outcome(session, cmd.reason, success=True, when=now)
+    _maybe_rebuild_schedule_after_result(session, cmd, now)
     session.commit()
     notify_finished_matches(session, newly_finished)
     _smart_scan_try_advance(session)
