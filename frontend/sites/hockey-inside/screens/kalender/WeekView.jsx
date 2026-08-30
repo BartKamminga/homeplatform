@@ -8,6 +8,7 @@ const REASON_LABELS = [
   ['matchday_burst',        'Matchday-burst'],
   ['daily_fallback',        'Dagelijkse fallback'],
   ['live_check',            'Live-check'],
+  ['live_update',           'Live-update'],
   ['manual_weekly',         'Niet-autoscan (wekelijks)'],
   ['unknown_start_recheck', 'Onbekende starttijd'],
   ['new_or_empty',          'Nieuwe/lege poules'],

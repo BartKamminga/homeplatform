@@ -427,6 +427,28 @@ def test_live_check_cmd_is_tagged_with_its_reason(session):
     assert cmd.reason == "live_check"
 
 
+def test_live_update_cmd_is_tagged_with_its_reason(session):
+    """Bart, 30-08-2026: tussen het 1x live_check-moment en het einde van de
+    wedstrijd zat een dode zone - een wedstrijd die al langer bezig is dan
+    het live_check-venster, maar nog niet is afgelopen, moet periodiek
+    doorscannen met reason live_update."""
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    # Gestart 70 min geleden, standaardduur 90 min -> nog 20 min te gaan, en
+    # het live_check-venster (15 min delay + 45 min interval = 60 min) is
+    # al voorbij.
+    match.match_date = (now - timedelta(minutes=70)).isoformat()
+    match.status = "live"
+    session.add(match)
+    session.commit()
+
+    _step_active_profiles(session, now, cap=10)
+
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "live_update"
+
+
 def test_daily_fallback_cmd_is_tagged_with_its_reason(session):
     now = datetime.utcnow()
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))

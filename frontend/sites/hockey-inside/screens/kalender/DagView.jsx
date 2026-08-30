@@ -23,6 +23,17 @@ function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
+// "N scans gepland vandaag" moet uit het echte scanschema komen (target_type/
+// target_id/planned_at) i.p.v. clientside herberekend uit de burst-ticks
+// (die alleen matchday_burst kennen) - anders klopt de teller niet meer
+// zodra er ook live_check/live_update-momenten gepland staan (Bart,
+// 30-08-2026: "3 scans gepland" terwijl de Debug-tab er 4 liet zien).
+function scheduleCountFor(scheduleEntries, targetType, targetId, date) {
+  return (scheduleEntries || []).filter(e =>
+    e.status === 'planned' && e.target_type === targetType && e.target_id === targetId && sameDay(new Date(e.planned_at), date)
+  ).length
+}
+
 export default function DagView({ data, date, onDateChange, onNavigateToDebug }) {
   const [tooltip, setTooltip] = useState(null)
   const { settings, recent_captures: recentCaptures } = data
@@ -123,7 +134,10 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
         .filter(c => memberIds.includes(c.poule_id))
         .map(c => ({ dateObj: new Date(c.event_at || c.scheduled_at), status: c.status, executed: c.executed }))
         .filter(c => sameDay(c.dateObj, date))
-      const scanCount = !isAutoscan ? 0 : ticks.length
+      const scanCount = !isAutoscan ? 0 : scheduleCountFor(
+        data.schedule_entries, poule.is_landelijke ? 'competition' : 'poule',
+        poule.is_landelijke ? poule.hl_comp_id : poule.poule_id, date,
+      )
       // Zodra de burst-modus is gestopt (allFinal of voorbij de deadline),
       // is de dagelijkse fallback het eerstvolgende scanmoment - zichtbaar
       // maken i.p.v. dat het lijkt alsof er niets meer gepland staat.

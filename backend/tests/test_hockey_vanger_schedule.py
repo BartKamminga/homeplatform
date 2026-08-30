@@ -74,6 +74,51 @@ def test_live_check_event_is_generated_shortly_after_kickoff(session):
     assert live_checks[0]["planned_at"] >= now
 
 
+def test_live_update_events_fill_the_gap_between_live_check_and_the_burst_start(session):
+    """Bart, 30-08-2026: tussen het 1x live_check-moment en het moment
+    waarop matchday_burst overneemt (na afloop van de wedstrijd) zat een
+    dode zone in het schema - live_update dekt dat gat, zolang de
+    wedstrijd loopt."""
+    now = datetime.utcnow()
+    # Gestart 60 min geleden (exact het einde van het live_check-venster:
+    # 15 min delay + 45 min interval), standaardduur 90 min -> nog 30 min
+    # te gaan tot matchday_burst overneemt.
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1, status="live")
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    live_updates = [e for e in events if e["reason"] == "live_update" and e["target_id"] == 444]
+    assert live_updates
+    assert all(e["planned_at"] >= now for e in live_updates)
+    # Mag niet overlappen met een matchday_burst-tick op hetzelfde moment.
+    burst_ticks = {e["planned_at"] for e in events if e["reason"] == "matchday_burst" and e["target_id"] == 444}
+    assert not (set(e["planned_at"] for e in live_updates) & burst_ticks)
+
+
+def test_matchday_burst_and_live_check_do_not_duplicate_when_they_land_on_the_same_instant(session):
+    """Bart, 30-08-2026: matchday_burst (dag-breed, gebaseerd op de EERSTE
+    wedstrijd die afloopt) en live_check (per wedstrijd) kunnen toevallig op
+    exact hetzelfde moment uitkomen - dat mag geen 2 losse rijen opleveren,
+    ze zouden bij promotie toch tot dezelfde VangerCmd samenvallen."""
+    now = datetime(2026, 9, 5, 10, 0, 0)
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-0.5, status="scheduled")
+    # 2e wedstrijd zo getimed dat haar live_check (start + 15 min) exact
+    # samenvalt met het moment waarop de EERSTE wedstrijd afloopt
+    # (burst_start = start1 + 90 min standaardduur = now + 60 min).
+    second_start = now + timedelta(minutes=45)
+    session.add(HockeyPouleMatch(
+        poule_id=poule.poule_id, match_id=7002, home_team_id=9, away_team_id=11,
+        status="scheduled", round=1, match_date=second_start.isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    collision_at = now + timedelta(minutes=60)
+    at_collision = [e for e in events if e["target_id"] == 444 and e["planned_at"] == collision_at]
+    assert len(at_collision) == 1
+
+
 def test_daily_fallback_event_is_generated_within_horizon(session):
     now = datetime.utcnow()
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
@@ -132,6 +177,28 @@ def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(ses
     assert fallback
     assert fallback[0]["planned_at"] > burst_ticks[-1]
     assert fallback[0]["planned_at"] == burst_ticks[-1] + timedelta(hours=24)
+
+
+def test_daily_fallback_is_skipped_when_a_matchday_scan_is_already_planned_that_same_day(session):
+    """Bart, 30-08-2026: als er die dag al een matchday-scan gepland staat -
+    ook als die pas later op de dag valt dan de berekende fallback-tick - is
+    een aparte dagelijkse fallback voor diezelfde dag overbodig, de dag
+    wordt toch al ververst."""
+    now = datetime(2026, 9, 5, 7, 0, 0)
+    # Naieve fallback-tick (last_scanned_at + 24u) valt op 2026-09-05 08:00 -
+    # voor het wedstrijd-moment (12:00) diezelfde dag.
+    _setup_active_competition(
+        session, now, last_scanned_at=now - timedelta(hours=23),
+        match_offset_hours=5, status="scheduled",
+    )
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    fallback_today = [
+        e for e in events
+        if e["target_id"] == 444 and e["reason"] == "daily_fallback" and e["planned_at"].date() == now.date()
+    ]
+    assert not fallback_today
 
 
 def test_hl_linked_poule_is_excluded_from_poule_events(session):

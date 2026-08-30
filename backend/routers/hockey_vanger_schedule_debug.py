@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
 VALID_STATUSES = {"planned", "promoted", "cancelled"}
 VALID_REASONS = {
-    "matchday_burst", "daily_fallback", "live_check", "manual_weekly",
+    "matchday_burst", "daily_fallback", "live_check", "live_update", "manual_weekly",
     "unknown_start_recheck", "new_or_empty", "club_scan", "club_list",
 }
 VALID_TARGET_TYPES = {"poule", "competition", "club"}

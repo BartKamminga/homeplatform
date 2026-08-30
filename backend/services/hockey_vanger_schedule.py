@@ -89,27 +89,44 @@ def _matchday_events(
 
     events: List[dict] = []
     # Meerdere wedstrijden (in 1 poule, of - bij een landelijke competitie -
-    # verspreid over meerdere poules) die op exact hetzelfde moment starten
-    # zouden anders elk hun eigen live_check-rij krijgen, terwijl 1
-    # get_poule/get_competition_detail-call ze toch in 1x ververst - dedupe
-    # op het exacte check-moment.
-    seen_live_check_at: set = set()
+    # verspreid over meerdere poules) kunnen ervoor zorgen dat matchday_burst
+    # (dag-breed) en live_check/live_update (per wedstrijd) toevallig op
+    # exact hetzelfde moment uitkomen - het zijn allemaal dezelfde
+    # get_poule/get_competition_detail-call voor hetzelfde doel, dus bij
+    # promotie zou dat toch tot 1 VangerCmd samenvallen (add_vanger_cmd
+    # dedupt al). 1 gedeelde seen_at-set over alle 3 reasons voorkomt dat
+    # zo'n samenval als 2 losse geplande rijen in het schema verschijnt.
+    seen_at: set = set()
     for day_matches in by_date.values():
         starts = [s for s, _m in day_matches]
         ends = [s + timedelta(minutes=match_duration_m) for s in starts]
         all_final = all(m.status == "final" for _s, m in day_matches)
         burst_deadline = max(ends) if all_final else max(ends) + timedelta(hours=burst_stop_h)
-        tick = min(ends)
+        burst_start = min(ends)
+        tick = burst_start
         while tick < burst_deadline and tick <= horizon_end:
-            if tick >= now:
+            if tick >= now and tick not in seen_at:
+                seen_at.add(tick)
                 events.append(_event(target_type, target_id, cmd_type, params, tick, "matchday_burst"))
             tick += timedelta(minutes=matchday_interval_m)
 
-        for start, _m in day_matches:
+        for start, end in zip(starts, ends):
             check_at = start + timedelta(minutes=live_check_delay_m)
-            if now <= check_at <= horizon_end and check_at not in seen_live_check_at:
-                seen_live_check_at.add(check_at)
+            if now <= check_at <= horizon_end and check_at not in seen_at:
+                seen_at.add(check_at)
                 events.append(_event(target_type, target_id, cmd_type, params, check_at, "live_check"))
+
+            # De dode zone tussen het 1x live_check-moment en het moment
+            # waarop matchday_burst overneemt (burst_start, de EERSTE
+            # wedstrijd van de dag die afloopt) - zolang DEZE wedstrijd nog
+            # loopt, periodiek doorscannen (zelfde interval als burst).
+            check_window_end = check_at + timedelta(minutes=matchday_interval_m)
+            live_update_tick = check_window_end
+            while live_update_tick < burst_start and live_update_tick < end and live_update_tick <= horizon_end:
+                if live_update_tick >= now and live_update_tick not in seen_at:
+                    seen_at.add(live_update_tick)
+                    events.append(_event(target_type, target_id, cmd_type, params, live_update_tick, "live_update"))
+                live_update_tick += timedelta(minutes=matchday_interval_m)
     return events
 
 
@@ -138,18 +155,21 @@ def _landelijke_matchday_events(
 def _cadence_events(
     target_type: str, target_id, cmd_type: str, params: dict, last_scanned_at, now: datetime, horizon_end: datetime,
     interval_h: int, reason: str, window_start_h: int, window_end_h: int,
-    preempting_at: Optional[List[datetime]] = None,
+    preempting_at: Optional[List[datetime]] = None, same_day_preempt: bool = False,
 ) -> List[dict]:
     """Vaste cadans (daily_fallback/unknown_start_recheck) vanaf
     last_scanned_at. preempting_at is een gesorteerde lijst van momenten
-    waarop een HOGER-prioriteit scan (matchday_burst/live_check, en voor
-    daily_fallback ook unknown_start_recheck) al gepland staat - zo'n scan
-    zou in werkelijkheid last_scanned_at al hebben bijgewerkt en dus deze
-    cadans-klok resetten. Zonder dit verscheen bv. een daily_fallback-rij
-    midden in een actief burst-venster (Bart, 30-08-2026), wat in de
-    praktijk nooit gebeurt: _matchday_due_reason geeft matchday_burst/
-    live_check altijd voorrang, en de bijbehorende scan zou last_scanned_at
-    al voorbij het fallback-tijdstip hebben geschoven."""
+    waarop een HOGER-prioriteit scan (matchday_burst/live_check/live_update,
+    en voor daily_fallback ook unknown_start_recheck) al gepland staat -
+    zo'n scan zou in werkelijkheid last_scanned_at al hebben bijgewerkt en
+    dus deze cadans-klok resetten. Zonder dit verscheen bv. een
+    daily_fallback-rij midden in een actief burst-venster (Bart,
+    30-08-2026), wat in de praktijk nooit gebeurt.
+
+    same_day_preempt (Bart, 30-08-2026, alleen voor daily_fallback): een
+    dagelijkse fallback is overbodig zodra er die kalenderdag AL een
+    matchday-scan gepland staat, ook als die later op de dag valt dan de
+    berekende fallback-tick - de dag wordt toch al ververst."""
     preempting = sorted(preempting_at or [])
     idx = 0
     base = last_scanned_at or now
@@ -157,7 +177,9 @@ def _cadence_events(
     events = []
     while tick <= horizon_end:
         moved = False
-        while idx < len(preempting) and preempting[idx] <= tick:
+        while idx < len(preempting) and (
+            preempting[idx].date() <= tick.date() if same_day_preempt else preempting[idx] <= tick
+        ):
             base = preempting[idx]
             tick = base + timedelta(hours=interval_h)
             idx += 1
@@ -227,7 +249,7 @@ def _poule_daily_fallback_events(
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     return _cadence_events(
         "poule", poule.poule_id, "get_poule", params, poule.last_scanned_at, now, horizon_end,
-        daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at,
+        daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at, same_day_preempt=True,
     )
 
 
@@ -238,7 +260,7 @@ def _landelijke_daily_fallback_events(
     params = {"comp_id": comp.hl_comp_id, "label": comp.name}
     return _cadence_events(
         "competition", comp.hl_comp_id, "get_competition_detail", params, last_scanned_at, now, horizon_end,
-        daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at,
+        daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at, same_day_preempt=True,
     )
 
 

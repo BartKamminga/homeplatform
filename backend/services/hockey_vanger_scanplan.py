@@ -314,6 +314,25 @@ def _matchday_due_reason(
                     reason = "live_check"
                     break
 
+        # Bart, 30-08-2026: tussen het 1x live_check-moment en het einde van
+        # de EERSTE wedstrijd van de dag (waarna matchday_burst overneemt)
+        # zat een dode zone - een wedstrijd die al langer bezig is dan het
+        # live_check-venster, maar nog niet is afgelopen, werd helemaal niet
+        # herscand. live_update dekt dat gat: zelfde interval als burst,
+        # zolang de wedstrijd loopt.
+        if not due:
+            for start, end in zip(known_starts, known_ends):
+                if not (start <= now < end):
+                    continue
+                check_window_end = start + timedelta(minutes=live_check_delay_m + matchday_interval_m)
+                if now < check_window_end:
+                    continue
+                cutoff = now - timedelta(minutes=matchday_interval_m)
+                if last_scanned_at is None or last_scanned_at < cutoff:
+                    due = True
+                    reason = "live_update"
+                break
+
         # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
         # zonder starttijd - vaker checken dan de trage dagelijkse fallback.
         if not due and unknown_start_dates:
