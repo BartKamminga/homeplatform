@@ -2,12 +2,27 @@ import { useState } from 'react'
 import { toDateStr } from './KalenderTab.jsx'
 
 // Gevalideerde categorale kleuren (dataviz-skill, validate_palette.js) -
-// blauw=wedstrijd, oranje=burst-scanvenster. Los van het thema omdat dit een
-// vaste, betekenisvolle 2-kleuren-encodering is, geen merk-kleur.
+// blauw=wedstrijd. Los van het thema omdat dit een vaste, betekenisvolle
+// kleuren-encodering is, geen merk-kleur.
 const COL_MATCH     = '#2a78d6'
-const COL_BURST     = '#eb6834'
 const COL_GOOD      = '#0ca30c'
 const COL_SCHEDULED = '#eda100' // cmd aangemaakt/ingepland - los van of hij al is uitgevoerd (dat is de zwarte stip)
+
+// Bart, 30-08-2026: "wat is het Burst-scanvenster nou eigenlijk nog? ... ik
+// heb liever dat op de day view de echte scan momenten zien, en welke dat
+// zijn" - de oranje burst-balk was een CLIENTSIDE herberekening (uit
+// settings + wedstrijdtijden) van waar het OUDE scan-plan actief zou zijn.
+// Sinds de single-tick-fix van het scanschema (_matchday_events toont maar
+// 1 eerstvolgende tick i.p.v. de hele serie) klopt die herberekende balk
+// niet meer met de werkelijkheid. Vervangen door de ECHTE geplande
+// scanschema-momenten (data.schedule_entries), per reason gelabeld.
+const REASON_META = {
+  match_start_check:     { label: 'Match-start-check',      color: '#2ab7ca' },
+  match_end_check:       { label: 'Match-end-check',        color: '#eb6834' },
+  daily_fallback:        { label: 'Dagelijkse fallback',    color: '#8a5cf6' },
+  unknown_start_recheck: { label: 'Onbekende starttijd',    color: '#c026d3' },
+  new_or_empty:          { label: 'Nieuwe/lege poule',      color: '#64748b' },
+}
 
 const DAY_START_H = 8
 const DAY_END_H   = 22
@@ -88,44 +103,37 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
         .filter(m => sameDay(m.dateObj, date))
         .sort((a, b) => a.dateObj - b.dateObj)
       if (!matches.length) return null
-      const ends = matches.map(m => new Date(m.dateObj.getTime() + settings.match_duration_min * 60000))
-      const burstStart = new Date(Math.min(...ends.map(d => d.getTime())))
       // Alleen scan_profile='active'-poules krijgen matchday-burst/live-check
       // van het echte scan-plan (_step_active_profiles) - manual-profile en
       // followed_only-poules (competitie zelf niet op autoscan) krijgen
       // hoogstens de wekelijkse niet-autoscan-ronde. Zonder deze check liet
-      // DagView een burst-balk + "N scans gepland" zien voor ELKE poule,
-      // ook de ~200 manual-profile competities die in werkelijkheid maar
-      // 1x per week gescand worden - misleidend.
+      // DagView "N scans gepland" zien voor ELKE poule, ook de ~200
+      // manual-profile competities die in werkelijkheid maar 1x per week
+      // gescand worden - misleidend.
       const isAutoscan = poule.is_landelijke || poule.scan_profile === 'active'
-      // De echte scan-plan-code (_step_active_profiles) heeft GEEN harde
-      // stop voor burst-modus - hij blijft actief zolang het "vandaag" is,
-      // dus minimaal tot de LAATSTE wedstrijd van de poule is afgelopen
-      // (was eerder een vaste 3u-aanname na de EERSTE wedstrijd, wat het
-      // venster te vroeg liet stoppen bij meerdere, verspreide wedstrijden
-      // in dezelfde poule).
-      const lastEnd = new Date(Math.max(...ends.map(d => d.getTime())))
-      const allFinal = matches.every(m => m.status === 'final')
-      // Burst-modus stopt zodra alles bekend is (allFinal) OF
-      // burst_stop_hours_after_last_match uur na de LAATSTE wedstrijd -
-      // hij loopt dus niet meer standaard door tot het einde van de dag
-      // (dat kostte onnodige calls naar hockey.nl, tegen het uitgangspunt
-      // "zo min mogelijk calls" in).
-      const burstDeadline = new Date(lastEnd.getTime() + settings.burst_stop_hours_after_last_match * 3600000)
-      // Een landelijke competitie wordt sinds 30-08-2026 als 1 grote poule
-      // behandeld (_step_landelijke_competitions): dezelfde matchday-burst/
-      // live-check/dagelijkse-fallback-regels, alleen over de vereniging van
-      // alle wedstrijden in al haar poules - geen aparte cadans meer, dus
-      // ook geen aparte weergave-tak hier nodig.
-      const burstEnd = !isAutoscan ? null : (allFinal ? lastEnd : burstDeadline)
-      const ticks = (!isAutoscan || allFinal) ? [] : (() => {
-        const t = []
-        for (let time = burstStart.getTime(); time < burstEnd.getTime(); time += settings.active_matchday_interval_min * 60000) {
-          t.push(new Date(time))
-        }
-        return t
-      })()
       const memberIds = poule.memberPouleIds || [poule.poule_id]
+      const targetType = poule.is_landelijke ? 'competition' : 'poule'
+      const targetId = poule.is_landelijke ? poule.hl_comp_id : poule.poule_id
+      const targetEntries = (data.schedule_entries || [])
+        .filter(e => e.target_type === targetType && e.target_id === targetId)
+      // De echte, door het backend berekende scanschema-momenten voor
+      // vandaag - dit VERVANGT de oude clientside burst-balk/ticks-
+      // herberekening (zie REASON_META hierboven).
+      const scanMoments = targetEntries
+        .filter(e => e.status === 'planned' && sameDay(new Date(e.planned_at), date))
+        .map(e => ({ ...e, dateObj: new Date(e.planned_at) }))
+      // "burst gestopt · volgende scan ..." nu ook rechtstreeks uit het
+      // echte schema i.p.v. clientside herberekend uit settings - de
+      // eerstvolgende geplande daily_fallback ná vandaag, maar alleen tonen
+      // als er voor vandaag zelf geen scans meer open staan (anders lijkt
+      // het alsof de burst al gestopt is terwijl er nog een tick vanavond
+      // gepland staat).
+      const now = new Date()
+      const remainingToday = scanMoments.some(e => e.reason !== 'daily_fallback' && e.dateObj > now)
+      const nextFallback = targetEntries
+        .filter(e => e.status === 'planned' && e.reason === 'daily_fallback' && new Date(e.planned_at) > now && !sameDay(new Date(e.planned_at), date))
+        .sort((a, b) => new Date(a.planned_at) - new Date(b.planned_at))[0]
+      const nextFallbackScan = (isAutoscan && !remainingToday && nextFallback) ? new Date(nextFallback.planned_at) : null
       const captures = (recentCaptures || [])
         .filter(c => memberIds.includes(c.poule_id))
         .map(c => new Date(c.captured_at))
@@ -138,14 +146,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
         data.schedule_entries, poule.is_landelijke ? 'competition' : 'poule',
         poule.is_landelijke ? poule.hl_comp_id : poule.poule_id, date,
       )
-      // Zodra de burst-modus is gestopt (allFinal of voorbij de deadline),
-      // is de dagelijkse fallback het eerstvolgende scanmoment - zichtbaar
-      // maken i.p.v. dat het lijkt alsof er niets meer gepland staat.
-      const burstOver = isAutoscan && (allFinal || date < new Date() && burstEnd < new Date())
-      const nextFallbackScan = (burstOver && poule.last_scanned_at)
-        ? new Date(new Date(poule.last_scanned_at).getTime() + settings.active_daily_fallback_hours * 3600000)
-        : null
-      return { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan, isAutoscan }
+      return { poule, matches, scanMoments, captures, scheduled, scanCount, nextFallbackScan, isAutoscan }
     })
     .filter(Boolean)
     .sort((a, b) => a.matches[0].dateObj - b.matches[0].dateObj)
@@ -227,7 +228,9 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
 
       <div style={{ display: 'flex', gap: 16, padding: '8px 14px', fontSize: 11, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
         <span><span style={{ display: 'inline-block', width: 12, height: 7, background: COL_MATCH, borderRadius: 2, marginRight: 4 }} />Wedstrijd</span>
-        <span><span style={{ display: 'inline-block', width: 12, height: 7, background: `repeating-linear-gradient(45deg, ${COL_BURST}, ${COL_BURST} 2px, transparent 2px, transparent 4px)`, border: `1px solid ${COL_BURST}`, borderRadius: 2, marginRight: 4 }} />Burst-scanvenster</span>
+        {Object.entries(REASON_META).map(([key, { label, color }]) => (
+          <span key={key}><span style={{ display: 'inline-block', width: 8, height: 8, background: color, borderRadius: 2, marginRight: 4, transform: 'rotate(45deg)' }} />{label}</span>
+        ))}
         <span style={{ color: COL_GOOD }}>★ Gevolgd team</span>
         <span>⏺ Echte capture</span>
         <span style={{ color: COL_SCHEDULED }}>▲ Cmd echt uitgevoerd</span>
@@ -257,7 +260,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
           {item.label} · {item.count} poules
         </div>
       ) : (() => {
-        const { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan, isAutoscan } = item.row
+        const { poule, matches, scanMoments, captures, scheduled, scanCount, nextFallbackScan, isAutoscan } = item.row
         return (
         <div
           key={poule.poule_id}
@@ -299,7 +302,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
             </div>
             {nextFallbackScan && (
               <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
-                burst gestopt · volgende scan (dagelijkse fallback) {fmtTime(nextFallbackScan)} {nextFallbackScan.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                geen scans meer vandaag · volgende scan (dagelijkse fallback) {fmtTime(nextFallbackScan)} {nextFallbackScan.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
               </div>
             )}
           </div>
@@ -334,22 +337,20 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
               )
             })}
 
-            {isAutoscan && (
-              <div
-                onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: poule.is_landelijke
-                  ? `Burst-scanvenster (competitie-breed)\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min, ververst alle ${poule.memberPouleIds.length} poules in 1x\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd`
-                  : `Burst-scanvenster\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd` })}
-                onMouseLeave={() => setTooltip(null)}
-                style={{
-                  position: 'absolute', left: `${timeToPct(burstStart)}%`, width: `${Math.max(0.6, timeToPct(burstEnd) - timeToPct(burstStart))}%`,
-                  top: 7, height: 16, borderRadius: 3, border: `1px solid ${COL_BURST}`,
-                  background: `repeating-linear-gradient(45deg, ${COL_BURST} 0, ${COL_BURST} 3px, color-mix(in srgb, ${COL_BURST} 25%, transparent) 3px, color-mix(in srgb, ${COL_BURST} 25%, transparent) 6px)`,
-                }}
-              />
-            )}
-            {ticks.map((t, i) => (
-              <div key={i} style={{ position: 'absolute', left: `${timeToPct(t)}%`, top: 4, width: 2, height: 22, background: COL_BURST, opacity: 0.55, borderRadius: 1 }} />
-            ))}
+            {scanMoments.map((s, i) => {
+              const meta = REASON_META[s.reason] || { label: s.reason, color: 'var(--color-text-muted)' }
+              return (
+                <div
+                  key={i}
+                  onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: `${meta.label}\n${fmtTime(s.dateObj)}${poule.is_landelijke ? ' · competitie-breed' : ''}` })}
+                  onMouseLeave={() => setTooltip(null)}
+                  style={{
+                    position: 'absolute', left: `${timeToPct(s.dateObj)}%`, top: 10, width: 7, height: 7,
+                    background: meta.color, borderRadius: 2, transform: 'translateX(-50%) rotate(45deg)',
+                  }}
+                />
+              )
+            })}
 
             {captures.map((c, i) => (
               <div
