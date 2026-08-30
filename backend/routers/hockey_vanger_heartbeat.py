@@ -119,6 +119,8 @@ SCAN_PLAN_DEFAULTS = {
     "landelijke_comp_scan_hours":  12,
     "live_check_delay_min":        15,
     "burst_stop_hours_after_last_match": 2,
+    "unknown_start_lookahead_days": 5,
+    "unknown_start_fallback_hours": 8,
 }
 
 
@@ -153,6 +155,8 @@ class VangerSettingsIn(BaseModel):
     landelijke_comp_scan_hours:    Optional[int] = None
     live_check_delay_min:          Optional[int] = None
     burst_stop_hours_after_last_match: Optional[int] = None
+    unknown_start_lookahead_days:  Optional[int] = None
+    unknown_start_fallback_hours:  Optional[int] = None
     notify_team_ids:               Optional[str] = None  # item 1001: comma-gescheiden hockey.nl team_ids
 
 
@@ -187,6 +191,8 @@ def update_vanger_settings(
         ("landelijke_comp_scan_hours", body.landelijke_comp_scan_hours),
         ("live_check_delay_min", body.live_check_delay_min),
         ("burst_stop_hours_after_last_match", body.burst_stop_hours_after_last_match),
+        ("unknown_start_lookahead_days", body.unknown_start_lookahead_days),
+        ("unknown_start_fallback_hours", body.unknown_start_fallback_hours),
     ]
     for key, val in pairs:
         if val is None:

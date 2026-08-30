@@ -9,8 +9,16 @@ from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleM
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import (
     ACTIVE_MATCHDAY_ENABLED_KEY, _reclaim_stale_in_progress, _step_active_profiles,
-    _step_new_or_empty_poules,
+    _step_manual_profiles_weekly, _step_new_or_empty_poules,
 )
+
+
+def _next_weekday(base, weekday):
+    """Eerstvolgende datum (op of na base) die op de gevraagde ISO-weekday valt
+    (maandag=0 .. zondag=6) - zodat de maandag/vrijdag-tests niet afhangen van
+    de dag waarop ze toevallig draaien."""
+    days_ahead = (weekday - base.weekday()) % 7
+    return base + timedelta(days=days_ahead)
 
 
 def _setup_active_competition(session, now, last_scanned_at):
@@ -256,3 +264,137 @@ def test_live_check_delay_is_configurable(session):
     added = _step_active_profiles(session, now, cap=10)
 
     assert added == 1
+
+
+# ── onbekende starttijd binnen X dagen vaker checken ─────────────────────
+
+def test_unknown_start_time_within_lookahead_triggers_a_more_frequent_rescan(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=10))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    # Wedstrijd over 3 dagen, datum al bekend maar starttijd nog niet
+    # (middernacht-placeholder) - binnen de standaard lookahead van 5 dagen.
+    future_date = (now + timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+    match.match_date = future_date.isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1  # 10u geleden gescand > unknown_start_fallback_hours (8u default) -> due
+
+
+def test_unknown_start_time_beyond_lookahead_does_not_trigger_extra_rescan(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=10))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    future_date = (now + timedelta(days=20)).replace(hour=0, minute=0, second=0, microsecond=0)
+    match.match_date = future_date.isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0  # 20 dagen vooruit valt buiten de standaard 5-dagen-lookahead
+
+
+def test_unknown_start_lookahead_days_is_configurable(session):
+    now = datetime.utcnow()
+    session.add(AppSetting(key="unknown_start_lookahead_days", value="30"))
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=10))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    future_date = (now + timedelta(days=20)).replace(hour=0, minute=0, second=0, microsecond=0)
+    match.match_date = future_date.isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1
+
+
+# ── item: niet-autoscan (scan_profile='manual') publicaties 1x per week,
+# verdeeld over maandag/vrijdag ───────────────────────────────────────────
+
+def _setup_manual_competition(session, comp_id_hint, last_scanned_at):
+    comp = HockeyCompetition(
+        external_id=f"test|manual-{comp_id_hint}", name=f"Manual Test {comp_id_hint}", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+
+    session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(
+        poule_id=9000 + comp_id_hint, name="Poule M", competition_id=comp.id, season="2026-2027",
+        last_scanned_at=last_scanned_at,
+    )
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=9000 + comp_id_hint, club_external_id="HH11ZZ0", name="Manual Team", short_name="M1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule.poule_id,
+    ))
+    session.commit()
+    session.refresh(comp)
+    session.refresh(poule)
+    return comp, poule
+
+
+def test_manual_profile_scans_on_its_assigned_weekday(session):
+    comp, poule = _setup_manual_competition(session, comp_id_hint=1, last_scanned_at=datetime.utcnow() - timedelta(days=10))
+    target_weekday = 0 if comp.id % 2 == 0 else 4
+    now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    added = _step_manual_profiles_weekly(session, now, cap=10)
+
+    assert added == 1
+
+
+def test_manual_profile_does_not_scan_on_the_other_weekday(session):
+    comp, poule = _setup_manual_competition(session, comp_id_hint=2, last_scanned_at=datetime.utcnow() - timedelta(days=10))
+    target_weekday = 0 if comp.id % 2 == 0 else 4
+    other_weekday = 4 if target_weekday == 0 else 0
+    now = _next_weekday(datetime.utcnow(), other_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    added = _step_manual_profiles_weekly(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_manual_profile_skips_if_recently_scanned(session):
+    comp, poule = _setup_manual_competition(session, comp_id_hint=3, last_scanned_at=datetime.utcnow() - timedelta(days=10))
+    target_weekday = 0 if comp.id % 2 == 0 else 4
+    now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+    poule.last_scanned_at = now - timedelta(days=1)
+    session.add(poule)
+    session.commit()
+
+    added = _step_manual_profiles_weekly(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_manual_profiles_weekly_ignores_active_scan_profile_competitions(session):
+    now_monday = _next_weekday(datetime.utcnow(), 0).replace(hour=10, minute=0, second=0, microsecond=0)
+    _setup_active_competition(session, now_monday, last_scanned_at=now_monday - timedelta(days=10))
+
+    added = _step_manual_profiles_weekly(session, now_monday, cap=10)
+
+    assert added == 0
+
+
+def test_manual_profiles_weekly_skips_a_landelijke_competition(session):
+    comp, poule = _setup_manual_competition(session, comp_id_hint=4, last_scanned_at=datetime.utcnow() - timedelta(days=10))
+    comp.hl_comp_id = 55
+    session.add(comp)
+    session.commit()
+    target_weekday = 0 if comp.id % 2 == 0 else 4
+    now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    added = _step_manual_profiles_weekly(session, now, cap=10)
+
+    assert added == 0  # al gedekt door _step_landelijke_competitions

@@ -53,6 +53,9 @@ def get_scan_calendar(
     active_comp_ids = set(session.exec(
         select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "active")
     ).all())
+    manual_comp_ids = set(session.exec(
+        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "manual")
+    ).all())
 
     followed_poule_ids = {
         t.recent_poule_id for t in session.exec(
@@ -71,6 +74,26 @@ def get_scan_calendar(
     comp_by_id = {c.id: c for c in all_comps}
     comp_by_hl_id = {c.hl_comp_id: c for c in all_comps if c.hl_comp_id}
     team_by_poule = _team_by_poule(session)
+
+    # item: publicaties die niet op scan_profile='active' staan worden 1x per
+    # week gescand (verdeeld over maandag/vrijdag, zie
+    # _step_manual_profiles_weekly) - dat moet ook zichtbaar zijn, anders lijkt
+    # het alsof die poules helemaal niet worden ververst.
+    manual_poules = []
+    if manual_comp_ids:
+        for poule in session.exec(
+            select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(manual_comp_ids))
+        ).all():
+            comp = comp_by_id.get(poule.competition_id)
+            if comp and comp.hl_comp_id:
+                continue  # al gedekt door _step_landelijke_competitions, eigen 12u-cadans
+            manual_poules.append({
+                "poule_id": poule.poule_id,
+                "poule_name": poule.name,
+                "competition_name": comp.name if comp else None,
+                "assigned_weekday": 0 if poule.competition_id % 2 == 0 else 4,  # 0=maandag, 4=vrijdag
+                "last_scanned_at": poule.last_scanned_at.isoformat() if poule.last_scanned_at else None,
+            })
 
     poule_results = []
     for poule in poules:
@@ -207,6 +230,7 @@ def get_scan_calendar(
         "recent_captures": recent_captures,
         "scheduled_cmds": scheduled_cmds,
         "club_captures": club_captures,
+        "manual_poules": manual_poules,
     }
 
 

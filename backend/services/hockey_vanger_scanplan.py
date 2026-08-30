@@ -280,6 +280,8 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
+    unknown_start_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+    unknown_start_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     matchday_enabled     = _active_matchday_enabled(session)
 
     active_comp_ids = set(session.exec(
@@ -329,6 +331,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
             known_ends = []
             today_matches = []
             has_unknown_today = False
+            unknown_start_dates = []  # niet-vandaag, wel al een datum maar nog geen starttijd (middernacht-placeholder)
             for m in matches:
                 if not m.match_date:
                     continue
@@ -337,6 +340,8 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                     continue
                 utc_naive, is_today, is_midnight = info
                 if not is_today:
+                    if is_midnight:
+                        unknown_start_dates.append(utc_naive.date())
                     continue
                 if is_midnight:
                     has_unknown_today = True
@@ -375,6 +380,17 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                         due = True
                         break
 
+            # Wedstrijd binnen unknown_start_lookahead_d dagen bekend, maar nog
+            # zonder starttijd (alleen een datum/middernacht-placeholder) -
+            # vaker checken dan de trage dagelijkse fallback, zodat de echte
+            # starttijd zo snel mogelijk bekend is zodra hockey.nl 'm publiceert
+            # (nodig om de matchday-burst op tijd te kunnen plannen).
+            if not due and unknown_start_dates:
+                lookahead_end = (now + timedelta(days=unknown_start_lookahead_d)).date()
+                if any(now.date() <= d <= lookahead_end for d in unknown_start_dates):
+                    cutoff = now - timedelta(hours=unknown_start_fallback_h)
+                    due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
+
         if not due:
             cutoff = now - timedelta(hours=daily_fallback_h)
             due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
@@ -382,6 +398,63 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
         if not due:
             continue
 
+        t = team_by_poule.get(poule.poule_id)
+        if not t:
+            continue
+        session.add(VangerCmd(
+            cmd_type="get_poule",
+            params=json.dumps({"poule_id": poule.poule_id, "team_id": t.team_id, "label": t.name + " — " + (poule.name or "")}),
+            status="pending",
+        ))
+        added += 1
+    return added
+
+
+def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> int:
+    """Gepubliceerde competities die niet op scan_profile='active' staan
+    (scan_profile='manual') worden door _step_active_profiles genegeerd -
+    maar moeten alsnog periodiek ververst worden, alleen minder vaak. 1x per
+    week, verdeeld over maandag en vrijdag (op basis van even/oneven
+    competitie-id) zodat ze niet allemaal op dezelfde dag/moment gescand
+    worden."""
+    if now.weekday() not in (0, 4):  # maandag=0, vrijdag=4 (ISO-weekday via .weekday())
+        return 0
+
+    manual_comp_ids = set(session.exec(
+        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "manual")
+    ).all())
+    if not manual_comp_ids:
+        return 0
+
+    hl_linked_comp_ids = {
+        c.id for c in session.exec(
+            select(HockeyCompetition)
+            .where(col(HockeyCompetition.id).in_(manual_comp_ids))
+            .where(col(HockeyCompetition.hl_comp_id).is_not(None))
+        ).all()
+    }  # al gedekt door _step_landelijke_competitions, ongeacht scan_profile
+
+    poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(manual_comp_ids))
+    ).all()
+    if not poules:
+        return 0
+
+    queued_poule_ids = _pending_poule_ids(session)
+    team_by_poule = _team_by_poule(session)
+
+    added = 0
+    for poule in poules:
+        if added >= cap:
+            break
+        if poule.poule_id in queued_poule_ids or poule.competition_id in hl_linked_comp_ids:
+            continue
+        target_weekday = 0 if poule.competition_id % 2 == 0 else 4
+        if now.weekday() != target_weekday:
+            continue
+        cutoff = now - timedelta(days=6)
+        if not (poule.last_scanned_at is None or poule.last_scanned_at < cutoff):
+            continue
         t = team_by_poule.get(poule.poule_id)
         if not t:
             continue
@@ -405,6 +478,7 @@ def run_scan_plan_pass(session: Session) -> dict:
         "club_scan":         _step_club_scan(session, now, STEP_MAX_CMDS),
         "landelijke_comps":  _step_landelijke_competitions(session, now, STEP_MAX_CMDS),
         "active_profiles":   _step_active_profiles(session, now, STEP_MAX_CMDS),
+        "manual_profiles_weekly": _step_manual_profiles_weekly(session, now, STEP_MAX_CMDS),
     }
     added = sum(steps.values())
     session.commit()

@@ -169,6 +169,30 @@ def test_scheduled_cmds_reports_a_get_competition_detail_cmd_for_all_its_poules(
     assert any(c["poule_id"] == 8 for c in result["scheduled_cmds"])
 
 
+def test_manual_profile_poule_is_reported_with_its_assigned_weekday(session):
+    comp, poule = _setup_poule(session, poule_id=11, competition_id=11, team_id=1100, published=False)
+    session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    entry = next((p for p in result["manual_poules"] if p["poule_id"] == 11), None)
+    assert entry is not None
+    assert entry["assigned_weekday"] in (0, 4)
+
+
+def test_manual_profile_poule_with_hl_comp_id_is_excluded(session):
+    comp, poule = _setup_poule(session, poule_id=12, competition_id=12, team_id=1200, published=False)
+    comp.hl_comp_id = 33
+    session.add(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    session.commit()
+
+    result = get_scan_calendar(session=session, _=None)
+
+    assert not any(p["poule_id"] == 12 for p in result["manual_poules"])
+
+
 def test_scheduled_cmds_marks_a_pending_cmd_as_not_executed(session):
     from models.hockey_discovery import VangerCmd
 
