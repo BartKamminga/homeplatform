@@ -538,6 +538,30 @@ def test_unknown_start_recheck_event_is_generated_within_lookahead(session):
     assert any(e["reason"] == "unknown_start_recheck" and e["target_id"] == 444 for e in events)
 
 
+def test_unknown_start_recheck_never_emits_the_same_clamped_moment_twice(session):
+    """Bart, 30-08-2026 (poule #180923): 2x unknown_start_recheck om exact
+    hetzelfde moment op dezelfde dag. Root cause: met de standaardinstellingen
+    (unknown_start_fallback_hours=8, scanvenster 09:00-18:00) klemt een
+    avondtick (bv. 20:11) vooruit naar de volgende dag 09:00, en de
+    daaropvolgende vroege-ochtendtick (04:11, +8u later) klemt terug naar
+    DIEZELFDE dag 09:00 - 2 verschillende ruwe ticks, dezelfde geklemde
+    weergavetijd, zonder dedup op basis van de ruwe tick allebei getoond."""
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=10))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    future_date = (now + timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+    match.match_date = future_date.isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=14)
+
+    moments = [e["planned_at"] for e in events if e["reason"] == "unknown_start_recheck" and e["target_id"] == 444]
+    assert moments
+    assert len(moments) == len(set(moments))
+
+
 def test_rebuild_schedule_persists_planned_entries_and_replaces_stale_ones(session):
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))

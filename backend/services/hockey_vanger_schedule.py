@@ -233,12 +233,22 @@ def _cadence_events(
     doortikken (base/tick schuiven altijd door), alleen het WEERGEVEN van
     een tick wordt overgeslagen - zodra een latere tick weer binnen het
     lookahead-venster van een wedstrijd valt, verschijnt de fallback
-    vanzelf weer."""
+    vanzelf weer.
+
+    Meerdere ruwe ticks kunnen op DEZELFDE geklemde weergavetijd uitkomen -
+    bv. bij interval_h=8 en venster 09:00-18:00 klemt een avondtick (20:11)
+    vooruit naar de volgende dag 09:00, en de daaropvolgende vroege-ochtend-
+    tick (04:11, +8u) klemt terug naar diezelfde dag 09:00: 2 ruwe ticks,
+    1 kalenderdag, dezelfde geklemde tijd. Zonder dedup op de geklemde
+    tijd (i.p.v. de ruwe tick) leverde dat 2 identieke geplande rijen op
+    voor exact hetzelfde moment (Bart, 30-08-2026, poule #180923: 2x
+    unknown_start_recheck om 11:00 op dezelfde dag)."""
     preempting = sorted(preempting_at or [])
     idx = 0
     base = last_scanned_at or now
     tick = base + timedelta(hours=interval_h)
     events = []
+    seen_display: set = set()
     while tick <= horizon_end:
         moved = False
         display_date = _clamp_to_window(tick, window_start_h, window_end_h).date()
@@ -253,7 +263,10 @@ def _cadence_events(
         if moved:
             continue
         if tick >= now and (require_match_within_days is None or _next_match_within(matches, tick, require_match_within_days)):
-            events.append(_event(target_type, target_id, cmd_type, params, _clamp_to_window(tick, window_start_h, window_end_h), reason))
+            display_at = _clamp_to_window(tick, window_start_h, window_end_h)
+            if display_at not in seen_display:
+                seen_display.add(display_at)
+                events.append(_event(target_type, target_id, cmd_type, params, display_at, reason))
         base = tick
         tick = base + timedelta(hours=interval_h)
     return events
