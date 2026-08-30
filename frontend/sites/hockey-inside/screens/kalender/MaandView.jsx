@@ -24,11 +24,14 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
 
   function countFor(day) {
     let total = 0
+    let placeholder = 0 // datum bekend, starttijd nog niet (middernacht-placeholder)
     let followed = 0
     for (const poule of data.poules) {
       for (const m of poule.matches) {
-        if (sameDay(new Date(m.date), day)) {
+        const dt = new Date(m.date)
+        if (sameDay(dt, day)) {
           total++
+          if (dt.getHours() === 0 && dt.getMinutes() === 0) placeholder++
           if (poule.followed) followed++
         }
       }
@@ -37,7 +40,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
     const scheduled = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
     const executed = scheduled.filter(c => c.executed).length
     const pending = scheduled.length - executed
-    return { total, followed, captures, executed, pending }
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending }
   }
 
   function shiftMonth(delta) {
@@ -58,7 +61,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {cells.map((day, i) => {
-          const { total, followed, captures, executed, pending } = countFor(day)
+          const { total, confirmed, placeholder, followed, captures, executed, pending } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
           return (
@@ -77,6 +80,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
                 <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 2 }}>
                   {followed > 0 && <span style={{ color: COL_GOOD }}>★ </span>}
                   {total} wedstrijd{total === 1 ? '' : 'en'}
+                  {!!placeholder && <span style={{ fontStyle: 'italic' }}> ({confirmed} bevestigd)</span>}
                 </div>
               )}
               {(!!captures || !!executed || !!pending) && (

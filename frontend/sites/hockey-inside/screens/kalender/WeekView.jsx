@@ -26,11 +26,14 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
 
   const countsByDay = days.map(day => {
     let total = 0
+    let placeholder = 0 // datum bekend, starttijd nog niet (middernacht-placeholder)
     let followed = 0
     for (const poule of data.poules) {
       for (const m of poule.matches) {
-        if (sameDay(new Date(m.date), day)) {
+        const dt = new Date(m.date)
+        if (sameDay(dt, day)) {
           total++
+          if (dt.getHours() === 0 && dt.getMinutes() === 0) placeholder++
           if (poule.followed) followed++
         }
       }
@@ -39,7 +42,7 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
     const scheduled = (data.scheduled_cmds || []).filter(c => sameDay(new Date(c.event_at || c.scheduled_at), day))
     const executed = scheduled.filter(c => c.executed).length
     const pending = scheduled.length - executed
-    return { total, followed, captures, executed, pending }
+    return { total, confirmed: total - placeholder, placeholder, followed, captures, executed, pending }
   })
 
   function shiftWeek(delta) {
@@ -57,7 +60,7 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {days.map((day, i) => {
-          const { total, followed, captures, executed, pending } = countsByDay[i]
+          const { total, confirmed, placeholder, followed, captures, executed, pending } = countsByDay[i]
           return (
             <div
               key={i}
@@ -71,6 +74,11 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
                 {followed > 0 && <span style={{ color: COL_GOOD }}>★ </span>}
                 {total} wedstrijd{total === 1 ? '' : 'en'}
               </div>
+              {!!placeholder && (
+                <div style={{ fontSize: 9, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  {confirmed} bevestigd · {placeholder} zonder tijd
+                </div>
+              )}
               {(!!captures || !!executed || !!pending) && (
                 <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
                   {!!captures && <span>⏺ {captures}</span>}
