@@ -118,6 +118,7 @@ SCAN_PLAN_DEFAULTS = {
     "stale_cmd_timeout_min":       10,
     "landelijke_comp_scan_hours":  12,
     "live_check_delay_min":        15,
+    "burst_stop_hours_after_last_match": 2,
 }
 
 
@@ -151,6 +152,7 @@ class VangerSettingsIn(BaseModel):
     stale_cmd_timeout_min:         Optional[int] = None
     landelijke_comp_scan_hours:    Optional[int] = None
     live_check_delay_min:          Optional[int] = None
+    burst_stop_hours_after_last_match: Optional[int] = None
     notify_team_ids:               Optional[str] = None  # item 1001: comma-gescheiden hockey.nl team_ids
 
 
@@ -184,6 +186,7 @@ def update_vanger_settings(
         ("stale_cmd_timeout_min", body.stale_cmd_timeout_min),
         ("landelijke_comp_scan_hours", body.landelijke_comp_scan_hours),
         ("live_check_delay_min", body.live_check_delay_min),
+        ("burst_stop_hours_after_last_match", body.burst_stop_hours_after_last_match),
     ]
     for key, val in pairs:
         if val is None:

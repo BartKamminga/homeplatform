@@ -29,6 +29,7 @@ SCAN_PLAN_SETTINGS = {
     "active_daily_fallback_hours":  24,
     "stale_cmd_timeout_min":        10,
     "landelijke_comp_scan_hours":   12,
+    "burst_stop_hours_after_last_match": 2,
 }
 
 

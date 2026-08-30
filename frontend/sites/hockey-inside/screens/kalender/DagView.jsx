@@ -65,14 +65,20 @@ export default function DagView({ data, date, onDateChange }) {
       // venster te vroeg liet stoppen bij meerdere, verspreide wedstrijden
       // in dezelfde poule).
       const lastEnd = new Date(Math.max(...ends.map(d => d.getTime())))
-      const dayEnd = new Date(date); dayEnd.setHours(DAY_END_H, 0, 0, 0)
+      const allFinal = matches.every(m => m.status === 'final')
+      // Burst-modus stopt zodra alles bekend is (allFinal) OF
+      // burst_stop_hours_after_last_match uur na de LAATSTE wedstrijd -
+      // hij loopt dus niet meer standaard door tot het einde van de dag
+      // (dat kostte onnodige calls naar hockey.nl, tegen het uitgangspunt
+      // "zo min mogelijk calls" in).
+      const burstDeadline = new Date(lastEnd.getTime() + settings.burst_stop_hours_after_last_match * 3600000)
       const burstEnd = poule.is_landelijke
         // landelijke competities volgen de eigen 12u-cadans, niet de
         // matchday-burst - het venster hier is dus alleen indicatief voor
         // "wanneer wordt de HELE competitie weer in 1x ververst".
         ? new Date(burstStart.getTime() + settings.landelijke_comp_scan_hours * 3600000)
-        : (lastEnd > dayEnd ? lastEnd : dayEnd)
-      const ticks = poule.is_landelijke ? [] : (() => {
+        : (allFinal ? lastEnd : burstDeadline)
+      const ticks = (poule.is_landelijke || allFinal) ? [] : (() => {
         const t = []
         for (let time = burstStart.getTime(); time < burstEnd.getTime(); time += settings.active_matchday_interval_min * 60000) {
           t.push(new Date(time))
@@ -89,7 +95,14 @@ export default function DagView({ data, date, onDateChange }) {
         .map(c => ({ dateObj: new Date(c.event_at || c.scheduled_at), status: c.status, executed: c.executed }))
         .filter(c => sameDay(c.dateObj, date))
       const scanCount = poule.is_landelijke ? 1 : ticks.length
-      return { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount }
+      // Zodra de burst-modus is gestopt (allFinal of voorbij de deadline),
+      // is de dagelijkse fallback het eerstvolgende scanmoment - zichtbaar
+      // maken i.p.v. dat het lijkt alsof er niets meer gepland staat.
+      const burstOver = !poule.is_landelijke && (allFinal || date < new Date() && burstEnd < new Date())
+      const nextFallbackScan = (burstOver && poule.last_scanned_at)
+        ? new Date(new Date(poule.last_scanned_at).getTime() + settings.active_daily_fallback_hours * 3600000)
+        : null
+      return { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan }
     })
     .filter(Boolean)
     .sort((a, b) => a.matches[0].dateObj - b.matches[0].dateObj)
@@ -168,7 +181,7 @@ export default function DagView({ data, date, onDateChange }) {
           {item.label} · {item.count} poules
         </div>
       ) : (() => {
-        const { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount } = item.row
+        const { poule, matches, burstStart, burstEnd, ticks, captures, scheduled, scanCount, nextFallbackScan } = item.row
         return (
         <div
           key={poule.poule_id}
@@ -193,6 +206,11 @@ export default function DagView({ data, date, onDateChange }) {
             <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
               {scanCount} scan{scanCount === 1 ? '' : 's'} gepland vandaag
             </div>
+            {nextFallbackScan && (
+              <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                burst gestopt · volgende scan (dagelijkse fallback) {fmtTime(nextFallbackScan)} {nextFallbackScan.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+              </div>
+            )}
           </div>
 
           <div style={{ position: 'relative', height: 30 }}>
@@ -228,7 +246,7 @@ export default function DagView({ data, date, onDateChange }) {
             <div
               onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, text: poule.is_landelijke
                 ? `Competitie-brede herscan\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.landelijke_comp_scan_hours}u, ververst alle ${poule.memberPouleIds.length} poules in 1x`
-                : `Burst-scanvenster\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min` })}
+                : `Burst-scanvenster\n${fmtTime(burstStart)}–${fmtTime(burstEnd)}\nelke ${settings.active_matchday_interval_min} min\nstopt zodra alles bekend is, of uiterlijk ${settings.burst_stop_hours_after_last_match}u na de laatste wedstrijd` })}
               onMouseLeave={() => setTooltip(null)}
               style={{
                 position: 'absolute', left: `${timeToPct(burstStart)}%`, width: `${Math.max(0.6, timeToPct(burstEnd) - timeToPct(burstStart))}%`,

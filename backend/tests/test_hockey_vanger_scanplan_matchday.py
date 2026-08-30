@@ -195,6 +195,54 @@ def test_live_check_does_not_fire_again_after_it_already_ran(session):
     assert added == 0
 
 
+# ── burst-modus stopt zodra alles bekend is of de deadline voorbij is ────
+
+def test_burst_mode_stops_once_all_of_todays_matches_are_final(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=50))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.status = "final"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0  # zonder de all-final-check zou de matchday-boost 'm alsnog due maken
+
+
+def test_burst_mode_stops_after_the_configured_hours_past_the_last_match(session):
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=50))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    # Wedstrijd 4u geleden begonnen (dus 2.5u geleden geeindigd bij 90 min
+    # duur) - bewust NIET op "final" gezet, om puur de tijd-gebaseerde
+    # stopregel te testen (standaard burst_stop_hours_after_last_match=2u
+    # is dan al gepasseerd).
+    match.match_date = (now - timedelta(hours=4)).isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_burst_stop_hours_after_last_match_is_configurable(session):
+    now = datetime.utcnow()
+    session.add(AppSetting(key="burst_stop_hours_after_last_match", value="5"))
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=50))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.match_date = (now - timedelta(hours=4)).isoformat()
+    match.status = "scheduled"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1  # met een ruimere deadline (5u) valt de wedstrijd nog binnen burst-bereik
+
+
 def test_live_check_delay_is_configurable(session):
     now = datetime.utcnow()
     session.add(AppSetting(key="live_check_delay_min", value="5"))

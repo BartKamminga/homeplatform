@@ -279,6 +279,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
+    burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
     matchday_enabled     = _active_matchday_enabled(session)
 
     active_comp_ids = set(session.exec(
@@ -326,6 +327,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
 
             known_starts = []
             known_ends = []
+            today_matches = []
             has_unknown_today = False
             for m in matches:
                 if not m.match_date:
@@ -341,9 +343,19 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
                 else:
                     known_starts.append(utc_naive)
                     known_ends.append(utc_naive + timedelta(minutes=match_duration))
+                    today_matches.append(m)
 
             if known_ends:
-                if now >= min(known_ends):
+                # Burst-modus stopt zodra ofwel alle wedstrijden van vandaag
+                # al "final" zijn (niets meer te halen), ofwel er meer dan
+                # burst_stop_h uur voorbij is sinds de LAATSTE wedstrijd
+                # eindigde - anders zou burst-modus de rest van de dag
+                # onnodig door blijven scannen (indruist tegen het doel: zo
+                # min mogelijk calls naar hockey.nl).
+                all_final = all(m.status == "final" for m in today_matches)
+                burst_deadline = max(known_ends) + timedelta(hours=burst_stop_h)
+                burst_active = now < burst_deadline and not all_final
+                if burst_active and now >= min(known_ends):
                     cutoff = now - timedelta(minutes=matchday_interval_m)
                     due = poule.last_scanned_at is None or poule.last_scanned_at < cutoff
             elif has_unknown_today:
