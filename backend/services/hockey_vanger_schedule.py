@@ -31,8 +31,8 @@ from models.hockey_discovery import (
 )
 from services.hockey_vanger_filters import _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
-    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _manual_scan_weekday, _match_dt_info, _pending_club_ext_ids,
-    _pending_poule_ids, _team_by_poule,
+    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _manual_scan_weekday, _match_dt_info,
+    _pending_club_ext_ids, _pending_poule_ids, _team_by_poule,
 )
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
@@ -257,9 +257,14 @@ def _landelijke_unknown_start_events(
 
 
 def _poule_daily_fallback_events(
-    poule: HockeyPoule, team: HockeyTeam, now: datetime, horizon_end: datetime, daily_fallback_h: int,
-    window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
+    poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
+    daily_fallback_h: int, window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
 ) -> List[dict]:
+    # item 1016: seizoen voorbij (minstens 1 wedstrijd bekend, allemaal al
+    # geweest) - geen dagelijkse heartbeat-scan meer nodig, niets te
+    # ontdekken.
+    if not _has_remaining_matches(matches, now):
+        return []
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     return _cadence_events(
         "poule", poule.poule_id, "get_poule", params, poule.last_scanned_at, now, horizon_end,
@@ -268,9 +273,11 @@ def _poule_daily_fallback_events(
 
 
 def _landelijke_daily_fallback_events(
-    comp: HockeyCompetition, last_scanned_at, now: datetime, horizon_end: datetime, daily_fallback_h: int,
-    window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
+    comp: HockeyCompetition, matches: List[HockeyPouleMatch], last_scanned_at, now: datetime, horizon_end: datetime,
+    daily_fallback_h: int, window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
 ) -> List[dict]:
+    if not _has_remaining_matches(matches, now):
+        return []
     params = {"comp_id": comp.hl_comp_id, "label": comp.name}
     return _cadence_events(
         "competition", comp.hl_comp_id, "get_competition_detail", params, last_scanned_at, now, horizon_end,
@@ -430,7 +437,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             )
             preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
             fallback_evts = _poule_daily_fallback_events(
-                poule, team, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+                poule, team, matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
             )
             events += matchday_evts + unknown_evts + fallback_evts
 
@@ -459,7 +466,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
         )
         preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
         fallback_evts = _landelijke_daily_fallback_events(
-            comp, last_scanned_at, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+            comp, matches, last_scanned_at, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
         )
         events += matchday_evts + unknown_evts + fallback_evts
 

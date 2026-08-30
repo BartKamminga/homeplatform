@@ -79,6 +79,27 @@ def _match_dt_info(raw: str) -> Optional[Tuple[datetime, bool, bool]]:
     return utc_naive, is_today, is_midnight
 
 
+def _has_remaining_matches(matches, now: datetime) -> bool:
+    """True zolang er nog een wedstrijd kan komen: een bekende toekomstige
+    datum, OF nog helemaal geen (parseerbare) datum - dat kan alsnog een
+    toekomstige wedstrijd worden. Alleen False als er minstens 1 wedstrijd
+    bekend is EN ze allemaal al geweest zijn - dan is het seizoen voor deze
+    poule/competitie voorbij en heeft een dagelijkse heartbeat-scan (item
+    1016, Bart 30-08-2026) geen zin meer: er valt niets nieuws te ontdekken."""
+    if not matches:
+        return True
+    for m in matches:
+        if not m.match_date:
+            return True
+        info = _match_dt_info(m.match_date)
+        if not info:
+            return True
+        utc_naive, _is_today, _is_midnight = info
+        if utc_naive >= now:
+            return True
+    return False
+
+
 def _reclaim_stale_in_progress(session: Session, now: datetime) -> int:
     """Roadmap-melding (29-08-2026, live wedstrijddag): cmd-queue/next zet een
     cmd meteen op in_progress zodra Scout/Ghost 'm ophaalt, vóór er ook maar
@@ -347,7 +368,12 @@ def _matchday_due_reason(
                 if due:
                     reason = "unknown_start_recheck"
 
-    if not due:
+    # item 1016: als er minstens 1 wedstrijd bekend is en ze zijn ALLEMAAL al
+    # geweest, is het seizoen voor deze poule/competitie voorbij - een
+    # dagelijkse heartbeat-scan heeft dan geen zin meer (niets nieuws te
+    # ontdekken). Poules zonder ENIGE bekende wedstrijd blijven wel de
+    # dagelijkse fallback krijgen (kan nog van alles binnenkomen).
+    if not due and _has_remaining_matches(matches, now):
         cutoff = now - timedelta(hours=daily_fallback_h)
         due = last_scanned_at is None or last_scanned_at < cutoff
         if due:

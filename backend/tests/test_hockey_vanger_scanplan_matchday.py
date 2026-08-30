@@ -46,6 +46,14 @@ def _setup_active_competition(session, now, last_scanned_at):
         poule_id=444, match_id=7001, home_team_id=9, away_team_id=10,
         status="finished", round=1, match_date=match_start.isoformat(),
     ))
+    # Altijd ook een wedstrijd verderop in het seizoen (item 1016: een poule
+    # zonder ENIGE toekomstige wedstrijd is "klaar" en krijgt geen
+    # daily_fallback meer) - deze helper test de cadans-logica, niet het
+    # einde-van-seizoen-gedrag (dat heeft een eigen test).
+    session.add(HockeyPouleMatch(
+        poule_id=444, match_id=79999, home_team_id=9, away_team_id=10,
+        status="scheduled", round=2, match_date=(now + timedelta(days=30)).isoformat(),
+    ))
     session.commit()
     return poule
 
@@ -461,6 +469,37 @@ def test_daily_fallback_cmd_is_tagged_with_its_reason(session):
 
     cmd = session.exec(select(VangerCmd)).first()
     assert cmd.reason == "daily_fallback"
+
+
+def test_daily_fallback_is_skipped_once_the_season_is_over(session):
+    """Item 1016 (Bart, 30-08-2026): een poule met minstens 1 bekende
+    wedstrijd, en ze zijn ALLEMAAL al geweest, heeft niets meer te
+    ontdekken - een dagelijkse heartbeat-scan is dan verspilde moeite."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|season-over", name="Season Over Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=555, name="Poule Klaar", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(hours=25))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=20, club_external_id="HH20ZZ0", name="Klaar Team", short_name="H20",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=555,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=555, match_id=8001, home_team_id=20, away_team_id=21,
+        status="final", round=1, match_date=(now - timedelta(days=3)).isoformat(),
+    ))
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
 
 
 def test_manual_weekly_cmd_is_tagged_with_its_reason(session):

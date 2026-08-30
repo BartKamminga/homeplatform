@@ -116,6 +116,20 @@ def test_live_check_triggers_shortly_after_a_match_starts_in_one_poule(session):
     assert reason == "live_check"
 
 
+def test_daily_fallback_is_skipped_once_all_poules_are_done_for_the_season(session):
+    """Item 1016 (Bart, 30-08-2026): als ALLE bekende wedstrijden in ALLE
+    poules van de competitie al geweest zijn, is er niets meer te
+    ontdekken - geen daily_fallback meer nodig."""
+    comp = _make_hl_competition(session)
+    now = datetime.utcnow()
+    _make_poule(session, comp, poule_id=1, last_scanned_at=now - timedelta(hours=25))
+    _make_match(session, poule_id=1, match_id=99, match_date=now - timedelta(days=3), status="final")
+
+    added = _step_landelijke_competitions(session, now, cap=10)
+
+    assert added == 0
+
+
 def test_already_pending_get_competition_detail_is_not_duplicated(session):
     comp = _make_hl_competition(session)
     now = datetime.utcnow()

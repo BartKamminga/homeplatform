@@ -41,6 +41,14 @@ def _setup_active_competition(session, now, last_scanned_at, match_offset_hours=
         poule_id=444, match_id=7001, home_team_id=9, away_team_id=10,
         status=status, round=1, match_date=match_start.isoformat(),
     ))
+    # Altijd ook een wedstrijd verderop in het seizoen (item 1016: een poule
+    # zonder ENIGE toekomstige wedstrijd is "klaar" en krijgt geen
+    # daily_fallback meer) - deze helper test de cadans-logica, niet het
+    # einde-van-seizoen-gedrag (dat heeft een eigen test).
+    session.add(HockeyPouleMatch(
+        poule_id=444, match_id=79999, home_team_id=9, away_team_id=10,
+        status="scheduled", round=2, match_date=(now + timedelta(days=30)).isoformat(),
+    ))
     session.commit()
     return poule
 
@@ -181,6 +189,13 @@ def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(ses
         poule_id=555, match_id=8001, home_team_id=50, away_team_id=51,
         status="live", round=1, match_date=match_start.isoformat(),
     ))
+    # Wedstrijd verderop in het seizoen (item 1016: zonder toekomstige
+    # wedstrijd is de poule "klaar" en krijgt ze geen daily_fallback meer -
+    # deze test toetst de cadans-logica, niet het einde-van-seizoen-gedrag).
+    session.add(HockeyPouleMatch(
+        poule_id=555, match_id=89999, home_team_id=50, away_team_id=51,
+        status="scheduled", round=2, match_date=(now + timedelta(days=30)).isoformat(),
+    ))
     session.commit()
 
     events = build_schedule_events(session, now, horizon_days=2)
@@ -213,6 +228,38 @@ def test_daily_fallback_is_skipped_when_a_matchday_scan_is_already_planned_that_
         if e["target_id"] == 444 and e["reason"] == "daily_fallback" and e["planned_at"].date() == now.date()
     ]
     assert not fallback_today
+
+
+def test_daily_fallback_is_not_generated_once_the_season_is_over(session):
+    """Item 1016 (Bart, 30-08-2026): een poule met minstens 1 bekende
+    wedstrijd, en ze zijn ALLEMAAL al geweest, heeft niets meer te
+    ontdekken - het scanschema mag daar geen daily_fallback-rijen meer
+    voor plannen."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|schedule-season-over", name="Schedule Season Over", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=666, name="Poule Klaar", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now - timedelta(hours=25))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=60, club_external_id="HH60ZZ0", name="Klaar Team", short_name="H60",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=666,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=666, match_id=9001, home_team_id=60, away_team_id=61,
+        status="final", round=1, match_date=(now - timedelta(days=3)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=14)
+
+    assert not any(e["target_id"] == 666 for e in events)
 
 
 def test_daily_fallback_is_absorbed_when_the_clamped_display_date_lands_on_a_matchday(session):
