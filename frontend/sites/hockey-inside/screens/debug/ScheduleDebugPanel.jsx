@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { browseSchedule, getScheduleSummary, rebuildScheduleNow } from '../../api.js'
+import { browseSchedule, getScheduleSummary, promoteScheduleNow, rebuildScheduleNow } from '../../api.js'
 import { inputStyle, ghostBtn, muted } from '../styles.js'
 
 const PAGE_SIZE = 50
@@ -37,6 +37,8 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
   const [error, setError] = useState('')
   const [rebuilding, setRebuilding] = useState(false)
   const [rebuildMsg, setRebuildMsg] = useState('')
+  const [promoting, setPromoting] = useState(false)
+  const [promoteMsg, setPromoteMsg] = useState('')
 
   // Doorgelinkt vanuit de Kalender-tab (🔍 debug op een poule-rij) - vult
   // target_type/target_id/date alvast in, status wordt bewust leeg gelaten
@@ -96,6 +98,24 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
       })
       .catch(e => setRebuildMsg(e.message || 'Herbouwen mislukt'))
       .finally(() => setRebuilding(false))
+  }
+
+  // Handmatige promotie-trigger (item 1026, Bart, 31-08-2026: "handmatig
+  // versnellen van de queue moet mogelijk zijn") - i.t.t. rebuildNow hierboven
+  // heeft dit een ECHT effect: due scanschema-entries komen nu meteen in de
+  // vanger-queue terecht i.p.v. te wachten op de eerstvolgende periodieke
+  // cyclus (profile_scan_interval_min).
+  function promoteNow() {
+    setPromoting(true)
+    setPromoteMsg('')
+    promoteScheduleNow()
+      .then(r => {
+        setPromoteMsg(`${r.promoted} gepromoveerd naar de queue`)
+        load()
+        loadSummary()
+      })
+      .catch(e => setPromoteMsg(e.message || 'Promoveren mislukt'))
+      .finally(() => setPromoting(false))
   }
 
   function clearLinkedFilter() {
@@ -163,6 +183,15 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
           🔄 {rebuilding ? 'Bezig...' : 'Nu herbouwen'}
         </button>
         {rebuildMsg && <span style={muted}>{rebuildMsg}</span>}
+        <button
+          onClick={promoteNow}
+          disabled={promoting}
+          title="Promoveert due scanschema-entries nu meteen naar de echte vanger-queue (i.p.v. te wachten op de periodieke cyclus) en maakt Ghost wakker indien nodig."
+          style={{ ...ghostBtn, opacity: promoting ? 0.6 : 1 }}
+        >
+          ⏩ {promoting ? 'Bezig...' : 'Queue nu versnellen'}
+        </button>
+        {promoteMsg && <span style={muted}>{promoteMsg}</span>}
       </div>
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}

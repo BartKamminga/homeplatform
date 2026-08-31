@@ -10,7 +10,7 @@ from sqlmodel import select
 from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry
 from models.settings import AppSetting
-from routers.hockey_vanger_schedule_debug import browse_schedule, rebuild_schedule_now, schedule_summary
+from routers.hockey_vanger_schedule_debug import browse_schedule, promote_schedule_now, rebuild_schedule_now, schedule_summary
 
 
 def _setup_poule(session, poule_id, name="Poule A"):
@@ -387,3 +387,35 @@ def test_rebuild_schedule_now_populates_the_schedule_on_demand(session):
     assert result["event_count"] > 0
     rows = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == poule.poule_id)).all()
     assert any(r.reason == "match_end_check" for r in rows)
+
+
+def test_promote_schedule_now_promotes_due_entries_immediately(session):
+    """item 1026 (Bart, 31-08-2026: 'handmatig versnellen van de queue moet
+    mogelijk zijn') - i.t.t. rebuild_schedule_now heeft dit een ECHT effect:
+    een due entry wordt direct naar VangerCmd gepromoveerd, zonder te wachten
+    op de periodieke cyclus."""
+    from datetime import datetime, timedelta
+
+    from models.hockey_discovery import VangerCmd
+
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=444, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 444, "team_id": 91, "label": "Promote Now Team"}),
+        planned_at=now - timedelta(minutes=5), reason="daily_fallback", status="planned",
+    ))
+    session.commit()
+
+    result = promote_schedule_now(session=session, _=None)
+
+    assert result["ok"] is True
+    assert result["promoted"] == 1
+    assert session.exec(select(VangerCmd).where(VangerCmd.cmd_type == "get_poule")).first() is not None
+    entry = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444)).first()
+    assert entry.status == "promoted"
+
+
+def test_promote_schedule_now_reports_zero_when_nothing_is_due(session):
+    result = promote_schedule_now(session=session, _=None)
+
+    assert result == {"ok": True, "promoted": 0}

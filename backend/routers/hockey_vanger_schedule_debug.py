@@ -16,9 +16,10 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, ScanScheduleEntry
+from routers.hockey_vanger_smartscan_control import _ghost_enabled, _set_ghost_trigger
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
-from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
-from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
+from services.hockey_vanger_scanplan import STEP_MAX_CMDS, _manual_scan_weekday, _match_dt_info
+from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
 from services.hockey_vanger_settings import _get_int_setting
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -314,3 +315,27 @@ def rebuild_schedule_now(
     horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
     count = rebuild_schedule(session, now, horizon_days)
     return {"ok": True, "rebuilt_at": now.isoformat() + "Z", "event_count": count}
+
+
+@router.post("/vanger/schedule/promote-now")
+def promote_schedule_now(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """item 1026 (Bart, 31-08-2026: "handmatig versnellen van de queue moet
+    mogelijk zijn") - forceert de PROMOTIE-stap (ScanScheduleEntry -> echte
+    VangerCmd) meteen, i.p.v. te wachten op de eerstvolgende periodieke
+    cyclus (profile_scan_interval_min, standaard 20 min, via Ghost's poll
+    - zie _maybe_run_scan_plan_pass). In tegenstelling tot de rebuild-knop
+    hierboven heeft dit wel een echt effect: due entries komen in de vanger-
+    queue terecht en Ghost wordt (indien nodig) wakker gemaakt, precies zoals
+    de periodieke pass dat ook zou doen - geen aparte scan-logica, alleen
+    eerder aangeroepen. Gecapt op STEP_MAX_CMDS per aanroep (zelfde cap als
+    de periodieke pass) - bij een grote achterstand dus mogelijk meerdere
+    keren klikken, dat is bedoeld gedrag."""
+    now = datetime.utcnow()
+    promoted = promote_due_schedule_entries(session, now, cap=STEP_MAX_CMDS)
+    if promoted > 0 and _ghost_enabled(session):
+        _set_ghost_trigger(session, now)
+        session.commit()
+    return {"ok": True, "promoted": promoted}

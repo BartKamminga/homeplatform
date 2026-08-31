@@ -62,6 +62,7 @@ export const browseSchedule = (params) => {
 }
 export const getScheduleSummary = () => api.get('/api/hockey/vanger/schedule/summary')
 export const rebuildScheduleNow  = () => api.post('/api/hockey/vanger/schedule/rebuild')
+export const promoteScheduleNow  = () => api.post('/api/hockey/vanger/schedule/promote-now')
 
 // Publieke detail-endpoints (wedstrijden + stand per poule)
 export const getCompetitionMatches   = (cid)    => api.get(`/api/hockey/public/competitions/${cid}/matches`)
