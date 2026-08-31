@@ -414,6 +414,10 @@ def get_cmd_queue_next(
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
+    """item 1019: cmds zonder reason (handmatig/ad-hoc toegevoegd via
+    POST /vanger/cmd-queue/add, bv. Discovery "scan nu") omzeilen het
+    queue-filter - dat is expliciete gebruikersintentie, geen automatische
+    scan-plan-beslissing die het filter zou moeten respecteren."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     ages, club, cats, hts, genders = _get_queue_filter(session)
     pending = session.exec(
@@ -421,7 +425,7 @@ def get_cmd_queue_next(
     ).all()
     cmd = None
     for c in pending:
-        if _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), ages, club, cats, hts, genders):
+        if c.reason is None or _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), ages, club, cats, hts, genders):
             cmd = c
             break
     if not cmd:

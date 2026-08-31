@@ -12,9 +12,11 @@ from sqlmodel import Session
 from core.auth import get_current_user
 from core.database import get_session
 from models.settings import AppSetting
-from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY, run_scan_plan_pass
+from services.hockey_vanger_scanplan import (
+    ACTIVE_MATCHDAY_ENABLED_KEY, SKIP_HEALTHY_DAILY_FALLBACK_KEY, run_scan_plan_pass,
+)
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
-from services.hockey_vanger_settings import _get_int_setting
+from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting
 from services.hockey_vanger_smartscan import (
     _smart_scan_get_state, _smart_scan_set_state, _smart_scan_discovery_next, SMART_SCAN_MAX_CMDS,
 )
@@ -223,6 +225,29 @@ def scan_plan_matchday_toggle(
         row.value = value; session.add(row)
     else:
         session.add(AppSetting(key=ACTIVE_MATCHDAY_ENABLED_KEY, value=value))
+    session.commit()
+    return {"enabled": enabled}
+
+
+@router.post("/vanger/scan-plan/skip-healthy-toggle")
+def scan_plan_skip_healthy_toggle(
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """item 1018/1019: los aan/uit-schakelbaar - een "gezonde" poule/
+    competitie (geen onbekende starttijd binnen 7 dagen, geen gespeelde-maar-
+    niet-finale wedstrijd) overslaan bij de dagelijkse fallback-cadans van
+    actieve profielen. Default AAN; uitzetbaar als het afbreukrisico (een
+    verzetting van een verder gezonde, nabije wedstrijd wordt later opgemerkt)
+    in de praktijk te groot blijkt. manual_weekly krijgt deze skip altijd,
+    los van deze instelling."""
+    enabled = not _get_bool_setting(session, SKIP_HEALTHY_DAILY_FALLBACK_KEY, True)
+    row = session.get(AppSetting, SKIP_HEALTHY_DAILY_FALLBACK_KEY)
+    value = "1" if enabled else "0"
+    if row:
+        row.value = value; session.add(row)
+    else:
+        session.add(AppSetting(key=SKIP_HEALTHY_DAILY_FALLBACK_KEY, value=value))
     session.commit()
     return {"enabled": enabled}
 

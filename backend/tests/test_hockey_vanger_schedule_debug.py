@@ -102,6 +102,101 @@ def test_browse_labels_a_not_yet_discovered_poule_using_the_params_label(session
     assert "verwijderd" not in result["items"][0]["label"]
 
 
+# ── item 1019: competitienaam in het label + een echte reden-uitleg ──
+
+def test_browse_includes_the_competition_name_in_a_poule_label(session):
+    from datetime import datetime
+    poule = _setup_poule(session, poule_id=556, name="Poule Z")
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id}), planned_at=now, reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    assert "Schedule Debug Comp" in result["items"][0]["label"]
+    assert "Poule Z" in result["items"][0]["label"]
+
+
+def test_browse_explains_daily_fallback_with_hours_since_last_scan(session):
+    from datetime import datetime, timedelta
+    poule = _setup_poule(session, poule_id=557, name="Poule Z")
+    poule.last_scanned_at = datetime.utcnow() - timedelta(hours=30)
+    session.add(poule)
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id}), planned_at=now, reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    explanation = result["items"][0]["explanation"]
+    assert "24u" in explanation  # default active_daily_fallback_hours
+    assert "30u geleden" in explanation
+
+
+def test_browse_explains_manual_weekly_with_the_assigned_weekday(session):
+    from datetime import datetime
+    comp = HockeyCompetition(
+        external_id="test|manual-weekday-explain", name="Manual Weekday Comp", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(poule_id=558, name="Poule M", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id}), planned_at=now, reason="manual_weekly",
+    ))
+    session.commit()
+
+    from services.hockey_vanger_scanplan import _manual_scan_weekday
+    weekday_names = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag"]
+    expected_weekday = weekday_names[_manual_scan_weekday(comp.id)]
+
+    result = browse_schedule(session=session, _=None)
+
+    explanation = result["items"][0]["explanation"]
+    assert expected_weekday in explanation
+    assert "Manual Weekday Comp" in result["items"][0]["label"]
+
+
+def test_browse_explains_daily_fallback_with_the_offending_match(session):
+    """Bart, 31-08-2026: 'waarom scannen we dit? is die poule niet vers meer?
+    missen er wedstrijden (uitslagen of tijden)?' - de uitleg moet de
+    CONCRETE wedstrijd noemen die de poule 'ongezond' maakt, niet alleen de
+    cadans-instelling."""
+    from datetime import datetime, timedelta
+    poule = _setup_poule(session, poule_id=559, name="Poule Z")
+    poule.last_scanned_at = datetime.utcnow() - timedelta(hours=30)
+    session.add(poule)
+    session.add(HockeyPouleMatch(
+        poule_id=poule.poule_id, match_id=1, home_team_id=1, away_team_id=2,
+        home_team_name="Team A", away_team_name="Team B",
+        status="scheduled", round=1, match_date=(datetime.utcnow() - timedelta(hours=4)).isoformat(),
+    ))
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id}), planned_at=now, reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    explanation = result["items"][0]["explanation"]
+    assert "Team A - Team B" in explanation
+    assert "zonder eindstand" in explanation
+
+
 def test_browse_orders_by_planned_at_ascending(session):
     from datetime import datetime, timedelta
     now = datetime.utcnow()
