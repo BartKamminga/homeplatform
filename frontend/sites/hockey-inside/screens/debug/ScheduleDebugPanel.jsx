@@ -180,6 +180,7 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
                 <th style={{ padding: '4px 6px' }}>ID</th>
                 <th style={{ padding: '4px 6px' }}>Doel</th>
                 <th style={{ padding: '4px 6px' }}>Reden</th>
+                <th style={{ padding: '4px 6px' }}>Uitleg</th>
                 <th style={{ padding: '4px 6px' }}>Status</th>
                 <th style={{ padding: '4px 6px' }}>Gepland op</th>
                 <th style={{ padding: '4px 6px' }}>Vanger-cmd</th>
@@ -193,6 +194,12 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
                     {item.label}
                   </td>
                   <td style={{ padding: '4px 6px' }}>{item.reason}</td>
+                  <td
+                    style={{ padding: '4px 6px', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-muted)' }}
+                    title={item.explanation}
+                  >
+                    {item.explanation}
+                  </td>
                   <td style={{ padding: '4px 6px', color: STATUS_COLORS[item.status] || 'inherit' }}>
                     {item.status}
                     {item.filtered_out && (

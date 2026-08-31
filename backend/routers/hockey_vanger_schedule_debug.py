@@ -17,6 +17,7 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, ScanScheduleEntry
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
+from services.hockey_vanger_scanplan import _manual_scan_weekday
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
 from services.hockey_vanger_settings import _get_int_setting
 
@@ -29,16 +30,86 @@ VALID_REASONS = {
 }
 VALID_TARGET_TYPES = {"poule", "competition", "club"}
 
+WEEKDAY_NAMES_NL = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag"]
+
+
+def _ago(dt: Optional[datetime], now: datetime) -> str:
+    if not dt:
+        return "nog nooit gescand"
+    delta = now - dt
+    hours = delta.total_seconds() / 3600
+    if hours < 48:
+        return f"{hours:.0f}u geleden"
+    return f"{hours / 24:.0f}d geleden"
+
+
+def _explain_reason(
+    session: Session, entry: ScanScheduleEntry, comp_for_poule: Optional[HockeyCompetition],
+    poule: Optional[HockeyPoule], now: datetime,
+) -> str:
+    """Vertaalt de bare reason-code (bv. 'manual_weekly') naar de daadwerkelijk
+    berekende aanleiding (Bart, 31-08-2026: 'manual_weekly geeft mij te weinig
+    info') - reconstrueert dezelfde instellingen/regels als hockey_vanger_
+    scanplan.py/hockey_vanger_schedule.py, puur voor weergave (geen
+    bijwerkingen, geen invloed op de echte planning)."""
+    reason = entry.reason
+    if reason == "manual_weekly":
+        if not comp_for_poule:
+            return "Wekelijkse ronde (niet-autoscan-competitie)."
+        weekday = _manual_scan_weekday(comp_for_poule.id)
+        weekday_nl = WEEKDAY_NAMES_NL[weekday]
+        last = poule.last_scanned_at if poule else None
+        return f"Wekelijkse ronde op {weekday_nl} - {_ago(last, now)} (cutoff 6 dagen)."
+    if reason == "daily_fallback":
+        daily_fallback_h = _get_int_setting(session, "active_daily_fallback_hours", 24)
+        last = poule.last_scanned_at if poule else None
+        return f"Dagelijkse fallback-cadans ({daily_fallback_h}u) - {_ago(last, now)}."
+    if reason == "unknown_start_recheck":
+        lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+        fallback_h = _get_int_setting(session, "unknown_start_fallback_hours", 8)
+        last = poule.last_scanned_at if poule else None
+        return f"Wedstrijd bekend zonder starttijd binnen {lookahead_d} dagen - hercheck elke {fallback_h}u ({_ago(last, now)})."
+    if reason == "match_end_check":
+        return "Wedstrijd van vandaag naar verwachting afgelopen, nog geen definitieve uitslag bekend (eerste check)."
+    if reason == "retry_match_end":
+        retry_m = _get_int_setting(session, "retry_match_end_min", 10)
+        return f"Eerdere check na het einde leverde nog geen definitieve uitslag - hercheck elke {retry_m} min."
+    if reason == "match_start_check":
+        delay_m = _get_int_setting(session, "live_check_delay_min", 15)
+        return f"Wedstrijd van vandaag is {delay_m} min geleden begonnen - check of hij inmiddels live staat."
+    if reason == "match_live":
+        retry_m = _get_int_setting(session, "retry_match_end_min", 10)
+        return f"Wedstrijd bevestigd live - hercheck elke {retry_m} min totdat de wedstrijd is afgelopen."
+    if reason == "new_or_empty":
+        return "Nieuw ontdekt (nog geen data bekend) - directe eerste scan."
+    if reason == "club_scan":
+        days = _get_int_setting(session, "club_scan_days", 1)
+        return f"Periodieke clubdetail-herscan (cadans {days} dag(en))."
+    if reason == "club_list":
+        days = _get_int_setting(session, "club_list_scan_days", 7)
+        return f"Periodieke volledige clublijst-herscan (cadans {days} dagen)."
+    return "-"
+
 
 def _iso(dt) -> Optional[str]:
     return dt.isoformat() + "Z" if dt else None
 
 
-def _label_for(entry: ScanScheduleEntry, params: dict, poule_by_id: dict, comp_by_hl_id: dict, club_by_id: dict) -> str:
+def _label_for(
+    entry: ScanScheduleEntry, params: dict, poule_by_id: dict, comp_by_hl_id: dict, club_by_id: dict,
+    comp_by_id: dict,
+) -> str:
     if entry.target_type == "poule":
         poule = poule_by_id.get(entry.target_id)
         if poule:
-            return f"{poule.name} · poule {entry.target_id}"
+            # item 1019 (Bart, 31-08-2026: "graag ook competitie noemen") -
+            # HockeyPoule.competition_id wijst naar de interne PK, een ANDER
+            # sleutelveld dan comp_by_hl_id (die is voor target_type=
+            # 'competition', geindexeerd op hl_comp_id) - vandaar de aparte
+            # comp_by_id-lookup.
+            comp = comp_by_id.get(poule.competition_id)
+            comp_label = f"{comp.name} · " if comp else ""
+            return f"{comp_label}{poule.name} · poule {entry.target_id}"
         # new_or_empty-poules zijn per definitie nog niet gescand/ontdekt (het
         # team verwijst er al naar via recent_poule_id, maar er is nog geen
         # HockeyPoule-rij) - "onbekend/verwijderd" was hier misleidend, params
@@ -112,6 +183,13 @@ def browse_schedule(
     club_by_id = {c.id: c for c in session.exec(
         select(HockeyClub).where(col(HockeyClub.id).in_(club_ids))
     ).all()} if club_ids else {}
+    # item 1019 (Bart, 31-08-2026): competitienaam bij een poule-entry -
+    # HockeyPoule.competition_id is de interne PK, dus een aparte lookup
+    # los van comp_by_hl_id (die is geindexeerd op hl_comp_id).
+    poule_comp_ids = {p.competition_id for p in poule_by_id.values() if p.competition_id}
+    comp_by_id = {c.id: c for c in session.exec(
+        select(HockeyCompetition).where(col(HockeyCompetition.id).in_(poule_comp_ids))
+    ).all()} if poule_comp_ids else {}
 
     params_by_id = {}
     for e in matching:
@@ -124,7 +202,8 @@ def browse_schedule(
         needle = search.lower()
         matching = [
             e for e in matching
-            if needle in e.params.lower() or needle in _label_for(e, params_by_id[e.id], poule_by_id, comp_by_hl_id, club_by_id).lower()
+            if needle in e.params.lower()
+            or needle in _label_for(e, params_by_id[e.id], poule_by_id, comp_by_hl_id, club_by_id, comp_by_id).lower()
         ]
     total = len(matching)
     page = matching[offset:offset + limit]
@@ -135,6 +214,7 @@ def browse_schedule(
     # dit dynamisch herberekend i.p.v. opgeslagen, zodat het altijd de
     # HUIDIGE filterinstelling weerspiegelt.
     ages, club, cats, hts, genders = _get_queue_filter(session)
+    now = datetime.utcnow()
 
     items = []
     for entry in page:
@@ -143,11 +223,14 @@ def browse_schedule(
             entry.status == "cancelled" and bool(params)
             and not _cmd_matches_filter(session, entry.cmd_type, params, ages, club, cats, hts, genders)
         )
+        poule = poule_by_id.get(entry.target_id) if entry.target_type == "poule" else None
+        comp_for_poule = comp_by_id.get(poule.competition_id) if poule else None
         items.append({
             "id": entry.id,
             "target_type": entry.target_type,
             "target_id": entry.target_id,
-            "label": _label_for(entry, params, poule_by_id, comp_by_hl_id, club_by_id),
+            "label": _label_for(entry, params, poule_by_id, comp_by_hl_id, club_by_id, comp_by_id),
+            "explanation": _explain_reason(session, entry, comp_for_poule, poule, now),
             "cmd_type": entry.cmd_type,
             "params": params,
             "planned_at": _iso(entry.planned_at),
