@@ -15,9 +15,9 @@ from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.database import get_session
-from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, ScanScheduleEntry
+from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, ScanScheduleEntry
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
-from services.hockey_vanger_scanplan import _manual_scan_weekday
+from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
 from services.hockey_vanger_settings import _get_int_setting
 
@@ -43,6 +43,34 @@ def _ago(dt: Optional[datetime], now: datetime) -> str:
     return f"{hours / 24:.0f}d geleden"
 
 
+def _health_detail(session: Session, poule_id: int, now: datetime) -> Optional[str]:
+    """Zelfde regels als services/hockey_vanger_scanplan.py::_poule_health,
+    maar dan met de CONCRETE wedstrijd erbij (Bart, 31-08-2026: 'waarom
+    scannen we dit? is die poule niet vers meer? missen er wedstrijden?') -
+    _poule_health zelf geeft alleen booleans terug, hier willen we juist
+    weten WELKE wedstrijd de poule 'ongezond' maakt. Eerste match die een
+    vlag triggert wint (net als de badge, geen uitputtende lijst)."""
+    match_duration_m = _get_int_setting(session, "match_duration_min", 90)
+    lookahead_end = (now + timedelta(days=7)).date()
+    matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all()
+    for m in matches:
+        if not m.match_date:
+            continue
+        info = _match_dt_info(m.match_date)
+        if not info:
+            continue
+        utc_naive, _is_today, is_midnight = info
+        label = f"{m.home_team_name} - {m.away_team_name}".strip(" -") or f"match {m.match_id}"
+        if is_midnight:
+            if now.date() <= utc_naive.date() <= lookahead_end:
+                return f"{label} op {utc_naive.strftime('%d-%m')} nog zonder starttijd."
+            continue
+        end = utc_naive + timedelta(minutes=match_duration_m)
+        if end < now and m.status != "final":
+            return f"{label} van {utc_naive.strftime('%d-%m')} nog zonder eindstand (status: {m.status})."
+    return None
+
+
 def _explain_reason(
     session: Session, entry: ScanScheduleEntry, comp_for_poule: Optional[HockeyCompetition],
     poule: Optional[HockeyPoule], now: datetime,
@@ -59,11 +87,15 @@ def _explain_reason(
         weekday = _manual_scan_weekday(comp_for_poule.id)
         weekday_nl = WEEKDAY_NAMES_NL[weekday]
         last = poule.last_scanned_at if poule else None
-        return f"Wekelijkse ronde op {weekday_nl} - {_ago(last, now)} (cutoff 6 dagen)."
+        base = f"Wekelijkse ronde op {weekday_nl} - {_ago(last, now)} (cutoff 6 dagen)."
+        detail = _health_detail(session, entry.target_id, now) if poule else None
+        return f"{base} {detail}" if detail else base
     if reason == "daily_fallback":
         daily_fallback_h = _get_int_setting(session, "active_daily_fallback_hours", 24)
         last = poule.last_scanned_at if poule else None
-        return f"Dagelijkse fallback-cadans ({daily_fallback_h}u) - {_ago(last, now)}."
+        base = f"Dagelijkse fallback-cadans ({daily_fallback_h}u) - {_ago(last, now)}."
+        detail = _health_detail(session, entry.target_id, now) if poule else None
+        return f"{base} {detail}" if detail else base
     if reason == "unknown_start_recheck":
         lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
         fallback_h = _get_int_setting(session, "unknown_start_fallback_hours", 8)

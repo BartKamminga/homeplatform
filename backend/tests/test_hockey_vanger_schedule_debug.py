@@ -169,6 +169,34 @@ def test_browse_explains_manual_weekly_with_the_assigned_weekday(session):
     assert "Manual Weekday Comp" in result["items"][0]["label"]
 
 
+def test_browse_explains_daily_fallback_with_the_offending_match(session):
+    """Bart, 31-08-2026: 'waarom scannen we dit? is die poule niet vers meer?
+    missen er wedstrijden (uitslagen of tijden)?' - de uitleg moet de
+    CONCRETE wedstrijd noemen die de poule 'ongezond' maakt, niet alleen de
+    cadans-instelling."""
+    from datetime import datetime, timedelta
+    poule = _setup_poule(session, poule_id=559, name="Poule Z")
+    poule.last_scanned_at = datetime.utcnow() - timedelta(hours=30)
+    session.add(poule)
+    session.add(HockeyPouleMatch(
+        poule_id=poule.poule_id, match_id=1, home_team_id=1, away_team_id=2,
+        home_team_name="Team A", away_team_name="Team B",
+        status="scheduled", round=1, match_date=(datetime.utcnow() - timedelta(hours=4)).isoformat(),
+    ))
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id}), planned_at=now, reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    explanation = result["items"][0]["explanation"]
+    assert "Team A - Team B" in explanation
+    assert "zonder eindstand" in explanation
+
+
 def test_browse_orders_by_planned_at_ascending(session):
     from datetime import datetime, timedelta
     now = datetime.utcnow()
