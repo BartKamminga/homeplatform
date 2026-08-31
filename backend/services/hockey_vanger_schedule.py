@@ -389,8 +389,15 @@ def _manual_weekly_events(
 def _immediate_events(session: Session, now: datetime, target_season: str, cap: int) -> List[dict]:
     """Nieuwe/lege poules en club-scans zijn niet tijd-gepland maar 'zodra van
     toepassing' - hier alleen zichtbaar gemaakt als planned_at=now, geen
-    nieuwe toekomst-planningslogica (dekking van _step_new_or_empty_poules/
-    _step_club_scan/_step_club_list blijft ongewijzigd bij de echte stappen).
+    nieuwe toekomst-planningslogica.
+
+    Fase C (item 1019, 31-08-2026): volledige pariteit met _step_new_or_
+    empty_poules/_step_club_scan/_step_club_list gebracht (throttles op
+    club_list_scan_days/club_scan_days + de "lege poule zonder team-link"-
+    fase ontbraken hier eerder) - nodig als voorbereiding op de cutover
+    (item 1019) waarbij deze functie de ENIGE bron wordt voor deze 3
+    concerns i.p.v. een preview naast de nog los bestaande _step_*-functies.
+
     Zelfde cap als de echte stappen (STEP_MAX_CMDS) - zonder cap zou een
     volle acc-dataset (roadmap-melding: 900 kandidaten) in 1 rebuild+promote-
     cyclus ineens gequeued worden i.p.v. geleidelijk over meerdere passes.
@@ -405,6 +412,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
     captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
     seen: set = set()
     ages, club, cats, hts, genders = _get_queue_filter(session)
+    team_by_poule = _team_by_poule(session)
 
     for t in session.exec(
         select(HockeyTeam)
@@ -424,6 +432,42 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
         seen.add(pid)
         events.append(_event("poule", pid, "get_poule", {"poule_id": pid, "team_id": t.team_id, "label": t.name}, now, "new_or_empty"))
 
+    # item 1019 (Fase C-pariteitsfix): fase 2 uit _step_new_or_empty_poules -
+    # lege poules IN target_season die nog GEEN enkele wedstrijd hebben en
+    # niet via een team.recent_poule_id gevonden zijn (bv. via een club-scan
+    # ontdekt). Ontbrak hier volledig - zonder deze fase zou dit soort
+    # poules nooit meer ontdekt worden na de cutover.
+    if len(events) < cap:
+        poules = session.exec(select(HockeyPoule).where(HockeyPoule.season == target_season)).all()
+        poule_ids = [p.poule_id for p in poules]
+        match_poule_ids = set(session.exec(
+            select(HockeyPouleMatch.poule_id).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
+        ).all()) if poule_ids else set()
+        # item 1013: een landelijke competitie wordt al in 1x ververst via de
+        # landelijke-lus hierboven/_step_landelijke_competitions.
+        hl_linked_comp_ids = {
+            c.id for c in session.exec(
+                select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))
+            ).all()
+        }
+        for p in poules:
+            if len(events) >= cap:
+                break
+            if p.poule_id in match_poule_ids or p.poule_id in queued_poule_ids or p.poule_id in seen:
+                continue
+            if p.competition_id in hl_linked_comp_ids:
+                continue
+            t = team_by_poule.get(p.poule_id)
+            if not t:
+                continue
+            if not _cmd_matches_filter(session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders):
+                continue
+            events.append(_event(
+                "poule", p.poule_id, "get_poule",
+                {"poule_id": p.poule_id, "team_id": t.team_id, "label": t.name + " — " + (p.name or "")},
+                now, "new_or_empty",
+            ))
+
     # Bart, 30-08-2026: geen club-scans in het weekend (zelfde regel als
     # _step_club_scan) - niet tijdsgevoelig, laat de scan-capaciteit dan
     # over aan matchday-scans.
@@ -441,22 +485,44 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
             club = session.exec(select(HockeyClub).where(HockeyClub.external_id == ext_id)).first()
             if club:
                 club_candidates[ext_id] = club
+        # item 1019 (Fase C-pariteitsfix): zelfde last_scanned_at-cutoff als
+        # _step_club_scan - zonder deze check zou een al-recent-gescande club
+        # meteen weer verschijnen i.p.v. pas na club_scan_days.
+        club_scan_days = _get_int_setting(session, "club_scan_days", 1)
+        club_scan_cutoff = now - timedelta(days=club_scan_days)
         club_events = 0
         for ext_id, club in club_candidates.items():
             if club_events >= cap:
                 break
             if ext_id in queued_ext_ids:
                 continue
+            if club.last_scanned_at is not None and club.last_scanned_at >= club_scan_cutoff:
+                continue
             events.append(_event(
                 "club", club.id, "scan_club", {"external_id": ext_id, "label": club.friendly_name or club.name}, now, "club_scan",
             ))
             club_events += 1
 
+    # item 1019 (Fase C-pariteitsfix): zelfde "recent al gedaan"-throttle als
+    # _step_club_list - zonder deze check zou een get_clubs-event meteen na
+    # elke afronding weer verschijnen i.p.v. pas na club_list_scan_days.
     pending_clubs_list = session.exec(
         select(VangerCmd).where(VangerCmd.cmd_type == "get_clubs").where(col(VangerCmd.status).in_(["pending", "in_progress"]))
     ).first()
     if not pending_clubs_list:
-        events.append(_event("club", 0, "get_clubs", {"label": "Alle clubs (scan-plan)"}, now, "club_list"))
+        club_list_days = _get_int_setting(session, "club_list_scan_days", 7)
+        last_clubs_done = session.exec(
+            select(VangerCmd)
+            .where(VangerCmd.cmd_type == "get_clubs")
+            .where(VangerCmd.status == "done")
+            .order_by(col(VangerCmd.finished_at).desc())
+        ).first()
+        recently_done = (
+            last_clubs_done and last_clubs_done.finished_at
+            and last_clubs_done.finished_at >= now - timedelta(days=club_list_days)
+        )
+        if not recently_done:
+            events.append(_event("club", 0, "get_clubs", {"label": "Alle clubs (scan-plan)"}, now, "club_list"))
 
     return events
 

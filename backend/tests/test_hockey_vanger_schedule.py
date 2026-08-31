@@ -880,6 +880,97 @@ def test_immediate_events_are_capped_like_the_real_steps(session):
     assert 0 < len(new_or_empty) <= 10
 
 
+# ── item 1019 (Fase C-pariteitsfixes): _immediate_events moet exact hetzelfde
+# gedrag vertonen als _step_club_list/_step_club_scan/_step_new_or_empty_poules ──
+
+def test_immediate_events_skips_club_list_when_recently_done(session):
+    now = datetime.utcnow()
+    session.add(VangerCmd(
+        cmd_type="get_clubs", params=json.dumps({"label": "Alle clubs"}),
+        status="done", finished_at=now - timedelta(days=1),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert not any(e["reason"] == "club_list" for e in events)
+
+
+def test_immediate_events_includes_club_list_once_the_interval_has_passed(session):
+    now = datetime.utcnow()
+    session.add(VangerCmd(
+        cmd_type="get_clubs", params=json.dumps({"label": "Alle clubs"}),
+        status="done", finished_at=now - timedelta(days=8),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert any(e["reason"] == "club_list" for e in events)
+
+
+def test_immediate_events_skips_a_recently_scanned_club(session):
+    now = datetime(2026, 9, 1, 10, 0, 0)  # dinsdag, geen weekend-uitsluiting
+    session.add(HockeyClub(
+        external_id="CLUB_RECENT", name="Club Recent", friendly_name="Club Recent",
+        detail_loaded=False, last_scanned_at=now - timedelta(hours=12),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert not any(
+        e["reason"] == "club_scan" and json.loads(e["params"]).get("external_id") == "CLUB_RECENT" for e in events
+    )
+
+
+def test_immediate_events_includes_a_club_once_the_scan_interval_has_passed(session):
+    now = datetime(2026, 9, 1, 10, 0, 0)  # dinsdag
+    session.add(HockeyClub(
+        external_id="CLUB_STALE", name="Club Stale", friendly_name="Club Stale",
+        detail_loaded=False, last_scanned_at=now - timedelta(days=3),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert any(
+        e["reason"] == "club_scan" and json.loads(e["params"]).get("external_id") == "CLUB_STALE" for e in events
+    )
+
+
+def test_immediate_events_includes_an_already_captured_poule_with_no_matches_yet(session):
+    """item 1019: fase 2 van _step_new_or_empty_poules (lege poule IN
+    target_season zonder wedstrijden) ontbrak hier - een poule die al wel
+    als HockeyPoule bestaat (dus fase 1 slaat 'm over via captured_ids) maar
+    nog geen enkele wedstrijd heeft, moet via fase 2 alsnog een
+    new_or_empty-event krijgen."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|empty-poule-phase2", name="Empty Poule Phase2", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    poule = HockeyPoule(poule_id=7000, name="Poule Leeg", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    # category_group_name="Junioren": valt binnen het default queue-filter
+    # (cats=["Junioren"] zonder AppSetting) - zelfde reden als de cap-test
+    # hierboven, anders test dit alleen de filter-uitsluiting i.p.v. fase 2.
+    session.add(HockeyTeam(
+        team_id=7000, club_external_id="HH11ZZ0", name="Empty Poule Team", short_name="JO16-1",
+        hockey_type="VE", category_group_name="Junioren", recent_poule_id=7000,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    matches = [e for e in events if e["reason"] == "new_or_empty" and e["target_id"] == 7000]
+    assert matches
+    assert matches[0]["cmd_type"] == "get_poule"
+
+
 def test_promote_due_schedule_entries_is_capped_per_call(session):
     now = datetime.utcnow()
     for i in range(20):
