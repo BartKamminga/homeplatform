@@ -105,10 +105,16 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
   // heeft dit een ECHT effect: due scanschema-entries komen nu meteen in de
   // vanger-queue terecht i.p.v. te wachten op de eerstvolgende periodieke
   // cyclus (profile_scan_interval_min).
+  //
+  // promoteWindow (Bart, 1-09-2026: "versnellen kijk niet over dagen heen?
+  // ik zou toch de daily_fallback steeds een dag naar voren halen") - 0 =
+  // ongewijzigd (alleen echt due), >0 trekt de promotie-cutoff bewust vooruit
+  // zodat ook nog niet-due rijen binnen dat venster alvast gepromoveerd worden.
+  const [promoteWindow, setPromoteWindow] = useState(0)
   function promoteNow() {
     setPromoting(true)
     setPromoteMsg('')
-    promoteScheduleNow()
+    promoteScheduleNow(promoteWindow)
       .then(r => {
         setPromoteMsg(`${r.promoted} gepromoveerd naar de queue`)
         load()
@@ -183,10 +189,20 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
           🔄 {rebuilding ? 'Bezig...' : 'Nu herbouwen'}
         </button>
         {rebuildMsg && <span style={muted}>{rebuildMsg}</span>}
+        <select
+          value={promoteWindow}
+          onChange={e => setPromoteWindow(Number(e.target.value))}
+          title="Ook nog niet due entries binnen dit venster alvast promoveren (bv. de daily_fallback van morgen vandaag al laten uitvoeren)."
+          style={{ ...inputStyle, minWidth: 130 }}
+        >
+          <option value={0}>Alleen wat nu due is</option>
+          <option value={24}>Ook komende 24u</option>
+          <option value={72}>Ook komende 3 dagen</option>
+        </select>
         <button
           onClick={promoteNow}
           disabled={promoting}
-          title="Promoveert due scanschema-entries nu meteen naar de echte vanger-queue (i.p.v. te wachten op de periodieke cyclus) en maakt Ghost wakker indien nodig."
+          title="Promoveert scanschema-entries binnen het gekozen venster nu meteen naar de echte vanger-queue en maakt Ghost wakker indien nodig."
           style={{ ...ghostBtn, opacity: promoting ? 0.6 : 1 }}
         >
           ⏩ {promoting ? 'Bezig...' : 'Queue nu versnellen'}

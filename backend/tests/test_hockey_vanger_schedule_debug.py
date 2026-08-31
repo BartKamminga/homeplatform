@@ -419,3 +419,28 @@ def test_promote_schedule_now_reports_zero_when_nothing_is_due(session):
     result = promote_schedule_now(session=session, _=None)
 
     assert result == {"ok": True, "promoted": 0}
+
+
+def test_promote_schedule_now_with_within_hours_pulls_forward_a_not_yet_due_entry(session):
+    """item 1026 (Bart, 1-09-2026: 'versnellen kijk niet over dagen heen? ik
+    zou toch de daily_fallback steeds een dag naar voren halen') - een entry
+    die pas over 20u due is, wordt zonder within_hours NIET gepromoveerd, wel
+    met within_hours=24."""
+    from datetime import datetime, timedelta
+
+    from models.hockey_discovery import VangerCmd
+
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=445, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 445, "team_id": 92, "label": "Pull Forward Team"}),
+        planned_at=now + timedelta(hours=20), reason="daily_fallback", status="planned",
+    ))
+    session.commit()
+
+    not_yet = promote_schedule_now(within_hours=0, session=session, _=None)
+    assert not_yet["promoted"] == 0
+
+    pulled_forward = promote_schedule_now(within_hours=24, session=session, _=None)
+    assert pulled_forward["promoted"] == 1
+    assert session.exec(select(VangerCmd).where(VangerCmd.cmd_type == "get_poule")).first() is not None

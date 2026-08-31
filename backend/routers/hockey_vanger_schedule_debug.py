@@ -319,6 +319,7 @@ def rebuild_schedule_now(
 
 @router.post("/vanger/schedule/promote-now")
 def promote_schedule_now(
+    within_hours: int = 0,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
@@ -332,9 +333,18 @@ def promote_schedule_now(
     de periodieke pass dat ook zou doen - geen aparte scan-logica, alleen
     eerder aangeroepen. Gecapt op STEP_MAX_CMDS per aanroep (zelfde cap als
     de periodieke pass) - bij een grote achterstand dus mogelijk meerdere
-    keren klikken, dat is bedoeld gedrag."""
+    keren klikken, dat is bedoeld gedrag.
+
+    within_hours (Bart, 1-09-2026: "versnellen kijk niet over dagen heen?...
+    ik zou toch de daily_fallback steeds een dag naar voren halen") - default
+    0 promoveert alleen wat al ECHT due is (ongewijzigd gedrag). >0 trekt de
+    promotie-cutoff vooruit (planned_at <= nu+within_hours), zodat ook nog
+    niet-due rijen binnen dat venster alvast gepromoveerd worden - bewust een
+    losse cutoff-parameter i.p.v. een aparte functie, promote_due_schedule_
+    entries kent zelf geen verschil tussen 'echt due' en 'bewust vervroegd'."""
     now = datetime.utcnow()
-    promoted = promote_due_schedule_entries(session, now, cap=STEP_MAX_CMDS)
+    cutoff = now + timedelta(hours=within_hours) if within_hours > 0 else now
+    promoted = promote_due_schedule_entries(session, cutoff, cap=STEP_MAX_CMDS)
     if promoted > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()
