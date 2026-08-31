@@ -6,7 +6,6 @@ const STATUS_ICON  = { pending: '⏳', in_progress: '🔄', done: '✓', failed:
 
 const TOOLTIPS = {
   slimScannen:      'Start een gecoördineerde scan: begint bij de club met de meeste missende poules, scant die door, voegt de gevonden poules toe, en gaat dan verder met de volgende club. Stopt automatisch als er niets meer te doen valt.',
-  slimRefreshen:    'Herscant verouderde poules op prioriteit (nog niet beschikbaar).',
   clubsSync:        'Haalt de volledige clublijst op van de bond (hockey.nl). Gebruik dit als je nieuwe clubs verwacht die nog niet in het systeem staan.',
   competities:      'Haalt de nationale competitie-structuur op van de bond. Nodig als er nieuwe competities zijn bijgekomen.',
   clubsVullen:      'Zet alle clubs in de wachtrij voor een herscanning (scan_club cmds). Gebruik dit als je van alle clubs tegelijk nieuwe poule-ID\'s wilt ophalen.',
@@ -165,9 +164,6 @@ export default function CmdQueueSection({ cmdQueue, cmdFilling, fillMsg, cmdOpen
                       {smartBusy ? '…' : '🎯 Slim scannen'}
                     </Btn>
                   )}
-                  <Btn disabled tooltip={TOOLTIPS.slimRefreshen} color='var(--color-text-muted)'>
-                    🔄 Slim refreshen
-                  </Btn>
                 </div>
 
                 {/* Infra */}
