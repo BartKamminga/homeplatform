@@ -859,3 +859,16 @@ def test_is_autoscan_eligible_matches_scan_profile_comp_ids(session):
     assert _is_autoscan_eligible(session, eligible_comp.id) is True
     assert _is_autoscan_eligible(session, demoted_comp.id) is False
     assert _is_autoscan_eligible(session, 999999) is False  # geen koppeling
+
+
+def test_run_scan_plan_pass_no_longer_calls_the_superseded_direct_write_steps(session):
+    """item 1019 (Fase C-cutover): regressiebewaker tegen het per ongeluk
+    terugzetten van een oude _step_*-aanroep in run_scan_plan_pass - sinds
+    de cutover doet deze functie alleen nog _reclaim_stale_in_progress, de
+    rest loopt via rebuild_schedule + promote_due_schedule_entries (zie
+    routers/hockey_vanger_smartscan_control.py::_maybe_run_scan_plan_pass)."""
+    from services.hockey_vanger_scanplan import run_scan_plan_pass
+
+    result = run_scan_plan_pass(session)
+
+    assert set(result["steps"].keys()) == {"reclaimed_stale"}

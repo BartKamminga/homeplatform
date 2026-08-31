@@ -1,11 +1,18 @@
 """Pariteits-/equivalentietest voor de Fase C-cutover (item 1019).
 
-Bewijst dat het OUDE pad (run_scan_plan_pass, schrijft VangerCmd direct) en
-het NIEUWE pad (rebuild_schedule + promote_due_schedule_entries, via
-ScanScheduleEntry) exact dezelfde VangerCmd-rijen opleveren voor eenzelfde
+Bewijst dat het OUDE pad (de 6 SUPERSEDED _step_*-functies, die tot de
+cutover rechtstreeks vanuit run_scan_plan_pass werden aangeroepen en
+VangerCmd direct schreven) en het NIEUWE pad (rebuild_schedule +
+promote_due_schedule_entries, via ScanScheduleEntry - sinds de cutover de
+ENIGE bron) exact dezelfde VangerCmd-rijen opleveren voor eenzelfde
 startsituatie - de concrete, herhaalbare invulling van "vertrouwen dat de
 promotie-kant het filter betrouwbaar en volledig afhandelt" (item 1019,
-deelvraag 4) voordat de _step_*-functies buiten dienst worden gesteld.
+deelvraag 4).
+
+Roept de _step_*-functies hier BEWUST rechtstreeks aan (i.p.v. via
+run_scan_plan_pass, die ze na de cutover niet meer aanroept) - dat is
+precies waarom deze functies nog bestaan: als vergelijkingsmateriaal voor
+deze test, ook na de cutover.
 
 Bewust GEEN vaste verwachte reasons/aantallen - de vergelijking is puur
 OUD-SET == NIEUW-SET, ongeacht welke dag/tijd de test toevallig draait
@@ -19,8 +26,12 @@ from sqlmodel import select
 
 from models.hockey import HockeyPublication, HockeyPublicationComp
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd
-from services.hockey_vanger_scanplan import run_scan_plan_pass
+from services.hockey_vanger_scanplan import (
+    STEP_MAX_CMDS, _reclaim_stale_in_progress, _step_active_profiles, _step_club_list, _step_club_scan,
+    _step_landelijke_competitions, _step_manual_profiles_weekly, _step_new_or_empty_poules,
+)
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
+from services.hockey_vanger_settings import get_target_season
 
 
 def _cmd_signature(cmd: VangerCmd):
@@ -155,8 +166,16 @@ def test_old_and_new_path_produce_the_same_vanger_cmds(session):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     _build_fixture(session, now)
 
-    # ── OUDE PAD ──
-    run_scan_plan_pass(session)
+    # ── OUDE PAD ── (zelfde volgorde als run_scan_plan_pass vóór de cutover)
+    target_season = get_target_season(session)
+    _reclaim_stale_in_progress(session, now)
+    _step_club_list(session, now)
+    _step_new_or_empty_poules(session, target_season, STEP_MAX_CMDS)
+    _step_club_scan(session, now, STEP_MAX_CMDS)
+    _step_landelijke_competitions(session, now, STEP_MAX_CMDS)
+    _step_active_profiles(session, now, STEP_MAX_CMDS)
+    _step_manual_profiles_weekly(session, now, STEP_MAX_CMDS)
+    session.commit()
     old_cmds = session.exec(select(VangerCmd)).all()
     old_signatures = {_cmd_signature(c) for c in old_cmds}
     assert old_signatures, "fixture leverde niets op in het oude pad - test zelf is dan zinloos"

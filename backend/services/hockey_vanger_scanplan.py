@@ -1,13 +1,20 @@
 """Vanger scan-plan: tijdgestuurde, profiel-gebaseerde queuing (item 720).
 
-Vult de vanger_cmd_queue periodiek op basis van vaste regels, in plaats van
-volledig af te hangen van handmatige knoppen (Gap-fill / Smart-scan-start):
-- clublijst en per-club scans hebben een minimum-interval (voorkomt onnodig
-  scannen vóór het seizoen begint)
-- nieuwe of nog lege poules worden altijd meteen meegescand
-- competities met scan_profile "active" (gekoppeld aan een publicatie) krijgen
-  event-driven herscans rond wedstrijden, plus een dagelijkse fallback
-"""
+item 1019 (Fase C-cutover, 31-08-2026): run_scan_plan_pass() dekte tot
+vandaag 7 stappen (clublijst, per-club scans, nieuwe/lege poules, landelijke
+competities, active-profielen, manual-profielen); de 6 discovery/cadans-
+stappen daarvan zijn VERPLAATST naar services/hockey_vanger_schedule.py
+(rebuild_schedule + promote_due_schedule_entries is nu de ENIGE bron voor
+die concerns, aangeroepen direct na run_scan_plan_pass in dezelfde
+periodieke cyclus - zie routers/hockey_vanger_smartscan_control.py::
+_maybe_run_scan_plan_pass). run_scan_plan_pass zelf doet nu alleen nog
+_reclaim_stale_in_progress (VangerCmd-hygiëne, geen ontdekking).
+
+De 6 _step_*-functies (en _matchday_due_reason) staan hieronder nog
+gedefinieerd - SUPERSEDED, tijdelijk bewaard als rollback-vangnet en als
+referentie voor de pariteitstest (tests/test_hockey_vanger_cutover_
+parity.py). Niet meer aangeroepen vanuit run_scan_plan_pass; opruimen is
+een aparte, latere sessie."""
 import json
 from datetime import datetime, time as dtime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
@@ -19,7 +26,7 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
-from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting, get_target_season
+from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting
 
 STEP_MAX_CMDS = 10
 
@@ -303,6 +310,10 @@ def _reclaim_stale_in_progress(session: Session, now: datetime) -> int:
 
 
 def _step_club_list(session: Session, now: datetime) -> int:
+    # SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    # aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    # hockey_vanger_schedule.py::_immediate_events + promote_due_schedule_
+    # entries. Tijdelijk bewaard voor rollback/referentie.
     days = _get_int_setting(session, "club_list_scan_days", 7)
     pending = session.exec(
         select(VangerCmd)
@@ -329,7 +340,12 @@ def _step_club_list(session: Session, now: datetime) -> int:
 
 
 def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) -> int:
-    """Nieuwe/lege poules - alleen voor teams die BINNEN het actieve queue-
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    hockey_vanger_schedule.py::_immediate_events + promote_due_schedule_
+    entries. Tijdelijk bewaard voor rollback/referentie.
+
+    Nieuwe/lege poules - alleen voor teams die BINNEN het actieve queue-
     filter vallen (Bart, 30-08-2026: 'dit zijn allemaal senioren poules' -
     zonder deze check consumeerde een reeks Senioren-ontdekkingen dezelfde
     cap als de echte Junioren-ontdekkingen, en bleven ze als nutteloze
@@ -406,6 +422,11 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
 
 
 def _step_club_scan(session: Session, now: datetime, cap: int) -> int:
+    # SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    # aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    # hockey_vanger_schedule.py::_immediate_events + promote_due_schedule_
+    # entries. Tijdelijk bewaard voor rollback/referentie.
+    #
     # Bart, 30-08-2026: club-detail-scans zijn niet tijdsgevoelig (geen
     # wedstrijd-uitslag die kan verouderen) - in het weekend is de
     # scan-capaciteit beter besteed aan matchday-scans, dus club-scans
@@ -467,7 +488,13 @@ def _matchday_due_reason(
     matchday_enabled: bool,
     daily_fallback_skip_healthy: bool = False,
 ) -> Tuple[bool, Optional[str]]:
-    """Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): alleen nog gebruikt
+    door _step_active_profiles/_step_landelijke_competitions, die zelf niet
+    meer vanuit run_scan_plan_pass worden aangeroepen - het schedule.py-
+    equivalent (_poule_matchday_events/_cadence_events e.a.) stuurt nu de
+    echte uitvoering aan. Tijdelijk bewaard voor rollback/referentie.
+
+    Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
     heeft: max. 2 vooraf geplande scans per wedstrijd - 1x match_start_check
     kort na aanvang (item 970), en 1x match_end_check op het voorspelde
     einde. Levert een van beide geen definitief resultaat op, dan is de
@@ -606,7 +633,12 @@ def _matchday_due_reason(
 
 
 def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> int:
-    """Competities met een bekend hl_comp_id (landelijke top-/subtopklasses) in 1x
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via de
+    landelijke-lus in hockey_vanger_schedule.py::build_schedule_events +
+    promote_due_schedule_entries. Tijdelijk bewaard voor rollback/referentie.
+
+    Competities met een bekend hl_comp_id (landelijke top-/subtopklasses) in 1x
     via get_competition_detail scannen i.p.v. per poule - die poules zijn alleen
     via de comp-detail-sync ontdekt en hebben dus geen team_id (item 945), dus
     _step_new_or_empty_poules/_step_active_profiles slaan ze altijd stil over.
@@ -689,6 +721,10 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
 
 
 def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
+    # SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    # aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via de
+    # active-lus in hockey_vanger_schedule.py::build_schedule_events +
+    # promote_due_schedule_entries. Tijdelijk bewaard voor rollback/referentie.
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
@@ -777,7 +813,12 @@ def _manual_scan_weekday(competition_id: int) -> int:
 
 
 def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> int:
-    """Gepubliceerde competities die niet op scan_profile='active' staan
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    hockey_vanger_schedule.py::_manual_weekly_events + promote_due_schedule_
+    entries. Tijdelijk bewaard voor rollback/referentie.
+
+    Gepubliceerde competities die niet op scan_profile='active' staan
     (scan_profile='manual') worden door _step_active_profiles genegeerd -
     maar moeten alsnog periodiek ververst worden, alleen minder vaak. 1x per
     week, verdeeld over de 5 werkdagen (op basis van competitie-id) zodat ze
@@ -843,17 +884,24 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
 
 
 def run_scan_plan_pass(session: Session) -> dict:
+    """item 1019 (Fase C, cutover, 31-08-2026): dekte tot vandaag 7 stappen -
+    club_list, new_or_empty_poules, club_scan, landelijke_competities,
+    active_profielen en manual_weekly zijn per de cutover VERPLAATST naar
+    het scanschema (services/hockey_vanger_schedule.py::rebuild_schedule +
+    promote_due_schedule_entries, aangeroepen direct na deze functie in
+    routers/hockey_vanger_smartscan_control.py::_maybe_run_scan_plan_pass -
+    zelfde periodieke cyclus, geen nieuw tijdsgat). Alleen _reclaim_stale_
+    in_progress (VangerCmd-hygiene, geen ontdekking) blijft hier.
+
+    De 6 _step_*-functies (en _matchday_due_reason, alleen door hen
+    gebruikt) zijn bewust NOG NIET verwijderd - tijdelijk bewaard als
+    rollback-vangnet en als basis voor de pariteitstest (tests/test_hockey_
+    vanger_cutover_parity.py) die bewijst dat het scanschema-pad hetzelfde
+    oplevert. Opruimen is een aparte, latere sessie."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    target_season = get_target_season(session)
 
     steps = {
-        "reclaimed_stale":   _reclaim_stale_in_progress(session, now),
-        "club_list":         _step_club_list(session, now),
-        "new_empty_poules":  _step_new_or_empty_poules(session, target_season, STEP_MAX_CMDS),
-        "club_scan":         _step_club_scan(session, now, STEP_MAX_CMDS),
-        "landelijke_comps":  _step_landelijke_competitions(session, now, STEP_MAX_CMDS),
-        "active_profiles":   _step_active_profiles(session, now, STEP_MAX_CMDS),
-        "manual_profiles_weekly": _step_manual_profiles_weekly(session, now, STEP_MAX_CMDS),
+        "reclaimed_stale": _reclaim_stale_in_progress(session, now),
     }
     added = sum(steps.values())
     session.commit()

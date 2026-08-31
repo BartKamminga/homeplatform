@@ -1,23 +1,26 @@
-"""Scanschema (Fase A, schaduw-modus): een vooraf berekende, toekomstgerichte
-lijst van scan-momenten - los van de vanger_cmd_queue (VangerCmd, de
+"""Scanschema: een vooraf berekende, toekomstgerichte lijst van scan-momenten
+(ScanScheduleEntry) - los van de vanger_cmd_queue (VangerCmd, de
 daadwerkelijke uitvoeringsqueue die Ghost/Scout aflopen).
 
-Herbruikt dezelfde regels als services/hockey_vanger_scanplan.py
+Herbruikt dezelfde regels als services/hockey_vanger_scanplan.py had
 (match_start_check, match_end_check, dagelijkse fallback - ook voor
 landelijke competities, die als 1 grote poule worden behandeld over de
 vereniging van alle wedstrijden in hun poules - wekelijkse niet-autoscan-
 ronde, onbekende-starttijd-recheck), maar dan als
 EVENT-GENERATOREN die een heel venster [now, now+horizon] vooruitplannen
 i.p.v. alleen "is dit nu due" te beantwoorden. Doel: de Kalender-tab kan het
-schema straks gewoon TONEN i.p.v. zelf (in JS) dezelfde regels te
-herberekenen - dat voorkomt de drift tussen backend-logica en frontend-
-weergave die deze sessie herhaaldelijk tot bugs leidde.
+schema gewoon TONEN i.p.v. zelf (in JS) dezelfde regels te herberekenen -
+dat voorkomt de drift tussen backend-logica en frontend-weergave die eerder
+herhaaldelijk tot bugs leidde.
 
-Schaduw-modus: rebuild_schedule/promote_due_schedule_entries draaien NAAST
-de bestaande _step_*-functies in hockey_vanger_scanplan.py, die de echte
-uitvoering voorlopig ongewijzigd blijven aansturen. add_vanger_cmd's
-bestaande dedup zorgt dat promotie nooit een dubbele VangerCmd-rij oplevert
-als de oude stap 'm al had aangemaakt."""
+item 1019 (Fase C-cutover, 31-08-2026): rebuild_schedule + promote_due_
+schedule_entries zijn niet langer een parallelle schaduw-verversing naast
+de _step_*-functies in hockey_vanger_scanplan.py - dat zijn nu de ENIGE
+bron voor club_list/new_or_empty/club_scan/landelijke competities/active-
+profielen/manual_weekly. De oude _step_*-functies staan daar nog
+gedefinieerd (SUPERSEDED, tijdelijk bewaard voor rollback/referentie) maar
+worden niet meer aangeroepen vanuit run_scan_plan_pass. add_vanger_cmd's
+bestaande dedup blijft relevant (bv. tegen handmatige/ad-hoc toevoegingen)."""
 
 import json
 from datetime import datetime, timedelta
@@ -767,11 +770,16 @@ def rebuild_schedule(session: Session, now: datetime, horizon_days: int = DEFAUL
 def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STEP_MAX_CMDS) -> int:
     """Hevelt scanschema-rijen waarvan planned_at is aangebroken over naar de
     echte vanger-queue (VangerCmd), via de bestaande add_vanger_cmd (dedup +
-    landelijke-redirect ongewijzigd hergebruikt). In schaduw-modus (Fase A)
-    zullen de meeste van deze aanroepen gewoon 'already_queued' teruggeven
-    omdat de bestaande _step_*-functies in hockey_vanger_scanplan.py het doel
-    al hebben aangemaakt - dat bevestigt dat het schema klopt, zonder dat de
-    echte uitvoering verandert.
+    landelijke-redirect ongewijzigd hergebruikt).
+
+    item 1019 (Fase C-cutover, 31-08-2026): dit is de PRIMAIRE manier waarop
+    club_list/new_or_empty/club_scan/landelijke competities/active-
+    profielen/manual_weekly nu in VangerCmd terechtkomen - de oude _step_*-
+    functies in hockey_vanger_scanplan.py die dit voorheen rechtstreeks
+    deden, zijn niet meer aangeroepen vanuit run_scan_plan_pass (SUPERSEDED,
+    tijdelijk bewaard voor rollback/referentie). add_vanger_cmd's dedup
+    blijft relevant tegen handmatige/ad-hoc toevoegingen en dubbele promoties
+    binnen dezelfde horizon.
 
     Gecapt op STEP_MAX_CMDS per aanroep (net als elke _step_*-functie) - een
     eerste rebuild op een dataset met een oude scan-historie kan anders in
