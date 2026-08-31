@@ -191,15 +191,34 @@ def test_scheduled_cmds_reports_a_get_competition_detail_cmd_for_all_its_poules(
 
 
 def test_manual_profile_poule_is_reported_with_its_assigned_weekday(session):
+    """item 1009 (Bart, 31-08-2026): het schedule-endpoint leunt sinds de
+    Fase C-cutover op ScanScheduleEntry (het ECHTE, gefilterde scanschema)
+    i.p.v. een losse, ongefilterde manual_poules-telling - vandaar de
+    rebuild_schedule-aanroep hier. Een overduidelijk verleden, nog niet
+    finale wedstrijd maakt de poule "ongezond" (_is_healthy), zodat de
+    manual_weekly-entry ontstaat ongeacht het tijdstip waarop de test draait."""
+    from services.hockey_vanger_schedule import rebuild_schedule
+
     comp, poule = _setup_poule(session, poule_id=11, competition_id=11, team_id=1100, published=False)
     session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    now = datetime.utcnow()
+    session.add(HockeyPouleMatch(
+        poule_id=11, match_id=112, home_team_id=1100, away_team_id=1101,
+        home_team_name="Home", away_team_name="Away",
+        match_date=(now - timedelta(days=2)).strftime("%Y-%m-%dT12:00:00+00:00"), status="scheduled",
+    ))
     session.commit()
 
+    rebuild_schedule(session, now, 14)
     result = get_scan_calendar(session=session, _=None)
 
-    entry = next((p for p in result["manual_poules"] if p["poule_id"] == 11), None)
+    entry = next(
+        (e for e in result["schedule_entries"]
+         if e["target_type"] == "poule" and e["target_id"] == 11 and e["reason"] == "manual_weekly"),
+        None,
+    )
     assert entry is not None
-    assert entry["assigned_weekday"] in (0, 1, 2, 3, 4)
+    assert entry["competition_name"] == comp.name
 
 
 def test_manual_profile_poule_also_appears_in_the_main_poules_list_with_its_real_matches(session):
@@ -248,15 +267,22 @@ def test_two_competitions_with_the_same_name_are_reported_with_different_competi
 
 
 def test_manual_profile_poule_with_hl_comp_id_is_excluded(session):
+    from services.hockey_vanger_schedule import rebuild_schedule
+
     comp, poule = _setup_poule(session, poule_id=12, competition_id=12, team_id=1200, published=False)
     comp.hl_comp_id = 33
     session.add(comp)
     session.add(HockeyPublicationComp(publication_id="pub-manual", competition_id=comp.id, scan_profile="manual"))
+    now = datetime.utcnow()
     session.commit()
 
+    rebuild_schedule(session, now, 14)
     result = get_scan_calendar(session=session, _=None)
 
-    assert not any(p["poule_id"] == 12 for p in result["manual_poules"])
+    assert not any(
+        e["target_type"] == "poule" and e["target_id"] == 12 and e["reason"] == "manual_weekly"
+        for e in result["schedule_entries"]
+    )
 
 
 def test_scheduled_cmds_marks_a_pending_cmd_as_not_executed(session):

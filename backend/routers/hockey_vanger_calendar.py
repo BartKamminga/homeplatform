@@ -17,8 +17,9 @@ from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
+from routers.hockey_vanger_schedule_debug import _label_for
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
-from services.hockey_vanger_scanplan import _manual_scan_weekday, _team_by_poule
+from services.hockey_vanger_scanplan import _team_by_poule
 from services.hockey_vanger_settings import _get_int_setting, get_notify_team_ids
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -98,26 +99,6 @@ def get_scan_calendar(
     comp_by_id = {c.id: c for c in all_comps}
     comp_by_hl_id = {c.hl_comp_id: c for c in all_comps if c.hl_comp_id}
     team_by_poule = _team_by_poule(session)
-
-    # item: publicaties die niet op scan_profile='active' staan worden 1x per
-    # week gescand (verdeeld over de 5 werkdagen, zie
-    # _step_manual_profiles_weekly) - dat moet ook zichtbaar zijn, anders lijkt
-    # het alsof die poules helemaal niet worden ververst.
-    manual_poules = []
-    if manual_comp_ids:
-        for poule in session.exec(
-            select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(manual_comp_ids))
-        ).all():
-            comp = comp_by_id.get(poule.competition_id)
-            if comp and comp.hl_comp_id:
-                continue  # al gedekt door _step_landelijke_competitions, eigen 12u-cadans
-            manual_poules.append({
-                "poule_id": poule.poule_id,
-                "poule_name": poule.name,
-                "competition_name": comp.name if comp else None,
-                "assigned_weekday": _manual_scan_weekday(poule.competition_id),  # 0=maandag..4=vrijdag
-                "last_scanned_at": _iso(poule.last_scanned_at) if poule.last_scanned_at else None,
-            })
 
     poule_results = []
     for poule in poules:
@@ -257,20 +238,47 @@ def get_scan_calendar(
     # uitvoeringsqueue staat) laat dit ook zien wat er de komende dagen NOG
     # gepland staat, ongeacht of het al gepromoveerd is. Beantwoordt "hoeveel
     # scans gaan we naar verwachting uitvoeren" voor toekomstige dagen.
-    schedule_entries = [
-        {
+    #
+    # item 1009 (Bart, 31-08-2026: "ik wil op de kalender zien wat er die dag
+    # gescanned gaat worden... een goed beeld van de calls naar hockey.nl") -
+    # label/competition_name/in_filter erbij zodat de Kalender-tab niet zelf
+    # opnieuw hoeft te ontdekken welke poule/competitie/club achter een
+    # target_id schuilgaat, en - net zo belangrijk - of de actieve queue-
+    # filter deze scan straks (bij promotie) uberhaupt doorlaat. Een 'planned'
+    # rij is daar nog niet tegenaan gehouden (dat gebeurt pas in
+    # promote_due_schedule_entries zodra planned_at aanbreekt); in_filter is
+    # dus een VOORSPELLING op basis van de HUIDIGE filterinstelling, geen
+    # garantie als die instelling nog wijzigt vooraleer de rij due wordt.
+    poule_by_id = {p.poule_id: p for p in poules}
+    club_by_id = {c.id: c for c in club_by_ext_id.values()}
+    schedule_entries = []
+    for e in session.exec(
+        select(ScanScheduleEntry)
+        .where(ScanScheduleEntry.planned_at >= range_from)
+        .where(ScanScheduleEntry.planned_at <= range_to)
+    ).all():
+        try:
+            params = json.loads(e.params)
+        except (ValueError, TypeError):
+            params = {}
+        comp_name = None
+        if e.target_type == "poule":
+            poule = poule_by_id.get(e.target_id)
+            comp = comp_by_id.get(poule.competition_id) if poule else None
+            comp_name = comp.name if comp else None
+        elif e.target_type == "competition":
+            comp = comp_by_hl_id.get(e.target_id)
+            comp_name = comp.name if comp else None
+        schedule_entries.append({
             "target_type": e.target_type,
             "target_id": e.target_id,
             "planned_at": _iso(e.planned_at),
             "reason": e.reason,
             "status": e.status,
-        }
-        for e in session.exec(
-            select(ScanScheduleEntry)
-            .where(ScanScheduleEntry.planned_at >= range_from)
-            .where(ScanScheduleEntry.planned_at <= range_to)
-        ).all()
-    ]
+            "label": _label_for(e, params, poule_by_id, comp_by_hl_id, club_by_id, comp_by_id),
+            "competition_name": comp_name,
+            "in_filter": _cmd_matches_filter(session, e.cmd_type, params, ages, club, cats, hts, genders),
+        })
 
     return {
         "settings": settings,
@@ -280,7 +288,6 @@ def get_scan_calendar(
         "recent_captures": recent_captures,
         "scheduled_cmds": scheduled_cmds,
         "club_captures": club_captures,
-        "manual_poules": manual_poules,
         "schedule_entries": schedule_entries,
     }
 
