@@ -117,18 +117,23 @@ def _maybe_run_scan_plan_pass(session: Session):
         session.add(AppSetting(key=SCAN_PLAN_LAST_RUN_KEY, value=now.isoformat()))
     session.commit()
 
-    result = run_scan_plan_pass(session)
+    # item 1019 (Fase C, cutover): run_scan_plan_pass doet vanaf nu alleen
+    # nog _reclaim_stale_in_progress (VangerCmd-hygiene) - de eigenlijke
+    # ontdekking/cadans (club_list, new_or_empty, club_scan, landelijke
+    # competities, active-profielen, manual_weekly) loopt volledig via het
+    # scanschema hieronder (rebuild_schedule + promote_due_schedule_entries)
+    # i.p.v. een parallelle schaduw-verversing naast de (nu buiten dienst
+    # gestelde) _step_*-functies.
+    run_scan_plan_pass(session)
 
-    # Scanschema (Fase A, schaduw-modus): bouwt een vooruitblik-lijst van
-    # scan-momenten en hevelt verlopen momenten over naar de vanger-queue.
-    # Draait NAAST de _step_*-stappen hierboven, die de echte uitvoering
-    # voorlopig ongewijzigd blijven aansturen - add_vanger_cmd's bestaande
-    # dedup zorgt dat promotie nooit een dubbele VangerCmd-rij oplevert.
     horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
     rebuild_schedule(session, now, horizon_days)
-    promote_due_schedule_entries(session, now)
+    promoted = promote_due_schedule_entries(session, now)
 
-    if result.get("added", 0) > 0 and _ghost_enabled(session):
+    # Ghost hoeft alleen wakker gemaakt te worden als er ECHT nieuw werk in
+    # de queue is gekomen (promoted) - een gereclaimede stale cmd (terug
+    # naar 'failed') levert geen nieuwe pending rij op en is dus geen reden.
+    if promoted > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()
 

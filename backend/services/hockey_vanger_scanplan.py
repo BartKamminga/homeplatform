@@ -1,25 +1,32 @@
 """Vanger scan-plan: tijdgestuurde, profiel-gebaseerde queuing (item 720).
 
-Vult de vanger_cmd_queue periodiek op basis van vaste regels, in plaats van
-volledig af te hangen van handmatige knoppen (Gap-fill / Smart-scan-start):
-- clublijst en per-club scans hebben een minimum-interval (voorkomt onnodig
-  scannen vóór het seizoen begint)
-- nieuwe of nog lege poules worden altijd meteen meegescand
-- competities met scan_profile "active" (gekoppeld aan een publicatie) krijgen
-  event-driven herscans rond wedstrijden, plus een dagelijkse fallback
-"""
+item 1019 (Fase C-cutover, 31-08-2026): run_scan_plan_pass() dekte tot
+vandaag 7 stappen (clublijst, per-club scans, nieuwe/lege poules, landelijke
+competities, active-profielen, manual-profielen); de 6 discovery/cadans-
+stappen daarvan zijn VERPLAATST naar services/hockey_vanger_schedule.py
+(rebuild_schedule + promote_due_schedule_entries is nu de ENIGE bron voor
+die concerns, aangeroepen direct na run_scan_plan_pass in dezelfde
+periodieke cyclus - zie routers/hockey_vanger_smartscan_control.py::
+_maybe_run_scan_plan_pass). run_scan_plan_pass zelf doet nu alleen nog
+_reclaim_stale_in_progress (VangerCmd-hygiëne, geen ontdekking).
+
+De 6 _step_*-functies (en _matchday_due_reason) staan hieronder nog
+gedefinieerd - SUPERSEDED, tijdelijk bewaard als rollback-vangnet en als
+referentie voor de pariteitstest (tests/test_hockey_vanger_cutover_
+parity.py). Niet meer aangeroepen vanuit run_scan_plan_pass; opruimen is
+een aparte, latere sessie."""
 import json
 from datetime import datetime, time as dtime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from sqlmodel import Session, col, select
 
-from models.hockey import HockeyPublicationComp
+from models.hockey import HockeyPublication, HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
-from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting, get_target_season
+from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting
 
 STEP_MAX_CMDS = 10
 
@@ -111,6 +118,72 @@ def _is_healthy(health: Dict[int, dict], poule_id: int) -> bool:
         return False
     h = health[poule_id]
     return not h["unknown_start"] and not h["overdue_result"]
+
+
+def _scan_profile_comp_ids(session: Session) -> Tuple[set, set]:
+    """item 1022 (Bart, 31-08-2026: 'laten we visible en published ook
+    meenemen'): scan_profile='active' krijgt de volle autoscan-behandeling
+    (matchday-burst/daily_fallback/unknown_start_recheck) alleen als de
+    competitie OOK publiek zichtbaar is - HockeyPublication.published EN
+    HockeyPublicationComp.visible. Zonder deze check zou een concept-
+    publicatie of een op onzichtbaar gezette competitie evenveel scan-
+    capaciteit krijgen als een live publieke competitie.
+
+    Een 'active' competitie die hier niet aan voldoet wordt niet losgelaten
+    (dat liet 'm voor onbepaalde tijd stilvallen, zie item 1022) maar valt
+    terug op DEZELFDE wekelijkse cadans als scan_profile='manual' - geen
+    aparte 3e cadans nodig. published=False wint altijd van visible (een
+    concept-publicatie maakt de losse zichtbaarheids-vlag binnenin
+    irrelevant).
+
+    new_or_empty (de allereerste ontdekkingsscan) hangt hier bewust niet
+    van af - die is al onafhankelijk van scan_profile/publicatie.
+    Landelijke (hl_comp_id-gekoppelde) competities zijn hier ook bewust
+    buiten gelaten - _step_landelijke_competitions kent geen scan_profile-
+    onderscheid en blijft dat voorlopig ongewijzigd houden (aparte,
+    grotere afweging voor een volgende sessie).
+
+    Bewust GEEN join op HockeyPublication (die zou een HockeyPublicationComp
+    met een niet-resolvende publication_id stilzwijgend laten vallen, i.p.v.
+    'm als active_eligible/manual mee te tellen) - een ontbrekende publicatie
+    telt als published=True (geen aanname van onzichtbaarheid bij een
+    kapotte/ontbrekende referentie, die zou normaal niet moeten voorkomen)."""
+    links = session.exec(select(HockeyPublicationComp)).all()
+    pub_ids = {link.publication_id for link in links}
+    pubs_by_id = {p.id: p for p in session.exec(
+        select(HockeyPublication).where(col(HockeyPublication.id).in_(pub_ids))
+    ).all()} if pub_ids else {}
+
+    manual_ids: set = set()
+    active_eligible_ids: set = set()
+    active_demoted_ids: set = set()
+    for link in links:
+        if link.scan_profile == "manual":
+            manual_ids.add(link.competition_id)
+        elif link.scan_profile == "active":
+            pub = pubs_by_id.get(link.publication_id)
+            published = pub.published if pub else True
+            if published and link.visible:
+                active_eligible_ids.add(link.competition_id)
+            else:
+                active_demoted_ids.add(link.competition_id)
+    return active_eligible_ids, manual_ids | active_demoted_ids
+
+
+def _is_autoscan_eligible(session: Session, competition_id: int) -> bool:
+    """Doel-specifieke variant van _scan_profile_comp_ids (net als
+    _team_for_poule vs _team_by_poule) - voor de reactieve rebuild_schedule_
+    for_target (1 competitie), waar de volledige set opbouwen overkill is."""
+    link = session.exec(
+        select(HockeyPublicationComp)
+        .where(HockeyPublicationComp.competition_id == competition_id)
+        .where(HockeyPublicationComp.scan_profile == "active")
+    ).first()
+    if not link:
+        return False
+    pub = session.get(HockeyPublication, link.publication_id)
+    published = pub.published if pub else True
+    return bool(published and link.visible)
 
 
 def _pending_poule_ids(session: Session) -> set:
@@ -237,6 +310,10 @@ def _reclaim_stale_in_progress(session: Session, now: datetime) -> int:
 
 
 def _step_club_list(session: Session, now: datetime) -> int:
+    # SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    # aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    # hockey_vanger_schedule.py::_immediate_events + promote_due_schedule_
+    # entries. Tijdelijk bewaard voor rollback/referentie.
     days = _get_int_setting(session, "club_list_scan_days", 7)
     pending = session.exec(
         select(VangerCmd)
@@ -263,7 +340,12 @@ def _step_club_list(session: Session, now: datetime) -> int:
 
 
 def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) -> int:
-    """Nieuwe/lege poules - alleen voor teams die BINNEN het actieve queue-
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    hockey_vanger_schedule.py::_immediate_events + promote_due_schedule_
+    entries. Tijdelijk bewaard voor rollback/referentie.
+
+    Nieuwe/lege poules - alleen voor teams die BINNEN het actieve queue-
     filter vallen (Bart, 30-08-2026: 'dit zijn allemaal senioren poules' -
     zonder deze check consumeerde een reeks Senioren-ontdekkingen dezelfde
     cap als de echte Junioren-ontdekkingen, en bleven ze als nutteloze
@@ -340,6 +422,11 @@ def _step_new_or_empty_poules(session: Session, target_season: str, cap: int) ->
 
 
 def _step_club_scan(session: Session, now: datetime, cap: int) -> int:
+    # SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    # aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    # hockey_vanger_schedule.py::_immediate_events + promote_due_schedule_
+    # entries. Tijdelijk bewaard voor rollback/referentie.
+    #
     # Bart, 30-08-2026: club-detail-scans zijn niet tijdsgevoelig (geen
     # wedstrijd-uitslag die kan verouderen) - in het weekend is de
     # scan-capaciteit beter besteed aan matchday-scans, dus club-scans
@@ -401,7 +488,13 @@ def _matchday_due_reason(
     matchday_enabled: bool,
     daily_fallback_skip_healthy: bool = False,
 ) -> Tuple[bool, Optional[str]]:
-    """Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): alleen nog gebruikt
+    door _step_active_profiles/_step_landelijke_competitions, die zelf niet
+    meer vanuit run_scan_plan_pass worden aangeroepen - het schedule.py-
+    equivalent (_poule_matchday_events/_cadence_events e.a.) stuurt nu de
+    echte uitvoering aan. Tijdelijk bewaard voor rollback/referentie.
+
+    Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
     heeft: max. 2 vooraf geplande scans per wedstrijd - 1x match_start_check
     kort na aanvang (item 970), en 1x match_end_check op het voorspelde
     einde. Levert een van beide geen definitief resultaat op, dan is de
@@ -540,7 +633,12 @@ def _matchday_due_reason(
 
 
 def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> int:
-    """Competities met een bekend hl_comp_id (landelijke top-/subtopklasses) in 1x
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via de
+    landelijke-lus in hockey_vanger_schedule.py::build_schedule_events +
+    promote_due_schedule_entries. Tijdelijk bewaard voor rollback/referentie.
+
+    Competities met een bekend hl_comp_id (landelijke top-/subtopklasses) in 1x
     via get_competition_detail scannen i.p.v. per poule - die poules zijn alleen
     via de comp-detail-sync ontdekt en hebben dus geen team_id (item 945), dus
     _step_new_or_empty_poules/_step_active_profiles slaan ze altijd stil over.
@@ -623,6 +721,10 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
 
 
 def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
+    # SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    # aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via de
+    # active-lus in hockey_vanger_schedule.py::build_schedule_events +
+    # promote_due_schedule_entries. Tijdelijk bewaard voor rollback/referentie.
     match_duration      = _get_int_setting(session, "match_duration_min", 90)
     daily_fallback_h     = _get_int_setting(session, "active_daily_fallback_hours", 24)
     matchday_interval_m  = _get_int_setting(session, "active_matchday_interval_min", 45)
@@ -634,10 +736,10 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     matchday_enabled     = _active_matchday_enabled(session)
     skip_healthy         = _skip_healthy_daily_fallback(session)
 
-    active_comp_ids = set(session.exec(
-        select(HockeyPublicationComp.competition_id)
-        .where(HockeyPublicationComp.scan_profile == "active")
-    ).all())
+    # item 1022: alleen publiek zichtbare active-competities krijgen hier de
+    # volle behandeling - een concept-publicatie of onzichtbare koppeling
+    # valt terug op de wekelijkse cadans (zie _step_manual_profiles_weekly).
+    active_comp_ids, _weekly_fallback_ids = _scan_profile_comp_ids(session)
     if not active_comp_ids:
         return 0
 
@@ -711,17 +813,25 @@ def _manual_scan_weekday(competition_id: int) -> int:
 
 
 def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> int:
-    """Gepubliceerde competities die niet op scan_profile='active' staan
+    """SUPERSEDED (item 1019, Fase C-cutover, 31-08-2026): niet meer
+    aangeroepen vanuit run_scan_plan_pass - dekking loopt nu via
+    hockey_vanger_schedule.py::_manual_weekly_events + promote_due_schedule_
+    entries. Tijdelijk bewaard voor rollback/referentie.
+
+    Gepubliceerde competities die niet op scan_profile='active' staan
     (scan_profile='manual') worden door _step_active_profiles genegeerd -
     maar moeten alsnog periodiek ververst worden, alleen minder vaak. 1x per
     week, verdeeld over de 5 werkdagen (op basis van competitie-id) zodat ze
-    niet allemaal op dezelfde dag/moment gescand worden."""
+    niet allemaal op dezelfde dag/moment gescand worden.
+
+    item 1022: ook 'active'-competities die niet publiek zichtbaar zijn
+    (concept-publicatie of onzichtbare koppeling) vallen hier onder - zie
+    _scan_profile_comp_ids. Zo krijgen ze wel deze trage vangnet-cadans
+    i.p.v. voor onbepaalde tijd stil te vallen."""
     if now.weekday() >= MANUAL_SCAN_WEEKDAYS:  # weekend - geen ronde
         return 0
 
-    manual_comp_ids = set(session.exec(
-        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "manual")
-    ).all())
+    _active_eligible_ids, manual_comp_ids = _scan_profile_comp_ids(session)
     if not manual_comp_ids:
         return 0
 
@@ -774,17 +884,24 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
 
 
 def run_scan_plan_pass(session: Session) -> dict:
+    """item 1019 (Fase C, cutover, 31-08-2026): dekte tot vandaag 7 stappen -
+    club_list, new_or_empty_poules, club_scan, landelijke_competities,
+    active_profielen en manual_weekly zijn per de cutover VERPLAATST naar
+    het scanschema (services/hockey_vanger_schedule.py::rebuild_schedule +
+    promote_due_schedule_entries, aangeroepen direct na deze functie in
+    routers/hockey_vanger_smartscan_control.py::_maybe_run_scan_plan_pass -
+    zelfde periodieke cyclus, geen nieuw tijdsgat). Alleen _reclaim_stale_
+    in_progress (VangerCmd-hygiene, geen ontdekking) blijft hier.
+
+    De 6 _step_*-functies (en _matchday_due_reason, alleen door hen
+    gebruikt) zijn bewust NOG NIET verwijderd - tijdelijk bewaard als
+    rollback-vangnet en als basis voor de pariteitstest (tests/test_hockey_
+    vanger_cutover_parity.py) die bewijst dat het scanschema-pad hetzelfde
+    oplevert. Opruimen is een aparte, latere sessie."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    target_season = get_target_season(session)
 
     steps = {
-        "reclaimed_stale":   _reclaim_stale_in_progress(session, now),
-        "club_list":         _step_club_list(session, now),
-        "new_empty_poules":  _step_new_or_empty_poules(session, target_season, STEP_MAX_CMDS),
-        "club_scan":         _step_club_scan(session, now, STEP_MAX_CMDS),
-        "landelijke_comps":  _step_landelijke_competitions(session, now, STEP_MAX_CMDS),
-        "active_profiles":   _step_active_profiles(session, now, STEP_MAX_CMDS),
-        "manual_profiles_weekly": _step_manual_profiles_weekly(session, now, STEP_MAX_CMDS),
+        "reclaimed_stale": _reclaim_stale_in_progress(session, now),
     }
     added = sum(steps.values())
     session.commit()

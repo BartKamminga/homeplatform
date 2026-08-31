@@ -151,6 +151,53 @@ def test_get_poule_result_triggers_a_reactive_schedule_rebuild(session):
     assert entries
 
 
+def test_a_broken_reactive_schedule_rebuild_does_not_fail_the_result_request(session, monkeypatch):
+    """item 1019 (Fase C): met de cutover wordt deze reactieve rebuild de
+    PRIMAIRE manier waarop het scanschema actueel blijft, niet langer een
+    parallelle schaduw-verversing - een fout hierin mag daarom nooit de
+    hele /result-aanroep laten crashen of cmd.status onbijgewerkt laten.
+    De cmd-status-commit gebeurt bewust VOOR deze (nu zelf-afvangende)
+    rebuild-aanroep, dus een fout hier mag 'm niet meer kunnen beinvloeden."""
+    import routers.hockey_vanger_cmd_queue as cmd_queue_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("kaboom - scanschema-rebuild mislukt")
+
+    monkeypatch.setattr(cmd_queue_module, "rebuild_schedule_for_target", _boom)
+
+    comp = HockeyCompetition(
+        external_id="Broken Rebuild Test|District||2026-2027", name="Broken Rebuild Test",
+        class_name="District", hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub1", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=501, name="Poule Broken", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=52, club_external_id="HH52ZZ0", name="Broken Team", short_name="H52",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=501,
+    ))
+    session.commit()
+
+    raw = {"data": {"data": {"poule": {
+        "id": 501, "name": "Poule Broken",
+        "competition": {"name": "Broken Rebuild Test", "subcompetition": {"class": "District"}},
+        "standings": [], "matches": [],
+    }}}}
+    cmd = _pending_cmd("get_poule", {"poule_id": 501, "team_id": 52, "label": "Broken Team"})
+    session.add(cmd)
+    session.commit()
+    session.refresh(cmd)
+
+    result = post_cmd_result(cmd.id, CmdResultIn(raw=raw, session_id="sess-broken"), session=session, _=None)
+
+    assert result["ok"] is True
+    session.refresh(cmd)
+    assert cmd.status == "done"
+
+
 def test_get_poule_result_records_a_successful_scan_history_entry(session):
     raw = {"data": {"data": {"poule": {
         "id": 102, "name": "Poule C",

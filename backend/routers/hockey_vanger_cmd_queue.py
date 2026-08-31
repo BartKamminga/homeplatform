@@ -5,9 +5,11 @@ de minste testdekking vóór RFTR-B1 - zie backend/tests/test_hockey_vanger_
 cmd_queue.py en test_hockey_vanger_post_cmd_result.py."""
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
+import sentry_sdk
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
@@ -31,6 +33,8 @@ from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedu
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
 
+logger = logging.getLogger(__name__)
+
 
 def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: datetime) -> None:
     """Bart, 30-08-2026: een net binnengekomen get_poule/get_competition_
@@ -47,7 +51,17 @@ def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: 
     relevante delen herbouwt?" - een volledige rebuild van de ~900
     relevante poules (~1-1.3s) na ELKE binnenkomende scan zou tijdens een
     drukke wedstrijddag met veel gelijktijdige captures onnodig veel tijd
-    kosten voor doelen die niet eens net zijn ververst."""
+    kosten voor doelen die niet eens net zijn ververst.
+
+    Fase C (item 1019, 31-08-2026): dit is met de cutover de PRIMAIRE manier
+    waarop nieuwe scanschema-events voor een poule/competitie ontstaan
+    (match_end_check/retry_match_end/match_live), niet langer een parallelle
+    schaduw-verversing. Een fout hier mag daarom nooit de aanroepende
+    /result-request laten falen (2 van de 3 aanroepplekken zitten al in een
+    except-block na een rollback - een 2e onafgevangen fout daar zou de hele
+    request laten crashen en cmd.status nooit bijgewerkt achterlaten) - de
+    volgende periodieke volledige rebuild_schedule (uiterlijk
+    profile_scan_interval_min later) herstelt een gemiste update sowieso."""
     if cmd.cmd_type not in ("get_poule", "get_competition_detail"):
         return
     try:
@@ -60,8 +74,21 @@ def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: 
         target_type, target_id = "competition", params.get("comp_id")
     if not target_id:
         return
-    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
-    rebuild_schedule_for_target(session, now, horizon_days, target_type, target_id)
+    try:
+        horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+        rebuild_schedule_for_target(session, now, horizon_days, target_type, target_id)
+    except Exception:
+        # De cmd-status is op dit punt altijd al gecommit door de aanroeper
+        # (zie de 3 call sites: commit() gebeurt bewust VOOR deze aanroep) -
+        # een rollback hier raakt dus alleen de eigen, half toegepaste
+        # schema-wijzigingen van de mislukte rebuild_schedule_for_target-poging.
+        session.rollback()
+        logger.exception(
+            "Scanschema-rebuild na cmd-resultaat mislukt (cmd_type=%s, target=%s/%s) - genegeerd, "
+            "volgende periodieke rebuild herstelt dit",
+            cmd.cmd_type, target_type, target_id,
+        )
+        sentry_sdk.capture_exception()
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -541,8 +568,11 @@ def post_cmd_result(
                     tp.no_new_poule_confirmed = True
                     session.add(tp)
 
-        _maybe_rebuild_schedule_after_result(session, cmd, now)
         session.commit()
+        # item 1019: pas NA de commit van de cmd-status - een fout in de
+        # (defensieve, zelf-afvangende) schema-rebuild mag de zojuist
+        # vastgelegde status nooit meer kunnen beinvloeden.
+        _maybe_rebuild_schedule_after_result(session, cmd, now)
         return {"ok": True, "status": cmd.status}
 
     result_label = params.get("label", "")
@@ -601,8 +631,8 @@ def post_cmd_result(
         cmd.result_summary = json.dumps(summary_data)
         session.add(cmd)
         record_scan_outcome(session, cmd.reason, success=False, when=now)
-        _maybe_rebuild_schedule_after_result(session, cmd, now)
         session.commit()
+        _maybe_rebuild_schedule_after_result(session, cmd, now)
         return {"ok": False, "status": "failed", "error": str(e)}
 
     if not already:
@@ -622,8 +652,8 @@ def post_cmd_result(
     cmd.result_summary = json.dumps(summary_data)
     session.add(cmd)
     record_scan_outcome(session, cmd.reason, success=True, when=now)
-    _maybe_rebuild_schedule_after_result(session, cmd, now)
     session.commit()
+    _maybe_rebuild_schedule_after_result(session, cmd, now)
     notify_finished_matches(session, newly_finished)
     _smart_scan_try_advance(session)
     return {"ok": True, "status": "done", "label": result_label}
