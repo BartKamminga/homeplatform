@@ -2,11 +2,14 @@
 routers/hockey_vanger.py (item 696)."""
 
 import re
+from datetime import datetime
+from typing import Optional
 
 from sqlmodel import Session, col, select
 
 from models.hockey_discovery import HockeyCompetition, HockeyTeam
 from models.settings import AppSetting
+from services.hockey_vanger_settings import get_zaal_window, is_in_zaal_window
 
 # _AGE_RE en _AGE_RE_GENERIC zijn bewust gescheiden (RFTR-B2, Fase 2g) -
 # geen duplicatie om samen te voegen, maar twee verschillende concepten:
@@ -133,11 +136,23 @@ def _is_scoreless_youth(short_name: str) -> bool:
     return _age_in_range(short_name, 7, 10)
 
 
-def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, club, cats, hts, genders) -> bool:
+def _cmd_matches_filter(
+    session: Session, cmd_type: str, params: dict, ages, club, cats, hts, genders,
+    now: Optional[datetime] = None,
+) -> bool:
     """Bepaalt of een cmd bij de huidige queue-filter past - gebruikt bij het
     OPPAKKEN (dequeue) van cmds, niet bij het aanmaken ervan (item 727): cmds die
     niet passen blijven gewoon 'pending' in de lijst staan, maar worden overgeslagen
-    zodat ze niet verwerkt worden zolang het filter ze uitsluit."""
+    zodat ze niet verwerkt worden zolang het filter ze uitsluit.
+
+    item 1019: zaalcompetities (ZA) worden hier verder onder NIET uitgesloten
+    door het hockey_type-filter zolang we binnen het ingestelde zaal-
+    seizoensvenster zitten (default eind november t/m begin maart) - buiten
+    dat venster blijft ZA uitgesloten zoals voorheen (er valt dan toch niets
+    te scannen)."""
+    now = now or datetime.utcnow()
+    zaal_active = is_in_zaal_window(now, *get_zaal_window(session))
+
     if cmd_type == "get_poule":
         team_id = params.get("team_id")
         if not team_id:
@@ -147,7 +162,7 @@ def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, clu
             return True
         if cats and team.category_group_name not in cats:
             return False
-        if hts and team.hockey_type not in hts:
+        if hts and team.hockey_type not in hts and not (team.hockey_type == "ZA" and zaal_active):
             return False
         if club and team.club_external_id != club:
             return False
@@ -176,7 +191,7 @@ def _cmd_matches_filter(session: Session, cmd_type: str, params: dict, ages, clu
         hockey_type = comp.hockey_type if (comp and comp.hockey_type) else (
             "ZA" if label.strip().lower().startswith("z") else "VE"
         )
-        if hts and hockey_type not in hts:
+        if hts and hockey_type not in hts and not (hockey_type == "ZA" and zaal_active):
             return False
         if cats and _derive_competition_category(label) not in cats:
             return False

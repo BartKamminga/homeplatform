@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from sqlmodel import select
 
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
-from routers.hockey_vanger_cmd_queue import CmdFillIn, fill_cmd_queue
+from routers.hockey_vanger_cmd_queue import CmdFillIn, fill_cmd_queue, get_cmd_queue_next
 
 
 def _team(**kw):
@@ -155,6 +155,33 @@ def test_fill_poules_refresh_skips_poule_without_a_linked_team(session):
 
     result = fill_cmd_queue(CmdFillIn(type="poules_refresh"), session=session, _=None)
     assert result["added"] == 0
+
+
+# ── GET /vanger/cmd-queue/next (item 1019: handmatige toevoegingen omzeilen het filter) ──
+
+def test_next_returns_a_manually_added_cmd_even_if_it_fails_the_queue_filter(session):
+    # reason=None (zoals POST /vanger/cmd-queue/add) - default queue-filter is
+    # Junioren-only, dus deze Senioren-team-cmd zou normaal buiten de boot vallen.
+    session.add(_team(team_id=1, name="Team A", short_name="H1", category_group_name="Senioren", recent_poule_id=100))
+    session.add(VangerCmd(cmd_type="get_poule", params=json.dumps({"poule_id": 100, "team_id": 1}), status="pending", reason=None))
+    session.commit()
+
+    result = get_cmd_queue_next(session=session, _=None)
+
+    assert result["done"] is False
+    assert result["id"] is not None
+
+
+def test_next_skips_an_automated_cmd_that_fails_the_queue_filter(session):
+    # reason gezet (zoals de _step_*-scan-plan-functies) - moet WEL door het
+    # filter tegengehouden worden, ongewijzigd gedrag (regressie-guard).
+    session.add(_team(team_id=1, name="Team A", short_name="H1", category_group_name="Senioren", recent_poule_id=100))
+    session.add(VangerCmd(cmd_type="get_poule", params=json.dumps({"poule_id": 100, "team_id": 1}), status="pending", reason="daily_fallback"))
+    session.commit()
+
+    result = get_cmd_queue_next(session=session, _=None)
+
+    assert result["done"] is True
 
 
 # ── item 1013: get_poule van een landelijke competitie omleiden ─────────

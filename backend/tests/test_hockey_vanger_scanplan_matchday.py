@@ -8,9 +8,19 @@ from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import (
-    ACTIVE_MATCHDAY_ENABLED_KEY, _manual_scan_weekday, _reclaim_stale_in_progress,
+    ACTIVE_MATCHDAY_ENABLED_KEY, SKIP_HEALTHY_DAILY_FALLBACK_KEY, _manual_scan_weekday, _reclaim_stale_in_progress,
     _step_active_profiles, _step_manual_profiles_weekly, _step_new_or_empty_poules,
 )
+
+
+def _disable_skip_healthy_daily_fallback(session):
+    """item 1018: veel bestaande daily_fallback-cadans-tests gebruiken bewust
+    'schone' wedstrijddata (status=final, geen onbekende starttijd) om de
+    burst-logica uit te schakelen - dat maakt de poule nu ook 'gezond',
+    wat de nieuwe skip (default AAN) zou laten afgaan. Deze tests testen de
+    cadans zelf, niet de gezond-skip (die heeft eigen tests) - hier expliciet
+    uitzetten houdt ze bij hun oorspronkelijke scenario."""
+    session.add(AppSetting(key=SKIP_HEALTHY_DAILY_FALLBACK_KEY, value="0"))
 
 
 def _next_weekday(base, weekday):
@@ -392,7 +402,7 @@ def test_unknown_start_lookahead_days_is_configurable(session):
 # ── item: niet-autoscan (scan_profile='manual') publicaties 1x per week,
 # verdeeld over maandag/vrijdag ───────────────────────────────────────────
 
-def _setup_manual_competition(session, comp_id_hint, last_scanned_at):
+def _setup_manual_competition(session, comp_id_hint, last_scanned_at, healthy=False):
     comp = HockeyCompetition(
         external_id=f"test|manual-{comp_id_hint}", name=f"Manual Test {comp_id_hint}", class_name="District",
         hockey_type="VE", season="2026-2027",
@@ -411,6 +421,24 @@ def _setup_manual_competition(session, comp_id_hint, last_scanned_at):
         team_id=9000 + comp_id_hint, club_external_id="HH11ZZ0", name="Manual Team", short_name="M1",
         hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule.poule_id,
     ))
+    if not healthy:
+        # item 1018: "ongezond" (overdue_result) - een gespeelde wedstrijd
+        # zonder eindstand - zodat de cadence-tests in dit bestand blijven
+        # testen wat ze bedoelen (de weekday/cutoff-regels), los van de nieuwe
+        # gezond-skip. De losse "healthy=True"-tests hieronder testen die skip.
+        session.add(HockeyPouleMatch(
+            poule_id=poule.poule_id, match_id=1000 + comp_id_hint, home_team_id=1, away_team_id=2,
+            status="scheduled", round=1, match_date=(datetime.utcnow() - timedelta(hours=4)).isoformat(),
+        ))
+    else:
+        # "bewezen gezond" heeft minstens 1 bekende, niet-problematische match
+        # nodig - geen enkele match (dus geen entry in _poule_health) betekent
+        # "nog niets bekend", niet "gezond", en zou dan juist NIET geskipt
+        # moeten worden.
+        session.add(HockeyPouleMatch(
+            poule_id=poule.poule_id, match_id=1000 + comp_id_hint, home_team_id=1, away_team_id=2,
+            status="final", round=1, match_date=(datetime.utcnow() - timedelta(hours=4)).isoformat(),
+        ))
     session.commit()
     session.refresh(comp)
     session.refresh(poule)
@@ -473,6 +501,20 @@ def test_manual_profiles_weekly_skips_a_landelijke_competition(session):
     assert added == 0  # al gedekt door _step_landelijke_competitions
 
 
+def test_manual_profiles_weekly_skips_a_healthy_poule(session):
+    # item 1018: geen onbekende starttijd binnen 7 dagen, geen gespeelde-maar-
+    # niet-finale wedstrijd - "gezond" is de wekelijkse ronde niet waard.
+    comp, poule = _setup_manual_competition(
+        session, comp_id_hint=5, last_scanned_at=datetime.utcnow() - timedelta(days=10), healthy=True,
+    )
+    target_weekday = _manual_scan_weekday(comp.id)
+    now = _next_weekday(datetime.utcnow(), target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    added = _step_manual_profiles_weekly(session, now, cap=10)
+
+    assert added == 0
+
+
 # ── reason wordt getagd op de aangemaakte VangerCmd (scan-historie) ──────
 
 def test_match_end_check_cmd_is_tagged_with_its_reason(session):
@@ -527,6 +569,7 @@ def test_match_live_during_play_cmd_is_tagged_with_its_reason(session):
 
 def test_daily_fallback_cmd_is_tagged_with_its_reason(session):
     now = datetime.utcnow()
+    _disable_skip_healthy_daily_fallback(session)
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
     match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
     match.status = "final"  # burst uitgeschakeld, puur de dagelijkse fallback testen
@@ -537,6 +580,36 @@ def test_daily_fallback_cmd_is_tagged_with_its_reason(session):
 
     cmd = session.exec(select(VangerCmd)).first()
     assert cmd.reason == "daily_fallback"
+
+
+def test_daily_fallback_skips_a_healthy_poule_by_default(session):
+    # item 1018: default AAN - geen onbekende starttijd binnen 7 dagen, geen
+    # gespeelde-maar-niet-finale wedstrijd -> "gezond", dagelijkse fallback
+    # niet nodig.
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.status = "final"  # geen overdue_result meer
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_daily_fallback_still_fires_for_a_healthy_poule_when_the_toggle_is_off(session):
+    now = datetime.utcnow()
+    session.add(AppSetting(key=SKIP_HEALTHY_DAILY_FALLBACK_KEY, value="0"))
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.status = "final"
+    session.add(match)
+    session.commit()
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1
 
 
 def test_daily_fallback_is_skipped_once_the_season_is_over(session):
@@ -608,6 +681,7 @@ def test_daily_fallback_resumes_once_the_quiet_week_is_over(session):
     wedstrijd (binnen het 7-dagen-venster) - de dagelijkse fallback moet
     dan gewoon weer aanslaan."""
     now = datetime.utcnow()
+    _disable_skip_healthy_daily_fallback(session)
     comp = HockeyCompetition(
         external_id="test|quiet-week-resume", name="Quiet Week Resume Test", class_name="District",
         hockey_type="VE", season="2026-2027",

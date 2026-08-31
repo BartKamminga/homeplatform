@@ -12,11 +12,11 @@ from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch,
     HockeyPouleStanding, HockeyTeam, VangerCmd,
 )
-from routers.hockey_capture import MatchIn, PouleCaptureIn, StandingIn, TeamInPoule
+from routers.hockey_capture import LinkedPouleIn, MatchIn, PouleCaptureIn, StandingIn, TeamInPoule
 from routers.hockey_clubs import ClubDetailIn, TeamIn
 from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 from services.hockey_poule_capture_core import _derive_category, apply_poule_capture
-from services.hockey_vanger_settings import get_target_season
+from services.hockey_vanger_settings import compute_poule_season_ranges, get_target_season, infer_poule_season
 
 
 def _release_stale_hl_comp_id(session: Session, hl_cid: Optional[int], keep_id: Optional[int]) -> None:
@@ -101,6 +101,21 @@ def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = Non
             name = poule_data.get("name", "")
             hockey_type = "ZA" if name.lower().startswith("z") else "VE"
 
+        # item 1019: data.data.team.poules[] somt ALLE ooit aan dit team
+        # gekoppelde poules op (huidige EN oude/andere-fase) - de huidige
+        # (params["poule_id"]) hier al uitsluiten, de rest wordt pas verderop
+        # (_call_poule_capture) op seizoen + period_name beoordeeld voordat
+        # er iets mee gebeurt. Bewust hier al gefilterd op ontbrekend id,
+        # anders zou een kapotte entry een crash bij het queuen veroorzaken.
+        linked_poules: List[LinkedPouleIn] = []
+        team_data = raw["data"]["data"].get("team") or {}
+        for lp in team_data.get("poules") or []:
+            lp_id = lp.get("id")
+            if not lp_id or lp_id == params["poule_id"]:
+                continue
+            lp_comp = lp.get("competition") or {}
+            linked_poules.append(LinkedPouleIn(id=lp_id, period_name=lp_comp.get("period_name")))
+
         # Datum van de wedstrijden zelf is leidend, niet raw["seizoen"] (dat
         # reflecteert de site-context van de pagina die gescand is, niet per se
         # het seizoen van de getoonde poule - zie roadmap-melding: een lente-poule
@@ -120,9 +135,12 @@ def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = Non
             district=comp.get("district_name") or comp.get("district") or "",
             hockey_type=hockey_type,
             season=season,
+            period_name=comp.get("period_name"),
+            team_id=team_data.get("id"),
             teams_in_poule=teams_list,
             standings_data=standings_list,
             matches_data=matches_list,
+            linked_poules=linked_poules,
         )
     except Exception:
         return None
@@ -166,9 +184,54 @@ def _parse_raw_club(raw: dict, params: dict) -> Optional[ClubDetailIn]:
 
 # ── Internal _call_* helpers (no HTTP layer) ─────────────
 
+def _queue_next_phase_poules(session: Session, body: PouleCaptureIn, target_season: str) -> int:
+    """item 1019: data.data.team.poules[] (body.linked_poules) kan een
+    volgende-fase-poule voor HETZELFDE team onthullen (bv. Voorcompetitie ->
+    Nov tm Jun) - maar bevat vooral OUDE/historische poules van vorige
+    seizoenen (bevestigd: een ander period_name betekent niet automatisch een
+    nieuwe fase, zie roadmap-melding poule 175841). Daarom eerst het seizoen
+    van elke gekoppelde poule inschatten (via de bestaande poule_id-range-
+    logica, zonder 'm te hoeven scannen) en pas bij een match met het
+    doelseizoen het period_name vergelijken - alleen een AFWIJKEND period_name
+    binnen het huidige seizoen is een genuine nieuwe fase. Dekt geen zaal (een
+    zaalteam is een apart team_id/HockeyTeam-record, verschijnt nooit in de
+    poules-lijst van het veldteam) - dat loopt via het aparte zaal-tijdvak-
+    mechanisme in hockey_vanger_filters.py."""
+    if not body.linked_poules or not body.team_id:
+        return 0
+    from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
+
+    captured_poule_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
+    pending_cmds = session.exec(
+        select(VangerCmd).where(
+            VangerCmd.cmd_type == "get_poule",
+            col(VangerCmd.status).in_(["pending", "in_progress"]),
+        )
+    ).all()
+    pending_poule_ids = {json.loads(c.params).get("poule_id") for c in pending_cmds}
+
+    season_ranges, _global_max = compute_poule_season_ranges(session)
+
+    queued = 0
+    for lp in body.linked_poules:
+        if lp.id in captured_poule_ids or lp.id in pending_poule_ids:
+            continue
+        if infer_poule_season(lp.id, season_ranges, target_season) != target_season:
+            continue
+        if lp.period_name == body.period_name:
+            continue
+        add_vanger_cmd(
+            session, "get_poule", {"poule_id": lp.id, "team_id": body.team_id, "label": body.competition_name},
+            reason="next_phase_discovery",
+        )
+        queued += 1
+    return queued
+
+
 def _call_poule_capture(body: PouleCaptureIn, session: Session):
     target_season = get_target_season(session)
     result = apply_poule_capture(session, body, target_season)
+    _queue_next_phase_poules(session, body, target_season)
     return {
         "teams":          len(body.teams_in_poule),
         "standings":      result.standings_saved,

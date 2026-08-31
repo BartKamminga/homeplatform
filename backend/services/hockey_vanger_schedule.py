@@ -31,8 +31,9 @@ from models.hockey_discovery import (
 )
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
-    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _manual_scan_weekday, _match_dt_info,
-    _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _team_by_poule, _team_for_poule,
+    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _is_healthy, _manual_scan_weekday, _match_dt_info,
+    _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _poule_health, _skip_healthy_daily_fallback,
+    _team_by_poule, _team_for_poule,
 )
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
@@ -309,11 +310,14 @@ DAILY_FALLBACK_LOOKAHEAD_DAYS = 7
 def _poule_daily_fallback_events(
     poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
     daily_fallback_h: int, window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
+    skip_if_healthy: bool = False,
 ) -> List[dict]:
     # item 1016: seizoen voorbij (minstens 1 wedstrijd bekend, allemaal al
     # geweest) - geen dagelijkse heartbeat-scan meer nodig, niets te
-    # ontdekken.
-    if not _has_remaining_matches(matches, now):
+    # ontdekken. item 1018: mirror van de gezond-skip in _matchday_due_reason
+    # (hockey_vanger_scanplan.py) - anders toont de Kalender-preview een
+    # daily_fallback-event dat de echte scan-plan-stap toch overslaat.
+    if not _has_remaining_matches(matches, now) or skip_if_healthy:
         return []
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     return _cadence_events(
@@ -326,8 +330,9 @@ def _poule_daily_fallback_events(
 def _landelijke_daily_fallback_events(
     comp: HockeyCompetition, matches: List[HockeyPouleMatch], last_scanned_at, now: datetime, horizon_end: datetime,
     daily_fallback_h: int, window_start_h: int, window_end_h: int, preempting_at: Optional[List[datetime]] = None,
+    skip_if_healthy: bool = False,
 ) -> List[dict]:
-    if not _has_remaining_matches(matches, now):
+    if not _has_remaining_matches(matches, now) or skip_if_healthy:
         return []
     params = {"comp_id": comp.hl_comp_id, "label": comp.name}
     return _cadence_events(
@@ -352,18 +357,26 @@ def _manual_weekly_events(
             .where(col(HockeyCompetition.hl_comp_id).is_not(None))
         ).all()
     }
+    manual_poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(manual_comp_ids))
+    ).all()
+    # item 1018: mirror van de gezond-skip in _step_manual_profiles_weekly -
+    # anders toont de Kalender-preview een manual_weekly-event dat de echte
+    # scan-plan-stap toch overslaat.
+    health = _poule_health(session, [p.poule_id for p in manual_poules], now)
+
     events = []
     day = now.replace(hour=window_start_h, minute=0, second=0, microsecond=0)
     if day < now:
         day += timedelta(days=1)
     while day <= horizon_end:
         if day.weekday() < MANUAL_SCAN_WEEKDAYS:
-            for poule in session.exec(
-                select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(manual_comp_ids))
-            ).all():
+            for poule in manual_poules:
                 if poule.competition_id in hl_linked_comp_ids:
                     continue
                 if _manual_scan_weekday(poule.competition_id) != day.weekday():
+                    continue
+                if _is_healthy(health, poule.poule_id):
                     continue
                 team = team_by_poule.get(poule.poule_id)
                 if not team:
@@ -462,6 +475,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
     unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     window_start_h      = _get_int_setting(session, "scan_window_start_hour", DEFAULT_SCAN_WINDOW_START_HOUR)
     window_end_h        = _get_int_setting(session, "scan_window_end_hour", DEFAULT_SCAN_WINDOW_END_HOUR)
+    skip_healthy        = _skip_healthy_daily_fallback(session)
 
     events: List[dict] = []
 
@@ -479,6 +493,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             ).all()
         }
         poules = session.exec(select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(active_comp_ids))).all()
+        health = _poule_health(session, [p.poule_id for p in poules], now)
         for poule in poules:
             if poule.competition_id in hl_linked_comp_ids:
                 continue
@@ -503,6 +518,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
             fallback_evts = _poule_daily_fallback_events(
                 poule, team, matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+                skip_if_healthy=skip_healthy and _is_healthy(health, poule.poule_id),
             )
             events += matchday_evts + unknown_evts + fallback_evts
 
@@ -531,8 +547,10 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             preempting_at=preempt,
         )
         preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
+        comp_health = _poule_health(session, poule_ids, now)
         fallback_evts = _landelijke_daily_fallback_events(
             comp, matches, last_scanned_at, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+            skip_if_healthy=skip_healthy and all(_is_healthy(comp_health, pid) for pid in poule_ids),
         )
         events += matchday_evts + unknown_evts + fallback_evts
 
@@ -556,6 +574,7 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
     unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     window_start_h      = _get_int_setting(session, "scan_window_start_hour", DEFAULT_SCAN_WINDOW_START_HOUR)
     window_end_h        = _get_int_setting(session, "scan_window_end_hour", DEFAULT_SCAN_WINDOW_END_HOUR)
+    skip_healthy        = _skip_healthy_daily_fallback(session)
 
     if target_type == "poule":
         poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == target_id)).first()
@@ -589,8 +608,10 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
             preempting_at=preempt,
         )
         preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
+        health = _poule_health(session, [poule.poule_id], now)
         fallback_evts = _poule_daily_fallback_events(
             poule, team, matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+            skip_if_healthy=skip_healthy and _is_healthy(health, poule.poule_id),
         )
         return matchday_evts + unknown_evts + fallback_evts
 
@@ -617,8 +638,10 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
             preempting_at=preempt,
         )
         preempt = sorted(preempt + [e["planned_at"] for e in unknown_evts])
+        comp_health = _poule_health(session, poule_ids, now)
         fallback_evts = _landelijke_daily_fallback_events(
             comp, matches, last_scanned_at, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, preempting_at=preempt,
+            skip_if_healthy=skip_healthy and all(_is_healthy(comp_health, pid) for pid in poule_ids),
         )
         return matchday_evts + unknown_evts + fallback_evts
 
@@ -704,7 +727,13 @@ def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STE
     laten verdwijnen. Handmatige/ad-hoc toevoegingen (Discovery 'scan nu',
     POST /vanger/cmd-queue/add) gaan hier nooit doorheen - die roepen
     add_vanger_cmd rechtstreeks aan, buiten het scanschema om, en blijven
-    dus het filter omzeilen zoals bedoeld."""
+    dus het filter omzeilen zoals bedoeld.
+
+    item 1019: entry.reason wordt hier expliciet doorgegeven aan add_vanger_cmd
+    (was eerder een omissie) - anders krijgt een gepromoveerde cmd reason=None
+    en zou GET /vanger/cmd-queue/next 'm per ongeluk als handmatig/ad-hoc
+    behandelen (filter-bypass), terwijl deze cmd hierboven al netjes tegen het
+    filter is gecheckt op het moment van promotie."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
 
     ages, club, cats, hts, genders = _get_queue_filter(session)
@@ -728,7 +757,7 @@ def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STE
             entry.status = "cancelled"
             session.add(entry)
             continue
-        result = add_vanger_cmd(session, entry.cmd_type, params)
+        result = add_vanger_cmd(session, entry.cmd_type, params, reason=entry.reason)
         entry.status = "promoted"
         if result.get("added"):
             new_cmd = session.exec(

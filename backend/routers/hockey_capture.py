@@ -19,8 +19,8 @@ from models.hockey_discovery import (
     HockeyPouleStanding, HockeyTeam, HockeyTeamPoule, VangerCmd,
 )
 from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
-from services.hockey_vanger_scanplan import _match_dt_info
-from services.hockey_vanger_settings import _get_int_setting, get_target_season
+from services.hockey_vanger_scanplan import _poule_health
+from services.hockey_vanger_settings import compute_poule_season_ranges, get_target_season, infer_poule_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-capture"])
 
@@ -59,6 +59,15 @@ class MatchIn(BaseModel):
     round:          Optional[int] = None
 
 
+class LinkedPouleIn(BaseModel):
+    """item 1019: 1 entry uit de ruwe data.data.team.poules[] van een
+    get_poule-scan - alle poules die ooit aan dit team gekoppeld waren, niet
+    per se dit seizoen of deze fase (zie period_name-vergelijking bij het
+    verwerken ervan)."""
+    id:          int
+    period_name: Optional[str] = None
+
+
 class PouleCaptureIn(BaseModel):
     poule_id:         int
     poule_name:       str
@@ -68,9 +77,12 @@ class PouleCaptureIn(BaseModel):
     hockey_type:      str = ""
     season:           str = "2026-2027"
     session_id:       Optional[str] = None
-    teams_in_poule:   List[TeamInPoule] = []
-    standings_data:   List[StandingIn]  = []
-    matches_data:     List[MatchIn]     = []
+    period_name:      Optional[str] = None
+    team_id:          Optional[int] = None
+    teams_in_poule:   List[TeamInPoule]  = []
+    standings_data:   List[StandingIn]   = []
+    matches_data:     List[MatchIn]      = []
+    linked_poules:    List[LinkedPouleIn] = []
 
 
 @router.post("/poule-capture")
@@ -422,50 +434,6 @@ def delete_empty_competitions(
 
 
 # ── Poules query ─────────────────────────────────────────
-def _poule_health(session: Session, poule_ids: List[int]) -> Dict[int, dict]:
-    """Bart, 30-08-2026: 'is er nog onbekende wedstrijdtijd binnen een week,
-    of een gespeelde wedstrijd zonder uitslag - dat is een scan waard' +
-    'wedstrijden zijn bezig (hoeven niet perse live te zijn)'. Puur uit
-    match-data afgeleid (geen scan-geschiedenis/cadans nodig) - 1 gebatchte
-    query voor alle meegegeven poules i.p.v. per poule, zodat de Discovery-
-    boom (honderden poules) niet N+1 wordt.
-
-    unknown_start en overdue_result zijn BEWUST 2 losse velden i.p.v. 1
-    gecombineerde 'needs_scan' (Bart, 30-08-2026, na een eerste acc-check:
-    927 van de 1023 poules stonden op 'needs_scan' aan het begin van een
-    nieuw seizoen, puur omdat hockey.nl de starttijden van de eerste ronden
-    vaak pas 1-2 weken van tevoren publiceert - unknown_start is dan bijna
-    overal waar, en overspoelt het echt selectieve signaal (overdue_result,
-    slechts 199 wedstrijden op hetzelfde moment) als ze samen 1 vlag delen."""
-    if not poule_ids:
-        return {}
-    match_duration_m = _get_int_setting(session, "match_duration_min", 90)
-    now = datetime.utcnow()
-    lookahead_end = (now + timedelta(days=7)).date()
-    health: Dict[int, dict] = {}
-    matches = session.exec(
-        select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
-    ).all()
-    for m in matches:
-        if not m.match_date:
-            continue
-        info = _match_dt_info(m.match_date)
-        if not info:
-            continue
-        utc_naive, _is_today, is_midnight = info
-        h = health.setdefault(m.poule_id, {"busy": False, "unknown_start": False, "overdue_result": False})
-        if is_midnight:
-            if now.date() <= utc_naive.date() <= lookahead_end:
-                h["unknown_start"] = True
-            continue
-        end = utc_naive + timedelta(minutes=match_duration_m)
-        if utc_naive <= now < end:
-            h["busy"] = True
-        if end < now and m.status != "final":
-            h["overdue_result"] = True
-    return health
-
-
 @router.get("/poules")
 def list_poules(
     season: Optional[str] = "2026-2027",
@@ -539,26 +507,12 @@ def infer_season_pending(
     """Markeert teams als season_pending als hun recent_poule_id in een oud seizoen valt."""
     target_season = get_target_season(session)
 
-    poules = session.exec(select(HockeyPoule)).all()
-    season_ranges: Dict[str, dict] = {}
-    for p in poules:
-        if p.season not in season_ranges:
-            season_ranges[p.season] = {"min_id": p.poule_id, "max_id": p.poule_id}
-        season_ranges[p.season]["min_id"] = min(season_ranges[p.season]["min_id"], p.poule_id)
-        season_ranges[p.season]["max_id"] = max(season_ranges[p.season]["max_id"], p.poule_id)
-
+    season_ranges, _global_max = compute_poule_season_ranges(session)
     if not season_ranges:
         return {"marked_pending": 0, "cleared_pending": 0, "target_season": target_season}
 
-    global_max = max(r["max_id"] for r in season_ranges.values())
-
     def _infer(poule_id: int) -> str:
-        for season, r in season_ranges.items():
-            if r["min_id"] <= poule_id <= r["max_id"]:
-                return season
-        if poule_id > global_max:
-            return target_season
-        return target_season
+        return infer_poule_season(poule_id, season_ranges, target_season)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     teams = session.exec(

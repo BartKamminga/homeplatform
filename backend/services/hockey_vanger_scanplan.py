@@ -10,7 +10,7 @@ volledig af te hangen van handmatige knoppen (Gap-fill / Smart-scan-start):
 """
 import json
 from datetime import datetime, time as dtime, timedelta, timezone
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlmodel import Session, col, select
 
@@ -18,9 +18,8 @@ from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
-from models.settings import AppSetting
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
-from services.hockey_vanger_settings import _get_int_setting, get_target_season
+from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting, get_target_season
 
 STEP_MAX_CMDS = 10
 
@@ -32,10 +31,86 @@ STEP_MAX_CMDS = 10
 # er vandaag een wedstrijd is.
 ACTIVE_MATCHDAY_ENABLED_KEY = "active_matchday_enabled"
 
+# item 1019/1018: aparte aan/uit-schakelaar voor het overslaan van "gezonde"
+# poules (geen onbekende starttijd binnen 7 dagen, geen gespeelde-maar-niet-
+# finale wedstrijd) bij de dagelijkse fallback-cadans van actieve profielen.
+# Default AAN (Bart, 31-08-2026: wilde de besparing, instelling is er om 'm
+# zelf uit te zetten als het afbreukrisico - een gemiste verzetting van een
+# verder gezonde, nabije wedstrijd - in de praktijk toch te groot blijkt).
+# manual_weekly krijgt deze skip ALTIJD (geen instelling nodig, zie
+# _step_manual_profiles_weekly) - dat raakt geen matchday-tracking.
+SKIP_HEALTHY_DAILY_FALLBACK_KEY = "skip_healthy_daily_fallback"
+
 
 def _active_matchday_enabled(session: Session) -> bool:
-    row = session.get(AppSetting, ACTIVE_MATCHDAY_ENABLED_KEY)
-    return row.value != "0" if row else True
+    return _get_bool_setting(session, ACTIVE_MATCHDAY_ENABLED_KEY, True)
+
+
+def _skip_healthy_daily_fallback(session: Session) -> bool:
+    return _get_bool_setting(session, SKIP_HEALTHY_DAILY_FALLBACK_KEY, True)
+
+
+def _poule_health(session: Session, poule_ids: List[int], now: Optional[datetime] = None) -> Dict[int, dict]:
+    """Bart, 30-08-2026: 'is er nog onbekende wedstrijdtijd binnen een week,
+    of een gespeelde wedstrijd zonder uitslag - dat is een scan waard' +
+    'wedstrijden zijn bezig (hoeven niet perse live te zijn)'. Puur uit
+    match-data afgeleid (geen scan-geschiedenis/cadans nodig) - 1 gebatchte
+    query voor alle meegegeven poules i.p.v. per poule, zodat de Discovery-
+    boom (honderden poules) niet N+1 wordt. Verplaatst uit routers/
+    hockey_capture.py (item 1019) zodat de scan-plan-stappen (_step_manual_
+    profiles_weekly, _step_active_profiles) 'm ook kunnen hergebruiken om
+    gezonde poules over te slaan, i.p.v. de logica te dupliceren.
+
+    unknown_start en overdue_result zijn BEWUST 2 losse velden i.p.v. 1
+    gecombineerde 'needs_scan' (Bart, 30-08-2026, na een eerste acc-check:
+    927 van de 1023 poules stonden op 'needs_scan' aan het begin van een
+    nieuw seizoen, puur omdat hockey.nl de starttijden van de eerste ronden
+    vaak pas 1-2 weken van tevoren publiceert - unknown_start is dan bijna
+    overal waar, en overspoelt het echt selectieve signaal (overdue_result,
+    slechts 199 wedstrijden op hetzelfde moment) als ze samen 1 vlag delen."""
+    if not poule_ids:
+        return {}
+    match_duration_m = _get_int_setting(session, "match_duration_min", 90)
+    now = now or datetime.utcnow()
+    lookahead_end = (now + timedelta(days=7)).date()
+    health: Dict[int, dict] = {}
+    matches = session.exec(
+        select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
+    ).all()
+    for m in matches:
+        if not m.match_date:
+            continue
+        info = _match_dt_info(m.match_date)
+        if not info:
+            continue
+        utc_naive, _is_today, is_midnight = info
+        h = health.setdefault(m.poule_id, {"busy": False, "unknown_start": False, "overdue_result": False})
+        if is_midnight:
+            if now.date() <= utc_naive.date() <= lookahead_end:
+                h["unknown_start"] = True
+            continue
+        end = utc_naive + timedelta(minutes=match_duration_m)
+        if utc_naive <= now < end:
+            h["busy"] = True
+        if end < now and m.status != "final":
+            h["overdue_result"] = True
+    return health
+
+
+def _is_healthy(health: Dict[int, dict], poule_id: int) -> bool:
+    """Gebruikt om de manual_weekly/daily_fallback-cadans over te slaan (item
+    1018) - NIET hetzelfde als de "geen badge tonen"-conventie in routers/
+    hockey_capture.py::list_poules. Een poule_id ONTBREKT in health zodra er
+    geen enkele match met een bruikbare match_date bekend is - dat betekent
+    "we weten nog niets", niet "bewezen gezond": zo'n poule moet gewoon
+    gescand blijven worden totdat er wel matchdata binnenkomt (zelfde
+    conservatieve houding als _has_remaining_matches/_next_match_within
+    hierboven). Alleen een poule_id MET minstens 1 bekende match en beide
+    vlaggen False is echt "gezond"."""
+    if poule_id not in health:
+        return False
+    h = health[poule_id]
+    return not h["unknown_start"] and not h["overdue_result"]
 
 
 def _pending_poule_ids(session: Session) -> set:
@@ -324,6 +399,7 @@ def _matchday_due_reason(
     unknown_start_fallback_h: int,
     daily_fallback_h: int,
     matchday_enabled: bool,
+    daily_fallback_skip_healthy: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """Bepaalt of - en waarom - een set wedstrijden nu een herscan nodig
     heeft: max. 2 vooraf geplande scans per wedstrijd - 1x match_start_check
@@ -448,7 +524,13 @@ def _matchday_due_reason(
     # 30-08-2026: zelfde redenering voor een RUSTIGE WEEK - als de
     # eerstvolgende wedstrijd nog meer dan 7 dagen weg is, valt er
     # sowieso niets te ontdekken tot die dichterbij komt.
-    if not due and _has_remaining_matches(matches, now) and _next_match_within(matches, now, 7):
+    #
+    # item 1018 (Bart, 31-08-2026, achter SKIP_HEALTHY_DAILY_FALLBACK_KEY):
+    # een "gezonde" poule/competitie (geen onbekende starttijd binnen 7
+    # dagen, geen gespeelde-maar-niet-finale wedstrijd) overslaan bij de
+    # dagelijkse fallback - geaccepteerd afbreukrisico: een verzetting van
+    # een verder gezonde, nabije wedstrijd wordt pas later opgemerkt.
+    if not due and not daily_fallback_skip_healthy and _has_remaining_matches(matches, now) and _next_match_within(matches, now, 7):
         cutoff = now - timedelta(hours=daily_fallback_h)
         due = last_scanned_at is None or last_scanned_at < cutoff
         if due:
@@ -478,6 +560,7 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
     unknown_start_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
     unknown_start_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     matchday_enabled     = _active_matchday_enabled(session)
+    skip_healthy         = _skip_healthy_daily_fallback(session)
 
     comps = session.exec(
         select(HockeyCompetition).where(col(HockeyCompetition.hl_comp_id).is_not(None))
@@ -512,6 +595,11 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
                 select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(poule_ids))
             ).all()
             last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
+            # item 1018: de competitie wordt hier als 1 grote poule behandeld
+            # (zie docstring) - "gezond" dus alleen als ALLE eigen poules
+            # gezond zijn.
+            health = _poule_health(session, poule_ids, now)
+            is_healthy = all(_is_healthy(health, pid) for pid in poule_ids)
             due, reason = _matchday_due_reason(
                 now, matches, last_scanned_at,
                 match_duration=match_duration, matchday_interval_m=matchday_interval_m,
@@ -519,6 +607,7 @@ def _step_landelijke_competitions(session: Session, now: datetime, cap: int) -> 
                 live_check_delay_m=live_check_delay_m, burst_stop_h=burst_stop_h,
                 unknown_start_lookahead_d=unknown_start_lookahead_d, unknown_start_fallback_h=unknown_start_fallback_h,
                 daily_fallback_h=daily_fallback_h, matchday_enabled=matchday_enabled,
+                daily_fallback_skip_healthy=skip_healthy and is_healthy,
             )
         if not due:
             continue
@@ -543,6 +632,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     unknown_start_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
     unknown_start_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     matchday_enabled     = _active_matchday_enabled(session)
+    skip_healthy         = _skip_healthy_daily_fallback(session)
 
     active_comp_ids = set(session.exec(
         select(HockeyPublicationComp.competition_id)
@@ -559,6 +649,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
 
     queued_poule_ids = _pending_poule_ids(session)
     team_by_poule = _team_by_poule(session)
+    health = _poule_health(session, [p.poule_id for p in poules], now)
     # item 1013: landelijke (hl_comp_id-gekoppelde) competities worden al in
     # 1x via _step_landelijke_competitions ververst (1 get_competition_detail
     # i.p.v. losse get_poule per poule - veel efficienter, en voorkomt de
@@ -591,6 +682,7 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
             live_check_delay_m=live_check_delay_m, burst_stop_h=burst_stop_h,
             unknown_start_lookahead_d=unknown_start_lookahead_d, unknown_start_fallback_h=unknown_start_fallback_h,
             daily_fallback_h=daily_fallback_h, matchday_enabled=matchday_enabled,
+            daily_fallback_skip_healthy=skip_healthy and _is_healthy(health, poule.poule_id),
         )
         if not due:
             continue
@@ -649,6 +741,11 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
 
     queued_poule_ids = _pending_poule_ids(session)
     team_by_poule = _team_by_poule(session)
+    # item 1018: manual-profile poules krijgen sowieso geen matchday-tracking
+    # (die is er alleen voor scan_profile='active'), dus een gezonde poule
+    # hier overslaan levert geen nieuwe blinde vlek op - de eerstvolgende
+    # wekelijkse ronde checkt 'm gewoon opnieuw.
+    health = _poule_health(session, [p.poule_id for p in poules], now)
 
     added = 0
     for poule in poules:
@@ -660,6 +757,8 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
             continue
         cutoff = now - timedelta(days=6)
         if not (poule.last_scanned_at is None or poule.last_scanned_at < cutoff):
+            continue
+        if _is_healthy(health, poule.poule_id):
             continue
         t = team_by_poule.get(poule.poule_id)
         if not t:

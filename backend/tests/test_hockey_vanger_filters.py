@@ -1,7 +1,9 @@
 """Tests voor de vanger-queue-filter op competitie-niveau (roadmap-melding:
 'Gold Cup Dames' - een senioren-competitie - kwam onterecht door het filter)."""
 
-from models.hockey_discovery import HockeyCompetition
+from datetime import datetime
+
+from models.hockey_discovery import HockeyCompetition, HockeyTeam
 from services.hockey_vanger_filters import (
     _cmd_matches_filter, _derive_competition_category, _derive_competition_gender,
 )
@@ -89,3 +91,68 @@ def test_unknown_comp_id_is_excluded_when_unclassifiable(session):
         ages=[], club=None, cats=["Junioren"], hts=["VE"], genders=[],
     )
     assert matches is False
+
+
+# ── item 1019: zaal-tijdvak-bypass op het hockey_type-filter ──
+
+def test_zaal_team_passes_veld_only_filter_inside_the_zaal_window(session):
+    session.add(HockeyTeam(
+        team_id=1, club_external_id="HH11XX0", name="Team A", short_name="H1",
+        hockey_type="ZA", category_group_name="Senioren",
+    ))
+    session.commit()
+
+    matches = _cmd_matches_filter(
+        session, "get_poule", {"team_id": 1},
+        ages=[], club=None, cats=["Senioren"], hts=["VE"], genders=[],
+        now=datetime(2026, 12, 15),  # midden in het default-venster (15/11 t/m 15/3)
+    )
+    assert matches is True
+
+
+def test_zaal_team_still_excluded_outside_the_zaal_window(session):
+    session.add(HockeyTeam(
+        team_id=1, club_external_id="HH11XX0", name="Team A", short_name="H1",
+        hockey_type="ZA", category_group_name="Senioren",
+    ))
+    session.commit()
+
+    matches = _cmd_matches_filter(
+        session, "get_poule", {"team_id": 1},
+        ages=[], club=None, cats=["Senioren"], hts=["VE"], genders=[],
+        now=datetime(2026, 6, 1),  # ver buiten het venster
+    )
+    assert matches is False
+
+
+def test_veld_team_behaviour_is_unchanged_inside_the_zaal_window(session):
+    session.add(HockeyTeam(
+        team_id=1, club_external_id="HH11XX0", name="Team A", short_name="H1",
+        hockey_type="VE", category_group_name="Junioren",
+    ))
+    session.commit()
+
+    matches = _cmd_matches_filter(
+        session, "get_poule", {"team_id": 1},
+        ages=[], club=None, cats=["Senioren"], hts=["VE"], genders=[],
+        now=datetime(2026, 12, 15),
+    )
+    assert matches is False  # cats-filter sluit 'm nog steeds uit, ongewijzigd
+
+
+def test_zaal_competition_passes_competition_detail_filter_inside_the_zaal_window(session):
+    matches = _cmd_matches_filter(
+        session, "get_competition_detail", {"comp_id": None, "label": "zHeren O25 NK Zaal"},
+        ages=[], club=None, cats=["Senioren"], hts=["VE"], genders=[],
+        now=datetime(2026, 12, 15),
+    )
+    assert matches is True
+
+
+def test_scan_club_always_passes_regardless_of_zaal_window(session):
+    matches = _cmd_matches_filter(
+        session, "scan_club", {"external_id": "HH11XX0"},
+        ages=[], club=None, cats=["Junioren"], hts=["VE"], genders=[],
+        now=datetime(2026, 6, 1),
+    )
+    assert matches is True

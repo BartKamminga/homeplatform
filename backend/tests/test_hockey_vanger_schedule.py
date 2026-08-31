@@ -14,9 +14,20 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
 from models.settings import AppSetting
+from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY
 from services.hockey_vanger_schedule import (
     build_schedule_events, promote_due_schedule_entries, rebuild_schedule, rebuild_schedule_for_target,
 )
+
+
+def _disable_skip_healthy_daily_fallback(session):
+    """item 1018: veel bestaande daily_fallback-tests gebruiken bewust
+    'schone' wedstrijddata (status=final, geen onbekende starttijd) om de
+    burst-logica uit te schakelen - dat maakt de poule nu ook 'gezond', wat
+    de nieuwe skip (default AAN) zou laten afgaan. Deze tests testen de
+    cadans/het venster zelf, niet de gezond-skip (die heeft eigen tests) -
+    hier expliciet uitzetten houdt ze bij hun oorspronkelijke scenario."""
+    session.add(AppSetting(key=SKIP_HEALTHY_DAILY_FALLBACK_KEY, value="0"))
 
 
 def _setup_active_competition(session, now, last_scanned_at, match_offset_hours=-3, status="finished"):
@@ -235,6 +246,7 @@ def test_match_end_check_and_match_start_check_do_not_duplicate_when_they_land_o
 
 def test_daily_fallback_event_is_generated_within_horizon(session):
     now = datetime.utcnow()
+    _disable_skip_healthy_daily_fallback(session)
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
     match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
     match.status = "final"  # burst uitgeschakeld, puur de dagelijkse fallback testen
@@ -355,6 +367,21 @@ def test_daily_fallback_is_not_generated_once_the_season_is_over(session):
     assert not any(e["target_id"] == 666 for e in events)
 
 
+def test_daily_fallback_event_is_not_generated_for_a_healthy_poule_by_default(session):
+    # item 1018: mirror van de scanplan-kant - de Kalender-preview moet
+    # hetzelfde tonen als wat _step_active_profiles echt zou doen.
+    now = datetime.utcnow()
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.status = "final"
+    session.add(match)
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    assert not any(e["reason"] == "daily_fallback" and e["target_id"] == 444 for e in events)
+
+
 def test_daily_fallback_is_not_generated_during_a_quiet_week(session):
     """Bart, 30-08-2026: 'als alles van een poule of comp bekend is ...
     kunnen de daily_fallback voor die poule/comp vervallen voor de komende
@@ -362,6 +389,7 @@ def test_daily_fallback_is_not_generated_during_a_quiet_week(session):
     meer dan 7 dagen weg is; de cadans hervat vanzelf zodra die wedstrijd
     dichterbij komt."""
     now = datetime.utcnow()
+    _disable_skip_healthy_daily_fallback(session)
     comp = HockeyCompetition(
         external_id="test|schedule-quiet-week", name="Schedule Quiet Week", class_name="District",
         hockey_type="VE", season="2026-2027",
@@ -523,6 +551,11 @@ def test_manual_weekly_event_is_generated_on_the_assigned_weekday(session):
     session.add(HockeyTeam(
         team_id=99, club_external_id="HH11ZZ0", name="Manual Team", short_name="M1",
         hockey_type="VE", category_group_name="Senioren", recent_poule_id=999,
+    ))
+    # item 1018: "ongezond" (overdue_result) - anders wordt dit event nu geskipt.
+    session.add(HockeyPouleMatch(
+        poule_id=999, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
     ))
     session.commit()
 
@@ -707,6 +740,10 @@ def test_promote_due_schedule_entries_creates_a_vanger_cmd(session):
     cmd = session.exec(select(VangerCmd).where(VangerCmd.id == entry.vanger_cmd_id)).first()
     assert cmd is not None
     assert cmd.cmd_type == "get_poule"
+    # item 1019: reason moet worden doorgegeven, anders is een gepromoveerde
+    # cmd niet te onderscheiden van een handmatige/ad-hoc toevoeging (reason=
+    # None) en zou GET /vanger/cmd-queue/next 'm per ongeluk laten bypassen.
+    assert cmd.reason == "daily_fallback"
 
 
 def test_promote_due_schedule_entries_does_not_duplicate_an_already_queued_cmd(session):
@@ -849,6 +886,7 @@ def test_daily_fallback_is_clamped_into_the_scan_window(session):
     # now = 03:00 zodat de fallback-tick (24u na last_scanned_at, dus ook
     # 03:00) ruim buiten het standaard venster (09:00-18:00) valt.
     now = datetime(2026, 9, 1, 3, 0, 0)
+    _disable_skip_healthy_daily_fallback(session)
     poule = _setup_active_competition(
         session, now, last_scanned_at=now - timedelta(hours=24), match_offset_hours=-28, status="final",
     )
@@ -862,6 +900,7 @@ def test_daily_fallback_is_clamped_into_the_scan_window(session):
 
 def test_daily_fallback_within_the_window_is_unchanged(session):
     now = datetime(2026, 9, 1, 3, 0, 0)
+    _disable_skip_healthy_daily_fallback(session)
     poule = _setup_active_competition(
         session, now, last_scanned_at=now - timedelta(hours=17), match_offset_hours=-28, status="final",
     )  # tick = now - 17u + 24u = 10:00, al binnen het venster
@@ -874,6 +913,7 @@ def test_daily_fallback_within_the_window_is_unchanged(session):
 
 def test_daily_fallback_past_the_window_rolls_to_the_next_day(session):
     now = datetime(2026, 9, 1, 3, 0, 0)
+    _disable_skip_healthy_daily_fallback(session)
     poule = _setup_active_competition(
         session, now, last_scanned_at=now - timedelta(hours=3), match_offset_hours=-28, status="final",
     )  # tick = now - 3u + 24u = 2026-09-02 00:00 -> na 18:00 het venster ervoor
@@ -887,6 +927,7 @@ def test_daily_fallback_past_the_window_rolls_to_the_next_day(session):
 
 def test_scan_window_is_configurable(session):
     now = datetime(2026, 9, 1, 3, 0, 0)
+    _disable_skip_healthy_daily_fallback(session)
     session.add(AppSetting(key="scan_window_start_hour", value="7"))
     session.add(AppSetting(key="scan_window_end_hour", value="20"))
     poule = _setup_active_competition(
@@ -931,6 +972,11 @@ def test_manual_weekly_uses_the_configurable_window_start_hour(session):
     session.add(HockeyTeam(
         team_id=99, club_external_id="HH11ZZ0", name="Manual Team", short_name="M1",
         hockey_type="VE", category_group_name="Senioren", recent_poule_id=999,
+    ))
+    # item 1018: "ongezond" (overdue_result) - anders wordt dit event nu geskipt.
+    session.add(HockeyPouleMatch(
+        poule_id=999, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
     ))
     session.commit()
 
