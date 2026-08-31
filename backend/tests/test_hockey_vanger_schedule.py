@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import select
 
-from models.hockey import HockeyPublicationComp
+from models.hockey import HockeyPublication, HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
@@ -562,6 +562,42 @@ def test_manual_weekly_event_is_generated_on_the_assigned_weekday(session):
     events = build_schedule_events(session, now, horizon_days=7)
 
     assert any(e["reason"] == "manual_weekly" and e["target_id"] == 999 for e in events)
+
+
+def test_unpublished_active_competition_falls_back_to_manual_weekly_event(session):
+    """item 1022: een scan_profile='active'-competitie die niet publiek
+    zichtbaar is (HockeyPublication.published=False) krijgt in de preview
+    GEEN matchday-events meer, maar wel dezelfde manual_weekly-events als
+    een echte manual-competitie - anders loopt de Kalender-preview uit de
+    pas met wat _step_manual_profiles_weekly/_step_active_profiles echt doen."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|unpublished-active-schedule", name="Unpublished Active Schedule Test",
+        class_name="District", hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublication(id="pub-unpublished", name="Unpublished Pub", published=False))
+    session.add(HockeyPublicationComp(publication_id="pub-unpublished", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=1000, name="Poule U", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=100, club_external_id="HH11ZZ0", name="Unpublished Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=1000,
+    ))
+    # Ongezond (overdue_result), net als de manual_weekly-tests.
+    session.add(HockeyPouleMatch(
+        poule_id=1000, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    assert any(e["reason"] == "manual_weekly" and e["target_id"] == 1000 for e in events)
+    matchday_reasons = {"match_start_check", "match_end_check", "retry_match_end", "match_live", "daily_fallback"}
+    assert not any(e["target_id"] == 1000 and e["reason"] in matchday_reasons for e in events)
 
 
 def test_unknown_start_recheck_event_is_generated_within_lookahead(session):

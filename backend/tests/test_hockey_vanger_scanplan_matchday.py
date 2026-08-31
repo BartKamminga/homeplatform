@@ -8,8 +8,9 @@ from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import (
-    ACTIVE_MATCHDAY_ENABLED_KEY, SKIP_HEALTHY_DAILY_FALLBACK_KEY, _manual_scan_weekday, _reclaim_stale_in_progress,
-    _step_active_profiles, _step_manual_profiles_weekly, _step_new_or_empty_poules,
+    ACTIVE_MATCHDAY_ENABLED_KEY, SKIP_HEALTHY_DAILY_FALLBACK_KEY, _is_autoscan_eligible, _manual_scan_weekday,
+    _reclaim_stale_in_progress, _scan_profile_comp_ids, _step_active_profiles, _step_manual_profiles_weekly,
+    _step_new_or_empty_poules,
 )
 
 
@@ -719,3 +720,142 @@ def test_manual_weekly_cmd_is_tagged_with_its_reason(session):
 
     cmd = session.exec(select(VangerCmd)).first()
     assert cmd.reason == "manual_weekly"
+
+
+# ── item 1022: active-competitie zonder publieke zichtbaarheid valt terug op manual_weekly ──
+
+def _setup_active_competition_with_visibility(session, now, comp_id_hint, published, visible):
+    from models.hockey import HockeyPublication
+
+    comp = HockeyCompetition(
+        external_id=f"test|visibility-{comp_id_hint}", name=f"Visibility Test {comp_id_hint}", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+
+    pub_id = f"pub-visibility-{comp_id_hint}"
+    session.add(HockeyPublication(id=pub_id, name="Visibility Publication", published=published))
+    session.add(HockeyPublicationComp(
+        publication_id=pub_id, competition_id=comp.id, scan_profile="active", visible=visible,
+    ))
+    poule = HockeyPoule(
+        # 10 dagen geleden - ruim voorbij zowel de daily_fallback- (24u) als
+        # de manual_weekly-cutoff (6 dagen), ongeacht hoever _next_weekday
+        # 'now' in de aanroepende test naar voren schuift.
+        poule_id=9500 + comp_id_hint, name="Poule V", competition_id=comp.id, season="2026-2027",
+        last_scanned_at=now - timedelta(days=10),
+    )
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=9500 + comp_id_hint, club_external_id="HH11ZZ0", name="Visibility Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule.poule_id,
+    ))
+    # Ongezond (overdue_result) zodat de test onafhankelijk is van skip_healthy_daily_fallback.
+    session.add(HockeyPouleMatch(
+        poule_id=poule.poule_id, match_id=9000 + comp_id_hint, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+    ))
+    # Altijd ook een wedstrijd verderop in het seizoen (item 1016/1018: zonder
+    # ENIGE toekomstige wedstrijd binnen 7 dagen is de poule "seizoen voorbij/
+    # rustige week" en krijgt sowieso geen daily_fallback, los van gezondheid).
+    session.add(HockeyPouleMatch(
+        poule_id=poule.poule_id, match_id=9100 + comp_id_hint, home_team_id=1, away_team_id=2,
+        status="scheduled", round=2, match_date=(now + timedelta(days=3)).isoformat(),
+    ))
+    session.commit()
+    session.refresh(comp)
+    session.refresh(poule)
+    return comp, poule
+
+
+def test_step_active_profiles_skips_an_unpublished_competition(session):
+    now = datetime.utcnow()
+    _setup_active_competition_with_visibility(session, now, comp_id_hint=1, published=False, visible=True)
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_step_active_profiles_skips_a_hidden_competition_link(session):
+    now = datetime.utcnow()
+    _setup_active_competition_with_visibility(session, now, comp_id_hint=2, published=True, visible=False)
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 0
+
+
+def test_step_active_profiles_still_scans_a_published_visible_competition(session):
+    now = datetime.utcnow()
+    _setup_active_competition_with_visibility(session, now, comp_id_hint=3, published=True, visible=True)
+
+    added = _step_active_profiles(session, now, cap=10)
+
+    assert added == 1
+
+
+def test_step_manual_profiles_weekly_picks_up_an_unpublished_active_competition(session):
+    """item 1022: een active-competitie die niet publiek zichtbaar is valt
+    terug op DEZELFDE wekelijkse cadans als manual - geen aparte 3e cadans,
+    en niet voor altijd stilvallen."""
+    now_utc = datetime.utcnow()
+    comp, poule = _setup_active_competition_with_visibility(session, now_utc, comp_id_hint=4, published=False, visible=True)
+    target_weekday = _manual_scan_weekday(comp.id)
+    now = _next_weekday(now_utc, target_weekday).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    added = _step_manual_profiles_weekly(session, now, cap=10)
+
+    assert added == 1
+    cmd = session.exec(select(VangerCmd)).first()
+    assert cmd.reason == "manual_weekly"
+
+
+def test_scan_profile_comp_ids_classifies_manual_active_eligible_and_demoted(session):
+    from models.hockey import HockeyPublication
+
+    now = datetime.utcnow()
+    _, manual_poule = _setup_manual_competition(session, comp_id_hint=20, last_scanned_at=now)
+    manual_comp_id = manual_poule.competition_id
+
+    eligible_comp, _ = _setup_active_competition_with_visibility(session, now, comp_id_hint=21, published=True, visible=True)
+    demoted_comp, _ = _setup_active_competition_with_visibility(session, now, comp_id_hint=22, published=False, visible=True)
+
+    active_eligible_ids, weekly_fallback_ids = _scan_profile_comp_ids(session)
+
+    assert eligible_comp.id in active_eligible_ids
+    assert demoted_comp.id not in active_eligible_ids
+    assert demoted_comp.id in weekly_fallback_ids
+    assert manual_comp_id in weekly_fallback_ids
+
+
+def test_scan_profile_comp_ids_treats_a_missing_publication_row_as_published(session):
+    """Bewust geen join (die zou een niet-resolvende publication_id
+    stilzwijgend laten vallen) - een ontbrekende publicatie telt als
+    published=True, geen aanname van onzichtbaarheid bij een kapotte/
+    ontbrekende referentie (die normaal niet zou moeten voorkomen)."""
+    comp = HockeyCompetition(
+        external_id="test|orphaned-pub", name="Orphaned Pub Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="does-not-exist", competition_id=comp.id, scan_profile="active"))
+    session.commit()
+
+    active_eligible_ids, _weekly_fallback_ids = _scan_profile_comp_ids(session)
+
+    assert comp.id in active_eligible_ids
+
+
+def test_is_autoscan_eligible_matches_scan_profile_comp_ids(session):
+    now = datetime.utcnow()
+    eligible_comp, _ = _setup_active_competition_with_visibility(session, now, comp_id_hint=23, published=True, visible=True)
+    demoted_comp, _ = _setup_active_competition_with_visibility(session, now, comp_id_hint=24, published=True, visible=False)
+
+    assert _is_autoscan_eligible(session, eligible_comp.id) is True
+    assert _is_autoscan_eligible(session, demoted_comp.id) is False
+    assert _is_autoscan_eligible(session, 999999) is False  # geen koppeling

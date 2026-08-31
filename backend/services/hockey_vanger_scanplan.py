@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 from sqlmodel import Session, col, select
 
-from models.hockey import HockeyPublicationComp
+from models.hockey import HockeyPublication, HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, VangerCmd,
 )
@@ -111,6 +111,72 @@ def _is_healthy(health: Dict[int, dict], poule_id: int) -> bool:
         return False
     h = health[poule_id]
     return not h["unknown_start"] and not h["overdue_result"]
+
+
+def _scan_profile_comp_ids(session: Session) -> Tuple[set, set]:
+    """item 1022 (Bart, 31-08-2026: 'laten we visible en published ook
+    meenemen'): scan_profile='active' krijgt de volle autoscan-behandeling
+    (matchday-burst/daily_fallback/unknown_start_recheck) alleen als de
+    competitie OOK publiek zichtbaar is - HockeyPublication.published EN
+    HockeyPublicationComp.visible. Zonder deze check zou een concept-
+    publicatie of een op onzichtbaar gezette competitie evenveel scan-
+    capaciteit krijgen als een live publieke competitie.
+
+    Een 'active' competitie die hier niet aan voldoet wordt niet losgelaten
+    (dat liet 'm voor onbepaalde tijd stilvallen, zie item 1022) maar valt
+    terug op DEZELFDE wekelijkse cadans als scan_profile='manual' - geen
+    aparte 3e cadans nodig. published=False wint altijd van visible (een
+    concept-publicatie maakt de losse zichtbaarheids-vlag binnenin
+    irrelevant).
+
+    new_or_empty (de allereerste ontdekkingsscan) hangt hier bewust niet
+    van af - die is al onafhankelijk van scan_profile/publicatie.
+    Landelijke (hl_comp_id-gekoppelde) competities zijn hier ook bewust
+    buiten gelaten - _step_landelijke_competitions kent geen scan_profile-
+    onderscheid en blijft dat voorlopig ongewijzigd houden (aparte,
+    grotere afweging voor een volgende sessie).
+
+    Bewust GEEN join op HockeyPublication (die zou een HockeyPublicationComp
+    met een niet-resolvende publication_id stilzwijgend laten vallen, i.p.v.
+    'm als active_eligible/manual mee te tellen) - een ontbrekende publicatie
+    telt als published=True (geen aanname van onzichtbaarheid bij een
+    kapotte/ontbrekende referentie, die zou normaal niet moeten voorkomen)."""
+    links = session.exec(select(HockeyPublicationComp)).all()
+    pub_ids = {link.publication_id for link in links}
+    pubs_by_id = {p.id: p for p in session.exec(
+        select(HockeyPublication).where(col(HockeyPublication.id).in_(pub_ids))
+    ).all()} if pub_ids else {}
+
+    manual_ids: set = set()
+    active_eligible_ids: set = set()
+    active_demoted_ids: set = set()
+    for link in links:
+        if link.scan_profile == "manual":
+            manual_ids.add(link.competition_id)
+        elif link.scan_profile == "active":
+            pub = pubs_by_id.get(link.publication_id)
+            published = pub.published if pub else True
+            if published and link.visible:
+                active_eligible_ids.add(link.competition_id)
+            else:
+                active_demoted_ids.add(link.competition_id)
+    return active_eligible_ids, manual_ids | active_demoted_ids
+
+
+def _is_autoscan_eligible(session: Session, competition_id: int) -> bool:
+    """Doel-specifieke variant van _scan_profile_comp_ids (net als
+    _team_for_poule vs _team_by_poule) - voor de reactieve rebuild_schedule_
+    for_target (1 competitie), waar de volledige set opbouwen overkill is."""
+    link = session.exec(
+        select(HockeyPublicationComp)
+        .where(HockeyPublicationComp.competition_id == competition_id)
+        .where(HockeyPublicationComp.scan_profile == "active")
+    ).first()
+    if not link:
+        return False
+    pub = session.get(HockeyPublication, link.publication_id)
+    published = pub.published if pub else True
+    return bool(published and link.visible)
 
 
 def _pending_poule_ids(session: Session) -> set:
@@ -634,10 +700,10 @@ def _step_active_profiles(session: Session, now: datetime, cap: int) -> int:
     matchday_enabled     = _active_matchday_enabled(session)
     skip_healthy         = _skip_healthy_daily_fallback(session)
 
-    active_comp_ids = set(session.exec(
-        select(HockeyPublicationComp.competition_id)
-        .where(HockeyPublicationComp.scan_profile == "active")
-    ).all())
+    # item 1022: alleen publiek zichtbare active-competities krijgen hier de
+    # volle behandeling - een concept-publicatie of onzichtbare koppeling
+    # valt terug op de wekelijkse cadans (zie _step_manual_profiles_weekly).
+    active_comp_ids, _weekly_fallback_ids = _scan_profile_comp_ids(session)
     if not active_comp_ids:
         return 0
 
@@ -715,13 +781,16 @@ def _step_manual_profiles_weekly(session: Session, now: datetime, cap: int) -> i
     (scan_profile='manual') worden door _step_active_profiles genegeerd -
     maar moeten alsnog periodiek ververst worden, alleen minder vaak. 1x per
     week, verdeeld over de 5 werkdagen (op basis van competitie-id) zodat ze
-    niet allemaal op dezelfde dag/moment gescand worden."""
+    niet allemaal op dezelfde dag/moment gescand worden.
+
+    item 1022: ook 'active'-competities die niet publiek zichtbaar zijn
+    (concept-publicatie of onzichtbare koppeling) vallen hier onder - zie
+    _scan_profile_comp_ids. Zo krijgen ze wel deze trage vangnet-cadans
+    i.p.v. voor onbepaalde tijd stil te vallen."""
     if now.weekday() >= MANUAL_SCAN_WEEKDAYS:  # weekend - geen ronde
         return 0
 
-    manual_comp_ids = set(session.exec(
-        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "manual")
-    ).all())
+    _active_eligible_ids, manual_comp_ids = _scan_profile_comp_ids(session)
     if not manual_comp_ids:
         return 0
 

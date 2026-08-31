@@ -25,15 +25,14 @@ from typing import Dict, List, Optional, Tuple
 
 from sqlmodel import Session, col, select
 
-from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
 from services.hockey_vanger_scanplan import (
-    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _is_healthy, _manual_scan_weekday, _match_dt_info,
-    _next_match_within, _pending_club_ext_ids, _pending_poule_ids, _poule_health, _skip_healthy_daily_fallback,
-    _team_by_poule, _team_for_poule,
+    STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _is_autoscan_eligible, _is_healthy,
+    _manual_scan_weekday, _match_dt_info, _next_match_within, _pending_club_ext_ids, _pending_poule_ids,
+    _poule_health, _scan_profile_comp_ids, _skip_healthy_daily_fallback, _team_by_poule, _team_for_poule,
 )
 from services.hockey_vanger_settings import _get_int_setting, get_target_season
 
@@ -345,9 +344,9 @@ def _landelijke_daily_fallback_events(
 def _manual_weekly_events(
     session: Session, now: datetime, horizon_end: datetime, team_by_poule: Dict[int, HockeyTeam], window_start_h: int,
 ) -> List[dict]:
-    manual_comp_ids = set(session.exec(
-        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "manual")
-    ).all())
+    # item 1022: bevat ook 'active'-competities zonder publieke zichtbaarheid
+    # (concept-publicatie of onzichtbare koppeling) - zie _scan_profile_comp_ids.
+    _active_eligible_ids, manual_comp_ids = _scan_profile_comp_ids(session)
     if not manual_comp_ids:
         return []
     hl_linked_comp_ids = {
@@ -479,9 +478,10 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
 
     events: List[dict] = []
 
-    active_comp_ids = set(session.exec(
-        select(HockeyPublicationComp.competition_id).where(HockeyPublicationComp.scan_profile == "active")
-    ).all())
+    # item 1022: alleen publiek zichtbare active-competities krijgen hier de
+    # volle matchday-behandeling - een concept-publicatie of onzichtbare
+    # koppeling valt terug op _manual_weekly_events (zie _scan_profile_comp_ids).
+    active_comp_ids, _weekly_fallback_ids = _scan_profile_comp_ids(session)
     team_by_poule = _team_by_poule(session)
 
     if active_comp_ids:
@@ -587,12 +587,9 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
         comp = session.get(HockeyCompetition, poule.competition_id)
         if not comp or comp.hl_comp_id is not None:
             return []
-        is_active = session.exec(
-            select(HockeyPublicationComp)
-            .where(HockeyPublicationComp.competition_id == poule.competition_id)
-            .where(HockeyPublicationComp.scan_profile == "active")
-        ).first() is not None
-        if not is_active:
+        # item 1022: alleen publiek zichtbaar (published + visible) telt als
+        # 'active' hier - zie _is_autoscan_eligible.
+        if not _is_autoscan_eligible(session, poule.competition_id):
             return []
         team = _team_for_poule(session, poule.poule_id)
         if not team:
