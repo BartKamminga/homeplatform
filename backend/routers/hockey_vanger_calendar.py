@@ -240,15 +240,19 @@ def get_scan_calendar(
     # scans gaan we naar verwachting uitvoeren" voor toekomstige dagen.
     #
     # item 1009 (Bart, 31-08-2026: "ik wil op de kalender zien wat er die dag
-    # gescanned gaat worden... een goed beeld van de calls naar hockey.nl") -
-    # label/competition_name/in_filter erbij zodat de Kalender-tab niet zelf
-    # opnieuw hoeft te ontdekken welke poule/competitie/club achter een
-    # target_id schuilgaat, en - net zo belangrijk - of de actieve queue-
-    # filter deze scan straks (bij promotie) uberhaupt doorlaat. Een 'planned'
-    # rij is daar nog niet tegenaan gehouden (dat gebeurt pas in
-    # promote_due_schedule_entries zodra planned_at aanbreekt); in_filter is
-    # dus een VOORSPELLING op basis van de HUIDIGE filterinstelling, geen
-    # garantie als die instelling nog wijzigt vooraleer de rij due wordt.
+    # gescanned gaat worden") - label/competition_name erbij zodat de
+    # Kalender-tab niet zelf opnieuw hoeft te ontdekken welke poule/
+    # competitie/club achter een target_id schuilgaat.
+    #
+    # Bart, 1-09-2026: een eerdere versie voegde ook een in_filter-voorspelling
+    # toe (_cmd_matches_filter PER rij) - dat is een losse DB-query per rij
+    # (team-lookup op team_id), en met 1000+ schedule-rijen in het +-45-
+    # dagenbereik van deze view leverde dat merkbare traagheid op ("duurt erg
+    # lang om te laden"). Bovendien liet het de Dagview 0 tonen voor dagen
+    # waar de Weekview (die niet filtert, zie WeekView.jsx::reasonCountsFor)
+    # wel een reeel aantal liet zien - verwarrend. Weer verwijderd; alle
+    # kalender-tellingen gebruiken nu consistent alleen status==='planned',
+    # geen los in_filter-veld meer.
     poule_by_id = {p.poule_id: p for p in poules}
     club_by_id = {c.id: c for c in club_by_ext_id.values()}
     schedule_entries = []
@@ -277,7 +281,6 @@ def get_scan_calendar(
             "status": e.status,
             "label": _label_for(e, params, poule_by_id, comp_by_hl_id, club_by_id, comp_by_id),
             "competition_name": comp_name,
-            "in_filter": _cmd_matches_filter(session, e.cmd_type, params, ages, club, cats, hts, genders),
         })
 
     return {

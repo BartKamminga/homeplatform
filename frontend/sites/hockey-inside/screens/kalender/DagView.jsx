@@ -187,34 +187,30 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
   // backend (comp.id % 5 bepaalt de werkdag).
   //
   // item 1009 (Bart, 31-08-2026: "ik wil zien wat er die dag ECHT gescanned
-  // gaat worden, voor een goed beeld van de calls naar hockey.nl") - dit
-  // bouwde eerder op data.manual_poules, een RUWE, ongefilterde telling
-  // (elke manual-profiel-poule met assigned_weekday===vandaag, ongeacht
-  // gezondheid/team-koppeling/queue-filter) die geregeld een heel ander
+  // gaat worden") - dit bouwde eerder op data.manual_poules, een RUWE,
+  // ongefilterde telling (elke manual-profiel-poule met assigned_weekday===
+  // vandaag, ongeacht gezondheid/team-koppeling) die geregeld een heel ander
   // aantal/weekdag liet zien dan de echte queue - verwarrend, want 2
   // competities met dezelfde naam (bv. verschillende districts-competities
   // "Jongens O14 Voorcompetitie") hebben elk hun EIGEN competition_id en dus
   // een eigen toegewezen werkdag. data.schedule_entries (reason=
-  // manual_weekly) is al de ECHTE, door het scanschema berekende planning -
-  // gezondheid en team-koppeling zijn daar al in verwerkt, alleen de queue-
-  // filter (in_filter) moet er nog overheen (zie backend-comment erbij).
+  // manual_weekly) is al de ECHTE, door het scanschema berekende planning
+  // (gezondheid/team-koppeling al verwerkt) - zelfde status==='planned'-
+  // check als WeekView.jsx::reasonCountsFor, voor consistente tellingen
+  // tussen de tabs (Bart, 1-09-2026: een eerdere in_filter-uitsplitsing liet
+  // de Dagview 0 tonen terwijl de Weekview voor dezelfde dag wel de echte
+  // aantallen liet zien - verwarrend EN kostte een dure per-entry
+  // filter-query op de backend).
   const pyWeekday = (date.getDay() + 6) % 7
   const manualEntriesAll = (data.schedule_entries || []).filter(e => e.reason === 'manual_weekly')
   const hasAnyManualScanning = manualEntriesAll.length > 0
-  // Bart, 1-09-2026: "ik wil gewoon zien wat er in de queue staat voor een
-  // dag" - de eerdere in_filter/buiten-filter-uitsplitsing (met een expliciet
-  // "+N buiten filter"-melding) maakte dit blok onnodig verwarrend zodra
-  // vrijwel de hele wekelijkse ronde buiten het huidige filter bleek te
-  // vallen. Simpel gehouden, net als het matchday-gedeelte hierboven (dat
-  // ook gewoon toont wat er ECHT gepland staat): alleen tonen wat
-  // daadwerkelijk gescand gaat worden.
   const manualEntriesToday = manualEntriesAll.filter(e => sameDay(new Date(e.planned_at), date))
-  const manualInFilter = manualEntriesToday.filter(e => e.in_filter && e.status !== 'cancelled')
+  const manualPlannedToday = manualEntriesToday.filter(e => e.status === 'planned')
   // Kan in de praktijk honderden poules per dag zijn (alle niet-autoscan
   // publicaties samen) - per competitie samenvatten i.p.v. 1 badge per poule,
   // anders wordt de sectie onleesbaar.
   const manualByCompetition = new Map()
-  for (const e of manualInFilter) {
+  for (const e of manualPlannedToday) {
     const key = e.competition_name || '(onbekende competitie)'
     manualByCompetition.set(key, (manualByCompetition.get(key) || 0) + 1)
   }
@@ -415,10 +411,10 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
         </div>
       )}
 
-      {!!manualInFilter.length && (
+      {!!manualPlannedToday.length && (
         <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
-            NIET-AUTOSCAN · WEKELIJKS ({WEEKDAY_LABELS[pyWeekday] || pyWeekday}) · {manualInFilter.length} calls naar hockey.nl in {manualCompetitionEntries.length} competities
+            NIET-AUTOSCAN · WEKELIJKS ({WEEKDAY_LABELS[pyWeekday] || pyWeekday}) · {manualPlannedToday.length} calls naar hockey.nl in {manualCompetitionEntries.length} competities
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {manualCompetitionEntries.slice(0, MANUAL_COMP_SHOWN).map(([name, count]) => (
