@@ -201,9 +201,15 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
   const pyWeekday = (date.getDay() + 6) % 7
   const manualEntriesAll = (data.schedule_entries || []).filter(e => e.reason === 'manual_weekly')
   const hasAnyManualScanning = manualEntriesAll.length > 0
+  // Bart, 1-09-2026: "ik wil gewoon zien wat er in de queue staat voor een
+  // dag" - de eerdere in_filter/buiten-filter-uitsplitsing (met een expliciet
+  // "+N buiten filter"-melding) maakte dit blok onnodig verwarrend zodra
+  // vrijwel de hele wekelijkse ronde buiten het huidige filter bleek te
+  // vallen. Simpel gehouden, net als het matchday-gedeelte hierboven (dat
+  // ook gewoon toont wat er ECHT gepland staat): alleen tonen wat
+  // daadwerkelijk gescand gaat worden.
   const manualEntriesToday = manualEntriesAll.filter(e => sameDay(new Date(e.planned_at), date))
   const manualInFilter = manualEntriesToday.filter(e => e.in_filter && e.status !== 'cancelled')
-  const manualOutFilter = manualEntriesToday.filter(e => !e.in_filter || e.status === 'cancelled')
   // Kan in de praktijk honderden poules per dag zijn (alle niet-autoscan
   // publicaties samen) - per competitie samenvatten i.p.v. 1 badge per poule,
   // anders wordt de sectie onleesbaar.
@@ -403,13 +409,13 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
         )
       })())}
 
-      {hasAnyManualScanning && !manualEntriesToday.length && (
+      {hasAnyManualScanning && pyWeekday >= 5 && (
         <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)', fontSize: 10, color: 'var(--color-text-muted)' }}>
           NIET-AUTOSCAN · WEKELIJKS (werkdagen) · vandaag geen ronde (weekend) · eerstvolgende: {nextManualRoundDate.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'short' })}
         </div>
       )}
 
-      {!!manualEntriesToday.length && (
+      {!!manualInFilter.length && (
         <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
             NIET-AUTOSCAN · WEKELIJKS ({WEEKDAY_LABELS[pyWeekday] || pyWeekday}) · {manualInFilter.length} calls naar hockey.nl in {manualCompetitionEntries.length} competities
@@ -429,14 +435,6 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
               </span>
             )}
           </div>
-          {/* item 1009 (Bart, 29-08-2026: "due-poules die buiten de huidige
-              filter vallen apart/grijs markeren met uitleg waarom ze niet
-              worden opgepakt") */}
-          {!!manualOutFilter.length && (
-            <div style={{ fontSize: 9, color: 'var(--color-text-muted)', opacity: 0.6, marginTop: 6 }}>
-              +{manualOutFilter.length} gepland maar buiten de actieve queue-filter of al geannuleerd - worden niet opgepakt door Ghost/Scout.
-            </div>
-          )}
         </div>
       )}
 
