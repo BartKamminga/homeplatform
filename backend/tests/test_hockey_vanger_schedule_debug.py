@@ -197,6 +197,29 @@ def test_browse_explains_daily_fallback_with_the_offending_match(session):
     assert "zonder eindstand" in explanation
 
 
+def test_browse_explains_daily_fallback_for_a_poule_without_any_known_matches(session):
+    """Bart, 31-08-2026 (prod-melding): "Dagelijkse fallback-cadans (24u) -
+    35u geleden." zonder verdere uitleg leek de rede niet te kloppen - de
+    poule heeft namelijk 0 wedstrijden bekend (geen uitslagen, geen tijden),
+    en dat moet expliciet in de uitleg staan i.p.v. stil te blijven."""
+    from datetime import datetime, timedelta
+    poule = _setup_poule(session, poule_id=560, name="Poule A")
+    poule.last_scanned_at = datetime.utcnow() - timedelta(hours=35)
+    session.add(poule)
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=poule.poule_id, cmd_type="get_poule",
+        params=json.dumps({"poule_id": poule.poule_id}), planned_at=now, reason="daily_fallback",
+    ))
+    session.commit()
+
+    result = browse_schedule(session=session, _=None)
+
+    explanation = result["items"][0]["explanation"]
+    assert "geen enkele wedstrijd bekend" in explanation
+    assert "uitslagen" in explanation and "tijden" in explanation
+
+
 def test_browse_orders_by_planned_at_ascending(session):
     from datetime import datetime, timedelta
     now = datetime.utcnow()

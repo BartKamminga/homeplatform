@@ -53,6 +53,13 @@ def _health_detail(session: Session, poule_id: int, now: datetime) -> Optional[s
     match_duration_m = _get_int_setting(session, "match_duration_min", 90)
     lookahead_end = (now + timedelta(days=7)).date()
     matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule_id)).all()
+    if not matches:
+        # item 1019 (Bart, 31-08-2026, prod-melding): een poule zonder ENIGE
+        # bekende wedstrijd is niet "bewezen gezond" (zie _is_healthy in
+        # hockey_vanger_scanplan.py) en blijft dus terugkomen - dat moet hier
+        # ook zichtbaar zijn, anders lijkt de uitleg stil/onvolledig terwijl
+        # de reden wel degelijk klopt.
+        return "Nog geen enkele wedstrijd bekend voor deze poule (mist zowel uitslagen als tijden)."
     for m in matches:
         if not m.match_date:
             continue
