@@ -206,8 +206,9 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                             </div>
                           ) : m.hint && (
                             <div style={{ fontSize: 10, color: m.hint.required ? '#6fbf8b' : C.muted, textAlign: 'center' }}>
-                              {m.hint.required ? '✓ ' : ''}{m.hint.label}
-                              {!m.hint.required && ` (${Math.round(m.hint.recommended_rate * 100)}% kans)`}
+                              {m.hint.required
+                                ? <>✓ {m.hint.label}</>
+                                : <>Helpt het meest: {m.hint.label} ({Math.round(m.hint.recommended_rate * 100)}% van de gunstige scenario's)</>}
                             </div>
                           )}
                           <OutcomePills
