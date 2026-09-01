@@ -104,6 +104,27 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
     setFixed(prev => ({ ...prev, [matchId]: { outcome: outcomeFromScore(score[0], score[1]), score } }))
   }
 
+  // item 1041: zet in 1x alle nu getoonde, nog niet vastgezette
+  // doorslaggevende wedstrijden vast op de beste beschikbare inschatting -
+  // in Poisson-modus de objectieve voorspelling (predicted_outcome/score,
+  // item 1042), anders de doel-hint (recommended_outcome, item 1039).
+  function autoFillRest() {
+    setFixed(prev => {
+      const next = { ...prev }
+      for (const matchId of matchOrder) {
+        if (next[matchId] != null) continue
+        const m = matchInfo[matchId]
+        if (method === 'poisson' && m?.predicted_outcome) {
+          next[matchId] = { outcome: m.predicted_outcome, score: m.predicted_score }
+        } else if (m?.hint) {
+          next[matchId] = { outcome: m.hint.recommended_outcome, score: null }
+        }
+      }
+      return next
+    })
+    setScoreOpenFor(null)
+  }
+
   function clearFixed(matchId) {
     setFixed(prev => { const next = { ...prev }; delete next[matchId]; return next })
     setScoreOpenFor(id => (id === matchId ? null : id))
@@ -179,9 +200,16 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
 
               {matchOrder.length > 0 && (
                 <>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
-                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
-                    Doorslaggevende wedstrijden voor positie ≤ {targetPosition}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1, fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                      textTransform: 'uppercase', color: C.muted }}>
+                      Doorslaggevende wedstrijden voor positie ≤ {targetPosition}
+                    </div>
+                    {matchOrder.some(id => fixed[id] == null) && (
+                      <button onClick={autoFillRest} style={{ ...pillStyle(false, 'sm'), flexShrink: 0 }}>
+                        Vul rest automatisch in
+                      </button>
+                    )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
                     {matchOrder.map(matchId => {
