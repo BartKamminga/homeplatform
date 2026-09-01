@@ -90,3 +90,52 @@ def test_run_distribution_falls_back_to_monte_carlo():
     )
     assert result.method_used == "monte_carlo"
     assert sum(result.value_counts.values()) == 100
+
+
+def _weighted_element(key):
+    def apply(state, outcome):
+        return {"score": state["score"] + (1 if outcome == "win" else 0)}
+    return VariableElement(key=key, outcomes=("win", "lose"), weights=(0.8, 0.2), apply=apply)
+
+
+def test_exact_weighted_probability_matches_hand_computed_value():
+    # 1 gewogen element (P(win)=0.8) - geen unweighted default (1/3) meer.
+    spec = ScenarioSpec(base_state={"score": 0}, elements=[_weighted_element("a")], evaluate=lambda s: s["score"] >= 1)
+    result = run_scenario(spec, method="exact")
+    assert result.method_used == "exact"
+    assert result.combinations_total == 2
+    assert result.goal_probability == pytest.approx(0.8)
+
+
+def test_exact_weighted_two_elements_matches_independent_product():
+    # P(a=win)=0.8, P(b=win)=0.8, doel is score>=2 (allebei winnen) -> 0.8*0.8.
+    spec = ScenarioSpec(
+        base_state={"score": 0}, elements=[_weighted_element("a"), _weighted_element("b")],
+        evaluate=lambda s: s["score"] >= 2,
+    )
+    result = run_scenario(spec, method="exact")
+    assert result.goal_probability == pytest.approx(0.64)
+
+
+def test_unweighted_elements_are_unaffected_by_weight_support():
+    # Regressie: elementen zonder weights moeten exact hetzelfde resultaat
+    # geven als vóór item 1030 (geen weights-veld gebruikt).
+    result = run_scenario(_make_two_element_spec(), method="exact")
+    assert result.goal_probability == 0.25
+
+
+def test_monte_carlo_weighted_sampling_draws_toward_the_true_probability():
+    spec = ScenarioSpec(base_state={"score": 0}, elements=[_weighted_element("a")], evaluate=lambda s: s["score"] >= 1)
+    result = run_scenario(spec, method="monte_carlo", sample_size=5000, rng=random.Random(42))
+    assert result.goal_probability == pytest.approx(0.8, abs=0.03)
+
+
+def test_run_distribution_exact_weighted_matches_hand_computed_value():
+    # value_counts volgt dezelfde "som == combinations_considered"-conventie
+    # als het ongewogen pad, zodat bestaande call sites (die door considered
+    # delen, bv. hockey_scenario_distribution.py) ongewijzigd blijven werken.
+    result = run_distribution(
+        {"score": 0}, [_weighted_element("a")], lambda s: s["score"], method="exact",
+    )
+    assert result.value_counts[1] / result.combinations_considered == pytest.approx(0.8)
+    assert result.value_counts[0] / result.combinations_considered == pytest.approx(0.2)

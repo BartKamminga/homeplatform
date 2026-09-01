@@ -20,10 +20,10 @@ from sqlmodel import Session, select
 from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_scenario_bounds import bound_verdict, relevant_matches
 from services.hockey_scenario_format import describe_examples, describe_outcome, outcome_hint
-from services.hockey_scenario_types import MatchFixture, TeamStat
+from services.hockey_scenario_poisson import bucket_outcome_breakdown, build_poisson_elements
+from services.hockey_scenario_types import POINTS_DRAW, POINTS_LOSS, POINTS_WIN, MatchFixture, TeamStat
 from services.scenario_engine import ScenarioSpec, VariableElement, run_scenario
 
-POINTS_WIN, POINTS_DRAW, POINTS_LOSS = 3, 1, 0  # AANNAME: KNHB-puntenregel
 MATCH_OUTCOMES = ("H", "D", "A")  # thuiswinst / gelijk / uitwinst
 # Gemeten (item 963-vervolg): elke exacte combo kost ~40 microseconde in deze
 # Python-implementatie, dus 200.000 was in de praktijk 8+ seconden - te traag
@@ -191,11 +191,24 @@ def simulate_position(
 
     pruned = relevant_matches(standings, remaining, team_id, comparator)
     base_state = {s.team_id: s for s in standings}
+    if method == "poisson":
+        elements = build_poisson_elements(standings, pruned)
+        engine_method = "auto"  # exact/monte_carlo blijft een enumeratiedetail, poisson kiest alleen het kansmodel
+        caveats.append(
+            "Kansen per wedstrijd geschat met een Bayesiaans/Poisson teamsterkte-model (aanval/verdediging uit "
+            "doelpunten in deze poule dit seizoen), niet de standaard aanname van gelijke kansen per uitslag. "
+            "Bij weinig gespeelde wedstrijden per team blijft de schatting onzeker ondanks shrinkage naar het "
+            "poule-gemiddelde. Model is Poisson, geen Negative Binomial - overdispersie in doelpunten wordt niet "
+            "gedetecteerd."
+        )
+    else:
+        elements = _build_elements(pruned)
+        engine_method = method
     spec = ScenarioSpec(
-        base_state=base_state, elements=_build_elements(pruned),
+        base_state=base_state, elements=elements,
         evaluate=_goal(team_id, target_position, comparator),
     )
-    result = run_scenario(spec, method=method, max_combinations=max_combinations, sample_size=sample_size)
+    result = run_scenario(spec, method=engine_method, max_combinations=max_combinations, sample_size=sample_size)
 
     name_by_team = {s.team_id: s.team_name for s in standings}
     by_key = {
@@ -204,9 +217,12 @@ def simulate_position(
     pivotal = []
     for key, m in by_key.items():
         home_name, away_name = name_by_team.get(m.home_team_id), name_by_team.get(m.away_team_id)
+        breakdown = result.outcome_breakdown.get(key, {})
+        if method == "poisson":
+            breakdown = bucket_outcome_breakdown(breakdown)
         pivotal.append({
             "match_id": m.match_id, "round": m.round, "home_team": home_name, "away_team": away_name,
-            "hint": outcome_hint(result.outcome_breakdown.get(key, {}), home_name, away_name),
+            "hint": outcome_hint(breakdown, home_name, away_name),
         })
     if len(pruned) < len(remaining):
         caveats.append(
@@ -247,7 +263,8 @@ POSITION_SCENARIO_TYPE = {
         {"name": "comparator", "type": "string", "required": False,
          "desc": "'lte' (standaard, op positie N of beter), 'eq' (precies N), 'gte' (op positie N of slechter)"},
         {"name": "method", "type": "string", "required": False,
-         "desc": "'auto' (standaard), 'exact', of 'monte_carlo'"},
+         "desc": "'auto' (standaard), 'exact', 'monte_carlo', of 'poisson' (Bayesiaans teamsterkte-model i.p.v. "
+                 "gelijke kans per uitslag, item 1030)"},
         {"name": "fixed_outcomes", "type": "object", "required": False,
          "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'} - deze wedstrijden worden alvast in de stand "
                  "verwerkt en niet meer gesimuleerd."},

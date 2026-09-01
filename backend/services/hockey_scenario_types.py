@@ -5,6 +5,8 @@ hockey_scenario_bounds.py te vermijden."""
 from dataclasses import dataclass
 from typing import Optional
 
+POINTS_WIN, POINTS_DRAW, POINTS_LOSS = 3, 1, 0  # AANNAME: KNHB-puntenregel
+
 
 @dataclass(frozen=True)
 class TeamStat:

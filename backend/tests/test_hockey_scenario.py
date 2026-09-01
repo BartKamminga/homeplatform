@@ -1,5 +1,6 @@
 """Tests voor het poule-eindpositie-scenario (item 963)."""
 
+import pytest
 from sqlmodel import select
 
 from models.hockey_discovery import HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
@@ -142,6 +143,33 @@ def test_fixed_outcomes_ignores_unknown_match_id():
     assert summary.combinations_total == 3
 
 
+def test_poisson_method_produces_weighted_verdict_and_caveat():
+    # A staat 1 punt achter en heeft alleen wat aan een overwinning (een
+    # gelijkspel is niet genoeg om B alsnog voorbij te gaan) - bij de
+    # uniforme aanname is dat exact 1 van de 3 uitslagen (1/3). A heeft een
+    # veel grotere aanval/verdediging dan B, dus Poisson moet P(A wint)
+    # duidelijk boven 1/3 inschatten.
+    standings = [
+        _team(1, "A", 10, gf=30, ga=5), _team(2, "B", 11, gf=5, ga=30),
+    ]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    uniform = simulate_position(standings, remaining, team_id=1, target_position=1)
+    poisson = simulate_position(standings, remaining, team_id=1, target_position=1, method="poisson")
+
+    assert uniform.goal_probability == pytest.approx(1 / 3)
+    assert poisson.goal_probability > uniform.goal_probability
+    assert any("Poisson" in c for c in poisson.caveats)
+    assert poisson.method_used in ("exact", "monte_carlo")  # engine-strategie blijft gescheiden van het kansmodel
+
+
+def test_poisson_pivotal_hint_still_uses_hda_labels():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1, method="poisson")
+    hint = summary.pivotal_matches[0]["hint"]
+    assert hint["recommended_outcome"] in ("H", "D", "A")
+
+
 def test_load_poule_inputs_reads_standing_and_scheduled_matches(session):
     session.add(HockeyPouleStanding(
         poule_id=99, team_id=1, team_name="A", played=5, won=3, drawn=1, lost=1,
@@ -221,3 +249,15 @@ def test_simulate_endpoint_happy_path_and_errors(session, client):
         params={"team_id": 1},  # type='position' (default) vereist target_position
     )
     assert res_missing_target.status_code == 400
+
+    res_poisson = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "method": "poisson"},
+    )
+    assert res_poisson.status_code == 200  # deze standings zijn al 'guaranteed' via de bounds-fastpath (zie hockey_scenario_bounds.py) - dus geen method-specifieke caveat hier, alleen status/contract-check
+
+    res_bad_method = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "method": "quantum"},
+    )
+    assert res_bad_method.status_code == 400

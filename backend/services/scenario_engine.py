@@ -31,6 +31,12 @@ class VariableElement:
     key: str
     outcomes: Tuple[Outcome, ...]
     apply: Callable[[State, Outcome], State]
+    # Optioneel, parallel aan outcomes (item 1030): per-uitkomst-kans i.p.v.
+    # de standaard aanname dat elke uitkomst even waarschijnlijk is. None
+    # (default) laat het gedrag voor bestaande callers ongewijzigd - overal
+    # in deze module is "weighted" pas True als minstens 1 element gewichten
+    # heeft, dus ongewogen callers ondervinden geen enkel verschil.
+    weights: Optional[Tuple[float, ...]] = None
 
 
 @dataclass(frozen=True)
@@ -77,9 +83,37 @@ def enumerate_exact(base_state: State, elements: Sequence[VariableElement]):
 
 def sample_random(base_state: State, elements: Sequence[VariableElement], n: int, rng: random.Random):
     keys = [el.key for el in elements]
+    # Cumulatieve gewichten 1x vooraf berekenen (niet per sample) zodat een
+    # gewogen element (bv. method='poisson' met tientallen score-uitkomsten)
+    # geen noemenswaardige overhead geeft t.o.v. het ongewogen pad.
+    cum_weights = [list(itertools.accumulate(el.weights)) if el.weights is not None else None for el in elements]
     for _ in range(n):
-        combo = tuple(rng.choice(el.outcomes) for el in elements)
+        combo = tuple(
+            rng.choice(el.outcomes) if cw is None else rng.choices(el.outcomes, cum_weights=cw, k=1)[0]
+            for el, cw in zip(elements, cum_weights)
+        )
         yield _apply_all(base_state, elements, combo), dict(zip(keys, combo))
+
+
+def _weight_lookup(el: VariableElement) -> Optional[Dict[Outcome, float]]:
+    return None if el.weights is None else dict(zip(el.outcomes, el.weights))
+
+
+def _has_weights(elements: Sequence[VariableElement]) -> bool:
+    return any(el.weights is not None for el in elements)
+
+
+def _combo_weight(
+    elements: Sequence[VariableElement], lookups: Sequence[Optional[Dict[Outcome, float]]], combo: Dict[str, Outcome],
+) -> float:
+    """Kans op deze ene combinatie, uitgaande van onafhankelijke elementen.
+    Een element zonder eigen gewichten valt terug op een gelijke verdeling
+    over zijn uitkomsten (= exact het gedrag van vóór item 1030)."""
+    weight = 1.0
+    for el, lookup in zip(elements, lookups):
+        outcome = combo[el.key]
+        weight *= (1.0 / len(el.outcomes)) if lookup is None else lookup[outcome]
+    return weight
 
 
 @dataclass(frozen=True)
@@ -124,12 +158,21 @@ def run_distribution(
         source = sample_random(base_state, elements, sample_size, rng or random.Random())
         method_used = "monte_carlo"
 
+    # Alleen bij exacte enumeratie van gewogen elementen is een correctie
+    # nodig: enumerate_exact doorloopt elke combinatie 1x, ongeacht kans, dus
+    # zonder correctie zou elke combinatie even zwaar meetellen. Bij Monte
+    # Carlo trekt sample_random al gewogen, dus telt een simpele telling al
+    # de juiste verdeling (zie sample_random hierboven).
+    weighted = use_exact and _has_weights(elements)
+    lookups = [_weight_lookup(el) for el in elements] if weighted else []
+
     considered = 0
-    value_counts: Dict[Any, int] = {}
-    for state, _combo in source:
+    value_counts: Dict[Any, float] = {}
+    for state, combo in source:
         considered += 1
         value = value_fn(state)
-        value_counts[value] = value_counts.get(value, 0) + 1
+        contribution = (_combo_weight(elements, lookups, combo) * total) if weighted else 1
+        value_counts[value] = value_counts.get(value, 0) + contribution
 
     return DistributionResult(
         method_used=method_used,
@@ -169,25 +212,30 @@ def run_scenario(
         source = sample_random(spec.base_state, elements, sample_size, rng or random.Random())
         method_used = "monte_carlo"
 
+    # Zie run_distribution hierboven voor waarom dit alleen bij exact+gewogen nodig is.
+    weighted = use_exact and _has_weights(elements)
+    lookups = [_weight_lookup(el) for el in elements] if weighted else []
+
     considered = 0
     goal_true = 0
     satisfying: List[Dict[str, Outcome]] = []
     failing: List[Dict[str, Outcome]] = []
     # {key: {outcome: [totaal, satisfying]}}
-    breakdown: Dict[str, Dict[Outcome, List[int]]] = {
+    breakdown: Dict[str, Dict[Outcome, List[float]]] = {
         el.key: {outcome: [0, 0] for outcome in el.outcomes} for el in elements
     }
     for state, combo in source:
         considered += 1
         ok = bool(spec.evaluate(state))
-        goal_true += ok
+        contribution = (_combo_weight(elements, lookups, combo) * total) if weighted else 1
+        goal_true += contribution if ok else 0
         bucket = satisfying if ok else failing
         if len(bucket) < max_examples:
             bucket.append(combo)
         for key, outcome in combo.items():
             counts = breakdown[key][outcome]
-            counts[0] += 1
-            counts[1] += ok
+            counts[0] += contribution
+            counts[1] += contribution if ok else 0
 
     return ScenarioResult(
         method_used=method_used,

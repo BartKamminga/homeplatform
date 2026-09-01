@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 from services.hockey_scenario import CAVEATS, MAX_EXACT_COMBINATIONS, SAMPLE_SIZE, _apply_fixed_outcomes, _build_elements, _position_of
 from services.hockey_scenario_bounds import relevant_matches
 from services.hockey_scenario_format import describe_outcome
+from services.hockey_scenario_poisson import build_poisson_elements
 from services.hockey_scenario_types import MatchFixture, TeamStat
 from services.scenario_engine import run_distribution
 
@@ -60,9 +61,22 @@ def simulate_position_distribution(
     # dus altijd de volledige, positie-onafhankelijke relevantieset.
     pruned = relevant_matches(standings, remaining, team_id, "lte")
     base_state = {s.team_id: s for s in standings}
+    if method == "poisson":
+        elements = build_poisson_elements(standings, pruned)
+        engine_method = "auto"  # exact/monte_carlo blijft een enumeratiedetail, poisson kiest alleen het kansmodel
+        caveats.append(
+            "Kansen per wedstrijd geschat met een Bayesiaans/Poisson teamsterkte-model (aanval/verdediging uit "
+            "doelpunten in deze poule dit seizoen), niet de standaard aanname van gelijke kansen per uitslag. "
+            "Bij weinig gespeelde wedstrijden per team blijft de schatting onzeker ondanks shrinkage naar het "
+            "poule-gemiddelde. Model is Poisson, geen Negative Binomial - overdispersie in doelpunten wordt niet "
+            "gedetecteerd."
+        )
+    else:
+        elements = _build_elements(pruned)
+        engine_method = method
     result = run_distribution(
-        base_state, _build_elements(pruned), lambda state: _position_of(state, team_id),
-        method=method, max_combinations=max_combinations, sample_size=sample_size,
+        base_state, elements, lambda state: _position_of(state, team_id),
+        method=engine_method, max_combinations=max_combinations, sample_size=sample_size,
     )
 
     if len(pruned) < len(remaining):
@@ -95,7 +109,8 @@ POSITION_DISTRIBUTION_SCENARIO_TYPE = {
     "params": [
         {"name": "team_id", "type": "integer", "required": True, "desc": "hockey.nl team id"},
         {"name": "method", "type": "string", "required": False,
-         "desc": "'auto' (standaard), 'exact', of 'monte_carlo'"},
+         "desc": "'auto' (standaard), 'exact', 'monte_carlo', of 'poisson' (Bayesiaans teamsterkte-model i.p.v. "
+                 "gelijke kans per uitslag, item 1030)"},
         {"name": "fixed_outcomes", "type": "object", "required": False,
          "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'}"},
     ],

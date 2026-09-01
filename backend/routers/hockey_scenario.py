@@ -48,8 +48,8 @@ def simulate_poule_scenario(
         raise HTTPException(400, "target_position is verplicht voor type='position'")
     if comparator not in ("lte", "eq", "gte"):
         raise HTTPException(400, "comparator moet 'lte', 'eq' of 'gte' zijn")
-    if method not in ("auto", "exact", "monte_carlo"):
-        raise HTTPException(400, "method moet 'auto', 'exact' of 'monte_carlo' zijn")
+    if method not in ("auto", "exact", "monte_carlo", "poisson"):
+        raise HTTPException(400, "method moet 'auto', 'exact', 'monte_carlo' of 'poisson' zijn")
     fixed_outcomes = _parse_fixed(fixed)
 
     standings, remaining = load_poule_inputs(session, poule.poule_id)

@@ -39,6 +39,15 @@ def test_fixed_outcomes_shift_the_distribution():
     assert any("Aanname" in c for c in a_wins.caveats)
 
 
+def test_poisson_method_probabilities_still_sum_to_one():
+    standings = [_team(1, "A", 10, gf=30, ga=5), _team(2, "B", 10, gf=5, ga=30)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position_distribution(standings, remaining, team_id=1, method="poisson")
+    assert abs(sum(summary.position_probabilities.values()) - 1.0) < 1e-9
+    assert summary.position_probabilities[1] > 1 / 3
+    assert any("Poisson" in c for c in summary.caveats)
+
+
 def test_monte_carlo_fallback_when_cap_exceeded():
     standings = [_team(1, "A", 10), _team(2, "B", 10)]
     remaining = [MatchFixture(match_id=i, home_team_id=1, away_team_id=2) for i in range(1, 4)]
