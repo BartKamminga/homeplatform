@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { C } from './constants.js'
 import { useScenario, usePositionDistribution } from './useScenario.js'
 import { OutcomePills, outcomeLabel, outcomeFromScore } from './OutcomePills.jsx'
-import { PoolTable } from './PoolTable.jsx'
+import { PouleCard } from './PouleCard.jsx'
 
 // Bottom-sheet modal voor het eindpositie-scenario van 1 team (item 963-
 // vervolg) - zelfde sjabloon als MatchModal.jsx. Toont het backend-verdict
@@ -148,6 +148,16 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
         )}
         {data && (
           <div style={{ opacity: loading || distLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+              {Object.keys(fixed).length > 0 && data.standings?.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <PouleCard
+                    title="Virtuele stand"
+                    rows={data.standings.map(s => ({ ...s, id: s.team_id }))}
+                    density="compact"
+                  />
+                </div>
+              )}
+
               <div style={{ fontSize: 15, fontWeight: 700, color: verdictInfo.color,
                 marginBottom: data.verdict === 'depends' && data.goal_probability != null ? 4 : 12 }}>
                 {verdictInfo.label}
@@ -210,18 +220,6 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                         </div>
                       )
                     })}
-                  </div>
-                </>
-              )}
-
-              {Object.keys(fixed).length > 0 && data.standings?.length > 0 && (
-                <>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
-                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
-                    Herberekende stand
-                  </div>
-                  <div style={{ marginBottom: 16 }}>
-                    <PoolTable rows={data.standings.map(s => ({ ...s, id: s.team_id }))} compact />
                   </div>
                 </>
               )}
