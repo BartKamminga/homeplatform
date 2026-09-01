@@ -153,7 +153,6 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                   <PouleCard
                     title="Virtuele stand"
                     rows={data.standings.map(s => ({ ...s, id: s.team_id }))}
-                    density="compact"
                   />
                 </div>
               )}
