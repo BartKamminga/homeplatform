@@ -138,7 +138,19 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 32px' }}>
-        <PositionDistributionChart distribution={distribution} selected={targetPosition} onSelect={setTargetPosition} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+          {Object.keys(fixed).length > 0 && data?.standings?.length > 0 && (
+            <div style={{ flex: '1 1 280px' }}>
+              <PouleCard
+                title="Virtuele stand"
+                rows={data.standings.map(s => ({ ...s, id: s.team_id }))}
+              />
+            </div>
+          )}
+          <div style={{ flex: '1 1 280px' }}>
+            <PositionDistributionChart distribution={distribution} selected={targetPosition} onSelect={setTargetPosition} />
+          </div>
+        </div>
 
         {error && (
           <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '12px 0' }}>{error}</div>
@@ -148,14 +160,6 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
         )}
         {data && (
           <div style={{ opacity: loading || distLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
-              {Object.keys(fixed).length > 0 && data.standings?.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <PouleCard
-                    title="Virtuele stand"
-                    rows={data.standings.map(s => ({ ...s, id: s.team_id }))}
-                  />
-                </div>
-              )}
 
               <div style={{ fontSize: 15, fontWeight: 700, color: verdictInfo.color,
                 marginBottom: data.verdict === 'depends' && data.goal_probability != null ? 4 : 12 }}>
