@@ -58,7 +58,7 @@ export function CompetitionStandingsView({ fasesData, club }) {
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {comp.poules.map(poule => (
-                    <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                    <div key={poule.id} style={{ flex: '1 1 340px' }}>
                       <DiscPouleTable poule={poule} club={club} />
                     </div>
                   ))}
@@ -203,7 +203,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                 {comp.poules.map(poule => (
-                  <div key={poule.id} style={{ flex: '1 1 240px' }}>
+                  <div key={poule.id} style={{ flex: '1 1 340px' }}>
                     <DiscPouleTable
                       poule={poule}
                       club={club}

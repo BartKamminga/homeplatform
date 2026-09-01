@@ -76,7 +76,7 @@ export function StandingsTable({ rows, club, phaseId, poolPins, onPoolPin, tourn
             const pinKey   = `${phaseId}::${pname}`
             const isPinned = poolPins?.has(pinKey)
             return (
-              <div key={pname} style={{ flex: '1 1 240px' }}>
+              <div key={pname} style={{ flex: '1 1 340px' }}>
                 <PouleCard
                   title={pname}
                   rows={prows}
