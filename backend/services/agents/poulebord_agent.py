@@ -96,12 +96,13 @@ def ds_scenario_simulation(session, params):
         return {"note": "poule_id/team_id/target_position ontbreekt in de taak-params"}
 
     fixed_outcomes = {int(k): v for k, v in (params.get("fixed_outcomes") or {}).items()}
+    fixed_scores = {int(k): tuple(v) for k, v in (params.get("fixed_scores") or {}).items()}
     standings, remaining = load_poule_inputs(session, int(poule_id))
     try:
         summary = simulate_position(
             standings, remaining, team_id=int(team_id), target_position=int(target_position),
             comparator=params.get("comparator", "lte"), method=params.get("method", "auto"),
-            fixed_outcomes=fixed_outcomes,
+            fixed_outcomes=fixed_outcomes, fixed_scores=fixed_scores,
         )
     except ValueError as e:
         return {"note": str(e)}
@@ -194,9 +195,12 @@ AGENT = {
                 {"name": "target_position", "type": "integer", "required": True,
                  "desc": "Doelpositie (1 = kampioenschap)"},
                 {"name": "comparator", "type": "string", "required": False, "desc": "'lte' (standaard), 'eq', 'gte'"},
-                {"name": "method", "type": "string", "required": False, "desc": "'auto' (standaard), 'exact', 'monte_carlo'"},
+                {"name": "method", "type": "string", "required": False,
+                 "desc": "'auto' (standaard), 'exact', 'monte_carlo', of 'poisson'"},
                 {"name": "fixed_outcomes", "type": "object", "required": False,
                  "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'}"},
+                {"name": "fixed_scores", "type": "object", "required": False,
+                 "desc": "Optioneel, per match_id in fixed_outcomes: {match_id: [thuisdoelpunten, uitdoelpunten]}"},
             ],
             "desc": "Berekent of team X gegarandeerd/onmogelijk/afhankelijk op een gekozen eindpositie uitkomt, "
                     "en welke resterende wedstrijden daarbij pivotal zijn.",

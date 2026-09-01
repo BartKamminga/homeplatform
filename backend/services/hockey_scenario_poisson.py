@@ -29,15 +29,13 @@ import math
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-from services.hockey_scenario_types import POINTS_DRAW, POINTS_LOSS, POINTS_WIN, MatchFixture, TeamStat
+from services.hockey_scenario_types import MatchFixture, TeamStat, apply_score_outcome
 from services.scenario_engine import VariableElement
 
 DEFAULT_MU = 3.0  # AANNAME: startpunt voor gem. doelpunten/team/wedstrijd zonder enige poule-data
 DEFAULT_HOME_ADVANTAGE = 1.1  # AANNAME: vaste factor, niet per poule gemeten (geen home/away-score-split beschikbaar)
 SHRINKAGE_K = 4.0  # Bayesiaanse pseudo-observaties richting het poule-gemiddelde (empirical-Bayes shrinkage)
 MAX_GOALS_PER_TEAM = 6  # AANNAME: score-kans boven de 6 doelpunten wordt afgekapt en herverdeeld (verwaarloosbare staart)
-
-_RESULT_POINTS = {"win": POINTS_WIN, "draw": POINTS_DRAW, "loss": POINTS_LOSS}
 
 
 @dataclass(frozen=True)
@@ -96,32 +94,6 @@ def match_score_distribution(
     return {score: p / total for score, p in raw.items()}
 
 
-def _bump_with_score(stat: TeamStat, result: str, goals_for: int, goals_against: int) -> TeamStat:
-    return TeamStat(
-        team_id=stat.team_id, team_name=stat.team_name, played=stat.played + 1,
-        won=stat.won + (1 if result == "win" else 0),
-        drawn=stat.drawn + (1 if result == "draw" else 0),
-        lost=stat.lost + (1 if result == "loss" else 0),
-        goals_for=stat.goals_for + goals_for,
-        goals_against=stat.goals_against + goals_against,
-        points=stat.points + _RESULT_POINTS[result],
-    )
-
-
-def _apply_score(state: Dict[int, TeamStat], fixture: MatchFixture, score: Tuple[int, int]) -> Dict[int, TeamStat]:
-    home_goals, away_goals = score
-    if home_goals > away_goals:
-        home_result, away_result = "win", "loss"
-    elif home_goals < away_goals:
-        home_result, away_result = "loss", "win"
-    else:
-        home_result, away_result = "draw", "draw"
-    new_state = dict(state)
-    new_state[fixture.home_team_id] = _bump_with_score(state[fixture.home_team_id], home_result, home_goals, away_goals)
-    new_state[fixture.away_team_id] = _bump_with_score(state[fixture.away_team_id], away_result, away_goals, home_goals)
-    return new_state
-
-
 def build_poisson_elements(standings: List[TeamStat], matches: List[MatchFixture]) -> List[VariableElement]:
     """Poisson-equivalent van hockey_scenario.py::_build_elements - i.p.v. 3
     gelijke H/D/A-uitkomsten per wedstrijd, een gewogen scoreverdeling op
@@ -131,7 +103,7 @@ def build_poisson_elements(standings: List[TeamStat], matches: List[MatchFixture
     strengths, mu = estimate_team_strengths(standings)
 
     def make_apply(fixture: MatchFixture):
-        return lambda state, outcome: _apply_score(state, fixture, outcome)
+        return lambda state, outcome: apply_score_outcome(state, fixture, outcome)
 
     elements = []
     for i, m in enumerate(matches):

@@ -170,6 +170,80 @@ def test_poisson_pivotal_hint_still_uses_hda_labels():
     assert hint["recommended_outcome"] in ("H", "D", "A")
 
 
+def test_standings_field_reflects_current_state_without_fixed_outcomes():
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 7, gf=6, ga=9)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    assert [s["team_id"] for s in summary.standings] == [1, 2]  # A staat 1e (meer punten)
+    assert summary.standings[0]["pts"] == 10
+    assert summary.standings[0]["gf"] == 12 and summary.standings[0]["ga"] == 8
+
+
+def test_fixed_outcomes_without_score_leaves_goal_difference_unchanged():
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={1: "H"})
+    a_row = next(s for s in summary.standings if s["team_id"] == 1)
+    assert a_row["pts"] == 13  # +3 voor de winst
+    assert a_row["gf"] == 12 and a_row["ga"] == 8  # AANNAME: geen score gegeven, doelsaldo blijft ongewijzigd
+
+
+def test_fixed_scores_updates_goal_difference_in_standings():
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(
+        standings, remaining, team_id=1, target_position=1,
+        fixed_outcomes={1: "H"}, fixed_scores={1: (3, 1)},
+    )
+    a_row = next(s for s in summary.standings if s["team_id"] == 1)
+    b_row = next(s for s in summary.standings if s["team_id"] == 2)
+    assert a_row["pts"] == 13 and a_row["gf"] == 15 and a_row["ga"] == 9
+    assert b_row["pts"] == 10 and b_row["gf"] == 9 and b_row["ga"] == 11
+    assert any("3-1" in c for c in summary.caveats)
+
+
+def test_fixed_scores_without_matching_fixed_outcome_is_ignored():
+    # fixed_scores voor een match_id die niet in fixed_outcomes zit heeft geen effect.
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(
+        standings, remaining, team_id=1, target_position=1, fixed_scores={1: (3, 1)},
+    )
+    a_row = next(s for s in summary.standings if s["team_id"] == 1)
+    assert a_row["pts"] == 10 and a_row["gf"] == 12  # niets gebeurd, want geen fixed_outcomes meegegeven
+
+
+def test_parse_fixed_accepts_score_suffix_and_validates_consistency(client, session):
+    from models.hockey_discovery import HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
+
+    session.add(HockeyPoule(poule_id=100, name="Score-test poule", competition_id=1, season="2025/2026"))
+    session.add(HockeyPouleStanding(poule_id=100, team_id=1, team_name="A", points=10, goals_for=12, goals_against=8))
+    session.add(HockeyPouleStanding(poule_id=100, team_id=2, team_name="B", points=10, goals_for=8, goals_against=8))
+    session.add(HockeyPouleMatch(poule_id=100, match_id=1, home_team_id=1, away_team_id=2, status="scheduled"))
+    session.commit()
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 100)).first()
+
+    res = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "fixed": "1:H:3:1"},
+    )
+    assert res.status_code == 200
+    a_row = next(s for s in res.json()["standings"] if s["team_id"] == 1)
+    assert a_row["gf"] == 15 and a_row["ga"] == 9
+
+    res_inconsistent = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "fixed": "1:H:0:2"},  # score zegt A, label zegt H
+    )
+    assert res_inconsistent.status_code == 400
+
+    res_malformed = client.get(
+        f"/api/hockey/public/hockey-poules/{poule.id}/simulate",
+        params={"team_id": 1, "target_position": 1, "fixed": "1:H:3"},  # ontbrekende awayGoals
+    )
+    assert res_malformed.status_code == 400
+
+
 def test_load_poule_inputs_reads_standing_and_scheduled_matches(session):
     session.add(HockeyPouleStanding(
         poule_id=99, team_id=1, team_name="A", played=5, won=3, drawn=1, lost=1,

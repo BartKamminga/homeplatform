@@ -48,6 +48,16 @@ def test_poisson_method_probabilities_still_sum_to_one():
     assert any("Poisson" in c for c in summary.caveats)
 
 
+def test_standings_field_reflects_fixed_scores():
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position_distribution(
+        standings, remaining, team_id=1, fixed_outcomes={1: "H"}, fixed_scores={1: (3, 1)},
+    )
+    a_row = next(s for s in summary.standings if s["team_id"] == 1)
+    assert a_row["pts"] == 13 and a_row["gf"] == 15 and a_row["ga"] == 9
+
+
 def test_monte_carlo_fallback_when_cap_exceeded():
     standings = [_team(1, "A", 10), _team(2, "B", 10)]
     remaining = [MatchFixture(match_id=i, home_team_id=1, away_team_id=2) for i in range(1, 4)]

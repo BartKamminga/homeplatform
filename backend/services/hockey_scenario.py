@@ -21,7 +21,9 @@ from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_scenario_bounds import bound_verdict, relevant_matches
 from services.hockey_scenario_format import describe_examples, describe_outcome, outcome_hint
 from services.hockey_scenario_poisson import bucket_outcome_breakdown, build_poisson_elements
-from services.hockey_scenario_types import POINTS_DRAW, POINTS_LOSS, POINTS_WIN, MatchFixture, TeamStat
+from services.hockey_scenario_types import (
+    POINTS_DRAW, POINTS_LOSS, POINTS_WIN, MatchFixture, TeamStat, apply_score_outcome,
+)
 from services.scenario_engine import ScenarioSpec, VariableElement, run_scenario
 
 MATCH_OUTCOMES = ("H", "D", "A")  # thuiswinst / gelijk / uitwinst
@@ -59,6 +61,7 @@ class ScenarioSummary:
     satisfying_examples: List[list]
     failing_examples: List[list]
     caveats: List[str]
+    standings: List[dict]  # na eventuele fixed_outcomes herberekende stand (item 1034), PoolTable-vriendelijke vorm
 
 
 def load_poule_inputs(session: Session, poule_id: int) -> Tuple[List[TeamStat], List[MatchFixture]]:
@@ -117,6 +120,19 @@ def _position_of(state: Dict[int, TeamStat], team_id: int) -> int:
     raise KeyError(f"team {team_id} niet gevonden in de simulatie-state")
 
 
+def _serialize_standings(standings: List[TeamStat]) -> List[dict]:
+    """Voor ScenarioSummary.standings (item 1034) - PoolTable.jsx-vriendelijke
+    vorm (frontend/sites/poulebord/PoolTable.jsx), in poule-volgorde."""
+    return [
+        {
+            "team_id": s.team_id, "name": s.team_name, "pts": s.points,
+            "played": s.played, "w": s.won, "d": s.drawn, "l": s.lost,
+            "gf": s.goals_for, "ga": s.goals_against,
+        }
+        for s in _ranked_standings({s.team_id: s for s in standings})
+    ]
+
+
 def _goal(team_id: int, target_position: int, comparator: str):
     def evaluate(state) -> bool:
         pos = _position_of(state, team_id)
@@ -139,11 +155,17 @@ def _build_elements(matches: List[MatchFixture]) -> List[VariableElement]:
 
 def _apply_fixed_outcomes(
     standings: List[TeamStat], remaining: List[MatchFixture], fixed_outcomes: Dict[int, str],
+    fixed_scores: Optional[Dict[int, Tuple[int, int]]] = None,
 ) -> Tuple[List[TeamStat], List[MatchFixture], List[MatchFixture]]:
     """"Wat als"-ondersteuning: verwerkt vooraf aangenomen uitslagen (op
     match_id) direct in de stand, en haalt die wedstrijden uit de te
     simuleren verzameling - de rest van de engine hoeft hier niets van te
-    weten. Onbekende match_id's of ongeldige uitkomsten worden genegeerd."""
+    weten. Onbekende match_id's of ongeldige uitkomsten worden genegeerd.
+
+    fixed_scores is optioneel (item 1034) en per match_id een (h,a)-score -
+    als die aanwezig is, telt ook het doelsaldo van die ene wedstrijd mee
+    (apply_score_outcome), anders alleen de uitslag zoals voorheen (geen
+    doelsaldo-wijziging, zie moduledocstring)."""
     fixed_matches = [m for m in remaining if m.match_id in fixed_outcomes]
     free_remaining = [m for m in remaining if m.match_id not in fixed_outcomes]
 
@@ -152,7 +174,8 @@ def _apply_fixed_outcomes(
         outcome = fixed_outcomes[m.match_id]
         if outcome not in MATCH_OUTCOMES:
             continue
-        state = _apply_outcome(state, m, outcome)
+        score = (fixed_scores or {}).get(m.match_id)
+        state = apply_score_outcome(state, m, score) if score is not None else _apply_outcome(state, m, outcome)
     return list(state.values()), free_remaining, fixed_matches
 
 
@@ -160,7 +183,7 @@ def simulate_position(
     standings: List[TeamStat], remaining: List[MatchFixture], team_id: int, target_position: int,
     comparator: str = "lte", method: str = "auto",
     max_combinations: int = MAX_EXACT_COMBINATIONS, sample_size: int = SAMPLE_SIZE,
-    fixed_outcomes: Optional[Dict[int, str]] = None,
+    fixed_outcomes: Optional[Dict[int, str]] = None, fixed_scores: Optional[Dict[int, Tuple[int, int]]] = None,
 ) -> ScenarioSummary:
     target = next((s for s in standings if s.team_id == team_id), None)
     if target is None:
@@ -169,14 +192,16 @@ def simulate_position(
     caveats = list(CAVEATS)
     fixed_applied: List[MatchFixture] = []
     if fixed_outcomes:
-        standings, remaining, fixed_applied = _apply_fixed_outcomes(standings, remaining, fixed_outcomes)
+        standings, remaining, fixed_applied = _apply_fixed_outcomes(standings, remaining, fixed_outcomes, fixed_scores)
         target = next(s for s in standings if s.team_id == team_id)
         name_lookup = {s.team_id: s.team_name for s in standings}
         for m in fixed_applied:
             outcome = fixed_outcomes[m.match_id]
+            score = (fixed_scores or {}).get(m.match_id)
+            score_suffix = f" ({score[0]}-{score[1]})" if score is not None else ""
             caveats.append(
-                f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))} "
-                f"({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."
+                f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))}"
+                f"{score_suffix} ({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."
             )
 
     verdict = bound_verdict(standings, remaining, team_id, target_position, comparator)
@@ -187,6 +212,7 @@ def simulate_position(
             combinations_total=0, combinations_considered=0,
             goal_probability=1.0 if verdict == "guaranteed" else 0.0,
             pivotal_matches=[], satisfying_examples=[], failing_examples=[], caveats=caveats,
+            standings=_serialize_standings(standings),
         )
 
     pruned = relevant_matches(standings, remaining, team_id, comparator)
@@ -251,6 +277,7 @@ def simulate_position(
         satisfying_examples=describe_examples(result.satisfying_examples, by_key, name_by_team),
         failing_examples=describe_examples(result.failing_examples, by_key, name_by_team),
         caveats=caveats,
+        standings=_serialize_standings(standings),
     )
 
 
@@ -268,6 +295,9 @@ POSITION_SCENARIO_TYPE = {
         {"name": "fixed_outcomes", "type": "object", "required": False,
          "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'} - deze wedstrijden worden alvast in de stand "
                  "verwerkt en niet meer gesimuleerd."},
+        {"name": "fixed_scores", "type": "object", "required": False,
+         "desc": "Optioneel, per match_id in fixed_outcomes: {match_id: [thuisdoelpunten, uitdoelpunten]} - "
+                 "telt ook het doelsaldo van die wedstrijd mee (item 1034), anders blijft het ongewijzigd."},
     ],
     "run": simulate_position,
 }

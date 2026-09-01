@@ -7,9 +7,12 @@ hockey_scenario.py, dus dezelfde caveats en dezelfde "wat als"-ondersteuning
 (fixed_outcomes)."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-from services.hockey_scenario import CAVEATS, MAX_EXACT_COMBINATIONS, SAMPLE_SIZE, _apply_fixed_outcomes, _build_elements, _position_of
+from services.hockey_scenario import (
+    CAVEATS, MAX_EXACT_COMBINATIONS, SAMPLE_SIZE, _apply_fixed_outcomes, _build_elements, _position_of,
+    _serialize_standings,
+)
 from services.hockey_scenario_bounds import relevant_matches
 from services.hockey_scenario_format import describe_outcome
 from services.hockey_scenario_poisson import build_poisson_elements
@@ -29,13 +32,14 @@ class PositionDistributionSummary:
     # positie (1..team_count) -> kans (0..1)
     position_probabilities: Dict[int, float]
     caveats: List[str]
+    standings: List[dict]  # na eventuele fixed_outcomes herberekende stand (item 1034)
 
 
 def simulate_position_distribution(
     standings: List[TeamStat], remaining: List[MatchFixture], team_id: int,
     target_position: Optional[int] = None, comparator: str = "lte", method: str = "auto",
     max_combinations: int = MAX_EXACT_COMBINATIONS, sample_size: int = SAMPLE_SIZE,
-    fixed_outcomes: Optional[Dict[int, str]] = None,
+    fixed_outcomes: Optional[Dict[int, str]] = None, fixed_scores: Optional[Dict[int, Tuple[int, int]]] = None,
 ) -> PositionDistributionSummary:
     """target_position/comparator worden genegeerd - alleen aanwezig zodat dit
     type via dezelfde generieke router-aanroep als 'position' te gebruiken is
@@ -46,14 +50,16 @@ def simulate_position_distribution(
 
     caveats = list(CAVEATS)
     if fixed_outcomes:
-        standings, remaining, fixed_applied = _apply_fixed_outcomes(standings, remaining, fixed_outcomes)
+        standings, remaining, fixed_applied = _apply_fixed_outcomes(standings, remaining, fixed_outcomes, fixed_scores)
         target = next(s for s in standings if s.team_id == team_id)
         name_lookup = {s.team_id: s.team_name for s in standings}
         for m in fixed_applied:
             outcome = fixed_outcomes[m.match_id]
+            score = (fixed_scores or {}).get(m.match_id)
+            score_suffix = f" ({score[0]}-{score[1]})" if score is not None else ""
             caveats.append(
-                f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))} "
-                f"({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."
+                f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))}"
+                f"{score_suffix} ({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."
             )
 
     # Positie-onafhankelijk: dezelfde contested-teams-pruning geldt voor elke
@@ -100,6 +106,7 @@ def simulate_position_distribution(
         method_used=result.method_used, confidence="exact" if result.method_used == "exact" else "sampled",
         combinations_total=result.combinations_total, combinations_considered=result.combinations_considered,
         position_probabilities=probabilities, caveats=caveats,
+        standings=_serialize_standings(standings),
     )
 
 
@@ -113,6 +120,8 @@ POSITION_DISTRIBUTION_SCENARIO_TYPE = {
                  "gelijke kans per uitslag, item 1030)"},
         {"name": "fixed_outcomes", "type": "object", "required": False,
          "desc": "'Wat als'-aannames: {match_id: 'H'|'D'|'A'}"},
+        {"name": "fixed_scores", "type": "object", "required": False,
+         "desc": "Optioneel, per match_id in fixed_outcomes: {match_id: [thuisdoelpunten, uitdoelpunten]} (item 1034)."},
     ],
     "run": simulate_position_distribution,
 }

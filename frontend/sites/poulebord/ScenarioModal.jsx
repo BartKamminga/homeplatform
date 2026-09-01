@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { C } from './constants.js'
 import { useScenario, usePositionDistribution } from './useScenario.js'
+import { OutcomePills, outcomeLabel, outcomeFromScore } from './OutcomePills.jsx'
+import { PoolTable } from './PoolTable.jsx'
 
 // Bottom-sheet modal voor het eindpositie-scenario van 1 team (item 963-
 // vervolg) - zelfde sjabloon als MatchModal.jsx. Toont het backend-verdict
@@ -18,35 +20,6 @@ const VERDICT_STYLE = {
   guaranteed: { label: 'Gegarandeerd', color: '#6fbf8b' },
   impossible: { label: 'Onmogelijk', color: '#d97a6c' },
   depends:    { label: 'Afhankelijk van resterende wedstrijden', color: C.gold },
-}
-
-// "Wat als"-uitslagknop: home/away-team-naam voor H/A, "Gelijk" voor D.
-function outcomeLabel(outcome, homeTeam, awayTeam) {
-  if (outcome === 'H') return homeTeam
-  if (outcome === 'A') return awayTeam
-  return 'Gelijk'
-}
-
-function OutcomePills({ match, fixedOutcome, recommendedOutcome, onPick }) {
-  return (
-    <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-      {['H', 'D', 'A'].map(outcome => {
-        const active = fixedOutcome === outcome
-        const recommended = !fixedOutcome && recommendedOutcome === outcome
-        return (
-          <button key={outcome} onClick={() => onPick(outcome)} style={{
-            flex: 1, fontSize: 10, padding: '4px 2px', borderRadius: 6, cursor: 'pointer',
-            fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            background: active ? C.gold : 'transparent',
-            color: active ? C.deep : recommended ? '#6fbf8b' : C.muted,
-            border: `1px solid ${active ? C.gold : recommended ? '#6fbf8b' : C.border}`,
-          }}>
-            {outcomeLabel(outcome, match.home_team, match.away_team)}
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 // Balkjes met de kans op elke eindpositie tegelijk (item 963-vervolg) - elke
@@ -85,7 +58,8 @@ function PositionDistributionChart({ distribution, selected, onSelect }) {
 
 export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   const [targetPosition, setTargetPosition] = useState(1)
-  const [fixed, setFixed] = useState({})           // { matchId: outcome }
+  const [fixed, setFixed] = useState({})           // { matchId: { outcome: 'H'|'D'|'A', score: [thuis,uit]|null } }
+  const [scoreOpenFor, setScoreOpenFor] = useState(null)  // matchId waarvan de score-stepper open staat (item 1034)
   // Een wedstrijd blijft op zijn plek staan nadat 'm is vastgezet (ook al
   // levert de backend 'm dan niet meer als pivotal terug) - matchOrder/
   // matchInfo onthouden welke wedstrijden ooit getoond zijn en hoe ze eruit
@@ -116,16 +90,22 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   }, [data])
 
   function pickOutcome(matchId, outcome) {
-    setFixed(prev => {
-      const next = { ...prev }
-      if (next[matchId] === outcome) delete next[matchId]  // nogmaals klikken = aanname opheffen
-      else next[matchId] = outcome
-      return next
-    })
+    if (fixed[matchId]?.outcome === outcome) {
+      // 2e klik op de al-actieve knop = score-stepper openen/sluiten (item 1034)
+      setScoreOpenFor(id => (id === matchId ? null : matchId))
+      return
+    }
+    setScoreOpenFor(null)
+    setFixed(prev => ({ ...prev, [matchId]: { outcome, score: null } }))
+  }
+
+  function updateScore(matchId, score) {
+    setFixed(prev => ({ ...prev, [matchId]: { outcome: outcomeFromScore(score[0], score[1]), score } }))
   }
 
   function clearFixed(matchId) {
     setFixed(prev => { const next = { ...prev }; delete next[matchId]; return next })
+    setScoreOpenFor(id => (id === matchId ? null : id))
   }
 
   useEffect(() => {
@@ -207,7 +187,8 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                           {isFixed ? (
                             <div style={{ fontSize: 10, color: C.gold, textAlign: 'center',
                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                              Aanname: {outcomeLabel(fixed[matchId], m.home_team, m.away_team)}
+                              Aanname: {outcomeLabel(fixed[matchId].outcome, m.home_team, m.away_team)}
+                              {fixed[matchId].score && ` (${fixed[matchId].score[0]}-${fixed[matchId].score[1]})`}
                               <button onClick={() => clearFixed(matchId)} style={{
                                 background: 'none', border: 'none', padding: 0, color: C.gold,
                                 cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>✕ wis</button>
@@ -220,13 +201,29 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                           )}
                           <OutcomePills
                             match={m}
-                            fixedOutcome={fixed[matchId]}
+                            fixedOutcome={fixed[matchId]?.outcome}
+                            fixedScore={fixed[matchId]?.score}
                             recommendedOutcome={m.hint?.recommended_outcome}
+                            scoreOpen={scoreOpenFor === matchId}
                             onPick={outcome => pickOutcome(matchId, outcome)}
+                            onToggleScore={() => setScoreOpenFor(id => (id === matchId ? null : matchId))}
+                            onScoreChange={score => updateScore(matchId, score)}
                           />
                         </div>
                       )
                     })}
+                  </div>
+                </>
+              )}
+
+              {Object.keys(fixed).length > 0 && data.standings?.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                    textTransform: 'uppercase', color: C.muted, marginBottom: 8 }}>
+                    Herberekende stand
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <PoolTable rows={data.standings.map(s => ({ ...s, id: s.team_id }))} compact />
                   </div>
                 </>
               )}
