@@ -66,8 +66,8 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   // zagen, zodat de rij niet verdwijnt en het kruisje bereikbaar blijft.
   const [matchOrder, setMatchOrder] = useState([])
   const [matchInfo, setMatchInfo] = useState({})
-  const { data, error } = useScenario(pid, teamId, targetPosition, fixed)
-  const { data: distribution } = usePositionDistribution(pid, teamId, fixed)
+  const { data, error, loading } = useScenario(pid, teamId, targetPosition, fixed)
+  const { data: distribution, loading: distLoading } = usePositionDistribution(pid, teamId, fixed)
   const verdictInfo = data ? VERDICT_STYLE[data.verdict] : null
 
   useEffect(() => {
@@ -114,42 +114,40 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
     return () => { document.body.style.overflow = prev }
   }, [])
 
+  // item 1033: volledig scherm i.p.v. bottom-sheet - meer ruimte, en data
+  // blijft (licht gedimd) zichtbaar tijdens een herbevraging i.p.v. plaats
+  // te maken voor een "Laden..."-flits (useScenario.js/usePositionDistribution
+  // nullen data niet meer bij elke wat-als-wijziging).
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'flex-end' }}
-      onClick={onClose}>
-      <div style={{ background: C.deep, borderRadius: '16px 16px 0 0', width: '100%',
-        maxHeight: '82dvh', overflowY: 'auto',
-        border: `1px solid ${C.border}`, borderBottom: 'none' }}
-        onClick={e => e.stopPropagation()}>
-
-        <div style={{ position: 'sticky', top: 0, background: C.deep,
-          padding: '14px 16px 10px', borderBottom: `1px solid ${C.border}`,
-          display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24,
-              letterSpacing: '0.06em', color: C.gold, lineHeight: 1 }}>
-              {teamName}
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Eindpositie-scenario</div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: C.deep,
+      display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'sticky', top: 0, background: C.deep,
+        padding: '14px 16px 10px', borderBottom: `1px solid ${C.border}`,
+        display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24,
+            letterSpacing: '0.06em', color: C.gold, lineHeight: 1 }}>
+            {teamName}
           </div>
-          <button onClick={onClose} style={{ background: 'transparent',
-            border: `1px solid ${C.border}`, borderRadius: 8,
-            padding: '6px 12px', color: C.muted, fontSize: 13,
-            cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Eindpositie-scenario</div>
         </div>
+        <button onClick={onClose} style={{ background: 'transparent',
+          border: `1px solid ${C.border}`, borderRadius: 8,
+          padding: '6px 12px', color: C.muted, fontSize: 13,
+          cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+      </div>
 
-        <div style={{ padding: '14px 14px 32px' }}>
-          <PositionDistributionChart distribution={distribution} selected={targetPosition} onSelect={setTargetPosition} />
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 32px' }}>
+        <PositionDistributionChart distribution={distribution} selected={targetPosition} onSelect={setTargetPosition} />
 
-          {error && (
-            <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '12px 0' }}>{error}</div>
-          )}
-          {!error && !data && (
-            <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '12px 0' }}>Laden…</div>
-          )}
-          {data && (
-            <>
+        {error && (
+          <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '12px 0' }}>{error}</div>
+        )}
+        {!error && !data && (
+          <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '12px 0' }}>Laden…</div>
+        )}
+        {data && (
+          <div style={{ opacity: loading || distLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: verdictInfo.color,
                 marginBottom: data.verdict === 'depends' && data.goal_probability != null ? 4 : 12 }}>
                 {verdictInfo.label}
@@ -233,9 +231,8 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                   {data.caveats.map((c, i) => <div key={i}>· {c}</div>)}
                 </div>
               )}
-            </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
