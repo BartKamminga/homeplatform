@@ -35,6 +35,12 @@ from services.scenario_engine import VariableElement
 DEFAULT_MU = 3.0  # AANNAME: startpunt voor gem. doelpunten/team/wedstrijd zonder enige poule-data
 DEFAULT_HOME_ADVANTAGE = 1.1  # AANNAME: vaste factor, niet per poule gemeten (geen home/away-score-split beschikbaar)
 SHRINKAGE_K = 4.0  # Bayesiaanse pseudo-observaties richting het poule-gemiddelde (empirical-Bayes shrinkage)
+# mu is een poulebreed gemiddelde (item 1038) en heeft dus een hogere drempel nodig dan de per-team
+# SHRINKAGE_K voordat de ruwe steekproef de DEFAULT_MU-prior mag overstemmen - played_total telt elke
+# wedstrijd dubbel (thuis+uit), dus 20 komt neer op ~10 echte wedstrijden in de poule. Zonder deze
+# shrinkage trekt zelfs 1 wat-als-aanname (met de standaard 1-doelpunt-marge uit item 1035) mu van 3.0
+# naar <1.0, wat de kansberekening voor de HELE poule verstoort, niet alleen de betrokken teams.
+MU_SHRINKAGE_K = 20.0
 MAX_GOALS_PER_TEAM = 6  # AANNAME: score-kans boven de 6 doelpunten wordt afgekapt en herverdeeld (verwaarloosbare staart)
 
 
@@ -48,9 +54,14 @@ class TeamStrength:
 def estimate_team_strengths(standings: List[TeamStat]) -> Tuple[Dict[int, TeamStrength], float]:
     """Method-of-moments schatting + Bayesiaanse shrinkage naar 1.0 (=
     poule-gemiddeld). mu = gemiddeld aantal doelpunten per team per
-    wedstrijd, over de hele poule."""
+    wedstrijd, over de hele poule - zelf ook geshrinkt naar DEFAULT_MU
+    (item 1038, zie MU_SHRINKAGE_K) zodat een klein aantal wat-als-
+    aannames (met de standaard 1-doelpunt-marge uit item 1035) mu niet
+    naar een onrealistische waarde trekt."""
     played_total = sum(s.played for s in standings)
-    mu = (sum(s.goals_for for s in standings) / played_total) if played_total > 0 else DEFAULT_MU
+    raw_mu = (sum(s.goals_for for s in standings) / played_total) if played_total > 0 else DEFAULT_MU
+    mu_shrink = played_total / (played_total + MU_SHRINKAGE_K)
+    mu = mu_shrink * raw_mu + (1 - mu_shrink) * DEFAULT_MU
 
     strengths: Dict[int, TeamStrength] = {}
     for s in standings:

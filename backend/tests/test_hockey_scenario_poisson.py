@@ -28,6 +28,31 @@ def test_mu_falls_back_to_default_without_any_played_matches():
     assert mu == DEFAULT_MU
 
 
+def test_mu_stays_close_to_default_with_only_one_played_match():
+    # item 1038: 1 wat-als-aanname (standaard 1-0-marge, item 1035) mag mu
+    # niet laten kelderen naar <1 - dat trok voorheen de kansberekening voor
+    # de HELE poule scheef, niet alleen de betrokken teams.
+    standings = [
+        _team(1, "A", played=1, gf=1, ga=0), _team(2, "B", played=1, gf=0, ga=1),
+        _team(3, "C", played=0), _team(4, "D", played=0),
+    ]
+    _, mu = estimate_team_strengths(standings)
+    assert mu > 2.0  # blijft dicht bij DEFAULT_MU=3.0, niet naar het rauwe 0.5 kelderen
+
+
+def test_mu_converges_to_raw_sample_as_real_data_accumulates():
+    # Met veel gespeelde wedstrijden (played_total=80 >> MU_SHRINKAGE_K=20)
+    # moet mu duidelijk dichter bij de rauwe steekproef (10/20=0.5) liggen
+    # dan bij DEFAULT_MU (3.0) - shrinkage is een early-season-demping, geen
+    # permanente cap.
+    standings = [
+        _team(1, "A", played=20, gf=10, ga=10), _team(2, "B", played=20, gf=10, ga=10),
+        _team(3, "C", played=20, gf=10, ga=10), _team(4, "D", played=20, gf=10, ga=10),
+    ]
+    _, mu = estimate_team_strengths(standings)
+    assert mu < 1.5
+
+
 def test_strong_attack_pulls_estimate_above_one():
     # B scoort 3x zoveel per wedstrijd als het poule-gemiddelde.
     standings = [_team(1, "A", played=10, gf=10, ga=10), _team(2, "B", played=10, gf=30, ga=10)]
