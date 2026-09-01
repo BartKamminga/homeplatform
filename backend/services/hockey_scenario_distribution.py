@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from services.hockey_scenario import (
-    CAVEATS, MAX_EXACT_COMBINATIONS, SAMPLE_SIZE, _apply_fixed_outcomes, _build_elements, _position_of,
-    _serialize_standings,
+    CAVEATS, DEFAULT_MARGIN_SCORE, MAX_EXACT_COMBINATIONS, SAMPLE_SIZE, _apply_fixed_outcomes, _build_elements,
+    _position_of, _serialize_standings,
 )
 from services.hockey_scenario_bounds import relevant_matches
 from services.hockey_scenario_format import describe_outcome
@@ -56,7 +56,11 @@ def simulate_position_distribution(
         for m in fixed_applied:
             outcome = fixed_outcomes[m.match_id]
             score = (fixed_scores or {}).get(m.match_id)
-            score_suffix = f" ({score[0]}-{score[1]})" if score is not None else ""
+            if score is not None:
+                score_suffix = f" ({score[0]}-{score[1]})"
+            else:
+                margin = DEFAULT_MARGIN_SCORE[outcome]
+                score_suffix = f" (aangenomen {margin[0]}-{margin[1]})"
             caveats.append(
                 f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))}"
                 f"{score_suffix} ({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."

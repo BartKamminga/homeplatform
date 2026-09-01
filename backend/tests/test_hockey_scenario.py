@@ -128,11 +128,13 @@ def test_fixed_outcomes_bakes_assumption_into_standings_and_shrinks_search_space
     assert a_wins.combinations_total == 0
     assert any("Aanname" in c and "A wint" in c for c in a_wins.caveats)
 
+    # B wint van A in match 1 (standaard marge 0-1, item 1035) - dat doelsaldo
+    # weegt nu ook mee in de tiebreak, dus zelfs met 1 wedstrijd nog open kan
+    # A niet meer op gelijke punten winnen (B wint dan altijd de tiebreak).
     b_wins = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={1: "A"})
-    assert b_wins.verdict == "depends"
-    assert b_wins.combinations_total == 3
-    assert len(b_wins.pivotal_matches) == 1
-    assert b_wins.pivotal_matches[0]["match_id"] == 2
+    assert b_wins.verdict == "impossible"
+    assert b_wins.combinations_total == 0
+    assert any("aangenomen 0-1" in c for c in b_wins.caveats)
 
 
 def test_fixed_outcomes_ignores_unknown_match_id():
@@ -179,13 +181,39 @@ def test_standings_field_reflects_current_state_without_fixed_outcomes():
     assert summary.standings[0]["gf"] == 12 and summary.standings[0]["ga"] == 8
 
 
-def test_fixed_outcomes_without_score_leaves_goal_difference_unchanged():
+def test_fixed_outcomes_without_score_assume_a_one_goal_margin():
+    # item 1035: winst/verlies zonder expliciete score telt als 1-0/0-1 i.p.v.
+    # helemaal geen doelsaldo-wijziging.
     standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
     remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
     summary = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={1: "H"})
     a_row = next(s for s in summary.standings if s["team_id"] == 1)
-    assert a_row["pts"] == 13  # +3 voor de winst
-    assert a_row["gf"] == 12 and a_row["ga"] == 8  # AANNAME: geen score gegeven, doelsaldo blijft ongewijzigd
+    b_row = next(s for s in summary.standings if s["team_id"] == 2)
+    assert a_row["pts"] == 13 and a_row["gf"] == 13 and a_row["ga"] == 8
+    assert b_row["pts"] == 10 and b_row["gf"] == 8 and b_row["ga"] == 9
+    assert any("aangenomen 1-0" in c for c in summary.caveats)
+
+
+def test_fixed_outcomes_draw_without_score_stays_zero_zero():
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1, fixed_outcomes={1: "D"})
+    a_row = next(s for s in summary.standings if s["team_id"] == 1)
+    assert a_row["pts"] == 11 and a_row["gf"] == 12 and a_row["ga"] == 8  # marge 0-0, dus geen wijziging
+    assert any("aangenomen 0-0" in c for c in summary.caveats)
+
+
+def test_fixed_scores_still_overrides_the_default_margin():
+    standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 10, gf=8, ga=8)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(
+        standings, remaining, team_id=1, target_position=1,
+        fixed_outcomes={1: "H"}, fixed_scores={1: (4, 2)},
+    )
+    a_row = next(s for s in summary.standings if s["team_id"] == 1)
+    assert a_row["gf"] == 16 and a_row["ga"] == 10
+    assert any("(4-2)" in c for c in summary.caveats)
+    assert not any("aangenomen" in c for c in summary.caveats)
 
 
 def test_fixed_scores_updates_goal_difference_in_standings():

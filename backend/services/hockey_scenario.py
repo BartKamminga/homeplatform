@@ -153,6 +153,10 @@ def _build_elements(matches: List[MatchFixture]) -> List[VariableElement]:
     ]
 
 
+DEFAULT_MARGIN_SCORE = {"H": (1, 0), "D": (0, 0), "A": (0, 1)}  # AANNAME (item 1035): winst/verlies zonder
+# expliciete score telt voor de herberekende stand als 1 doelpunt verschil, i.p.v. helemaal geen doelsaldo-wijziging.
+
+
 def _apply_fixed_outcomes(
     standings: List[TeamStat], remaining: List[MatchFixture], fixed_outcomes: Dict[int, str],
     fixed_scores: Optional[Dict[int, Tuple[int, int]]] = None,
@@ -162,10 +166,12 @@ def _apply_fixed_outcomes(
     simuleren verzameling - de rest van de engine hoeft hier niets van te
     weten. Onbekende match_id's of ongeldige uitkomsten worden genegeerd.
 
-    fixed_scores is optioneel (item 1034) en per match_id een (h,a)-score -
-    als die aanwezig is, telt ook het doelsaldo van die ene wedstrijd mee
-    (apply_score_outcome), anders alleen de uitslag zoals voorheen (geen
-    doelsaldo-wijziging, zie moduledocstring)."""
+    fixed_scores is optioneel (item 1034) en per match_id een (h,a)-score.
+    Zonder expliciete score valt dit terug op DEFAULT_MARGIN_SCORE (item
+    1035) zodat de herberekende stand ook dan een realistisch doelsaldo
+    toont - dit raakt alleen de handmatig vastgezette wedstrijden, niet de
+    gesimuleerde resterende wedstrijden (die blijven score-loos, zie
+    moduledocstring)."""
     fixed_matches = [m for m in remaining if m.match_id in fixed_outcomes]
     free_remaining = [m for m in remaining if m.match_id not in fixed_outcomes]
 
@@ -174,8 +180,8 @@ def _apply_fixed_outcomes(
         outcome = fixed_outcomes[m.match_id]
         if outcome not in MATCH_OUTCOMES:
             continue
-        score = (fixed_scores or {}).get(m.match_id)
-        state = apply_score_outcome(state, m, score) if score is not None else _apply_outcome(state, m, outcome)
+        score = (fixed_scores or {}).get(m.match_id) or DEFAULT_MARGIN_SCORE[outcome]
+        state = apply_score_outcome(state, m, score)
     return list(state.values()), free_remaining, fixed_matches
 
 
@@ -198,7 +204,11 @@ def simulate_position(
         for m in fixed_applied:
             outcome = fixed_outcomes[m.match_id]
             score = (fixed_scores or {}).get(m.match_id)
-            score_suffix = f" ({score[0]}-{score[1]})" if score is not None else ""
+            if score is not None:
+                score_suffix = f" ({score[0]}-{score[1]})"
+            else:
+                margin = DEFAULT_MARGIN_SCORE[outcome]
+                score_suffix = f" (aangenomen {margin[0]}-{margin[1]})"
             caveats.append(
                 f"Aanname: {describe_outcome(outcome, name_lookup.get(m.home_team_id), name_lookup.get(m.away_team_id))}"
                 f"{score_suffix} ({name_lookup.get(m.home_team_id)} vs {name_lookup.get(m.away_team_id)})."
