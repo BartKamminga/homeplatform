@@ -172,6 +172,31 @@ def test_poisson_pivotal_hint_still_uses_hda_labels():
     assert hint["recommended_outcome"] in ("H", "D", "A")
 
 
+def test_poisson_adds_objective_predicted_score_independent_of_the_hint():
+    # item 1042: predicted_score/predicted_outcome is de eigen inschatting
+    # van het model voor deze ene wedstrijd, los van het doel-gecorreleerde
+    # hint-mechanisme (dat kan een heel andere uitslag aanbevelen als dat
+    # nodig is om het doel te halen).
+    standings = [_team(1, "A", 10, gf=30, ga=5), _team(2, "B", 10, gf=5, ga=30)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1, method="poisson")
+    m = summary.pivotal_matches[0]
+    assert m["predicted_outcome"] in ("H", "D", "A")
+    assert len(m["predicted_score"]) == 2
+    assert all(isinstance(g, int) and g >= 0 for g in m["predicted_score"])
+    # A heeft veruit de sterkste aanval/verdediging - het model voorspelt A als winnaar.
+    assert m["predicted_outcome"] == "H"
+
+
+def test_uniform_method_leaves_predicted_score_empty():
+    standings = [_team(1, "A", 10), _team(2, "B", 10)]
+    remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]
+    summary = simulate_position(standings, remaining, team_id=1, target_position=1)
+    m = summary.pivotal_matches[0]
+    assert m["predicted_score"] is None
+    assert m["predicted_outcome"] is None
+
+
 def test_standings_field_reflects_current_state_without_fixed_outcomes():
     standings = [_team(1, "A", 10, gf=12, ga=8), _team(2, "B", 7, gf=6, ga=9)]
     remaining = [MatchFixture(match_id=1, home_team_id=1, away_team_id=2)]

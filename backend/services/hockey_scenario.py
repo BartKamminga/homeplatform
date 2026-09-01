@@ -20,7 +20,9 @@ from sqlmodel import Session, select
 from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_scenario_bounds import bound_verdict, relevant_matches
 from services.hockey_scenario_format import describe_examples, describe_outcome, outcome_hint
-from services.hockey_scenario_poisson import bucket_outcome_breakdown, build_poisson_elements
+from services.hockey_scenario_poisson import (
+    bucket_outcome_breakdown, build_poisson_elements, estimate_team_strengths, match_score_distribution,
+)
 from services.hockey_scenario_types import (
     POINTS_DRAW, POINTS_LOSS, POINTS_WIN, MatchFixture, TeamStat, apply_score_outcome,
 )
@@ -250,15 +252,29 @@ def simulate_position(
     by_key = {
         f"match_{m.match_id if m.match_id is not None else i}": m for i, m in enumerate(pruned)
     }
+    # Objectieve teamsterkte-voorspelling per wedstrijd (item 1042) - los van
+    # de doel-gecorreleerde hint hieronder (outcome_hint: "welke uitslag
+    # helpt JOUW team"). predicted_* is de eigen inschatting van het model
+    # voor die ene wedstrijd, ongeacht welk doel er nagestreefd wordt.
+    strengths_mu = estimate_team_strengths(standings) if method == "poisson" else None
+
     pivotal = []
     for key, m in by_key.items():
         home_name, away_name = name_by_team.get(m.home_team_id), name_by_team.get(m.away_team_id)
         breakdown = result.outcome_breakdown.get(key, {})
+        predicted_score = None
+        predicted_outcome = None
         if method == "poisson":
             breakdown = bucket_outcome_breakdown(breakdown)
+            strengths, mu = strengths_mu
+            dist = match_score_distribution(strengths, mu, m.home_team_id, m.away_team_id)
+            predicted_score = list(max(dist, key=dist.get))
+            h, a = predicted_score
+            predicted_outcome = "H" if h > a else ("A" if h < a else "D")
         pivotal.append({
             "match_id": m.match_id, "round": m.round, "home_team": home_name, "away_team": away_name,
             "hint": outcome_hint(breakdown, home_name, away_name),
+            "predicted_score": predicted_score, "predicted_outcome": predicted_outcome,
         })
     if len(pruned) < len(remaining):
         caveats.append(

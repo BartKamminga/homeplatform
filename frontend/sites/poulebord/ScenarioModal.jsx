@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { C } from './constants.js'
+import { C, pillStyle } from './constants.js'
 import { useScenario, usePositionDistribution } from './useScenario.js'
 import { OutcomePills, outcomeLabel, outcomeFromScore } from './OutcomePills.jsx'
 import { PouleCard } from './PouleCard.jsx'
@@ -58,6 +58,7 @@ function PositionDistributionChart({ distribution, selected, onSelect }) {
 
 export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   const [targetPosition, setTargetPosition] = useState(1)
+  const [method, setMethod] = useState('auto')  // 'auto' (uniform) of 'poisson' (item 1042 modus-toggle)
   const [fixed, setFixed] = useState({})           // { matchId: { outcome: 'H'|'D'|'A', score: [thuis,uit]|null } }
   const [scoreOpenFor, setScoreOpenFor] = useState(null)  // matchId waarvan de score-stepper open staat (item 1034)
   // Een wedstrijd blijft op zijn plek staan nadat 'm is vastgezet (ook al
@@ -66,8 +67,8 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
   // zagen, zodat de rij niet verdwijnt en het kruisje bereikbaar blijft.
   const [matchOrder, setMatchOrder] = useState([])
   const [matchInfo, setMatchInfo] = useState({})
-  const { data, error, loading } = useScenario(pid, teamId, targetPosition, fixed)
-  const { data: distribution, loading: distLoading } = usePositionDistribution(pid, teamId, fixed)
+  const { data, error, loading } = useScenario(pid, teamId, targetPosition, fixed, method)
+  const { data: distribution, loading: distLoading } = usePositionDistribution(pid, teamId, fixed, method)
   const verdictInfo = data ? VERDICT_STYLE[data.verdict] : null
 
   useEffect(() => {
@@ -138,6 +139,11 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 32px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          <button onClick={() => setMethod('auto')} style={pillStyle(method === 'auto', 'sm')}>Uniform</button>
+          <button onClick={() => setMethod('poisson')} style={pillStyle(method === 'poisson', 'sm')}>Op teamsterkte</button>
+        </div>
+
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
           {Object.keys(fixed).length > 0 && data?.standings?.length > 0 && (
             <div style={{ flex: '1 1 280px' }}>
@@ -204,11 +210,16 @@ export function ScenarioModal({ pid, teamId, teamName, onClose }) {
                                 background: 'none', border: 'none', padding: 0, color: C.gold,
                                 cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>✕ wis</button>
                             </div>
+                          ) : m.hint?.required ? (
+                            <div style={{ fontSize: 10, color: '#6fbf8b', textAlign: 'center' }}>✓ {m.hint.label}</div>
+                          ) : method === 'poisson' && m.predicted_outcome ? (
+                            <div style={{ fontSize: 10, color: C.muted, textAlign: 'center' }}>
+                              Meest waarschijnlijk: {outcomeLabel(m.predicted_outcome, m.home_team, m.away_team)}
+                              {m.predicted_score && ` (${m.predicted_score[0]}-${m.predicted_score[1]})`}
+                            </div>
                           ) : m.hint && (
-                            <div style={{ fontSize: 10, color: m.hint.required ? '#6fbf8b' : C.muted, textAlign: 'center' }}>
-                              {m.hint.required
-                                ? <>✓ {m.hint.label}</>
-                                : <>Helpt het meest: {m.hint.label} ({Math.round(m.hint.recommended_rate * 100)}% van de gunstige scenario's)</>}
+                            <div style={{ fontSize: 10, color: C.muted, textAlign: 'center' }}>
+                              Helpt het meest: {m.hint.label} ({Math.round(m.hint.recommended_rate * 100)}% van de gunstige scenario's)
                             </div>
                           )}
                           <OutcomePills

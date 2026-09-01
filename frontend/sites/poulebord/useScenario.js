@@ -1,58 +1,69 @@
 import { useState, useEffect } from 'react'
 import { getHockeyPouleSimulation, getHockeyPoulePositionDistribution } from './api.js'
 
-// Los van hooks.js (staat al op 342 regels) - item 963-vervolg: haalt het
-// eindpositie-scenario op voor 1 team in 1 poule. Geen cache nodig, elke
-// combinatie pid/teamId/targetPosition/fixedOutcomes wordt maar zelden
-// herhaald opgevraagd binnen 1 sessie.
-//
-// item 1033: data blijft bewust staan tijdens een herbevraging (alleen
-// `loading` gaat aan) i.p.v. steeds naar null te resetten - dat gaf een
-// storende "Laden..."-flits bij elke wat-als-wijziging, terwijl de vorige
-// uitkomst nog prima bruikbaar is. `cancelled` voorkomt dat een trage oudere
-// request een snellere, nieuwere response alsnog overschrijft.
-// fixedOutcomes: { [matchId]: 'H'|'D'|'A' } - "wat als"-aannames (optioneel)
-export function useScenario(pid, teamId, targetPosition, fixedOutcomes = {}) {
+// item 1040: wacht na de laatste wijziging even (debounce) voordat de
+// dure berekening echt wordt opgevraagd - anders vuurt elke score-stepper-
+// klik of H/D/A-keuze meteen een eigen request af, en bij snel achter
+// elkaar invoeren stapelt dat op terwijl een vorige berekening nog loopt.
+const DEBOUNCE_MS = 500
+
+// Gedeelde debounce/stale-while-loading/cancelled-guard-logica (item 1033 +
+// 1040) voor useScenario en usePositionDistribution hieronder - scheelt
+// duplicatie, het enige verschil tussen de 2 hooks is de fetch-fn en de
+// dependency-lijst.
+function useDebouncedFetch(enabled, fetchFn, errorMessage, deps) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
-  const fixedKey = JSON.stringify(Object.entries(fixedOutcomes).sort())
 
   useEffect(() => {
     let cancelled = false
     setError(null)
-    if (!pid || !teamId || !targetPosition) return
+    if (!enabled) return undefined
     setLoading(true)
-    getHockeyPouleSimulation(pid, teamId, targetPosition, fixedOutcomes)
-      .then(d => { if (!cancelled) setData(d) })
-      .catch(() => { if (!cancelled) setError('Kon scenario niet berekenen') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [pid, teamId, targetPosition, fixedKey])
+    const timer = setTimeout(() => {
+      fetchFn()
+        .then(d => { if (!cancelled) setData(d) })
+        .catch(() => { if (!cancelled) setError(errorMessage) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
 
   return { data, error, loading }
 }
 
-// item 963-vervolg: kans op elke eindpositie tegelijk (1 t/m team_count),
-// zelfde "wat als"-aannames als useScenario. Zelfde stale-while-loading-
-// gedrag als hierboven (item 1033).
-export function usePositionDistribution(pid, teamId, fixedOutcomes = {}) {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+// Los van hooks.js (staat al op 342 regels) - item 963-vervolg: haalt het
+// eindpositie-scenario op voor 1 team in 1 poule. Geen cache nodig, elke
+// combinatie pid/teamId/targetPosition/fixedOutcomes/method wordt maar
+// zelden herhaald opgevraagd binnen 1 sessie.
+//
+// item 1033: data blijft bewust staan tijdens een herbevraging (alleen
+// `loading` gaat aan) i.p.v. steeds naar null te resetten - dat gaf een
+// storende "Laden..."-flits bij elke wat-als-wijziging, terwijl de vorige
+// uitkomst nog prima bruikbaar is.
+// fixedOutcomes: { [matchId]: 'H'|'D'|'A' } - "wat als"-aannames (optioneel)
+// method: 'auto' (uniform, standaard) of 'poisson' (item 1042 modus-toggle)
+export function useScenario(pid, teamId, targetPosition, fixedOutcomes = {}, method = 'auto') {
   const fixedKey = JSON.stringify(Object.entries(fixedOutcomes).sort())
+  return useDebouncedFetch(
+    !!(pid && teamId && targetPosition),
+    () => getHockeyPouleSimulation(pid, teamId, targetPosition, fixedOutcomes, method),
+    'Kon scenario niet berekenen',
+    [pid, teamId, targetPosition, fixedKey, method],
+  )
+}
 
-  useEffect(() => {
-    let cancelled = false
-    setError(null)
-    if (!pid || !teamId) return
-    setLoading(true)
-    getHockeyPoulePositionDistribution(pid, teamId, fixedOutcomes)
-      .then(d => { if (!cancelled) setData(d) })
-      .catch(() => { if (!cancelled) setError('Kon verdeling niet berekenen') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [pid, teamId, fixedKey])
-
-  return { data, error, loading }
+// item 963-vervolg: kans op elke eindpositie tegelijk (1 t/m team_count),
+// zelfde "wat als"-aannames als useScenario. Zelfde debounce/stale-while-
+// loading-gedrag als hierboven.
+export function usePositionDistribution(pid, teamId, fixedOutcomes = {}, method = 'auto') {
+  const fixedKey = JSON.stringify(Object.entries(fixedOutcomes).sort())
+  return useDebouncedFetch(
+    !!(pid && teamId),
+    () => getHockeyPoulePositionDistribution(pid, teamId, fixedOutcomes, method),
+    'Kon verdeling niet berekenen',
+    [pid, teamId, fixedKey, method],
+  )
 }

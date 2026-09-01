@@ -25,12 +25,16 @@ function withFixedOutcomes(params, fixedOutcomes = {}) {
   }
   return params
 }
-export const getHockeyPouleSimulation = (pid, teamId, targetPosition, fixedOutcomes = {}) => {
-  const params = withFixedOutcomes(new URLSearchParams({ team_id: teamId, target_position: targetPosition }), fixedOutcomes)
+export const getHockeyPouleSimulation = (pid, teamId, targetPosition, fixedOutcomes = {}, method = 'auto') => {
+  const params = withFixedOutcomes(
+    new URLSearchParams({ team_id: teamId, target_position: targetPosition, method }), fixedOutcomes,
+  )
   return api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?${params.toString()}`)
 }
-export const getHockeyPoulePositionDistribution = (pid, teamId, fixedOutcomes = {}) => {
-  const params = withFixedOutcomes(new URLSearchParams({ team_id: teamId, type: 'position_distribution' }), fixedOutcomes)
+export const getHockeyPoulePositionDistribution = (pid, teamId, fixedOutcomes = {}, method = 'auto') => {
+  const params = withFixedOutcomes(
+    new URLSearchParams({ team_id: teamId, type: 'position_distribution', method }), fixedOutcomes,
+  )
   return api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?${params.toString()}`)
 }
 export const getCompetitionMatches = (cid) =>
