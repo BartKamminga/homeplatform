@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { listCommands, createCommand, updateCommand, deleteCommand, listActions } from '../api.js'
+import { listCommands, createCommand, updateCommand, deleteCommand, listActions, fetchScriptText } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
+import Modal from '@components/Modal.jsx'
+import CopyButton from '@components/CopyButton.jsx'
 import CommandStepsEditor from './CommandStepsEditor.jsx'
 import { labelStyle, fieldStyle, iconBtnStyle } from './commandStyles.js'
 
@@ -58,6 +60,7 @@ export default function CommandsPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [confirmAction, confirmDialog] = useConfirm()
+  const [scriptText, setScriptText] = useState(null) // null=modal dicht, string=inhoud (ook '' tijdens laden)
 
   function load() {
     listCommands().then(setCommands).catch(e => setError(e.message))
@@ -66,6 +69,15 @@ export default function CommandsPage() {
     load()
     listActions().then(setActions).catch(() => {})
   }, [])
+
+  // Bart: "zodat ik om de download-scans heen kan" - sommige omgevingen
+  // scannen/blokkeren .ps1-downloads; het script eerst laten ZIEN met een
+  // kopieer-naar-klembord-knop omzeilt dat (plakken in een nieuw bestand in
+  // VSCode werkt dan altijd, downloaden blijft als optie ernaast bestaan).
+  function openScript() {
+    setScriptText('')
+    fetchScriptText().then(setScriptText).catch(e => setScriptText(`[FOUT] ${e.message}`))
+  }
 
   function openNew() {
     setForm(EMPTY_FORM)
@@ -147,19 +159,40 @@ export default function CommandsPage() {
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
           De catalogus die MindBox.ps1s -Explain uitleest - nieuwe commandos hoeven niet meer in code.
         </span>
-        <a
-          href="/api/mindbox/commands/script"
-          download="MindBox.ps1"
-          title="Download het script, bv. voor een nieuwe laptop - daarna eenmalig .\MindBox.ps1 -Setup -Env <env>"
+        <button
+          onClick={openScript}
+          title="Bekijk MindBox.ps1 en kopieer de tekst, bv. voor een nieuwe laptop - daarna eenmalig .\MindBox.ps1 -Setup -Env <env>"
           style={{
             marginLeft: 'auto', padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8,
             border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
-            textDecoration: 'none', cursor: 'pointer',
+            cursor: 'pointer',
           }}
         >
-          ⬇ MindBox.ps1 downloaden
-        </a>
+          👁 MindBox.ps1 bekijken
+        </button>
       </div>
+
+      {scriptText !== null && (
+        <Modal title="MindBox.ps1" onClose={() => setScriptText(null)} width={760}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <CopyButton text={scriptText} label="Kopieer naar klembord" icon="⧉" />
+            <a
+              href="/api/mindbox/commands/script"
+              download="MindBox.ps1"
+              style={{ fontSize: 12, color: 'var(--color-text-muted)' }}
+            >
+              of toch downloaden
+            </a>
+          </div>
+          <pre style={{
+            margin: 0, padding: 12, maxHeight: '60vh', overflow: 'auto', fontSize: 11, lineHeight: 1.5,
+            background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 8,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}>
+            {scriptText || 'Laden...'}
+          </pre>
+        </Modal>
+      )}
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
 

@@ -194,3 +194,13 @@ export function deleteCommand(id) {
 export function listActions() {
   return api.get('/api/mindbox/commands/actions')
 }
+
+// Ongeauthenticeerd endpoint - platte tekst, dus geen api.get() (die
+// verwacht JSON). Gebruikt voor de "bekijk + kopieer"-modal (Bart: "zodat ik
+// om de download-scans heen kan" - sommige omgevingen scannen/blokkeren
+// .ps1-downloads, kopiëren naar het klembord omzeilt dat).
+export async function fetchScriptText() {
+  const res = await fetch('/api/mindbox/commands/script')
+  if (!res.ok) throw new Error('Ophalen van het script mislukt')
+  return res.text()
+}
