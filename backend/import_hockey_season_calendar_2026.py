@@ -172,6 +172,47 @@ for dist, phases in DISTRICT_JEUGD.items():
         ))
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Landelijke ronde-kalender (op Bart's verzoek, "landelijk gemiddelde"-keuze):
+# 1 gedeelde datumreeks per fase, NIET per district/leeftijdscategorie (die
+# lopen tot ~1-2 weken uit elkaar per regio-vakantie - dat exact per district
+# vastleggen is een veel grotere, foutgevoeligere klus). Wekelijks ritme
+# vanuit de bondscompetitie-PDF, met de vakantieweek(en) overgeslagen.
+# district/age_category blijven leeg = landelijk gemiddelde, geen specifieke
+# klasse. Rounds (totaal-veld) blijft leeg op ronde-rijen; round_number is
+# hier de betekenisvolle kolom, start_date == end_date (1 speelweekend).
+# ──────────────────────────────────────────────────────────────────────────────
+ROUND_DATES = {
+    "veld_najaar": [
+        date(2026, 9, 5), date(2026, 9, 12), date(2026, 9, 19), date(2026, 9, 26),
+        date(2026, 10, 3),
+        # herfstvakantie (10-18 okt) overgeslagen
+        date(2026, 10, 24), date(2026, 10, 31), date(2026, 11, 7), date(2026, 11, 14),
+        date(2026, 11, 21), date(2026, 11, 28),
+    ],
+    "zaal": [
+        date(2026, 12, 6), date(2026, 12, 13), date(2026, 12, 20),
+        # kerstvakantie overgeslagen
+        date(2027, 1, 10), date(2027, 1, 17), date(2027, 1, 24), date(2027, 1, 31),
+        date(2027, 2, 7), date(2027, 2, 14),
+    ],
+    "veld_voorjaar": [
+        date(2027, 3, 6), date(2027, 3, 13), date(2027, 3, 20),
+        # paasweekend (27 mrt) overgeslagen
+        date(2027, 4, 3), date(2027, 4, 10), date(2027, 4, 17),
+        # meivakantie (24 apr) overgeslagen
+        date(2027, 5, 8), date(2027, 5, 15), date(2027, 5, 22), date(2027, 5, 29),
+    ],
+}
+for phase, dates in ROUND_DATES.items():
+    for i, d in enumerate(dates, start=1):
+        ROWS.append(dict(
+            season=SEASON, district=None, age_category=None,
+            klasse_scope="Landelijk gemiddelde (bondscompetitie-ritme)",
+            phase=phase, start_date=d, end_date=d, rounds=None, round_number=i,
+            source_url=BONDSCOMPETITIE_URL, notes=None,
+        ))
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Vooruitkijken (item 1045): wanneer verwachten we de 2027-2028-kalender?
 # Geen district/age_category/klasse_scope - deze rij is seizoen-breed.
 # ──────────────────────────────────────────────────────────────────────────────

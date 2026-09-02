@@ -25,6 +25,7 @@ class HockeySeasonCalendar(SQLModel, table=True):
     start_date:    date
     end_date:      date
     rounds:        Optional[int] = None
+    round_number:  Optional[int] = None
     source_url:    Optional[str] = None
     notes:         Optional[str] = None
     created_at:    datetime = Field(default_factory=datetime.utcnow)

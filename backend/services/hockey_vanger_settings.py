@@ -184,6 +184,16 @@ def get_season_calendar_events(session: Session, range_from: date, range_to: dat
     for r in rows:
         label = PHASE_LABELS.get(r.phase, r.phase)
         scope = " / ".join(p for p in [r.district, r.age_category] if p)
+        # Ronde-rijen (round_number gezet, start_date == end_date) zijn 1
+        # speelweekend, geen fase-span - die krijgen 1 "Ronde N"-event i.p.v.
+        # de start+eind-paren van de fase-spanrijen hierboven.
+        if r.round_number is not None:
+            if range_from <= r.start_date <= range_to:
+                events.append({"date": r.start_date.isoformat(), "kind": "round", "phase": r.phase,
+                                "district": r.district, "age_category": r.age_category,
+                                "rounds": r.rounds, "notes": r.notes,
+                                "label": f"Ronde {r.round_number} {label}"})
+            continue
         if r.phase == "new_schedule":
             suffix = f" (seizoen {r.season})"
         else:
