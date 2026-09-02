@@ -46,6 +46,15 @@ export function mindboxCaseRunCommand(caseId, env) {
   return `${env}.MindBox.Case.Run(#${caseId})`
 }
 
+// Item 1052 (Bart): "een scan commando op een case voor het zoeken naar
+// contacten. binnen de sessie matchen we dan verder" - de scan zelf (mails
+// downloaden, sender/to/cc extraheren) gebeurt door Claude; het matchen
+// naar bestaande/nieuwe contacten gebeurt interactief in de sessie, niet
+// automatisch blind gekoppeld.
+export function mindboxCaseScanContactsCommand(caseId, env) {
+  return `${env}.MindBox.Case.ScanContacts(#${caseId})`
+}
+
 // "env.MindBox.File.Enhance(#id) --> om extra info toe te voegen aan het
 // infoveld van een bestand" - lichtgewicht per-bestand-actie (vervangt het
 // vervallen Run.File): geen volledige verwerking, alleen het bestand laten

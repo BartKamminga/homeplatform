@@ -42,6 +42,10 @@
 #                                                  uploaden (-UploadAttachment -ParentId <item_id> -FilePath <pad> -Env {env})
 #   {Env}.MindBox.Case.Save(naam)             ->  huidige sessie samenvatten, dan -SaveSession -Name "naam" -Text "<samenvatting>" -Env {env}
 #   {Env}.MindBox.Case.Load(naam)             ->  -LoadSession -Name "naam" -Env {env}, output lezen en daarmee verdergaan
+#   {Env}.MindBox.Case.ScanContacts(#case_id) ->  alle bestanden in de case downloaden (-Run -All -CaseId <case_id> -Env {env}),
+#                                                  sender/to/cc extraheren (bv. Python extract-msg), gevonden e-mailadressen
+#                                                  BINNEN DE SESSIE matchen/bevestigen (niet blind koppelen), dan per bestand
+#                                                  koppelen (-Contact -Id <item_id> -Email <email> -Name "..." -Env {env})
 
 param(
     [switch]$Setup,

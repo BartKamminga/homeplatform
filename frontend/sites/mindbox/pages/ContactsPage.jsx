@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listContacts, createContact, updateContact, deleteContact } from '../api.js'
+import { listContacts, createContact, updateContact, deleteContact, listItems, listCases } from '../api.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 
 const EMPTY = { email: '', display_name: '', notes: '' }
@@ -9,6 +9,8 @@ const EMPTY = { email: '', display_name: '', notes: '' }
 // alleen op e-mailadres (uit .msg sender/to/cc via -Contact/link_item_contact).
 export default function ContactsPage() {
   const [contacts, setContacts] = useState([])
+  const [items, setItems] = useState([])
+  const [cases, setCases] = useState([])
   const [editing, setEditing] = useState(null) // null=gesloten, {}=nieuw, object=bewerken
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
@@ -16,8 +18,19 @@ export default function ContactsPage() {
 
   function load() {
     listContacts().then(setContacts).catch(e => setError(e.message))
+    listItems().then(setItems).catch(() => {})
+    listCases().then(setCases).catch(() => {})
   }
   useEffect(() => { load() }, [])
+
+  // Item 1052 (Bart): "waar een contact mee te maken heeft?" - afgeleid uit
+  // alle items (ongefilterd) + cases, geen apart endpoint nodig.
+  function itemsOf(contactId) {
+    return items.filter(i => i.contact_id === contactId)
+  }
+  function caseNameOf(caseId) {
+    return cases.find(c => c.id === caseId)?.name
+  }
 
   function openNew() {
     setForm(EMPTY)
@@ -118,8 +131,20 @@ export default function ContactsPage() {
               </div>
             </div>
             {c.notes && (
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto', marginBottom: 8 }}>
                 {c.notes}
+              </div>
+            )}
+            {!!itemsOf(c.id).length && (
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>GEBRUIKT BIJ</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {itemsOf(c.id).map(item => (
+                    <div key={item.id} style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      {item.case_id ? `📁 ${caseNameOf(item.case_id) || item.case_id}` : '📥 Bestanden'} · {item.original_filename}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

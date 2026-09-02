@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem,
-  listResponses, createResponse, updateResponse, downloadResponseEml, listContexts,
+  listResponses, createResponse, updateResponse, downloadResponseEml, listContexts, listContacts,
 } from '../api.js'
-import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
+import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, mindboxCaseRunCommand, mindboxCaseScanContactsCommand, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 
 function fmtDate(iso) {
@@ -127,6 +127,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [responses, setResponses] = useState([])
   const [events, setEvents] = useState([])
   const [contexts, setContexts] = useState([])
+  const [contacts, setContacts] = useState([])
   const [env, setEnv] = useState('Local')
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -143,7 +144,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     listResponses(caseObj.id).then(setResponses).catch(() => {})
     listCaseEvents(caseObj.id).then(setEvents).catch(() => {})
     listContexts().then(setContexts).catch(() => {})
+    listContacts().then(setContacts).catch(() => {})
   }
+
+  // Item 1052 (Bart): "kan ik zien welke contacten met een case te maken
+  // hebben?" - afgeleid uit de al-opgehaalde items van deze case, geen
+  // apart endpoint nodig.
+  const caseContacts = contacts.filter(c => items.some(i => i.contact_id === c.id))
   useEffect(() => { load() }, [caseObj.id])
   useEffect(() => { fetchMindboxEnv().then(setEnv) }, [])
 
@@ -324,6 +331,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
         >
           ⧉ {mindboxCaseRunCommand(caseObj.id, env)}
         </button>
+        <button
+          onClick={() => handleCopy(mindboxCaseScanContactsCommand(caseObj.id, env))}
+          title="Kopieer commando om deze case te scannen op contacten"
+          style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
+        >
+          ⧉ {mindboxCaseScanContactsCommand(caseObj.id, env)}
+        </button>
         {copyMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{copyMsg}</span>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>🎭 Context:</span>
@@ -339,6 +353,19 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
       </div>
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
+
+      {/* Contacten (item 1052): afgeleid uit welke items in deze case aan een
+          contact gekoppeld zijn. */}
+      {!!caseContacts.length && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>CONTACTEN:</span>
+          {caseContacts.map(c => (
+            <span key={c.id} style={{ padding: '2px 8px', fontSize: 11, border: '1px solid var(--color-border)', borderRadius: 99 }}>
+              👤 {c.display_name || c.email}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Items in deze case */}
       <section>
