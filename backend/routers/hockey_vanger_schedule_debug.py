@@ -320,6 +320,8 @@ def rebuild_schedule_now(
 @router.post("/vanger/schedule/promote-now")
 def promote_schedule_now(
     within_hours: int = 0,
+    mode: str = "hours",
+    limit: Optional[int] = None,
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
@@ -335,16 +337,41 @@ def promote_schedule_now(
     de periodieke pass) - bij een grote achterstand dus mogelijk meerdere
     keren klikken, dat is bedoeld gedrag.
 
-    within_hours (Bart, 1-09-2026: "versnellen kijk niet over dagen heen?...
-    ik zou toch de daily_fallback steeds een dag naar voren halen") - default
-    0 promoveert alleen wat al ECHT due is (ongewijzigd gedrag). >0 trekt de
-    promotie-cutoff vooruit (planned_at <= nu+within_hours), zodat ook nog
-    niet-due rijen binnen dat venster alvast gepromoveerd worden - bewust een
-    losse cutoff-parameter i.p.v. een aparte functie, promote_due_schedule_
-    entries kent zelf geen verschil tussen 'echt due' en 'bewust vervroegd'."""
+    item 1032 (Bart, 1-09-2026, na uitgebreide discussie over welke items
+    uberhaupt vroeger dan hun natuurlijke planned_at mogen): 'echt
+    tijdgebonden items (start/end/live) niet noodzakelijkerwijs EERDER
+    uitgevoerd... alleen poules met missende starttijden, clubs/club zaken' -
+    promote_due_schedule_entries's ACCELERATABLE_REASONS-whitelist
+    (unknown_start_recheck/club_scan/club_list/new_or_empty) zorgt hier al
+    voor; deze endpoint hoeft zelf geen whitelist-logica te kennen, alleen de
+    juiste cutoff/limit door te geven. Modes:
+    - 'hours' (default): cutoff = nu + within_hours (0 = alleen wat al due is).
+    - 'tomorrow': cutoff = einde van morgen (kalenderdag-gebaseerd, niet rollend).
+    - 'until_next_start_check': cutoff = het eerstvolgende geplande
+      match_start_check-moment - een natuurlijke grens i.p.v. een arbitraire
+      tijdsduur (Bart: 'of alles tot de eerste wedstrijd start check').
+    - 'count': promoot de eerstvolgende `limit` promoveerbare items
+      (op planned_at gesorteerd), ongeacht hoe ver vooruit dat reikt
+      (Bart: 'misschien is het eenvoudiger promoot de volgende x items')."""
     now = datetime.utcnow()
-    cutoff = now + timedelta(hours=within_hours) if within_hours > 0 else now
-    promoted = promote_due_schedule_entries(session, cutoff, cap=STEP_MAX_CMDS)
+    if mode == "count":
+        promoted = promote_due_schedule_entries(session, now, cap=STEP_MAX_CMDS, limit_promoted=limit or 1)
+    else:
+        if mode == "tomorrow":
+            tomorrow = now + timedelta(days=1)
+            cutoff = tomorrow.replace(hour=23, minute=59, second=59, microsecond=0)
+        elif mode == "until_next_start_check":
+            next_start = session.exec(
+                select(ScanScheduleEntry)
+                .where(ScanScheduleEntry.status == "planned")
+                .where(ScanScheduleEntry.reason == "match_start_check")
+                .where(ScanScheduleEntry.planned_at >= now)
+                .order_by(col(ScanScheduleEntry.planned_at).asc())
+            ).first()
+            cutoff = next_start.planned_at if next_start else now
+        else:
+            cutoff = now + timedelta(hours=within_hours) if within_hours > 0 else now
+        promoted = promote_due_schedule_entries(session, now, cap=STEP_MAX_CMDS, pull_forward_until=cutoff)
     if promoted > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()

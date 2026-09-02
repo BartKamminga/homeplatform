@@ -62,8 +62,15 @@ export const browseSchedule = (params) => {
 }
 export const getScheduleSummary = () => api.get('/api/hockey/vanger/schedule/summary')
 export const rebuildScheduleNow  = () => api.post('/api/hockey/vanger/schedule/rebuild')
-export const promoteScheduleNow  = (withinHours = 0) =>
-  api.post(`/api/hockey/vanger/schedule/promote-now${withinHours ? `?within_hours=${withinHours}` : ''}`)
+// item 1032: preset heet 'mode' - 'hours' (met within_hours), 'tomorrow',
+// 'until_next_start_check' of 'count' (met limit). Alleen relevante params
+// meesturen zodat de defaults van de backend (within_hours=0) blijven werken.
+export const promoteScheduleNow = ({ mode = 'hours', withinHours = 0, limit } = {}) => {
+  const params = new URLSearchParams({ mode })
+  if (mode === 'hours' && withinHours) params.set('within_hours', withinHours)
+  if (mode === 'count' && limit) params.set('limit', limit)
+  return api.post(`/api/hockey/vanger/schedule/promote-now?${params.toString()}`)
+}
 
 // Publieke detail-endpoints (wedstrijden + stand per poule)
 export const getCompetitionMatches   = (cid)    => api.get(`/api/hockey/public/competitions/${cid}/matches`)

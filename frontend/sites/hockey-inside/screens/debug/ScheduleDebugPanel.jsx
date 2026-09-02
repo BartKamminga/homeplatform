@@ -106,15 +106,24 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
   // vanger-queue terecht i.p.v. te wachten op de eerstvolgende periodieke
   // cyclus (profile_scan_interval_min).
   //
-  // promoteWindow (Bart, 1-09-2026: "versnellen kijk niet over dagen heen?
-  // ik zou toch de daily_fallback steeds een dag naar voren halen") - 0 =
-  // ongewijzigd (alleen echt due), >0 trekt de promotie-cutoff bewust vooruit
-  // zodat ook nog niet-due rijen binnen dat venster alvast gepromoveerd worden.
-  const [promoteWindow, setPromoteWindow] = useState(0)
+  // item 1032 (Bart, 1-09-2026): "versnellen kijk niet over dagen heen?" +
+  // "echt tijdgebonden items niet noodzakelijkerwijs eerder uitvoeren, alleen
+  // poules met missende starttijden, clubs/club zaken" - de backend past de
+  // ACCELERATABLE_REASONS-whitelist toe (unknown_start_recheck/club_scan/
+  // club_list/new_or_empty), deze UI hoeft alleen de preset te kiezen.
+  const [promotePreset, setPromotePreset] = useState('due')
   function promoteNow() {
     setPromoting(true)
     setPromoteMsg('')
-    promoteScheduleNow(promoteWindow)
+    const opts = {
+      due:                    { mode: 'hours', withinHours: 0 },
+      hours24:                { mode: 'hours', withinHours: 24 },
+      days3:                  { mode: 'hours', withinHours: 72 },
+      tomorrow:               { mode: 'tomorrow' },
+      until_next_start_check: { mode: 'until_next_start_check' },
+      next10:                 { mode: 'count', limit: 10 },
+    }[promotePreset]
+    promoteScheduleNow(opts)
       .then(r => {
         setPromoteMsg(`${r.promoted} gepromoveerd naar de queue`)
         load()
@@ -190,19 +199,22 @@ export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) 
         </button>
         {rebuildMsg && <span style={muted}>{rebuildMsg}</span>}
         <select
-          value={promoteWindow}
-          onChange={e => setPromoteWindow(Number(e.target.value))}
-          title="Ook nog niet due entries binnen dit venster alvast promoveren (bv. de daily_fallback van morgen vandaag al laten uitvoeren)."
-          style={{ ...inputStyle, minWidth: 130 }}
+          value={promotePreset}
+          onChange={e => setPromotePreset(e.target.value)}
+          title="Niet-wedstrijd-gebonden items (missende starttijden, clubs) mogen vervroegd worden; wedstrijd-timing en resultaat-checks (daily_fallback/manual_weekly/match_*) blijven altijd op hun natuurlijke tijdstip staan."
+          style={{ ...inputStyle, minWidth: 170 }}
         >
-          <option value={0}>Alleen wat nu due is</option>
-          <option value={24}>Ook komende 24u</option>
-          <option value={72}>Ook komende 3 dagen</option>
+          <option value="due">Alleen wat nu due is</option>
+          <option value="hours24">Ook komende 24u</option>
+          <option value="days3">Ook komende 3 dagen</option>
+          <option value="tomorrow">Alles van morgen</option>
+          <option value="until_next_start_check">Tot eerste match-start-check</option>
+          <option value="next10">Volgende 10 items</option>
         </select>
         <button
           onClick={promoteNow}
           disabled={promoting}
-          title="Promoveert scanschema-entries binnen het gekozen venster nu meteen naar de echte vanger-queue en maakt Ghost wakker indien nodig."
+          title="Promoveert scanschema-entries binnen de gekozen preset nu meteen naar de echte vanger-queue en maakt Ghost wakker indien nodig."
           style={{ ...ghostBtn, opacity: promoting ? 0.6 : 1 }}
         >
           ⏩ {promoting ? 'Bezig...' : 'Queue nu versnellen'}

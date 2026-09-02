@@ -422,10 +422,11 @@ def test_promote_schedule_now_reports_zero_when_nothing_is_due(session):
 
 
 def test_promote_schedule_now_with_within_hours_pulls_forward_a_not_yet_due_entry(session):
-    """item 1026 (Bart, 1-09-2026: 'versnellen kijk niet over dagen heen? ik
-    zou toch de daily_fallback steeds een dag naar voren halen') - een entry
-    die pas over 20u due is, wordt zonder within_hours NIET gepromoveerd, wel
-    met within_hours=24."""
+    """item 1026/1032 (Bart, 1-09-2026: 'versnellen kijk niet over dagen heen?')
+    - een entry die pas over 20u due is, wordt zonder within_hours NIET
+    gepromoveerd, wel met within_hours=24. unknown_start_recheck (niet
+    tijdgebonden aan een wedstrijd) staat op de ACCELERATABLE_REASONS-
+    whitelist, dus dit mag vervroegd worden."""
     from datetime import datetime, timedelta
 
     from models.hockey_discovery import VangerCmd
@@ -434,7 +435,7 @@ def test_promote_schedule_now_with_within_hours_pulls_forward_a_not_yet_due_entr
     session.add(ScanScheduleEntry(
         target_type="poule", target_id=445, cmd_type="get_poule",
         params=json.dumps({"poule_id": 445, "team_id": 92, "label": "Pull Forward Team"}),
-        planned_at=now + timedelta(hours=20), reason="daily_fallback", status="planned",
+        planned_at=now + timedelta(hours=20), reason="unknown_start_recheck", status="planned",
     ))
     session.commit()
 
@@ -444,3 +445,115 @@ def test_promote_schedule_now_with_within_hours_pulls_forward_a_not_yet_due_entr
     pulled_forward = promote_schedule_now(within_hours=24, session=session, _=None)
     assert pulled_forward["promoted"] == 1
     assert session.exec(select(VangerCmd).where(VangerCmd.cmd_type == "get_poule")).first() is not None
+
+
+def test_promote_schedule_now_never_pulls_forward_a_match_bound_or_result_check_reason(session):
+    """item 1032 (Bart, 1-09-2026): 'echt tijdgebonden items (start/end/live)
+    niet noodzakelijkerwijs EERDER uitgevoerd... alleen poules met missende
+    starttijden, clubs/club zaken' - daily_fallback/manual_weekly (in de kern
+    ook een resultaat-check) en de matchday-reasons mogen NOOIT vroeger dan
+    hun natuurlijke planned_at gepromoveerd worden, ook niet met een ruim
+    within_hours-venster. Voorkomt ook het duplicatie-risico uit item 1031
+    (bevinding 3: add_vanger_cmd dedupt niet tegen een al-done cmd)."""
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    for i, reason in enumerate(["daily_fallback", "manual_weekly", "match_start_check", "match_end_check"]):
+        session.add(ScanScheduleEntry(
+            target_type="poule", target_id=500 + i, cmd_type="get_poule",
+            params=json.dumps({"poule_id": 500 + i, "team_id": 900 + i, "label": f"Not Whitelisted {i}"}),
+            planned_at=now + timedelta(hours=20), reason=reason, status="planned",
+        ))
+    session.commit()
+
+    result = promote_schedule_now(within_hours=24, session=session, _=None)
+
+    assert result["promoted"] == 0
+    still_planned = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")).all()
+    assert len(still_planned) == 4
+
+
+def test_promote_schedule_now_tomorrow_mode_uses_end_of_calendar_day(session):
+    """item 1032: 'tomorrow'-mode moet een kalenderdag-grens gebruiken
+    (23:59:59 van morgen), niet een rollend 24u-venster."""
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    just_within_tomorrow = (now + timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
+    session.add(ScanScheduleEntry(
+        target_type="club", target_id=1, cmd_type="scan_club",
+        params=json.dumps({"external_id": "TOM_CLUB", "label": "Tomorrow Club"}),
+        planned_at=just_within_tomorrow, reason="club_scan", status="planned",
+    ))
+    session.commit()
+
+    result = promote_schedule_now(mode="tomorrow", session=session, _=None)
+
+    assert result["promoted"] == 1
+
+
+def test_promote_schedule_now_until_next_start_check_mode(session):
+    """item 1032 (Bart: 'of alles tot de eerste wedstrijd start check') -
+    cutoff = het eerstvolgende geplande match_start_check-moment."""
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=1, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 1, "team_id": 1, "label": "Before Start Check"}),
+        planned_at=now + timedelta(hours=2), reason="unknown_start_recheck", status="planned",
+    ))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=2, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 2, "team_id": 2, "label": "The Start Check Itself"}),
+        planned_at=now + timedelta(hours=3), reason="match_start_check", status="planned",
+    ))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=3, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 3, "team_id": 3, "label": "After Start Check"}),
+        planned_at=now + timedelta(hours=4), reason="unknown_start_recheck", status="planned",
+    ))
+    session.commit()
+
+    result = promote_schedule_now(mode="until_next_start_check", session=session, _=None)
+
+    # De match_start_check zelf mag niet vervroegd worden (niet whitelisted),
+    # dus alleen target_id=1 (voor de cutoff) wordt gepromoveerd - target_id=3
+    # (na de cutoff) blijft ook liggen.
+    assert result["promoted"] == 1
+    still_planned_ids = {e.target_id for e in session.exec(
+        select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")
+    ).all()}
+    assert still_planned_ids == {2, 3}
+
+
+def test_promote_schedule_now_count_mode_promotes_the_next_n_accelerable_items(session):
+    """item 1032 (Bart: 'misschien is het eenvoudiger promoot de volgende x
+    items') - telt alleen daadwerkelijk gepromoveerde (whitelisted) items
+    mee, een niet-whitelisted item ertussen wordt overgeslagen en telt niet."""
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    session.add(ScanScheduleEntry(
+        target_type="club", target_id=1, cmd_type="scan_club",
+        params=json.dumps({"external_id": "COUNT_CLUB_1", "label": "Count Club 1"}),
+        planned_at=now + timedelta(hours=1), reason="club_scan", status="planned",
+    ))
+    session.add(ScanScheduleEntry(
+        target_type="poule", target_id=2, cmd_type="get_poule",
+        params=json.dumps({"poule_id": 2, "team_id": 2, "label": "Not whitelisted"}),
+        planned_at=now + timedelta(hours=2), reason="daily_fallback", status="planned",
+    ))
+    session.add(ScanScheduleEntry(
+        target_type="club", target_id=3, cmd_type="scan_club",
+        params=json.dumps({"external_id": "COUNT_CLUB_3", "label": "Count Club 3"}),
+        planned_at=now + timedelta(hours=3), reason="club_scan", status="planned",
+    ))
+    session.commit()
+
+    result = promote_schedule_now(mode="count", limit=2, session=session, _=None)
+
+    assert result["promoted"] == 2
+    still_planned = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")).all()
+    assert len(still_planned) == 1
+    assert still_planned[0].reason == "daily_fallback"
