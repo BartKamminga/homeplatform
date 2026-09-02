@@ -44,6 +44,25 @@ def test_upload_and_list_item(client, user_token):
     assert len(listed.json()) == 1
 
 
+def test_set_parsed_text_on_an_item_and_log_a_case_event(client, user_token):
+    """Item 1051 (Bart): 'als de parsing van een .msg is gedaan, dan wil ik
+    dat kunnen inzien onder het bestand' - parsed_text is los van notes
+    (Barts eigen aantekening)."""
+    case_id = _case(client, user_token)
+    item_id = _upload(client, user_token).json()["id"]
+    client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
+
+    updated = client.patch(
+        f"/api/mindbox/items/{item_id}", json={"parsed_text": "Geextraheerde mailtekst..."}, headers=_auth(user_token)
+    )
+    assert updated.status_code == 200
+    assert updated.json()["parsed_text"] == "Geextraheerde mailtekst..."
+    assert updated.json()["notes"] is None  # blijft gescheiden van notes
+
+    events = client.get(f"/api/mindbox/cases/{case_id}/events", headers=_auth(user_token)).json()
+    assert any(e["event_type"] == "item_parsed" for e in events)
+
+
 def test_uploading_the_same_content_twice_is_rejected_as_duplicate(client, user_token):
     """Item 1051 (Bart): 'graag een melding geven direct na de upload met de
     vraag wat te doen' - een tweede upload met identieke bytes geeft 409 met
@@ -473,4 +492,93 @@ def test_deleting_a_case_also_removes_its_events(client, user_token):
 def test_a_users_case_events_are_not_visible_to_another_user(client, user_token, admin_token):
     case_id = client.post("/api/mindbox/cases", json={"name": "Prive-tijdlijn"}, headers=_auth(user_token)).json()["id"]
     res = client.get(f"/api/mindbox/cases/{case_id}/events", headers=_auth(admin_token))
+    assert res.status_code == 403
+
+
+def test_upload_suggests_a_case_based_on_reply_prefix(client, user_token):
+    """Item 1051 (Bart): 'bestanden die mogelijk bij een case horen (RE:
+    bestanden uit de mail)... als voorstel meteen koppelen aan een case' -
+    puur een suggestie in de response, nooit automatisch gekoppeld."""
+    case_id = _case(client, user_token, "SRE-vacature-kwestie")
+    first = _upload(client, user_token, filename="medior_senior SRE engineer.msg", content=b"origineel")
+    client.patch(f"/api/mindbox/items/{first.json()['id']}", json={"case_id": case_id}, headers=_auth(user_token))
+
+    reply = _upload(client, user_token, filename="RE_ medior_senior SRE engineer.msg", content=b"antwoord")
+    assert reply.status_code == 200
+    data = reply.json()
+    assert data["case_id"] is None  # NIET automatisch gekoppeld
+    assert data["suggested_case_id"] == case_id
+    assert data["suggested_case_name"] == "SRE-vacature-kwestie"
+
+
+def test_upload_does_not_suggest_a_case_for_unrelated_filenames(client, user_token):
+    case_id = _case(client, user_token, "Onduidelijke naam")
+    first = _upload(client, user_token, filename="xyz123.msg", content=b"a")
+    client.patch(f"/api/mindbox/items/{first.json()['id']}", json={"case_id": case_id}, headers=_auth(user_token))
+
+    unrelated = _upload(client, user_token, filename="heel andere naam.msg", content=b"b")
+    assert unrelated.json()["suggested_case_id"] is None
+
+
+def test_upload_into_a_case_directly_skips_the_suggestion(client, user_token):
+    case_id = _case(client, user_token)
+    res = client.post(
+        "/api/mindbox/items",
+        params={"case_id": case_id},
+        files={"file": ("test.msg", io.BytesIO(b"x"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert res.json()["suggested_case_id"] is None
+
+
+def test_edit_a_response_and_log_a_case_event(client, user_token):
+    case_id = _case(client, user_token)
+    response_id = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Eerste versie", "source_item_ids": []},
+        headers=_auth(user_token),
+    ).json()["id"]
+
+    edited = client.patch(
+        f"/api/mindbox/cases/{case_id}/responses/{response_id}",
+        json={"content": "Bijgewerkte versie"},
+        headers=_auth(user_token),
+    )
+    assert edited.status_code == 200
+    assert edited.json()["content"] == "Bijgewerkte versie"
+
+    events = client.get(f"/api/mindbox/cases/{case_id}/events", headers=_auth(user_token)).json()
+    assert any(e["event_type"] == "response_edited" for e in events)
+
+
+def test_download_response_as_eml_logs_a_sent_event(client, user_token):
+    case_id = _case(client, user_token)
+    response_id = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Concept-antwoord", "source_item_ids": []},
+        headers=_auth(user_token),
+    ).json()["id"]
+
+    eml = client.get(f"/api/mindbox/cases/{case_id}/responses/{response_id}/eml", headers=_auth(user_token))
+    assert eml.status_code == 200
+    assert eml.headers["content-type"] == "message/rfc822"
+    assert b"Concept-antwoord" in eml.content
+
+    events = client.get(f"/api/mindbox/cases/{case_id}/events", headers=_auth(user_token)).json()
+    assert any(e["event_type"] == "response_sent" for e in events)
+
+
+def test_a_users_response_cannot_be_edited_by_another_user(client, user_token, admin_token):
+    case_id = _case(client, user_token)
+    response_id = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Prive", "source_item_ids": []},
+        headers=_auth(user_token),
+    ).json()["id"]
+
+    res = client.patch(
+        f"/api/mindbox/cases/{case_id}/responses/{response_id}",
+        json={"content": "Poging tot misbruik"},
+        headers=_auth(admin_token),
+    )
     assert res.status_code == 403

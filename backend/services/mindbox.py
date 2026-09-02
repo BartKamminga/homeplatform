@@ -1,6 +1,10 @@
+import difflib
 import hashlib
+import re
 import uuid
 from datetime import datetime
+from email.message import EmailMessage
+from email.utils import formatdate
 from pathlib import Path
 
 from sqlmodel import Session, col, select
@@ -40,10 +44,53 @@ def _log_case_event(session: Session, case_id: str | None, user_id: str, event_t
     session.add(MindboxCaseEvent(case_id=case_id, user_id=user_id, event_type=event_type, description=description))
 
 
+# Outlook/mailexports vervangen ":" vaak door "_" in bestandsnamen (bv. de
+# echte upload van vandaag: "RE_ medior_senior SRE engineer.msg") - dus zowel
+# ":" als "_" als scheidingsteken na het antwoord/doorstuur-voorvoegsel.
+_REPLY_PREFIX_RE = re.compile(r"^(re|fw|fwd|aw|antw)[:_]\s*", re.IGNORECASE)
+_SUGGESTION_SIMILARITY_THRESHOLD = 0.82
+
+
+def _normalize_filename_stem(filename: str) -> str:
+    stem = Path(filename).stem.strip()
+    while True:
+        stripped = _REPLY_PREFIX_RE.sub("", stem).strip()
+        if stripped == stem:
+            return stem.lower()
+        stem = stripped
+
+
+def _find_suggested_case(session: Session, user: User, item_id: str, filename: str) -> "MindboxCase | None":
+    """Bart, item 1051: 'bestanden die mogelijk bij een case horen (RE:
+    bestanden uit de mail) of bestanden die erg op elkaar lijken... als
+    voorstel meteen koppelen aan een case (wel met extra bevestiging)' -
+    puur een SUGGESTIE, nooit automatisch koppelen. Vergelijkt de nieuwe
+    bestandsnaam (na strippen van antwoord/doorstuur-voorvoegsels) met
+    bestandsnamen van al case-gekoppelde bestanden van dezelfde gebruiker."""
+    normalized = _normalize_filename_stem(filename)
+    if not normalized:
+        return None
+    candidates = session.exec(
+        select(MindboxItem).where(
+            MindboxItem.user_id == user.id,
+            MindboxItem.id != item_id,
+            col(MindboxItem.case_id).is_not(None),
+        )
+    ).all()
+    best_case_id, best_ratio = None, 0.0
+    for candidate in candidates:
+        ratio = difflib.SequenceMatcher(None, normalized, _normalize_filename_stem(candidate.original_filename)).ratio()
+        if ratio > best_ratio:
+            best_ratio, best_case_id = ratio, candidate.case_id
+    if best_case_id and best_ratio >= _SUGGESTION_SIMILARITY_THRESHOLD:
+        return session.get(MindboxCase, best_case_id)
+    return None
+
+
 def save_upload(
     session: Session, user: User, filename: str, content: bytes, content_type: str | None,
     case_id: str | None = None, force: bool = False,
-) -> MindboxItem:
+) -> tuple[MindboxItem, "MindboxCase | None"]:
     ext = Path(filename or "upload").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
@@ -95,7 +142,11 @@ def save_upload(
     _log_case_event(session, case_id, user.id, "upload", f"Bestand geüpload: {filename}")
     session.commit()
     session.refresh(item)
-    return item
+
+    # Alleen suggereren als het bestand nog geen case heeft - anders is de
+    # vraag al beantwoord door de upload zelf.
+    suggested_case = _find_suggested_case(session, user, item.id, filename) if case_id is None else None
+    return item, suggested_case
 
 
 def get_items(session: Session, user: User, case_id: str | None = None) -> list[MindboxItem]:
@@ -115,7 +166,7 @@ def get_item(session: Session, user: User, item_id: str) -> MindboxItem:
 
 def update_item(
     session: Session, user: User, item_id: str, status: str | None, notes: str | None,
-    case_id: str | None = None, clear_case: bool = False,
+    parsed_text: str | None = None, case_id: str | None = None, clear_case: bool = False,
 ) -> MindboxItem:
     item = get_item(session, user, item_id)
     if status is not None:
@@ -125,6 +176,9 @@ def update_item(
         _log_case_event(session, item.case_id, user.id, "status_change", f"{item.original_filename}: status -> {status}")
     if notes is not None:
         item.notes = notes
+    if parsed_text is not None:
+        item.parsed_text = parsed_text
+        _log_case_event(session, item.case_id, user.id, "item_parsed", f"{item.original_filename}: tekst geextraheerd")
     if clear_case:
         _log_case_event(session, item.case_id, user.id, "item_removed", f"{item.original_filename} losgekoppeld van deze case")
         item.case_id = None
@@ -188,27 +242,79 @@ def create_response(
     for item_id in source_item_ids:
         session.add(MindboxResponseSource(response_id=response.id, item_id=item_id))
     session.commit()
-    return response
+    return _response_to_dict(session, response)
+
+
+def _response_to_dict(session: Session, response: MindboxResponse) -> dict:
+    source_ids = session.exec(
+        select(MindboxResponseSource.item_id).where(MindboxResponseSource.response_id == response.id)
+    ).all()
+    return {
+        "id": response.id,
+        "content": response.content,
+        "parent_response_id": response.parent_response_id,
+        "case_id": response.case_id,
+        "source_item_ids": list(source_ids),
+        "created_at": response.created_at,
+    }
 
 
 def get_responses(session: Session, user: User, case_id: str) -> list[dict]:
     get_case(session, user, case_id)  # bestaat + eigendom-check
     query = select(MindboxResponse).where(MindboxResponse.user_id == user.id, MindboxResponse.case_id == case_id)
     responses = session.exec(query.order_by(col(MindboxResponse.created_at).desc())).all()
-    out = []
-    for r in responses:
-        source_ids = session.exec(
-            select(MindboxResponseSource.item_id).where(MindboxResponseSource.response_id == r.id)
-        ).all()
-        out.append({
-            "id": r.id,
-            "content": r.content,
-            "parent_response_id": r.parent_response_id,
-            "case_id": r.case_id,
-            "source_item_ids": list(source_ids),
-            "created_at": r.created_at,
-        })
-    return out
+    return [_response_to_dict(session, r) for r in responses]
+
+
+def get_response(session: Session, user: User, response_id: str) -> MindboxResponse:
+    response = session.get(MindboxResponse, response_id)
+    if not response:
+        raise AppError("Response niet gevonden", status_code=404)
+    if response.user_id != user.id:
+        raise AppError("Geen toegang", status_code=403)
+    return response
+
+
+def update_response(session: Session, user: User, case_id: str, response_id: str, content: str) -> dict:
+    """Bart: 'ik kan me voorstellen dat het gepaste emailtje ook gekoppeld
+    kan worden aan het bestand... in welk formaat' - de verzonden mail zelf
+    kan gewoon als los bestand in de case ge-upload worden (bestaat al); dit
+    hier is de andere helft: het concept-antwoord zelf kunnen bijwerken naar
+    wat er uiteindelijk daadwerkelijk verstuurd is."""
+    response = get_response(session, user, response_id)
+    if response.case_id != case_id:
+        raise AppError("Response hoort niet bij deze case", status_code=404)
+    response.content = content
+    session.add(response)
+    _log_case_event(session, case_id, user.id, "response_edited", "Response bijgewerkt")
+    session.commit()
+    session.refresh(response)
+    return _response_to_dict(session, response)
+
+
+def build_response_eml(session: Session, user: User, case_id: str, response_id: str) -> bytes:
+    """Bart: 'een linkje naar een .msg, helemaal klaar voor verdere
+    verzending' - echte .msg genereren vergt Outlook-COM-automatisering
+    (Windows-only, niet beschikbaar op deze Linux-backend). .eml is het
+    standaard RFC822-formaat dat Outlook ook rechtstreeks opent/verstuurt -
+    gekozen na afstemming met Bart als praktisch equivalent."""
+    response = get_response(session, user, response_id)
+    if response.case_id != case_id:
+        raise AppError("Response hoort niet bij deze case", status_code=404)
+    case = get_case(session, user, case_id)
+
+    msg = EmailMessage()
+    msg["Subject"] = f"Re: {case.name}"
+    msg["Date"] = formatdate(localtime=True)
+    msg["From"] = user.email
+    msg.set_content(response.content)
+
+    # Bart: geen apart "verzonden"-statusveld nodig - het downloaden van de
+    # .eml IS het moment van intentie-tot-verzenden, dus dat loggen we i.p.v.
+    # een handmatige markering die je zou kunnen vergeten te zetten.
+    _log_case_event(session, case_id, user.id, "response_sent", "Response gedownload als .eml, klaar voor verzending")
+    session.commit()
+    return msg.as_bytes()
 
 
 # ---------------------------------------------------------------------------
@@ -335,8 +441,8 @@ def delete_context(session: Session, user: User, context_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 VALID_EVENT_TYPES = {
-    "upload", "status_change", "context_linked", "item_added", "item_removed",
-    "response_created", "case_created", "case_renamed", "session_note",
+    "upload", "status_change", "context_linked", "item_added", "item_removed", "item_parsed",
+    "response_created", "response_edited", "response_sent", "case_created", "case_renamed", "session_note",
 }
 
 

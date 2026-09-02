@@ -65,6 +65,12 @@ class MindboxItem(SQLModel, table=True):
     content_hash:      Optional[str] = Field(default=None, index=True)  # sha256 van de bytes - duplicaatdetectie (item 1051)
     status:            str      = Field(default="new")  # new | in_progress | done
     notes:             Optional[str] = Field(default=None)
+    # Automatisch geextraheerde platte tekst van het bestand zelf (bv. de
+    # mail-body van een .msg) - item 1051 (Bart): "als de parsing van een
+    # .msg is gedaan, dan wil ik dat kunnen inzien 'onder' het bestand".
+    # Bewust een apart veld van `notes` (dat is Bart's EIGEN aantekening,
+    # dit is de automatische extractie van de bestandsinhoud zelf).
+    parsed_text:       Optional[str] = Field(default=None)
     case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)

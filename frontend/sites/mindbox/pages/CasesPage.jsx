@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem,
-  listResponses, createResponse, listContexts,
+  listResponses, createResponse, updateResponse, downloadResponseEml, listContexts,
 } from '../api.js'
-import { copyText, mindboxFileEnhanceCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
+import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -12,7 +12,7 @@ function fmtDate(iso) {
 
 const EVENT_ICON = {
   upload: '📥', status_change: '🔄', context_linked: '🎭', item_added: '➕',
-  item_removed: '➖', response_created: '📝', case_created: '✨', case_renamed: '✏️', session_note: '💬',
+  item_removed: '➖', item_parsed: '🔎', response_created: '📝', response_edited: '✏️', response_sent: '✅', case_created: '✨', case_renamed: '✏️', session_note: '💬',
 }
 
 // Outlook-achtig: linkerkolom = cases (mappen), rechterpaneel = detail van de
@@ -130,6 +130,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [noteText, setNoteText] = useState('')
   const [copyMsg, setCopyMsg] = useState('')
   const [error, setError] = useState('')
+  const [expandedParsedId, setExpandedParsedId] = useState(null)
   const fileInputRef = useRef(null)
 
   function load() {
@@ -214,6 +215,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   }
 
   async function handleUnlink(item) {
+    if (!window.confirm(`"${item.original_filename}" loskoppelen van deze case?`)) return
     await updateItem(item.id, { clear_case: true })
     load()
     onChanged()
@@ -264,6 +266,26 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     setResponseForm(emptyResponseForm)
     setShowResponseForm(false)
     load()
+  }
+
+  const [editingResponseId, setEditingResponseId] = useState(null)
+  const [editingContent, setEditingContent] = useState('')
+
+  function handleStartEditResponse(r) {
+    setEditingResponseId(r.id)
+    setEditingContent(r.content)
+  }
+
+  async function handleSaveEditedResponse(responseId) {
+    if (!editingContent.trim()) return
+    await updateResponse(caseObj.id, responseId, { content: editingContent })
+    setEditingResponseId(null)
+    load()
+  }
+
+  async function handleDownloadEml(responseId) {
+    await downloadResponseEml(caseObj.id, responseId)
+    load()  // logt een case-event ("response_sent") - tijdlijn verversen
   }
 
   return (
@@ -318,7 +340,8 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {items.map(item => (
-            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12 }}>
+            <div key={item.id}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: expandedParsedId === item.id ? '6px 6px 0 0' : 6, fontSize: 12 }}>
               <span>{item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span></span>
               <textarea
                 defaultValue={item.notes || ''}
@@ -331,9 +354,25 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               />
               <div style={{ display: 'flex', gap: 4 }}>
                 <button onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
+                <button onClick={() => handleCopy(mindboxFileParseToTekstCommand(item.id, env))} title="Kopieer commando om de tekst van dit bestand te laten extraheren" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>🔎</button>
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
+                {item.parsed_text && (
+                  <button onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)} title="Geparste tekst tonen/verbergen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
+                    {expandedParsedId === item.id ? '▲' : '▼'}
+                  </button>
+                )}
               </div>
+            </div>
+            {expandedParsedId === item.id && item.parsed_text && (
+              <div style={{
+                padding: '8px 10px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+                borderRadius: '0 0 6px 6px', fontSize: 12, whiteSpace: 'pre-wrap', color: 'var(--color-text-muted)',
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>GEPARSTE TEKST VAN HET BESTAND</div>
+                {item.parsed_text}
+              </div>
+            )}
             </div>
           ))}
           {!items.length && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen bestanden in deze case.</div>}
@@ -390,15 +429,36 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           </div>
         )}
         {responses.map(r => (
-          <div key={r.id} style={{ padding: 8, fontSize: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, marginBottom: 6, whiteSpace: 'pre-wrap' }}>
-            {r.content}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4, fontSize: 10, color: 'var(--color-text-muted)' }}>
+          <div key={r.id} style={{ padding: 8, fontSize: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, marginBottom: 6 }}>
+            {editingResponseId === r.id ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <textarea
+                  value={editingContent}
+                  onChange={e => setEditingContent(e.target.value)}
+                  style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
+                />
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setEditingResponseId(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
+                  <button onClick={() => handleSaveEditedResponse(r.id)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ whiteSpace: 'pre-wrap' }}>{r.content}</div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6, fontSize: 10, color: 'var(--color-text-muted)' }}>
               <span>{fmtDate(r.created_at)}</span>
               {r.source_item_ids.map(id => {
                 const source = items.find(i => i.id === id)
                 return <span key={id} style={{ padding: '1px 6px', border: '1px solid var(--color-border)', borderRadius: 99 }}>📎 {source?.original_filename || id}</span>
               })}
               {r.parent_response_id && <span style={{ fontStyle: 'italic' }}>↳ vervolg op een eerdere response</span>}
+              {editingResponseId !== r.id && (
+                <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                  <button onClick={() => copyText(r.content)} title="Kopieer naar klembord" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>📋</button>
+                  <button onClick={() => handleDownloadEml(r.id)} title="Download als .eml, klaar voor verzending" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
+                  <button onClick={() => handleStartEditResponse(r)} title="Bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
+                </div>
+              )}
             </div>
           </div>
         ))}

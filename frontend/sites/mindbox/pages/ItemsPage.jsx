@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase } from '../api.js'
-import { copyText, mindboxRunAllCommand, mindboxFileEnhanceCommand, fetchMindboxEnv } from '../utils.js'
+import { copyText, mindboxRunAllCommand, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, fetchMindboxEnv } from '../utils.js'
 
 const NEW_CASE_SENTINEL = '__new__'
 
@@ -27,6 +27,7 @@ export default function ItemsPage({ onGoToExisting }) {
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [expandedParsedId, setExpandedParsedId] = useState(null)
   const fileInputRef = useRef(null)
 
   function load() {
@@ -43,7 +44,17 @@ export default function ItemsPage({ onGoToExisting }) {
     setUploading(true)
     setError('')
     try {
-      await uploadItem(file)
+      const item = await uploadItem(file)
+      if (item.suggested_case_id) {
+        // Item 1051 (Bart): "bestanden die mogelijk bij een case horen (RE:
+        // bestanden uit de mail) of erg op elkaar lijken... als voorstel
+        // meteen koppelen aan een case (wel met extra bevestiging)" - puur
+        // een suggestie, nooit automatisch koppelen.
+        const link = window.confirm(
+          `Dit bestand lijkt gerelateerd aan case "${item.suggested_case_name}" - koppelen?`
+        )
+        if (link) await updateItem(item.id, { case_id: item.suggested_case_id })
+      }
       load()
     } catch (err) {
       if (err.status === 409 && err.extra) {
@@ -196,11 +207,11 @@ export default function ItemsPage({ onGoToExisting }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map(item => (
+          <div key={item.id}>
           <div
-            key={item.id}
             style={{
               display: 'grid', gridTemplateColumns: '1fr 130px 160px 1fr auto', gap: 12, alignItems: 'start',
-              padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8,
+              padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: expandedParsedId === item.id ? '8px 8px 0 0' : 8,
             }}
           >
             <div>
@@ -253,6 +264,13 @@ export default function ItemsPage({ onGoToExisting }) {
                 ⧉
               </button>
               <button
+                onClick={() => handleCopy(mindboxFileParseToTekstCommand(item.id, env))}
+                title="Kopieer commando om de tekst van dit bestand te laten extraheren"
+                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
+              >
+                🔎
+              </button>
+              <button
                 onClick={() => downloadItem(item.id, item.original_filename)}
                 title="Downloaden"
                 style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
@@ -271,7 +289,26 @@ export default function ItemsPage({ onGoToExisting }) {
               >
                 ✕
               </button>
+              {item.parsed_text && (
+                <button
+                  onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)}
+                  title="Geparste tekst tonen/verbergen"
+                  style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
+                >
+                  {expandedParsedId === item.id ? '▲' : '▼'}
+                </button>
+              )}
             </div>
+          </div>
+          {expandedParsedId === item.id && item.parsed_text && (
+            <div style={{
+              padding: '10px 16px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+              borderRadius: '0 0 8px 8px', fontSize: 12, whiteSpace: 'pre-wrap', color: 'var(--color-text-muted)',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>GEPARSTE TEKST VAN HET BESTAND</div>
+              {item.parsed_text}
+            </div>
+          )}
           </div>
         ))}
       </div>

@@ -11,7 +11,8 @@
 #   .\MindBox.ps1 -Run -All                                           # hetzelfde voor alle nog niet-afgeronde items
 #   .\MindBox.ps1 -Run -All -CaseId <id>                              # hetzelfde, beperkt tot 1 case
 #   .\MindBox.ps1 -Status -Id <item_id> -Value done                   # status bijwerken
-#   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken
+#   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken (Bart's EIGEN aantekening)
+#   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #
@@ -22,10 +23,12 @@
 # Object.Actie-volgorde (Case.Run, File.Enhance - niet andersom), en zonder
 # Entity-segment voor commando's die globaal werken (Run(all)). Vertaling
 # naar een aanroep hier:
-#   {Env}.MindBox.Run(all)                 ->  -Run -All -Env {env}
-#   {Env}.MindBox.Case.Run(#case_id)       ->  -Run -All -CaseId <case_id> -Env {env}
-#   {Env}.MindBox.File.Enhance(#item_id)   ->  bestand+briefing bekijken (-Run -Id <item_id> -Env {env}),
-#                                               dan notities aanvullen (-Note -Id <item_id> -Text "..." -Env {env})
+#   {Env}.MindBox.Run(all)                    ->  -Run -All -Env {env}
+#   {Env}.MindBox.Case.Run(#case_id)          ->  -Run -All -CaseId <case_id> -Env {env}
+#   {Env}.MindBox.File.Enhance(#item_id)      ->  bestand+briefing bekijken (-Run -Id <item_id> -Env {env}),
+#                                                  dan notities aanvullen (-Note -Id <item_id> -Text "..." -Env {env})
+#   {Env}.MindBox.File.ParseToTekst(#item_id) ->  bestand bekijken (-Run -Id <item_id> -Env {env}), inhoud
+#                                                  extraheren, dan opslaan (-ParsedText -Id <item_id> -Text "..." -Env {env})
 
 param(
     [switch]$Setup,
@@ -36,6 +39,7 @@ param(
     [switch]$Run,
     [switch]$Status,
     [switch]$Note,
+    [switch]$ParsedText,
     [switch]$Respond,
     [switch]$AddEvent,
 
@@ -325,6 +329,16 @@ if ($Note) {
     exit 0
 }
 
+# item 1051 (Bart): "als de parsing van een .msg is gedaan, dan wil ik dat
+# kunnen inzien 'onder' het bestand" - geextraheerde platte tekst van het
+# bestand zelf, apart van -Note (dat is Barts EIGEN aantekening).
+if ($ParsedText) {
+    if (-not $Id -or -not $Text) { Write-Host "Geef -Id en -Text op"; exit 1 }
+    $item = ApiPatch "/mindbox/items/$Id" @{ parsed_text = $Text }
+    Write-Host "[OK] $($item.original_filename): geparste tekst opgeslagen"
+    exit 0
+}
+
 # ---------------------------------------------------------------------------
 # Respond — concept-antwoord/rapport posten, met bronvermelding
 # ---------------------------------------------------------------------------
@@ -332,7 +346,10 @@ if ($Respond) {
     if (-not $CaseId -or -not $Content) { Write-Host "Geef -CaseId en -Content op (responses horen altijd bij een case)"; exit 1 }
     $sourceIds = @()
     if ($Ids) { $sourceIds = $Ids -split "," | ForEach-Object { $_.Trim() } }
-    $body = @{ content = $Content; source_item_ids = $sourceIds }
+    # [string[]]-cast is nodig: ConvertTo-Json zet een array met precies 1
+    # element anders om naar een kale JSON-string i.p.v. een array, wat de
+    # backend afwijst (422, list[str] verwacht een array).
+    $body = @{ content = $Content; source_item_ids = [string[]]$sourceIds }
     if ($ParentId) { $body.parent_response_id = $ParentId }
     $response = ApiPost "/mindbox/cases/$CaseId/responses" $body
     Write-Host "[OK] Response aangemaakt: $($response.id)"

@@ -39,7 +39,7 @@ export default function ContextsPage() {
   }
 
   async function remove(context) {
-    if (!window.confirm(`Context "${context.name}" verwijderen? Items die 'm gebruiken verliezen de koppeling.`)) return
+    if (!window.confirm(`Context "${context.name}" verwijderen? Cases die 'm gebruiken verliezen de koppeling.`)) return
     await deleteContext(context.id)
     load()
   }

@@ -54,6 +54,14 @@ export function mindboxFileEnhanceCommand(itemId, env) {
   return `${env}.MindBox.File.Enhance(#${itemId})`
 }
 
+// "env.MindBox.File.ParseToTekst(#item)" (Bart, item 1051) - de platte
+// tekstinhoud van het bestand zelf laten extraheren (bv. de mail-body van
+// een .msg) en opslaan in parsed_text, zichtbaar 'onder' het bestand in de
+// UI. Losstaand van Enhance (dat vult notes, Barts EIGEN aantekening).
+export function mindboxFileParseToTekstCommand(itemId, env) {
+  return `${env}.MindBox.File.ParseToTekst(#${itemId})`
+}
+
 const ENV_LABELS = { production: 'Prod', acceptatie: 'Acc', development: 'Local' }
 
 // Zelfde bron als EnvBanner (frontend/core/EnvBanner.jsx): /api/config geeft
