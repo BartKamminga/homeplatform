@@ -4,8 +4,8 @@ from sqlmodel import Session, col, select
 
 from core.exceptions import AppError
 from models.core import User
-from models.mindbox import MindboxContact, MindboxItem
-from services.mindbox import get_item
+from models.mindbox import MindboxContact, MindboxItemContact
+from services.mindbox import get_item, item_to_dict
 
 # Item 1052: Contact is los van Context (dat gaat over HOE Bart antwoordt) -
 # dit gaat over WIE de andere partij is. v1 matcht bewust alleen op
@@ -71,19 +71,45 @@ def update_contact(
 
 def delete_contact(session: Session, user: User, contact_id: str) -> None:
     contact = get_contact(session, user, contact_id)
-    for item in session.exec(select(MindboxItem).where(MindboxItem.contact_id == contact_id)).all():
-        item.contact_id = None
-        session.add(item)
+    for link in session.exec(select(MindboxItemContact).where(MindboxItemContact.contact_id == contact_id)).all():
+        session.delete(link)
     session.delete(contact)
     session.commit()
 
 
-def link_item_contact(session: Session, user: User, item_id: str, email: str, display_name: str | None = None) -> MindboxItem:
+def link_item_contact(session: Session, user: User, item_id: str, email: str, display_name: str | None = None) -> dict:
+    """Item 1052 (Bart): 'kan ik meerdere contacten aan een bestand
+    koppelen?' - een mail heeft vaak meerdere deelnemers (afzender/to/cc),
+    dus dit VOEGT TOE (many-to-many) i.p.v. de vorige set-semantiek die het
+    vorige contact overschreef. Idempotent: opnieuw koppelen van hetzelfde
+    contact aan hetzelfde item doet niets extra's."""
     item = get_item(session, user, item_id)  # bestaat + eigendom-check
     contact = find_or_create_contact(session, user, email, display_name)
-    item.contact_id = contact.id
-    item.updated_at = datetime.utcnow()
-    session.add(item)
-    session.commit()
-    session.refresh(item)
-    return item
+    existing = session.exec(
+        select(MindboxItemContact).where(
+            MindboxItemContact.item_id == item_id, MindboxItemContact.contact_id == contact.id,
+        )
+    ).first()
+    if not existing:
+        session.add(MindboxItemContact(item_id=item_id, contact_id=contact.id))
+        item.updated_at = datetime.utcnow()
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+    return item_to_dict(session, item)
+
+
+def unlink_item_contact(session: Session, user: User, item_id: str, contact_id: str) -> dict:
+    item = get_item(session, user, item_id)  # bestaat + eigendom-check
+    link = session.exec(
+        select(MindboxItemContact).where(
+            MindboxItemContact.item_id == item_id, MindboxItemContact.contact_id == contact_id,
+        )
+    ).first()
+    if link:
+        session.delete(link)
+        item.updated_at = datetime.utcnow()
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+    return item_to_dict(session, item)

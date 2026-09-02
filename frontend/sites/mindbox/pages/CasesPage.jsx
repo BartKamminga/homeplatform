@@ -150,7 +150,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   // Item 1052 (Bart): "kan ik zien welke contacten met een case te maken
   // hebben?" - afgeleid uit de al-opgehaalde items van deze case, geen
   // apart endpoint nodig.
-  const caseContacts = contacts.filter(c => items.some(i => i.contact_id === c.id))
+  const caseContacts = contacts.filter(c => items.some(i => i.contact_ids?.includes(c.id)))
   useEffect(() => { load() }, [caseObj.id])
   useEffect(() => { fetchMindboxEnv().then(setEnv) }, [])
 

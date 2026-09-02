@@ -132,6 +132,10 @@ export function linkItemContact(itemId, data) {
   return api.post(`/api/mindbox/items/${itemId}/contact`, data)
 }
 
+export function unlinkItemContact(itemId, contactId) {
+  return api.delete(`/api/mindbox/items/${itemId}/contact/${contactId}`)
+}
+
 // ---------------------------------------------------------------------------
 // Responses (altijd case-gescoped, item 1051 - los bekijken is niet relevant)
 // ---------------------------------------------------------------------------

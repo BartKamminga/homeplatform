@@ -60,7 +60,7 @@ class MindboxItemOut(BaseModel):
     parsed_text:           Optional[str]
     parent_item_id:        Optional[str]
     case_id:               Optional[str]
-    contact_id:            Optional[str]
+    contact_ids:           list[str]
     created_at:            datetime
     updated_at:            datetime
     # Alleen gevuld direct na een upload zonder case_id, als suggestie (item
@@ -124,7 +124,7 @@ def list_items(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    return svc.get_items(session, user, case_id)
+    return [svc.item_to_dict(session, i) for i in svc.get_items(session, user, case_id)]
 
 
 @router.post("/items", response_model=MindboxItemOut)
@@ -143,18 +143,7 @@ async def upload_item(
     log_action(session, "mindbox.upload", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "filename": item.original_filename, "case_id": case_id, "parent_item_id": parent_item_id})
     return {
-        "id": item.id,
-        "original_filename": item.original_filename,
-        "content_type": item.content_type,
-        "size_bytes": item.size_bytes,
-        "status": item.status,
-        "notes": item.notes,
-        "parsed_text": item.parsed_text,
-        "parent_item_id": item.parent_item_id,
-        "case_id": item.case_id,
-        "contact_id": item.contact_id,
-        "created_at": item.created_at,
-        "updated_at": item.updated_at,
+        **svc.item_to_dict(session, item),
         "suggested_case_id": suggested_case.id if suggested_case else None,
         "suggested_case_name": suggested_case.name if suggested_case else None,
     }
@@ -166,7 +155,7 @@ def list_attachments(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    return svc.get_attachments(session, user, item_id)
+    return [svc.item_to_dict(session, i) for i in svc.get_attachments(session, user, item_id)]
 
 
 @router.patch("/items/{item_id}", response_model=MindboxItemOut)
@@ -181,7 +170,7 @@ def update_item(
     )
     log_action(session, "mindbox.update", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "fields": list(data.model_dump(exclude_unset=True))})
-    return item
+    return svc.item_to_dict(session, item)
 
 
 @router.get("/items/{item_id}/download")

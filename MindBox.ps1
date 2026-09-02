@@ -15,7 +15,8 @@
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -UploadAttachment -ParentId <mail_item_id> -FilePath <lokaal_pad> [-Force]
 #   .\MindBox.ps1 -ListContacts [-Email <email>]                       # toon contacten (optioneel filteren op e-mail)
-#   .\MindBox.ps1 -Contact -Id <item_id> -Email <email> [-Name "..."]  # item koppelen aan contact (find-or-create op e-mail)
+#   .\MindBox.ps1 -Contact -Id <item_id> -Email <email> [-Name "..."]  # contact TOEVOEGEN aan item (many-to-many, find-or-create op e-mail)
+#   .\MindBox.ps1 -UnlinkContact -Id <item_id> -ContactId <contact_id> # contact loskoppelen van item
 #   .\MindBox.ps1 -ContactNote -Email <email> -Text "..."              # profiel-notitie op een contact bijwerken (find-or-create)
 #   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
@@ -44,8 +45,9 @@
 #   {Env}.MindBox.Case.Load(naam)             ->  -LoadSession -Name "naam" -Env {env}, output lezen en daarmee verdergaan
 #   {Env}.MindBox.Case.ScanContacts(#case_id) ->  alle bestanden in de case downloaden (-Run -All -CaseId <case_id> -Env {env}),
 #                                                  sender/to/cc extraheren (bv. Python extract-msg), gevonden e-mailadressen
-#                                                  BINNEN DE SESSIE matchen/bevestigen (niet blind koppelen), dan per bestand
-#                                                  koppelen (-Contact -Id <item_id> -Email <email> -Name "..." -Env {env})
+#                                                  BINNEN DE SESSIE matchen/bevestigen (niet blind koppelen), dan per deelnemer
+#                                                  koppelen (-Contact -Id <item_id> -Email <email> -Name "..." -Env {env} -
+#                                                  many-to-many, dus meerdere -Contact-aanroepen per item is normaal)
 
 param(
     [switch]$Setup,
@@ -64,6 +66,7 @@ param(
     [switch]$UploadAttachment,
     [switch]$ListContacts,
     [switch]$Contact,
+    [switch]$UnlinkContact,
     [switch]$ContactNote,
 
     [switch]$All,
@@ -74,6 +77,7 @@ param(
     [string]$Ids       = "",
     [string]$CaseId    = "",
     [string]$ParentId  = "",
+    [string]$ContactId = "",
     [string]$Value     = "",
     [string]$Text      = "",
     [string]$Content   = "",
@@ -436,14 +440,29 @@ if ($Contact) {
     if (-not $Id -or -not $Email) { Write-Host "Geef -Id (item) en -Email op"; exit 1 }
     $body = @{ email = $Email }
     if ($Name) { $body.display_name = $Name }
+    # Item 1052 (Bart): "kan ik meerdere contacten aan een bestand koppelen?"
+    # - dit VOEGT TOE (many-to-many, backend is idempotent), overschrijft
+    # dus niet meer een eerder gekoppeld contact. Roep -Contact meerdere
+    # keren aan (1x per deelnemer) om alle sender/to/cc te koppelen.
     $item = ApiPost "/mindbox/items/$Id/contact" $body
     Write-Host "[OK] $($item.original_filename): gekoppeld aan contact $Email"
     exit 0
 }
 
+if ($UnlinkContact) {
+    if (-not $Id -or -not $ContactId) { Write-Host "Geef -Id (item) en -ContactId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/items/$Id/contact/$ContactId" -Method DELETE -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): contact losgekoppeld"
+    exit 0
+}
+
 if ($ContactNote) {
     if (-not $Email -or -not $Text) { Write-Host "Geef -Email en -Text op"; exit 1 }
+    # LET OP: @() nodig op een APARTE regel - zie de array-collapse-valkuil
+    # gedocumenteerd bij -LoadSession hierboven, geldt hier net zo goed voor
+    # een resultaat van precies 1 match.
     $existing = ApiGet "/mindbox/contacts?email=$([uri]::EscapeDataString($Email))"
+    $existing = @($existing)
     if ($existing.Count -gt 0) {
         $contact = ApiPatch "/mindbox/contacts/$($existing[0].id)" @{ notes = $Text }
     } else {
@@ -577,4 +596,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Respond | -AddEvent | -SaveSession | -LoadSession"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession"

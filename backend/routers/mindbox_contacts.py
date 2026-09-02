@@ -95,5 +95,18 @@ def link_item_contact(
 ):
     item = svc.link_item_contact(session, user, item_id, data.email, data.display_name)
     log_action(session, "mindbox.item.contact_link", site="mindbox", user_id=user.id,
-               payload={"item_id": item_id, "contact_id": item.contact_id, "email": data.email})
+               payload={"item_id": item_id, "contact_ids": item["contact_ids"], "email": data.email})
+    return item
+
+
+@router.delete("/items/{item_id}/contact/{contact_id}", response_model=MindboxItemOut)
+def unlink_item_contact(
+    item_id: str,
+    contact_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    item = svc.unlink_item_contact(session, user, item_id, contact_id)
+    log_action(session, "mindbox.item.contact_unlink", site="mindbox", user_id=user.id,
+               payload={"item_id": item_id, "contact_id": contact_id})
     return item

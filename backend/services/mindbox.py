@@ -12,7 +12,10 @@ from sqlmodel import Session, col, select
 from core.exceptions import AppError
 from core.settings import settings
 from models.core import User
-from models.mindbox import MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxResponse, MindboxResponseSource
+from models.mindbox import (
+    MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxItemContact,
+    MindboxResponse, MindboxResponseSource,
+)
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
 CATEGORY = "mindbox"
@@ -162,6 +165,32 @@ def save_upload(
     return item, suggested_case
 
 
+def get_item_contact_ids(session: Session, item_id: str) -> list[str]:
+    return list(session.exec(
+        select(MindboxItemContact.contact_id).where(MindboxItemContact.item_id == item_id)
+    ).all())
+
+
+def item_to_dict(session: Session, item: MindboxItem) -> dict:
+    """Item 1052 (Bart): 'kan ik meerdere contacten aan een bestand
+    koppelen?' - contact_ids is many-to-many (zie MindboxItemContact),
+    dus hier resolven i.p.v. rechtstreeks een attribuut op MindboxItem."""
+    return {
+        "id": item.id,
+        "original_filename": item.original_filename,
+        "content_type": item.content_type,
+        "size_bytes": item.size_bytes,
+        "status": item.status,
+        "notes": item.notes,
+        "parsed_text": item.parsed_text,
+        "parent_item_id": item.parent_item_id,
+        "case_id": item.case_id,
+        "contact_ids": get_item_contact_ids(session, item.id),
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
 def get_attachments(session: Session, user: User, item_id: str) -> list[MindboxItem]:
     get_item(session, user, item_id)  # bestaat + eigendom-check
     query = select(MindboxItem).where(MindboxItem.parent_item_id == item_id).order_by(col(MindboxItem.created_at).asc())
@@ -225,6 +254,8 @@ def delete_item(session: Session, user: User, item_id: str) -> None:
     for attachment in session.exec(select(MindboxItem).where(MindboxItem.parent_item_id == item_id)).all():
         attachment.parent_item_id = None
         session.add(attachment)
+    for link in session.exec(select(MindboxItemContact).where(MindboxItemContact.item_id == item_id)).all():
+        session.delete(link)
     abs_path = _safe_path(user.id, Path(item.file_path).name)
     if abs_path.exists():
         abs_path.unlink()

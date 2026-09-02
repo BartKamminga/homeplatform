@@ -26,7 +26,7 @@ export default function ContactsPage() {
   // Item 1052 (Bart): "waar een contact mee te maken heeft?" - afgeleid uit
   // alle items (ongefilterd) + cases, geen apart endpoint nodig.
   function itemsOf(contactId) {
-    return items.filter(i => i.contact_id === contactId)
+    return items.filter(i => i.contact_ids?.includes(contactId))
   }
   function caseNameOf(caseId) {
     return cases.find(c => c.id === caseId)?.name

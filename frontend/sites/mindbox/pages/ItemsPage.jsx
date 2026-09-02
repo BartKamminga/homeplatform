@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts } from '../api.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts, unlinkItemContact } from '../api.js'
 import { copyText, mindboxRunAllCommand, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 
@@ -178,9 +178,15 @@ export default function ItemsPage({ onGoToExisting }) {
   }
 
   // Item 1052: contact-koppeling gebeurt via MindBox.ps1 -Contact (find-or-
-  // create op e-mailadres) - hier alleen tonen wie er al gekoppeld is.
-  function contactOf(item) {
-    return contacts.find(c => c.id === item.contact_id)
+  // create op e-mailadres) - hier alleen tonen wie er al gekoppeld is. Een
+  // mail heeft vaak meerdere deelnemers (afzender/to/cc), dus many-to-many.
+  function contactsOf(item) {
+    return contacts.filter(c => item.contact_ids?.includes(c.id))
+  }
+
+  async function handleUnlinkContact(item, contactId) {
+    await unlinkItemContact(item.id, contactId)
+    load()
   }
 
   return (
@@ -245,9 +251,14 @@ export default function ItemsPage({ onGoToExisting }) {
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 {fmtSize(item.size_bytes)} · {fmtDate(item.created_at)}
               </div>
-              {contactOf(item) && (
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }} title={contactOf(item).email}>
-                  👤 {contactOf(item).display_name || contactOf(item).email}
+              {!!contactsOf(item).length && (
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  {contactsOf(item).map(c => (
+                    <span key={c.id} title={c.email} style={{ marginRight: 6 }}>
+                      👤 {c.display_name || c.email}
+                      <span onClick={() => handleUnlinkContact(item, c.id)} title="Loskoppelen" style={{ marginLeft: 3, cursor: 'pointer' }}>✕</span>
+                    </span>
+                  ))}
                 </div>
               )}
             </div>

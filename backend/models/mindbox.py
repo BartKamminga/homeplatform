@@ -77,10 +77,6 @@ class MindboxItem(SQLModel, table=True):
     # Erft altijd het case_id van het ouder-item (zie services.save_upload).
     parent_item_id:    Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
     case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
-    # Item 1052 (Bart): wie is de afzender/betrokkene, los van hoe er
-    # geantwoord wordt (dat is MindboxContext). v1 koppelt alleen op
-    # e-mailadres uit het bestand zelf, zie services.mindbox_contacts.
-    contact_id:        Optional[str] = Field(default=None, foreign_key="mindbox_contacts.id")
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
 
@@ -94,9 +90,7 @@ class MindboxContact(SQLModel, table=True):
     contacts... makkelijk om te gebruiken voor verbeterde antwoorden en
     inschatting van persoon'. v1 matcht bewust ALLEEN op e-mailadres (uit
     .msg sender/to/cc, betrouwbaar) - koppelen op vrije-tekst namen is
-    onbetrouwbaar en blijft voor een latere alias-laag; contact_id op
-    MindboxItem is al wel de vaste foreign key zodat dat later zonder
-    modelwijziging kan worden toegevoegd."""
+    onbetrouwbaar en blijft voor een latere alias-laag."""
     __tablename__ = "mindbox_contacts"
 
     id:            str      = Field(default_factory=new_uuid, primary_key=True)
@@ -106,6 +100,18 @@ class MindboxContact(SQLModel, table=True):
     notes:         Optional[str] = Field(default=None)
     created_at:    datetime = Field(default_factory=datetime.utcnow)
     updated_at:    datetime = Field(default_factory=datetime.utcnow)
+
+
+class MindboxItemContact(SQLModel, table=True):
+    """Many-to-many-koppeling tussen een MindboxItem en MindboxContact -
+    item 1052 (Bart): 'kan ik meerdere contacten aan een bestand koppelen?'
+    Een mail heeft vaak meerdere deelnemers (afzender + to + cc), dus een
+    los contact_id-veld op MindboxItem (v1) bleek te beperkt. Zelfde patroon
+    als MindboxResponseSource."""
+    __tablename__ = "mindbox_item_contacts"
+
+    item_id:     str = Field(foreign_key="mindbox_items.id", primary_key=True)
+    contact_id:  str = Field(foreign_key="mindbox_contacts.id", primary_key=True)
 
 
 class MindboxResponse(SQLModel, table=True):
