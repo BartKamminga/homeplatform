@@ -4,7 +4,7 @@ elementaire -Upload-actie (rechtstreeks een bestand in een case, geen
 bijlage van een bestaand item zoals -UploadAttachment).
 
 Revision ID: 5b8d2a9f1c3e
-Revises: 7a3c9f2e1b04
+Revises: b3d8f4a91c02
 Create Date: 2026-09-02
 """
 import uuid
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "5b8d2a9f1c3e"
-down_revision = "7a3c9f2e1b04"
+down_revision = "b3d8f4a91c02"
 branch_labels = None
 depends_on = None
 
