@@ -14,6 +14,9 @@
 #   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken (Bart's EIGEN aantekening)
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -UploadAttachment -ParentId <mail_item_id> -FilePath <lokaal_pad> [-Force]
+#   .\MindBox.ps1 -ListContacts [-Email <email>]                       # toon contacten (optioneel filteren op e-mail)
+#   .\MindBox.ps1 -Contact -Id <item_id> -Email <email> [-Name "..."]  # item koppelen aan contact (find-or-create op e-mail)
+#   .\MindBox.ps1 -ContactNote -Email <email> -Text "..."              # profiel-notitie op een contact bijwerken (find-or-create)
 #   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
@@ -55,6 +58,9 @@ param(
     [switch]$SaveSession,
     [switch]$LoadSession,
     [switch]$UploadAttachment,
+    [switch]$ListContacts,
+    [switch]$Contact,
+    [switch]$ContactNote,
 
     [switch]$All,
     [switch]$Force,
@@ -68,6 +74,7 @@ param(
     [string]$Text      = "",
     [string]$Content   = "",
     [string]$Name      = "",
+    [string]$Email     = "",
     [string]$FilePath  = "",
     [string]$EventType = "session_note"
 )
@@ -268,6 +275,19 @@ if ($ListContexts) {
     exit 0
 }
 
+# item 1052: Contact is los van Context (dat gaat over HOE Bart antwoordt) -
+# dit gaat over WIE de andere partij is, herbruikbaar over cases heen.
+if ($ListContacts) {
+    $qs = if ($Email) { "?email=$([uri]::EscapeDataString($Email))" } else { "" }
+    $contacts = ApiGet "/mindbox/contacts$qs"
+    Write-Host ("{0,-38} {1,-30} {2}" -f "ID","EMAIL","NAAM")
+    Write-Host ("-" * 90)
+    foreach ($c in $contacts) {
+        Write-Host ("{0,-38} {1,-30} {2}" -f $c.id, $c.email, $c.display_name)
+    }
+    exit 0
+}
+
 # ---------------------------------------------------------------------------
 # Get — 1 item in detail
 # ---------------------------------------------------------------------------
@@ -400,6 +420,33 @@ if ($ParsedText) {
     if (-not $Id -or -not $Text) { Write-Host "Geef -Id en -Text op"; exit 1 }
     $item = ApiPatch "/mindbox/items/$Id" @{ parsed_text = $Text }
     Write-Host "[OK] $($item.original_filename): geparste tekst opgeslagen"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Contact — item 1052: koppelen op e-mailadres (find-or-create), en losstaand
+# een profiel-notitie bijwerken. Namen uit vrije tekst worden bewust NIET
+# geparst/gematcht in v1 - alleen het e-mailadres uit de bron zelf.
+# ---------------------------------------------------------------------------
+if ($Contact) {
+    if (-not $Id -or -not $Email) { Write-Host "Geef -Id (item) en -Email op"; exit 1 }
+    $body = @{ email = $Email }
+    if ($Name) { $body.display_name = $Name }
+    $item = ApiPost "/mindbox/items/$Id/contact" $body
+    Write-Host "[OK] $($item.original_filename): gekoppeld aan contact $Email"
+    exit 0
+}
+
+if ($ContactNote) {
+    if (-not $Email -or -not $Text) { Write-Host "Geef -Email en -Text op"; exit 1 }
+    $existing = ApiGet "/mindbox/contacts?email=$([uri]::EscapeDataString($Email))"
+    if ($existing.Count -gt 0) {
+        $contact = ApiPatch "/mindbox/contacts/$($existing[0].id)" @{ notes = $Text }
+    } else {
+        $contact = ApiPost "/mindbox/contacts" @{ email = $Email }
+        $contact = ApiPatch "/mindbox/contacts/$($contact.id)" @{ notes = $Text }
+    }
+    Write-Host "[OK] Contact $($contact.email): notitie opgeslagen"
     exit 0
 }
 

@@ -108,6 +108,23 @@ export function deleteContext(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Contacts (item 1052) - profiel van WIE de andere partij is, los van
+// Context (dat gaat over HOE Bart antwoordt). v1 koppelt alleen op e-mail.
+// ---------------------------------------------------------------------------
+
+export function listContacts() {
+  return api.get('/api/mindbox/contacts')
+}
+
+export function updateContact(id, data) {
+  return api.patch(`/api/mindbox/contacts/${id}`, data)
+}
+
+export function linkItemContact(itemId, data) {
+  return api.post(`/api/mindbox/items/${itemId}/contact`, data)
+}
+
+// ---------------------------------------------------------------------------
 // Responses (altijd case-gescoped, item 1051 - los bekijken is niet relevant)
 // ---------------------------------------------------------------------------
 

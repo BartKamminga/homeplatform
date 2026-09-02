@@ -5,6 +5,7 @@ import {
   listResponses, createResponse, updateResponse, downloadResponseEml, listContexts,
 } from '../api.js'
 import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
+import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -22,6 +23,7 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
   const [selected, setSelected] = useState(null)
   const [newCaseName, setNewCaseName] = useState('')
   const [error, setError] = useState('')
+  const [confirmAction, confirmDialog] = useConfirm()
 
   function loadCases() {
     listCases().then(setCases).catch(e => setError(e.message))
@@ -57,7 +59,7 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
   }
 
   async function handleDelete(c) {
-    if (!window.confirm(`Case "${c.name}" verwijderen? Bestanden blijven bestaan (verliezen de koppeling), maar responses in deze case worden verwijderd.`)) return
+    if (!(await confirmAction(`Case "${c.name}" verwijderen? Bestanden blijven bestaan (verliezen de koppeling), maar responses in deze case worden verwijderd.`))) return
     await deleteCase(c.id)
     if (selected?.id === c.id) setSelected(null)
     loadCases()
@@ -115,6 +117,7 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
           Selecteer een case, of maak een nieuwe aan.
         </div>
       )}
+      {confirmDialog}
     </div>
   )
 }
@@ -133,6 +136,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
   const fileInputRef = useRef(null)
+  const [confirmAction, confirmDialog] = useConfirm()
 
   function load() {
     listItems(caseObj.id).then(setItems).catch(() => {})
@@ -165,23 +169,28 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   // Item 1051 (Bart): "graag een melding geven direct na de upload met de
   // vraag wat te doen" - annuleren + naar het bestaande bestand/case, of
   // toch uploaden als kopie in deze case (backend ontdubbelt de naam).
-  async function handleDuplicate(file, existing) {
-    const proceed = window.confirm(
-      `Dit bestand is al eerder geupload als "${existing.original_filename}".\n\n` +
-      'OK = toch uploaden (als kopie) in deze case\n' +
-      'Annuleren = niet uploaden, naar het bestaande bestand/case gaan'
-    )
-    if (proceed) {
-      try {
-        await uploadItem(file, caseObj.id, true)
-        load()
-        onChanged()
-      } catch (err) {
-        setError(err.message)
-      }
-    } else if (existing.case_id !== caseObj.id) {
-      onGoToExisting?.(existing)
+  const [duplicatePrompt, setDuplicatePrompt] = useState(null) // { file, existing }
+
+  function handleDuplicate(file, existing) {
+    setDuplicatePrompt({ file, existing })
+  }
+
+  async function handleDuplicateUploadAnyway() {
+    const { file } = duplicatePrompt
+    setDuplicatePrompt(null)
+    try {
+      await uploadItem(file, caseObj.id, true)
+      load()
+      onChanged()
+    } catch (err) {
+      setError(err.message)
     }
+  }
+
+  function handleDuplicateGoToExisting() {
+    const { existing } = duplicatePrompt
+    setDuplicatePrompt(null)
+    if (existing.case_id !== caseObj.id) onGoToExisting?.(existing)
   }
 
   async function handleFileChange(e) {
@@ -216,7 +225,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   }
 
   async function handleUnlink(item) {
-    if (!window.confirm(`"${item.original_filename}" loskoppelen van deze case?`)) return
+    if (!(await confirmAction(`"${item.original_filename}" loskoppelen van deze case?`))) return
     await updateItem(item.id, { clear_case: true })
     load()
     onChanged()
@@ -522,6 +531,20 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           {!events.length && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen activiteit.</div>}
         </div>
       </section>
+
+      {confirmDialog}
+      <ConfirmDialog
+        open={!!duplicatePrompt}
+        confirmLabel="Toch uploaden"
+        cancelLabel="Naar bestaand bestand"
+        danger={false}
+        onConfirm={handleDuplicateUploadAnyway}
+        onCancel={handleDuplicateGoToExisting}
+      >
+        {duplicatePrompt && (
+          <>Dit bestand is al eerder geupload als "{duplicatePrompt.existing.original_filename}".</>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

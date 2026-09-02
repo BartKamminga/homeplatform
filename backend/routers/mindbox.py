@@ -60,6 +60,7 @@ class MindboxItemOut(BaseModel):
     parsed_text:           Optional[str]
     parent_item_id:        Optional[str]
     case_id:               Optional[str]
+    contact_id:            Optional[str]
     created_at:            datetime
     updated_at:            datetime
     # Alleen gevuld direct na een upload zonder case_id, als suggestie (item
@@ -151,6 +152,7 @@ async def upload_item(
         "parsed_text": item.parsed_text,
         "parent_item_id": item.parent_item_id,
         "case_id": item.case_id,
+        "contact_id": item.contact_id,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
         "suggested_case_id": suggested_case.id if suggested_case else None,

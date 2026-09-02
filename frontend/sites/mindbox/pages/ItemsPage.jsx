@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase } from '../api.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts } from '../api.js'
 import { copyText, mindboxRunAllCommand, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, fetchMindboxEnv } from '../utils.js'
+import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 
 const NEW_CASE_SENTINEL = '__new__'
 
@@ -23,6 +24,7 @@ function fmtDate(iso) {
 export default function ItemsPage({ onGoToExisting }) {
   const [items, setItems] = useState([])
   const [cases, setCases] = useState([])
+  const [contacts, setContacts] = useState([])
   const [env, setEnv] = useState('Local')
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -30,6 +32,7 @@ export default function ItemsPage({ onGoToExisting }) {
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
   const fileInputRef = useRef(null)
+  const [confirmAction, confirmDialog] = useConfirm()
 
   function load() {
     listItems().then(setItems).catch(e => setError(e.message))
@@ -37,6 +40,7 @@ export default function ItemsPage({ onGoToExisting }) {
   useEffect(() => {
     load()
     listCases().then(setCases).catch(() => {})
+    listContacts().then(setContacts).catch(() => {})
     fetchMindboxEnv().then(setEnv)
   }, [])
 
@@ -51,7 +55,7 @@ export default function ItemsPage({ onGoToExisting }) {
         // bestanden uit de mail) of erg op elkaar lijken... als voorstel
         // meteen koppelen aan een case (wel met extra bevestiging)" - puur
         // een suggestie, nooit automatisch koppelen.
-        const link = window.confirm(
+        const link = await confirmAction(
           `Dit bestand lijkt gerelateerd aan case "${item.suggested_case_name}" - koppelen?`
         )
         if (link) await updateItem(item.id, { case_id: item.suggested_case_id })
@@ -71,22 +75,28 @@ export default function ItemsPage({ onGoToExisting }) {
   // Item 1051 (Bart): "graag een melding geven direct na de upload met de
   // vraag wat te doen" - annuleren + naar het bestaande bestand/case, of
   // toch uploaden als kopie (backend ontdubbelt dan de bestandsnaam).
-  async function handleDuplicate(file, existing) {
-    const proceed = window.confirm(
-      `Dit bestand is al eerder geupload als "${existing.original_filename}".\n\n` +
-      'OK = toch uploaden (als kopie)\n' +
-      'Annuleren = niet uploaden, naar het bestaande bestand/case gaan'
-    )
-    if (proceed) {
-      try {
-        await uploadItem(file, undefined, true)
-        load()
-      } catch (err) {
-        setError(err.message)
-      }
-    } else {
-      onGoToExisting?.(existing)
+  // Directe <ConfirmDialog> i.p.v. useConfirm() omdat dit geen generieke
+  // Ja/Nee-vraag is maar 2 specifieke acties nodig heeft.
+  const [duplicatePrompt, setDuplicatePrompt] = useState(null) // { file, existing }
+
+  function handleDuplicate(file, existing) {
+    setDuplicatePrompt({ file, existing })
+  }
+
+  async function handleDuplicateUploadAnyway() {
+    const { file } = duplicatePrompt
+    setDuplicatePrompt(null)
+    try {
+      await uploadItem(file, undefined, true)
+      load()
+    } catch (err) {
+      setError(err.message)
     }
+  }
+
+  function handleDuplicateGoToExisting() {
+    onGoToExisting?.(duplicatePrompt.existing)
+    setDuplicatePrompt(null)
   }
 
   async function handleFileChange(e) {
@@ -144,7 +154,7 @@ export default function ItemsPage({ onGoToExisting }) {
   }
 
   async function handleDelete(item) {
-    if (!window.confirm(`"${item.original_filename}" verwijderen?`)) return
+    if (!(await confirmAction(`"${item.original_filename}" verwijderen?`))) return
     await deleteItem(item.id)
     load()
   }
@@ -165,6 +175,12 @@ export default function ItemsPage({ onGoToExisting }) {
   // gegroepeerd uit dezelfde al-opgehaalde lijst, geen extra request nodig.
   function attachmentsOf(itemId) {
     return items.filter(i => i.parent_item_id === itemId)
+  }
+
+  // Item 1052: contact-koppeling gebeurt via MindBox.ps1 -Contact (find-or-
+  // create op e-mailadres) - hier alleen tonen wie er al gekoppeld is.
+  function contactOf(item) {
+    return contacts.find(c => c.id === item.contact_id)
   }
 
   return (
@@ -229,6 +245,11 @@ export default function ItemsPage({ onGoToExisting }) {
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 {fmtSize(item.size_bytes)} · {fmtDate(item.created_at)}
               </div>
+              {contactOf(item) && (
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }} title={contactOf(item).email}>
+                  👤 {contactOf(item).display_name || contactOf(item).email}
+                </div>
+              )}
             </div>
 
             <select
@@ -361,6 +382,20 @@ export default function ItemsPage({ onGoToExisting }) {
           </div>
         ))}
       </div>
+
+      {confirmDialog}
+      <ConfirmDialog
+        open={!!duplicatePrompt}
+        confirmLabel="Toch uploaden"
+        cancelLabel="Naar bestaand bestand"
+        danger={false}
+        onConfirm={handleDuplicateUploadAnyway}
+        onCancel={handleDuplicateGoToExisting}
+      >
+        {duplicatePrompt && (
+          <>Dit bestand is al eerder geupload als "{duplicatePrompt.existing.original_filename}".</>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

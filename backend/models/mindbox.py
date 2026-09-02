@@ -77,8 +77,35 @@ class MindboxItem(SQLModel, table=True):
     # Erft altijd het case_id van het ouder-item (zie services.save_upload).
     parent_item_id:    Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
     case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
+    # Item 1052 (Bart): wie is de afzender/betrokkene, los van hoe er
+    # geantwoord wordt (dat is MindboxContext). v1 koppelt alleen op
+    # e-mailadres uit het bestand zelf, zie services.mindbox_contacts.
+    contact_id:        Optional[str] = Field(default=None, foreign_key="mindbox_contacts.id")
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
+
+
+class MindboxContact(SQLModel, table=True):
+    """Profiel van WIE de andere partij in een mail/document is (persoon of
+    systeem) - los van MindboxContext (dat gaat over HOE Bart terugschrijft).
+    Herbruikbaar over cases heen, groeit per case (bv. notes-veld met
+    inschatting/communicatiestijl). Item 1052 (Bart): 'als er namen in
+    files/teksten voorkomen dan moet daar een koppeling worden gemaakt naar
+    contacts... makkelijk om te gebruiken voor verbeterde antwoorden en
+    inschatting van persoon'. v1 matcht bewust ALLEEN op e-mailadres (uit
+    .msg sender/to/cc, betrouwbaar) - koppelen op vrije-tekst namen is
+    onbetrouwbaar en blijft voor een latere alias-laag; contact_id op
+    MindboxItem is al wel de vaste foreign key zodat dat later zonder
+    modelwijziging kan worden toegevoegd."""
+    __tablename__ = "mindbox_contacts"
+
+    id:            str      = Field(default_factory=new_uuid, primary_key=True)
+    user_id:       str      = Field(foreign_key="users.id", index=True)
+    email:         str      = Field(index=True)  # uniek per user, zie services._normalize_email
+    display_name:  Optional[str] = Field(default=None)
+    notes:         Optional[str] = Field(default=None)
+    created_at:    datetime = Field(default_factory=datetime.utcnow)
+    updated_at:    datetime = Field(default_factory=datetime.utcnow)
 
 
 class MindboxResponse(SQLModel, table=True):

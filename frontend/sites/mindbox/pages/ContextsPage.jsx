@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listContexts, createContext, updateContext, deleteContext } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 const EMPTY = { name: '', content: '' }
 
@@ -11,6 +12,7 @@ export default function ContextsPage() {
   const [editing, setEditing] = useState(null) // null=gesloten, {}=nieuw, object=bewerken
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [confirmAction, confirmDialog] = useConfirm()
 
   function load() {
     listContexts().then(setContexts).catch(e => setError(e.message))
@@ -39,7 +41,7 @@ export default function ContextsPage() {
   }
 
   async function remove(context) {
-    if (!window.confirm(`Context "${context.name}" verwijderen? Cases die 'm gebruiken verliezen de koppeling.`)) return
+    if (!(await confirmAction(`Context "${context.name}" verwijderen? Cases die 'm gebruiken verliezen de koppeling.`))) return
     await deleteContext(context.id)
     load()
   }
@@ -109,6 +111,7 @@ export default function ContextsPage() {
           </div>
         ))}
       </div>
+      {confirmDialog}
     </div>
   )
 }
