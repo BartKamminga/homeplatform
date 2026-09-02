@@ -46,7 +46,10 @@ function computeRange(view, date) {
     return { from, to }
   }
   if (view === 'jaar') {
-    return { from: new Date(d.getFullYear(), 0, 1), to: new Date(d.getFullYear(), 11, 31) }
+    // Het seizoen loopt van eind augustus t/m juli (zie JaarView.jsx) - het
+    // bereik moet dus meelopen met het seizoensjaar, niet het kalenderjaar.
+    const seasonStartYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1
+    return { from: new Date(seasonStartYear, 7, 1), to: new Date(seasonStartYear + 1, 6, 31) }
   }
   // dag (default)
   const from = new Date(d); from.setDate(from.getDate() - 1)

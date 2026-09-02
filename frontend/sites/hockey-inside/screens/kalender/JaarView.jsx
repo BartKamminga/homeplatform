@@ -10,7 +10,11 @@ function sameMonth(a, b) {
 // speeldagenkalender.
 export default function JaarView({ data, onSelectMonth }) {
   const now = new Date()
-  const months = Array.from({ length: 12 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 3 + i, 1))
+  // Het hockeyseizoen loopt van eind augustus t/m juli, niet met het
+  // kalenderjaar mee - de 12 getoonde maanden volgen daarom het lopende
+  // seizoen (aug t/m jul) i.p.v. een rollend venster rond vandaag.
+  const seasonStartYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
+  const months = Array.from({ length: 12 }, (_, i) => new Date(seasonStartYear, 7 + i, 1))
   const phases = data.season_phases || []
 
   function countForMonth(month) {

@@ -5,6 +5,7 @@ from sqlmodel import SQLModel, create_engine, Session
 from dotenv import load_dotenv
 from models import dontforget  # noqa: F401 — registreert Task model
 from models import mixmusic    # noqa: F401 — registreert Genre + TrackMeta
+from models import hockey_season_calendar  # noqa: F401 — registreert HockeySeasonCalendar
 
 load_dotenv()
 
