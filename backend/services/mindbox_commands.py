@@ -38,6 +38,8 @@ ELEMENTARY_ACTIONS = [
      "template": '-ParsedText -Id {id} -Text "..." -Env {env}'},
     {"key": "UploadAttachment", "group": "Bestand", "label": "-UploadAttachment — bijlage uploaden",
      "template": "-UploadAttachment -ParentId {id} -FilePath <pad> -Env {env}"},
+    {"key": "Upload", "group": "Bestand", "label": "-Upload — bestand rechtstreeks in een case zetten",
+     "template": "-Upload -CaseId {id} -FilePath <pad> -Env {env}"},
     {"key": "Contact", "group": "Contact", "label": "-Contact — contact toevoegen aan item (many-to-many)",
      "template": "-Contact -Id {id} -Email {email} -Env {env}"},
     {"key": "UnlinkContact", "group": "Contact", "label": "-UnlinkContact — contact loskoppelen van item",

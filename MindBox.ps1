@@ -14,6 +14,7 @@
 #   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken (Bart's EIGEN aantekening)
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -UploadAttachment -ParentId <mail_item_id> -FilePath <lokaal_pad> [-Force]
+#   .\MindBox.ps1 -Upload -CaseId <case_id> -FilePath <lokaal_pad> [-Force]         # bestand rechtstreeks in een case (geen bijlage)
 #   .\MindBox.ps1 -ListContacts [-Email <email>]                       # toon contacten (optioneel filteren op e-mail)
 #   .\MindBox.ps1 -Contact -Id <item_id> -Email <email> [-Name "..."]  # contact TOEVOEGEN aan item (many-to-many, find-or-create op e-mail)
 #   .\MindBox.ps1 -UnlinkContact -Id <item_id> -ContactId <contact_id> # contact loskoppelen van item
@@ -55,6 +56,7 @@ param(
     [switch]$SaveSession,
     [switch]$LoadSession,
     [switch]$UploadAttachment,
+    [switch]$Upload,
     [switch]$ListContacts,
     [switch]$Contact,
     [switch]$UnlinkContact,
@@ -533,6 +535,20 @@ if ($UploadAttachment) {
 }
 
 # ---------------------------------------------------------------------------
+# Upload — item 1053 (Bart): bestand RECHTSTREEKS in een case zetten (geen
+# bijlage van een bestaand item, zoals -UploadAttachment) - bouwsteen voor
+# "case vullen vanaf schijf" (zie het Case.CreateFromDisk-commando).
+# ---------------------------------------------------------------------------
+if ($Upload) {
+    if (-not $CaseId -or -not $FilePath) { Write-Host "Geef -CaseId en -FilePath op"; exit 1 }
+    $params = @{ case_id = $CaseId }
+    if ($Force) { $params.force = "true" }
+    $item = ApiUploadFile "/mindbox/items" $FilePath $params
+    Write-Host "[OK] Bestand geupload: $($item.original_filename) ($($item.id))"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
 # Respond — concept-antwoord/rapport posten, met bronvermelding
 # ---------------------------------------------------------------------------
 if ($Respond) {
@@ -641,4 +657,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

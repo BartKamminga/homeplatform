@@ -19,6 +19,15 @@ const STATUS_OPTIONS = [
   { value: 'done', label: 'Afgerond' },
 ]
 
+// Kleine kleur-stip voor de case-lijst - status in 1 oogopslag zichtbaar
+// zonder een case te hoeven openen (Bart: "graag de status van een case
+// laten zien in de frontend caseslist").
+const STATUS_DOT_COLOR = {
+  new: 'var(--color-text-light)',
+  in_progress: 'var(--color-warning)',
+  done: 'var(--color-success)',
+}
+
 const EVENT_ICON = {
   upload: '📥', status_change: '🔄', context_linked: '🎭', item_added: '➕',
   item_removed: '➖', item_parsed: '🔎', response_created: '📝', response_edited: '✏️', response_sent: '✅', case_created: '✨', case_renamed: '✏️', session_note: '💬',
@@ -108,7 +117,16 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
               borderBottom: '1px solid var(--color-border)',
             }}
           >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📁 {c.name}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+              <span
+                title={STATUS_OPTIONS.find(o => o.value === c.status)?.label || c.status}
+                style={{
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                  background: STATUS_DOT_COLOR[c.status] || STATUS_DOT_COLOR.new,
+                }}
+              />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📁 {c.name}</span>
+            </span>
             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
               <span onClick={e => { e.stopPropagation(); handleRename(c) }} title="Hernoemen" style={{ fontSize: 11, cursor: 'pointer' }}>✎</span>
               <span onClick={e => { e.stopPropagation(); handleDelete(c) }} title="Verwijderen" style={{ fontSize: 11, cursor: 'pointer', color: 'var(--color-danger)' }}>✕</span>
