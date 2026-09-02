@@ -116,8 +116,16 @@ export function listContacts() {
   return api.get('/api/mindbox/contacts')
 }
 
+export function createContact(data) {
+  return api.post('/api/mindbox/contacts', data)
+}
+
 export function updateContact(id, data) {
   return api.patch(`/api/mindbox/contacts/${id}`, data)
+}
+
+export function deleteContact(id) {
+  return api.delete(`/api/mindbox/contacts/${id}`)
 }
 
 export function linkItemContact(itemId, data) {
