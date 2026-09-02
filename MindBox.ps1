@@ -17,11 +17,15 @@
 #
 # -Env kiest de omgeving (prod/acc/local) - elke omgeving heeft een EIGEN
 # database, dus item/case-ID's van acc bestaan niet op prod en andersom. De
-# website plakt de omgeving daarom mee in de kopieerbare commando's (Bart's
-# notatie, bedoeld om 1-op-1 te vertalen naar een aanroep hier):
-#   {Env}.MindBox.Run(all)              ->  -Run -All -Env {env}
-#   {Env}.MindBox.Run.File(#item_id)    ->  -Run -Id <item_id> -Env {env}
-#   {Env}.MindBox.Run.Case(#case_id)    ->  -Run -All -CaseId <case_id> -Env {env}
+# website plakt de omgeving daarom mee in de kopieerbare commando's, volgens
+# de VASTE notatie (Bart, item 1051): env.MindBox.Entity.Cmd(#id, params) -
+# Object.Actie-volgorde (Case.Run, File.Enhance - niet andersom), en zonder
+# Entity-segment voor commando's die globaal werken (Run(all)). Vertaling
+# naar een aanroep hier:
+#   {Env}.MindBox.Run(all)                 ->  -Run -All -Env {env}
+#   {Env}.MindBox.Case.Run(#case_id)       ->  -Run -All -CaseId <case_id> -Env {env}
+#   {Env}.MindBox.File.Enhance(#item_id)   ->  bestand+briefing bekijken (-Run -Id <item_id> -Env {env}),
+#                                               dan notities aanvullen (-Note -Id <item_id> -Text "..." -Env {env})
 
 param(
     [switch]$Setup,
@@ -173,22 +177,24 @@ if ($List) {
     $path = "/mindbox/items"
     if ($CaseId) { $path += "?case_id=$CaseId" }
     $items = ApiGet $path
-    Write-Host ("{0,-38} {1,-30} {2,-12} {3,-12} {4}" -f "ID","BESTAND","STATUS","CASE","CONTEXT")
-    Write-Host ("-" * 110)
+    Write-Host ("{0,-38} {1,-30} {2,-12} {3}" -f "ID","BESTAND","STATUS","CASE")
+    Write-Host ("-" * 100)
     foreach ($i in $items) {
         $case = if ($i.case_id) { $i.case_id.Substring(0,8) } else { "-" }
-        $ctx  = if ($i.context_id) { $i.context_id.Substring(0,8) } else { "-" }
-        Write-Host ("{0,-38} {1,-30} {2,-12} {3,-12} {4}" -f $i.id, $i.original_filename, $i.status, $case, $ctx)
+        Write-Host ("{0,-38} {1,-30} {2,-12} {3}" -f $i.id, $i.original_filename, $i.status, $case)
     }
     exit 0
 }
 
 if ($ListCases) {
+    # Context zit op de case (item 1051) - meteen tonen welke case welke
+    # context gebruikt.
     $cases = ApiGet "/mindbox/cases"
-    Write-Host ("{0,-38} {1,-30} {2}" -f "ID","NAAM","BIJGEWERKT")
-    Write-Host ("-" * 90)
+    Write-Host ("{0,-38} {1,-30} {2,-10} {3}" -f "ID","NAAM","CONTEXT","BIJGEWERKT")
+    Write-Host ("-" * 100)
     foreach ($c in $cases) {
-        Write-Host ("{0,-38} {1,-30} {2}" -f $c.id, $c.name, $c.updated_at)
+        $ctx = if ($c.context_id) { $c.context_id.Substring(0,8) } else { "-" }
+        Write-Host ("{0,-38} {1,-30} {2,-10} {3}" -f $c.id, $c.name, $ctx, $c.updated_at)
     }
     exit 0
 }
@@ -225,21 +231,24 @@ function RunItem([object]$item) {
     $localFile = Join-Path $itemDir $item.original_filename
     ApiDownload "/mindbox/items/$($item.id)/download" $localFile
 
+    # Context zit sinds item 1051 op de CASE, niet meer op het item apart
+    # ("ik wil toch per case een context, niet per bestand.. dat is
+    # ingewikkeld") - dus eerst de case ophalen, en daaruit de context.
+    $caseName = ""
     $contextContent = ""
     $contextName = ""
-    if ($item.context_id) {
-        try {
-            $contexts = ApiGet "/mindbox/contexts"
-            $ctx = $contexts | Where-Object { $_.id -eq $item.context_id }
-            if ($ctx) { $contextName = $ctx.name; $contextContent = $ctx.content }
-        } catch {}
-    }
-    $caseName = ""
     if ($item.case_id) {
         try {
             $cases = ApiGet "/mindbox/cases"
             $c = $cases | Where-Object { $_.id -eq $item.case_id }
-            if ($c) { $caseName = $c.name }
+            if ($c) {
+                $caseName = $c.name
+                if ($c.context_id) {
+                    $contexts = ApiGet "/mindbox/contexts"
+                    $ctx = $contexts | Where-Object { $_.id -eq $c.context_id }
+                    if ($ctx) { $contextName = $ctx.name; $contextContent = $ctx.content }
+                }
+            }
         } catch {}
     }
 

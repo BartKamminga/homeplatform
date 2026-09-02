@@ -22,16 +22,20 @@ router = APIRouter(prefix="/api/mindbox", tags=["mindbox"])
 class MindboxCaseOut(BaseModel):
     id:          str
     name:        str
+    context_id:  Optional[str]
     created_at:  datetime
     updated_at:  datetime
 
 
 class MindboxCaseCreate(BaseModel):
-    name: str
+    name:        str
+    context_id:  Optional[str] = None
 
 
 class MindboxCaseUpdate(BaseModel):
-    name: str
+    name:           Optional[str] = None
+    context_id:     Optional[str] = None
+    clear_context:  bool = False
 
 
 class MindboxCaseEventOut(BaseModel):
@@ -53,7 +57,6 @@ class MindboxItemOut(BaseModel):
     size_bytes:         int
     status:             str
     notes:              Optional[str]
-    context_id:         Optional[str]
     case_id:            Optional[str]
     created_at:         datetime
     updated_at:         datetime
@@ -62,8 +65,6 @@ class MindboxItemOut(BaseModel):
 class MindboxItemUpdate(BaseModel):
     status:         Optional[str] = None
     notes:          Optional[str] = None
-    context_id:     Optional[str] = None
-    clear_context:  bool = False
     case_id:        Optional[str] = None
     clear_case:     bool = False
 
@@ -118,11 +119,12 @@ def list_items(
 async def upload_item(
     file: UploadFile = File(...),
     case_id: Optional[str] = None,
+    force: bool = False,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     content = await file.read()
-    item = svc.save_upload(session, user, file.filename, content, file.content_type, case_id)
+    item = svc.save_upload(session, user, file.filename, content, file.content_type, case_id, force)
     log_action(session, "mindbox.upload", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "filename": item.original_filename, "case_id": case_id})
     return item
@@ -136,8 +138,7 @@ def update_item(
     user: User = Depends(get_current_user),
 ):
     item = svc.update_item(
-        session, user, item_id, data.status, data.notes,
-        data.context_id, data.clear_context, data.case_id, data.clear_case,
+        session, user, item_id, data.status, data.notes, data.case_id, data.clear_case,
     )
     log_action(session, "mindbox.update", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "fields": list(data.model_dump(exclude_unset=True))})
@@ -231,7 +232,7 @@ def create_case(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    case = svc.create_case(session, user, data.name)
+    case = svc.create_case(session, user, data.name, data.context_id)
     log_action(session, "mindbox.case.create", site="mindbox", user_id=user.id, payload={"case_id": case.id, "name": case.name})
     return case
 
@@ -243,7 +244,7 @@ def update_case(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    case = svc.update_case(session, user, case_id, data.name)
+    case = svc.update_case(session, user, case_id, data.name, data.context_id, data.clear_context)
     log_action(session, "mindbox.case.update", site="mindbox", user_id=user.id, payload={"case_id": case.id})
     return case
 

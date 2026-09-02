@@ -145,6 +145,8 @@ async def app_error_handler(request: Request, exc: AppError):
     body = {"detail": exc.detail}
     if exc.code:
         body["code"] = exc.code
+    if exc.extra:
+        body["extra"] = exc.extra
     return JSONResponse(status_code=exc.status_code, content=body)
 
 

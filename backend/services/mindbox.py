@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -41,7 +42,7 @@ def _log_case_event(session: Session, case_id: str | None, user_id: str, event_t
 
 def save_upload(
     session: Session, user: User, filename: str, content: bytes, content_type: str | None,
-    case_id: str | None = None,
+    case_id: str | None = None, force: bool = False,
 ) -> MindboxItem:
     ext = Path(filename or "upload").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -52,6 +53,29 @@ def save_upload(
     if case_id is not None:
         get_case(session, user, case_id)  # bestaat + eigendom-check
 
+    content_hash = hashlib.sha256(content).hexdigest()
+    duplicates = list(session.exec(
+        select(MindboxItem).where(MindboxItem.user_id == user.id, MindboxItem.content_hash == content_hash)
+    ).all())
+    if duplicates and not force:
+        # Item 1051 (Bart): "graag een melding geven direct na de upload met
+        # de vraag wat te doen" - 409 i.p.v. stil te uploaden, met genoeg info
+        # om de bestaande case/bestand op te kunnen zoeken in de frontend.
+        existing = duplicates[0]
+        raise AppError(
+            f"Dit bestand is al eerder geupload als '{existing.original_filename}'",
+            status_code=409,
+            code="mindbox_duplicate_file",
+            extra={"item_id": existing.id, "original_filename": existing.original_filename, "case_id": existing.case_id},
+        )
+
+    original_filename = filename
+    if duplicates:
+        # Bewust toch uploaden ondanks duplicaat - naam ontdubbelen zodat de
+        # items in lijsten van elkaar te onderscheiden blijven.
+        stem, suffix = Path(filename).stem, Path(filename).suffix
+        original_filename = f"{stem} (kopie {len(duplicates) + 1}){suffix}"
+
     stored_filename = f"{uuid.uuid4()}{ext}"
     abs_path = _safe_path(user.id, stored_filename)
     abs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,10 +84,11 @@ def save_upload(
     rel_path = f"{CATEGORY}/{user.id}/{stored_filename}"
     item = MindboxItem(
         user_id=user.id,
-        original_filename=filename,
+        original_filename=original_filename,
         file_path=rel_path,
         content_type=content_type,
         size_bytes=len(content),
+        content_hash=content_hash,
         case_id=case_id,
     )
     session.add(item)
@@ -90,7 +115,6 @@ def get_item(session: Session, user: User, item_id: str) -> MindboxItem:
 
 def update_item(
     session: Session, user: User, item_id: str, status: str | None, notes: str | None,
-    context_id: str | None = None, clear_context: bool = False,
     case_id: str | None = None, clear_case: bool = False,
 ) -> MindboxItem:
     item = get_item(session, user, item_id)
@@ -101,12 +125,6 @@ def update_item(
         _log_case_event(session, item.case_id, user.id, "status_change", f"{item.original_filename}: status -> {status}")
     if notes is not None:
         item.notes = notes
-    if clear_context:
-        item.context_id = None
-    elif context_id is not None:
-        context = get_context(session, user, context_id)  # bestaat + eigendom-check
-        item.context_id = context_id
-        _log_case_event(session, item.case_id, user.id, "context_linked", f"{item.original_filename}: context '{context.name}' gekoppeld")
     if clear_case:
         _log_case_event(session, item.case_id, user.id, "item_removed", f"{item.original_filename} losgekoppeld van deze case")
         item.case_id = None
@@ -123,6 +141,14 @@ def update_item(
 
 def delete_item(session: Session, user: User, item_id: str) -> None:
     item = get_item(session, user, item_id)
+    if item.case_id:
+        # Item 1051 (Bart): "verwijderen van bestanden die aan een case zijn
+        # gekoppeld is niet mogelijk vanaf de bestand-route" - eerst
+        # ontkoppelen (via de case, met de unlink-knop), dan verwijderen.
+        raise AppError(
+            "Dit bestand is gekoppeld aan een case - ontkoppel het eerst om het te kunnen verwijderen",
+            status_code=400,
+        )
     abs_path = _safe_path(user.id, Path(item.file_path).name)
     if abs_path.exists():
         abs_path.unlink()
@@ -203,8 +229,10 @@ def get_case(session: Session, user: User, case_id: str) -> MindboxCase:
     return case
 
 
-def create_case(session: Session, user: User, name: str) -> MindboxCase:
-    case = MindboxCase(user_id=user.id, name=name)
+def create_case(session: Session, user: User, name: str, context_id: str | None = None) -> MindboxCase:
+    if context_id is not None:
+        get_context(session, user, context_id)  # bestaat + eigendom-check
+    case = MindboxCase(user_id=user.id, name=name, context_id=context_id)
     session.add(case)
     session.commit()
     session.refresh(case)
@@ -213,14 +241,23 @@ def create_case(session: Session, user: User, name: str) -> MindboxCase:
     return case
 
 
-def update_case(session: Session, user: User, case_id: str, name: str) -> MindboxCase:
+def update_case(
+    session: Session, user: User, case_id: str, name: str | None = None,
+    context_id: str | None = None, clear_context: bool = False,
+) -> MindboxCase:
     case = get_case(session, user, case_id)
-    old_name = case.name
-    case.name = name
+    if name is not None and name != case.name:
+        old_name = case.name
+        case.name = name
+        _log_case_event(session, case_id, user.id, "case_renamed", f"Case hernoemd van '{old_name}' naar '{name}'")
+    if clear_context:
+        case.context_id = None
+    elif context_id is not None:
+        context = get_context(session, user, context_id)  # bestaat + eigendom-check
+        case.context_id = context_id
+        _log_case_event(session, case_id, user.id, "context_linked", f"Context '{context.name}' gekoppeld aan deze case")
     case.updated_at = datetime.utcnow()
     session.add(case)
-    if old_name != name:
-        _log_case_event(session, case_id, user.id, "case_renamed", f"Case hernoemd van '{old_name}' naar '{name}'")
     session.commit()
     session.refresh(case)
     return case
@@ -285,10 +322,10 @@ def update_context(session: Session, user: User, context_id: str, name: str | No
 
 def delete_context(session: Session, user: User, context_id: str) -> None:
     context = get_context(session, user, context_id)
-    items_using_it = session.exec(select(MindboxItem).where(MindboxItem.context_id == context_id)).all()
-    for item in items_using_it:
-        item.context_id = None
-        session.add(item)
+    cases_using_it = session.exec(select(MindboxCase).where(MindboxCase.context_id == context_id)).all()
+    for case in cases_using_it:
+        case.context_id = None
+        session.add(case)
     session.delete(context)
     session.commit()
 

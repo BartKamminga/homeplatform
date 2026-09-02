@@ -17,7 +17,13 @@ def _isolate_upload_root(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "UPLOAD_ROOT", tmp_path)
 
 
-def _upload(client, token, filename="test.msg", content=b"hallo", content_type="application/vnd.ms-outlook"):
+def _upload(client, token, filename="test.msg", content=None, content_type="application/vnd.ms-outlook"):
+    # content default is UNIEK per filename (i.p.v. altijd b"hallo") - anders
+    # botsen tests die 2+ bestanden uploaden met elkaar op de nieuwe
+    # duplicaatdetectie (item 1051, content_hash). Tests die een ECHT
+    # duplicaat willen testen geven content expliciet identiek mee.
+    if content is None:
+        content = f"inhoud van {filename}".encode()
     return client.post(
         "/api/mindbox/items",
         files={"file": (filename, io.BytesIO(content), content_type)},
@@ -36,6 +42,36 @@ def test_upload_and_list_item(client, user_token):
     listed = client.get("/api/mindbox/items", headers=_auth(user_token))
     assert listed.status_code == 200
     assert len(listed.json()) == 1
+
+
+def test_uploading_the_same_content_twice_is_rejected_as_duplicate(client, user_token):
+    """Item 1051 (Bart): 'graag een melding geven direct na de upload met de
+    vraag wat te doen' - een tweede upload met identieke bytes geeft 409 met
+    genoeg info om naar het bestaande bestand te kunnen navigeren."""
+    first = _upload(client, user_token, filename="mail.msg", content=b"zelfde inhoud")
+    assert first.status_code == 200
+
+    second = _upload(client, user_token, filename="mail-kopie.msg", content=b"zelfde inhoud")
+    assert second.status_code == 409
+    body = second.json()
+    assert body["code"] == "mindbox_duplicate_file"
+    assert body["extra"]["item_id"] == first.json()["id"]
+
+
+def test_uploading_a_duplicate_with_force_creates_a_renamed_copy(client, user_token):
+    _upload(client, user_token, filename="mail.msg", content=b"zelfde inhoud")
+
+    forced = client.post(
+        "/api/mindbox/items",
+        params={"force": "true"},
+        files={"file": ("mail.msg", io.BytesIO(b"zelfde inhoud"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert forced.status_code == 200
+    assert forced.json()["original_filename"] == "mail (kopie 2).msg"
+
+    listed = client.get("/api/mindbox/items", headers=_auth(user_token))
+    assert len(listed.json()) == 2
 
 
 def test_upload_rejects_disallowed_extension(client, user_token):
@@ -86,6 +122,22 @@ def test_delete_item_removes_it(client, user_token):
 
     listed = client.get("/api/mindbox/items", headers=_auth(user_token))
     assert listed.json() == []
+
+
+def test_deleting_a_case_linked_item_is_rejected_until_unlinked(client, user_token):
+    """Item 1051 (Bart): 'verwijderen van bestanden die aan een case zijn
+    gekoppeld is niet mogelijk vanaf de bestand-route' - eerst ontkoppelen,
+    dan pas verwijderen."""
+    item_id = _upload(client, user_token).json()["id"]
+    case_id = _case(client, user_token)
+    client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
+
+    blocked = client.delete(f"/api/mindbox/items/{item_id}", headers=_auth(user_token))
+    assert blocked.status_code == 400
+
+    client.patch(f"/api/mindbox/items/{item_id}", json={"clear_case": True}, headers=_auth(user_token))
+    allowed = client.delete(f"/api/mindbox/items/{item_id}", headers=_auth(user_token))
+    assert allowed.status_code == 200
 
 
 def test_a_users_items_are_not_visible_to_another_user(client, user_token, admin_token):
@@ -183,10 +235,11 @@ def test_create_response_in_another_users_case_is_rejected(client, user_token, a
     assert res.status_code == 403
 
 
-def test_create_context_and_link_it_to_an_item(client, user_token):
+def test_create_context_and_link_it_to_a_case(client, user_token):
     """Bart, 2-09-2026: 'sommige mails wil ik behandelen als een manager...
     = een bepaalde session.md-inhoud' - een context is herbruikbare
-    instructietekst die aan een item gekoppeld kan worden."""
+    instructietekst. Item 1051: 'ik wil toch per case een context, niet per
+    bestand' - de koppeling zit op de case, niet op losse items."""
     context_res = client.post(
         "/api/mindbox/contexts",
         json={"name": "Manager-response", "content": "Reageer kort, zakelijk, met focus op besluitvorming."},
@@ -195,43 +248,54 @@ def test_create_context_and_link_it_to_an_item(client, user_token):
     assert context_res.status_code == 200
     context_id = context_res.json()["id"]
 
-    item_id = _upload(client, user_token).json()["id"]
+    case_id = _case(client, user_token)
     linked = client.patch(
-        f"/api/mindbox/items/{item_id}", json={"context_id": context_id}, headers=_auth(user_token)
+        f"/api/mindbox/cases/{case_id}", json={"context_id": context_id}, headers=_auth(user_token)
     )
     assert linked.status_code == 200
     assert linked.json()["context_id"] == context_id
 
 
-def test_clear_context_from_an_item(client, user_token):
+def test_create_case_with_a_context_immediately(client, user_token):
+    context_id = client.post(
+        "/api/mindbox/contexts", json={"name": "Manager", "content": "..."}, headers=_auth(user_token)
+    ).json()["id"]
+    case = client.post(
+        "/api/mindbox/cases", json={"name": "Met context vanaf start", "context_id": context_id}, headers=_auth(user_token)
+    )
+    assert case.status_code == 200
+    assert case.json()["context_id"] == context_id
+
+
+def test_clear_context_from_a_case(client, user_token):
     context_id = client.post(
         "/api/mindbox/contexts", json={"name": "Tijdelijk", "content": "..."}, headers=_auth(user_token)
     ).json()["id"]
-    item_id = _upload(client, user_token).json()["id"]
-    client.patch(f"/api/mindbox/items/{item_id}", json={"context_id": context_id}, headers=_auth(user_token))
+    case_id = _case(client, user_token)
+    client.patch(f"/api/mindbox/cases/{case_id}", json={"context_id": context_id}, headers=_auth(user_token))
 
-    cleared = client.patch(f"/api/mindbox/items/{item_id}", json={"clear_context": True}, headers=_auth(user_token))
+    cleared = client.patch(f"/api/mindbox/cases/{case_id}", json={"clear_context": True}, headers=_auth(user_token))
     assert cleared.json()["context_id"] is None
 
 
-def test_deleting_a_context_unlinks_it_from_items(client, user_token):
+def test_deleting_a_context_unlinks_it_from_cases(client, user_token):
     context_id = client.post(
         "/api/mindbox/contexts", json={"name": "Te verwijderen", "content": "..."}, headers=_auth(user_token)
     ).json()["id"]
-    item_id = _upload(client, user_token).json()["id"]
-    client.patch(f"/api/mindbox/items/{item_id}", json={"context_id": context_id}, headers=_auth(user_token))
+    case_id = _case(client, user_token)
+    client.patch(f"/api/mindbox/cases/{case_id}", json={"context_id": context_id}, headers=_auth(user_token))
 
     delete_res = client.delete(f"/api/mindbox/contexts/{context_id}", headers=_auth(user_token))
     assert delete_res.status_code == 200
 
-    item = client.get("/api/mindbox/items", headers=_auth(user_token)).json()[0]
-    assert item["context_id"] is None
+    case = client.get("/api/mindbox/cases", headers=_auth(user_token)).json()[0]
+    assert case["context_id"] is None
 
 
-def test_linking_a_nonexistent_context_fails(client, user_token):
-    item_id = _upload(client, user_token).json()["id"]
+def test_linking_a_nonexistent_context_to_a_case_fails(client, user_token):
+    case_id = _case(client, user_token)
     res = client.patch(
-        f"/api/mindbox/items/{item_id}", json={"context_id": "does-not-exist"}, headers=_auth(user_token)
+        f"/api/mindbox/cases/{case_id}", json={"context_id": "does-not-exist"}, headers=_auth(user_token)
     )
     assert res.status_code == 404
 
@@ -240,10 +304,10 @@ def test_a_users_context_is_not_usable_by_another_user(client, user_token, admin
     context_id = client.post(
         "/api/mindbox/contexts", json={"name": "Prive", "content": "..."}, headers=_auth(user_token)
     ).json()["id"]
-    item_id = _upload(client, admin_token).json()["id"]
+    case_id = _case(client, admin_token)
 
     res = client.patch(
-        f"/api/mindbox/items/{item_id}", json={"context_id": context_id}, headers=_auth(admin_token)
+        f"/api/mindbox/cases/{case_id}", json={"context_id": context_id}, headers=_auth(admin_token)
     )
     assert res.status_code == 403
 
@@ -283,22 +347,23 @@ def test_add_a_followup_item_to_an_existing_case(client, user_token):
     assert len(listed.json()) == 2
 
 
-def test_items_in_a_case_can_each_use_a_different_context(client, user_token):
-    """Bart: 'in een case kan ik dan later weer extra documenten toevoegen...
-    of andere kennis uit andere MindBox Contexten' - elk item in een case
-    houdt zijn EIGEN, onafhankelijke context-koppeling."""
-    case_id = client.post("/api/mindbox/cases", json={"name": "Case met 2 contexts"}, headers=_auth(user_token)).json()["id"]
-    context_a = client.post("/api/mindbox/contexts", json={"name": "Manager", "content": "..."}, headers=_auth(user_token)).json()["id"]
-    context_b = client.post("/api/mindbox/contexts", json={"name": "Techneut", "content": "..."}, headers=_auth(user_token)).json()["id"]
+def test_all_items_in_a_case_share_the_cases_single_context(client, user_token):
+    """Item 1051 (Bart): 'ik wil toch per case een context, niet per
+    bestand.. dat is ingewikkeld' - alle items in een case delen dezelfde,
+    op de case ingestelde context (geen per-item keuze meer)."""
+    case_id = client.post("/api/mindbox/cases", json={"name": "Case met 1 context"}, headers=_auth(user_token)).json()["id"]
+    context_id = client.post("/api/mindbox/contexts", json={"name": "Manager", "content": "..."}, headers=_auth(user_token)).json()["id"]
+    client.patch(f"/api/mindbox/cases/{case_id}", json={"context_id": context_id}, headers=_auth(user_token))
 
     item1 = _upload(client, user_token, filename="a.msg").json()["id"]
     item2 = _upload(client, user_token, filename="b.msg").json()["id"]
-    client.patch(f"/api/mindbox/items/{item1}", json={"case_id": case_id, "context_id": context_a}, headers=_auth(user_token))
-    client.patch(f"/api/mindbox/items/{item2}", json={"case_id": case_id, "context_id": context_b}, headers=_auth(user_token))
+    client.patch(f"/api/mindbox/items/{item1}", json={"case_id": case_id}, headers=_auth(user_token))
+    client.patch(f"/api/mindbox/items/{item2}", json={"case_id": case_id}, headers=_auth(user_token))
 
-    items = {i["id"]: i for i in client.get("/api/mindbox/items", params={"case_id": case_id}, headers=_auth(user_token)).json()}
-    assert items[item1]["context_id"] == context_a
-    assert items[item2]["context_id"] == context_b
+    case = client.get("/api/mindbox/cases", headers=_auth(user_token)).json()[0]
+    assert case["context_id"] == context_id
+    items = client.get("/api/mindbox/items", params={"case_id": case_id}, headers=_auth(user_token)).json()
+    assert "context_id" not in items[0]
 
 
 def test_clear_case_from_an_item(client, user_token):

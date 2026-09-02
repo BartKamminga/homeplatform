@@ -4,7 +4,7 @@ import {
   listItems, uploadItem, updateItem, downloadItem,
   listResponses, createResponse, listContexts,
 } from '../api.js'
-import { copyText, mindboxRunFileCommand, mindboxRunCaseCommand, fetchMindboxEnv } from '../utils.js'
+import { copyText, mindboxFileEnhanceCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -17,7 +17,7 @@ const EVENT_ICON = {
 
 // Outlook-achtig: linkerkolom = cases (mappen), rechterpaneel = detail van de
 // geselecteerde case (items/responses/tijdlijn) - Bart, 2-09-2026.
-export default function CasesPage() {
+export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting }) {
   const [cases, setCases] = useState([])
   const [selected, setSelected] = useState(null)
   const [newCaseName, setNewCaseName] = useState('')
@@ -27,6 +27,18 @@ export default function CasesPage() {
     listCases().then(setCases).catch(e => setError(e.message))
   }
   useEffect(() => { loadCases() }, [])
+
+  // Item 1051: bij een duplicaat-upload elders (Bestanden-tab of een andere
+  // case) kan de gebruiker naar de case van het bestaande bestand gestuurd
+  // worden - hier automatisch selecteren zodra de caselijst geladen is.
+  useEffect(() => {
+    if (!focusCaseId) return
+    const match = cases.find(c => c.id === focusCaseId)
+    if (match) {
+      setSelected(match)
+      onConsumeFocus?.()
+    }
+  }, [focusCaseId, cases])
 
   async function handleCreateCase() {
     if (!newCaseName.trim()) return
@@ -45,10 +57,18 @@ export default function CasesPage() {
   }
 
   async function handleDelete(c) {
-    if (!window.confirm(`Case "${c.name}" verwijderen? Items/responses blijven bestaan, maar verliezen de koppeling.`)) return
+    if (!window.confirm(`Case "${c.name}" verwijderen? Bestanden blijven bestaan (verliezen de koppeling), maar responses in deze case worden verwijderd.`)) return
     await deleteCase(c.id)
     if (selected?.id === c.id) setSelected(null)
     loadCases()
+  }
+
+  // CaseDetail geeft (optioneel) de bijgewerkte case terug, bv. na een
+  // context-wijziging - hou `selected` synchroon zodat de detail-pane niet
+  // stale blijft (zelfde probleem als bij handleRename hierboven).
+  function handleCaseChanged(updatedCase) {
+    loadCases()
+    if (updatedCase && selected?.id === updatedCase.id) setSelected(updatedCase)
   }
 
   return (
@@ -89,7 +109,7 @@ export default function CasesPage() {
 
       {/* Rechterpaneel: detail van de geselecteerde case */}
       {selected ? (
-        <CaseDetail caseObj={selected} onChanged={loadCases} />
+        <CaseDetail caseObj={selected} onChanged={handleCaseChanged} onGoToExisting={onGoToExisting} />
       ) : (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
           Selecteer een case, of maak een nieuwe aan.
@@ -99,7 +119,7 @@ export default function CasesPage() {
   )
 }
 
-function CaseDetail({ caseObj, onChanged }) {
+function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [items, setItems] = useState([])
   const [responses, setResponses] = useState([])
   const [events, setEvents] = useState([])
@@ -109,6 +129,7 @@ function CaseDetail({ caseObj, onChanged }) {
   const [dragOver, setDragOver] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [copyMsg, setCopyMsg] = useState('')
+  const [error, setError] = useState('')
   const fileInputRef = useRef(null)
 
   function load() {
@@ -123,12 +144,41 @@ function CaseDetail({ caseObj, onChanged }) {
   async function handleUpload(file) {
     if (!file) return
     setUploading(true)
+    setError('')
     try {
       await uploadItem(file, caseObj.id)
       load()
       onChanged()
+    } catch (err) {
+      if (err.status === 409 && err.extra) {
+        await handleDuplicate(file, err.extra)
+      } else {
+        setError(err.message)
+      }
     } finally {
       setUploading(false)
+    }
+  }
+
+  // Item 1051 (Bart): "graag een melding geven direct na de upload met de
+  // vraag wat te doen" - annuleren + naar het bestaande bestand/case, of
+  // toch uploaden als kopie in deze case (backend ontdubbelt de naam).
+  async function handleDuplicate(file, existing) {
+    const proceed = window.confirm(
+      `Dit bestand is al eerder geupload als "${existing.original_filename}".\n\n` +
+      'OK = toch uploaden (als kopie) in deze case\n' +
+      'Annuleren = niet uploaden, naar het bestaande bestand/case gaan'
+    )
+    if (proceed) {
+      try {
+        await uploadItem(file, caseObj.id, true)
+        load()
+        onChanged()
+      } catch (err) {
+        setError(err.message)
+      }
+    } else if (existing.case_id !== caseObj.id) {
+      onGoToExisting?.(existing)
     }
   }
 
@@ -154,10 +204,13 @@ function CaseDetail({ caseObj, onChanged }) {
     await handleUpload(file)
   }
 
-  async function handleContextChange(item, contextId) {
-    if (contextId) await updateItem(item.id, { context_id: contextId })
-    else await updateItem(item.id, { clear_context: true })
-    load()
+  // Item 1051 (Bart): "ik wil toch per case een context, niet per bestand"
+  // - context zit op de HELE case, niet meer per item.
+  async function handleCaseContextChange(contextId) {
+    const updated = contextId
+      ? await updateCase(caseObj.id, { context_id: contextId })
+      : await updateCase(caseObj.id, { clear_context: true })
+    onChanged(updated)
   }
 
   async function handleUnlink(item) {
@@ -215,17 +268,30 @@ function CaseDetail({ caseObj, onChanged }) {
         borderRadius: 10, transition: 'border-color 0.1s', padding: dragOver ? 8 : 0, margin: dragOver ? -8 : 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 16 }}>📁 {caseObj.name}</strong>
         <button
-          onClick={() => handleCopy(mindboxRunCaseCommand(caseObj.id, env))}
+          onClick={() => handleCopy(mindboxCaseRunCommand(caseObj.id, env))}
           title="Kopieer commando om alle items in deze case te verwerken"
           style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
         >
-          ⧉ {mindboxRunCaseCommand(caseObj.id, env)}
+          ⧉ {mindboxCaseRunCommand(caseObj.id, env)}
         </button>
         {copyMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{copyMsg}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>🎭 Context:</span>
+          <select
+            value={caseObj.context_id || ''}
+            onChange={e => handleCaseContextChange(e.target.value)}
+            style={{ padding: '3px 6px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+          >
+            <option value="">Geen context</option>
+            {contexts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
       </div>
+
+      {error && <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
 
       {/* Items in deze case */}
       <section>
@@ -243,14 +309,10 @@ function CaseDetail({ caseObj, onChanged }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {items.map(item => (
-            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12 }}>
+            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12 }}>
               <span>{item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span></span>
-              <select value={item.context_id || ''} onChange={e => handleContextChange(item, e.target.value)} style={{ padding: '3px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)' }}>
-                <option value="">Geen context</option>
-                {contexts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
               <div style={{ display: 'flex', gap: 4 }}>
-                <button onClick={() => handleCopy(mindboxRunFileCommand(item.id, env))} title="Kopieer commando voor dit bestand" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
+                <button onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
               </div>

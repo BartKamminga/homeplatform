@@ -17,6 +17,19 @@ const TABS = [
 // gematigde maxWidth:960-kolom zoals hockey-inside. Desktop-werkomgeving.
 export default function App() {
   const [tab, setTab] = useState('items')
+  const [focusCaseId, setFocusCaseId] = useState(null)
+
+  // Item 1051 (Bart): bij een duplicaat-upload moet "annuleren" je naar het
+  // BESTAANDE bestand/case kunnen brengen - als dat bestand al in een case
+  // zit, naar de Cases-tab springen en die case meteen selecteren.
+  function goToExistingItem(existingItem) {
+    if (existingItem.case_id) {
+      setFocusCaseId(existingItem.case_id)
+      setTab('cases')
+    } else {
+      setTab('items')
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-background)' }}>
@@ -45,10 +58,15 @@ export default function App() {
       </header>
 
       <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 32px' }}>
-        {tab === 'items' && <ItemsPage />}
-        {tab === 'cases' && <CasesPage />}
+        {tab === 'items' && <ItemsPage onGoToExisting={goToExistingItem} />}
+        {tab === 'cases' && (
+          <CasesPage
+            focusCaseId={focusCaseId}
+            onConsumeFocus={() => setFocusCaseId(null)}
+            onGoToExisting={goToExistingItem}
+          />
+        )}
         {tab === 'contexts' && <ContextsPage />}
-        {tab === 'responses' && <ResponsesPage />}
       </main>
     </div>
   )

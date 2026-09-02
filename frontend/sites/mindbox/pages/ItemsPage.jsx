@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listContexts, listCases } from '../api.js'
-import { copyText, mindboxRunAllCommand, mindboxRunFileCommand, fetchMindboxEnv } from '../utils.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase } from '../api.js'
+import { copyText, mindboxRunAllCommand, mindboxFileEnhanceCommand, fetchMindboxEnv } from '../utils.js'
+
+const NEW_CASE_SENTINEL = '__new__'
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'Nieuw' },
@@ -18,9 +20,8 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-export default function ItemsPage() {
+export default function ItemsPage({ onGoToExisting }) {
   const [items, setItems] = useState([])
-  const [contexts, setContexts] = useState([])
   const [cases, setCases] = useState([])
   const [env, setEnv] = useState('Local')
   const [error, setError] = useState('')
@@ -33,7 +34,6 @@ export default function ItemsPage() {
   }
   useEffect(() => {
     load()
-    listContexts().then(setContexts).catch(() => {})
     listCases().then(setCases).catch(() => {})
     fetchMindboxEnv().then(setEnv)
   }, [])
@@ -46,9 +46,34 @@ export default function ItemsPage() {
       await uploadItem(file)
       load()
     } catch (err) {
-      setError(err.message)
+      if (err.status === 409 && err.extra) {
+        await handleDuplicate(file, err.extra)
+      } else {
+        setError(err.message)
+      }
     } finally {
       setUploading(false)
+    }
+  }
+
+  // Item 1051 (Bart): "graag een melding geven direct na de upload met de
+  // vraag wat te doen" - annuleren + naar het bestaande bestand/case, of
+  // toch uploaden als kopie (backend ontdubbelt dan de bestandsnaam).
+  async function handleDuplicate(file, existing) {
+    const proceed = window.confirm(
+      `Dit bestand is al eerder geupload als "${existing.original_filename}".\n\n` +
+      'OK = toch uploaden (als kopie)\n' +
+      'Annuleren = niet uploaden, naar het bestaande bestand/case gaan'
+    )
+    if (proceed) {
+      try {
+        await uploadItem(file, undefined, true)
+        load()
+      } catch (err) {
+        setError(err.message)
+      }
+    } else {
+      onGoToExisting?.(existing)
     }
   }
 
@@ -80,18 +105,23 @@ export default function ItemsPage() {
     load()
   }
 
-  async function handleContextChange(item, contextId) {
-    if (contextId) await updateItem(item.id, { context_id: contextId })
-    else await updateItem(item.id, { clear_context: true })
-    load()
-  }
-
   // Bart, item 1051: "ik kan bij een net geuploade file niet direct een
   // case selecteren" - case-koppeling nu ook los, direct in de vlakke
   // bestandenlijst mogelijk (niet alleen vanuit CaseDetail).
   async function handleCaseChange(item, caseId) {
-    if (caseId) await updateItem(item.id, { case_id: caseId })
-    else await updateItem(item.id, { clear_case: true })
+    if (caseId === NEW_CASE_SENTINEL) {
+      // Bart: "of een nieuwe case aanmaken, en koppelen" - in 1 stap vanuit
+      // de vlakke bestandenlijst, zonder eerst naar de Cases-tab te gaan.
+      const name = window.prompt('Naam van de nieuwe case:')
+      if (!name?.trim()) return
+      const created = await createCase({ name: name.trim() })
+      await updateItem(item.id, { case_id: created.id })
+      listCases().then(setCases).catch(() => {})
+    } else if (caseId) {
+      await updateItem(item.id, { case_id: caseId })
+    } else {
+      await updateItem(item.id, { clear_case: true })
+    }
     load()
   }
 
@@ -169,7 +199,7 @@ export default function ItemsPage() {
           <div
             key={item.id}
             style={{
-              display: 'grid', gridTemplateColumns: '1fr 130px 160px 160px 1fr auto', gap: 12, alignItems: 'start',
+              display: 'grid', gridTemplateColumns: '1fr 130px 160px 1fr auto', gap: 12, alignItems: 'start',
               padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8,
             }}
           >
@@ -185,7 +215,13 @@ export default function ItemsPage() {
               onChange={e => handleStatusChange(item, e.target.value)}
               style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
             >
-              {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {STATUS_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>
+                  {/* Item 1051 (Bart): eenmaal gekoppeld aan een case is
+                      "Nieuw" niet meer accuraat - het is dan al getriaged. */}
+                  {o.value === 'new' && item.case_id ? 'Gekoppeld' : o.label}
+                </option>
+              ))}
             </select>
 
             <select
@@ -195,15 +231,7 @@ export default function ItemsPage() {
             >
               <option value="">Geen case</option>
               {cases.map(c => <option key={c.id} value={c.id}>📁 {c.name}</option>)}
-            </select>
-
-            <select
-              value={item.context_id || ''}
-              onChange={e => handleContextChange(item, e.target.value)}
-              style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-            >
-              <option value="">Geen context</option>
-              {contexts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value={NEW_CASE_SENTINEL}>+ Nieuwe case...</option>
             </select>
 
             <textarea
@@ -218,8 +246,8 @@ export default function ItemsPage() {
 
             <div style={{ display: 'flex', gap: 6 }}>
               <button
-                onClick={() => handleCopy(mindboxRunFileCommand(item.id, env))}
-                title="Kopieer commando om dit bestand te verwerken"
+                onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))}
+                title="Kopieer commando om extra info aan dit bestand toe te voegen"
                 style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
               >
                 ⧉
@@ -233,8 +261,13 @@ export default function ItemsPage() {
               </button>
               <button
                 onClick={() => handleDelete(item)}
-                title="Verwijderen"
-                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-danger)', cursor: 'pointer' }}
+                disabled={!!item.case_id}
+                title={item.case_id ? 'Gekoppeld aan een case - ontkoppel eerst (in de case) om te kunnen verwijderen' : 'Verwijderen'}
+                style={{
+                  padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent',
+                  color: item.case_id ? 'var(--color-text-muted)' : 'var(--color-danger)',
+                  cursor: item.case_id ? 'not-allowed' : 'pointer', opacity: item.case_id ? 0.5 : 1,
+                }}
               >
                 ✕
               </button>

@@ -10,11 +10,14 @@ export function listItems(caseId) {
   return api.get(`/api/mindbox/items${query}`)
 }
 
-export async function uploadItem(file, caseId) {
+export async function uploadItem(file, caseId, force = false) {
   const token = localStorage.getItem('hp_token')
   const formData = new FormData()
   formData.append('file', file, file.name)
-  const query = caseId ? `?case_id=${encodeURIComponent(caseId)}` : ''
+  const params = new URLSearchParams()
+  if (caseId) params.set('case_id', caseId)
+  if (force) params.set('force', 'true')
+  const query = params.toString() ? `?${params}` : ''
   const res = await fetch(`/api/mindbox/items${query}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -22,9 +25,12 @@ export async function uploadItem(file, caseId) {
   })
   if (!res.ok) {
     let detail = 'Upload mislukt'
-    try { detail = (await res.json()).detail || detail } catch { /* geen JSON-body */ }
+    let body = {}
+    try { body = await res.json(); detail = body.detail || detail } catch { /* geen JSON-body */ }
     const error = new Error(detail)
-    reportError(error, { 'api.path': '/api/mindbox/items', 'api.status': res.status })
+    error.status = res.status
+    error.extra = body.extra
+    if (res.status !== 409) reportError(error, { 'api.path': '/api/mindbox/items', 'api.status': res.status })
     throw error
   }
   return res.json()

@@ -25,23 +25,33 @@ export function copyText(text) {
   })
 }
 
-// Fase 2 (item 1050): MindBox.Run(...) bestaat nog niet als echt commando -
-// dit bereidt alvast de exacte, kopieerbare aanroep voor zodat de workflow
-// straks (zonder UI-wijziging) meteen bruikbaar is.
+// Fase 2 (item 1050/1051): MindBox.Run(...) e.d. bestaan nog niet als echte
+// commando's - dit bereidt alvast de exacte, kopieerbare aanroep voor zodat
+// de workflow straks (zonder UI-wijziging) meteen bruikbaar is.
 //
-// Item 1051 (Bart): "de commando's moeten wel omgeving bewust zijn" - prod/
-// acc/local hebben elk hun EIGEN database, dus een item-/case-ID uit acc
-// bestaat niet op prod. Bart's gekozen notatie: "{Env}.MindBox.Run(all)",
-// "{Env}.MindBox.Run.File(#item_id)", "{Env}.MindBox.Run.Case(#case_id)" -
-// de {Env}-prefix vertaalt 1-op-1 naar MindBox.ps1's -Env-parameter.
+// VASTE NOTATIE (Bart, item 1051, definitief na een paar rondes heen-en-weer):
+//   env.MindBox.Entity.Cmd(#id, optional params)
+// - env: Prod/Acc/Local - {Env}-prefix vertaalt 1-op-1 naar MindBox.ps1's
+//   -Env-parameter. Verplicht, want prod/acc/local hebben elk hun EIGEN
+//   database - een item-/case-ID uit acc bestaat niet op prod.
+// - Entity.Cmd: Object.Actie-volgorde, bv. Case.Run, File.Enhance - NIET
+//   Run.Case of Enhance.File (die kant op geweest, expliciet gecorrigeerd).
+// - Uitzondering: een commando zonder specifieke entity (werkt globaal over
+//   alles) laat het Entity-segment weg, bv. MindBox.Run(all).
+// Nieuwe MindBox-commando's MOETEN dit patroon volgen.
 export function mindboxRunAllCommand(env) {
   return `${env}.MindBox.Run(all)`
 }
-export function mindboxRunFileCommand(itemId, env) {
-  return `${env}.MindBox.Run.File(#${itemId})`
+export function mindboxCaseRunCommand(caseId, env) {
+  return `${env}.MindBox.Case.Run(#${caseId})`
 }
-export function mindboxRunCaseCommand(caseId, env) {
-  return `${env}.MindBox.Run.Case(#${caseId})`
+
+// "env.MindBox.File.Enhance(#id) --> om extra info toe te voegen aan het
+// infoveld van een bestand" - lichtgewicht per-bestand-actie (vervangt het
+// vervallen Run.File): geen volledige verwerking, alleen het bestand laten
+// bekijken en het notities-veld laten aanvullen (via MindBox.ps1 -Note).
+export function mindboxFileEnhanceCommand(itemId, env) {
+  return `${env}.MindBox.File.Enhance(#${itemId})`
 }
 
 const ENV_LABELS = { production: 'Prod', acceptatie: 'Acc', development: 'Local' }

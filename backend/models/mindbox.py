@@ -12,15 +12,18 @@ class MindboxCase(SQLModel, table=True):
     """Container die meerdere MindboxItems en MindboxResponses aan elkaar
     koppelt (Bart, 2-09-2026: 'vaak zal een MindboxItem vervolg krijgen') -
     bv. een mailwisseling met meerdere binnengekomen mails en meerdere
-    concept-antwoorden, of een dossier met meerdere documenten. MindboxContext
-    is BEWUST GEEN onderdeel van een case - contexts blijven een herbruikbare
-    bibliotheek die over meerdere, ongerelateerde cases heen wordt gebruikt
-    (bv. dezelfde 'Manager-response'-persona in verschillende zaken)."""
+    concept-antwoorden, of een dossier met meerdere documenten. context_id
+    koppelt optioneel EEN herbruikbare persona/instructie (MindboxContext)
+    aan de HELE case (Bart, item 1051: 'ik wil toch per case een context,
+    niet per bestand.. dat is ingewikkeld') - was eerst per item, dat bleek
+    onnodig complex. MindboxContext blijft zelf wel een herbruikbare
+    bibliotheek over meerdere, ongerelateerde cases heen."""
     __tablename__ = "mindbox_cases"
 
     id:          str      = Field(default_factory=new_uuid, primary_key=True)
     user_id:     str      = Field(foreign_key="users.id", index=True)
     name:        str      # bv. "SRE-vacature-kwestie"
+    context_id:  Optional[str] = Field(default=None, foreign_key="mindbox_contexts.id")
     created_at:  datetime = Field(default_factory=datetime.utcnow)
     updated_at:  datetime = Field(default_factory=datetime.utcnow)
 
@@ -48,10 +51,9 @@ class MindboxItem(SQLModel, table=True):
     1050): puur opslag + status + vrij notitieveld, geen geautomatiseerde
     verwerking. Bart/Claude bekijken en verwerken items samen in een Claude
     Code-sessie; het notities-veld is bedoeld voor context/voorbereiding die
-    Bart daarbij zelf invult. context_id koppelt optioneel een herbruikbare
-    persona/instructie (MindboxContext) aan dit item. case_id koppelt
-    optioneel dit item aan een MindboxCase (bv. een mailwisseling met
-    vervolgmails)."""
+    Bart daarbij zelf invult. case_id koppelt optioneel dit item aan een
+    MindboxCase (bv. een mailwisseling met vervolgmails) - de instructie-
+    /persona-context zit op de CASE (zie MindboxCase.context_id), niet hier."""
     __tablename__ = "mindbox_items"
 
     id:                str      = Field(default_factory=new_uuid, primary_key=True)
@@ -60,9 +62,9 @@ class MindboxItem(SQLModel, table=True):
     file_path:         str      # relatief pad onder UPLOAD_ROOT, conventie: mindbox/{user_id}/{uuid}{ext}
     content_type:      Optional[str] = Field(default=None)
     size_bytes:        int
+    content_hash:      Optional[str] = Field(default=None, index=True)  # sha256 van de bytes - duplicaatdetectie (item 1051)
     status:            str      = Field(default="new")  # new | in_progress | done
     notes:             Optional[str] = Field(default=None)
-    context_id:        Optional[str] = Field(default=None, foreign_key="mindbox_contexts.id")
     case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
