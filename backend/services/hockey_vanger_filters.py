@@ -9,7 +9,7 @@ from sqlmodel import Session, col, select
 
 from models.hockey_discovery import HockeyCompetition, HockeyTeam
 from models.settings import AppSetting
-from services.hockey_vanger_settings import get_zaal_window, is_in_zaal_window
+from services.hockey_vanger_settings import is_zaal_active
 
 # _AGE_RE en _AGE_RE_GENERIC zijn bewust gescheiden (RFTR-B2, Fase 2g) -
 # geen duplicatie om samen te voegen, maar twee verschillende concepten:
@@ -145,13 +145,13 @@ def _cmd_matches_filter(
     niet passen blijven gewoon 'pending' in de lijst staan, maar worden overgeslagen
     zodat ze niet verwerkt worden zolang het filter ze uitsluit.
 
-    item 1019: zaalcompetities (ZA) worden hier verder onder NIET uitgesloten
-    door het hockey_type-filter zolang we binnen het ingestelde zaal-
-    seizoensvenster zitten (default eind november t/m begin maart) - buiten
-    dat venster blijft ZA uitgesloten zoals voorheen (er valt dan toch niets
-    te scannen)."""
+    item 1019/1043: zaalcompetities (ZA) worden hier verder onder NIET
+    uitgesloten door het hockey_type-filter zolang de zaalcompetitie voor het
+    huidige doelseizoen daadwerkelijk actief is (is_zaal_active, gebaseerd op
+    de exacte hockey_season_calendar-data) - buiten dat venster blijft ZA
+    uitgesloten zoals voorheen (er valt dan toch niets te scannen)."""
     now = now or datetime.utcnow()
-    zaal_active = is_in_zaal_window(now, *get_zaal_window(session))
+    zaal_active = is_zaal_active(session, now)
 
     if cmd_type == "get_poule":
         team_id = params.get("team_id")

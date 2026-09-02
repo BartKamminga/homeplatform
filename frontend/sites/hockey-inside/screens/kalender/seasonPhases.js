@@ -7,6 +7,28 @@ export function phaseForDate(phases, date) {
   return (phases || []).find(p => date >= new Date(p.start) && date <= new Date(p.end))
 }
 
+// Fase-overgangen vallen zelden precies op de 1e van de maand (bv. zaal
+// loopt tot 14 feb, voorjaar begint pas 6 mrt) - phaseForDate op enkel de
+// 1e dag van de maand liet dan onterecht een "gat" zien voor elke maand
+// waarvan dag 1 net in zo'n overgang valt (aug/dec/mrt). Deze functie kiest
+// i.p.v. daarvan de fase die het GROOTSTE deel van de maand beslaat.
+export function phaseForMonth(phases, monthDate) {
+  const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
+  let best = null
+  let bestOverlapDays = 0
+  for (const p of (phases || [])) {
+    const overlapStart = new Date(Math.max(monthStart, new Date(p.start)))
+    const overlapEnd = new Date(Math.min(monthEnd, new Date(p.end)))
+    const overlapDays = (overlapEnd - overlapStart) / 86400000
+    if (overlapDays > bestOverlapDays) {
+      bestOverlapDays = overlapDays
+      best = p
+    }
+  }
+  return best
+}
+
 export function phaseColor(phases, phase) {
   if (!phase) return 'var(--color-border)'
   return PHASE_COLORS[phases.indexOf(phase) % PHASE_COLORS.length]

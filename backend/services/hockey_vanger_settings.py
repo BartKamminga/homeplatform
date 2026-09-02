@@ -114,6 +114,23 @@ def is_in_zaal_window(
     return today >= start or today <= end
 
 
+def is_zaal_active(session: Session, now: Optional[datetime] = None) -> bool:
+    """item 1043-vervolg: of er nu zaalcompetitie gespeeld zou kunnen worden,
+    voor het huidige doelseizoen (get_target_season). Gebruikt eerst de
+    EXACTE hockey_season_calendar-data (get_season_phases) - pas als het
+    seizoen daar nog niet in staat (nog niet geimporteerd) valt dit terug op
+    de generieke zaal_window-instelling (is_in_zaal_window/get_zaal_window),
+    die aantoonbaar te ruim is (15 nov-15 mrt i.p.v. de werkelijke 5 dec-14
+    feb) maar als vangnet blijft dienen zolang niet elk seizoen in de tabel
+    staat."""
+    now = now or datetime.utcnow()
+    zaal = next((p for p in get_season_phases(session, get_target_season(session)) if p["id"] == "zaal"), None)
+    if zaal:
+        today = now.date()
+        return date.fromisoformat(zaal["start"]) <= today <= date.fromisoformat(zaal["end"])
+    return is_in_zaal_window(now, *get_zaal_window(session))
+
+
 def get_season_phases(session: Session, season: str) -> List[dict]:
     """item 1043/1045: seizoensfases (veld najaar / zaal / veld voorjaar) met
     EXACTE datums voor een gegeven seizoen-string ('2026-2027'), voor de

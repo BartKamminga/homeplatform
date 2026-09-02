@@ -1,4 +1,4 @@
-import { PHASE_COLORS, phaseColor, phaseForDate } from './seasonPhases.js'
+import { PHASE_COLORS, phaseColor, phaseForMonth } from './seasonPhases.js'
 
 function sameMonth(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
@@ -36,7 +36,7 @@ export default function JaarView({ data, onSelectMonth }) {
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4 }}>
         {months.map((month, i) => {
-          const phase = phaseForDate(phases, month)
+          const phase = phaseForMonth(phases, month)
           const color = phaseColor(phases, phase)
           const count = countForMonth(month)
           return (
