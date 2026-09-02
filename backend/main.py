@@ -68,6 +68,7 @@ from routers import hockey_scenario  # noqa: E402
 from routers import poulebord  # noqa: E402
 from routers import infra  # noqa: E402
 from routers import agent_control  # noqa: E402
+from routers import mindbox  # noqa: E402
 from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
@@ -168,6 +169,7 @@ app.include_router(changelog.router)
 app.include_router(tracking.router)
 app.include_router(dontforget.router)
 app.include_router(uploads.router)
+app.include_router(mindbox.router)
 app.include_router(bug_reports.router)
 app.include_router(push.router)
 app.include_router(tournix.router)

@@ -1,6 +1,10 @@
 # Roadmap CLI config (bevat API key)
 .roadmap.config.ps1
 
+# Mindbox CLI config (bevat API key) + lokale werkmap (persoonsgebonden bestanden)
+.mindbox.config.ps1
+mindbox_work/
+
 # Python
 .venv/
 __pycache__/
