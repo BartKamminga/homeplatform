@@ -22,6 +22,8 @@ router = APIRouter(prefix="/api/mindbox", tags=["mindbox"])
 class MindboxCaseOut(BaseModel):
     id:          str
     name:        str
+    status:      str
+    description: Optional[str]
     context_id:  Optional[str]
     created_at:  datetime
     updated_at:  datetime
@@ -34,6 +36,8 @@ class MindboxCaseCreate(BaseModel):
 
 class MindboxCaseUpdate(BaseModel):
     name:           Optional[str] = None
+    status:         Optional[str] = None
+    description:    Optional[str] = None
     context_id:     Optional[str] = None
     clear_context:  bool = False
 
@@ -272,7 +276,9 @@ def update_case(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    case = svc.update_case(session, user, case_id, data.name, data.context_id, data.clear_context)
+    case = svc.update_case(
+        session, user, case_id, data.name, data.status, data.description, data.context_id, data.clear_context,
+    )
     log_action(session, "mindbox.case.update", site="mindbox", user_id=user.id, payload={"case_id": case.id})
     return case
 

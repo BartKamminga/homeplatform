@@ -23,6 +23,8 @@ class MindboxCase(SQLModel, table=True):
     id:          str      = Field(default_factory=new_uuid, primary_key=True)
     user_id:     str      = Field(foreign_key="users.id", index=True)
     name:        str      # bv. "SRE-vacature-kwestie"
+    status:      str      = Field(default="new")  # new | in_progress | done
+    description: Optional[str] = Field(default=None)
     context_id:  Optional[str] = Field(default=None, foreign_key="mindbox_contexts.id")
     created_at:  datetime = Field(default_factory=datetime.utcnow)
     updated_at:  datetime = Field(default_factory=datetime.utcnow)

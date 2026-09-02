@@ -402,6 +402,7 @@ def create_case(session: Session, user: User, name: str, context_id: str | None 
 
 def update_case(
     session: Session, user: User, case_id: str, name: str | None = None,
+    status: str | None = None, description: str | None = None,
     context_id: str | None = None, clear_context: bool = False,
 ) -> MindboxCase:
     case = get_case(session, user, case_id)
@@ -409,6 +410,13 @@ def update_case(
         old_name = case.name
         case.name = name
         _log_case_event(session, case_id, user.id, "case_renamed", f"Case hernoemd van '{old_name}' naar '{name}'")
+    if status is not None:
+        if status not in VALID_STATUSES:
+            raise AppError(f"Ongeldige status: {status}", status_code=400)
+        case.status = status
+        _log_case_event(session, case_id, user.id, "status_change", f"Case status -> {status}")
+    if description is not None:
+        case.description = description
     if clear_context:
         case.context_id = None
     elif context_id is not None:

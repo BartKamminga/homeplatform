@@ -13,6 +13,12 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+const STATUS_OPTIONS = [
+  { value: 'new', label: 'Nieuw' },
+  { value: 'in_progress', label: 'In behandeling' },
+  { value: 'done', label: 'Afgerond' },
+]
+
 const EVENT_ICON = {
   upload: '📥', status_change: '🔄', context_linked: '🎭', item_added: '➕',
   item_removed: '➖', item_parsed: '🔎', response_created: '📝', response_edited: '✏️', response_sent: '✅', case_created: '✨', case_renamed: '✏️', session_note: '💬',
@@ -241,6 +247,17 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     onChanged(updated)
   }
 
+  async function handleCaseStatusChange(status) {
+    const updated = await updateCase(caseObj.id, { status })
+    onChanged(updated)
+  }
+
+  async function handleCaseDescriptionBlur(description) {
+    if (description === (caseObj.description || '')) return
+    const updated = await updateCase(caseObj.id, { description })
+    onChanged(updated)
+  }
+
   async function handleUnlink(item) {
     if (!(await confirmAction(`"${item.original_filename}" loskoppelen van deze case?`))) return
     await updateItem(item.id, { clear_case: true })
@@ -349,6 +366,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           />
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <select
+            value={caseObj.status}
+            onChange={e => handleCaseStatusChange(e.target.value)}
+            style={{ padding: '3px 6px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+          >
+            {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>🎭 Context:</span>
           <select
             value={caseObj.context_id || ''}
@@ -360,6 +384,17 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           </select>
         </div>
       </div>
+
+      <textarea
+        key={caseObj.id}
+        defaultValue={caseObj.description || ''}
+        placeholder="Omschrijving van deze case..."
+        onBlur={e => handleCaseDescriptionBlur(e.target.value)}
+        style={{
+          padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)',
+          resize: 'vertical', minHeight: 40, fontFamily: 'inherit',
+        }}
+      />
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
 

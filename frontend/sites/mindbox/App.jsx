@@ -9,10 +9,11 @@ import CommandsPage from './pages/CommandsPage.jsx'
 // relevant om losse responses te bekijken") - responses zijn altijd
 // case-gescoped en leven daarom alleen binnen CasesPage/CaseDetail.
 const TABS = [
-  { key: 'items', label: '📥 Bestanden' },
   { key: 'cases', label: '📁 Cases' },
+  { key: 'items', label: '📥 Bestanden' },
   { key: 'contexts', label: '🎭 Contexts' },
   { key: 'contacts', label: '👤 Contacts' },
+  { key: 'knowledge', label: '📚 Knowledge' },
   { key: 'commands', label: "⚙️ Commando's" },
 ]
 
@@ -20,7 +21,7 @@ const TABS = [
 // hele breedte" - geen mobiel-eerste PWA-opzet zoals dontforget, geen
 // gematigde maxWidth:960-kolom zoals hockey-inside. Desktop-werkomgeving.
 export default function App() {
-  const [tab, setTab] = useState('items')
+  const [tab, setTab] = useState('cases')
   const [focusCaseId, setFocusCaseId] = useState(null)
 
   // Item 1051 (Bart): bij een duplicaat-upload moet "annuleren" je naar het
@@ -72,6 +73,11 @@ export default function App() {
         )}
         {tab === 'contexts' && <ContextsPage />}
         {tab === 'contacts' && <ContactsPage />}
+        {tab === 'knowledge' && (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+            Knowledge komt eraan.
+          </div>
+        )}
         {tab === 'commands' && <CommandsPage />}
       </main>
     </div>
