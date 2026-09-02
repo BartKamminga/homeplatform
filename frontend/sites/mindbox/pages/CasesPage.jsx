@@ -219,6 +219,15 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     onChanged()
   }
 
+  // Bart: "ik kan de extra info bij een bestand dat is gekoppeld aan een
+  // case niet meer editen/bekijken als ik in een case zit" - notities waren
+  // hier nooit zichtbaar/bewerkbaar (alleen op de vlakke Bestanden-tab).
+  async function handleItemNotesBlur(item, notes) {
+    if (notes === (item.notes || '')) return
+    await updateItem(item.id, { notes })
+    load()
+  }
+
   function handleCopy(command) {
     copyText(command)
       .then(() => { setCopyMsg('Gekopieerd!'); setTimeout(() => setCopyMsg(''), 1500) })
@@ -309,8 +318,17 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {items.map(item => (
-            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12 }}>
+            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12 }}>
               <span>{item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span></span>
+              <textarea
+                defaultValue={item.notes || ''}
+                placeholder="Extra info / context voor verwerking..."
+                onBlur={e => handleItemNotesBlur(item, e.target.value)}
+                style={{
+                  padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--color-border)',
+                  resize: 'vertical', minHeight: 28, fontFamily: 'inherit',
+                }}
+              />
               <div style={{ display: 'flex', gap: 4 }}>
                 <button onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
