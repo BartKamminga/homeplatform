@@ -1111,3 +1111,108 @@ def test_manual_weekly_uses_the_configurable_window_start_hour(session):
 
     manual = next(e for e in events if e["reason"] == "manual_weekly" and e["target_id"] == 999)
     assert manual["planned_at"].hour == 11
+
+
+def test_rebuild_does_not_drop_an_overdue_daily_fallback_tick(session):
+    """item 1031 (Bart, 1-09-2026, gevonden tijdens het testen van de
+    vooruitkijk-optie op 'Queue nu versnellen'): een rebuild wiste voorheen
+    OOK cadans-rijen die al due waren (planned_at <= now) maar nog niet
+    gepromoveerd - de herberekening zag alleen dat de tick al voorbij was en
+    sloeg 'm over, sprong door naar de eerstvolgende cyclus (24u verder). Zo'n
+    dag werd stilzwijgend overgeslagen, ongeacht of dat kwam door Ghost-
+    downtime of gewoon een reguliere pass die net na het due-moment viel."""
+    _disable_skip_healthy_daily_fallback(session)
+    now0 = datetime(2026, 8, 30, 8, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|rebuild-drop", name="Rebuild Drop Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-drop", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=999101, name="Poule Drop", competition_id=comp.id, season="2026-2027",
+                         last_scanned_at=now0 - timedelta(hours=23, minutes=45))
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=999101, club_external_id="DROP_CLUB", name="Drop Team", short_name="H1",
+        hockey_type="VE", category_group_name="Junioren", recent_poule_id=999101,
+    ))
+    # Wedstrijd 1: al afgelopen zonder finale uitslag -> "ongezond" (item 1018).
+    session.add(HockeyPouleMatch(
+        poule_id=999101, match_id=1, home_team_id=999101, away_team_id=999102,
+        status="scheduled", round=1, match_date=(now0 - timedelta(days=1)).isoformat(),
+    ))
+    # Wedstrijd 2: nog te spelen, binnen de lookahead, ver genoeg weg om geen
+    # matchday-preempt op vandaag te triggeren.
+    session.add(HockeyPouleMatch(
+        poule_id=999101, match_id=2, home_team_id=999101, away_team_id=999102,
+        status="scheduled", round=2, match_date=(now0 + timedelta(days=5)).isoformat(),
+    ))
+    session.commit()
+
+    rebuild_schedule(session, now0, 14)
+    promote_due_schedule_entries(session, now0, cap=100)
+    # De daily_fallback-tick klemt naar 09:00 (scan_window_start_hour) - om
+    # 08:00 nog niet due. Andere reasons (bv. club_list) kunnen wel al
+    # gepromoveerd zijn, dat is niet waar deze test op let.
+    cmds_before = session.exec(select(VangerCmd)).all()
+    assert not any(c.cmd_type == "get_poule" and c.reason == "daily_fallback" for c in cmds_before)
+
+    # Ghost was niet gestart / de volgende pass viel pas 90 min later - NA het
+    # geplande tijdstip (09:00).
+    now1 = now0 + timedelta(hours=1, minutes=30)
+    rebuild_schedule(session, now1, 14)
+    promote_due_schedule_entries(session, now1, cap=100)
+
+    cmds = session.exec(select(VangerCmd)).all()
+    assert any(c.cmd_type == "get_poule" and c.reason == "daily_fallback" for c in cmds), (
+        "daily_fallback mag niet stilzwijgend een cyclus overslaan als een rebuild na het due-moment valt"
+    )
+
+
+def test_rebuild_does_not_drop_an_overdue_match_start_check(session):
+    """item 1031, 2e bevinding: match_start_check gebruikt (als enige
+    matchday-reason) GEEN 'tick=max(tick,now)'-vangnet - zonder bescherming
+    verdween een gemist check-moment PERMANENT (geen catch-up zoals bij
+    daily_fallback, gewoon voorgoed weg voor die wedstrijd)."""
+    now0 = datetime(2026, 9, 1, 10, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|start-check-drop", name="Start Check Drop Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-sc-drop", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=999102, name="Poule SC Drop", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=999102, club_external_id="SC_DROP_CLUB", name="Start Check Drop Team", short_name="H1",
+        hockey_type="VE", category_group_name="Junioren", recent_poule_id=999102,
+    ))
+    # Wedstrijd begint om 10:00 -> match_start_check zou op 10:15 moeten liggen
+    # (live_check_delay_min default 15).
+    session.add(HockeyPouleMatch(
+        poule_id=999102, match_id=1, home_team_id=999102, away_team_id=999103,
+        status="scheduled", round=1, match_date=now0.isoformat(),
+    ))
+    session.commit()
+
+    rebuild_schedule(session, now0, 14)
+    rows = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 999102)).all()
+    assert any(r.reason == "match_start_check" for r in rows)
+
+    # Ghost was niet gestart tussen 10:00 en 10:30 - het check-moment (10:15)
+    # is dus al gepasseerd voor de volgende rebuild draait.
+    now1 = now0 + timedelta(minutes=30)
+    rebuild_schedule(session, now1, 14)
+    promoted = promote_due_schedule_entries(session, now1, cap=100)
+
+    rows_after = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 999102)).all()
+    assert any(r.reason == "match_start_check" for r in rows_after), (
+        "match_start_check mag niet stilzwijgend verdwijnen als een rebuild na het check-moment valt"
+    )
+    assert promoted >= 1
+    cmds = session.exec(select(VangerCmd)).all()
+    assert any(c.cmd_type == "get_poule" and c.reason == "match_start_check" for c in cmds)

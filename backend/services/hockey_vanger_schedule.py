@@ -43,6 +43,24 @@ DEFAULT_HORIZON_DAYS = 14
 DEFAULT_SCAN_WINDOW_START_HOUR = 9
 DEFAULT_SCAN_WINDOW_END_HOUR = 18
 
+# item 1031 (Bart, 1-09-2026): alleen DEZE reasons worden met rust gelaten
+# door een rebuild zodra ze al due zijn (planned_at <= now) maar nog niet
+# gepromoveerd - ze hebben geen eigen 'trek naar nu toe'-vangnet en zouden
+# zonder deze bescherming een gemist moment kwijtraken (daily_fallback/
+# unknown_start_recheck/manual_weekly schuiven dan een hele cyclus door;
+# match_start_check verdwijnt zelfs voorgoed, zie _matchday_events).
+#
+# BEWUST NIET in deze lijst: match_end_check/retry_match_end/match_live
+# (die klemmen zichzelf al naar 'now' via _plan()'s tick=max(tick,now) en
+# worden dus, zolang ze niet gepromoveerd zijn, ELKE rebuild opnieuw op het
+# actuele 'now' herberekend - ze MOETEN dus gewoon vervangen worden, anders
+# stapelen ze duplicaten op met een steeds iets ander planned_at), en new_or_
+# empty/club_scan/club_list (_immediate_events geeft die altijd een vers
+# planned_at=now; _pending_poule_ids/_pending_club_ext_ids checken alleen
+# VangerCmd, niet ScanScheduleEntry, dus zonder vervanging zouden die zich
+# elke rebuild klonen).
+PROTECTED_DUE_REASONS = {"daily_fallback", "unknown_start_recheck", "manual_weekly", "match_start_check"}
+
 
 def _clamp_to_window(dt: datetime, start_hour: int, end_hour: int) -> datetime:
     """Niet-wedstrijd-gebonden scan-momenten (dagelijkse fallback, onbekende-
@@ -727,7 +745,12 @@ def rebuild_schedule_for_target(
     gelijktijdige captures onnodig veel tijd kosten voor doelen die niet
     eens net zijn ververst. De periodieke rebuild (_maybe_run_scan_plan_
     pass) blijft de volledige rebuild_schedule gebruiken - die loopt
-    hooguit elke profile_scan_interval_min, geen probleem."""
+    hooguit elke profile_scan_interval_min, geen probleem.
+
+    item 1031 (Bart, 1-09-2026): wist bewust GEEN PROTECTED_DUE_REASONS-rijen
+    die al due zijn (nog niet gepromoveerd) - zie rebuild_schedule hieronder
+    voor de volledige uitleg, hier van toepassing zodra deze targeted rebuild
+    toevallig net na een due-moment draait."""
     horizon_end = now + timedelta(days=horizon_days)
     stale = session.exec(
         select(ScanScheduleEntry)
@@ -735,6 +758,7 @@ def rebuild_schedule_for_target(
         .where(ScanScheduleEntry.target_type == target_type)
         .where(ScanScheduleEntry.target_id == target_id)
         .where(ScanScheduleEntry.planned_at <= horizon_end)
+        .where((ScanScheduleEntry.planned_at > now) | ~col(ScanScheduleEntry.reason).in_(PROTECTED_DUE_REASONS))
     ).all()
     for entry in stale:
         session.delete(entry)
@@ -747,15 +771,41 @@ def rebuild_schedule_for_target(
 
 
 def rebuild_schedule(session: Session, now: datetime, horizon_days: int = DEFAULT_HORIZON_DAYS) -> int:
-    """Wist alle nog niet-gepromoveerde ('planned') rijen binnen het venster en
-    zet de vers berekende set terug - simpeler dan incrementeel diffen, en een
-    instellingswijziging werkt zo vanzelf door bij de eerstvolgende rebuild.
-    Gepromoveerde rijen blijven staan als geschiedenis."""
+    """Wist alle nog niet-gepromoveerde, NOG NIET DUE ('planned', planned_at >
+    now) rijen binnen het venster en zet de vers berekende set terug -
+    simpeler dan incrementeel diffen, en een instellingswijziging werkt zo
+    vanzelf door bij de eerstvolgende rebuild. Gepromoveerde rijen blijven
+    staan als geschiedenis.
+
+    item 1031 (Bart, 1-09-2026, gevonden tijdens het testen van de
+    vooruitkijk-optie op 'Queue nu versnellen'): de wipe liet voorheen OOK
+    rijen wissen met planned_at <= now (al due, maar nog niet gepromoveerd
+    omdat promote_due_schedule_entries pas NA deze rebuild draait in
+    _maybe_run_scan_plan_pass). Voor cadans-reasons (_cadence_events:
+    daily_fallback/unknown_start_recheck/manual_weekly) berekent een
+    herbouw vanaf het huidige 'now' geen tick meer die al voorbij is - de
+    eerstvolgende cyclus (24u/1 week verder) kwam ervoor in de plaats, dus
+    die dag/week werd stilzwijgend overgeslagen. Voor match_start_check
+    (_matchday_events, die als enige matchday-reason GEEN 'tick=max(tick,
+    now)'-vangnet heeft) verdween een gemist moment zelfs voorgoed, zonder
+    vervanging. Beide empirisch gereproduceerd met een test die 2 passes
+    simuleert met een now-sprong ertussen (bv. Ghost die niet direct
+    herstart, of gewoon een reguliere cyclus die net na een due-moment valt).
+    Door hier NIET te wissen wat al due is, krijgt promote_due_schedule_
+    entries altijd zijn kans, ongeacht de aanroepvolgorde met rebuild of hoe
+    vaak er tussendoor (periodiek of reactief) herbouwd wordt.
+
+    Alleen reasons in PROTECTED_DUE_REASONS worden met rust gelaten als ze al
+    due zijn - alle andere reasons (match_end_check/retry_match_end/
+    match_live/new_or_empty/club_scan/club_list) worden ALTIJD gewist en
+    herberekend, ook als ze al due zijn (zie PROTECTED_DUE_REASONS'
+    commentaar hierboven voor waarom die dat juist NODIG hebben)."""
     horizon_end = now + timedelta(days=horizon_days)
     stale = session.exec(
         select(ScanScheduleEntry)
         .where(ScanScheduleEntry.status == "planned")
         .where(ScanScheduleEntry.planned_at <= horizon_end)
+        .where((ScanScheduleEntry.planned_at > now) | ~col(ScanScheduleEntry.reason).in_(PROTECTED_DUE_REASONS))
     ).all()
     for entry in stale:
         session.delete(entry)
@@ -767,7 +817,13 @@ def rebuild_schedule(session: Session, now: datetime, horizon_days: int = DEFAUL
     return len(events)
 
 
-def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STEP_MAX_CMDS) -> int:
+ACCELERATABLE_REASONS = {"unknown_start_recheck", "club_scan", "club_list", "new_or_empty"}
+
+
+def promote_due_schedule_entries(
+    session: Session, now: datetime, cap: int = STEP_MAX_CMDS,
+    pull_forward_until: Optional[datetime] = None, limit_promoted: Optional[int] = None,
+) -> int:
     """Hevelt scanschema-rijen waarvan planned_at is aangebroken over naar de
     echte vanger-queue (VangerCmd), via de bestaande add_vanger_cmd (dedup +
     landelijke-redirect ongewijzigd hergebruikt).
@@ -804,20 +860,39 @@ def promote_due_schedule_entries(session: Session, now: datetime, cap: int = STE
     (was eerder een omissie) - anders krijgt een gepromoveerde cmd reason=None
     en zou GET /vanger/cmd-queue/next 'm per ongeluk als handmatig/ad-hoc
     behandelen (filter-bypass), terwijl deze cmd hierboven al netjes tegen het
-    filter is gecheckt op het moment van promotie."""
+    filter is gecheckt op het moment van promotie.
+
+    item 1032 (Bart, 1-09-2026: 'Queue nu versnellen' handmatig vooruit
+    trekken): pull_forward_until/limit_promoted zijn OPTIONEEL en worden
+    alleen door de handmatige versnel-knop gebruikt (routers/hockey_vanger_
+    schedule_debug.py) - de periodieke pass (_maybe_run_scan_plan_pass) roept
+    deze functie ongewijzigd aan zonder deze parameters, dus daar verandert
+    niets. Met pull_forward_until (of limit_promoted, voor de 'volgende N
+    items'-variant) worden ook nog-niet-due rijen bekeken, MAAR: een rij met
+    planned_at > now (dus echt vooruitgetrokken, niet organisch due) wordt
+    alleen gepromoveerd als de reason in ACCELERATABLE_REASONS zit. Bart,
+    1-09-2026: 'echt tijdgebonden items (start/end/live) niet noodzakelijkerwijs
+    EERDER uitgevoerd... alleen poules met missende starttijden, clubs/club
+    zaken' - vroeg checken van wedstrijd-timing/resultaten heeft geen zin
+    (de uitslag is er nog niet) en geeft bovendien een duplicatie-risico
+    (add_vanger_cmd dedupt alleen tegen pending/in_progress, niet tegen een
+    al-done cmd van dezelfde vroegtijdige promotie - zie item 1031)."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
 
     ages, club, cats, hts, genders = _get_queue_filter(session)
 
-    due = session.exec(
-        select(ScanScheduleEntry)
-        .where(ScanScheduleEntry.status == "planned")
-        .where(ScanScheduleEntry.planned_at <= now)
-        .order_by(col(ScanScheduleEntry.planned_at).asc())
-        .limit(cap)
-    ).all()
+    query = select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")
+    if limit_promoted is None:
+        query = query.where(ScanScheduleEntry.planned_at <= (pull_forward_until or now))
+    query = query.order_by(col(ScanScheduleEntry.planned_at).asc()).limit(cap)
+    due = session.exec(query).all()
+
     promoted = 0
     for entry in due:
+        if limit_promoted is not None and promoted >= limit_promoted:
+            break
+        if entry.planned_at > now and entry.reason not in ACCELERATABLE_REASONS:
+            continue  # niet toegestaan om vooruit te trekken, blijft gewoon 'planned' liggen
         try:
             params = json.loads(entry.params)
         except (ValueError, TypeError):
