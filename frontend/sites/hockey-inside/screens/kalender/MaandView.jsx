@@ -1,4 +1,4 @@
-import { phaseColor, phasesInRange } from './seasonPhases.js'
+import { phaseColor, phaseForDate, phasesInRange } from './seasonPhases.js'
 
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
@@ -136,6 +136,13 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
           const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
+          // Lichte fase-kleur als ondergrond op wedstrijddagen zelf (niet op
+          // elke dag in de fase) - zo blijft het effect subtiel maar geeft
+          // wel meteen aan in welke competitiefase een speeldag valt.
+          const dayPhase = total > 0 ? phaseForDate(phases, day) : null
+          const background = isToday
+            ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)'
+            : (dayPhase ? `color-mix(in srgb, ${phaseColor(phases, dayPhase)} 12%, transparent)` : 'transparent')
           return (
             <div
               key={i}
@@ -144,7 +151,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
                 padding: 6, minHeight: 56, cursor: 'pointer', opacity: inMonth ? 1 : 0.35,
                 borderRight: (i + 1) % 7 !== 0 ? '1px solid var(--color-border)' : 'none',
                 borderBottom: '1px solid var(--color-border)',
-                background: isToday ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'transparent',
+                background,
               }}
             >
               <div style={{ fontSize: 10, fontWeight: isToday ? 700 : 400 }}>{day.getDate()}</div>

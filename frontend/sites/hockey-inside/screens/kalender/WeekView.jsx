@@ -1,4 +1,4 @@
-import { phaseColor, phasesInRange } from './seasonPhases.js'
+import { phaseColor, phaseForDate, phasesInRange } from './seasonPhases.js'
 
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
@@ -121,11 +121,15 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {days.map((day, i) => {
           const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason } = countsByDay[i]
+          // Zelfde subtiele fase-ondergrond als MaandView.jsx - alleen op
+          // dagen met wedstrijden, niet op elke dag in de fase.
+          const dayPhase = total > 0 ? phaseForDate(phases, day) : null
+          const background = dayPhase ? `color-mix(in srgb, ${phaseColor(phases, dayPhase)} 12%, transparent)` : 'transparent'
           return (
             <div
               key={i}
               onClick={() => onSelectDay(day)}
-              style={{ padding: 10, borderRight: i < 6 ? '1px solid var(--color-border)' : 'none', cursor: 'pointer', minHeight: 76 }}
+              style={{ padding: 10, borderRight: i < 6 ? '1px solid var(--color-border)' : 'none', cursor: 'pointer', minHeight: 76, background }}
             >
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
                 {day.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}
