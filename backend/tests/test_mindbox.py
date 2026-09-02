@@ -531,6 +531,60 @@ def test_upload_into_a_case_directly_skips_the_suggestion(client, user_token):
     assert res.json()["suggested_case_id"] is None
 
 
+def test_upload_an_attachment_inherits_the_parents_case(client, user_token):
+    """Item 1051 (Bart): 'hoe gaan we om met attachments in een mail?' - een
+    bijlage erft ALTIJD het case_id van het ouder-item."""
+    case_id = _case(client, user_token, "Mail met bijlage")
+    mail = _upload(client, user_token, filename="mail.msg", content=b"mail body")
+    mail_id = mail.json()["id"]
+    client.patch(f"/api/mindbox/items/{mail_id}", json={"case_id": case_id}, headers=_auth(user_token))
+
+    attachment = client.post(
+        "/api/mindbox/items",
+        params={"parent_item_id": mail_id},
+        files={"file": ("bijlage.pdf", io.BytesIO(b"pdf-bytes"), "application/pdf")},
+        headers=_auth(user_token),
+    )
+    assert attachment.status_code == 200
+    data = attachment.json()
+    assert data["parent_item_id"] == mail_id
+    assert data["case_id"] == case_id  # geerfd, niet expliciet meegegeven
+    assert data["suggested_case_id"] is None  # geen suggestie nodig voor een bijlage
+
+    listed = client.get(f"/api/mindbox/items/{mail_id}/attachments", headers=_auth(user_token))
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["original_filename"] == "bijlage.pdf"
+
+
+def test_attachment_of_another_users_item_is_rejected(client, user_token, admin_token):
+    mail_id = _upload(client, admin_token, filename="mail.msg", content=b"mail body").json()["id"]
+    res = client.post(
+        "/api/mindbox/items",
+        params={"parent_item_id": mail_id},
+        files={"file": ("bijlage.pdf", io.BytesIO(b"pdf-bytes"), "application/pdf")},
+        headers=_auth(user_token),
+    )
+    assert res.status_code == 403
+
+
+def test_deleting_the_parent_item_unlinks_its_attachments(client, user_token):
+    mail_id = _upload(client, user_token, filename="mail.msg", content=b"mail body").json()["id"]
+    attachment_id = client.post(
+        "/api/mindbox/items",
+        params={"parent_item_id": mail_id},
+        files={"file": ("bijlage.pdf", io.BytesIO(b"pdf-bytes"), "application/pdf")},
+        headers=_auth(user_token),
+    ).json()["id"]
+
+    delete_res = client.delete(f"/api/mindbox/items/{mail_id}", headers=_auth(user_token))
+    assert delete_res.status_code == 200
+
+    items = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
+    attachment = next(i for i in items if i["id"] == attachment_id)
+    assert attachment["parent_item_id"] is None
+
+
 def test_edit_a_response_and_log_a_case_event(client, user_token):
     case_id = _case(client, user_token)
     response_id = client.post(

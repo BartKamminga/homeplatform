@@ -62,6 +62,14 @@ export function mindboxFileParseToTekstCommand(itemId, env) {
   return `${env}.MindBox.File.ParseToTekst(#${itemId})`
 }
 
+// "env.MindBox.File.ExtractAttachments(#item)" (Bart, item 1051: "hoe gaan
+// we om met attachments in een mail?") - bijlagen van een mail (bv. een
+// .msg) apart als eigen MindboxItems opslaan, gekoppeld via parent_item_id
+// en automatisch in dezelfde case als de mail zelf.
+export function mindboxFileExtractAttachmentsCommand(itemId, env) {
+  return `${env}.MindBox.File.ExtractAttachments(#${itemId})`
+}
+
 const ENV_LABELS = { production: 'Prod', acceptatie: 'Acc', development: 'Local' }
 
 // Zelfde bron als EnvBanner (frontend/core/EnvBanner.jsx): /api/config geeft

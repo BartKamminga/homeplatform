@@ -4,7 +4,7 @@ import {
   listItems, uploadItem, updateItem, downloadItem,
   listResponses, createResponse, updateResponse, downloadResponseEml, listContexts,
 } from '../api.js'
-import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
+import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, mindboxCaseRunCommand, fetchMindboxEnv } from '../utils.js'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -131,6 +131,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [copyMsg, setCopyMsg] = useState('')
   const [error, setError] = useState('')
   const [expandedParsedId, setExpandedParsedId] = useState(null)
+  const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
   const fileInputRef = useRef(null)
 
   function load() {
@@ -236,6 +237,12 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
       .catch(() => setCopyMsg('Kopiëren mislukt'))
   }
 
+  // Bijlagen (item 1051) zijn gewone items met parent_item_id - client-side
+  // gegroepeerd uit dezelfde al-opgehaalde lijst, geen extra request nodig.
+  function attachmentsOf(itemId) {
+    return items.filter(i => i.parent_item_id === itemId)
+  }
+
   async function handleAddNote() {
     if (!noteText.trim()) return
     await addCaseEvent(caseObj.id, { event_type: 'session_note', description: noteText.trim() })
@@ -327,7 +334,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
       {/* Items in deze case */}
       <section>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>BESTANDEN ({items.length})</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>BESTANDEN ({items.filter(i => !i.parent_item_id).length})</div>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -339,9 +346,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>of sleep een bestand in dit vlak</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {items.map(item => (
+          {items.filter(item => !item.parent_item_id).map(item => (
             <div key={item.id}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: expandedParsedId === item.id ? '6px 6px 0 0' : 6, fontSize: 12 }}>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 12,
+              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id) ? '6px 6px 0 0' : 6,
+            }}>
               <span>{item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span></span>
               <textarea
                 defaultValue={item.notes || ''}
@@ -355,11 +366,17 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               <div style={{ display: 'flex', gap: 4 }}>
                 <button onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
                 <button onClick={() => handleCopy(mindboxFileParseToTekstCommand(item.id, env))} title="Kopieer commando om de tekst van dit bestand te laten extraheren" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>🔎</button>
+                <button onClick={() => handleCopy(mindboxFileExtractAttachmentsCommand(item.id, env))} title="Kopieer commando om bijlagen uit dit bestand te extraheren" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>📎</button>
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
                 {item.parsed_text && (
                   <button onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)} title="Geparste tekst tonen/verbergen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
                     {expandedParsedId === item.id ? '▲' : '▼'}
+                  </button>
+                )}
+                {!!attachmentsOf(item.id).length && (
+                  <button onClick={() => setExpandedAttachmentsId(id => id === item.id ? null : item.id)} title="Bijlagen tonen/verbergen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
+                    📎 {attachmentsOf(item.id).length}
                   </button>
                 )}
               </div>
@@ -371,6 +388,22 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               }}>
                 <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>GEPARSTE TEKST VAN HET BESTAND</div>
                 {item.parsed_text}
+              </div>
+            )}
+            {expandedAttachmentsId === item.id && !!attachmentsOf(item.id).length && (
+              <div style={{
+                padding: '8px 10px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+                borderRadius: '0 0 6px 6px', fontSize: 12,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, color: 'var(--color-text-muted)' }}>BIJLAGEN</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {attachmentsOf(item.id).map(att => (
+                    <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>📎 {att.original_filename}</span>
+                      <button onClick={() => downloadItem(att.id, att.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             </div>

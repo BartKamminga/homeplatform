@@ -58,6 +58,7 @@ class MindboxItemOut(BaseModel):
     status:                str
     notes:                 Optional[str]
     parsed_text:           Optional[str]
+    parent_item_id:        Optional[str]
     case_id:               Optional[str]
     created_at:            datetime
     updated_at:            datetime
@@ -130,13 +131,16 @@ async def upload_item(
     file: UploadFile = File(...),
     case_id: Optional[str] = None,
     force: bool = False,
+    parent_item_id: Optional[str] = None,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     content = await file.read()
-    item, suggested_case = svc.save_upload(session, user, file.filename, content, file.content_type, case_id, force)
+    item, suggested_case = svc.save_upload(
+        session, user, file.filename, content, file.content_type, case_id, force, parent_item_id,
+    )
     log_action(session, "mindbox.upload", site="mindbox", user_id=user.id,
-               payload={"item_id": item.id, "filename": item.original_filename, "case_id": case_id})
+               payload={"item_id": item.id, "filename": item.original_filename, "case_id": case_id, "parent_item_id": parent_item_id})
     return {
         "id": item.id,
         "original_filename": item.original_filename,
@@ -145,12 +149,22 @@ async def upload_item(
         "status": item.status,
         "notes": item.notes,
         "parsed_text": item.parsed_text,
+        "parent_item_id": item.parent_item_id,
         "case_id": item.case_id,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
         "suggested_case_id": suggested_case.id if suggested_case else None,
         "suggested_case_name": suggested_case.name if suggested_case else None,
     }
+
+
+@router.get("/items/{item_id}/attachments", response_model=list[MindboxItemOut])
+def list_attachments(
+    item_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    return svc.get_attachments(session, user, item_id)
 
 
 @router.patch("/items/{item_id}", response_model=MindboxItemOut)

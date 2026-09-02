@@ -89,7 +89,7 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
 
 def save_upload(
     session: Session, user: User, filename: str, content: bytes, content_type: str | None,
-    case_id: str | None = None, force: bool = False,
+    case_id: str | None = None, force: bool = False, parent_item_id: str | None = None,
 ) -> tuple[MindboxItem, "MindboxCase | None"]:
     ext = Path(filename or "upload").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -97,7 +97,15 @@ def save_upload(
         raise AppError(f"Bestandsextensie niet toegestaan: {ext or '(geen)'}. Toegestaan: {allowed}", status_code=400)
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
         raise AppError(f"Bestand te groot. Maximum is {MAX_SIZE_MB}MB", status_code=400)
-    if case_id is not None:
+
+    if parent_item_id is not None:
+        # Item 1051 (Bart): "hoe gaan we om met attachments in een mail?" -
+        # een bijlage erft ALTIJD het case_id van het ouder-item, ongeacht
+        # wat er verder is meegegeven (een bijlage hoort bij hetzelfde
+        # dossier als de mail waar 'ie uit komt).
+        parent = get_item(session, user, parent_item_id)
+        case_id = parent.case_id
+    elif case_id is not None:
         get_case(session, user, case_id)  # bestaat + eigendom-check
 
     content_hash = hashlib.sha256(content).hexdigest()
@@ -136,17 +144,28 @@ def save_upload(
         content_type=content_type,
         size_bytes=len(content),
         content_hash=content_hash,
+        parent_item_id=parent_item_id,
         case_id=case_id,
     )
     session.add(item)
-    _log_case_event(session, case_id, user.id, "upload", f"Bestand geüpload: {filename}")
+    event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
+    _log_case_event(session, case_id, user.id, "upload", event_desc)
     session.commit()
     session.refresh(item)
 
-    # Alleen suggereren als het bestand nog geen case heeft - anders is de
-    # vraag al beantwoord door de upload zelf.
-    suggested_case = _find_suggested_case(session, user, item.id, filename) if case_id is None else None
+    # Alleen suggereren als het bestand nog geen case heeft (en geen bijlage
+    # is - een bijlage heeft de case van de ouder al) - anders is de vraag
+    # al beantwoord door de upload zelf.
+    suggested_case = None
+    if case_id is None and parent_item_id is None:
+        suggested_case = _find_suggested_case(session, user, item.id, filename)
     return item, suggested_case
+
+
+def get_attachments(session: Session, user: User, item_id: str) -> list[MindboxItem]:
+    get_item(session, user, item_id)  # bestaat + eigendom-check
+    query = select(MindboxItem).where(MindboxItem.parent_item_id == item_id).order_by(col(MindboxItem.created_at).asc())
+    return list(session.exec(query).all())
 
 
 def get_items(session: Session, user: User, case_id: str | None = None) -> list[MindboxItem]:
@@ -203,6 +222,9 @@ def delete_item(session: Session, user: User, item_id: str) -> None:
             "Dit bestand is gekoppeld aan een case - ontkoppel het eerst om het te kunnen verwijderen",
             status_code=400,
         )
+    for attachment in session.exec(select(MindboxItem).where(MindboxItem.parent_item_id == item_id)).all():
+        attachment.parent_item_id = None
+        session.add(attachment)
     abs_path = _safe_path(user.id, Path(item.file_path).name)
     if abs_path.exists():
         abs_path.unlink()

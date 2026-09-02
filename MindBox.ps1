@@ -13,6 +13,7 @@
 #   .\MindBox.ps1 -Status -Id <item_id> -Value done                   # status bijwerken
 #   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken (Bart's EIGEN aantekening)
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
+#   .\MindBox.ps1 -UploadAttachment -ParentId <mail_item_id> -FilePath <lokaal_pad> [-Force]
 #   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
@@ -33,6 +34,9 @@
 #                                                  dan notities aanvullen (-Note -Id <item_id> -Text "..." -Env {env})
 #   {Env}.MindBox.File.ParseToTekst(#item_id) ->  bestand bekijken (-Run -Id <item_id> -Env {env}), inhoud
 #                                                  extraheren, dan opslaan (-ParsedText -Id <item_id> -Text "..." -Env {env})
+#   {Env}.MindBox.File.ExtractAttachments(#item_id) -> bestand downloaden (-Run -Id <item_id> -Env {env}), bijlagen
+#                                                  extraheren (bv. Python extract-msg voor .msg), dan elke bijlage
+#                                                  uploaden (-UploadAttachment -ParentId <item_id> -FilePath <pad> -Env {env})
 #   {Env}.MindBox.Case.Save(naam)             ->  huidige sessie samenvatten, dan -SaveSession -Name "naam" -Text "<samenvatting>" -Env {env}
 #   {Env}.MindBox.Case.Load(naam)             ->  -LoadSession -Name "naam" -Env {env}, output lezen en daarmee verdergaan
 
@@ -50,8 +54,10 @@ param(
     [switch]$AddEvent,
     [switch]$SaveSession,
     [switch]$LoadSession,
+    [switch]$UploadAttachment,
 
     [switch]$All,
+    [switch]$Force,
     [ValidateSet("prod", "acc", "local")]
     [string]$Env       = "prod",
     [string]$Id        = "",
@@ -62,6 +68,7 @@ param(
     [string]$Text      = "",
     [string]$Content   = "",
     [string]$Name      = "",
+    [string]$FilePath  = "",
     [string]$EventType = "session_note"
 )
 
@@ -137,6 +144,45 @@ function ApiDownload([string]$Path, [string]$OutFile) {
             -OutFile $OutFile -ErrorAction Stop
     } catch {
         Write-Host "[FOUT] Download $Path - $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# PowerShell 5.1 heeft geen -Form (dat kwam pas in PS7) - multipart/form-data
+# hier zelf opbouwen. De ISO-8859-1-heenenweer-truc is nodig om willekeurige
+# binaire bestandsinhoud (niet alleen tekst) veilig als .NET-string te
+# kunnen versturen (1-op-1 byte<->char-mapping, geen dataverlies).
+function ApiUploadFile([string]$Path, [string]$FilePath, [hashtable]$QueryParams) {
+    if (-not (Test-Path $FilePath)) { Write-Host "[FOUT] Bestand niet gevonden: $FilePath"; exit 1 }
+    $fileName = Split-Path $FilePath -Leaf
+    $fileBytes = [System.IO.File]::ReadAllBytes($FilePath)
+    $latin1 = [System.Text.Encoding]::GetEncoding("ISO-8859-1")
+    $fileContent = $latin1.GetString($fileBytes)
+
+    $boundary = [System.Guid]::NewGuid().ToString()
+    $body = (
+        "--$boundary",
+        "Content-Disposition: form-data; name=`"file`"; filename=`"$fileName`"",
+        "Content-Type: application/octet-stream",
+        "",
+        $fileContent,
+        "--$boundary--",
+        ""
+    ) -join "`r`n"
+
+    $query = ""
+    if ($QueryParams -and $QueryParams.Count) {
+        $pairs = $QueryParams.GetEnumerator() | ForEach-Object { "$($_.Key)=$([Uri]::EscapeDataString($_.Value))" }
+        $query = "?" + ($pairs -join "&")
+    }
+
+    try {
+        return Invoke-RestMethod -Uri "$HP_API_BASE$Path$query" -Method POST `
+            -Headers @{ Authorization = "Bearer $HP_API_KEY" } `
+            -ContentType "multipart/form-data; boundary=$boundary" `
+            -Body $body -ErrorAction Stop
+    } catch {
+        Write-Host "[FOUT] Upload $Path - $($_.Exception.Message)"
         exit 1
     }
 }
@@ -358,6 +404,20 @@ if ($ParsedText) {
 }
 
 # ---------------------------------------------------------------------------
+# UploadAttachment — bijlage van een mail als eigen item opslaan (item 1051:
+# "hoe gaan we om met attachments in een mail?") - erft automatisch het
+# case_id van het ouder-item (-ParentId), server-side geregeld.
+# ---------------------------------------------------------------------------
+if ($UploadAttachment) {
+    if (-not $ParentId -or -not $FilePath) { Write-Host "Geef -ParentId (het mail-item) en -FilePath op"; exit 1 }
+    $params = @{ parent_item_id = $ParentId }
+    if ($Force) { $params.force = "true" }
+    $item = ApiUploadFile "/mindbox/items" $FilePath $params
+    Write-Host "[OK] Bijlage geupload: $($item.original_filename) ($($item.id))"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
 # Respond — concept-antwoord/rapport posten, met bronvermelding
 # ---------------------------------------------------------------------------
 if ($Respond) {
@@ -466,4 +526,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -Respond | -AddEvent | -SaveSession | -LoadSession"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Respond | -AddEvent | -SaveSession | -LoadSession"

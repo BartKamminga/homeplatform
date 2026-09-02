@@ -71,6 +71,11 @@ class MindboxItem(SQLModel, table=True):
     # Bewust een apart veld van `notes` (dat is Bart's EIGEN aantekening,
     # dit is de automatische extractie van de bestandsinhoud zelf).
     parsed_text:       Optional[str] = Field(default=None)
+    # Bijlage van een ander item (bv. een PDF die uit een .msg is
+    # geextraheerd) - item 1051 (Bart): "hoe gaan we om met attachments in
+    # een mail?". Zelfde patroon als MindboxResponse.parent_response_id.
+    # Erft altijd het case_id van het ouder-item (zie services.save_upload).
+    parent_item_id:    Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
     case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
