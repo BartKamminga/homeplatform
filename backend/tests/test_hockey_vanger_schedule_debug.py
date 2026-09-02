@@ -557,3 +557,30 @@ def test_promote_schedule_now_count_mode_promotes_the_next_n_accelerable_items(s
     still_planned = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")).all()
     assert len(still_planned) == 1
     assert still_planned[0].reason == "daily_fallback"
+
+
+def test_promote_schedule_now_can_promote_more_than_step_max_cmds_in_one_click(session):
+    """item 1032 (Bart, 1-09-2026: 'wil je dat ik de versnel-knop een eigen,
+    hogere cap geeft... zodat een bewuste handmatige actie ook echt in 1 klik
+    een grotere batch kan wegwerken?' - ja) - de handmatige versnel-knop mag
+    NIET gebonden zijn aan STEP_MAX_CMDS (=10, voor de automatische
+    periodieke pass) - anders kost het wegwerken van een grotere achterstand
+    onnodig veel klikken."""
+    from datetime import datetime, timedelta
+
+    from services.hockey_vanger_scanplan import STEP_MAX_CMDS
+
+    now = datetime.utcnow()
+    n = STEP_MAX_CMDS + 5
+    for i in range(n):
+        session.add(ScanScheduleEntry(
+            target_type="club", target_id=i, cmd_type="scan_club",
+            params=json.dumps({"external_id": f"BULK_CLUB_{i}", "label": f"Bulk Club {i}"}),
+            planned_at=now - timedelta(minutes=1), reason="club_scan", status="planned",
+        ))
+    session.commit()
+
+    result = promote_schedule_now(session=session, _=None)
+
+    assert result["promoted"] > STEP_MAX_CMDS
+    assert result["promoted"] == n

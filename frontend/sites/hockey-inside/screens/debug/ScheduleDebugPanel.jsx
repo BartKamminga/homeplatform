@@ -24,7 +24,11 @@ function fmtTime(iso) {
 // uitvoering nog niet aan). Los van de echte uitvoeringsqueue (VangerCmd,
 // zie VangerQueueDebugPanel.jsx).
 export default function ScheduleDebugPanel({ initialFilter, onFilterConsumed }) {
-  const [status, setStatus] = useState('')
+  // Bart, 1-09-2026: standaard op 'planned' i.p.v. alle statussen - promoted/
+  // cancelled-rijen stapelen ongelimiteerd op (item 1047, nog geen opruiming),
+  // dus "alle statussen" toont een steeds groeiende, grotendeels historische
+  // lijst terwijl je hier meestal net wilt zien wat er nog MOET gebeuren.
+  const [status, setStatus] = useState('planned')
   const [reason, setReason] = useState('')
   const [targetType, setTargetType] = useState('')
   const [targetId, setTargetId] = useState(null)

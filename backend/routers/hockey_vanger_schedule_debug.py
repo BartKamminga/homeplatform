@@ -18,7 +18,7 @@ from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, ScanScheduleEntry
 from routers.hockey_vanger_smartscan_control import _ghost_enabled, _set_ghost_trigger
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
-from services.hockey_vanger_scanplan import STEP_MAX_CMDS, _manual_scan_weekday, _match_dt_info
+from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
 from services.hockey_vanger_settings import _get_int_setting
 
@@ -317,6 +317,16 @@ def rebuild_schedule_now(
     return {"ok": True, "rebuilt_at": now.isoformat() + "Z", "event_count": count}
 
 
+# item 1032 (Bart, 1-09-2026: "wil je dat ik de versnel-knop een eigen,
+# hogere cap geeft... zodat een bewuste handmatige actie ook echt in 1 klik
+# een grotere batch kan wegwerken?" - ja) - los van STEP_MAX_CMDS (=10, blijft
+# ongewijzigd voor de automatische periodieke pass, bewust laag om een acc-
+# incident van 900-promoties-in-1x te voorkomen). Een handmatige klik is een
+# bewuste, eenmalige actie - geen reden om die aan dezelfde behoudende cap
+# te binden.
+MANUAL_PROMOTE_CAP = 200
+
+
 @router.post("/vanger/schedule/promote-now")
 def promote_schedule_now(
     within_hours: int = 0,
@@ -333,9 +343,11 @@ def promote_schedule_now(
     hierboven heeft dit wel een echt effect: due entries komen in de vanger-
     queue terecht en Ghost wordt (indien nodig) wakker gemaakt, precies zoals
     de periodieke pass dat ook zou doen - geen aparte scan-logica, alleen
-    eerder aangeroepen. Gecapt op STEP_MAX_CMDS per aanroep (zelfde cap als
-    de periodieke pass) - bij een grote achterstand dus mogelijk meerdere
-    keren klikken, dat is bedoeld gedrag.
+    eerder aangeroepen. Gecapt op MANUAL_PROMOTE_CAP per aanroep - hoger dan
+    de STEP_MAX_CMDS die de automatische periodieke pass gebruikt, want dit
+    is een bewuste, eenmalige handmatige actie (Bart, 1-09-2026) - bij een
+    achterstand groter dan die cap is opnieuw klikken nog steeds nodig, maar
+    minder snel dan met de lage automatische cap.
 
     item 1032 (Bart, 1-09-2026, na uitgebreide discussie over welke items
     uberhaupt vroeger dan hun natuurlijke planned_at mogen): 'echt
@@ -355,7 +367,14 @@ def promote_schedule_now(
       (Bart: 'misschien is het eenvoudiger promoot de volgende x items')."""
     now = datetime.utcnow()
     if mode == "count":
-        promoted = promote_due_schedule_entries(session, now, cap=STEP_MAX_CMDS, limit_promoted=limit or 1)
+        n = limit or 1
+        # cap moet ruim boven n liggen - promote_due_schedule_entries haalt
+        # een kandidatenpool van maximaal `cap` rijen op en filtert daarna
+        # pas de niet-versnelbare reasons eruit, dus bij een hoog aandeel
+        # niet-whitelisted items ertussen is n zelf te krap.
+        promoted = promote_due_schedule_entries(
+            session, now, cap=max(MANUAL_PROMOTE_CAP, n * 5), limit_promoted=n,
+        )
     else:
         if mode == "tomorrow":
             tomorrow = now + timedelta(days=1)
@@ -371,7 +390,7 @@ def promote_schedule_now(
             cutoff = next_start.planned_at if next_start else now
         else:
             cutoff = now + timedelta(hours=within_hours) if within_hours > 0 else now
-        promoted = promote_due_schedule_entries(session, now, cap=STEP_MAX_CMDS, pull_forward_until=cutoff)
+        promoted = promote_due_schedule_entries(session, now, cap=MANUAL_PROMOTE_CAP, pull_forward_until=cutoff)
     if promoted > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()
