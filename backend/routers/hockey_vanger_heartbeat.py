@@ -3,6 +3,7 @@
 hockey_vanger.py (refactor-plan hockey-inside Fase 3, RFTR-B3)."""
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -16,6 +17,7 @@ from models.settings import AppSetting
 from routers.hockey_vanger_smartscan_control import (
     GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY,
 )
+from services.hockey_poule_capture_core import notify_new_phase_indeling
 from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
 from services.hockey_vanger_settings import NOTIFY_TEAM_IDS_KEY, _get_int_setting, _get_str_setting
@@ -70,6 +72,16 @@ def vanger_heartbeat(
     else:
         session.add(AppSetting(key=key, value=payload))
     session.commit()
+
+    # item 1043-vervolg: geen losse polling-infrastructuur nodig - de
+    # heartbeat vuurt toch al elke ~8s zolang Scout/Ghost draait, dus die
+    # cadans hergebruiken voor de (zelf-getrootelde) indeling-check. Nooit de
+    # heartbeat zelf laten falen op een push-probleem.
+    try:
+        notify_new_phase_indeling(session, now)
+    except Exception:
+        logging.getLogger("homeplatform.hockey-vanger").exception("notify_new_phase_indeling mislukt")
+
     return {"ok": True}
 
 

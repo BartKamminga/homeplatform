@@ -19,7 +19,10 @@ ZAAL_WINDOW_END_DAY_KEY     = "zaal_window_end_day"
 ZAAL_WINDOW_END_MONTH_KEY   = "zaal_window_end_month"
 
 PHASE_ORDER = ["veld_najaar", "zaal", "veld_voorjaar"]
-PHASE_LABELS = {"veld_najaar": "Veld najaar", "zaal": "Zaal", "veld_voorjaar": "Veld voorjaar"}
+PHASE_LABELS = {
+    "veld_najaar": "Veld najaar", "zaal": "Zaal", "veld_voorjaar": "Veld voorjaar",
+    "indeling_verwacht": "Indeling verwacht",
+}
 
 
 def _get_int_setting(session: Session, key: str, default: int) -> int:
@@ -40,6 +43,20 @@ def _get_bool_setting(session: Session, key: str, default: bool) -> bool:
     hockey_vanger_scanplan.py, de toggles in hockey_vanger_smartscan_control.py)."""
     row = session.get(AppSetting, key)
     return row.value != "0" if row else default
+
+
+def _set_str_setting(session: Session, key: str, value: str) -> None:
+    """item 1043-vervolg: upsert-helper voor de simpele key/value-settings -
+    was tot nu toe 5x losstaand als inline `row = session.get(...); if row:
+    ... else: session.add(...)` gedupliceerd (hockey_vanger_smartscan.py,
+    hockey_vanger_heartbeat.py, etc.)."""
+    row = session.get(AppSetting, key)
+    if row:
+        row.value = value
+        row.updated_at = datetime.utcnow()
+        session.add(row)
+    else:
+        session.add(AppSetting(key=key, value=value))
 
 
 def get_notify_team_ids(session: Session) -> set:
@@ -183,7 +200,10 @@ def get_season_calendar_events(session: Session, range_from: date, range_to: dat
     events = []
     for r in rows:
         label = PHASE_LABELS.get(r.phase, r.phase)
-        scope = " / ".join(p for p in [r.district, r.age_category] if p)
+        # district/age_category zijn leeg voor generieke rijen (bv. de
+        # indeling_verwacht-inschatting) - val dan terug op klasse_scope,
+        # dat voor die rijen wel een omschrijving bevat.
+        scope = " / ".join(p for p in [r.district, r.age_category] if p) or r.klasse_scope
         # Ronde-rijen (round_number gezet, start_date == end_date) zijn 1
         # speelweekend, geen fase-span - die krijgen 1 "Ronde N"-event i.p.v.
         # de start+eind-paren van de fase-spanrijen hierboven.

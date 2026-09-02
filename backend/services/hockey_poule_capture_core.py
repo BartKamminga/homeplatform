@@ -9,12 +9,15 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 import re
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam, HockeyTeamPoule,
 )
-from services.hockey_vanger_settings import get_notify_team_ids
+from models.settings import AppSetting
+from services.hockey_vanger_settings import (
+    _get_bool_setting, _set_str_setting, get_notify_team_ids, get_season_phases, get_target_season,
+)
 from services.push import send_push
 
 if TYPE_CHECKING:
@@ -71,6 +74,73 @@ def notify_finished_matches(session: Session, newly_finished: list) -> int:
             url="/hockey-inside/",
             site="hockey-inside",
         )
+    return sent
+
+
+_PHASE_INDELING_CHECK_THROTTLE_KEY = "phase_indeling_check_last_run"
+
+
+def notify_new_phase_indeling(session: Session, now: datetime) -> int:
+    """item 1043-vervolg: 1x per fase een echte pushmelding zodra de eerste
+    zaal-poule resp. de eerste voorjaar-poule van het huidige doelseizoen
+    daadwerkelijk gescand is - i.p.v. dat Bart zelf de season_calendar_events
+    'indeling_verwacht'-inschatting in de gaten moet houden. Aangeroepen
+    vanuit vanger_heartbeat (elke ~8s zolang Scout/Ghost draait), daarom hier
+    zelf getrooteld tot 1x per uur; daarna zorgt de notified_*-AppSetting-vlag
+    ervoor dat elke fase maar 1x per seizoen een melding oplevert."""
+    last_run_row = session.get(AppSetting, _PHASE_INDELING_CHECK_THROTTLE_KEY)
+    if last_run_row and last_run_row.value:
+        try:
+            if (now - datetime.fromisoformat(last_run_row.value)).total_seconds() < 3600:
+                return 0
+        except ValueError:
+            pass
+    _set_str_setting(session, _PHASE_INDELING_CHECK_THROTTLE_KEY, now.isoformat())
+    session.commit()
+
+    season = get_target_season(session)
+    sent = 0
+
+    zaal_key = f"notified_zaal_indeling_{season}"
+    if not _get_bool_setting(session, zaal_key, False):
+        za_count = session.exec(
+            select(func.count()).select_from(HockeyPoule)
+            .join(HockeyCompetition, HockeyCompetition.id == HockeyPoule.competition_id)
+            .where(HockeyCompetition.season == season)
+            .where(HockeyCompetition.hockey_type == "ZA")
+        ).one()
+        if za_count > 0:
+            sent += send_push(
+                user_id=None, title="Zaal-indeling is er",
+                body=f"De eerste zaalpoules voor seizoen {season} zijn ontdekt.",
+                url="/hockey-inside/", site="hockey-inside",
+            )
+            _set_str_setting(session, zaal_key, "1")
+
+    voorjaar_key = f"notified_voorjaar_indeling_{season}"
+    if not _get_bool_setting(session, voorjaar_key, False):
+        zaal_phase = next((p for p in get_season_phases(session, season) if p["id"] == "zaal"), None)
+        if zaal_phase:
+            zaal_end = datetime.fromisoformat(zaal_phase["end"])
+            # Nieuw ONTDEKT (discovered_at) na het einde van de zaalfase is het
+            # beste signaal voor "dit is een verse voorjaar-herindeling" - een
+            # veld-poule die al langer bekend is (najaar) telt niet mee.
+            ve_count = session.exec(
+                select(func.count()).select_from(HockeyPoule)
+                .join(HockeyCompetition, HockeyCompetition.id == HockeyPoule.competition_id)
+                .where(HockeyCompetition.season == season)
+                .where(HockeyCompetition.hockey_type == "VE")
+                .where(HockeyPoule.discovered_at > zaal_end)
+            ).one()
+            if ve_count > 0:
+                sent += send_push(
+                    user_id=None, title="Voorjaar-indeling is er",
+                    body=f"Nieuwe veldpoules voor de voorjaarscompetitie {season} ontdekt.",
+                    url="/hockey-inside/", site="hockey-inside",
+                )
+                _set_str_setting(session, voorjaar_key, "1")
+
+    session.commit()
     return sent
 
 

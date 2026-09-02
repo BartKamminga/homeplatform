@@ -213,6 +213,34 @@ for phase, dates in ROUND_DATES.items():
         ))
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Indeling-verwachting (Bart, 02-09-2026): geen harde KNHB-data, maar een
+# inschatting o.b.v. het algemene KNHB-ritme (aanmeldingen -> indeling, dan
+# pas speeldagen). Wordt automatisch bevestigd/vervangen door een echte
+# pushmelding zodra de eerste zaal/voorjaar-poule daadwerkelijk gescand wordt
+# (zie notify_new_phase_indeling in hockey_poule_capture_core.py).
+# ──────────────────────────────────────────────────────────────────────────────
+ROWS.append(dict(
+    season=SEASON, district=None, age_category=None,
+    klasse_scope="Zaal-poule-indeling",
+    phase="indeling_verwacht", start_date=date(2026, 11, 16), end_date=date(2026, 11, 29),
+    rounds=None, source_url="https://www.knhb.nl/competitie/speeldagenkalender",
+    notes=(
+        "Inschatting, geen harde KNHB-data: 2-4 weken voor zaalstart (5-6 dec), "
+        "vaak vlak na de laatste veld-najaar-ronde (28-29 nov)."
+    ),
+))
+ROWS.append(dict(
+    season=SEASON, district=None, age_category=None,
+    klasse_scope="Voorjaarscompetitie-indeling",
+    phase="indeling_verwacht", start_date=date(2027, 2, 15), end_date=date(2027, 2, 28),
+    rounds=None, source_url="https://www.knhb.nl/competitie/speeldagenkalender",
+    notes=(
+        "Inschatting, geen harde KNHB-data: herindeling o.b.v. de najaar-eindstand kan pas "
+        "na de laatste zaalronde (14 feb), krap venster tot voorjaarsstart (6-7 mrt)."
+    ),
+))
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Vooruitkijken (item 1045): wanneer verwachten we de 2027-2028-kalender?
 # Geen district/age_category/klasse_scope - deze rij is seizoen-breed.
 # ──────────────────────────────────────────────────────────────────────────────
