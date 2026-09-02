@@ -48,6 +48,23 @@ class MindboxContext(SQLModel, table=True):
     updated_at:  datetime = Field(default_factory=datetime.utcnow)
 
 
+class MindboxKnowledge(SQLModel, table=True):
+    """Generieke, cross-case kennis-/reference-info met een vrije naam
+    (bv. "NIPV-Info", "Hoe sla ik plaatjes op", "Andere systeemzaken") -
+    losstaand van MindboxContext (dat is instructie/persona: HOE moet ik
+    reageren) en MindboxContact (dat is WIE de andere partij is). v1 is
+    bewust een losstaande bibliotheek: geen case_id, geen koppeltabel -
+    gewoon opzoekbaar tijdens het werken aan een case, net als Context."""
+    __tablename__ = "mindbox_knowledge"
+
+    id:          str      = Field(default_factory=new_uuid, primary_key=True)
+    user_id:     str      = Field(foreign_key="users.id", index=True)
+    name:        str      # bv. "NIPV-Info", "Hoe sla ik plaatjes op"
+    content:     str      # de kennis-/reference-tekst zelf
+    created_at:  datetime = Field(default_factory=datetime.utcnow)
+    updated_at:  datetime = Field(default_factory=datetime.utcnow)
+
+
 class MindboxItem(SQLModel, table=True):
     """Een geüpload, persoonsgebonden bestand (mail/document) - Fase 1 (item
     1050): puur opslag + status + vrij notitieveld, geen geautomatiseerde

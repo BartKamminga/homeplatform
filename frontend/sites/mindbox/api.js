@@ -108,6 +108,27 @@ export function deleteContext(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Knowledge - generieke, cross-case kennis-/reference-info (bv. "NIPV-Info"),
+// los van Context (persona/instructie) en Contact (persoon).
+// ---------------------------------------------------------------------------
+
+export function listKnowledge() {
+  return api.get('/api/mindbox/knowledge')
+}
+
+export function createKnowledge(data) {
+  return api.post('/api/mindbox/knowledge', data)
+}
+
+export function updateKnowledge(id, data) {
+  return api.patch(`/api/mindbox/knowledge/${id}`, data)
+}
+
+export function deleteKnowledge(id) {
+  return api.delete(`/api/mindbox/knowledge/${id}`)
+}
+
+// ---------------------------------------------------------------------------
 // Contacts (item 1052) - profiel van WIE de andere partij is, los van
 // Context (dat gaat over HOE Bart antwoordt). v1 koppelt alleen op e-mail.
 // ---------------------------------------------------------------------------

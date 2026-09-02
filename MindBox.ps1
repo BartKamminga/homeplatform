@@ -6,6 +6,7 @@
 #   .\MindBox.ps1 -List -CaseId <id>                                  # items binnen 1 case
 #   .\MindBox.ps1 -ListCases                                          # toon cases
 #   .\MindBox.ps1 -ListContexts                                       # toon contexts
+#   .\MindBox.ps1 -ListKnowledge                                      # toon kennis-items
 #   .\MindBox.ps1 -Get -Id <item_id>                                  # 1 item in detail
 #   .\MindBox.ps1 -Run -Id <item_id>                                  # download bestand + briefing-.md in mindbox_work/
 #   .\MindBox.ps1 -Run -All                                           # hetzelfde voor alle nog niet-afgeronde items
@@ -46,6 +47,7 @@ param(
     [switch]$List,
     [switch]$ListCases,
     [switch]$ListContexts,
+    [switch]$ListKnowledge,
     [switch]$Get,
     [switch]$Run,
     [switch]$Status,
@@ -275,6 +277,18 @@ if ($ListContexts) {
     Write-Host ("-" * 60)
     foreach ($c in $contexts) {
         Write-Host ("{0,-38} {1}" -f $c.id, $c.name)
+    }
+    exit 0
+}
+
+# Generieke, cross-case kennis-/reference-info (bv. "NIPV-Info", "Hoe sla ik
+# plaatjes op") - los van Context (persona/instructie) en Contact (persoon).
+if ($ListKnowledge) {
+    $knowledge = ApiGet "/mindbox/knowledge"
+    Write-Host ("{0,-38} {1}" -f "ID","NAAM")
+    Write-Host ("-" * 60)
+    foreach ($k in $knowledge) {
+        Write-Host ("{0,-38} {1}" -f $k.id, $k.name)
     }
     exit 0
 }
@@ -657,4 +671,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

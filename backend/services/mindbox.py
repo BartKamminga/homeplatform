@@ -14,7 +14,7 @@ from core.settings import settings
 from models.core import User
 from models.mindbox import (
     MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxItemContact,
-    MindboxResponse, MindboxResponseSource,
+    MindboxKnowledge, MindboxResponse, MindboxResponseSource,
 )
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
@@ -494,6 +494,51 @@ def delete_context(session: Session, user: User, context_id: str) -> None:
         case.context_id = None
         session.add(case)
     session.delete(context)
+    session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Knowledge (generieke, cross-case kennis-/reference-info, bv. "NIPV-Info")
+# ---------------------------------------------------------------------------
+
+def get_knowledge_list(session: Session, user: User) -> list[MindboxKnowledge]:
+    query = select(MindboxKnowledge).where(MindboxKnowledge.user_id == user.id).order_by(col(MindboxKnowledge.name).asc())
+    return list(session.exec(query).all())
+
+
+def get_knowledge_entry(session: Session, user: User, knowledge_id: str) -> MindboxKnowledge:
+    entry = session.get(MindboxKnowledge, knowledge_id)
+    if not entry:
+        raise AppError("Kennis-item niet gevonden", status_code=404)
+    if entry.user_id != user.id:
+        raise AppError("Geen toegang", status_code=403)
+    return entry
+
+
+def create_knowledge_entry(session: Session, user: User, name: str, content: str) -> MindboxKnowledge:
+    entry = MindboxKnowledge(user_id=user.id, name=name, content=content)
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
+
+
+def update_knowledge_entry(session: Session, user: User, knowledge_id: str, name: str | None, content: str | None) -> MindboxKnowledge:
+    entry = get_knowledge_entry(session, user, knowledge_id)
+    if name is not None:
+        entry.name = name
+    if content is not None:
+        entry.content = content
+    entry.updated_at = datetime.utcnow()
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
+
+
+def delete_knowledge_entry(session: Session, user: User, knowledge_id: str) -> None:
+    entry = get_knowledge_entry(session, user, knowledge_id)
+    session.delete(entry)
     session.commit()
 
 

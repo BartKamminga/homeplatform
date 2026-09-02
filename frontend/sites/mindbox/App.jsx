@@ -3,6 +3,7 @@ import ItemsPage from './pages/ItemsPage.jsx'
 import CasesPage from './pages/CasesPage.jsx'
 import ContextsPage from './pages/ContextsPage.jsx'
 import ContactsPage from './pages/ContactsPage.jsx'
+import KnowledgePage from './pages/KnowledgePage.jsx'
 import CommandsPage from './pages/CommandsPage.jsx'
 
 // Responses hebben BEWUST geen eigen tab (item 1051, Bart: "het is niet
@@ -13,7 +14,7 @@ const TABS = [
   { key: 'items', label: '📥 Bestanden' },
   { key: 'contexts', label: '🎭 Contexts' },
   { key: 'contacts', label: '👤 Contacts' },
-  { key: 'knowledge', label: '📚 Knowledge' },
+  { key: 'knowledge', label: '📚 Kennis' },
   { key: 'commands', label: "⚙️ Commando's" },
 ]
 
@@ -73,11 +74,7 @@ export default function App() {
         )}
         {tab === 'contexts' && <ContextsPage />}
         {tab === 'contacts' && <ContactsPage />}
-        {tab === 'knowledge' && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
-            Knowledge komt eraan.
-          </div>
-        )}
+        {tab === 'knowledge' && <KnowledgePage />}
         {tab === 'commands' && <CommandsPage />}
       </main>
     </div>

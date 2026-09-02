@@ -99,6 +99,24 @@ class MindboxContextUpdate(BaseModel):
     content:  Optional[str] = None
 
 
+class MindboxKnowledgeOut(BaseModel):
+    id:          str
+    name:        str
+    content:     str
+    created_at:  datetime
+    updated_at:  datetime
+
+
+class MindboxKnowledgeCreate(BaseModel):
+    name:     str
+    content:  str
+
+
+class MindboxKnowledgeUpdate(BaseModel):
+    name:     Optional[str] = None
+    content:  Optional[str] = None
+
+
 class MindboxResponseCreate(BaseModel):
     content:             str
     source_item_ids:     list[str] = []
@@ -243,6 +261,54 @@ def delete_context(
 ):
     svc.delete_context(session, user, context_id)
     log_action(session, "mindbox.context.delete", site="mindbox", user_id=user.id, payload={"context_id": context_id})
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Knowledge (generieke, cross-case kennis-/reference-info, bv. "NIPV-Info")
+# ---------------------------------------------------------------------------
+
+@router.get("/knowledge", response_model=list[MindboxKnowledgeOut])
+def list_knowledge(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    return svc.get_knowledge_list(session, user)
+
+
+@router.post("/knowledge", response_model=MindboxKnowledgeOut)
+def create_knowledge(
+    data: MindboxKnowledgeCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    entry = svc.create_knowledge_entry(session, user, data.name, data.content)
+    log_action(session, "mindbox.knowledge.create", site="mindbox", user_id=user.id,
+               payload={"knowledge_id": entry.id, "name": entry.name})
+    return entry
+
+
+@router.patch("/knowledge/{knowledge_id}", response_model=MindboxKnowledgeOut)
+def update_knowledge(
+    knowledge_id: str,
+    data: MindboxKnowledgeUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    entry = svc.update_knowledge_entry(session, user, knowledge_id, data.name, data.content)
+    log_action(session, "mindbox.knowledge.update", site="mindbox", user_id=user.id,
+               payload={"knowledge_id": entry.id, "fields": list(data.model_dump(exclude_unset=True))})
+    return entry
+
+
+@router.delete("/knowledge/{knowledge_id}")
+def delete_knowledge(
+    knowledge_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    svc.delete_knowledge_entry(session, user, knowledge_id)
+    log_action(session, "mindbox.knowledge.delete", site="mindbox", user_id=user.id, payload={"knowledge_id": knowledge_id})
     return {"ok": True}
 
 

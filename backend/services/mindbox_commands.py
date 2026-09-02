@@ -22,6 +22,8 @@ ELEMENTARY_ACTIONS = [
      "template": "-ListCases -Env {env}"},
     {"key": "ListContexts", "group": "Lezen", "label": "-ListContexts — contexts oplijsten",
      "template": "-ListContexts -Env {env}"},
+    {"key": "ListKnowledge", "group": "Lezen", "label": "-ListKnowledge — kennis-items oplijsten",
+     "template": "-ListKnowledge -Env {env}"},
     {"key": "ListContacts", "group": "Lezen", "label": "-ListContacts — contacts oplijsten",
      "template": "-ListContacts [-Email {email}] -Env {env}"},
     {"key": "Get", "group": "Lezen", "label": "-Get — één item tonen",
