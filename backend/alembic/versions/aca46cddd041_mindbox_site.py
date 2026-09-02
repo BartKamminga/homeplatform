@@ -14,7 +14,22 @@ branch_labels = None
 depends_on = None
 
 
+MINDBOX_TABLES = (
+    "mindbox_cases", "mindbox_contexts", "mindbox_items",
+    "mindbox_responses", "mindbox_response_sources", "mindbox_case_events",
+)
+
+
 def upgrade() -> None:
+    bind = op.get_bind()
+    existing = bind.execute(sa.text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+    existing_tables = {r[0] for r in existing}
+    if all(t in existing_tables for t in MINDBOX_TABLES):
+        # create_db_and_tables() (SQLModel create_all) draait bij backend-herstart
+        # al vóór deze alembic-stap en heeft de tabellen dan al aangemaakt.
+        _seed_mindbox_site(bind)
+        return
+
     op.create_table(
         "mindbox_cases",
         sa.Column("id",          sa.String(),   nullable=False),
@@ -99,7 +114,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_mindbox_case_events_case_id", "mindbox_case_events", ["case_id"])
 
-    bind = op.get_bind()
+    _seed_mindbox_site(bind)
+
+
+def _seed_mindbox_site(bind) -> None:
     existing = bind.execute(
         sa.text("SELECT id FROM sites WHERE slug = 'mindbox'")
     ).fetchone()
