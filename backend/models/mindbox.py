@@ -71,15 +71,17 @@ class MindboxItem(SQLModel, table=True):
 class MindboxResponse(SQLModel, table=True):
     """Een voorbereide tekst/rapport/antwoord, gekoppeld aan 1+ MindboxItems
     via MindboxResponseSource (bronvermelding) en optioneel een vervolg op
-    een eerdere response (opvolging). case_id koppelt optioneel deze response
-    aan een MindboxCase."""
+    een eerdere response (opvolging). case_id is VERPLICHT (Bart, item 1051:
+    'los bekijken van responses is niet relevant') - een response bestaat
+    altijd binnen een case; bij verwijderen van de case wordt de response
+    mee verwijderd (zie services.mindbox.delete_case)."""
     __tablename__ = "mindbox_responses"
 
     id:                  str      = Field(default_factory=new_uuid, primary_key=True)
     user_id:             str      = Field(foreign_key="users.id", index=True)
     content:             str
     parent_response_id:  Optional[str] = Field(default=None, foreign_key="mindbox_responses.id")
-    case_id:             Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
+    case_id:             str      = Field(foreign_key="mindbox_cases.id", index=True)
     created_at:          datetime = Field(default_factory=datetime.utcnow)
 
 

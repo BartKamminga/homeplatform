@@ -102,14 +102,13 @@ export function deleteContext(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Responses
+// Responses (altijd case-gescoped, item 1051 - los bekijken is niet relevant)
 // ---------------------------------------------------------------------------
 
 export function listResponses(caseId) {
-  const query = caseId ? `?case_id=${encodeURIComponent(caseId)}` : ''
-  return api.get(`/api/mindbox/responses${query}`)
+  return api.get(`/api/mindbox/cases/${caseId}/responses`)
 }
 
-export function createResponse(data) {
-  return api.post('/api/mindbox/responses', data)
+export function createResponse(caseId, data) {
+  return api.post(`/api/mindbox/cases/${caseId}/responses`, data)
 }

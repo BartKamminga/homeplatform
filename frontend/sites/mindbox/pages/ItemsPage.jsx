@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listContexts } from '../api.js'
-import { copyText, mindboxRunCommand } from '../utils.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listContexts, listCases } from '../api.js'
+import { copyText, mindboxRunAllCommand, mindboxRunFileCommand, fetchMindboxEnv } from '../utils.js'
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'Nieuw' },
@@ -21,8 +21,11 @@ function fmtDate(iso) {
 export default function ItemsPage() {
   const [items, setItems] = useState([])
   const [contexts, setContexts] = useState([])
+  const [cases, setCases] = useState([])
+  const [env, setEnv] = useState('Local')
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
   function load() {
@@ -31,10 +34,11 @@ export default function ItemsPage() {
   useEffect(() => {
     load()
     listContexts().then(setContexts).catch(() => {})
+    listCases().then(setCases).catch(() => {})
+    fetchMindboxEnv().then(setEnv)
   }, [])
 
-  async function handleFileChange(e) {
-    const file = e.target.files?.[0]
+  async function handleUpload(file) {
     if (!file) return
     setUploading(true)
     setError('')
@@ -45,8 +49,30 @@ export default function ItemsPage() {
       setError(err.message)
     } finally {
       setUploading(false)
-      e.target.value = ''
     }
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    await handleUpload(file)
+    e.target.value = ''
+  }
+
+  // Bart, item 1051: "ik wil graag bestanden kunnen 'slepen' naar de
+  // website, bij de tab bestanden of in de case" - drag-and-drop naast de
+  // bestaande file-picker-knop, geen vervanging.
+  function handleDragOver(e) {
+    e.preventDefault()
+    setDragOver(true)
+  }
+  function handleDragLeave() {
+    setDragOver(false)
+  }
+  async function handleDrop(e) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    await handleUpload(file)
   }
 
   async function handleStatusChange(item, status) {
@@ -57,6 +83,15 @@ export default function ItemsPage() {
   async function handleContextChange(item, contextId) {
     if (contextId) await updateItem(item.id, { context_id: contextId })
     else await updateItem(item.id, { clear_context: true })
+    load()
+  }
+
+  // Bart, item 1051: "ik kan bij een net geuploade file niet direct een
+  // case selecteren" - case-koppeling nu ook los, direct in de vlakke
+  // bestandenlijst mogelijk (niet alleen vanuit CaseDetail).
+  async function handleCaseChange(item, caseId) {
+    if (caseId) await updateItem(item.id, { case_id: caseId })
+    else await updateItem(item.id, { clear_case: true })
     load()
   }
 
@@ -78,14 +113,22 @@ export default function ItemsPage() {
   // exacte, kopieerbare aanroep alvast klaarzetten kost niets en bereidt de
   // workflow voor.
   const [copyMsg, setCopyMsg] = useState('')
-  function handleCopyRun(target) {
-    copyText(mindboxRunCommand(target))
+  function handleCopy(command) {
+    copyText(command)
       .then(() => { setCopyMsg('Gekopieerd!'); setTimeout(() => setCopyMsg(''), 1500) })
       .catch(() => setCopyMsg('Kopiëren mislukt'))
   }
 
   return (
-    <div>
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{
+        border: dragOver ? '2px dashed var(--color-primary)' : '2px dashed transparent',
+        borderRadius: 10, transition: 'border-color 0.1s', padding: dragOver ? 8 : 0, margin: dragOver ? -8 : 0,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -99,15 +142,15 @@ export default function ItemsPage() {
         </button>
         <input ref={fileInputRef} type="file" onChange={handleFileChange} style={{ display: 'none' }} />
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-          .msg, .doc(x), .xls(x), .ppt(x), .pdf, .txt, .csv — max 25MB
+          .msg, .doc(x), .xls(x), .ppt(x), .pdf, .txt, .csv — max 25MB, of sleep een bestand hierheen
         </span>
         {!!items.length && (
           <button
-            onClick={() => handleCopyRun('all')}
-            title="Kopieer MindBox.Run(all) om alle bestanden te verwerken"
+            onClick={() => handleCopy(mindboxRunAllCommand(env))}
+            title="Kopieer commando om alle bestanden te verwerken"
             style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
           >
-            ⧉ MindBox.Run(all)
+            ⧉ {mindboxRunAllCommand(env)}
           </button>
         )}
         {copyMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{copyMsg}</span>}
@@ -117,7 +160,7 @@ export default function ItemsPage() {
 
       {!items.length && (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
-          Nog geen bestanden geüpload.
+          Nog geen bestanden geüpload. Sleep een bestand hierheen, of gebruik de knop hierboven.
         </div>
       )}
 
@@ -126,7 +169,7 @@ export default function ItemsPage() {
           <div
             key={item.id}
             style={{
-              display: 'grid', gridTemplateColumns: '1fr 140px 200px 1fr auto', gap: 12, alignItems: 'start',
+              display: 'grid', gridTemplateColumns: '1fr 130px 160px 160px 1fr auto', gap: 12, alignItems: 'start',
               padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8,
             }}
           >
@@ -143,6 +186,15 @@ export default function ItemsPage() {
               style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
             >
               {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+
+            <select
+              value={item.case_id || ''}
+              onChange={e => handleCaseChange(item, e.target.value)}
+              style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+            >
+              <option value="">Geen case</option>
+              {cases.map(c => <option key={c.id} value={c.id}>📁 {c.name}</option>)}
             </select>
 
             <select
@@ -166,8 +218,8 @@ export default function ItemsPage() {
 
             <div style={{ display: 'flex', gap: 6 }}>
               <button
-                onClick={() => handleCopyRun(`#${item.id}`)}
-                title="Kopieer MindBox.Run(#item) voor dit bestand"
+                onClick={() => handleCopy(mindboxRunFileCommand(item.id, env))}
+                title="Kopieer commando om dit bestand te verwerken"
                 style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
               >
                 ⧉

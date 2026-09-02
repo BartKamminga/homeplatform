@@ -105,35 +105,55 @@ def test_a_users_items_are_not_visible_to_another_user(client, user_token, admin
     assert delete_by_admin.status_code == 403
 
 
+def _case(client, token, name="Testcase"):
+    return client.post("/api/mindbox/cases", json={"name": name}, headers=_auth(token)).json()["id"]
+
+
 def test_create_response_with_sources_and_list_it(client, user_token):
     item_id = _upload(client, user_token).json()["id"]
+    case_id = _case(client, user_token)
 
     res = client.post(
-        "/api/mindbox/responses",
+        f"/api/mindbox/cases/{case_id}/responses",
         json={"content": "Concept-antwoord op de mail", "source_item_ids": [item_id]},
         headers=_auth(user_token),
     )
     assert res.status_code == 200
     data = res.json()
     assert data["content"] == "Concept-antwoord op de mail"
+    assert data["case_id"] == case_id
     assert data["source_item_ids"] == [item_id]
     assert data["parent_response_id"] is None
 
-    listed = client.get("/api/mindbox/responses", headers=_auth(user_token))
+    listed = client.get(f"/api/mindbox/cases/{case_id}/responses", headers=_auth(user_token))
     assert len(listed.json()) == 1
     assert listed.json()[0]["source_item_ids"] == [item_id]
 
 
+def test_create_response_without_a_case_is_rejected(client, user_token):
+    """Item 1051 (Bart): 'los bekijken van responses is niet relevant' -
+    responses zijn nu altijd case-gescoped, dus zonder case_id in de URL
+    bestaat het endpoint niet meer."""
+    item_id = _upload(client, user_token).json()["id"]
+    res = client.post(
+        "/api/mindbox/responses",
+        json={"content": "Concept", "source_item_ids": [item_id]},
+        headers=_auth(user_token),
+    )
+    assert res.status_code == 404
+
+
 def test_create_followup_response_links_to_parent(client, user_token):
     item_id = _upload(client, user_token).json()["id"]
+    case_id = _case(client, user_token)
     first = client.post(
-        "/api/mindbox/responses",
+        f"/api/mindbox/cases/{case_id}/responses",
         json={"content": "Eerste concept", "source_item_ids": [item_id]},
         headers=_auth(user_token),
     ).json()
 
     followup = client.post(
-        "/api/mindbox/responses",
+        f"/api/mindbox/cases/{case_id}/responses",
         json={"content": "Bijgewerkt na feedback", "source_item_ids": [item_id], "parent_response_id": first["id"]},
         headers=_auth(user_token),
     )
@@ -143,10 +163,21 @@ def test_create_followup_response_links_to_parent(client, user_token):
 
 def test_create_response_rejects_a_source_item_owned_by_another_user(client, user_token, admin_token):
     item_id = _upload(client, admin_token).json()["id"]
+    case_id = _case(client, user_token)
 
     res = client.post(
-        "/api/mindbox/responses",
+        f"/api/mindbox/cases/{case_id}/responses",
         json={"content": "Poging tot misbruik", "source_item_ids": [item_id]},
+        headers=_auth(user_token),
+    )
+    assert res.status_code == 403
+
+
+def test_create_response_in_another_users_case_is_rejected(client, user_token, admin_token):
+    case_id = _case(client, admin_token, "Prive-case van admin")
+    res = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Poging tot misbruik", "source_item_ids": []},
         headers=_auth(user_token),
     )
     assert res.status_code == 403
@@ -279,24 +310,26 @@ def test_clear_case_from_an_item(client, user_token):
     assert cleared.json()["case_id"] is None
 
 
-def test_deleting_a_case_unlinks_items_and_responses(client, user_token):
+def test_deleting_a_case_unlinks_items_but_deletes_its_responses(client, user_token):
+    """Items kunnen los bestaan (blijven behouden, alleen ontkoppeld) maar
+    responses zijn altijd case-gebonden (item 1051) - die verdwijnen mee
+    met de case in plaats van los te blijven hangen."""
     case_id = client.post("/api/mindbox/cases", json={"name": "Op te ruimen case"}, headers=_auth(user_token)).json()["id"]
     item_id = _upload(client, user_token).json()["id"]
     client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
-    response_id = client.post(
-        "/api/mindbox/responses",
-        json={"content": "Concept", "source_item_ids": [item_id], "case_id": case_id},
+    client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Concept", "source_item_ids": [item_id]},
         headers=_auth(user_token),
-    ).json()["id"]
+    )
 
     delete_res = client.delete(f"/api/mindbox/cases/{case_id}", headers=_auth(user_token))
     assert delete_res.status_code == 200
 
     item = client.get("/api/mindbox/items", headers=_auth(user_token)).json()[0]
     assert item["case_id"] is None
-    response = client.get("/api/mindbox/responses", headers=_auth(user_token)).json()[0]
-    assert response["id"] == response_id
-    assert response["case_id"] is None
+    responses_after = client.get(f"/api/mindbox/cases/{case_id}/responses", headers=_auth(user_token))
+    assert responses_after.status_code == 404
 
 
 def test_a_users_case_is_not_usable_by_another_user(client, user_token, admin_token):

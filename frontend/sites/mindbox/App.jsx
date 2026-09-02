@@ -2,13 +2,14 @@ import { useState } from 'react'
 import ItemsPage from './pages/ItemsPage.jsx'
 import CasesPage from './pages/CasesPage.jsx'
 import ContextsPage from './pages/ContextsPage.jsx'
-import ResponsesPage from './pages/ResponsesPage.jsx'
 
+// Responses hebben BEWUST geen eigen tab (item 1051, Bart: "het is niet
+// relevant om losse responses te bekijken") - responses zijn altijd
+// case-gescoped en leven daarom alleen binnen CasesPage/CaseDetail.
 const TABS = [
   { key: 'items', label: '📥 Bestanden' },
   { key: 'cases', label: '📁 Cases' },
   { key: 'contexts', label: '🎭 Contexts' },
-  { key: 'responses', label: '📝 Responses' },
 ]
 
 // Bart, 2-09-2026: "moet primair goed op een monitor werken, dus gebruik de

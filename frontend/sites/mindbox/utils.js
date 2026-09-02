@@ -28,6 +28,32 @@ export function copyText(text) {
 // Fase 2 (item 1050): MindBox.Run(...) bestaat nog niet als echt commando -
 // dit bereidt alvast de exacte, kopieerbare aanroep voor zodat de workflow
 // straks (zonder UI-wijziging) meteen bruikbaar is.
-export function mindboxRunCommand(target) {
-  return `MindBox.Run(${target})`
+//
+// Item 1051 (Bart): "de commando's moeten wel omgeving bewust zijn" - prod/
+// acc/local hebben elk hun EIGEN database, dus een item-/case-ID uit acc
+// bestaat niet op prod. Bart's gekozen notatie: "{Env}.MindBox.Run(all)",
+// "{Env}.MindBox.Run.File(#item_id)", "{Env}.MindBox.Run.Case(#case_id)" -
+// de {Env}-prefix vertaalt 1-op-1 naar MindBox.ps1's -Env-parameter.
+export function mindboxRunAllCommand(env) {
+  return `${env}.MindBox.Run(all)`
+}
+export function mindboxRunFileCommand(itemId, env) {
+  return `${env}.MindBox.Run.File(#${itemId})`
+}
+export function mindboxRunCaseCommand(caseId, env) {
+  return `${env}.MindBox.Run.Case(#${caseId})`
+}
+
+const ENV_LABELS = { production: 'Prod', acceptatie: 'Acc', development: 'Local' }
+
+// Zelfde bron als EnvBanner (frontend/core/EnvBanner.jsx): /api/config geeft
+// settings.ENVIRONMENT terug ("production"/"acceptatie"/"development").
+export async function fetchMindboxEnv() {
+  try {
+    const res = await fetch('/api/config')
+    const data = await res.json()
+    return ENV_LABELS[data.environment] || 'Local'
+  } catch {
+    return 'Local'
+  }
 }

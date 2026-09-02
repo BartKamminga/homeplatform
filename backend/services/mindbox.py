@@ -140,17 +140,16 @@ def get_item_file_path(session: Session, user: User, item_id: str) -> tuple[Path
 
 
 def create_response(
-    session: Session, user: User, content: str, source_item_ids: list[str], parent_response_id: str | None,
-    case_id: str | None = None,
+    session: Session, user: User, case_id: str, content: str, source_item_ids: list[str],
+    parent_response_id: str | None = None,
 ) -> MindboxResponse:
+    get_case(session, user, case_id)  # bestaat + eigendom-check
     for item_id in source_item_ids:
         get_item(session, user, item_id)  # bestaat + eigendom-check
     if parent_response_id is not None:
         parent = session.get(MindboxResponse, parent_response_id)
         if not parent or parent.user_id != user.id:
             raise AppError("Vervolg-response niet gevonden", status_code=404)
-    if case_id is not None:
-        get_case(session, user, case_id)  # bestaat + eigendom-check
 
     response = MindboxResponse(
         user_id=user.id, content=content, parent_response_id=parent_response_id, case_id=case_id,
@@ -166,10 +165,9 @@ def create_response(
     return response
 
 
-def get_responses(session: Session, user: User, case_id: str | None = None) -> list[dict]:
-    query = select(MindboxResponse).where(MindboxResponse.user_id == user.id)
-    if case_id is not None:
-        query = query.where(MindboxResponse.case_id == case_id)
+def get_responses(session: Session, user: User, case_id: str) -> list[dict]:
+    get_case(session, user, case_id)  # bestaat + eigendom-check
+    query = select(MindboxResponse).where(MindboxResponse.user_id == user.id, MindboxResponse.case_id == case_id)
     responses = session.exec(query.order_by(col(MindboxResponse.created_at).desc())).all()
     out = []
     for r in responses:
@@ -233,9 +231,13 @@ def delete_case(session: Session, user: User, case_id: str) -> None:
     for item in session.exec(select(MindboxItem).where(MindboxItem.case_id == case_id)).all():
         item.case_id = None
         session.add(item)
+    # Responses zijn altijd case-gebonden (item 1051) - kunnen niet losgekoppeld
+    # blijven bestaan, dus verdwijnen mee met de case (i.t.t. items, die wel
+    # los kunnen bestaan en daarom alleen ontkoppeld worden).
     for response in session.exec(select(MindboxResponse).where(MindboxResponse.case_id == case_id)).all():
-        response.case_id = None
-        session.add(response)
+        for source in session.exec(select(MindboxResponseSource).where(MindboxResponseSource.response_id == response.id)).all():
+            session.delete(source)
+        session.delete(response)
     for event in session.exec(select(MindboxCaseEvent).where(MindboxCaseEvent.case_id == case_id)).all():
         session.delete(event)
     session.delete(case)

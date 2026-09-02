@@ -90,14 +90,13 @@ class MindboxResponseCreate(BaseModel):
     content:             str
     source_item_ids:     list[str] = []
     parent_response_id:  Optional[str] = None
-    case_id:             Optional[str] = None
 
 
 class MindboxResponseOut(BaseModel):
     id:                  str
     content:             str
     parent_response_id:  Optional[str]
-    case_id:             Optional[str]
+    case_id:             str
     source_item_ids:     list[str]
     created_at:          datetime
 
@@ -164,40 +163,6 @@ def delete_item(
     svc.delete_item(session, user, item_id)
     log_action(session, "mindbox.delete", site="mindbox", user_id=user.id, payload={"item_id": item_id})
     return {"ok": True}
-
-
-# ---------------------------------------------------------------------------
-# Responses
-# ---------------------------------------------------------------------------
-
-@router.get("/responses", response_model=list[MindboxResponseOut])
-def list_responses(
-    case_id: Optional[str] = None,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    return svc.get_responses(session, user, case_id)
-
-
-@router.post("/responses", response_model=MindboxResponseOut)
-def create_response(
-    data: MindboxResponseCreate,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    response = svc.create_response(
-        session, user, data.content, data.source_item_ids, data.parent_response_id, data.case_id,
-    )
-    log_action(session, "mindbox.response.create", site="mindbox", user_id=user.id,
-               payload={"response_id": response.id, "source_item_ids": data.source_item_ids})
-    return {
-        "id": response.id,
-        "content": response.content,
-        "parent_response_id": response.parent_response_id,
-        "case_id": response.case_id,
-        "source_item_ids": data.source_item_ids,
-        "created_at": response.created_at,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +257,43 @@ def delete_case(
     svc.delete_case(session, user, case_id)
     log_action(session, "mindbox.case.delete", site="mindbox", user_id=user.id, payload={"case_id": case_id})
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Responses (VERPLICHT case-gescoped, item 1051: los bekijken is niet
+# relevant - vandaar geen los /responses-endpoint meer maar altijd via
+# /cases/{case_id}/responses, net als de events hieronder)
+# ---------------------------------------------------------------------------
+
+@router.get("/cases/{case_id}/responses", response_model=list[MindboxResponseOut])
+def list_responses(
+    case_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    return svc.get_responses(session, user, case_id)
+
+
+@router.post("/cases/{case_id}/responses", response_model=MindboxResponseOut)
+def create_response(
+    case_id: str,
+    data: MindboxResponseCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    response = svc.create_response(
+        session, user, case_id, data.content, data.source_item_ids, data.parent_response_id,
+    )
+    log_action(session, "mindbox.response.create", site="mindbox", user_id=user.id,
+               payload={"response_id": response.id, "case_id": case_id, "source_item_ids": data.source_item_ids})
+    return {
+        "id": response.id,
+        "content": response.content,
+        "parent_response_id": response.parent_response_id,
+        "case_id": response.case_id,
+        "source_item_ids": data.source_item_ids,
+        "created_at": response.created_at,
+    }
 
 
 # ---------------------------------------------------------------------------

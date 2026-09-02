@@ -1,21 +1,27 @@
 # MindBox.ps1 — HomePlatform Mindbox CLI (API-gebaseerd)
 #
 # GEBRUIK:
-#   .\MindBox.ps1 -Setup                                              # eenmalig: config aanmaken
-#   .\MindBox.ps1 -List                                               # toon eigen items
+#   .\MindBox.ps1 -Setup [-Env prod|acc|local]                        # eenmalig per omgeving: config aanmaken
+#   .\MindBox.ps1 -List [-Env acc]                                    # toon eigen items (default env: prod)
 #   .\MindBox.ps1 -List -CaseId <id>                                  # items binnen 1 case
 #   .\MindBox.ps1 -ListCases                                          # toon cases
 #   .\MindBox.ps1 -ListContexts                                       # toon contexts
 #   .\MindBox.ps1 -Get -Id <item_id>                                  # 1 item in detail
 #   .\MindBox.ps1 -Run -Id <item_id>                                  # download bestand + briefing-.md in mindbox_work/
 #   .\MindBox.ps1 -Run -All                                           # hetzelfde voor alle nog niet-afgeronde items
+#   .\MindBox.ps1 -Run -All -CaseId <id>                              # hetzelfde, beperkt tot 1 case
 #   .\MindBox.ps1 -Status -Id <item_id> -Value done                   # status bijwerken
 #   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken
-#   .\MindBox.ps1 -Respond -Ids "<item_id>,<item_id2>" -Content "..." [-CaseId <id>] [-ParentId <response_id>]
+#   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #
-# MindBox.Run(#item)/MindBox.Run(all) uit de website-UI komen overeen met
-# respectievelijk -Run -Id <item_id> en -Run -All hier.
+# -Env kiest de omgeving (prod/acc/local) - elke omgeving heeft een EIGEN
+# database, dus item/case-ID's van acc bestaan niet op prod en andersom. De
+# website plakt de omgeving daarom mee in de kopieerbare commando's (Bart's
+# notatie, bedoeld om 1-op-1 te vertalen naar een aanroep hier):
+#   {Env}.MindBox.Run(all)              ->  -Run -All -Env {env}
+#   {Env}.MindBox.Run.File(#item_id)    ->  -Run -Id <item_id> -Env {env}
+#   {Env}.MindBox.Run.Case(#case_id)    ->  -Run -All -CaseId <case_id> -Env {env}
 
 param(
     [switch]$Setup,
@@ -30,6 +36,8 @@ param(
     [switch]$AddEvent,
 
     [switch]$All,
+    [ValidateSet("prod", "acc", "local")]
+    [string]$Env       = "prod",
     [string]$Id        = "",
     [string]$Ids       = "",
     [string]$CaseId    = "",
@@ -41,21 +49,28 @@ param(
 )
 
 # ---------------------------------------------------------------------------
-# Config laden (zelfde patroon als roadmap.ps1 - herbruikt dezelfde API-key-
-# achtige auth: elk "hp_"-token werkt op ELK get_current_user-endpoint, dus
-# een bestaande .roadmap.config.ps1 kan hier ook gewoon gebruikt worden)
+# Config laden - PER OMGEVING een eigen configbestand (prod/acc/local hebben
+# elk hun eigen database, dus ook hun eigen API-key en base-URL), zelfde
+# API-key-achtige auth als roadmap.ps1 (elk "hp_"-token werkt op ELK
+# get_current_user-endpoint).
 # ---------------------------------------------------------------------------
-$ConfigFile = Join-Path $PSScriptRoot ".mindbox.config.ps1"
+$ConfigFile = Join-Path $PSScriptRoot ".mindbox.config.$Env.ps1"
 $WorkDir    = Join-Path $PSScriptRoot "mindbox_work"
+
+$DefaultApiBase = @{
+    prod  = "http://192.168.30.232:8080/api"
+    acc   = "http://192.168.30.232:8081/api"
+    local = "http://localhost:8000/api"
+}[$Env]
 
 if (-not $Setup) {
     if (-not (Test-Path $ConfigFile)) {
-        Write-Host "[FOUT] Geen config gevonden. Voer eerst: .\MindBox.ps1 -Setup"
+        Write-Host "[FOUT] Geen config voor omgeving '$Env'. Voer eerst: .\MindBox.ps1 -Setup -Env $Env"
         exit 1
     }
     . $ConfigFile
     if (-not $HP_API_BASE -or -not $HP_API_KEY) {
-        Write-Host "[FOUT] Config onvolledig. Voer .\MindBox.ps1 -Setup opnieuw uit."
+        Write-Host "[FOUT] Config onvolledig. Voer .\MindBox.ps1 -Setup -Env $Env opnieuw uit."
         exit 1
     }
 }
@@ -113,8 +128,9 @@ function ApiDownload([string]$Path, [string]$OutFile) {
 # Setup — eenmalig API key aanmaken en opslaan (identiek aan roadmap.ps1)
 # ---------------------------------------------------------------------------
 if ($Setup) {
-    $apiBase = Read-Host "API base URL [http://192.168.30.232:8080/api]"
-    if (-not $apiBase) { $apiBase = "http://192.168.30.232:8080/api" }
+    Write-Host "Omgeving: $Env"
+    $apiBase = Read-Host "API base URL [$DefaultApiBase]"
+    if (-not $apiBase) { $apiBase = $DefaultApiBase }
 
     $user = Read-Host "Gebruikersnaam"
     $pass = Read-Host "Wachtwoord" -AsSecureString
@@ -140,12 +156,12 @@ if ($Setup) {
     }
 
     $config = @"
-# HomePlatform Mindbox CLI config — gegenereerd door .\MindBox.ps1 -Setup
+# HomePlatform Mindbox CLI config ($Env) — gegenereerd door .\MindBox.ps1 -Setup -Env $Env
 `$HP_API_BASE = "$apiBase"
 `$HP_API_KEY  = "$($key.key)"
 "@
     Set-Content -Path $ConfigFile -Value $config -Encoding utf8
-    Write-Host "[OK] Config opgeslagen in .mindbox.config.ps1"
+    Write-Host "[OK] Config opgeslagen in .mindbox.config.$Env.ps1"
     Write-Host "     API key: $($key.key.Substring(0, [Math]::Min(16, $key.key.Length)))..."
     exit 0
 }
@@ -250,9 +266,13 @@ Gedownload naar: ``$localFile``
 
 ## Na afloop van de sessie
 
-- Status bijwerken: ``.\MindBox.ps1 -Status -Id $($item.id) -Value done``
-- Concept-antwoord posten: ``.\MindBox.ps1 -Respond -Ids "$($item.id)" -Content "..."``
-$(if ($item.case_id) { "- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $($item.case_id) -Text ""...""``" })
+- Status bijwerken: ``.\MindBox.ps1 -Status -Id $($item.id) -Value done -Env $Env``
+$(if ($item.case_id) {
+"- Concept-antwoord posten: ``.\MindBox.ps1 -Respond -CaseId $($item.case_id) -Ids ""$($item.id)"" -Content ""..."" -Env $Env``
+- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $($item.case_id) -Text ""..."" -Env $Env``"
+} else {
+"- Responses horen altijd bij een case - koppel dit item eerst aan een case om een response te kunnen posten."
+})
 "@
     $mdPath = Join-Path $itemDir "briefing.md"
     Set-Content -Path $mdPath -Value $md -Encoding utf8
@@ -262,7 +282,9 @@ $(if ($item.case_id) { "- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -
 if ($Run) {
     New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
     if ($All) {
-        $items = ApiGet "/mindbox/items" | Where-Object { $_.status -ne "done" }
+        $path = "/mindbox/items"
+        if ($CaseId) { $path += "?case_id=$CaseId" }
+        $items = ApiGet $path | Where-Object { $_.status -ne "done" }
         if (-not $items) { Write-Host "Niets te doen - geen openstaande items."; exit 0 }
         foreach ($i in $items) { RunItem $i }
         Write-Host "[OK] $($items.Count) item(s) klaargezet in $WorkDir"
@@ -272,7 +294,7 @@ if ($Run) {
         if (-not $item) { Write-Host "[FOUT] Item $Id niet gevonden"; exit 1 }
         RunItem $item
     } else {
-        Write-Host "Geef -Id <item_id> of -All op"; exit 1
+        Write-Host "Geef -Id <item_id> of -All [-CaseId <id>] op"; exit 1
     }
     exit 0
 }
@@ -298,13 +320,12 @@ if ($Note) {
 # Respond — concept-antwoord/rapport posten, met bronvermelding
 # ---------------------------------------------------------------------------
 if ($Respond) {
-    if (-not $Content) { Write-Host "Geef -Content op"; exit 1 }
+    if (-not $CaseId -or -not $Content) { Write-Host "Geef -CaseId en -Content op (responses horen altijd bij een case)"; exit 1 }
     $sourceIds = @()
     if ($Ids) { $sourceIds = $Ids -split "," | ForEach-Object { $_.Trim() } }
     $body = @{ content = $Content; source_item_ids = $sourceIds }
-    if ($CaseId)   { $body.case_id = $CaseId }
     if ($ParentId) { $body.parent_response_id = $ParentId }
-    $response = ApiPost "/mindbox/responses" $body
+    $response = ApiPost "/mindbox/cases/$CaseId/responses" $body
     Write-Host "[OK] Response aangemaakt: $($response.id)"
     exit 0
 }

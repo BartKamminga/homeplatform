@@ -4,7 +4,7 @@ import {
   listItems, uploadItem, updateItem, downloadItem,
   listResponses, createResponse, listContexts,
 } from '../api.js'
-import { copyText, mindboxRunCommand } from '../utils.js'
+import { copyText, mindboxRunFileCommand, mindboxRunCaseCommand, fetchMindboxEnv } from '../utils.js'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -104,7 +104,9 @@ function CaseDetail({ caseObj, onChanged }) {
   const [responses, setResponses] = useState([])
   const [events, setEvents] = useState([])
   const [contexts, setContexts] = useState([])
+  const [env, setEnv] = useState('Local')
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [copyMsg, setCopyMsg] = useState('')
   const fileInputRef = useRef(null)
@@ -116,9 +118,9 @@ function CaseDetail({ caseObj, onChanged }) {
     listContexts().then(setContexts).catch(() => {})
   }
   useEffect(() => { load() }, [caseObj.id])
+  useEffect(() => { fetchMindboxEnv().then(setEnv) }, [])
 
-  async function handleFileChange(e) {
-    const file = e.target.files?.[0]
+  async function handleUpload(file) {
     if (!file) return
     setUploading(true)
     try {
@@ -127,8 +129,29 @@ function CaseDetail({ caseObj, onChanged }) {
       onChanged()
     } finally {
       setUploading(false)
-      e.target.value = ''
     }
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    await handleUpload(file)
+    e.target.value = ''
+  }
+
+  // Bart, item 1051: "ik wil graag bestanden kunnen 'slepen' naar de
+  // website, bij de tab bestanden of in de case" - hier direct in de case.
+  function handleDragOver(e) {
+    e.preventDefault()
+    setDragOver(true)
+  }
+  function handleDragLeave() {
+    setDragOver(false)
+  }
+  async function handleDrop(e) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    await handleUpload(file)
   }
 
   async function handleContextChange(item, contextId) {
@@ -143,8 +166,8 @@ function CaseDetail({ caseObj, onChanged }) {
     onChanged()
   }
 
-  function handleCopyRun(target) {
-    copyText(mindboxRunCommand(target))
+  function handleCopy(command) {
+    copyText(command)
       .then(() => { setCopyMsg('Gekopieerd!'); setTimeout(() => setCopyMsg(''), 1500) })
       .catch(() => setCopyMsg('Kopiëren mislukt'))
   }
@@ -156,24 +179,50 @@ function CaseDetail({ caseObj, onChanged }) {
     load()
   }
 
-  const [respondingTo, setRespondingTo] = useState(null)
-  async function handleSaveResponse(content) {
-    if (!content.trim()) return
-    await createResponse({ content, source_item_ids: items.map(i => i.id), case_id: caseObj.id })
-    setRespondingTo(null)
+  const emptyResponseForm = { content: '', source_item_ids: [], parent_response_id: '' }
+  const [showResponseForm, setShowResponseForm] = useState(false)
+  const [responseForm, setResponseForm] = useState(emptyResponseForm)
+
+  function toggleResponseSource(itemId) {
+    setResponseForm(f => ({
+      ...f,
+      source_item_ids: f.source_item_ids.includes(itemId)
+        ? f.source_item_ids.filter(x => x !== itemId)
+        : [...f.source_item_ids, itemId],
+    }))
+  }
+
+  async function handleSaveResponse() {
+    if (!responseForm.content.trim()) return
+    await createResponse(caseObj.id, {
+      content: responseForm.content,
+      source_item_ids: responseForm.source_item_ids,
+      parent_response_id: responseForm.parent_response_id || null,
+    })
+    setResponseForm(emptyResponseForm)
+    setShowResponseForm(false)
     load()
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{
+        display: 'flex', flexDirection: 'column', gap: 16,
+        border: dragOver ? '2px dashed var(--color-primary)' : '2px dashed transparent',
+        borderRadius: 10, transition: 'border-color 0.1s', padding: dragOver ? 8 : 0, margin: dragOver ? -8 : 0,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <strong style={{ fontSize: 16 }}>📁 {caseObj.name}</strong>
         <button
-          onClick={() => handleCopyRun('all')}
-          title="Kopieer MindBox.Run(all) voor alle items in deze case"
+          onClick={() => handleCopy(mindboxRunCaseCommand(caseObj.id, env))}
+          title="Kopieer commando om alle items in deze case te verwerken"
           style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
         >
-          ⧉ MindBox.Run(all)
+          ⧉ {mindboxRunCaseCommand(caseObj.id, env)}
         </button>
         {copyMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{copyMsg}</span>}
       </div>
@@ -190,6 +239,7 @@ function CaseDetail({ caseObj, onChanged }) {
             {uploading ? 'Bezig...' : '+ Toevoegen'}
           </button>
           <input ref={fileInputRef} type="file" onChange={handleFileChange} style={{ display: 'none' }} />
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>of sleep een bestand in dit vlak</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {items.map(item => (
@@ -200,7 +250,7 @@ function CaseDetail({ caseObj, onChanged }) {
                 {contexts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <div style={{ display: 'flex', gap: 4 }}>
-                <button onClick={() => handleCopyRun(`#${item.id}`)} title="Kopieer MindBox.Run(#item)" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
+                <button onClick={() => handleCopy(mindboxRunFileCommand(item.id, env))} title="Kopieer commando voor dit bestand" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
               </div>
@@ -210,34 +260,69 @@ function CaseDetail({ caseObj, onChanged }) {
         </div>
       </section>
 
-      {/* Responses in deze case */}
+      {/* Responses in deze case (item 1051: altijd case-gescoped, geen losse Responses-tab meer) */}
       <section>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>RESPONSES ({responses.length})</div>
           <button
-            onClick={() => setRespondingTo(respondingTo === null ? '' : null)}
+            onClick={() => { setShowResponseForm(s => !s); setResponseForm(emptyResponseForm) }}
             style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}
           >
             + Nieuwe response
           </button>
         </div>
-        {respondingTo !== null && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        {showResponseForm && (
+          <div style={{ padding: 10, marginBottom: 8, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <textarea
-              value={respondingTo}
-              onChange={e => setRespondingTo(e.target.value)}
-              placeholder="Inhoud van de response (alle bestanden in deze case worden als bron gekoppeld)..."
-              style={{ flex: 1, padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 60, fontFamily: 'inherit' }}
+              value={responseForm.content}
+              onChange={e => setResponseForm(f => ({ ...f, content: e.target.value }))}
+              placeholder="Inhoud van de response..."
+              style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
             />
-            <button onClick={() => handleSaveResponse(respondingTo)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>BRONNEN</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {items.map(i => (
+                  <label key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={responseForm.source_item_ids.includes(i.id)} onChange={() => toggleResponseSource(i.id)} />
+                    {i.original_filename}
+                  </label>
+                ))}
+                {!items.length && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Nog geen bestanden in deze case om als bron te koppelen.</span>}
+              </div>
+            </div>
+            {!!responses.length && (
+              <select
+                value={responseForm.parent_response_id}
+                onChange={e => setResponseForm(f => ({ ...f, parent_response_id: e.target.value }))}
+                style={{ padding: '4px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)' }}
+              >
+                <option value="">Geen opvolging (nieuwe response)</option>
+                {responses.map(r => (
+                  <option key={r.id} value={r.id}>Opvolging op: {r.content.slice(0, 60)}...</option>
+                ))}
+              </select>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowResponseForm(false)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
+              <button onClick={handleSaveResponse} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+            </div>
           </div>
         )}
         {responses.map(r => (
           <div key={r.id} style={{ padding: 8, fontSize: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, marginBottom: 6, whiteSpace: 'pre-wrap' }}>
             {r.content}
-            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4 }}>{fmtDate(r.created_at)}</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4, fontSize: 10, color: 'var(--color-text-muted)' }}>
+              <span>{fmtDate(r.created_at)}</span>
+              {r.source_item_ids.map(id => {
+                const source = items.find(i => i.id === id)
+                return <span key={id} style={{ padding: '1px 6px', border: '1px solid var(--color-border)', borderRadius: 99 }}>📎 {source?.original_filename || id}</span>
+              })}
+              {r.parent_response_id && <span style={{ fontStyle: 'italic' }}>↳ vervolg op een eerdere response</span>}
+            </div>
           </div>
         ))}
+        {!responses.length && !showResponseForm && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen responses in deze case.</div>}
       </section>
 
       {/* Tijdlijn */}
