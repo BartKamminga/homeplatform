@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toDateStr } from './KalenderTab.jsx'
+import { phaseColor, phaseForDate } from './seasonPhases.js'
 
 // Gevalideerde categorale kleuren (dataviz-skill, validate_palette.js) -
 // blauw=wedstrijd. Los van het thema omdat dit een vaste, betekenisvolle
@@ -237,12 +238,21 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
     onDateChange(next)
   }
 
+  const phases = data.season_phases || []
+  const phase = phaseForDate(phases, date)
+
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--color-border)' }}>
         <button onClick={() => shiftDay(-1)} style={navBtnStyle}>←</button>
         <strong style={{ fontSize: 13 }}>{date.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</strong>
         <button onClick={() => shiftDay(1)} style={navBtnStyle}>→</button>
+        {phase && (
+          <span style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: phaseColor(phases, phase) }} />
+            {phase.label}
+          </span>
+        )}
         <button onClick={() => onDateChange(new Date())} style={{ ...navBtnStyle, marginLeft: 'auto' }}>Vandaag</button>
       </div>
 

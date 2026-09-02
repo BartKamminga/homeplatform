@@ -20,7 +20,7 @@ from models.hockey_discovery import (
 from routers.hockey_vanger_schedule_debug import _label_for
 from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _team_by_poule
-from services.hockey_vanger_settings import _get_int_setting, get_notify_team_ids
+from services.hockey_vanger_settings import _get_int_setting, get_notify_team_ids, get_season_phases, get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -292,6 +292,7 @@ def get_scan_calendar(
         "scheduled_cmds": scheduled_cmds,
         "club_captures": club_captures,
         "schedule_entries": schedule_entries,
+        "season_phases": get_season_phases(session, get_target_season(session)),
     }
 
 

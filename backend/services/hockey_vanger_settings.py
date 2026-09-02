@@ -2,8 +2,8 @@
 Fase 2d, RFTR-B2) - was letterlijk dubbel in routers/hockey_vanger.py en
 services/hockey_vanger_scanplan.py."""
 
-from datetime import datetime
-from typing import Dict, Optional, Tuple
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
 from sqlmodel import Session, select
 
@@ -17,6 +17,11 @@ ZAAL_WINDOW_START_DAY_KEY   = "zaal_window_start_day"
 ZAAL_WINDOW_START_MONTH_KEY = "zaal_window_start_month"
 ZAAL_WINDOW_END_DAY_KEY     = "zaal_window_end_day"
 ZAAL_WINDOW_END_MONTH_KEY   = "zaal_window_end_month"
+
+VELD_NAJAAR_START_DAY_KEY   = "veld_najaar_start_day"
+VELD_NAJAAR_START_MONTH_KEY = "veld_najaar_start_month"
+VELD_VOORJAAR_END_DAY_KEY   = "veld_voorjaar_end_day"
+VELD_VOORJAAR_END_MONTH_KEY = "veld_voorjaar_end_month"
 
 
 def _get_int_setting(session: Session, key: str, default: int) -> int:
@@ -109,3 +114,48 @@ def is_in_zaal_window(
     if start <= end:
         return start <= today <= end
     return today >= start or today <= end
+
+
+def get_veld_window(session: Session) -> Tuple[int, int, int, int]:
+    """(najaar_start_day, najaar_start_month, voorjaar_end_day, voorjaar_end_month)
+    - de veldhockey-seizoensfases die om het zaalvenster (get_zaal_window) heen
+    lopen. Defaults gebaseerd op de officiele KNHB-bondscompetitie-
+    speeldagenkalender 2026-2027 (roadmap item 1043): veldcompetitie start
+    begin september, laatste O25/30+/45+-ronde eind juni."""
+    return (
+        _get_int_setting(session, VELD_NAJAAR_START_DAY_KEY, 1),
+        _get_int_setting(session, VELD_NAJAAR_START_MONTH_KEY, 9),
+        _get_int_setting(session, VELD_VOORJAAR_END_DAY_KEY, 30),
+        _get_int_setting(session, VELD_VOORJAAR_END_MONTH_KEY, 6),
+    )
+
+
+def get_season_phases(session: Session, season: str) -> List[dict]:
+    """item 1043: seizoensfases (veld najaar / zaal / veld voorjaar) met
+    concrete datums voor een gegeven seizoen-string ('2026-2027'), voor de
+    JaarView-band (en Dag/Week/Maand-badges) in de Kalender-tab. Bouwt voort
+    op de al bestaande zaal-window-instelling (get_zaal_window) plus de
+    nieuwe veld-window-instelling hierboven, zodat er 1 instelbare bron van
+    waarheid is i.p.v. losse hardcoded datums per seizoen."""
+    try:
+        year1_str, year2_str = season.split("-")
+        year1, year2 = int(year1_str), int(year2_str)
+    except (ValueError, AttributeError):
+        return []
+
+    najaar_start_day, najaar_start_month, voorjaar_end_day, voorjaar_end_month = get_veld_window(session)
+    zaal_start_day, zaal_start_month, zaal_end_day, zaal_end_month = get_zaal_window(session)
+
+    najaar_start = date(year1, najaar_start_month, najaar_start_day)
+    zaal_start   = date(year1, zaal_start_month, zaal_start_day)
+    zaal_end     = date(year2, zaal_end_month, zaal_end_day)
+    voorjaar_end = date(year2, voorjaar_end_month, voorjaar_end_day)
+
+    return [
+        {"id": "veld_najaar",   "label": f"Veld najaar {year1}",
+         "start": najaar_start.isoformat(), "end": (zaal_start - timedelta(days=1)).isoformat()},
+        {"id": "zaal",          "label": f"Zaal {year1}-{year2}",
+         "start": zaal_start.isoformat(), "end": zaal_end.isoformat()},
+        {"id": "veld_voorjaar", "label": f"Veld voorjaar {year2}",
+         "start": (zaal_end + timedelta(days=1)).isoformat(), "end": voorjaar_end.isoformat()},
+    ]

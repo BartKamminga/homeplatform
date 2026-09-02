@@ -1,3 +1,5 @@
+import { phaseColor, phasesInRange } from './seasonPhases.js'
+
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
 
@@ -81,6 +83,8 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
   const weekEnd = new Date(monday)
   weekEnd.setDate(weekEnd.getDate() + 7)
   const reasonCounts = reasonCountsFor(data.schedule_entries, d => d >= monday && d < weekEnd)
+  const phases = data.season_phases || []
+  const activePhases = phasesInRange(phases, monday, new Date(weekEnd.getTime() - 1))
 
   function shiftWeek(delta) {
     const next = new Date(monday)
@@ -94,6 +98,12 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
         <button onClick={() => shiftWeek(-1)} style={navBtnStyle}>←</button>
         <strong style={{ fontSize: 13 }}>Week van {monday.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })}</strong>
         <button onClick={() => shiftWeek(1)} style={navBtnStyle}>→</button>
+        {activePhases.map(p => (
+          <span key={p.id} style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: phaseColor(phases, p) }} />
+            {p.label}
+          </span>
+        ))}
       </div>
       <div style={{ display: 'flex', gap: 14, padding: '6px 14px', fontSize: 10, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
         <span>⏺ echte capture</span>

@@ -1,3 +1,5 @@
+import { phaseColor, phasesInRange } from './seasonPhases.js'
+
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
 const WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
@@ -94,12 +96,22 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
     onDateChange(new Date(year, month + delta, 1))
   }
 
+  const phases = data.season_phases || []
+  const lastOfMonth = new Date(year, month + 1, 0)
+  const activePhases = phasesInRange(phases, firstOfMonth, lastOfMonth)
+
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--color-border)' }}>
         <button onClick={() => shiftMonth(-1)} style={navBtnStyle}>←</button>
         <strong style={{ fontSize: 13 }}>{date.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}</strong>
         <button onClick={() => shiftMonth(1)} style={navBtnStyle}>→</button>
+        {activePhases.map(p => (
+          <span key={p.id} style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: phaseColor(phases, p) }} />
+            {p.label}
+          </span>
+        ))}
       </div>
       <div style={{ display: 'flex', gap: 14, padding: '6px 14px', fontSize: 10, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
         <span>⏺ echte capture</span>
