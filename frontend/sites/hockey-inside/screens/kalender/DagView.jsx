@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toDateStr } from './KalenderTab.jsx'
-import { phaseColor, phaseForDate } from './seasonPhases.js'
+import { eventsOnDate, phaseColor, phaseForDate } from './seasonPhases.js'
 
 // Gevalideerde categorale kleuren (dataviz-skill, validate_palette.js) -
 // blauw=wedstrijd. Los van het thema omdat dit een vaste, betekenisvolle
@@ -240,6 +240,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
 
   const phases = data.season_phases || []
   const phase = phaseForDate(phases, date)
+  const seasonEventsToday = eventsOnDate(data.season_calendar_events, toDateStr(date))
 
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -440,6 +441,25 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
                 +{manualCompetitionEntries.length - MANUAL_COMP_SHOWN} meer competities
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {!!seasonEventsToday.length && (
+        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--color-border)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+            SEIZOENSKALENDER VANDAAG
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {seasonEventsToday.map((e, i) => (
+              <span
+                key={i}
+                title={e.notes || undefined}
+                style={{ fontSize: 10, color: 'var(--color-text-muted)', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 5, padding: '2px 7px' }}
+              >
+                🏒 {e.label}{e.rounds ? ` · ${e.rounds} ronden` : ''}
+              </span>
+            ))}
           </div>
         </div>
       )}

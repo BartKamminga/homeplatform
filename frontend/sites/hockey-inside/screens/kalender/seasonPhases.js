@@ -19,3 +19,10 @@ export function phasesInRange(phases, from, to) {
   }
   return result
 }
+
+// data.season_calendar_events (uit hockey_season_calendar) - start/eind van
+// elke fase per district/leeftijdscategorie, los van de landelijk-gemiddelde
+// band uit season_phases. dateStr moet lokaal (y-m-d) zijn, niet toISOString.
+export function eventsOnDate(events, dateStr) {
+  return (events || []).filter(e => e.date === dateStr)
+}

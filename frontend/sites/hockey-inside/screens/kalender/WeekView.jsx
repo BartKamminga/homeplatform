@@ -1,4 +1,5 @@
-import { phaseColor, phaseForDate, phasesInRange } from './seasonPhases.js'
+import { eventsOnDate, phaseColor, phaseForDate, phasesInRange } from './seasonPhases.js'
+import { toDateStr } from './KalenderTab.jsx'
 
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
@@ -125,6 +126,7 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
           // dagen met wedstrijden, niet op elke dag in de fase.
           const dayPhase = total > 0 ? phaseForDate(phases, day) : null
           const background = dayPhase ? `color-mix(in srgb, ${phaseColor(phases, dayPhase)} 12%, transparent)` : 'transparent'
+          const dayEvents = eventsOnDate(data.season_calendar_events, toDateStr(day))
           return (
             <div
               key={i}
@@ -156,6 +158,15 @@ export default function WeekView({ data, date, onDateChange, onSelectDay }) {
                   {REASON_LABELS.filter(([key]) => schemaByReason[key]).map(([key, label]) => (
                     <div key={key} style={{ fontSize: 9, color: 'var(--color-text-muted)', opacity: 0.75, paddingLeft: 8 }}>
                       {label}: {schemaByReason[key]}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!dayEvents.length && (
+                <div style={{ marginTop: 2 }}>
+                  {dayEvents.map((e, i) => (
+                    <div key={i} title={e.notes || e.label} style={{ fontSize: 9, color: 'var(--color-primary)' }}>
+                      🏒 {e.label}
                     </div>
                   ))}
                 </div>

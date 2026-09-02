@@ -1,4 +1,5 @@
-import { phaseColor, phaseForDate, phasesInRange } from './seasonPhases.js'
+import { eventsOnDate, phaseColor, phaseForDate, phasesInRange } from './seasonPhases.js'
+import { toDateStr } from './KalenderTab.jsx'
 
 const COL_GOOD = '#0ca30c'
 const COL_SCHEDULED = '#eda100'
@@ -136,6 +137,7 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
           const { total, confirmed, placeholder, followed, captures, executed, pending, schemaPlanned, schemaByReason } = countFor(day)
           const inMonth = day.getMonth() === month
           const isToday = sameDay(day, new Date())
+          const dayEvents = eventsOnDate(data.season_calendar_events, toDateStr(day))
           // Lichte fase-kleur als ondergrond op wedstrijddagen zelf (niet op
           // elke dag in de fase) - zo blijft het effect subtiel maar geeft
           // wel meteen aan in welke competitiefase een speeldag valt.
@@ -177,6 +179,21 @@ export default function MaandView({ data, date, onDateChange, onSelectDay }) {
                       {label} {schemaByReason[key]}
                     </div>
                   ))}
+                </div>
+              )}
+              {!!dayEvents.length && (
+                <div style={{ marginTop: 1 }}>
+                  {dayEvents.slice(0, 2).map((e, i) => (
+                    <div key={i} title={e.notes || e.label} style={{
+                      fontSize: 8, color: 'var(--color-primary)', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      🏒 {e.label}
+                    </div>
+                  ))}
+                  {dayEvents.length > 2 && (
+                    <div style={{ fontSize: 8, color: 'var(--color-text-muted)' }}>+{dayEvents.length - 2} meer</div>
+                  )}
                 </div>
               )}
             </div>
