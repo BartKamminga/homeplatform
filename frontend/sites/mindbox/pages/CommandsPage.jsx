@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { listCommands, createCommand, updateCommand, deleteCommand, listActions, fetchScriptText } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
-import Modal from '@components/Modal.jsx'
-import CopyButton from '@components/CopyButton.jsx'
 import CommandStepsEditor from './CommandStepsEditor.jsx'
+import ScriptModal from './ScriptModal.jsx'
 import { labelStyle, fieldStyle, iconBtnStyle } from './commandStyles.js'
 
 // Item 1053: referentie van entities + hun bekende velden uit backend/
@@ -173,25 +172,7 @@ export default function CommandsPage() {
       </div>
 
       {scriptText !== null && (
-        <Modal title="MindBox.ps1" onClose={() => setScriptText(null)} width={760}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <CopyButton text={scriptText} label="Kopieer naar klembord" icon="⧉" />
-            <a
-              href="/api/mindbox/commands/script"
-              download="MindBox.ps1"
-              style={{ fontSize: 12, color: 'var(--color-text-muted)' }}
-            >
-              of toch downloaden
-            </a>
-          </div>
-          <pre style={{
-            margin: 0, padding: 12, maxHeight: '60vh', overflow: 'auto', fontSize: 11, lineHeight: 1.5,
-            background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 8,
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          }}>
-            {scriptText || 'Laden...'}
-          </pre>
-        </Modal>
+        <ScriptModal scriptText={scriptText} onClose={() => setScriptText(null)} />
       )}
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
