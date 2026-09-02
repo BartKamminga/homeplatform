@@ -3,6 +3,7 @@ import ItemsPage from './pages/ItemsPage.jsx'
 import CasesPage from './pages/CasesPage.jsx'
 import ContextsPage from './pages/ContextsPage.jsx'
 import ContactsPage from './pages/ContactsPage.jsx'
+import CommandsPage from './pages/CommandsPage.jsx'
 
 // Responses hebben BEWUST geen eigen tab (item 1051, Bart: "het is niet
 // relevant om losse responses te bekijken") - responses zijn altijd
@@ -12,6 +13,7 @@ const TABS = [
   { key: 'cases', label: '📁 Cases' },
   { key: 'contexts', label: '🎭 Contexts' },
   { key: 'contacts', label: '👤 Contacts' },
+  { key: 'commands', label: "⚙️ Commando's" },
 ]
 
 // Bart, 2-09-2026: "moet primair goed op een monitor werken, dus gebruik de
@@ -70,6 +72,7 @@ export default function App() {
         )}
         {tab === 'contexts' && <ContextsPage />}
         {tab === 'contacts' && <ContactsPage />}
+        {tab === 'commands' && <CommandsPage />}
       </main>
     </div>
   )

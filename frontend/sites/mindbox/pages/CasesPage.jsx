@@ -3,9 +3,11 @@ import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem,
   listResponses, createResponse, updateResponse, downloadResponseEml, listContexts, listContacts,
+  listCommands,
 } from '../api.js'
-import { copyText, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, mindboxCaseRunCommand, mindboxCaseScanContactsCommand, fetchMindboxEnv } from '../utils.js'
+import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
+import CopyButton from '@components/CopyButton.jsx'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -128,11 +130,11 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [events, setEvents] = useState([])
   const [contexts, setContexts] = useState([])
   const [contacts, setContacts] = useState([])
+  const [commands, setCommands] = useState([])
   const [env, setEnv] = useState('Local')
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [noteText, setNoteText] = useState('')
-  const [copyMsg, setCopyMsg] = useState('')
   const [error, setError] = useState('')
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
@@ -152,7 +154,15 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   // apart endpoint nodig.
   const caseContacts = contacts.filter(c => items.some(i => i.contact_ids?.includes(c.id)))
   useEffect(() => { load() }, [caseObj.id])
-  useEffect(() => { fetchMindboxEnv().then(setEnv) }, [])
+  useEffect(() => {
+    fetchMindboxEnv().then(setEnv)
+    listCommands().then(setCommands).catch(() => {})
+  }, [])
+
+  // Item 1053: commando's uit de backend-catalogus i.p.v. hardcoded functies.
+  function findCommand(key) {
+    return commands.find(c => c.notation_key === key)
+  }
 
   async function handleUpload(file) {
     if (!file) return
@@ -247,12 +257,6 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     load()
   }
 
-  function handleCopy(command) {
-    copyText(command)
-      .then(() => { setCopyMsg('Gekopieerd!'); setTimeout(() => setCopyMsg(''), 1500) })
-      .catch(() => setCopyMsg('Kopiëren mislukt'))
-  }
-
   // Bijlagen (item 1051) zijn gewone items met parent_item_id - client-side
   // gegroepeerd uit dezelfde al-opgehaalde lijst, geen extra request nodig.
   function attachmentsOf(itemId) {
@@ -324,21 +328,26 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 16 }}>📁 {caseObj.name}</strong>
-        <button
-          onClick={() => handleCopy(mindboxCaseRunCommand(caseObj.id, env))}
-          title="Kopieer commando om alle items in deze case te verwerken"
-          style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
-        >
-          ⧉ {mindboxCaseRunCommand(caseObj.id, env)}
-        </button>
-        <button
-          onClick={() => handleCopy(mindboxCaseScanContactsCommand(caseObj.id, env))}
-          title="Kopieer commando om deze case te scannen op contacten"
-          style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
-        >
-          ⧉ {mindboxCaseScanContactsCommand(caseObj.id, env)}
-        </button>
-        {copyMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{copyMsg}</span>}
+        {findCommand('Case.Run') && (
+          <CopyButton
+            text={buildCommandString(findCommand('Case.Run'), caseObj.id, env)}
+            label={buildCommandString(findCommand('Case.Run'), caseObj.id, env)}
+            icon={findCommand('Case.Run').icon}
+            mono
+            title="Kopieer commando om alle items in deze case te verwerken"
+            style={{ padding: '3px 8px', fontSize: 11 }}
+          />
+        )}
+        {findCommand('Case.ScanContacts') && (
+          <CopyButton
+            text={buildCommandString(findCommand('Case.ScanContacts'), caseObj.id, env)}
+            label={buildCommandString(findCommand('Case.ScanContacts'), caseObj.id, env)}
+            icon={findCommand('Case.ScanContacts').icon}
+            mono
+            title="Kopieer commando om deze case te scannen op contacten"
+            style={{ padding: '3px 8px', fontSize: 11 }}
+          />
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>🎭 Context:</span>
           <select
@@ -400,9 +409,15 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                 }}
               />
               <div style={{ display: 'flex', gap: 4 }}>
-                <button onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⧉</button>
-                <button onClick={() => handleCopy(mindboxFileParseToTekstCommand(item.id, env))} title="Kopieer commando om de tekst van dit bestand te laten extraheren" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>🔎</button>
-                <button onClick={() => handleCopy(mindboxFileExtractAttachmentsCommand(item.id, env))} title="Kopieer commando om bijlagen uit dit bestand te extraheren" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>📎</button>
+                {findCommand('File.Enhance') && (
+                  <CopyButton text={buildCommandString(findCommand('File.Enhance'), item.id, env)} icon={findCommand('File.Enhance').icon} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11 }} />
+                )}
+                {findCommand('File.ParseToTekst') && (
+                  <CopyButton text={buildCommandString(findCommand('File.ParseToTekst'), item.id, env)} icon={findCommand('File.ParseToTekst').icon} title="Kopieer commando om de tekst van dit bestand te laten extraheren" style={{ padding: '2px 6px', fontSize: 11 }} />
+                )}
+                {findCommand('File.ExtractAttachments') && (
+                  <CopyButton text={buildCommandString(findCommand('File.ExtractAttachments'), item.id, env)} icon={findCommand('File.ExtractAttachments').icon} title="Kopieer commando om bijlagen uit dit bestand te extraheren" style={{ padding: '2px 6px', fontSize: 11 }} />
+                )}
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
                 {item.parsed_text && (
@@ -523,7 +538,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               {r.parent_response_id && <span style={{ fontStyle: 'italic' }}>↳ vervolg op een eerdere response</span>}
               {editingResponseId !== r.id && (
                 <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                  <button onClick={() => copyText(r.content)} title="Kopieer naar klembord" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>📋</button>
+                  <CopyButton text={r.content} icon="📋" title="Kopieer naar klembord" style={{ padding: '2px 6px', fontSize: 11 }} />
                   <button onClick={() => handleDownloadEml(r.id)} title="Download als .eml, klaar voor verzending" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
                   <button onClick={() => handleStartEditResponse(r)} title="Bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
                 </div>

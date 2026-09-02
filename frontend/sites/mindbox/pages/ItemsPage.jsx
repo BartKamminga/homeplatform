@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts, unlinkItemContact } from '../api.js'
-import { copyText, mindboxRunAllCommand, mindboxFileEnhanceCommand, mindboxFileParseToTekstCommand, mindboxFileExtractAttachmentsCommand, fetchMindboxEnv } from '../utils.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts, unlinkItemContact, listCommands } from '../api.js'
+import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
+import CopyButton from '@components/CopyButton.jsx'
 
 const NEW_CASE_SENTINEL = '__new__'
 
@@ -25,6 +26,7 @@ export default function ItemsPage({ onGoToExisting }) {
   const [items, setItems] = useState([])
   const [cases, setCases] = useState([])
   const [contacts, setContacts] = useState([])
+  const [commands, setCommands] = useState([])
   const [env, setEnv] = useState('Local')
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -41,8 +43,16 @@ export default function ItemsPage({ onGoToExisting }) {
     load()
     listCases().then(setCases).catch(() => {})
     listContacts().then(setContacts).catch(() => {})
+    listCommands().then(setCommands).catch(() => {})
     fetchMindboxEnv().then(setEnv)
   }, [])
+
+  // Item 1053: commando's komen uit de backend-catalogus i.p.v. hardcoded
+  // functies - opzoeken op notation_key, ontbreekt 'ie (nog) niet ingesteld
+  // dan verschijnt de bijbehorende knop simpelweg niet.
+  function findCommand(key) {
+    return commands.find(c => c.notation_key === key)
+  }
 
   async function handleUpload(file) {
     if (!file) return
@@ -159,18 +169,6 @@ export default function ItemsPage({ onGoToExisting }) {
     load()
   }
 
-  // Fase 2 (item 1050, Bart 2-09-2026: "net als in de admin roadmap, de
-  // mogelijkheid om de commando's voor het verwerken meteen te kunnen
-  // kopiëren") - MindBox.Run bestaat nog niet als echt commando, maar de
-  // exacte, kopieerbare aanroep alvast klaarzetten kost niets en bereidt de
-  // workflow voor.
-  const [copyMsg, setCopyMsg] = useState('')
-  function handleCopy(command) {
-    copyText(command)
-      .then(() => { setCopyMsg('Gekopieerd!'); setTimeout(() => setCopyMsg(''), 1500) })
-      .catch(() => setCopyMsg('Kopiëren mislukt'))
-  }
-
   // Bijlagen (item 1051) zijn gewone items met parent_item_id - client-side
   // gegroepeerd uit dezelfde al-opgehaalde lijst, geen extra request nodig.
   function attachmentsOf(itemId) {
@@ -214,16 +212,16 @@ export default function ItemsPage({ onGoToExisting }) {
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
           .msg, .doc(x), .xls(x), .ppt(x), .pdf, .txt, .csv — max 25MB, of sleep een bestand hierheen
         </span>
-        {!!items.length && (
-          <button
-            onClick={() => handleCopy(mindboxRunAllCommand(env))}
+        {!!items.length && findCommand('Run') && (
+          <CopyButton
+            text={buildCommandString(findCommand('Run'), 'all', env)}
+            label={buildCommandString(findCommand('Run'), 'all', env)}
+            icon={findCommand('Run').icon}
+            mono
             title="Kopieer commando om alle bestanden te verwerken"
-            style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'monospace' }}
-          >
-            ⧉ {mindboxRunAllCommand(env)}
-          </button>
+            style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 11 }}
+          />
         )}
-        {copyMsg && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{copyMsg}</span>}
       </div>
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
@@ -298,27 +296,27 @@ export default function ItemsPage({ onGoToExisting }) {
             />
 
             <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                onClick={() => handleCopy(mindboxFileEnhanceCommand(item.id, env))}
-                title="Kopieer commando om extra info aan dit bestand toe te voegen"
-                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
-              >
-                ⧉
-              </button>
-              <button
-                onClick={() => handleCopy(mindboxFileParseToTekstCommand(item.id, env))}
-                title="Kopieer commando om de tekst van dit bestand te laten extraheren"
-                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
-              >
-                🔎
-              </button>
-              <button
-                onClick={() => handleCopy(mindboxFileExtractAttachmentsCommand(item.id, env))}
-                title="Kopieer commando om bijlagen uit dit bestand te extraheren"
-                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
-              >
-                📎
-              </button>
+              {findCommand('File.Enhance') && (
+                <CopyButton
+                  text={buildCommandString(findCommand('File.Enhance'), item.id, env)}
+                  icon={findCommand('File.Enhance').icon}
+                  title="Kopieer commando om extra info aan dit bestand toe te voegen"
+                />
+              )}
+              {findCommand('File.ParseToTekst') && (
+                <CopyButton
+                  text={buildCommandString(findCommand('File.ParseToTekst'), item.id, env)}
+                  icon={findCommand('File.ParseToTekst').icon}
+                  title="Kopieer commando om de tekst van dit bestand te laten extraheren"
+                />
+              )}
+              {findCommand('File.ExtractAttachments') && (
+                <CopyButton
+                  text={buildCommandString(findCommand('File.ExtractAttachments'), item.id, env)}
+                  icon={findCommand('File.ExtractAttachments').icon}
+                  title="Kopieer commando om bijlagen uit dit bestand te extraheren"
+                />
+              )}
               <button
                 onClick={() => downloadItem(item.id, item.original_filename)}
                 title="Downloaden"

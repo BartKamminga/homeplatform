@@ -32,6 +32,7 @@ services:
       - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
       - /home/bart/homeplatform/plugins:/app/plugins
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./MindBox.ps1:/app/MindBox.ps1:ro
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}

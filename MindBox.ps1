@@ -22,32 +22,23 @@
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
 #   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities terugzien
+#   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
+#   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
 #
 # -Env kiest de omgeving (prod/acc/local) - elke omgeving heeft een EIGEN
-# database, dus item/case-ID's van acc bestaan niet op prod en andersom. De
-# website plakt de omgeving daarom mee in de kopieerbare commando's, volgens
-# de VASTE notatie (Bart, item 1051): env.MindBox.Entity.Cmd(#id, params) -
-# Object.Actie-volgorde (Case.Run, File.Enhance - niet andersom), en zonder
-# Entity-segment voor commando's die globaal werken (Run(all)). Case.Save/
-# Case.Load zijn de UITZONDERING op "#id" - die nemen een NAAM (de case
-# wordt bij Save aangemaakt als 'ie nog niet bestaat, bij Load opgezocht).
-# Vertaling naar een aanroep hier:
-#   {Env}.MindBox.Run(all)                    ->  -Run -All -Env {env}
-#   {Env}.MindBox.Case.Run(#case_id)          ->  -Run -All -CaseId <case_id> -Env {env}
-#   {Env}.MindBox.File.Enhance(#item_id)      ->  bestand+briefing bekijken (-Run -Id <item_id> -Env {env}),
-#                                                  dan notities aanvullen (-Note -Id <item_id> -Text "..." -Env {env})
-#   {Env}.MindBox.File.ParseToTekst(#item_id) ->  bestand bekijken (-Run -Id <item_id> -Env {env}), inhoud
-#                                                  extraheren, dan opslaan (-ParsedText -Id <item_id> -Text "..." -Env {env})
-#   {Env}.MindBox.File.ExtractAttachments(#item_id) -> bestand downloaden (-Run -Id <item_id> -Env {env}), bijlagen
-#                                                  extraheren (bv. Python extract-msg voor .msg), dan elke bijlage
-#                                                  uploaden (-UploadAttachment -ParentId <item_id> -FilePath <pad> -Env {env})
-#   {Env}.MindBox.Case.Save(naam)             ->  huidige sessie samenvatten, dan -SaveSession -Name "naam" -Text "<samenvatting>" -Env {env}
-#   {Env}.MindBox.Case.Load(naam)             ->  -LoadSession -Name "naam" -Env {env}, output lezen en daarmee verdergaan
-#   {Env}.MindBox.Case.ScanContacts(#case_id) ->  alle bestanden in de case downloaden (-Run -All -CaseId <case_id> -Env {env}),
-#                                                  sender/to/cc extraheren (bv. Python extract-msg), gevonden e-mailadressen
-#                                                  BINNEN DE SESSIE matchen/bevestigen (niet blind koppelen), dan per deelnemer
-#                                                  koppelen (-Contact -Id <item_id> -Email <email> -Name "..." -Env {env} -
-#                                                  many-to-many, dus meerdere -Contact-aanroepen per item is normaal)
+# database, dus item/case-ID's van acc bestaan niet op prod en andersom.
+#
+# Item 1053 (Bart): "MindBox.ps1 moet dun blijven, commando's horen in de
+# backend" - de VASTE notatie env.MindBox.Entity.Cmd(#id, params) (Object.
+# Actie-volgorde, bv. Case.Run/File.Enhance, geen Entity-segment voor
+# globale commando's zoals Run(all)) wordt NIET meer hier gedocumenteerd -
+# de commando-catalogus leeft in de database, beheerd via de website (tab
+# "Commando's") of rechtstreeks via /api/mindbox/commands. Gebruik
+# `.\MindBox.ps1 -Explain -Command "<notatie>" -Env <env>` om de recipe
+# (welke elementaire aanroepen hieronder, in welke volgorde, en welke
+# stappen handmatig/LLM-oordeel vereisen) op te vragen. Dit bestand
+# beschrijft alleen de ELEMENTAIRE acties (-List, -Run, -Status, -Note,
+# ...) - die groeien niet meer mee met elk nieuw commando.
 
 param(
     [switch]$Setup,
@@ -68,6 +59,8 @@ param(
     [switch]$Contact,
     [switch]$UnlinkContact,
     [switch]$ContactNote,
+    [switch]$Explain,
+    [switch]$DefineCommand,
 
     [switch]$All,
     [switch]$Force,
@@ -81,6 +74,7 @@ param(
     [string]$Value     = "",
     [string]$Text      = "",
     [string]$Content   = "",
+    [string]$Command   = "",
     [string]$Name      = "",
     [string]$Email     = "",
     [string]$FilePath  = "",
@@ -293,6 +287,57 @@ if ($ListContacts) {
     foreach ($c in $contacts) {
         Write-Host ("{0,-38} {1,-30} {2}" -f $c.id, $c.email, $c.display_name)
     }
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Explain — item 1053: het ENIGE generieke mechanisme dat een commando uit de
+# database-catalogus herleidt naar elementaire aanroepen. Doet zelf precies
+# 1 GET-call - alle commando-specifieke kennis leeft server-side, hier wordt
+# niets van de notatie-syntax geparsed.
+# ---------------------------------------------------------------------------
+if ($Explain) {
+    if (-not $Command) { Write-Host "Geef -Command '<env>.MindBox.Entity.Cmd(...)' op"; exit 1 }
+    if ($Command -notmatch "^$Env\.") {
+        Write-Host "[WAARSCHUWING] -Command noemt een andere omgeving dan -Env $Env"
+    }
+    $recipe = ApiGet "/mindbox/commands/resolve?notation=$([uri]::EscapeDataString($Command))"
+    Write-Host "=== $($recipe.notation) ==="
+    if ($recipe.command.description) { Write-Host $recipe.command.description }
+    Write-Host ""
+    $i = 1
+    foreach ($step in $recipe.steps) {
+        $marker = if ($step.kind -eq "manual") { "[HANDMATIG/LLM]" } else { "[CLI]" }
+        Write-Host "$i. $marker $($step.instruction)"
+        if ($step.cli_hint) { Write-Host "   .\MindBox.ps1 $($step.cli_hint)" }
+        $i++
+    }
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# DefineCommand — item 1053: nieuw commando aan de catalogus toevoegen vanaf
+# de terminal, zonder de website te openen. Leest een lokaal JSON-bestand
+# (bestandspad i.p.v. inline JSON - geneste quotes in PS 5.1 zijn foutgevoelig,
+# zelfde reden als -UploadAttachment -FilePath) en post de RUWE tekst 1-op-1
+# door - ConvertFrom-Json -AsHashtable bestaat niet in PowerShell 5.1 (dat
+# kwam pas in PS7), dus geen omweg via parsen+opnieuw serialiseren nodig.
+# ---------------------------------------------------------------------------
+if ($DefineCommand) {
+    if (-not $FilePath -or -not (Test-Path $FilePath)) { Write-Host "Geef -FilePath naar een commando-JSON op"; exit 1 }
+    # -Encoding UTF8 expliciet nodig - PS 5.1's Get-Content valt zonder BOM
+    # terug op de systeem-codepage, wat emoji/diakritische tekens (icon,
+    # instructie-teksten) in het JSON-bestand corrumpeert.
+    $json = Get-Content $FilePath -Raw -Encoding UTF8
+    try {
+        $created = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/commands" -Method POST `
+            -Headers @{ Authorization = "Bearer $HP_API_KEY"; "Content-Type" = "application/json" } `
+            -Body $json -ErrorAction Stop
+    } catch {
+        Write-Host "[FOUT] POST /mindbox/commands - $($_.Exception.Message)"
+        exit 1
+    }
+    Write-Host "[OK] Commando aangemaakt: $($created.notation_key)"
     exit 0
 }
 
@@ -596,4 +641,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

@@ -169,3 +169,28 @@ export async function downloadResponseEml(caseId, responseId) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// ---------------------------------------------------------------------------
+// Commands (item 1053) - de env.MindBox.Entity.Cmd(#id)-catalogus, backend-
+// gedreven zodat MindBox.ps1 dun kan blijven (-Explain leest dezelfde data).
+// ---------------------------------------------------------------------------
+
+export function listCommands() {
+  return api.get('/api/mindbox/commands')
+}
+
+export function createCommand(data) {
+  return api.post('/api/mindbox/commands', data)
+}
+
+export function updateCommand(id, data) {
+  return api.patch(`/api/mindbox/commands/${id}`, data)
+}
+
+export function deleteCommand(id) {
+  return api.delete(`/api/mindbox/commands/${id}`)
+}
+
+export function listActions() {
+  return api.get('/api/mindbox/commands/actions')
+}
