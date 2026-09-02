@@ -15,20 +15,26 @@
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
+#   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
+#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities terugzien
 #
 # -Env kiest de omgeving (prod/acc/local) - elke omgeving heeft een EIGEN
 # database, dus item/case-ID's van acc bestaan niet op prod en andersom. De
 # website plakt de omgeving daarom mee in de kopieerbare commando's, volgens
 # de VASTE notatie (Bart, item 1051): env.MindBox.Entity.Cmd(#id, params) -
 # Object.Actie-volgorde (Case.Run, File.Enhance - niet andersom), en zonder
-# Entity-segment voor commando's die globaal werken (Run(all)). Vertaling
-# naar een aanroep hier:
+# Entity-segment voor commando's die globaal werken (Run(all)). Case.Save/
+# Case.Load zijn de UITZONDERING op "#id" - die nemen een NAAM (de case
+# wordt bij Save aangemaakt als 'ie nog niet bestaat, bij Load opgezocht).
+# Vertaling naar een aanroep hier:
 #   {Env}.MindBox.Run(all)                    ->  -Run -All -Env {env}
 #   {Env}.MindBox.Case.Run(#case_id)          ->  -Run -All -CaseId <case_id> -Env {env}
 #   {Env}.MindBox.File.Enhance(#item_id)      ->  bestand+briefing bekijken (-Run -Id <item_id> -Env {env}),
 #                                                  dan notities aanvullen (-Note -Id <item_id> -Text "..." -Env {env})
 #   {Env}.MindBox.File.ParseToTekst(#item_id) ->  bestand bekijken (-Run -Id <item_id> -Env {env}), inhoud
 #                                                  extraheren, dan opslaan (-ParsedText -Id <item_id> -Text "..." -Env {env})
+#   {Env}.MindBox.Case.Save(naam)             ->  huidige sessie samenvatten, dan -SaveSession -Name "naam" -Text "<samenvatting>" -Env {env}
+#   {Env}.MindBox.Case.Load(naam)             ->  -LoadSession -Name "naam" -Env {env}, output lezen en daarmee verdergaan
 
 param(
     [switch]$Setup,
@@ -42,6 +48,8 @@ param(
     [switch]$ParsedText,
     [switch]$Respond,
     [switch]$AddEvent,
+    [switch]$SaveSession,
+    [switch]$LoadSession,
 
     [switch]$All,
     [ValidateSet("prod", "acc", "local")]
@@ -53,6 +61,7 @@ param(
     [string]$Value     = "",
     [string]$Text      = "",
     [string]$Content   = "",
+    [string]$Name      = "",
     [string]$EventType = "session_note"
 )
 
@@ -261,13 +270,17 @@ function RunItem([object]$item) {
 
 - **Item ID**: $($item.id)
 - **Status**: $($item.status)
-- **Geüpload**: $($item.created_at)
+- **Geupload**: $($item.created_at)
 - **Case**: $(if ($caseName) { $caseName } else { "(geen)" })
 - **Context/persona**: $(if ($contextName) { $contextName } else { "(geen)" })
 
 ## Extra info (Bart)
 
 $(if ($item.notes) { $item.notes } else { "(geen aantekeningen)" })
+
+## Geparste tekst van het bestand
+
+$(if ($item.parsed_text) { $item.parsed_text } else { "(nog niet geparst - zie File.ParseToTekst)" })
 
 ## Context-instructie
 
@@ -297,7 +310,12 @@ if ($Run) {
     if ($All) {
         $path = "/mindbox/items"
         if ($CaseId) { $path += "?case_id=$CaseId" }
+        # LET OP: @() moet op een APARTE regel na de Invoke-RestMethod-aanroep
+        # staan - @(ApiGet ...) in 1 statement laat Invoke-RestMethod een
+        # array van precies 2 elementen inklappen tot Count=1 (verrassende
+        # PS 5.1-eigenaardigheid, empirisch bevestigd 2026-09-02).
         $items = ApiGet $path | Where-Object { $_.status -ne "done" }
+        $items = @($items)
         if (-not $items) { Write-Host "Niets te doen - geen openstaande items."; exit 0 }
         foreach ($i in $items) { RunItem $i }
         Write-Host "[OK] $($items.Count) item(s) klaargezet in $WorkDir"
@@ -366,4 +384,86 @@ if ($AddEvent) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -Respond | -AddEvent"
+# ---------------------------------------------------------------------------
+# SaveSession / LoadSession — Bart: "ik wil een claude sessie kunnen
+# opslaan in de mindbox... env.MindBox.Case.Save(name)/Load(name)" - een
+# case wordt hier op NAAM opgezocht (i.p.v. #id, de enige uitzondering op
+# de vaste commando-notatie), en bij Save aangemaakt als 'ie nog niet
+# bestaat. De sessie-inhoud zelf is een session_note case-event (bestaat
+# al) - hergebruikt hier puur via naam-lookup, geen backend-wijziging nodig.
+# ---------------------------------------------------------------------------
+function FindCaseByName([string]$CaseName) {
+    $cases = ApiGet "/mindbox/cases"
+    return $cases | Where-Object { $_.name -eq $CaseName } | Select-Object -First 1
+}
+
+if ($SaveSession) {
+    if (-not $Name -or -not $Text) { Write-Host "Geef -Name en -Text op"; exit 1 }
+    $case = FindCaseByName $Name
+    if (-not $case) {
+        Write-Host "Case '$Name' bestaat nog niet - wordt aangemaakt..."
+        $case = ApiPost "/mindbox/cases" @{ name = $Name }
+    }
+    $event = ApiPost "/mindbox/cases/$($case.id)/events" @{ event_type = "session_note"; description = $Text }
+    Write-Host "[OK] Sessie opgeslagen in case '$Name' ($($case.id))"
+    exit 0
+}
+
+if ($LoadSession) {
+    if (-not $Name) { Write-Host "Geef -Name op"; exit 1 }
+    $case = FindCaseByName $Name
+    if (-not $case) { Write-Host "[FOUT] Case '$Name' niet gevonden"; exit 1 }
+
+    Write-Host "=== Case: $($case.name) ($($case.id)) ==="
+
+    # Volledige context-inhoud tonen (niet alleen het ID) - Bart: "worden
+    # alle relevante .md files mee gestuurd en/of contexts gekoppeld met de
+    # juiste .md informatie?"
+    if ($case.context_id) {
+        try {
+            $contexts = ApiGet "/mindbox/contexts"
+            $ctx = $contexts | Where-Object { $_.id -eq $case.context_id }
+            if ($ctx) {
+                Write-Host "`n--- Context: $($ctx.name) ---"
+                Write-Host $ctx.content
+            }
+        } catch {}
+    }
+
+    # LET OP: @() moet op een APARTE regel staan, NA de Invoke-RestMethod-
+    # aanroep (via ApiGet) - @(ApiGet ...) in 1 statement laat een array van
+    # precies 2 elementen inklappen tot Count=1 (verrassende PS 5.1-
+    # eigenaardigheid, empirisch bevestigd 2026-09-02 - zie ook de
+    # [string[]]-castfix bij -Respond, een vergelijkbare array-valkuil).
+    $items = ApiGet "/mindbox/items?case_id=$($case.id)"
+    $items = @($items)
+    Write-Host "`n--- Bestanden ($($items.Count)) - bezig met downloaden + briefing.md per bestand ---"
+    New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+    foreach ($i in $items) {
+        Write-Host " - $($i.original_filename) [$($i.status)]"
+        RunItem $i
+    }
+
+    $responses = ApiGet "/mindbox/cases/$($case.id)/responses"
+    $responses = @($responses)
+    Write-Host "`n--- Responses ($($responses.Count)) ---"
+    foreach ($r in $responses) {
+        $preview = $r.content.Substring(0, [Math]::Min(80, $r.content.Length))
+        Write-Host " - [$($r.id)] $preview..."
+    }
+
+    $events = ApiGet "/mindbox/cases/$($case.id)/events"
+    $events = @($events)
+    $notes = $events | Where-Object { $_.event_type -eq "session_note" } | Sort-Object created_at
+    $notes = @($notes)
+    Write-Host "`n--- Sessie-notities ($($notes.Count)) ---"
+    foreach ($n in $notes) {
+        Write-Host "[$($n.created_at)]"
+        Write-Host $n.description
+        Write-Host ""
+    }
+    if ($items.Count) { Write-Host "`nBriefing.md per bestand staat in $WorkDir\<item_id>\" }
+    exit 0
+}
+
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -Get | -Run | -Status | -Note | -ParsedText | -Respond | -AddEvent | -SaveSession | -LoadSession"
