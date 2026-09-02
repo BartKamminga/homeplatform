@@ -147,6 +147,18 @@ export default function CommandsPage() {
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
           De catalogus die MindBox.ps1s -Explain uitleest - nieuwe commandos hoeven niet meer in code.
         </span>
+        <a
+          href="/api/mindbox/commands/script"
+          download="MindBox.ps1"
+          title="Download het script, bv. voor een nieuwe laptop - daarna eenmalig .\MindBox.ps1 -Setup -Env <env>"
+          style={{
+            marginLeft: 'auto', padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8,
+            border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)',
+            textDecoration: 'none', cursor: 'pointer',
+          }}
+        >
+          ⬇ MindBox.ps1 downloaden
+        </a>
       </div>
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
