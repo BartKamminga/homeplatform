@@ -30,7 +30,7 @@
 #   .\MindBox.ps1 -UnlinkItem -LinkId <link_id>                        # relatie tussen 2 bestanden verwijderen
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
-#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities/case-export terugzien
+#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/sessie-notities/case-export terugzien
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
 #   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
 #
@@ -801,14 +801,6 @@ if ($LoadSession) {
     foreach ($i in $items) {
         Write-Host " - $($i.original_filename) [$($i.status)]"
         RunItem $i
-    }
-
-    $responses = ApiGet "/mindbox/cases/$($case.id)/responses"
-    $responses = @($responses)
-    Write-Host "`n--- Responses ($($responses.Count)) ---"
-    foreach ($r in $responses) {
-        $preview = $r.content.Substring(0, [Math]::Min(80, $r.content.Length))
-        Write-Host " - [$($r.id)] $preview..."
     }
 
     $events = ApiGet "/mindbox/cases/$($case.id)/events"
