@@ -442,6 +442,22 @@ def save_upload(
     session.commit()
     session.refresh(item)
 
+    # Item 1068 (vervolg, Bart): "die zie ik niet terug" - dit item MOET al
+    # zijn eigen case-koppeling(en) hebben VOORDAT bijlagen worden verwerkt,
+    # want die erven ze via get_item_case_ids(parent_item_id) hieronder. Stond
+    # eerst na de bijlagen-loop, waardoor elke automatisch geextraheerde
+    # bijlage een lege case-lijst erfde (bestond wel, maar onzichtbaar in elke
+    # case-gescoped view).
+    event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
+    linked_case_ids = inherited_case_ids if parent_item_id is not None else ([case_id] if case_id is not None else [])
+    for cid in linked_case_ids:
+        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=cid))
+        _log_case_event(session, cid, user.id, "upload", event_desc)
+    if link_target_item_id is not None:
+        session.add(MindboxItemLink(item_id=item.id, link_type=link_type, target_item_id=link_target_item_id))
+    if linked_case_ids or link_target_item_id is not None:
+        session.commit()
+
     for att_name, att_bytes, att_content_type in pending_attachments:
         try:
             save_upload(session, user, att_name, att_bytes, att_content_type, parent_item_id=item.id)
@@ -453,16 +469,6 @@ def save_upload(
 
     if msg_subject:
         _link_related_msg_items(session, user, item, msg_subject)
-
-    event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
-    linked_case_ids = inherited_case_ids if parent_item_id is not None else ([case_id] if case_id is not None else [])
-    for cid in linked_case_ids:
-        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=cid))
-        _log_case_event(session, cid, user.id, "upload", event_desc)
-    if link_target_item_id is not None:
-        session.add(MindboxItemLink(item_id=item.id, link_type=link_type, target_item_id=link_target_item_id))
-    if linked_case_ids or link_target_item_id is not None:
-        session.commit()
 
     # Alleen suggereren als het bestand nog geen case heeft (en geen bijlage
     # is - een bijlage heeft de case(s) van de ouder al) - anders is de vraag

@@ -163,6 +163,33 @@ def test_uploading_an_unparsable_msg_does_not_crash_and_leaves_parsed_text_empty
     assert res.json()["parsed_text"] is None
 
 
+def test_auto_extracted_attachment_inherits_the_mails_case(client, user_token, monkeypatch):
+    """Bart: '.msg heeft attachments, maar die zie ik niet terug' - volgorde-
+    bug: de bijlagen-loop liep VOOR de case-koppeling van het mail-item zelf,
+    waardoor een automatisch geextraheerde bijlage altijd een lege case-lijst
+    erfde (get_item_case_ids op een nog niet gekoppeld ouder-item) - bestond
+    wel, maar was onzichtbaar in elke case-gescoped view. Dit test de .msg-
+    upload-in-1-keer-met-case_id-flow (i.p.v. los uploaden + later linken,
+    zoals test_upload_an_attachment_inherits_the_parents_case al dekt)."""
+    def fake_extract_msg(content):
+        text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Factuur\nDatum: 2026-08-01 09:00:00\n\nZie bijlage."
+        return text, [("factuur.pdf", b"%PDF-1.4 fake pdf bytes", "application/pdf")], "Factuur"
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    case_id = _case(client, user_token, "Mail met bijlage in 1 keer")
+    mail = client.post(
+        "/api/mindbox/items", params={"case_id": case_id},
+        files={"file": ("mail.msg", io.BytesIO(b"mail"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert mail.status_code == 200
+
+    attachments = client.get(f"/api/mindbox/items/{mail.json()['id']}/attachments", headers=_auth(user_token)).json()
+    assert len(attachments) == 1
+    assert attachments[0]["case_ids"] == [case_id]
+
+
 def test_link_related_msg_items_matches_on_normalized_subject(client, user_token, regular_user, session):
     """Item 1069 (Bart): 'stel ik upload mijn relevante email van een hele
     dag... we kunnen die dus meteen linken' - test de matching-heuristiek
