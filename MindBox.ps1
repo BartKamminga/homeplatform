@@ -111,7 +111,7 @@ param(
     [string]$TargetId   = "",
     [ArgumentCompleter({
         param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
-        @('case_member', 'source_of', 'reply_to', 'related_to', 'duplicate_of', 'text_preview') |
+        @('case_member', 'source_of', 'reply_to', 'related_to', 'duplicate_of', 'text_preview', 'summary') |
             Where-Object { $_ -like "$wordToComplete*" } |
             ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "link_type: $_") }
     })]
