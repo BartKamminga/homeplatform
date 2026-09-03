@@ -329,6 +329,16 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     return items.filter(i => i.parent_item_id === itemId)
   }
 
+  // Item 1068 (vervolg, Bart): "die zie ik niet terug" - een bijlage die (via
+  // duplicaat-hergebruik, zie save_upload) ook aan DEZE case hangt maar wiens
+  // ouder-mailtje niet in DEZE case zit, moet gewoon als eigen rij getoond
+  // worden i.p.v. stilzwijgend te verdwijnen (was: alles met parent_item_id
+  // verbergen, ongeacht of die ouder hier uberhaupt zichtbaar is om 'm onder
+  // te nesten).
+  function isTopLevelInThisCase(item) {
+    return !item.parent_item_id || !items.some(i => i.id === item.parent_item_id)
+  }
+
   // Item 1058 (vervolg): generieke item<->item-relaties, het andere item
   // resolven uit de al-opgehaalde `items` van deze case (zelfde patroon als
   // attachmentsOf hierboven en ItemsPage.jsx's linksOf).
@@ -506,7 +516,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
       {/* Items in deze case */}
       <section>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>BESTANDEN ({items.filter(i => !i.parent_item_id).length})</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>BESTANDEN ({items.filter(isTopLevelInThisCase).length})</div>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -577,7 +587,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {items.filter(item => !item.parent_item_id).map(item => (
+          {items.filter(isTopLevelInThisCase).map(item => (
             <div key={item.id}>
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px',
