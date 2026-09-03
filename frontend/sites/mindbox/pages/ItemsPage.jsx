@@ -3,6 +3,7 @@ import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases,
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
+import CommandPicker from '../components/CommandPicker.jsx'
 
 const NEW_CASE_SENTINEL = '__new__'
 
@@ -243,6 +244,12 @@ export default function ItemsPage({ onGoToExisting }) {
     load()
   }
 
+  // Item 1055 (vervolg, Bart): "de echte applicatie-knoppen tonen, en een
+  // dropdown voor het kiezen van een commando... zo is er geen onduidelijk-
+  // heid meer" - dezelfde entity==='File'/param_kind==='id'-filter als
+  // CasesPage.fileCommands, i.p.v. 3 hardcoded pills tussen de echte knoppen.
+  const fileCommands = commands.filter(c => c.entity === 'File' && c.param_kind === 'id')
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -369,28 +376,9 @@ export default function ItemsPage({ onGoToExisting }) {
               }}
             />
 
-            <div style={{ display: 'flex', gap: 6 }}>
-              {findCommand('File.Enhance') && (
-                <CopyButton
-                  text={buildCommandString(findCommand('File.Enhance'), item.id, env)}
-                  icon={findCommand('File.Enhance').icon}
-                  title="Kopieer commando om extra info aan dit bestand toe te voegen"
-                />
-              )}
-              {findCommand('File.ParseToTekst') && (
-                <CopyButton
-                  text={buildCommandString(findCommand('File.ParseToTekst'), item.id, env)}
-                  icon={findCommand('File.ParseToTekst').icon}
-                  title="Kopieer commando om de tekst van dit bestand te laten extraheren"
-                />
-              )}
-              {findCommand('File.ExtractAttachments') && (
-                <CopyButton
-                  text={buildCommandString(findCommand('File.ExtractAttachments'), item.id, env)}
-                  icon={findCommand('File.ExtractAttachments').icon}
-                  title="Kopieer commando om bijlagen uit dit bestand te extraheren"
-                />
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+              {/* Panel 1: echte applicatie-knoppen */}
+              <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={() => downloadItem(item.id, item.original_filename)}
                 title="Downloaden"
@@ -443,6 +431,11 @@ export default function ItemsPage({ onGoToExisting }) {
               >
                 🔗{linksOf(item).length ? ` ${linksOf(item).length}` : ''}
               </button>
+              </div>
+              {/* Panel 2: terminal-commando kiezen */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', paddingTop: 6, borderTop: '1px solid var(--color-border)' }}>
+                <CommandPicker commands={fileCommands} param={item.id} env={env} />
+              </div>
             </div>
           </div>
           {expandedParsedId === item.id && item.parsed_text && (

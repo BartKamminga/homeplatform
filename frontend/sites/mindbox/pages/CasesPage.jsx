@@ -5,11 +5,11 @@ import {
   unlinkItems, linkItems, exportEmail,
   listContexts, listContacts, listCommands,
 } from '../api.js'
-import { buildCommandString, fetchMindboxEnv } from '../utils.js'
+import { fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
-import CopyButton from '@components/CopyButton.jsx'
 import Modal from '@components/Modal.jsx'
 import RelationsGraph from './RelationsGraph.jsx'
+import CommandPicker from '../components/CommandPicker.jsx'
 
 const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
 
@@ -432,19 +432,9 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
         borderRadius: 10, transition: 'border-color 0.1s', padding: dragOver ? 8 : 0, margin: dragOver ? -8 : 0,
       }}
     >
+      {/* Panel 1: echte applicatie-knoppen */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 16 }}>📁 {caseObj.name}</strong>
-        {caseCommands.map(c => (
-          <CopyButton
-            key={c.id}
-            text={buildCommandString(c, caseCommandParam(c), env)}
-            label={buildCommandString(c, caseCommandParam(c), env)}
-            icon={c.icon}
-            mono
-            title={c.description || c.notation_key}
-            style={{ padding: '3px 8px', fontSize: 11 }}
-          />
-        ))}
         <button
           onClick={handleExportCase}
           title="Case + context + contacten + tijdlijn downloaden als 1 bestand"
@@ -477,6 +467,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
             {contexts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+      </div>
+
+      {/* Panel 2: terminal-commando kiezen (item 1055, vervolg) - 1 dropdown
+          i.p.v. een pill per case-commando naast de echte knoppen hierboven. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Terminal-commando:</span>
+        <CommandPicker commands={caseCommands} param={caseCommandParam} env={env} />
       </div>
 
       <textarea
@@ -599,10 +596,9 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                   resize: 'vertical', minHeight: 28, fontFamily: 'inherit',
                 }}
               />
-              <div style={{ display: 'flex', gap: 4 }}>
-                {fileCommands.map(c => (
-                  <CopyButton key={c.id} text={buildCommandString(c, item.id, env)} icon={c.icon} title={c.description || c.notation_key} style={{ padding: '2px 6px', fontSize: 11 }} />
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                {/* Panel 1: echte applicatie-knoppen */}
+                <div style={{ display: 'flex', gap: 4 }}>
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
                 {item.text_content != null && (
@@ -624,6 +620,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                 <button onClick={() => toggleLinksPanel(item.id)} title="Relaties met andere bestanden tonen/bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
                   🔗{linksOf(item).length ? ` ${linksOf(item).length}` : ''}
                 </button>
+                </div>
+                {/* Panel 2: terminal-commando kiezen */}
+                {!!fileCommands.length && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
+                    <CommandPicker commands={fileCommands} param={item.id} env={env} />
+                  </div>
+                )}
               </div>
             </div>
             {expandedParsedId === item.id && item.parsed_text && (
