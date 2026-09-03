@@ -9,6 +9,8 @@ import {
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
+import Modal from '@components/Modal.jsx'
+import RelationsGraph from './RelationsGraph.jsx'
 
 const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
 
@@ -180,6 +182,8 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [linkTargetId, setLinkTargetId] = useState('')
   const [linkType, setLinkType] = useState('')
   const [linkTypeCustom, setLinkTypeCustom] = useState('')
+  const [showGraph, setShowGraph] = useState(false)
+  const [graphItems, setGraphItems] = useState([])
   const fileInputRef = useRef(null)
   const [confirmAction, confirmDialog] = useConfirm()
 
@@ -422,6 +426,16 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     await downloadItem(item.id, item.original_filename)
   }
 
+  // Item 1058 (vervolg, Bart): "eigenlijk wil ik de relaties met nette
+  // lijnen zien" - een verse, ONGEFILTERDE items-lijst (de `items`-state
+  // hierboven filtert responses eruit voor de Bestanden-sectie, maar de
+  // graph moet ze juist tonen - dat is het hele punt van het voorbeeld).
+  async function handleShowGraph() {
+    const all = await listItems(caseObj.id)
+    setGraphItems(all)
+    setShowGraph(true)
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -452,6 +466,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
         >
           📄 Exporteren
+        </button>
+        <button
+          onClick={handleShowGraph}
+          title="Relaties tussen bestanden in deze case als graph bekijken"
+          style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
+        >
+          🔗 Relatie-graph
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <select
@@ -757,6 +778,11 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           <>Dit bestand is al eerder geupload als "{duplicatePrompt.existing.original_filename}".</>
         )}
       </ConfirmDialog>
+      {showGraph && (
+        <Modal title={`Relaties in "${caseObj.name}"`} onClose={() => setShowGraph(false)} width={860}>
+          <RelationsGraph items={graphItems} />
+        </Modal>
+      )}
     </div>
   )
 }
