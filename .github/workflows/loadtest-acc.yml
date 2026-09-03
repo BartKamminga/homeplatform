@@ -34,7 +34,7 @@ jobs:
 
       - name: k6 draaien tegen acc (localhost:8081)
         run: |
-          rm -rf /tmp/k6-out && mkdir -p /tmp/k6-out
+          rm -rf /tmp/k6-out && mkdir -p /tmp/k6-out && chmod 777 /tmp/k6-out
           docker run --rm --name k6-loadtest-run --network host \
             -e BASE_URL=http://localhost:8081 \
             -e STAGE_DURATION="${{ inputs.stage_duration }}" \
