@@ -1,5 +1,6 @@
 import difflib
 import hashlib
+import io
 import re
 import uuid
 from datetime import datetime
@@ -7,6 +8,11 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from pathlib import Path
 
+import docx
+import extract_msg
+import pymupdf
+import pytesseract
+from PIL import Image
 from sqlmodel import Session, col, select
 
 from core.exceptions import AppError
@@ -160,6 +166,127 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
     return None
 
 
+_HTML_STYLE_SCRIPT_RE = re.compile(r"<(style|script)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _html_to_text(html: str) -> str:
+    """Ruwe HTML-body van een .msg naar leesbare platte tekst - puur voor
+    parsed_text (nooit als HTML gerenderd in de UI, zie ImageThumbnail/
+    item 1068: geen HTML-preview van mail-bodies i.v.m. trackingpixels/
+    misleidende links, ook niet gesandboxed)."""
+    text = _HTML_STYLE_SCRIPT_RE.sub("", html)
+    text = _HTML_TAG_RE.sub(" ", text)
+    text = text.replace("&nbsp;", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(lines)
+
+
+def _extract_pdf(content: bytes) -> tuple[str | None, bytes | None]:
+    """Item 1068: mechanische tekst-extractie + pagina-1-preview via
+    PyMuPDF - geen LLM nodig. (None, None) bij een corrupt bestand; lege/
+    None tekst bij een gescande PDF zonder tekstlaag (dan blijft de
+    handmatige/LLM-stap in File.ParseToTekst nodig)."""
+    try:
+        doc = pymupdf.open(stream=content, filetype="pdf")
+    except Exception:
+        return None, None
+    try:
+        parts = [page.get_text() for page in doc]
+        text = "\n\n".join(p.strip() for p in parts if p.strip()) or None
+        preview = None
+        if len(doc) > 0:
+            try:
+                preview = doc[0].get_pixmap(dpi=150).tobytes("png")
+            except Exception:
+                preview = None
+        return text, preview
+    finally:
+        doc.close()
+
+
+def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str | None]]]:
+    """Item 1068: mechanische extractie van mail-body + bijlagen via
+    extract-msg - geen LLM nodig. Bijlagen worden hier alleen VERZAMELD
+    (echt aanmaken als child-item gebeurt in save_upload, ná het committen
+    van het ouder-item, want daar is item.id voor nodig)."""
+    try:
+        msg = extract_msg.openMsg(io.BytesIO(content))
+    except Exception:
+        return None, []
+    try:
+        body = msg.body
+        if not body and msg.htmlBody:
+            html = msg.htmlBody
+            if isinstance(html, bytes):
+                html = html.decode("utf-8", errors="replace")
+            body = _html_to_text(html)
+        header = f"Van: {msg.sender}\nAan: {msg.to}\nOnderwerp: {msg.subject}\nDatum: {msg.date}\n\n"
+        text = (header + (body or "")).strip() or None
+
+        attachments: list[tuple[str, bytes, str | None]] = []
+        for att in msg.attachments:
+            try:
+                att_name = att.getFilename()
+                att_bytes = att.data
+                if att_name and isinstance(att_bytes, (bytes, bytearray)):
+                    attachments.append((att_name, bytes(att_bytes), getattr(att, "mimetype", None)))
+            except Exception:
+                continue
+        return text, attachments
+    except Exception:
+        return None, []
+    finally:
+        msg.close()
+
+
+def _extract_docx(content: bytes) -> str | None:
+    """Item 1068: mechanische tekst-extractie via python-docx - geen LLM nodig."""
+    try:
+        document = docx.Document(io.BytesIO(content))
+        text = "\n".join(p.text for p in document.paragraphs if p.text.strip())
+        return text or None
+    except Exception:
+        return None
+
+
+_OCR_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+
+
+def _extract_image_text(content: bytes) -> str | None:
+    """Item 1068 (Bart): 'laten we ook kijken naar picture to tekst' - OCR
+    via pytesseract (Tesseract-binary, Nederlands + Engels), geen LLM nodig.
+    Vereist tesseract-ocr in de Docker-image (zie Dockerfile) - lokaal
+    zonder die binary faalt dit stil en blijft het manueel/LLM (bv. het
+    model dat de afbeelding zelf leest)."""
+    try:
+        image = Image.open(io.BytesIO(content))
+        text = pytesseract.image_to_string(image, lang="nld+eng")
+        return text.strip() or None
+    except Exception:
+        return None
+
+
+def _auto_extract(ext: str, content: bytes) -> tuple[str | None, bytes | None, list[tuple[str, bytes, str | None]]]:
+    """Item 1068 (Bart): 'minder tokens verbranden' - mechanische extractie
+    (geen LLM) voor bestandstypen waar dat kan, bij upload i.p.v. via een
+    losse manual/LLM-stap (File.ParseToTekst). Retourneert
+    (parsed_text, preview_png, bijlagen) - elk optioneel/leeg als extractie
+    niets oplevert of het bestandstype hier niet voor in aanmerking komt."""
+    if ext == ".pdf":
+        text, preview = _extract_pdf(content)
+        return text, preview, []
+    if ext == ".msg":
+        text, attachments = _extract_msg(content)
+        return text, None, attachments
+    if ext == ".docx":
+        return _extract_docx(content), None, []
+    if ext in _OCR_EXTENSIONS:
+        return _extract_image_text(content), None, []
+    return None, None, []
+
+
 def save_upload(
     session: Session, user: User, filename: str, content: bytes, content_type: str | None,
     case_id: str | None = None, force: bool = False, parent_item_id: str | None = None,
@@ -230,7 +357,14 @@ def save_upload(
         except UnicodeDecodeError:
             text_content = None
 
+    # Item 1068 (Bart): "minder tokens verbranden" - mechanische extractie
+    # (PyMuPDF/extract-msg/python-docx, geen LLM) i.p.v. altijd te wachten op
+    # de handmatige/LLM-stap in File.ParseToTekst. Bijlagen uit een .msg
+    # worden pas ná het committen van dit item aangemaakt (item.id nodig).
+    parsed_text, preview_bytes, pending_attachments = _auto_extract(ext, content)
+
     rel_path = _write_bytes(user.id, ext, content)
+    preview_path = _write_bytes(user.id, ".png", preview_bytes) if preview_bytes else None
     item = MindboxItem(
         user_id=user.id,
         original_filename=original_filename,
@@ -240,10 +374,21 @@ def save_upload(
         content_hash=content_hash,
         parent_item_id=parent_item_id,
         text_content=text_content,
+        parsed_text=parsed_text,
+        preview_path=preview_path,
     )
     session.add(item)
     session.commit()
     session.refresh(item)
+
+    for att_name, att_bytes, att_content_type in pending_attachments:
+        try:
+            save_upload(session, user, att_name, att_bytes, att_content_type, parent_item_id=item.id)
+        except AppError:
+            # Bv. bijlage-extensie niet toegestaan of een duplicaat van een
+            # al bestaand bestand - mag de rest van de mail-upload niet laten
+            # falen, dit is een best-effort verrijking, geen kernactie.
+            continue
 
     event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
     linked_case_ids = inherited_case_ids if parent_item_id is not None else ([case_id] if case_id is not None else [])
@@ -313,6 +458,7 @@ def item_to_dict(session: Session, item: MindboxItem) -> dict:
         "notes": item.notes,
         "parsed_text": item.parsed_text,
         "text_content": item.text_content,
+        "has_preview": item.preview_path is not None,
         "parent_item_id": item.parent_item_id,
         "kind": item.kind,
         "case_ids": get_item_case_ids(session, item.id),
@@ -413,6 +559,19 @@ def get_item_file_path(session: Session, user: User, item_id: str) -> tuple[Path
     if not abs_path.is_file():
         raise AppError("Bestand niet gevonden op schijf", status_code=404)
     return abs_path, item
+
+
+def get_item_preview_path(session: Session, user: User, item_id: str) -> Path:
+    """Item 1068: losse route voor de automatisch gegenereerde preview-
+    afbeelding (bv. pagina 1 van een .pdf) - analoog aan get_item_file_path,
+    maar preview_path i.p.v. file_path."""
+    item = get_item(session, user, item_id)
+    if not item.preview_path:
+        raise AppError("Geen preview beschikbaar voor dit bestand", status_code=404)
+    abs_path = _safe_path(user.id, Path(item.preview_path).name)
+    if not abs_path.is_file():
+        raise AppError("Preview niet gevonden op schijf", status_code=404)
+    return abs_path
 
 
 def export_email(session: Session, user: User, item_id: str, case_id: str) -> bytes:

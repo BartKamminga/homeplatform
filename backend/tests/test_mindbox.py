@@ -3,6 +3,8 @@ delete van persoonsgebonden bestanden, plus generieke tekstitems met een
 optionele link naar hun bron (item 1058)."""
 import io
 
+import docx
+import pymupdf
 import pytest
 
 import services.mindbox as svc
@@ -103,6 +105,68 @@ def test_upload_rejects_file_too_large(client, user_token):
     big_content = b"x" * (26 * 1024 * 1024)  # boven MAX_SIZE_MB=25
     res = _upload(client, user_token, content=big_content)
     assert res.status_code == 400
+
+
+def _make_pdf_bytes(text: str) -> bytes:
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), text)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    return pdf_bytes
+
+
+def _make_docx_bytes(paragraphs: list[str]) -> bytes:
+    document = docx.Document()
+    for p in paragraphs:
+        document.add_paragraph(p)
+    buf = io.BytesIO()
+    document.save(buf)
+    return buf.getvalue()
+
+
+def test_uploading_a_pdf_auto_extracts_text_and_generates_a_preview(client, user_token):
+    """Item 1068 (Bart): 'minder tokens verbranden' - mechanische extractie
+    (PyMuPDF) i.p.v. altijd te wachten op de handmatige/LLM-stap."""
+    pdf_bytes = _make_pdf_bytes("Automatisch geextraheerde PDF-tekst")
+    res = _upload(client, user_token, filename="briefje.pdf", content=pdf_bytes, content_type="application/pdf")
+    assert res.status_code == 200
+    data = res.json()
+    assert "Automatisch geextraheerde PDF-tekst" in data["parsed_text"]
+    assert data["has_preview"] is True
+
+    preview = client.get(f"/api/mindbox/items/{data['id']}/preview", headers=_auth(user_token))
+    assert preview.status_code == 200
+    assert preview.headers["content-type"] == "image/png"
+
+
+def test_uploading_a_docx_auto_extracts_text(client, user_token):
+    docx_bytes = _make_docx_bytes(["Eerste alinea.", "Tweede alinea met meer tekst."])
+    res = _upload(
+        client, user_token, filename="verslag.docx", content=docx_bytes,
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "Eerste alinea." in data["parsed_text"]
+    assert "Tweede alinea met meer tekst." in data["parsed_text"]
+    assert data["has_preview"] is False
+
+
+def test_uploading_an_unparsable_msg_does_not_crash_and_leaves_parsed_text_empty(client, user_token):
+    """De testfixture-.msg elders in dit bestand is geen echt Outlook-
+    compound-bestand - auto-extractie moet dat stil opvangen (fallback op
+    de bestaande handmatige/LLM-stap in File.ParseToTekst) i.p.v. de hele
+    upload te laten falen."""
+    res = _upload(client, user_token, filename="niet-echt.msg", content=b"dit is geen geldig .msg-bestand")
+    assert res.status_code == 200
+    assert res.json()["parsed_text"] is None
+
+
+def test_preview_endpoint_404s_when_there_is_no_preview(client, user_token):
+    item_id = _upload(client, user_token).json()["id"]
+    res = client.get(f"/api/mindbox/items/{item_id}/preview", headers=_auth(user_token))
+    assert res.status_code == 404
 
 
 def test_update_status_and_notes(client, user_token):

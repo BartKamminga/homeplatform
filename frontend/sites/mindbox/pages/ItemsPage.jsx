@@ -4,7 +4,7 @@ import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
 import CommandPicker from '../components/CommandPicker.jsx'
-import ImageThumbnail, { isImageItem } from '../components/ImageThumbnail.jsx'
+import ImageThumbnail, { hasThumbnail } from '../components/ImageThumbnail.jsx'
 
 const NEW_CASE_SENTINEL = '__new__'
 
@@ -319,7 +319,7 @@ export default function ItemsPage({ onGoToExisting }) {
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 {fmtSize(item.size_bytes)} · {fmtDate(item.created_at)}
               </div>
-              {isImageItem(item) && <ImageThumbnail itemId={item.id} />}
+              {hasThumbnail(item) && <ImageThumbnail item={item} />}
               {!!contactsOf(item).length && (
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                   {contactsOf(item).map(c => (

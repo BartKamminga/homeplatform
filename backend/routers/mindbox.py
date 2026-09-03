@@ -70,6 +70,7 @@ class MindboxItemOut(BaseModel):
     notes:                 Optional[str]
     parsed_text:           Optional[str]
     text_content:          Optional[str]
+    has_preview:           bool
     parent_item_id:        Optional[str]
     kind:                  str
     case_ids:              list[str]
@@ -196,6 +197,18 @@ def download_item(
 ):
     abs_path, item = svc.get_item_file_path(session, user, item_id)
     return FileResponse(str(abs_path), filename=item.original_filename)
+
+
+@router.get("/items/{item_id}/preview")
+def preview_item(
+    item_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Item 1068: automatisch gegenereerde voorbeeldafbeelding (bv. pagina 1
+    van een .pdf) - los van /download, dat het originele bestand geeft."""
+    abs_path = svc.get_item_preview_path(session, user, item_id)
+    return FileResponse(str(abs_path), media_type="image/png")
 
 
 @router.post("/items/{item_id}/export-eml")
