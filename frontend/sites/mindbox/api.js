@@ -183,23 +183,9 @@ export function updateResponse(caseId, responseId, data) {
   return api.patch(`/api/mindbox/cases/${caseId}/responses/${responseId}`, data)
 }
 
-// Bart: "een linkje naar een .msg, helemaal klaar voor verdere verzending" -
-// .eml i.p.v. echt .msg (dat vereist Outlook-COM, Windows-only) - opent en
-// verstuurt ook direct in Outlook.
-export async function downloadResponseEml(caseId, responseId) {
-  const token = localStorage.getItem('hp_token')
-  const res = await fetch(`/api/mindbox/cases/${caseId}/responses/${responseId}/eml`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) throw new Error('Downloaden mislukt')
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `response-${responseId}.eml`
-  a.click()
-  URL.revokeObjectURL(url)
-}
+// Item 1058: een response is nu een MindboxItem - downloaden loopt via de
+// generieke downloadItem() hierboven (1 downloadpad voor alles), geen apart
+// .eml-endpoint meer.
 
 // ---------------------------------------------------------------------------
 // Commands (item 1053) - de env.MindBox.Entity.Cmd(#id)-catalogus, backend-

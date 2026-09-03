@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -63,6 +63,7 @@ class MindboxItemOut(BaseModel):
     notes:                 Optional[str]
     parsed_text:           Optional[str]
     parent_item_id:        Optional[str]
+    kind:                  str
     case_ids:              list[str]
     contact_ids:           list[str]
     created_at:            datetime
@@ -131,6 +132,7 @@ class MindboxResponseOut(BaseModel):
     parent_response_id:  Optional[str]
     case_id:             str
     source_item_ids:     list[str]
+    original_filename:   str
     created_at:          datetime
 
 
@@ -368,7 +370,7 @@ def list_responses(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    return svc.get_responses(session, user, case_id)
+    return svc.get_response_items(session, user, case_id)
 
 
 @router.post("/cases/{case_id}/responses", response_model=MindboxResponseOut)
@@ -378,7 +380,7 @@ def create_response(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    response = svc.create_response(
+    response = svc.create_response_item(
         session, user, case_id, data.content, data.source_item_ids, data.parent_response_id,
     )
     log_action(session, "mindbox.response.create", site="mindbox", user_id=user.id,
@@ -394,25 +396,15 @@ def update_response(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    response = svc.update_response(session, user, case_id, response_id, data.content)
+    response = svc.update_response_item(session, user, case_id, response_id, data.content)
     log_action(session, "mindbox.response.update", site="mindbox", user_id=user.id,
                payload={"response_id": response_id, "case_id": case_id})
     return response
 
 
-@router.get("/cases/{case_id}/responses/{response_id}/eml")
-def download_response_eml(
-    case_id: str,
-    response_id: str,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    eml_bytes = svc.build_response_eml(session, user, case_id, response_id)
-    return Response(
-        content=eml_bytes,
-        media_type="message/rfc822",
-        headers={"Content-Disposition": f'attachment; filename="response-{response_id}.eml"'},
-    )
+# Item 1058: geen apart .eml-endpoint meer - een response is nu een
+# MindboxItem, dus GET /items/{id}/download bedient 'm al (1 downloadpad
+# voor alles, motief achter "alles is een bestand").
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem, unlinkItemCase,
-  listResponses, createResponse, updateResponse, downloadResponseEml, listContexts, listContacts,
+  listResponses, createResponse, updateResponse, listContexts, listContacts,
   listCommands,
 } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
@@ -166,7 +166,11 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [confirmAction, confirmDialog] = useConfirm()
 
   function load() {
-    listItems(caseObj.id).then(setItems).catch(() => {})
+    // Item 1058: responses zijn nu ook MindboxItems (kind=response) en komen
+    // dus mee in GET /items?case_id=... - hier eruit filteren, want deze
+    // `items`-state is de BESTANDEN-sectie/bronnenlijst; responses hebben al
+    // hun eigen RESPONSES-sectie hieronder (listResponses).
+    listItems(caseObj.id).then(list => setItems(list.filter(i => i.kind !== 'response'))).catch(() => {})
     listResponses(caseObj.id).then(setResponses).catch(() => {})
     listCaseEvents(caseObj.id).then(setEvents).catch(() => {})
     listContexts().then(setContexts).catch(() => {})
@@ -350,9 +354,11 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     load()
   }
 
-  async function handleDownloadEml(responseId) {
-    await downloadResponseEml(caseObj.id, responseId)
-    load()  // logt een case-event ("response_sent") - tijdlijn verversen
+  // Item 1058: een response is nu een MindboxItem - downloadItem() bedient
+  // 'm al (backend logt "response_sent" als side-effect van de download).
+  async function handleDownloadEml(response) {
+    await downloadItem(response.id, response.original_filename)
+    load()  // tijdlijn verversen na de "response_sent"-event
   }
 
   return (
@@ -582,7 +588,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               {editingResponseId !== r.id && (
                 <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
                   <CopyButton text={r.content} icon="📋" title="Kopieer naar klembord" style={{ padding: '2px 6px', fontSize: 11 }} />
-                  <button onClick={() => handleDownloadEml(r.id)} title="Download als .eml, klaar voor verzending" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
+                  <button onClick={() => handleDownloadEml(r)} title="Download als .eml, klaar voor verzending" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
                   <button onClick={() => handleStartEditResponse(r)} title="Bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
                 </div>
               )}

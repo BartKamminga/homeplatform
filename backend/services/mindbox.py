@@ -14,7 +14,7 @@ from core.settings import settings
 from models.core import User
 from models.mindbox import (
     MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxItemContact, MindboxItemLink,
-    MindboxKnowledge, MindboxResponse, MindboxResponseSource,
+    MindboxKnowledge,
 )
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
@@ -23,9 +23,13 @@ CATEGORY = "mindbox"
 ALLOWED_EXTENSIONS = {".msg", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".csv"}
 MAX_SIZE_MB = 25
 VALID_STATUSES = {"new", "in_progress", "done"}
-# Item 1058: generiek link_type voor de item<->case-koppeling via
-# MindboxItemLink (vervangt het vroegere losse MindboxItem.case_id).
+# Item 1058: generieke link_types voor MindboxItemLink - vervangen het
+# vroegere losse MindboxItem.case_id ("case_member") en, sinds responses zelf
+# MindboxItems zijn (kind="response"), MindboxResponseSource ("source_of")
+# en MindboxResponse.parent_response_id ("reply_to").
 LINK_CASE_MEMBER = "case_member"
+LINK_SOURCE_OF = "source_of"
+LINK_REPLY_TO = "reply_to"
 
 
 def _safe_path(user_id: str, filename: str) -> Path:
@@ -40,6 +44,50 @@ def _safe_path(user_id: str, filename: str) -> Path:
 def _owns(item: MindboxItem, user: User) -> None:
     if item.user_id != user.id:
         raise AppError("Geen toegang", status_code=403)
+
+
+def _write_bytes(user_id: str, ext: str, content: bytes) -> str:
+    """Schrijft bytes weg onder UPLOAD_ROOT/mindbox/{user_id}/{uuid}{ext} en
+    geeft het RELATIEVE pad terug (conventie: zie MindboxItem.file_path).
+    Gedeeld door save_upload (echte uploads) en _materialize_item_bytes
+    (item 1058: gegenereerde content, bv. een response, als echt bestand)."""
+    stored_filename = f"{uuid.uuid4()}{ext}"
+    abs_path = _safe_path(user_id, stored_filename)
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(content)
+    return f"{CATEGORY}/{user_id}/{stored_filename}"
+
+
+def _materialize_item_bytes(
+    item: MindboxItem, content: bytes, content_type: str, original_filename: str, ext: str,
+) -> None:
+    """Item 1058: 'alles is een bestand' - gegenereerde content (bv. een
+    response) wordt net als een upload een ECHT bestand op schijf, zodat
+    download/verwijderen voor elk kind identiek werken (geen kind-branching
+    in get_item_file_path/delete_item). Ruimt het vorige fysieke bestand op
+    bij een her-materialisatie (bv. na het bewerken van een response)."""
+    if item.file_path:
+        old_path = _safe_path(item.user_id, Path(item.file_path).name)
+        if old_path.exists():
+            old_path.unlink()
+    item.file_path = _write_bytes(item.user_id, ext, content)
+    item.content_type = content_type
+    item.original_filename = original_filename
+    item.size_bytes = len(content)
+    item.content_hash = hashlib.sha256(content).hexdigest()
+    item.updated_at = datetime.utcnow()
+
+
+def render_response_eml(from_email: str, case_name: str, text_content: str) -> bytes:
+    """Zelfde .eml-rendering als voorheen build_response_eml deed, nu puur
+    (geen DB/eventlogging) zodat 'ie zowel bij create als edit van een
+    response-item herbruikt kan worden (services._materialize_item_bytes)."""
+    msg = EmailMessage()
+    msg["Subject"] = f"Re: {case_name}"
+    msg["Date"] = formatdate(localtime=True)
+    msg["From"] = from_email
+    msg.set_content(text_content)
+    return msg.as_bytes()
 
 
 def _log_case_event(session: Session, case_id: str | None, user_id: str, event_type: str, description: str) -> None:
@@ -82,6 +130,7 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
         .where(
             MindboxItem.user_id == user.id,
             MindboxItem.id != item_id,
+            MindboxItem.kind == "upload",
             MindboxItemLink.link_type == LINK_CASE_MEMBER,
         )
     ).all()
@@ -119,8 +168,13 @@ def save_upload(
         get_case(session, user, case_id)  # bestaat + eigendom-check
 
     content_hash = hashlib.sha256(content).hexdigest()
+    # Item 1058: gescoped op kind="upload" - anders zou de hash van een
+    # gegenereerd bestand (bv. een response) toevallig een legitieme upload
+    # kunnen blokkeren als 409-duplicaat.
     duplicates = list(session.exec(
-        select(MindboxItem).where(MindboxItem.user_id == user.id, MindboxItem.content_hash == content_hash)
+        select(MindboxItem).where(
+            MindboxItem.user_id == user.id, MindboxItem.content_hash == content_hash, MindboxItem.kind == "upload",
+        )
     ).all())
     if duplicates and not force:
         # Item 1051 (Bart): "graag een melding geven direct na de upload met
@@ -144,12 +198,7 @@ def save_upload(
         stem, suffix = Path(filename).stem, Path(filename).suffix
         original_filename = f"{stem} (kopie {len(duplicates) + 1}){suffix}"
 
-    stored_filename = f"{uuid.uuid4()}{ext}"
-    abs_path = _safe_path(user.id, stored_filename)
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    abs_path.write_bytes(content)
-
-    rel_path = f"{CATEGORY}/{user.id}/{stored_filename}"
+    rel_path = _write_bytes(user.id, ext, content)
     item = MindboxItem(
         user_id=user.id,
         original_filename=original_filename,
@@ -209,6 +258,7 @@ def item_to_dict(session: Session, item: MindboxItem) -> dict:
         "notes": item.notes,
         "parsed_text": item.parsed_text,
         "parent_item_id": item.parent_item_id,
+        "kind": item.kind,
         "case_ids": get_item_case_ids(session, item.id),
         "contact_ids": get_item_contact_ids(session, item.id),
         "created_at": item.created_at,
@@ -293,105 +343,115 @@ def get_item_file_path(session: Session, user: User, item_id: str) -> tuple[Path
     abs_path = _safe_path(user.id, Path(item.file_path).name)
     if not abs_path.exists():
         raise AppError("Bestand niet gevonden op schijf", status_code=404)
+    if item.kind == "response":
+        # Item 1058: het downloaden van een response-item IS het moment van
+        # intentie-tot-verzenden (zelfde gedrag als het vroegere aparte
+        # .eml-endpoint) - nu via de generieke download-route, voor elke
+        # case waar deze response bij hoort.
+        for cid in get_item_case_ids(session, item.id):
+            _log_case_event(session, cid, user.id, "response_sent", "Response gedownload als .eml, klaar voor verzending")
+        session.commit()
     return abs_path, item
 
 
-def create_response(
-    session: Session, user: User, case_id: str, content: str, source_item_ids: list[str],
-    parent_response_id: str | None = None,
-) -> MindboxResponse:
-    get_case(session, user, case_id)  # bestaat + eigendom-check
-    for item_id in source_item_ids:
-        get_item(session, user, item_id)  # bestaat + eigendom-check
-    if parent_response_id is not None:
-        parent = session.get(MindboxResponse, parent_response_id)
-        if not parent or parent.user_id != user.id:
-            raise AppError("Vervolg-response niet gevonden", status_code=404)
-
-    response = MindboxResponse(
-        user_id=user.id, content=content, parent_response_id=parent_response_id, case_id=case_id,
-    )
-    session.add(response)
-    _log_case_event(session, case_id, user.id, "response_created", f"Nieuwe response toegevoegd: {content[:80]}")
-    session.commit()
-    session.refresh(response)
-
-    for item_id in source_item_ids:
-        session.add(MindboxResponseSource(response_id=response.id, item_id=item_id))
-    session.commit()
-    return _response_to_dict(session, response)
-
-
-def _response_to_dict(session: Session, response: MindboxResponse) -> dict:
+def _response_item_to_dict(session: Session, item: MindboxItem, case_id: str) -> dict:
+    """Facade in exact dezelfde vorm als de vroegere MindboxResponseOut -
+    item 1058: een response is nu een MindboxItem (kind="response"), maar de
+    /cases/{id}/responses-contracten blijven ongewijzigd voor de aanroepers."""
     source_ids = session.exec(
-        select(MindboxResponseSource.item_id).where(MindboxResponseSource.response_id == response.id)
+        select(MindboxItemLink.target_item_id).where(
+            MindboxItemLink.item_id == item.id, MindboxItemLink.link_type == LINK_SOURCE_OF,
+        )
     ).all()
+    reply_to = session.exec(
+        select(MindboxItemLink.target_item_id).where(
+            MindboxItemLink.item_id == item.id, MindboxItemLink.link_type == LINK_REPLY_TO,
+        )
+    ).first()
     return {
-        "id": response.id,
-        "content": response.content,
-        "parent_response_id": response.parent_response_id,
-        "case_id": response.case_id,
+        "id": item.id,
+        "content": item.text_content or "",
+        "parent_response_id": reply_to,
+        "case_id": case_id,
         "source_item_ids": list(source_ids),
-        "created_at": response.created_at,
+        "original_filename": item.original_filename,
+        "created_at": item.created_at,
     }
 
 
-def get_responses(session: Session, user: User, case_id: str) -> list[dict]:
-    get_case(session, user, case_id)  # bestaat + eigendom-check
-    query = select(MindboxResponse).where(MindboxResponse.user_id == user.id, MindboxResponse.case_id == case_id)
-    responses = session.exec(query.order_by(col(MindboxResponse.created_at).desc())).all()
-    return [_response_to_dict(session, r) for r in responses]
-
-
-def get_response(session: Session, user: User, response_id: str) -> MindboxResponse:
-    response = session.get(MindboxResponse, response_id)
-    if not response:
+def get_response_item(session: Session, user: User, response_id: str) -> MindboxItem:
+    item = get_item(session, user, response_id)
+    if item.kind != "response":
         raise AppError("Response niet gevonden", status_code=404)
-    if response.user_id != user.id:
-        raise AppError("Geen toegang", status_code=403)
-    return response
+    return item
 
 
-def update_response(session: Session, user: User, case_id: str, response_id: str, content: str) -> dict:
+def create_response_item(
+    session: Session, user: User, case_id: str, content: str, source_item_ids: list[str],
+    parent_response_id: str | None = None,
+) -> dict:
+    case = get_case(session, user, case_id)  # bestaat + eigendom-check
+    for item_id in source_item_ids:
+        get_item(session, user, item_id)  # bestaat + eigendom-check
+    if parent_response_id is not None:
+        get_response_item(session, user, parent_response_id)  # bestaat + eigendom-check + is een response
+
+    item = MindboxItem(
+        user_id=user.id, kind="response", text_content=content,
+        original_filename="response.eml", file_path="", size_bytes=0,
+    )
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    eml_bytes = render_response_eml(user.email, case.name, content)
+    _materialize_item_bytes(item, eml_bytes, "message/rfc822", f"response-{item.id}.eml", ".eml")
+    session.add(item)
+
+    session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=case_id))
+    for source_id in source_item_ids:
+        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_SOURCE_OF, target_item_id=source_id))
+    if parent_response_id is not None:
+        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_REPLY_TO, target_item_id=parent_response_id))
+    _log_case_event(session, case_id, user.id, "response_created", f"Nieuwe response toegevoegd: {content[:80]}")
+    session.commit()
+    session.refresh(item)
+    return _response_item_to_dict(session, item, case_id)
+
+
+def get_response_items(session: Session, user: User, case_id: str) -> list[dict]:
+    get_case(session, user, case_id)  # bestaat + eigendom-check
+    query = (
+        select(MindboxItem)
+        .join(MindboxItemLink, MindboxItemLink.item_id == MindboxItem.id)
+        .where(
+            MindboxItem.user_id == user.id, MindboxItem.kind == "response",
+            MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
+        )
+        .order_by(col(MindboxItem.created_at).desc())
+    )
+    items = session.exec(query).all()
+    return [_response_item_to_dict(session, item, case_id) for item in items]
+
+
+def update_response_item(session: Session, user: User, case_id: str, response_id: str, content: str) -> dict:
     """Bart: 'ik kan me voorstellen dat het gepaste emailtje ook gekoppeld
     kan worden aan het bestand... in welk formaat' - de verzonden mail zelf
     kan gewoon als los bestand in de case ge-upload worden (bestaat al); dit
     hier is de andere helft: het concept-antwoord zelf kunnen bijwerken naar
     wat er uiteindelijk daadwerkelijk verstuurd is."""
-    response = get_response(session, user, response_id)
-    if response.case_id != case_id:
-        raise AppError("Response hoort niet bij deze case", status_code=404)
-    response.content = content
-    session.add(response)
-    _log_case_event(session, case_id, user.id, "response_edited", "Response bijgewerkt")
-    session.commit()
-    session.refresh(response)
-    return _response_to_dict(session, response)
-
-
-def build_response_eml(session: Session, user: User, case_id: str, response_id: str) -> bytes:
-    """Bart: 'een linkje naar een .msg, helemaal klaar voor verdere
-    verzending' - echte .msg genereren vergt Outlook-COM-automatisering
-    (Windows-only, niet beschikbaar op deze Linux-backend). .eml is het
-    standaard RFC822-formaat dat Outlook ook rechtstreeks opent/verstuurt -
-    gekozen na afstemming met Bart als praktisch equivalent."""
-    response = get_response(session, user, response_id)
-    if response.case_id != case_id:
+    item = get_response_item(session, user, response_id)
+    if case_id not in get_item_case_ids(session, item.id):
         raise AppError("Response hoort niet bij deze case", status_code=404)
     case = get_case(session, user, case_id)
-
-    msg = EmailMessage()
-    msg["Subject"] = f"Re: {case.name}"
-    msg["Date"] = formatdate(localtime=True)
-    msg["From"] = user.email
-    msg.set_content(response.content)
-
-    # Bart: geen apart "verzonden"-statusveld nodig - het downloaden van de
-    # .eml IS het moment van intentie-tot-verzenden, dus dat loggen we i.p.v.
-    # een handmatige markering die je zou kunnen vergeten te zetten.
-    _log_case_event(session, case_id, user.id, "response_sent", "Response gedownload als .eml, klaar voor verzending")
+    item.text_content = content
+    eml_bytes = render_response_eml(user.email, case.name, content)
+    _materialize_item_bytes(item, eml_bytes, "message/rfc822", item.original_filename, ".eml")
+    session.add(item)
+    _log_case_event(session, case_id, user.id, "response_edited", "Response bijgewerkt")
     session.commit()
-    return msg.as_bytes()
+    session.refresh(item)
+    return _response_item_to_dict(session, item, case_id)
 
 
 # ---------------------------------------------------------------------------
@@ -458,19 +518,27 @@ def delete_case(session: Session, user: User, case_id: str) -> None:
     case = get_case(session, user, case_id)
     # Item 1058: alleen de link naar DEZE case verwijderen - een item dat aan
     # meerdere cases hangt moet die andere koppeling(en) behouden.
-    for link in session.exec(
+    case_member_links = list(session.exec(
         select(MindboxItemLink).where(
             MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
         )
-    ).all():
+    ).all())
+    for link in case_member_links:
+        item = session.get(MindboxItem, link.item_id)
         session.delete(link)
-    # Responses zijn altijd case-gebonden (item 1051) - kunnen niet losgekoppeld
-    # blijven bestaan, dus verdwijnen mee met de case (i.t.t. items, die wel
-    # los kunnen bestaan en daarom alleen ontkoppeld worden).
-    for response in session.exec(select(MindboxResponse).where(MindboxResponse.case_id == case_id)).all():
-        for source in session.exec(select(MindboxResponseSource).where(MindboxResponseSource.response_id == response.id)).all():
-            session.delete(source)
-        session.delete(response)
+        # Responses zijn altijd case-gebonden (item 1051) - kunnen niet
+        # losgekoppeld blijven bestaan zoals gewone items, dus verdwijnen mee
+        # met de case (i.t.t. uploads, die wel los kunnen bestaan).
+        if item and item.kind == "response":
+            for other in session.exec(select(MindboxItemLink).where(MindboxItemLink.item_id == item.id)).all():
+                session.delete(other)
+            for other in session.exec(select(MindboxItemLink).where(MindboxItemLink.target_item_id == item.id)).all():
+                session.delete(other)
+            if item.file_path:
+                abs_path = _safe_path(item.user_id, Path(item.file_path).name)
+                if abs_path.exists():
+                    abs_path.unlink()
+            session.delete(item)
     for event in session.exec(select(MindboxCaseEvent).where(MindboxCaseEvent.case_id == case_id)).all():
         session.delete(event)
     session.delete(case)

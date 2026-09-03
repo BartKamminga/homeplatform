@@ -257,7 +257,13 @@ export default function ItemsPage({ onGoToExisting }) {
             }}
           >
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{item.original_filename}</div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>
+                {/* Item 1058: "alles is een bestand" - een response is ook
+                    gewoon een MindboxItem, hier zichtbaar met een icoon
+                    zodat gegenereerde content herkenbaar is t.o.v. uploads. */}
+                {item.kind === 'response' && <span title="Response (gegenereerd)" style={{ marginRight: 4 }}>📧</span>}
+                {item.original_filename}
+              </div>
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 {fmtSize(item.size_bytes)} · {fmtDate(item.created_at)}
               </div>

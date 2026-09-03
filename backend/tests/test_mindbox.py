@@ -450,8 +450,9 @@ def test_deleting_a_case_unlinks_items_but_deletes_its_responses(client, user_to
     delete_res = client.delete(f"/api/mindbox/cases/{case_id}", headers=_auth(user_token))
     assert delete_res.status_code == 200
 
-    item = client.get("/api/mindbox/items", headers=_auth(user_token)).json()[0]
-    assert item["case_ids"] == []
+    items_after = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
+    assert len(items_after) == 1  # de response-item is VERWIJDERD, niet alleen ontkoppeld
+    assert items_after[0]["case_ids"] == []
     responses_after = client.get(f"/api/mindbox/cases/{case_id}/responses", headers=_auth(user_token))
     assert responses_after.status_code == 404
 
@@ -646,6 +647,8 @@ def test_edit_a_response_and_log_a_case_event(client, user_token):
 
 
 def test_download_response_as_eml_logs_a_sent_event(client, user_token):
+    """Item 1058: een response is nu een MindboxItem - downloaden loopt via
+    de generieke /items/{id}/download i.p.v. een apart .eml-endpoint."""
     case_id = _case(client, user_token)
     response_id = client.post(
         f"/api/mindbox/cases/{case_id}/responses",
@@ -653,13 +656,63 @@ def test_download_response_as_eml_logs_a_sent_event(client, user_token):
         headers=_auth(user_token),
     ).json()["id"]
 
-    eml = client.get(f"/api/mindbox/cases/{case_id}/responses/{response_id}/eml", headers=_auth(user_token))
+    eml = client.get(f"/api/mindbox/items/{response_id}/download", headers=_auth(user_token))
     assert eml.status_code == 200
-    assert eml.headers["content-type"] == "message/rfc822"
     assert b"Concept-antwoord" in eml.content
 
     events = client.get(f"/api/mindbox/cases/{case_id}/events", headers=_auth(user_token)).json()
     assert any(e["event_type"] == "response_sent" for e in events)
+
+
+def test_a_response_is_visible_in_the_flat_items_list(client, user_token):
+    """Item 1058: responses zijn nu ook gewoon MindboxItems (kind=response),
+    zichtbaar in de platte /items-lijst - bevestigd met Bart."""
+    case_id = _case(client, user_token)
+    response_id = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Concept-antwoord", "source_item_ids": []},
+        headers=_auth(user_token),
+    ).json()["id"]
+
+    items = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
+    response_item = next(i for i in items if i["id"] == response_id)
+    assert response_item["kind"] == "response"
+
+
+def test_editing_a_response_rematerializes_its_file(client, user_token):
+    case_id = _case(client, user_token)
+    created = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Eerste versie", "source_item_ids": []},
+        headers=_auth(user_token),
+    ).json()
+    first_download = client.get(f"/api/mindbox/items/{created['id']}/download", headers=_auth(user_token))
+    assert b"Eerste versie" in first_download.content
+
+    client.patch(
+        f"/api/mindbox/cases/{case_id}/responses/{created['id']}",
+        json={"content": "Bijgewerkte versie"},
+        headers=_auth(user_token),
+    )
+    second_download = client.get(f"/api/mindbox/items/{created['id']}/download", headers=_auth(user_token))
+    assert b"Bijgewerkte versie" in second_download.content
+    assert b"Eerste versie" not in second_download.content
+
+
+def test_a_responses_content_hash_does_not_block_a_real_upload(client, user_token):
+    """Item 1058: de duplicaatdetectie bij upload is gescoped op kind=upload,
+    zodat de sha256 van een gegenereerd .eml-bestand nooit een echte upload
+    kan blokkeren, zelfs niet als de bytes toevallig identiek zijn."""
+    case_id = _case(client, user_token)
+    response_id = client.post(
+        f"/api/mindbox/cases/{case_id}/responses",
+        json={"content": "Concept-antwoord", "source_item_ids": []},
+        headers=_auth(user_token),
+    ).json()["id"]
+    response_bytes = client.get(f"/api/mindbox/items/{response_id}/download", headers=_auth(user_token)).content
+
+    res = _upload(client, user_token, filename="identiek.txt", content=response_bytes)
+    assert res.status_code == 200
 
 
 def test_a_users_response_cannot_be_edited_by_another_user(client, user_token, admin_token):
