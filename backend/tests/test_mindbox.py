@@ -163,6 +163,56 @@ def test_uploading_an_unparsable_msg_does_not_crash_and_leaves_parsed_text_empty
     assert res.json()["parsed_text"] is None
 
 
+def test_link_related_msg_items_matches_on_normalized_subject(client, user_token, regular_user, session):
+    """Item 1069 (Bart): 'stel ik upload mijn relevante email van een hele
+    dag... we kunnen die dus meteen linken' - test de matching-heuristiek
+    rechtstreeks op service-niveau (geen echt .msg-bestand nodig, want
+    extract-msg heeft geen writer om er zelf een te genereren) door 2 items
+    te simuleren zoals _extract_msg ze zou opleveren (parsed_text met een
+    'Onderwerp:'-regel)."""
+    first_id = _upload(
+        client, user_token, filename="origineel.msg",
+        content=b"eerste mail placeholder bytes",
+    ).json()["id"]
+    first = session.get(svc.MindboxItem, first_id)
+    first.parsed_text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Vraag over de planning\nDatum: 2026-08-01 09:00:00\n\nInhoud."
+    session.add(first)
+    session.commit()
+
+    second_id = _upload(
+        client, user_token, filename="antwoord.msg",
+        content=b"tweede mail placeholder bytes",
+    ).json()["id"]
+    second = session.get(svc.MindboxItem, second_id)
+
+    svc._link_related_msg_items(session, regular_user, second, "RE: Vraag over de planning")
+
+    links = svc.get_item_links(session, second.id)
+    assert links == [{"link_id": links[0]["link_id"], "item_id": first.id, "link_type": "reply_to", "direction": "out"}]
+
+
+def test_uploading_a_reply_msg_auto_links_to_the_original(client, user_token, monkeypatch):
+    """Integratietest van de volledige upload-flow (i.p.v. rechtstreeks
+    _link_related_msg_items aan te roepen) - _extract_msg gemockt omdat
+    extract-msg geen writer heeft om zelf een geldig .msg-bestand te maken."""
+    subjects = iter(["Vraag over de planning", "RE: Vraag over de planning"])
+
+    def fake_extract_msg(content):
+        subject = next(subjects)
+        text = f"Van: a@x.nl\nAan: b@x.nl\nOnderwerp: {subject}\nDatum: 2026-08-01 09:00:00\n\nInhoud."
+        return text, [], subject
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    original_id = _upload(client, user_token, filename="origineel.msg", content=b"origineel").json()["id"]
+    reply = _upload(client, user_token, filename="antwoord.msg", content=b"antwoord")
+
+    assert reply.status_code == 200
+    assert reply.json()["links"] == [
+        {"link_id": reply.json()["links"][0]["link_id"], "item_id": original_id, "link_type": "reply_to", "direction": "out"}
+    ]
+
+
 def test_preview_endpoint_404s_when_there_is_no_preview(client, user_token):
     item_id = _upload(client, user_token).json()["id"]
     res = client.get(f"/api/mindbox/items/{item_id}/preview", headers=_auth(user_token))

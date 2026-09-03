@@ -206,15 +206,17 @@ def _extract_pdf(content: bytes) -> tuple[str | None, bytes | None]:
         doc.close()
 
 
-def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str | None]]]:
+def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str | None]], str | None]:
     """Item 1068: mechanische extractie van mail-body + bijlagen via
     extract-msg - geen LLM nodig. Bijlagen worden hier alleen VERZAMELD
     (echt aanmaken als child-item gebeurt in save_upload, ná het committen
-    van het ouder-item, want daar is item.id voor nodig)."""
+    van het ouder-item, want daar is item.id voor nodig). Geeft ook het
+    ruwe onderwerp terug (item 1069: gebruikt om gerelateerde/eerdere
+    mails te detecteren en te linken)."""
     try:
         msg = extract_msg.openMsg(io.BytesIO(content))
     except Exception:
-        return None, []
+        return None, [], None
     try:
         body = msg.body
         if not body and msg.htmlBody:
@@ -234,9 +236,9 @@ def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str
                     attachments.append((att_name, bytes(att_bytes), getattr(att, "mimetype", None)))
             except Exception:
                 continue
-        return text, attachments
+        return text, attachments, msg.subject
     except Exception:
-        return None, []
+        return None, [], None
     finally:
         msg.close()
 
@@ -276,15 +278,59 @@ def _auto_extract(ext: str, content: bytes) -> tuple[str | None, bytes | None, l
     niets oplevert of het bestandstype hier niet voor in aanmerking komt."""
     if ext == ".pdf":
         text, preview = _extract_pdf(content)
-        return text, preview, []
+        return text, preview, [], None
     if ext == ".msg":
-        text, attachments = _extract_msg(content)
-        return text, None, attachments
+        text, attachments, subject = _extract_msg(content)
+        return text, None, attachments, subject
     if ext == ".docx":
-        return _extract_docx(content), None, []
+        return _extract_docx(content), None, [], None
     if ext in _OCR_EXTENSIONS:
-        return _extract_image_text(content), None, []
-    return None, None, []
+        return _extract_image_text(content), None, [], None
+    return None, None, [], None
+
+
+_ONDERWERP_RE = re.compile(r"^Onderwerp:\s*(.*)$", re.MULTILINE)
+
+
+def _normalize_subject(subject: str) -> str:
+    """Item 1069: onderwerp normaliseren voor thread-matching - zelfde
+    Re:/Fwd:-voorvoegsel-strip als _normalize_filename_stem, maar dan
+    herhaald (een mail kan "Re: Re: Fwd: ..." worden na een lange thread)."""
+    stem = subject.strip()
+    while True:
+        stripped = _REPLY_PREFIX_RE.sub("", stem).strip()
+        if stripped == stem:
+            return stem.lower()
+        stem = stripped
+
+
+def _link_related_msg_items(session: Session, user: User, item: MindboxItem, subject: str) -> None:
+    """Item 1069 (Bart): 'stel ik upload mijn relevante email van een hele
+    dag, dan is de kans aanwezig dat er verschillende mailtjes replies zijn
+    op elkaar... we kunnen die dus meteen linken' - onderwerp (na strippen
+    van Re:/Fwd:) vergelijken met al geuploade .msg-items van dezelfde
+    gebruiker; bij een match de meest recent geuploade kandidaat linken als
+    reply_to. Heuristiek (geen echte thread-reconstructie via Message-ID),
+    dus bewust een BEST-EFFORT verrijking - nooit de upload zelf laten falen."""
+    normalized = _normalize_subject(subject)
+    if not normalized:
+        return
+    candidates = session.exec(
+        select(MindboxItem)
+        .where(
+            MindboxItem.user_id == user.id,
+            MindboxItem.id != item.id,
+            col(MindboxItem.original_filename).ilike("%.msg"),
+            col(MindboxItem.parsed_text).is_not(None),
+        )
+        .order_by(col(MindboxItem.created_at).desc())
+    ).all()
+    for candidate in candidates:
+        match = _ONDERWERP_RE.search(candidate.parsed_text or "")
+        if match and _normalize_subject(match.group(1)) == normalized:
+            session.add(MindboxItemLink(item_id=item.id, link_type="reply_to", target_item_id=candidate.id))
+            session.commit()
+            return
 
 
 def save_upload(
@@ -361,7 +407,7 @@ def save_upload(
     # (PyMuPDF/extract-msg/python-docx, geen LLM) i.p.v. altijd te wachten op
     # de handmatige/LLM-stap in File.ParseToTekst. Bijlagen uit een .msg
     # worden pas ná het committen van dit item aangemaakt (item.id nodig).
-    parsed_text, preview_bytes, pending_attachments = _auto_extract(ext, content)
+    parsed_text, preview_bytes, pending_attachments, msg_subject = _auto_extract(ext, content)
 
     rel_path = _write_bytes(user.id, ext, content)
     preview_path = _write_bytes(user.id, ".png", preview_bytes) if preview_bytes else None
@@ -389,6 +435,9 @@ def save_upload(
             # al bestaand bestand - mag de rest van de mail-upload niet laten
             # falen, dit is een best-effort verrijking, geen kernactie.
             continue
+
+    if msg_subject:
+        _link_related_msg_items(session, user, item, msg_subject)
 
     event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
     linked_case_ids = inherited_case_ids if parent_item_id is not None else ([case_id] if case_id is not None else [])
