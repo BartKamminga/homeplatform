@@ -230,7 +230,16 @@ def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str
         attachments: list[tuple[str, bytes, str | None]] = []
         for att in msg.attachments:
             try:
-                att_name = att.getFilename()
+                # Outlook-bijlagenamen bevatten soms een trailing NULL-byte
+                # (bv. "factuur.pdf\x00", geen spatie zoals het er in een
+                # terminal uitziet) - Path(...).suffix neemt dat mee in de
+                # extensie (".pdf\x00"), wat nooit in ALLOWED_EXTENSIONS
+                # staat, dus de bijlage-upload faalde stil (opgevangen door
+                # de except AppError in save_upload's bijlagen-loop, geen
+                # foutmelding zichtbaar - bug gevonden na Bart's melding "zie
+                # ik niet"). .strip() alleen is NIET genoeg: NULL is geen
+                # whitespace voor Python's str.strip().
+                att_name = (att.getFilename() or "").replace("\x00", "").strip()
                 att_bytes = att.data
                 if att_name and isinstance(att_bytes, (bytes, bytearray)):
                     attachments.append((att_name, bytes(att_bytes), getattr(att, "mimetype", None)))
@@ -338,7 +347,13 @@ def save_upload(
     case_id: str | None = None, force: bool = False, parent_item_id: str | None = None,
     link_target_item_id: str | None = None, link_type: str | None = None,
 ) -> tuple[MindboxItem, "MindboxCase | None"]:
-    ext = Path(filename or "upload").suffix.lower()
+    # Outlook-bijlagenamen bevatten soms een trailing NULL-byte of spatie
+    # (bv. "factuur.pdf\x00") - Path(...).suffix neemt dat anders mee in de
+    # extensie (".pdf\x00"), wat nooit in ALLOWED_EXTENSIONS staat en de
+    # upload onterecht laat falen. Eenmalig opschonen, gebruikt door alle
+    # andere plekken in deze functie die filename verder gebruiken.
+    filename = (filename or "upload").replace("\x00", "").strip()
+    ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
         raise AppError(f"Bestandsextensie niet toegestaan: {ext or '(geen)'}. Toegestaan: {allowed}", status_code=400)

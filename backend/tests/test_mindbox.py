@@ -213,6 +213,29 @@ def test_uploading_a_reply_msg_auto_links_to_the_original(client, user_token, mo
     ]
 
 
+def test_uploading_a_msg_with_a_null_byte_attachment_name_still_extracts_it(client, user_token, monkeypatch):
+    """Bart: 'heeft attachments, maar die zie ik niet terug' - Outlook geeft
+    soms een bijlagenaam terug met een trailing NULL-byte (bv.
+    "factuur.pdf\x00", ziet er in een terminal uit als een spatie), waardoor
+    Path(...).suffix ".pdf\x00" oplevert - nooit in ALLOWED_EXTENSIONS, dus
+    de bijlage-upload faalde stil in de except AppError: continue van de
+    bijlagen-loop. .strip() alleen is NIET genoeg (NULL is geen whitespace) -
+    _extract_msg/save_upload moeten NULL-bytes expliciet wegfilteren."""
+    def fake_extract_msg(content):
+        text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Factuur\nDatum: 2026-08-01 09:00:00\n\nZie bijlage."
+        return text, [("factuur.pdf\x00", b"%PDF-1.4 fake pdf bytes", "application/pdf")], "Factuur"
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    mail = _upload(client, user_token, filename="mail-met-bijlage.msg", content=b"mail")
+    assert mail.status_code == 200
+    mail_id = mail.json()["id"]
+
+    attachments = client.get(f"/api/mindbox/items/{mail_id}/attachments", headers=_auth(user_token)).json()
+    assert len(attachments) == 1
+    assert attachments[0]["original_filename"] == "factuur.pdf"
+
+
 def test_preview_endpoint_404s_when_there_is_no_preview(client, user_token):
     item_id = _upload(client, user_token).json()["id"]
     res = client.get(f"/api/mindbox/items/{item_id}/preview", headers=_auth(user_token))
