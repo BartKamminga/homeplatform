@@ -24,7 +24,7 @@
 #   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
-#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities terugzien
+#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities/case-export terugzien
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
 #   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
 #
@@ -391,6 +391,34 @@ if ($Get) {
     $item = $items | Where-Object { $_.id -eq $Id }
     if (-not $item) { Write-Host "[FOUT] Item $Id niet gevonden"; exit 1 }
     $item | Format-List
+
+    # Item 1058 (vervolg, Bart): "wordt nu alle relevante info klaargezet?" -
+    # case_ids/contact_ids/links waren hierboven alleen kale ID's (Format-
+    # List dumpt het ruwe object) - hier naar leesbare namen resolven.
+    if ($item.case_ids -and $item.case_ids.Count -gt 0) {
+        $cases = ApiGet "/mindbox/cases"
+        Write-Host "Case(s):"
+        foreach ($cid in $item.case_ids) {
+            $c = $cases | Where-Object { $_.id -eq $cid }
+            Write-Host " - $(if ($c) { $c.name } else { $cid })"
+        }
+    }
+    if ($item.contact_ids -and $item.contact_ids.Count -gt 0) {
+        $contacts = ApiGet "/mindbox/contacts"
+        Write-Host "Contacten:"
+        foreach ($cid in $item.contact_ids) {
+            $ct = $contacts | Where-Object { $_.id -eq $cid }
+            Write-Host " - $(if ($ct) { $ct.email } else { $cid })"
+        }
+    }
+    if ($item.links -and $item.links.Count -gt 0) {
+        Write-Host "Relaties:"
+        foreach ($l in $item.links) {
+            $other = $items | Where-Object { $_.id -eq $l.item_id }
+            $arrow = if ($l.direction -eq "out") { "->" } else { "<-" }
+            Write-Host " - $arrow $(if ($other) { $other.original_filename } else { $l.item_id }) ($($l.link_type))"
+        }
+    }
     exit 0
 }
 
@@ -739,6 +767,22 @@ if ($LoadSession) {
         Write-Host $n.description
         Write-Host ""
     }
+
+    # Item 1058 (vervolg, Bart): "wordt nu alle relevante info klaargezet?" -
+    # -LoadSession downloadde tot nu toe alleen de items (via RunItem) - het
+    # case-brede export-bestand (contacten/relaties/tijdlijn samengevat, tot
+    # nu toe alleen via de website-knop "Exporteren" te krijgen) hoort er ook
+    # automatisch bij als je een sessie klaarzet.
+    try {
+        $exported = ApiPost "/mindbox/cases/$($case.id)/export" @{}
+        $caseDir = Join-Path $WorkDir (Slugify $case.name)
+        New-Item -ItemType Directory -Force -Path $caseDir | Out-Null
+        $exportFile = Join-Path $caseDir $exported.original_filename
+        ApiDownload "/mindbox/items/$($exported.id)/download" $exportFile
+        Write-Host "`n--- Case-export (context/contacten/tijdlijn/relaties) ---"
+        Write-Host "Gedownload naar: $exportFile"
+    } catch {}
+
     if ($items.Count) { Write-Host "`nBriefing.md per bestand staat in $WorkDir\$(Slugify $case.name)\<item_id>\" }
     exit 0
 }
