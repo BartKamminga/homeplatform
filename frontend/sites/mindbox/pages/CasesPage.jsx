@@ -586,6 +586,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
             }}>
               <span>
                 {item.text_content != null && <span title="Tekstbestand (bewerkbaar)" style={{ marginRight: 4 }}>📝</span>}
+                {item.parsed_text != null && <span title="Tekst automatisch geextraheerd - klik op 🔎 om te bekijken" style={{ marginRight: 4 }}>🔎</span>}
                 {item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span>
                 {hasThumbnail(item) && <ImageThumbnail item={item} />}
               </span>
@@ -610,8 +611,8 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                   </>
                 )}
                 {item.parsed_text && (
-                  <button onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)} title="Geparste tekst tonen/verbergen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
-                    {expandedParsedId === item.id ? '▲' : '▼'}
+                  <button onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)} title="Automatisch geextraheerde tekst tonen/verbergen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
+                    🔎 {expandedParsedId === item.id ? '▲' : '▼'}
                   </button>
                 )}
                 {!!attachmentsOf(item.id).length && (

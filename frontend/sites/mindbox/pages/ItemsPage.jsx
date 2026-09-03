@@ -314,6 +314,10 @@ export default function ItemsPage({ onGoToExisting }) {
                     text_content geeft aan dat dit een bewerkbaar/gegenereerd
                     tekstbestand is, ongeacht waarvoor het gebruikt wordt. */}
                 {item.text_content != null && <span title="Tekstbestand (bewerkbaar)" style={{ marginRight: 4 }}>📝</span>}
+                {/* Item 1068: automatische tekst-extractie (PDF/msg/docx/OCR) -
+                    los icoon van 📝, want dit is GEEN eigen tekstbestand maar
+                    een automatisch gegenereerde uitleesbare versie ERVAN. */}
+                {item.parsed_text != null && <span title="Tekst automatisch geextraheerd - klik op ▼ om te bekijken" style={{ marginRight: 4 }}>🔎</span>}
                 {item.original_filename}
               </div>
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
@@ -411,10 +415,10 @@ export default function ItemsPage({ onGoToExisting }) {
               {item.parsed_text && (
                 <button
                   onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)}
-                  title="Geparste tekst tonen/verbergen"
+                  title="Automatisch geextraheerde tekst tonen/verbergen"
                   style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
                 >
-                  {expandedParsedId === item.id ? '▲' : '▼'}
+                  🔎 {expandedParsedId === item.id ? '▲' : '▼'}
                 </button>
               )}
               {!!attachmentsOf(item.id).length && (
