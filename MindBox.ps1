@@ -426,6 +426,33 @@ function RunItem([object]$item) {
     }
     $caseName = $caseNames -join ", "
 
+    # Item 1058 (vervolg, Bart): "wordt nu alle relevante context meegenomen
+    # in de briefing? ook de relaties en metadata?" - contacten en item-item
+    # relaties stonden nog niet in de briefing, alleen case/context.
+    $contactNames = @()
+    if ($item.contact_ids -and $item.contact_ids.Count -gt 0) {
+        try {
+            $contacts = ApiGet "/mindbox/contacts"
+            foreach ($cid in $item.contact_ids) {
+                $ct = $contacts | Where-Object { $_.id -eq $cid }
+                if ($ct) { $contactNames += (if ($ct.display_name) { "$($ct.display_name) <$($ct.email)>" } else { $ct.email }) }
+            }
+        } catch {}
+    }
+
+    $linkLines = @()
+    if ($item.links -and $item.links.Count -gt 0) {
+        try {
+            $allItems = ApiGet "/mindbox/items"
+            foreach ($l in $item.links) {
+                $other = $allItems | Where-Object { $_.id -eq $l.item_id }
+                $arrow = if ($l.direction -eq "out") { "->" } else { "<-" }
+                $otherName = if ($other) { $other.original_filename } else { $l.item_id }
+                $linkLines += "- $arrow $otherName ($($l.link_type))"
+            }
+        } catch {}
+    }
+
     # Item 1063 (Bart): "case dirname een naam geven die meer op de naam van
     # de case lijkt" - mindbox_work/<case-naam>/<item-id>/ i.p.v. plat
     # mindbox_work/<item-id>/, zodat downloads van 1 case herkenbaar bij
@@ -445,6 +472,14 @@ function RunItem([object]$item) {
 - **Geupload**: $($item.created_at)
 - **Case**: $(if ($caseName) { $caseName } else { "(geen)" })
 - **Context/persona**: $(if ($contextName) { $contextName } else { "(geen)" })
+
+## Contacten
+
+$(if ($contactNames.Count -gt 0) { ($contactNames | ForEach-Object { "- $_" }) -join "`n" } else { "(geen contacten gekoppeld)" })
+
+## Relaties met andere bestanden
+
+$(if ($linkLines.Count -gt 0) { $linkLines -join "`n" } else { "(geen relaties)" })
 
 ## Extra info (Bart)
 

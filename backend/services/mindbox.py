@@ -362,7 +362,7 @@ def delete_item(session: Session, user: User, item_id: str) -> None:
 def get_item_file_path(session: Session, user: User, item_id: str) -> tuple[Path, MindboxItem]:
     item = get_item(session, user, item_id)
     abs_path = _safe_path(user.id, Path(item.file_path).name)
-    if not abs_path.exists():
+    if not abs_path.is_file():
         raise AppError("Bestand niet gevonden op schijf", status_code=404)
     if item.kind == "response":
         # Item 1058: het downloaden van een response-item IS het moment van
@@ -589,8 +589,27 @@ def _get_case_contacts(session: Session, case_id: str) -> list[MindboxContact]:
     return list(session.exec(select(MindboxContact).where(col(MindboxContact.id).in_(contact_ids))).all())
 
 
+def _render_case_items_section(session: Session, items: list[MindboxItem]) -> str:
+    """Item 1058 (vervolg, Bart): de case-export miste de bestandenlijst zelf
+    en de relaties per bestand - dit levert beide, met dezelfde
+    get_item_links() die ook de website gebruikt voor de relaties-badge."""
+    lines: list[str] = []
+    for item in items:
+        if item.kind == "case_export":
+            continue  # het export-bestand zichzelf niet in de eigen lijst opnemen
+        marker = "📧" if item.kind == "response" else "📄"
+        lines.append(f"- {marker} {item.original_filename} ({item.status})")
+        for link in get_item_links(session, item.id):
+            other = session.get(MindboxItem, link["item_id"])
+            other_name = other.original_filename if other else link["item_id"]
+            arrow = "->" if link["direction"] == "out" else "<-"
+            lines.append(f"    {arrow} {other_name} ({link['link_type']})")
+    return "\n".join(lines) or "(geen bestanden gekoppeld)"
+
+
 def render_case_export_markdown(
-    case: MindboxCase, context: "MindboxContext | None", contacts: list[MindboxContact], events: list[MindboxCaseEvent],
+    session: Session, case: MindboxCase, context: "MindboxContext | None",
+    contacts: list[MindboxContact], events: list[MindboxCaseEvent], items: list[MindboxItem],
 ) -> bytes:
     """Item 1058 (Bart): een case moet net als een item als lokaal bestand
     te downloaden zijn voor AI-verwerking - analoog aan de briefing.md die
@@ -602,6 +621,7 @@ def render_case_export_markdown(
     timeline_md = "\n".join(
         f"- {e.created_at:%Y-%m-%d %H:%M} - {e.event_type}: {e.description}" for e in events
     ) or "(geen activiteit)"
+    items_md = _render_case_items_section(session, items)
     text = (
         f"# Case: {case.name}\n\n"
         f"- Status: {case.status}\n"
@@ -610,6 +630,7 @@ def render_case_export_markdown(
         f"## Omschrijving\n\n{case.description or '(geen omschrijving)'}\n\n"
         f"## Context-instructie\n\n{context.content if context else '(geen context gekoppeld)'}\n\n"
         f"## Contacten\n\n{contacts_md}\n\n"
+        f"## Bestanden en relaties\n\n{items_md}\n\n"
         f"## Tijdlijn\n\n{timeline_md}\n"
     )
     return text.encode("utf-8")
@@ -623,7 +644,8 @@ def export_case(session: Session, user: User, case_id: str) -> MindboxItem:
     context = get_context(session, user, case.context_id) if case.context_id else None
     contacts = _get_case_contacts(session, case_id)
     events = get_case_events(session, user, case_id)
-    markdown = render_case_export_markdown(case, context, contacts, events)
+    items = get_items(session, user, case_id)
+    markdown = render_case_export_markdown(session, case, context, contacts, events, items)
 
     item = session.exec(
         select(MindboxItem)

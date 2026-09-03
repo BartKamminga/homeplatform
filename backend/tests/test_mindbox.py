@@ -756,6 +756,24 @@ def test_export_case_produces_a_downloadable_briefing(client, user_token):
     assert "Export-case" in content
     assert "Reageer kort en zakelijk." in content
     assert "sender@voorbeeld.nl" in content
+    assert "mail.msg" in content  # bestandenlijst
+
+
+def test_export_includes_item_relations(client, user_token):
+    """Item 1058 (vervolg): de case-export moet ook de relaties tussen
+    bestanden tonen, niet alleen de bestandenlijst zelf."""
+    case_id = _case(client, user_token, "Case met relaties")
+    item_a = _upload(client, user_token, filename="origineel.msg").json()["id"]
+    item_b = _upload(client, user_token, filename="duplicaat.msg").json()["id"]
+    _link_case(client, user_token, item_a, case_id)
+    _link_case(client, user_token, item_b, case_id)
+    client.post(f"/api/mindbox/items/{item_b}/links", json={"target_item_id": item_a, "link_type": "duplicate_of"}, headers=_auth(user_token))
+
+    exported = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token)).json()
+    content = client.get(f"/api/mindbox/items/{exported['id']}/download", headers=_auth(user_token)).content.decode("utf-8")
+    assert "origineel.msg" in content
+    assert "duplicaat.msg" in content
+    assert "duplicate_of" in content
 
 
 def test_exporting_a_case_twice_reuses_the_same_item(client, user_token):
