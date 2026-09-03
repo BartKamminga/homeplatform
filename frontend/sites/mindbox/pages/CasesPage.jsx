@@ -184,9 +184,14 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   }, [])
 
   // Item 1053: commando's uit de backend-catalogus i.p.v. hardcoded functies.
-  function findCommand(key) {
-    return commands.find(c => c.notation_key === key)
-  }
+  // Item 1055 (Bart): "ik zie niet alle case gebonden commando's bovenin
+  // staan, ik verwacht daar de lijst uit de commando's te zien" - i.p.v. een
+  // vaste findCommand()-lookup per notation_key, itereren over ALLE
+  // commando's met het juiste entity zodat nieuw aangemaakte Case.*/File.*
+  // commando's hier automatisch verschijnen. param_kind 'id' filtert
+  // Case.Save/Case.Load eruit - die nemen een NAAM als param, niet caseObj.id.
+  const caseCommands = commands.filter(c => c.entity === 'Case' && c.param_kind === 'id')
+  const fileCommands = commands.filter(c => c.entity === 'File' && c.param_kind === 'id')
 
   async function handleUpload(file) {
     if (!file) return
@@ -363,26 +368,17 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 16 }}>📁 {caseObj.name}</strong>
-        {findCommand('Case.Run') && (
+        {caseCommands.map(c => (
           <CopyButton
-            text={buildCommandString(findCommand('Case.Run'), caseObj.id, env)}
-            label={buildCommandString(findCommand('Case.Run'), caseObj.id, env)}
-            icon={findCommand('Case.Run').icon}
+            key={c.id}
+            text={buildCommandString(c, caseObj.id, env)}
+            label={buildCommandString(c, caseObj.id, env)}
+            icon={c.icon}
             mono
-            title="Kopieer commando om alle items in deze case te verwerken"
+            title={c.description || c.notation_key}
             style={{ padding: '3px 8px', fontSize: 11 }}
           />
-        )}
-        {findCommand('Case.ScanContacts') && (
-          <CopyButton
-            text={buildCommandString(findCommand('Case.ScanContacts'), caseObj.id, env)}
-            label={buildCommandString(findCommand('Case.ScanContacts'), caseObj.id, env)}
-            icon={findCommand('Case.ScanContacts').icon}
-            mono
-            title="Kopieer commando om deze case te scannen op contacten"
-            style={{ padding: '3px 8px', fontSize: 11 }}
-          />
-        )}
+        ))}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <select
             value={caseObj.status}
@@ -462,15 +458,9 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                 }}
               />
               <div style={{ display: 'flex', gap: 4 }}>
-                {findCommand('File.Enhance') && (
-                  <CopyButton text={buildCommandString(findCommand('File.Enhance'), item.id, env)} icon={findCommand('File.Enhance').icon} title="Kopieer commando om extra info aan dit bestand toe te voegen" style={{ padding: '2px 6px', fontSize: 11 }} />
-                )}
-                {findCommand('File.ParseToTekst') && (
-                  <CopyButton text={buildCommandString(findCommand('File.ParseToTekst'), item.id, env)} icon={findCommand('File.ParseToTekst').icon} title="Kopieer commando om de tekst van dit bestand te laten extraheren" style={{ padding: '2px 6px', fontSize: 11 }} />
-                )}
-                {findCommand('File.ExtractAttachments') && (
-                  <CopyButton text={buildCommandString(findCommand('File.ExtractAttachments'), item.id, env)} icon={findCommand('File.ExtractAttachments').icon} title="Kopieer commando om bijlagen uit dit bestand te extraheren" style={{ padding: '2px 6px', fontSize: 11 }} />
-                )}
+                {fileCommands.map(c => (
+                  <CopyButton key={c.id} text={buildCommandString(c, item.id, env)} icon={c.icon} title={c.description || c.notation_key} style={{ padding: '2px 6px', fontSize: 11 }} />
+                ))}
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
                 {item.parsed_text && (
