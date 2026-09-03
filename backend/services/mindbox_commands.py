@@ -4,8 +4,9 @@ from typing import Optional
 
 from sqlmodel import Session, col, select
 
+from core.auth import ADMIN_GROUP
 from core.exceptions import AppError
-from models.core import User
+from models.core import Group, User, UserGroup
 from models.mindbox_commands import MindboxCommand, MindboxCommandStep
 
 # Item 1053 (Bart): "MindBox.ps1 moet dun blijven" - de elementaire acties
@@ -24,6 +25,8 @@ ELEMENTARY_ACTIONS = [
      "template": "-ListContexts -Env {env}"},
     {"key": "ListKnowledge", "group": "Lezen", "label": "-ListKnowledge — kennis-items oplijsten",
      "template": "-ListKnowledge -Env {env}"},
+    {"key": "UpdateKnowledge", "group": "Kennis", "label": "-UpdateKnowledge — kennis-item bijwerken (find-or-create op naam)",
+     "template": '-UpdateKnowledge -Name "{name}" -Text "..." -Env {env}'},
     {"key": "ListContacts", "group": "Lezen", "label": "-ListContacts — contacts oplijsten",
      "template": "-ListContacts [-Email {email}] -Env {env}"},
     {"key": "Get", "group": "Lezen", "label": "-Get — één item tonen",
@@ -41,17 +44,28 @@ ELEMENTARY_ACTIONS = [
     {"key": "UploadAttachment", "group": "Bestand", "label": "-UploadAttachment — bijlage uploaden",
      "template": "-UploadAttachment -ParentId {id} -FilePath <pad> -Env {env}"},
     {"key": "Upload", "group": "Bestand", "label": "-Upload — bestand rechtstreeks in een case zetten",
-     "template": "-Upload -CaseId {id} -FilePath <pad> -Env {env}"},
+     "template": "-Upload -CaseId {id} -FilePath <pad> [-TargetId <id> -LinkType {link_type}] -Env {env}"},
     {"key": "Contact", "group": "Contact", "label": "-Contact — contact toevoegen aan item (many-to-many)",
      "template": "-Contact -Id {id} -Email {email} -Env {env}"},
     {"key": "UnlinkContact", "group": "Contact", "label": "-UnlinkContact — contact loskoppelen van item",
      "template": "-UnlinkContact -Id {id} -ContactId {contact_id} -Env {env}"},
     {"key": "ContactNote", "group": "Contact", "label": "-ContactNote — profiel-notitie bijwerken",
      "template": '-ContactNote -Email {email} -Text "..." -Env {env}'},
-    {"key": "Respond", "group": "Case-samenwerking", "label": "-Respond — concept-antwoord posten",
-     "template": '-Respond -CaseId {id} -Ids "..." -Content "..." -Env {env}'},
     {"key": "AddEvent", "group": "Case-samenwerking", "label": "-AddEvent — sessienotitie/event toevoegen",
      "template": '-AddEvent -CaseId {id} -Text "..." -Env {env}'},
+    {"key": "CreateCase", "group": "Case-samenwerking", "label": "-CreateCase — nieuwe case aanmaken",
+     "template": '-CreateCase -Name "{name}" [-ContextId <id>] -Env {env}'},
+    {"key": "ExportCase", "group": "Case-samenwerking",
+     "label": "-ExportCase — hele case downloaden (context+kennis+contacten+bestandenlijst+tijdlijn)",
+     "template": "-ExportCase -CaseId {id} -Env {env}"},
+    {"key": "LinkCase", "group": "Relaties", "label": "-LinkCase — bestand aan een case koppelen (many-to-many)",
+     "template": "-LinkCase -Id {id} -CaseId <case_id> -Env {env}"},
+    {"key": "UnlinkCase", "group": "Relaties", "label": "-UnlinkCase — bestand loskoppelen van een case",
+     "template": "-UnlinkCase -Id {id} -CaseId <case_id> -Env {env}"},
+    {"key": "LinkItem", "group": "Relaties", "label": "-LinkItem — relatie leggen tussen 2 bestanden (vrij link-type)",
+     "template": "-LinkItem -Id {id} -TargetId <target_id> -LinkType {link_type} -Env {env}"},
+    {"key": "UnlinkItem", "group": "Relaties", "label": "-UnlinkItem — relatie tussen 2 bestanden verwijderen",
+     "template": "-UnlinkItem -LinkId <link_id> -Env {env}"},
     {"key": "SaveSession", "group": "Sessie", "label": "-SaveSession — sessie opslaan onder naam",
      "template": '-SaveSession -Name "{name}" -Text "..." -Env {env}'},
     {"key": "LoadSession", "group": "Sessie", "label": "-LoadSession — case+bestanden terugzien",
@@ -74,27 +88,37 @@ def get_actions() -> list[dict]:
     return ELEMENTARY_ACTIONS
 
 
-def get_commands(session: Session, user: User) -> list[MindboxCommand]:
+def _admin_user_ids(session: Session) -> list[str]:
+    # Commando's zijn één gedeelde bibliotheek, beheerd door admins - Bart,
+    # item 1053: "alleen admin mag commando's beheren, anderen lezen". Niet
+    # gefilterd op de aanvragende user, maar op wie de commando's beheert.
+    return list(session.exec(
+        select(UserGroup.user_id)
+        .join(Group, Group.id == UserGroup.group_id)
+        .where(Group.slug == ADMIN_GROUP)
+    ).all())
+
+
+def get_commands(session: Session) -> list[MindboxCommand]:
     return list(session.exec(
         select(MindboxCommand)
-        .where(MindboxCommand.user_id == user.id)
+        .where(col(MindboxCommand.user_id).in_(_admin_user_ids(session)))
         .order_by(col(MindboxCommand.notation_key))
     ).all())
 
 
-def get_command(session: Session, user: User, command_id: str) -> MindboxCommand:
+def get_command(session: Session, command_id: str) -> MindboxCommand:
     command = session.get(MindboxCommand, command_id)
     if not command:
         raise AppError("Commando niet gevonden", status_code=404)
-    if command.user_id != user.id:
-        raise AppError("Geen toegang", status_code=403)
     return command
 
 
-def get_command_by_notation_key(session: Session, user: User, notation_key: str) -> Optional[MindboxCommand]:
+def get_command_by_notation_key(session: Session, notation_key: str) -> Optional[MindboxCommand]:
     return session.exec(
         select(MindboxCommand).where(
-            MindboxCommand.user_id == user.id, MindboxCommand.notation_key == notation_key
+            col(MindboxCommand.user_id).in_(_admin_user_ids(session)),
+            MindboxCommand.notation_key == notation_key,
         )
     ).first()
 
@@ -117,8 +141,8 @@ def _validate_steps(steps: list[dict]) -> None:
             raise AppError("Elke stap heeft een instructie nodig", status_code=400)
 
 
-def replace_steps(session: Session, user: User, command_id: str, steps: list[dict]) -> list[MindboxCommandStep]:
-    get_command(session, user, command_id)  # eigendom-check
+def replace_steps(session: Session, command_id: str, steps: list[dict]) -> list[MindboxCommandStep]:
+    get_command(session, command_id)  # bestaans-check
     for existing in get_steps(session, command_id):
         session.delete(existing)
     session.commit()
@@ -147,7 +171,7 @@ def create_command(
 ) -> MindboxCommand:
     _validate_steps(steps)
     notation_key = _notation_key(entity, action)
-    if get_command_by_notation_key(session, user, notation_key):
+    if get_command_by_notation_key(session, notation_key):
         raise AppError(f"Commando '{notation_key}' bestaat al", status_code=409)
     command = MindboxCommand(
         user_id=user.id, entity=entity, action=action, notation_key=notation_key,
@@ -157,22 +181,22 @@ def create_command(
     session.add(command)
     session.commit()
     session.refresh(command)
-    replace_steps(session, user, command.id, steps)
+    replace_steps(session, command.id, steps)
     session.refresh(command)
     return command
 
 
 def update_command(
-    session: Session, user: User, command_id: str, entity: Optional[str], action: str, param_kind: str,
+    session: Session, command_id: str, entity: Optional[str], action: str, param_kind: str,
     notation_template: str, icon: Optional[str], description: Optional[str], steps: list[dict],
 ) -> MindboxCommand:
     # Item 1053: de editor stuurt altijd de VOLLEDIGE formulierstaat mee (geen
     # los-te-patchen velden zoals bij MindboxCase) - dus hier bewust een volle
     # vervanging i.p.v. partial-update-semantiek.
-    command = get_command(session, user, command_id)
+    command = get_command(session, command_id)
     _validate_steps(steps)
     notation_key = _notation_key(entity, action)
-    if notation_key != command.notation_key and get_command_by_notation_key(session, user, notation_key):
+    if notation_key != command.notation_key and get_command_by_notation_key(session, notation_key):
         raise AppError(f"Commando '{notation_key}' bestaat al", status_code=409)
     command.entity = entity
     command.action = action
@@ -184,13 +208,13 @@ def update_command(
     command.updated_at = datetime.utcnow()
     session.add(command)
     session.commit()
-    replace_steps(session, user, command.id, steps)
+    replace_steps(session, command.id, steps)
     session.refresh(command)
     return command
 
 
-def delete_command(session: Session, user: User, command_id: str) -> None:
-    command = get_command(session, user, command_id)
+def delete_command(session: Session, command_id: str) -> None:
+    command = get_command(session, command_id)
     for step in get_steps(session, command_id):
         session.delete(step)
     session.delete(command)
@@ -208,7 +232,7 @@ def _render(text: Optional[str], env: str, param: str) -> Optional[str]:
     )
 
 
-def resolve_command(session: Session, user: User, notation: str) -> dict:
+def resolve_command(session: Session, notation: str) -> dict:
     match = NOTATION_RE.match(notation.strip())
     if not match:
         raise AppError(
@@ -222,9 +246,9 @@ def resolve_command(session: Session, user: User, notation: str) -> dict:
     param = match.group("param") or ""
     notation_key = _notation_key(entity, action)
 
-    command = get_command_by_notation_key(session, user, notation_key)
+    command = get_command_by_notation_key(session, notation_key)
     if not command:
-        known = ", ".join(c.notation_key for c in get_commands(session, user)) or "(nog geen commando's)"
+        known = ", ".join(c.notation_key for c in get_commands(session)) or "(nog geen commando's)"
         raise AppError(f"Onbekend commando '{notation_key}'. Bekende commando's: {known}", status_code=404)
 
     steps = get_steps(session, command.id)

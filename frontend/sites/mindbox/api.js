@@ -10,13 +10,21 @@ export function listItems(caseId) {
   return api.get(`/api/mindbox/items${query}`)
 }
 
-export async function uploadItem(file, caseId, force = false) {
+// Item 1058 (vervolg): linkTargetItemId/linkType zijn optioneel - meteen een
+// relatie leggen bij het aanmaken (bv. een terminal/agent-sessie die een
+// plan/samenvatting voorbereidt EN weet waar het bij hoort), of geen van
+// beide voor een gewone upload zonder directe relatie.
+export async function uploadItem(file, caseId, force = false, linkTargetItemId = null, linkType = null) {
   const token = localStorage.getItem('hp_token')
   const formData = new FormData()
   formData.append('file', file, file.name)
   const params = new URLSearchParams()
   if (caseId) params.set('case_id', caseId)
   if (force) params.set('force', 'true')
+  if (linkTargetItemId && linkType) {
+    params.set('link_target_item_id', linkTargetItemId)
+    params.set('link_type', linkType)
+  }
   const query = params.toString() ? `?${params}` : ''
   const res = await fetch(`/api/mindbox/items${query}`, {
     method: 'POST',
@@ -59,6 +67,21 @@ export async function downloadItem(id, filename) {
   URL.revokeObjectURL(url)
 }
 
+// Item 1065 (Bart): "ook plaatjes kunnen gebruiken" - een <img src=.../download>
+// werkt niet (MindBox-downloads zijn, anders dan het algemene uploads.py-
+// patroon, bewust WEL geauthenticeerd), dus de blob-URL client-side ophalen
+// i.p.v. de download rechtstreeks als src te gebruiken. Caller is verantwoordelijk
+// voor URL.revokeObjectURL bij unmount (zie ImageThumbnail.jsx).
+export async function fetchItemBlobUrl(id) {
+  const token = localStorage.getItem('hp_token')
+  const res = await fetch(`/api/mindbox/items/${id}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Ophalen mislukt')
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
 // ---------------------------------------------------------------------------
 // Cases (container die items/responses aan elkaar koppelt)
 // ---------------------------------------------------------------------------
@@ -77,6 +100,31 @@ export function updateCase(id, data) {
 
 export function deleteCase(id) {
   return api.delete(`/api/mindbox/cases/${id}`)
+}
+
+// Item 1058: een item kan aan 0+ cases hangen (case_ids) - koppelen/
+// ontkoppelen loopt via deze losse endpoints, niet meer via updateItem.
+export function linkItemCase(itemId, caseId) {
+  return api.post(`/api/mindbox/items/${itemId}/cases/${caseId}`)
+}
+
+export function unlinkItemCase(itemId, caseId) {
+  return api.delete(`/api/mindbox/items/${itemId}/cases/${caseId}`)
+}
+
+// Item 1058 (vervolg): generieke item<->item-relaties met een vrij link_type.
+export function linkItems(itemId, targetItemId, linkType) {
+  return api.post(`/api/mindbox/items/${itemId}/links`, { target_item_id: targetItemId, link_type: linkType })
+}
+
+export function unlinkItems(linkId) {
+  return api.delete(`/api/mindbox/links/${linkId}`)
+}
+
+// Item 1058: case-metadata + context + contacten + tijdlijn als 1 lokaal
+// bestand, analoog aan de MindBox.ps1 -Run briefing.md voor een los item.
+export function exportCase(caseId) {
+  return api.post(`/api/mindbox/cases/${caseId}/export`)
 }
 
 export function listCaseEvents(caseId) {
@@ -157,36 +205,21 @@ export function unlinkItemContact(itemId, contactId) {
   return api.delete(`/api/mindbox/items/${itemId}/contact/${contactId}`)
 }
 
-// ---------------------------------------------------------------------------
-// Responses (altijd case-gescoped, item 1051 - los bekijken is niet relevant)
-// ---------------------------------------------------------------------------
-
-export function listResponses(caseId) {
-  return api.get(`/api/mindbox/cases/${caseId}/responses`)
-}
-
-export function createResponse(caseId, data) {
-  return api.post(`/api/mindbox/cases/${caseId}/responses`, data)
-}
-
-export function updateResponse(caseId, responseId, data) {
-  return api.patch(`/api/mindbox/cases/${caseId}/responses/${responseId}`, data)
-}
-
-// Bart: "een linkje naar een .msg, helemaal klaar voor verdere verzending" -
-// .eml i.p.v. echt .msg (dat vereist Outlook-COM, Windows-only) - opent en
-// verstuurt ook direct in Outlook.
-export async function downloadResponseEml(caseId, responseId) {
+// Item 1058 (vervolg): het .eml-ready-voor-verzending-formaat is geen
+// standaard meer maar een losse, expliciete exportactie op elk tekstitem
+// (item.text_content gezet) - on-the-fly gerenderd, download rechtstreeks.
+export async function exportEmail(itemId, caseId, filename) {
   const token = localStorage.getItem('hp_token')
-  const res = await fetch(`/api/mindbox/cases/${caseId}/responses/${responseId}/eml`, {
+  const res = await fetch(`/api/mindbox/items/${itemId}/export-eml?case_id=${encodeURIComponent(caseId)}`, {
+    method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!res.ok) throw new Error('Downloaden mislukt')
+  if (!res.ok) throw new Error('Exporteren mislukt')
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `response-${responseId}.eml`
+  a.download = filename || `${itemId}.eml`
   a.click()
   URL.revokeObjectURL(url)
 }

@@ -29,8 +29,11 @@ export default function App() {
   // BESTAANDE bestand/case kunnen brengen - als dat bestand al in een case
   // zit, naar de Cases-tab springen en die case meteen selecteren.
   function goToExistingItem(existingItem) {
-    if (existingItem.case_id) {
-      setFocusCaseId(existingItem.case_id)
+    // Item 1058: een item kan aan 0+ cases hangen - op upload-duplicaat-
+    // moment heeft een item in de praktijk nog 0 of 1 case, dus de eerste
+    // is een pragmatische keuze voor "spring ernaartoe".
+    if (existingItem.case_ids?.length) {
+      setFocusCaseId(existingItem.case_ids[0])
       setTab('cases')
     } else {
       setTab('items')

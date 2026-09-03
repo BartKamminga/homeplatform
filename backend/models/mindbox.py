@@ -9,10 +9,12 @@ def new_uuid() -> str:
 
 
 class MindboxCase(SQLModel, table=True):
-    """Container die meerdere MindboxItems en MindboxResponses aan elkaar
-    koppelt (Bart, 2-09-2026: 'vaak zal een MindboxItem vervolg krijgen') -
-    bv. een mailwisseling met meerdere binnengekomen mails en meerdere
-    concept-antwoorden, of een dossier met meerdere documenten. context_id
+    """Container die meerdere MindboxItems aan elkaar koppelt (Bart,
+    2-09-2026: 'vaak zal een MindboxItem vervolg krijgen') - bv. een
+    mailwisseling met meerdere binnengekomen mails en meerdere concept-
+    antwoorden (item 1058: een concept-antwoord is gewoon een generiek
+    tekstitem met text_content, geen apart "response"-kind), of een
+    dossier met meerdere documenten. context_id
     koppelt optioneel EEN herbruikbare persona/instructie (MindboxContext)
     aan de HELE case (Bart, item 1051: 'ik wil toch per case een context,
     niet per bestand.. dat is ingewikkeld') - was eerst per item, dat bleek
@@ -70,8 +72,8 @@ class MindboxItem(SQLModel, table=True):
     1050): puur opslag + status + vrij notitieveld, geen geautomatiseerde
     verwerking. Bart/Claude bekijken en verwerken items samen in een Claude
     Code-sessie; het notities-veld is bedoeld voor context/voorbereiding die
-    Bart daarbij zelf invult. case_id koppelt optioneel dit item aan een
-    MindboxCase (bv. een mailwisseling met vervolgmails) - de instructie-
+    Bart daarbij zelf invult. Koppeling aan 0+ MindboxCases loopt via
+    MindboxItemLink (link_type="case_member", item 1058) - de instructie-
     /persona-context zit op de CASE (zie MindboxCase.context_id), niet hier."""
     __tablename__ = "mindbox_items"
 
@@ -92,12 +94,43 @@ class MindboxItem(SQLModel, table=True):
     parsed_text:       Optional[str] = Field(default=None)
     # Bijlage van een ander item (bv. een PDF die uit een .msg is
     # geextraheerd) - item 1051 (Bart): "hoe gaan we om met attachments in
-    # een mail?". Zelfde patroon als MindboxResponse.parent_response_id.
-    # Erft altijd het case_id van het ouder-item (zie services.save_upload).
+    # een mail?". Erft altijd de case-koppeling(en) van het ouder-item (zie
+    # services.save_upload).
     parent_item_id:    Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
-    case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
+    # Item 1058: "alles is een bestand" - kind onderscheidt een echte upload
+    # van gegenereerde/gematerialiseerde content (bv. "case_export") die
+    # dezelfde entiteit gebruikt i.p.v. een eigen tabel.
+    kind:              str      = Field(default="upload")  # upload | case_export
+    # De bewerkbare inhoud van het bestand zelf, voor tekstachtige extensies
+    # (.txt/.json/.md/.csv) - automatisch gevuld bij upload (save_upload) of
+    # gematerialiseerd bij generatie (bv. een concept-antwoord, case_export).
+    # Anders dan parsed_text (AUTOMATISCHE extractie van de INHOUD van een
+    # ANDER bestandstype, bv. de mail-body van een .msg) is text_content de
+    # brontekst van het bestand zelf, en her-materialiseerbaar via
+    # services.update_item/_materialize_item_bytes.
+    text_content:      Optional[str] = Field(default=None)
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
+
+
+class MindboxItemLink(SQLModel, table=True):
+    """Generieke koppeling van een MindboxItem naar een ANDER item of een
+    case, met een vrij link_type ("case_member", "source_of", "reply_to") -
+    item 1058 (Bart): "alles is een bestand ... en linken aan de bron met een
+    link type" - 1 koppelmechanisme i.p.v. een nieuwe bespoke join-tabel per
+    relatie-soort. Vervangt het vroegere losse MindboxItem.case_id (1 case
+    per item, "case_member") en MindboxResponseSource/parent_response_id
+    ("source_of"/"reply_to", sinds responses zelf MindboxItems zijn). Precies
+    1 van target_item_id/target_case_id moet gezet zijn - services-laag-
+    invariant, geen DB CHECK - zelfde conventie als de rest van deze module."""
+    __tablename__ = "mindbox_item_links"
+
+    id:              str      = Field(default_factory=new_uuid, primary_key=True)
+    item_id:         str      = Field(foreign_key="mindbox_items.id", index=True)
+    link_type:       str      = Field(index=True)
+    target_item_id:  Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
+    target_case_id:  Optional[str] = Field(default=None, foreign_key="mindbox_cases.id", index=True)
+    created_at:      datetime = Field(default_factory=datetime.utcnow)
 
 
 class MindboxContact(SQLModel, table=True):
@@ -125,38 +158,13 @@ class MindboxItemContact(SQLModel, table=True):
     """Many-to-many-koppeling tussen een MindboxItem en MindboxContact -
     item 1052 (Bart): 'kan ik meerdere contacten aan een bestand koppelen?'
     Een mail heeft vaak meerdere deelnemers (afzender + to + cc), dus een
-    los contact_id-veld op MindboxItem (v1) bleek te beperkt. Zelfde patroon
-    als MindboxResponseSource."""
+    los contact_id-veld op MindboxItem (v1) bleek te beperkt. Contacten
+    blijven bewust een eigen, bespoke join-tabel (vaste entiteit, item
+    1058) i.p.v. het generieke MindboxItemLink-mechanisme hierboven."""
     __tablename__ = "mindbox_item_contacts"
 
     item_id:     str = Field(foreign_key="mindbox_items.id", primary_key=True)
     contact_id:  str = Field(foreign_key="mindbox_contacts.id", primary_key=True)
-
-
-class MindboxResponse(SQLModel, table=True):
-    """Een voorbereide tekst/rapport/antwoord, gekoppeld aan 1+ MindboxItems
-    via MindboxResponseSource (bronvermelding) en optioneel een vervolg op
-    een eerdere response (opvolging). case_id is VERPLICHT (Bart, item 1051:
-    'los bekijken van responses is niet relevant') - een response bestaat
-    altijd binnen een case; bij verwijderen van de case wordt de response
-    mee verwijderd (zie services.mindbox.delete_case)."""
-    __tablename__ = "mindbox_responses"
-
-    id:                  str      = Field(default_factory=new_uuid, primary_key=True)
-    user_id:             str      = Field(foreign_key="users.id", index=True)
-    content:             str
-    parent_response_id:  Optional[str] = Field(default=None, foreign_key="mindbox_responses.id")
-    case_id:             str      = Field(foreign_key="mindbox_cases.id", index=True)
-    created_at:          datetime = Field(default_factory=datetime.utcnow)
-
-
-class MindboxResponseSource(SQLModel, table=True):
-    """Many-to-many-koppeling tussen een MindboxResponse en de MindboxItems
-    waarop die gebaseerd is (bronvermelding)."""
-    __tablename__ = "mindbox_response_sources"
-
-    response_id: str = Field(foreign_key="mindbox_responses.id", primary_key=True)
-    item_id:     str = Field(foreign_key="mindbox_items.id", primary_key=True)
 
 
 class MindboxCaseEvent(SQLModel, table=True):

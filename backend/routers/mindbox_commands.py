@@ -7,7 +7,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlmodel import Session
 
-from core.auth import get_current_user
+from core.auth import get_current_user, require_admin
 from core.database import get_session
 from core.exceptions import AppError
 from core.logging import log_action
@@ -107,9 +107,9 @@ def list_actions():
 def resolve_command(
     notation: str,
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
-    return svc.resolve_command(session, user, notation)
+    return svc.resolve_command(session, notation)
 
 
 # ---------------------------------------------------------------------------
@@ -144,16 +144,16 @@ def get_script():
 @router.get("/commands", response_model=list[MindboxCommandOut])
 def list_commands(
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
-    return [_command_to_out(session, c) for c in svc.get_commands(session, user)]
+    return [_command_to_out(session, c) for c in svc.get_commands(session)]
 
 
 @router.post("/commands", response_model=MindboxCommandOut)
 def create_command(
     data: MindboxCommandCreate,
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     command = svc.create_command(
         session, user, data.entity, data.action, data.param_kind, data.notation_template,
@@ -169,10 +169,10 @@ def update_command(
     command_id: str,
     data: MindboxCommandUpdate,
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     command = svc.update_command(
-        session, user, command_id, data.entity, data.action, data.param_kind, data.notation_template,
+        session, command_id, data.entity, data.action, data.param_kind, data.notation_template,
         data.icon, data.description, [s.model_dump() for s in data.steps],
     )
     log_action(session, "mindbox.command.update", site="mindbox", user_id=user.id,
@@ -184,9 +184,9 @@ def update_command(
 def delete_command(
     command_id: str,
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
-    svc.delete_command(session, user, command_id)
+    svc.delete_command(session, command_id)
     log_action(session, "mindbox.command.delete", site="mindbox", user_id=user.id,
                payload={"command_id": command_id})
     return {"ok": True}

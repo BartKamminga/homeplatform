@@ -7,6 +7,7 @@
 #   .\MindBox.ps1 -ListCases                                          # toon cases
 #   .\MindBox.ps1 -ListContexts                                       # toon contexts
 #   .\MindBox.ps1 -ListKnowledge                                      # toon kennis-items
+#   .\MindBox.ps1 -UpdateKnowledge -Name "<naam>" -Text "..."          # kennis-item bijwerken (find-or-create op naam)
 #   .\MindBox.ps1 -Get -Id <item_id>                                  # 1 item in detail
 #   .\MindBox.ps1 -Run -Id <item_id>                                  # download bestand + briefing-.md in mindbox_work/
 #   .\MindBox.ps1 -Run -All                                           # hetzelfde voor alle nog niet-afgeronde items
@@ -15,15 +16,22 @@
 #   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken (Bart's EIGEN aantekening)
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -UploadAttachment -ParentId <mail_item_id> -FilePath <lokaal_pad> [-Force]
-#   .\MindBox.ps1 -Upload -CaseId <case_id> -FilePath <lokaal_pad> [-Force]         # bestand rechtstreeks in een case (geen bijlage)
+#   .\MindBox.ps1 -Upload -CaseId <case_id> -FilePath <lokaal_pad> [-TargetId <item_id> -LinkType <type>] [-Force]
+#                                                                       # bestand rechtstreeks in een case (geen bijlage),
+#                                                                       # optioneel meteen een relatie leggen naar een ander bestand
 #   .\MindBox.ps1 -ListContacts [-Email <email>]                       # toon contacten (optioneel filteren op e-mail)
 #   .\MindBox.ps1 -Contact -Id <item_id> -Email <email> [-Name "..."]  # contact TOEVOEGEN aan item (many-to-many, find-or-create op e-mail)
 #   .\MindBox.ps1 -UnlinkContact -Id <item_id> -ContactId <contact_id> # contact loskoppelen van item
 #   .\MindBox.ps1 -ContactNote -Email <email> -Text "..."              # profiel-notitie op een contact bijwerken (find-or-create)
-#   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
+#   .\MindBox.ps1 -CreateCase -Name "<naam>" [-ContextId <id>]         # nieuwe case aanmaken
+#   .\MindBox.ps1 -LinkCase -Id <item_id> -CaseId <case_id>            # bestand aan een case koppelen (many-to-many)
+#   .\MindBox.ps1 -UnlinkCase -Id <item_id> -CaseId <case_id>          # bestand loskoppelen van een case
+#   .\MindBox.ps1 -LinkItem -Id <item_id> -TargetId <id> -LinkType <type>   # relatie leggen tussen 2 bestanden (vrij link-type)
+#   .\MindBox.ps1 -UnlinkItem -LinkId <link_id>                        # relatie tussen 2 bestanden verwijderen
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
-#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities terugzien
+#   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/sessie-notities/case-export terugzien
+#   .\MindBox.ps1 -ExportCase -CaseId <id>                             # hele case downloaden (context+kennis+contacten+bestandenlijst+tijdlijn)
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
 #   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
 #
@@ -48,12 +56,12 @@ param(
     [switch]$ListCases,
     [switch]$ListContexts,
     [switch]$ListKnowledge,
+    [switch]$UpdateKnowledge,
     [switch]$Get,
     [switch]$Run,
     [switch]$Status,
     [switch]$Note,
     [switch]$ParsedText,
-    [switch]$Respond,
     [switch]$AddEvent,
     [switch]$SaveSession,
     [switch]$LoadSession,
@@ -63,26 +71,65 @@ param(
     [switch]$Contact,
     [switch]$UnlinkContact,
     [switch]$ContactNote,
+    [switch]$CreateCase,
+    [switch]$LinkCase,
+    [switch]$UnlinkCase,
+    [switch]$LinkItem,
+    [switch]$UnlinkItem,
+    [switch]$ExportCase,
     [switch]$Explain,
     [switch]$DefineCommand,
 
     [switch]$All,
     [switch]$Force,
     [ValidateSet("prod", "acc", "local")]
-    [string]$Env       = "prod",
-    [string]$Id        = "",
-    [string]$Ids       = "",
-    [string]$CaseId    = "",
-    [string]$ParentId  = "",
-    [string]$ContactId = "",
-    [string]$Value     = "",
-    [string]$Text      = "",
-    [string]$Content   = "",
-    [string]$Command   = "",
-    [string]$Name      = "",
-    [string]$Email     = "",
-    [string]$FilePath  = "",
-    [string]$EventType = "session_note"
+    [string]$Env        = "prod",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        $envName = "prod"; if ($fakeBound['Env']) { $envName = $fakeBound['Env'] }
+        Complete-MindboxItem $PSScriptRoot $envName $wordToComplete
+    })]
+    [string]$Id         = "",
+    [string]$Ids        = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        $envName = "prod"; if ($fakeBound['Env']) { $envName = $fakeBound['Env'] }
+        Complete-MindboxCase $PSScriptRoot $envName $wordToComplete
+    })]
+    [string]$CaseId     = "",
+    [string]$ParentId   = "",
+    [string]$ContactId  = "",
+    [string]$ContextId  = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        $envName = "prod"; if ($fakeBound['Env']) { $envName = $fakeBound['Env'] }
+        Complete-MindboxItem $PSScriptRoot $envName $wordToComplete
+    })]
+    [string]$TargetId   = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        @('case_member', 'source_of', 'reply_to', 'related_to', 'duplicate_of', 'text_preview', 'summary') |
+            Where-Object { $_ -like "$wordToComplete*" } |
+            ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "link_type: $_") }
+    })]
+    [string]$LinkType   = "",
+    [string]$LinkId     = "",
+    [string]$Value      = "",
+    [string]$Text       = "",
+    [string]$Content    = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        Complete-MindboxCommand $PSScriptRoot $wordToComplete $fakeBound
+    })]
+    [string]$Command    = "",
+    [string]$Name       = "",
+    [string]$Email      = "",
+    [string]$FilePath   = "",
+    [string]$EventType  = "session_note"
 )
 
 # ---------------------------------------------------------------------------
@@ -159,6 +206,13 @@ function ApiDownload([string]$Path, [string]$OutFile) {
         Write-Host "[FOUT] Download $Path - $($_.Exception.Message)"
         exit 1
     }
+}
+
+# Item 1063 (Bart): "case dirname een naam geven die meer op de naam van de
+# case lijkt" - zelfde conventie als backend/services/mindbox.py's _slugify.
+function Slugify([string]$Text) {
+    $slug = ([regex]::Replace($Text.ToLower(), "[^a-z0-9]+", "-")).Trim("-")
+    if ($slug) { $slug } else { "case" }
 }
 
 # PowerShell 5.1 heeft geen -Form (dat kwam pas in PS7) - multipart/form-data
@@ -252,7 +306,7 @@ if ($List) {
     Write-Host ("{0,-38} {1,-30} {2,-12} {3}" -f "ID","BESTAND","STATUS","CASE")
     Write-Host ("-" * 100)
     foreach ($i in $items) {
-        $case = if ($i.case_id) { $i.case_id.Substring(0,8) } else { "-" }
+        $case = if ($i.case_ids -and $i.case_ids.Count -gt 0) { ($i.case_ids | ForEach-Object { $_.Substring(0,8) }) -join "," } else { "-" }
         Write-Host ("{0,-38} {1,-30} {2,-12} {3}" -f $i.id, $i.original_filename, $i.status, $case)
     }
     exit 0
@@ -290,6 +344,22 @@ if ($ListKnowledge) {
     foreach ($k in $knowledge) {
         Write-Host ("{0,-38} {1}" -f $k.id, $k.name)
     }
+    exit 0
+}
+
+# Item 1057 (Bart): "Knowledge items kunnen updaten" - find-or-create op naam,
+# zelfde patroon als -ContactNote hierboven, zodat een recipe een kennis-item
+# kan bijwerken (of aanmaken) zonder eerst de ID te hoeven opzoeken.
+if ($UpdateKnowledge) {
+    if (-not $Name -or -not $Text) { Write-Host "Geef -Name en -Text op"; exit 1 }
+    $existing = ApiGet "/mindbox/knowledge"
+    $existing = @($existing | Where-Object { $_.name -eq $Name })
+    if ($existing.Count -gt 0) {
+        $entry = ApiPatch "/mindbox/knowledge/$($existing[0].id)" @{ content = $Text }
+    } else {
+        $entry = ApiPost "/mindbox/knowledge" @{ name = $Name; content = $Text }
+    }
+    Write-Host "[OK] Kennis-item '$($entry.name)': bijgewerkt"
     exit 0
 }
 
@@ -366,6 +436,34 @@ if ($Get) {
     $item = $items | Where-Object { $_.id -eq $Id }
     if (-not $item) { Write-Host "[FOUT] Item $Id niet gevonden"; exit 1 }
     $item | Format-List
+
+    # Item 1058 (vervolg, Bart): "wordt nu alle relevante info klaargezet?" -
+    # case_ids/contact_ids/links waren hierboven alleen kale ID's (Format-
+    # List dumpt het ruwe object) - hier naar leesbare namen resolven.
+    if ($item.case_ids -and $item.case_ids.Count -gt 0) {
+        $cases = ApiGet "/mindbox/cases"
+        Write-Host "Case(s):"
+        foreach ($cid in $item.case_ids) {
+            $c = $cases | Where-Object { $_.id -eq $cid }
+            Write-Host " - $(if ($c) { $c.name } else { $cid })"
+        }
+    }
+    if ($item.contact_ids -and $item.contact_ids.Count -gt 0) {
+        $contacts = ApiGet "/mindbox/contacts"
+        Write-Host "Contacten:"
+        foreach ($cid in $item.contact_ids) {
+            $ct = $contacts | Where-Object { $_.id -eq $cid }
+            Write-Host " - $(if ($ct) { $ct.email } else { $cid })"
+        }
+    }
+    if ($item.links -and $item.links.Count -gt 0) {
+        Write-Host "Relaties:"
+        foreach ($l in $item.links) {
+            $other = $items | Where-Object { $_.id -eq $l.item_id }
+            $arrow = if ($l.direction -eq "out") { "->" } else { "<-" }
+            Write-Host " - $arrow $(if ($other) { $other.original_filename } else { $l.item_id }) ($($l.link_type))"
+        }
+    }
     exit 0
 }
 
@@ -373,32 +471,71 @@ if ($Get) {
 # Run — download bestand(en) + briefing-.md, klaar voor een Claude Code-sessie
 # ---------------------------------------------------------------------------
 function RunItem([object]$item) {
-    $itemDir = Join-Path $WorkDir $item.id
-    New-Item -ItemType Directory -Force -Path $itemDir | Out-Null
-
-    $localFile = Join-Path $itemDir $item.original_filename
-    ApiDownload "/mindbox/items/$($item.id)/download" $localFile
-
     # Context zit sinds item 1051 op de CASE, niet meer op het item apart
     # ("ik wil toch per case een context, niet per bestand.. dat is
-    # ingewikkeld") - dus eerst de case ophalen, en daaruit de context.
-    $caseName = ""
+    # ingewikkeld") - dus eerst de case(s) ophalen, en daaruit de context.
+    # Item 1058: een item kan aan 0+ cases hangen (case_ids i.p.v. case_id) -
+    # de briefing toont ze allemaal; context/mapnaam komt van de EERSTE case
+    # (in de praktijk hangt een item vrijwel altijd aan 0 of 1 case).
+    $firstCaseId = if ($item.case_ids -and $item.case_ids.Count -gt 0) { $item.case_ids[0] } else { $null }
+    $caseNames = @()
     $contextContent = ""
     $contextName = ""
-    if ($item.case_id) {
+    if ($item.case_ids -and $item.case_ids.Count -gt 0) {
         try {
             $cases = ApiGet "/mindbox/cases"
-            $c = $cases | Where-Object { $_.id -eq $item.case_id }
-            if ($c) {
-                $caseName = $c.name
-                if ($c.context_id) {
-                    $contexts = ApiGet "/mindbox/contexts"
-                    $ctx = $contexts | Where-Object { $_.id -eq $c.context_id }
-                    if ($ctx) { $contextName = $ctx.name; $contextContent = $ctx.content }
+            foreach ($cid in $item.case_ids) {
+                $c = $cases | Where-Object { $_.id -eq $cid }
+                if ($c) {
+                    $caseNames += $c.name
+                    if (-not $contextName -and $c.context_id) {
+                        $contexts = ApiGet "/mindbox/contexts"
+                        $ctx = $contexts | Where-Object { $_.id -eq $c.context_id }
+                        if ($ctx) { $contextName = $ctx.name; $contextContent = $ctx.content }
+                    }
                 }
             }
         } catch {}
     }
+    $caseName = $caseNames -join ", "
+
+    # Item 1058 (vervolg, Bart): "wordt nu alle relevante context meegenomen
+    # in de briefing? ook de relaties en metadata?" - contacten en item-item
+    # relaties stonden nog niet in de briefing, alleen case/context.
+    $contactNames = @()
+    if ($item.contact_ids -and $item.contact_ids.Count -gt 0) {
+        try {
+            $contacts = ApiGet "/mindbox/contacts"
+            foreach ($cid in $item.contact_ids) {
+                $ct = $contacts | Where-Object { $_.id -eq $cid }
+                if ($ct) { $contactNames += (if ($ct.display_name) { "$($ct.display_name) <$($ct.email)>" } else { $ct.email }) }
+            }
+        } catch {}
+    }
+
+    $linkLines = @()
+    if ($item.links -and $item.links.Count -gt 0) {
+        try {
+            $allItems = ApiGet "/mindbox/items"
+            foreach ($l in $item.links) {
+                $other = $allItems | Where-Object { $_.id -eq $l.item_id }
+                $arrow = if ($l.direction -eq "out") { "->" } else { "<-" }
+                $otherName = if ($other) { $other.original_filename } else { $l.item_id }
+                $linkLines += "- $arrow $otherName ($($l.link_type))"
+            }
+        } catch {}
+    }
+
+    # Item 1063 (Bart): "case dirname een naam geven die meer op de naam van
+    # de case lijkt" - mindbox_work/<case-naam>/<item-id>/ i.p.v. plat
+    # mindbox_work/<item-id>/, zodat downloads van 1 case herkenbaar bij
+    # elkaar staan (case-loze items blijven plat onder mindbox_work/).
+    $caseDirName = if ($caseNames.Count -gt 0) { Slugify $caseNames[0] } else { $null }
+    $itemDir = if ($caseDirName) { Join-Path (Join-Path $WorkDir $caseDirName) $item.id } else { Join-Path $WorkDir $item.id }
+    New-Item -ItemType Directory -Force -Path $itemDir | Out-Null
+
+    $localFile = Join-Path $itemDir $item.original_filename
+    ApiDownload "/mindbox/items/$($item.id)/download" $localFile
 
     $md = @"
 # Mindbox item: $($item.original_filename)
@@ -408,6 +545,14 @@ function RunItem([object]$item) {
 - **Geupload**: $($item.created_at)
 - **Case**: $(if ($caseName) { $caseName } else { "(geen)" })
 - **Context/persona**: $(if ($contextName) { $contextName } else { "(geen)" })
+
+## Contacten
+
+$(if ($contactNames.Count -gt 0) { ($contactNames | ForEach-Object { "- $_" }) -join "`n" } else { "(geen contacten gekoppeld)" })
+
+## Relaties met andere bestanden
+
+$(if ($linkLines.Count -gt 0) { $linkLines -join "`n" } else { "(geen relaties)" })
 
 ## Extra info (Bart)
 
@@ -428,11 +573,12 @@ Gedownload naar: ``$localFile``
 ## Na afloop van de sessie
 
 - Status bijwerken: ``.\MindBox.ps1 -Status -Id $($item.id) -Value done -Env $Env``
-$(if ($item.case_id) {
-"- Concept-antwoord posten: ``.\MindBox.ps1 -Respond -CaseId $($item.case_id) -Ids ""$($item.id)"" -Content ""..."" -Env $Env``
-- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $($item.case_id) -Text ""..."" -Env $Env``"
+$(if ($firstCaseId) {
+"- Concept-antwoord/plan/samenvatting posten: schrijf lokaal een .txt/.eml/... weg, dan
+  ``.\MindBox.ps1 -Upload -CaseId $firstCaseId -FilePath <pad> -TargetId $($item.id) -LinkType response_to -Env $Env``
+- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $firstCaseId -Text ""..."" -Env $Env``"
 } else {
-"- Responses horen altijd bij een case - koppel dit item eerst aan een case om een response te kunnen posten."
+"- Gegenereerde content posten kan zonder case, of koppel dit item eerst aan een case."
 })
 "@
     $mdPath = Join-Path $itemDir "briefing.md"
@@ -535,6 +681,52 @@ if ($ContactNote) {
 }
 
 # ---------------------------------------------------------------------------
+# CreateCase / LinkCase / UnlinkCase / LinkItem / UnlinkItem - item 1058
+# (vervolg, Bart): "de link is toch gewoon een MindBoxItem met een
+# relatielink naar de bron" - deze generieke koppel-acties bestonden al als
+# API-endpoint (many-to-many item<->case sinds increment 1, item<->item
+# sinds de relaties-graph), maar hadden nog geen MindBox.ps1-tegenhanger.
+# Nodig om bv. een "verplaats naar case"-recipe (UnlinkCase + LinkCase) in
+# de commando-catalogus te kunnen samenstellen.
+# ---------------------------------------------------------------------------
+if ($CreateCase) {
+    if (-not $Name) { Write-Host "Geef -Name op"; exit 1 }
+    $body = @{ name = $Name }
+    if ($ContextId) { $body.context_id = $ContextId }
+    $case = ApiPost "/mindbox/cases" $body
+    Write-Host "[OK] Case aangemaakt: $($case.name) ($($case.id))"
+    exit 0
+}
+
+if ($LinkCase) {
+    if (-not $Id -or -not $CaseId) { Write-Host "Geef -Id (item) en -CaseId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/items/$Id/cases/$CaseId" -Method POST -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): gekoppeld aan case $CaseId"
+    exit 0
+}
+
+if ($UnlinkCase) {
+    if (-not $Id -or -not $CaseId) { Write-Host "Geef -Id (item) en -CaseId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/items/$Id/cases/$CaseId" -Method DELETE -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): losgekoppeld van case $CaseId"
+    exit 0
+}
+
+if ($LinkItem) {
+    if (-not $Id -or -not $TargetId -or -not $LinkType) { Write-Host "Geef -Id, -TargetId en -LinkType op"; exit 1 }
+    $item = ApiPost "/mindbox/items/$Id/links" @{ target_item_id = $TargetId; link_type = $LinkType }
+    Write-Host "[OK] $($item.original_filename): relatie '$LinkType' gelegd naar $TargetId"
+    exit 0
+}
+
+if ($UnlinkItem) {
+    if (-not $LinkId) { Write-Host "Geef -LinkId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/links/$LinkId" -Method DELETE -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): relatie verwijderd"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
 # UploadAttachment — bijlage van een mail als eigen item opslaan (item 1051:
 # "hoe gaan we om met attachments in een mail?") - erft automatisch het
 # case_id van het ouder-item (-ParentId), server-side geregeld.
@@ -557,25 +749,34 @@ if ($Upload) {
     if (-not $CaseId -or -not $FilePath) { Write-Host "Geef -CaseId en -FilePath op"; exit 1 }
     $params = @{ case_id = $CaseId }
     if ($Force) { $params.force = "true" }
+    # Item 1058 (vervolg, Bart): "als er in de terminal (of externe agent)
+    # een response is voorbereid, moet die kunnen worden geupload met de
+    # juiste parameter (link/linkid/linktype)" - geldt voor ALLE gegenereerde
+    # bestanden (plannen, samenvattingen, plaatjes, ...), niet alleen
+    # concept-antwoorden. Beide of geen van beide meegeven.
+    if ($TargetId -and $LinkType) {
+        $params.link_target_item_id = $TargetId
+        $params.link_type = $LinkType
+    } elseif ($TargetId -or $LinkType) {
+        Write-Host "Geef zowel -TargetId als -LinkType op (of geen van beide)"; exit 1
+    }
     $item = ApiUploadFile "/mindbox/items" $FilePath $params
     Write-Host "[OK] Bestand geupload: $($item.original_filename) ($($item.id))"
     exit 0
 }
 
 # ---------------------------------------------------------------------------
-# Respond — concept-antwoord/rapport posten, met bronvermelding
+# ExportCase — hele case (context+kennis+contacten+bestandenlijst+tijdlijn)
+# als 1 lokaal .md-bestand, los van -LoadSession (die ook alle bestanden zelf
+# downloadt + briefing.md per bestand genereert - dit is puur de samenvatting).
 # ---------------------------------------------------------------------------
-if ($Respond) {
-    if (-not $CaseId -or -not $Content) { Write-Host "Geef -CaseId en -Content op (responses horen altijd bij een case)"; exit 1 }
-    $sourceIds = @()
-    if ($Ids) { $sourceIds = $Ids -split "," | ForEach-Object { $_.Trim() } }
-    # [string[]]-cast is nodig: ConvertTo-Json zet een array met precies 1
-    # element anders om naar een kale JSON-string i.p.v. een array, wat de
-    # backend afwijst (422, list[str] verwacht een array).
-    $body = @{ content = $Content; source_item_ids = [string[]]$sourceIds }
-    if ($ParentId) { $body.parent_response_id = $ParentId }
-    $response = ApiPost "/mindbox/cases/$CaseId/responses" $body
-    Write-Host "[OK] Response aangemaakt: $($response.id)"
+if ($ExportCase) {
+    if (-not $CaseId) { Write-Host "Geef -CaseId op"; exit 1 }
+    $exported = ApiPost "/mindbox/cases/$CaseId/export" @{}
+    New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+    $exportFile = Join-Path $WorkDir $exported.original_filename
+    ApiDownload "/mindbox/items/$($exported.id)/download" $exportFile
+    Write-Host "[OK] Case-export (context/kennis/contacten/tijdlijn/relaties) gedownload naar: $exportFile"
     exit 0
 }
 
@@ -638,8 +839,7 @@ if ($LoadSession) {
     # LET OP: @() moet op een APARTE regel staan, NA de Invoke-RestMethod-
     # aanroep (via ApiGet) - @(ApiGet ...) in 1 statement laat een array van
     # precies 2 elementen inklappen tot Count=1 (verrassende PS 5.1-
-    # eigenaardigheid, empirisch bevestigd 2026-09-02 - zie ook de
-    # [string[]]-castfix bij -Respond, een vergelijkbare array-valkuil).
+    # eigenaardigheid, empirisch bevestigd 2026-09-02).
     $items = ApiGet "/mindbox/items?case_id=$($case.id)"
     $items = @($items)
     Write-Host "`n--- Bestanden ($($items.Count)) - bezig met downloaden + briefing.md per bestand ---"
@@ -647,14 +847,6 @@ if ($LoadSession) {
     foreach ($i in $items) {
         Write-Host " - $($i.original_filename) [$($i.status)]"
         RunItem $i
-    }
-
-    $responses = ApiGet "/mindbox/cases/$($case.id)/responses"
-    $responses = @($responses)
-    Write-Host "`n--- Responses ($($responses.Count)) ---"
-    foreach ($r in $responses) {
-        $preview = $r.content.Substring(0, [Math]::Min(80, $r.content.Length))
-        Write-Host " - [$($r.id)] $preview..."
     }
 
     $events = ApiGet "/mindbox/cases/$($case.id)/events"
@@ -667,8 +859,24 @@ if ($LoadSession) {
         Write-Host $n.description
         Write-Host ""
     }
-    if ($items.Count) { Write-Host "`nBriefing.md per bestand staat in $WorkDir\<item_id>\" }
+
+    # Item 1058 (vervolg, Bart): "wordt nu alle relevante info klaargezet?" -
+    # -LoadSession downloadde tot nu toe alleen de items (via RunItem) - het
+    # case-brede export-bestand (contacten/relaties/tijdlijn samengevat, tot
+    # nu toe alleen via de website-knop "Exporteren" te krijgen) hoort er ook
+    # automatisch bij als je een sessie klaarzet.
+    try {
+        $exported = ApiPost "/mindbox/cases/$($case.id)/export" @{}
+        $caseDir = Join-Path $WorkDir (Slugify $case.name)
+        New-Item -ItemType Directory -Force -Path $caseDir | Out-Null
+        $exportFile = Join-Path $caseDir $exported.original_filename
+        ApiDownload "/mindbox/items/$($exported.id)/download" $exportFile
+        Write-Host "`n--- Case-export (context/kennis/contacten/tijdlijn/relaties) ---"
+        Write-Host "Gedownload naar: $exportFile"
+    } catch {}
+
+    if ($items.Count) { Write-Host "`nBriefing.md per bestand staat in $WorkDir\$(Slugify $case.name)\<item_id>\" }
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -ExportCase | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

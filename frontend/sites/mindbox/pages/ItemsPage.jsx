@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts, unlinkItemContact, listCommands } from '../api.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, linkItemCase, unlinkItemCase, unlinkItems, exportEmail, listContacts, unlinkItemContact, listCommands } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
+import CommandPicker from '../components/CommandPicker.jsx'
+import ImageThumbnail, { isImageItem } from '../components/ImageThumbnail.jsx'
 
 const NEW_CASE_SENTINEL = '__new__'
 
@@ -33,6 +35,7 @@ export default function ItemsPage({ onGoToExisting }) {
   const [dragOver, setDragOver] = useState(false)
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
+  const [expandedLinksId, setExpandedLinksId] = useState(null)
   const fileInputRef = useRef(null)
   const [confirmAction, confirmDialog] = useConfirm()
 
@@ -68,7 +71,7 @@ export default function ItemsPage({ onGoToExisting }) {
         const link = await confirmAction(
           `Dit bestand lijkt gerelateerd aan case "${item.suggested_case_name}" - koppelen?`
         )
-        if (link) await updateItem(item.id, { case_id: item.suggested_case_id })
+        if (link) await linkItemCase(item.id, item.suggested_case_id)
       }
       load()
     } catch (err) {
@@ -139,21 +142,27 @@ export default function ItemsPage({ onGoToExisting }) {
 
   // Bart, item 1051: "ik kan bij een net geuploade file niet direct een
   // case selecteren" - case-koppeling nu ook los, direct in de vlakke
-  // bestandenlijst mogelijk (niet alleen vanuit CaseDetail).
+  // bestandenlijst mogelijk (niet alleen vanuit CaseDetail). Item 1058: een
+  // item kan aan 0+ cases hangen - dit VOEGT TOE (many-to-many), zelfde
+  // semantiek als contact-koppeling.
   async function handleCaseChange(item, caseId) {
+    if (!caseId) return
     if (caseId === NEW_CASE_SENTINEL) {
       // Bart: "of een nieuwe case aanmaken, en koppelen" - in 1 stap vanuit
       // de vlakke bestandenlijst, zonder eerst naar de Cases-tab te gaan.
       const name = window.prompt('Naam van de nieuwe case:')
       if (!name?.trim()) return
       const created = await createCase({ name: name.trim() })
-      await updateItem(item.id, { case_id: created.id })
+      await linkItemCase(item.id, created.id)
       listCases().then(setCases).catch(() => {})
-    } else if (caseId) {
-      await updateItem(item.id, { case_id: caseId })
     } else {
-      await updateItem(item.id, { clear_case: true })
+      await linkItemCase(item.id, caseId)
     }
+    load()
+  }
+
+  async function handleUnlinkCase(item, caseId) {
+    await unlinkItemCase(item.id, caseId)
     load()
   }
 
@@ -175,6 +184,12 @@ export default function ItemsPage({ onGoToExisting }) {
     return items.filter(i => i.parent_item_id === itemId)
   }
 
+  // Item 1058: many-to-many i.p.v. losse case_id - zelfde patroon als
+  // contactsOf hieronder.
+  function casesOf(item) {
+    return cases.filter(c => item.case_ids?.includes(c.id))
+  }
+
   // Item 1052: contact-koppeling gebeurt via MindBox.ps1 -Contact (find-or-
   // create op e-mailadres) - hier alleen tonen wie er al gekoppeld is. Een
   // mail heeft vaak meerdere deelnemers (afzender/to/cc), dus many-to-many.
@@ -186,6 +201,55 @@ export default function ItemsPage({ onGoToExisting }) {
     await unlinkItemContact(item.id, contactId)
     load()
   }
+
+  // Item 1058 (vervolg): generieke item<->item-relaties - het andere item
+  // client-side resolven uit de al-opgehaalde `items`, zelfde patroon als
+  // casesOf/contactsOf hierboven.
+  function linksOf(item) {
+    return (item.links || []).map(l => ({ ...l, other: items.find(i => i.id === l.item_id) }))
+  }
+
+  function toggleLinksPanel(itemId) {
+    setExpandedLinksId(id => (id === itemId ? null : itemId))
+  }
+
+  async function handleUnlinkItems(linkId) {
+    await unlinkItems(linkId)
+    load()
+  }
+
+  // Item 1058 (vervolg): generiek "bewerk deze tekst opnieuw" voor elk item
+  // met text_content, ongeacht waarvoor het gebruikt wordt.
+  const [editingTextId, setEditingTextId] = useState(null)
+  const [editingText, setEditingText] = useState('')
+
+  function startEditText(item) {
+    setEditingTextId(item.id)
+    setEditingText(item.text_content || '')
+  }
+
+  async function saveEditedText(item) {
+    if (!editingText.trim()) return
+    await updateItem(item.id, { text_content: editingText })
+    setEditingTextId(null)
+    load()
+  }
+
+  // Exporteren als .eml vereist een case (voor de "Re: {case}"-subject en de
+  // tijdlijn) - alleen aanbieden als het item aan precies 1 case hangt, om
+  // niet te hoeven kiezen welke case bedoeld is.
+  async function handleExportEmail(item) {
+    const caseId = item.case_ids?.[0]
+    if (!caseId) return
+    await exportEmail(item.id, caseId, item.original_filename.replace(/\.[^.]+$/, '.eml'))
+    load()
+  }
+
+  // Item 1055 (vervolg, Bart): "de echte applicatie-knoppen tonen, en een
+  // dropdown voor het kiezen van een commando... zo is er geen onduidelijk-
+  // heid meer" - dezelfde entity==='File'/param_kind==='id'-filter als
+  // CasesPage.fileCommands, i.p.v. 3 hardcoded pills tussen de echte knoppen.
+  const fileCommands = commands.filter(c => c.entity === 'File' && c.param_kind === 'id')
 
   return (
     <div
@@ -241,14 +305,21 @@ export default function ItemsPage({ onGoToExisting }) {
             style={{
               display: 'grid', gridTemplateColumns: '1fr 130px 160px 1fr auto', gap: 12, alignItems: 'start',
               padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id) ? '8px 8px 0 0' : 8,
+              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id || expandedLinksId === item.id || editingTextId === item.id) ? '8px 8px 0 0' : 8,
             }}
           >
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{item.original_filename}</div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>
+                {/* Item 1058 (vervolg): geen apart "response"-concept meer -
+                    text_content geeft aan dat dit een bewerkbaar/gegenereerd
+                    tekstbestand is, ongeacht waarvoor het gebruikt wordt. */}
+                {item.text_content != null && <span title="Tekstbestand (bewerkbaar)" style={{ marginRight: 4 }}>📝</span>}
+                {item.original_filename}
+              </div>
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 {fmtSize(item.size_bytes)} · {fmtDate(item.created_at)}
               </div>
+              {isImageItem(item) && <ImageThumbnail itemId={item.id} />}
               {!!contactsOf(item).length && (
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                   {contactsOf(item).map(c => (
@@ -270,20 +341,32 @@ export default function ItemsPage({ onGoToExisting }) {
                 <option key={o.value} value={o.value}>
                   {/* Item 1051 (Bart): eenmaal gekoppeld aan een case is
                       "Nieuw" niet meer accuraat - het is dan al getriaged. */}
-                  {o.value === 'new' && item.case_id ? 'Gekoppeld' : o.label}
+                  {o.value === 'new' && item.case_ids?.length ? 'Gekoppeld' : o.label}
                 </option>
               ))}
             </select>
 
-            <select
-              value={item.case_id || ''}
-              onChange={e => handleCaseChange(item, e.target.value)}
-              style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-            >
-              <option value="">Geen case</option>
-              {cases.map(c => <option key={c.id} value={c.id}>📁 {c.name}</option>)}
-              <option value={NEW_CASE_SENTINEL}>+ Nieuwe case...</option>
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {!!casesOf(item).length && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {casesOf(item).map(c => (
+                    <span key={c.id} title={c.name} style={{ fontSize: 11, padding: '1px 6px', border: '1px solid var(--color-border)', borderRadius: 99 }}>
+                      📁 {c.name}
+                      <span onClick={() => handleUnlinkCase(item, c.id)} title="Loskoppelen" style={{ marginLeft: 3, cursor: 'pointer' }}>✕</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <select
+                value=""
+                onChange={e => handleCaseChange(item, e.target.value)}
+                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+              >
+                <option value="">+ Case toevoegen</option>
+                {cases.filter(c => !item.case_ids?.includes(c.id)).map(c => <option key={c.id} value={c.id}>📁 {c.name}</option>)}
+                <option value={NEW_CASE_SENTINEL}>+ Nieuwe case...</option>
+              </select>
+            </div>
 
             <textarea
               defaultValue={item.notes || ''}
@@ -295,28 +378,9 @@ export default function ItemsPage({ onGoToExisting }) {
               }}
             />
 
-            <div style={{ display: 'flex', gap: 6 }}>
-              {findCommand('File.Enhance') && (
-                <CopyButton
-                  text={buildCommandString(findCommand('File.Enhance'), item.id, env)}
-                  icon={findCommand('File.Enhance').icon}
-                  title="Kopieer commando om extra info aan dit bestand toe te voegen"
-                />
-              )}
-              {findCommand('File.ParseToTekst') && (
-                <CopyButton
-                  text={buildCommandString(findCommand('File.ParseToTekst'), item.id, env)}
-                  icon={findCommand('File.ParseToTekst').icon}
-                  title="Kopieer commando om de tekst van dit bestand te laten extraheren"
-                />
-              )}
-              {findCommand('File.ExtractAttachments') && (
-                <CopyButton
-                  text={buildCommandString(findCommand('File.ExtractAttachments'), item.id, env)}
-                  icon={findCommand('File.ExtractAttachments').icon}
-                  title="Kopieer commando om bijlagen uit dit bestand te extraheren"
-                />
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+              {/* Panel 1: echte applicatie-knoppen */}
+              <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={() => downloadItem(item.id, item.original_filename)}
                 title="Downloaden"
@@ -324,14 +388,22 @@ export default function ItemsPage({ onGoToExisting }) {
               >
                 ⬇
               </button>
+              {item.text_content != null && (
+                <>
+                  <button onClick={() => startEditText(item)} title="Bewerken" style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
+                  {item.case_ids?.length === 1 && (
+                    <button onClick={() => handleExportEmail(item)} title="Exporteer als .eml, klaar voor verzending" style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
+                  )}
+                </>
+              )}
               <button
                 onClick={() => handleDelete(item)}
-                disabled={!!item.case_id}
-                title={item.case_id ? 'Gekoppeld aan een case - ontkoppel eerst (in de case) om te kunnen verwijderen' : 'Verwijderen'}
+                disabled={!!item.case_ids?.length}
+                title={item.case_ids?.length ? 'Gekoppeld aan een case - ontkoppel eerst (in de case) om te kunnen verwijderen' : 'Verwijderen'}
                 style={{
                   padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent',
-                  color: item.case_id ? 'var(--color-text-muted)' : 'var(--color-danger)',
-                  cursor: item.case_id ? 'not-allowed' : 'pointer', opacity: item.case_id ? 0.5 : 1,
+                  color: item.case_ids?.length ? 'var(--color-text-muted)' : 'var(--color-danger)',
+                  cursor: item.case_ids?.length ? 'not-allowed' : 'pointer', opacity: item.case_ids?.length ? 0.5 : 1,
                 }}
               >
                 ✕
@@ -354,6 +426,18 @@ export default function ItemsPage({ onGoToExisting }) {
                   📎 {attachmentsOf(item.id).length}
                 </button>
               )}
+              <button
+                onClick={() => toggleLinksPanel(item.id)}
+                title="Relaties met andere bestanden tonen/bewerken"
+                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
+              >
+                🔗{linksOf(item).length ? ` ${linksOf(item).length}` : ''}
+              </button>
+              </div>
+              {/* Panel 2: terminal-commando kiezen */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', paddingTop: 6, borderTop: '1px solid var(--color-border)' }}>
+                <CommandPicker commands={fileCommands} param={item.id} env={env} />
+              </div>
             </div>
           </div>
           {expandedParsedId === item.id && item.parsed_text && (
@@ -363,6 +447,22 @@ export default function ItemsPage({ onGoToExisting }) {
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>GEPARSTE TEKST VAN HET BESTAND</div>
               {item.parsed_text}
+            </div>
+          )}
+          {editingTextId === item.id && (
+            <div style={{
+              padding: '10px 16px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+              borderRadius: '0 0 8px 8px', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              <textarea
+                value={editingText}
+                onChange={e => setEditingText(e.target.value)}
+                style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                <button onClick={() => setEditingTextId(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
+                <button onClick={() => saveEditedText(item)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+              </div>
             </div>
           )}
           {expandedAttachmentsId === item.id && !!attachmentsOf(item.id).length && (
@@ -385,6 +485,29 @@ export default function ItemsPage({ onGoToExisting }) {
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+          {expandedLinksId === item.id && (
+            <div style={{
+              padding: '10px 16px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+              borderRadius: '0 0 8px 8px', fontSize: 12,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, color: 'var(--color-text-muted)' }}>RELATIES MET ANDERE BESTANDEN</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {linksOf(item).map(l => (
+                  <span key={l.link_id} style={{ padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99 }}>
+                    {l.direction === 'out' ? '→' : '←'} {l.other?.original_filename || l.item_id} ({l.link_type})
+                    <span onClick={() => handleUnlinkItems(l.link_id)} title="Loskoppelen" style={{ marginLeft: 4, cursor: 'pointer' }}>✕</span>
+                  </span>
+                ))}
+                {!linksOf(item).length && <span style={{ color: 'var(--color-text-muted)' }}>Nog geen relaties.</span>}
+              </div>
+              {/* Item 1058 (vervolg, Bart): het select+select+knop-formulier
+                  hier was omslachtig - nieuwe relaties leggen kan nu in de
+                  "🔗 Relatie-graph" binnen een case (2 bestanden aanklikken). */}
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                Nieuwe relatie leggen? Open de case van dit bestand en gebruik de "🔗 Relatie-graph".
               </div>
             </div>
           )}
