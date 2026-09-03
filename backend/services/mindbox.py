@@ -1,5 +1,6 @@
 import difflib
 import hashlib
+import io
 import re
 import uuid
 from datetime import datetime
@@ -7,6 +8,11 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from pathlib import Path
 
+import docx
+import extract_msg
+import pymupdf
+import pytesseract
+from PIL import Image
 from sqlmodel import Session, col, select
 
 from core.exceptions import AppError
@@ -160,12 +166,194 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
     return None
 
 
+_HTML_STYLE_SCRIPT_RE = re.compile(r"<(style|script)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _html_to_text(html: str) -> str:
+    """Ruwe HTML-body van een .msg naar leesbare platte tekst - puur voor
+    parsed_text (nooit als HTML gerenderd in de UI, zie ImageThumbnail/
+    item 1068: geen HTML-preview van mail-bodies i.v.m. trackingpixels/
+    misleidende links, ook niet gesandboxed)."""
+    text = _HTML_STYLE_SCRIPT_RE.sub("", html)
+    text = _HTML_TAG_RE.sub(" ", text)
+    text = text.replace("&nbsp;", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(lines)
+
+
+def _extract_pdf(content: bytes) -> tuple[str | None, bytes | None]:
+    """Item 1068: mechanische tekst-extractie + pagina-1-preview via
+    PyMuPDF - geen LLM nodig. (None, None) bij een corrupt bestand; lege/
+    None tekst bij een gescande PDF zonder tekstlaag (dan blijft de
+    handmatige/LLM-stap in File.ParseToTekst nodig)."""
+    try:
+        doc = pymupdf.open(stream=content, filetype="pdf")
+    except Exception:
+        return None, None
+    try:
+        parts = [page.get_text() for page in doc]
+        text = "\n\n".join(p.strip() for p in parts if p.strip()) or None
+        preview = None
+        if len(doc) > 0:
+            try:
+                preview = doc[0].get_pixmap(dpi=150).tobytes("png")
+            except Exception:
+                preview = None
+        return text, preview
+    finally:
+        doc.close()
+
+
+def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str | None]], str | None]:
+    """Item 1068: mechanische extractie van mail-body + bijlagen via
+    extract-msg - geen LLM nodig. Bijlagen worden hier alleen VERZAMELD
+    (echt aanmaken als child-item gebeurt in save_upload, ná het committen
+    van het ouder-item, want daar is item.id voor nodig). Geeft ook het
+    ruwe onderwerp terug (item 1069: gebruikt om gerelateerde/eerdere
+    mails te detecteren en te linken)."""
+    try:
+        msg = extract_msg.openMsg(io.BytesIO(content))
+    except Exception:
+        return None, [], None
+    try:
+        body = msg.body
+        if not body and msg.htmlBody:
+            html = msg.htmlBody
+            if isinstance(html, bytes):
+                html = html.decode("utf-8", errors="replace")
+            body = _html_to_text(html)
+        header = f"Van: {msg.sender}\nAan: {msg.to}\nOnderwerp: {msg.subject}\nDatum: {msg.date}\n\n"
+        text = (header + (body or "")).strip() or None
+
+        attachments: list[tuple[str, bytes, str | None]] = []
+        for att in msg.attachments:
+            try:
+                # Outlook-bijlagenamen bevatten soms een trailing NULL-byte
+                # (bv. "factuur.pdf\x00", geen spatie zoals het er in een
+                # terminal uitziet) - Path(...).suffix neemt dat mee in de
+                # extensie (".pdf\x00"), wat nooit in ALLOWED_EXTENSIONS
+                # staat, dus de bijlage-upload faalde stil (opgevangen door
+                # de except AppError in save_upload's bijlagen-loop, geen
+                # foutmelding zichtbaar - bug gevonden na Bart's melding "zie
+                # ik niet"). .strip() alleen is NIET genoeg: NULL is geen
+                # whitespace voor Python's str.strip().
+                att_name = (att.getFilename() or "").replace("\x00", "").strip()
+                att_bytes = att.data
+                if att_name and isinstance(att_bytes, (bytes, bytearray)):
+                    attachments.append((att_name, bytes(att_bytes), getattr(att, "mimetype", None)))
+            except Exception:
+                continue
+        return text, attachments, msg.subject
+    except Exception:
+        return None, [], None
+    finally:
+        msg.close()
+
+
+def _extract_docx(content: bytes) -> str | None:
+    """Item 1068: mechanische tekst-extractie via python-docx - geen LLM nodig."""
+    try:
+        document = docx.Document(io.BytesIO(content))
+        text = "\n".join(p.text for p in document.paragraphs if p.text.strip())
+        return text or None
+    except Exception:
+        return None
+
+
+_OCR_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+
+
+def _extract_image_text(content: bytes) -> str | None:
+    """Item 1068 (Bart): 'laten we ook kijken naar picture to tekst' - OCR
+    via pytesseract (Tesseract-binary, Nederlands + Engels), geen LLM nodig.
+    Vereist tesseract-ocr in de Docker-image (zie Dockerfile) - lokaal
+    zonder die binary faalt dit stil en blijft het manueel/LLM (bv. het
+    model dat de afbeelding zelf leest)."""
+    try:
+        image = Image.open(io.BytesIO(content))
+        text = pytesseract.image_to_string(image, lang="nld+eng")
+        return text.strip() or None
+    except Exception:
+        return None
+
+
+def _auto_extract(ext: str, content: bytes) -> tuple[str | None, bytes | None, list[tuple[str, bytes, str | None]]]:
+    """Item 1068 (Bart): 'minder tokens verbranden' - mechanische extractie
+    (geen LLM) voor bestandstypen waar dat kan, bij upload i.p.v. via een
+    losse manual/LLM-stap (File.ParseToTekst). Retourneert
+    (parsed_text, preview_png, bijlagen) - elk optioneel/leeg als extractie
+    niets oplevert of het bestandstype hier niet voor in aanmerking komt."""
+    if ext == ".pdf":
+        text, preview = _extract_pdf(content)
+        return text, preview, [], None
+    if ext == ".msg":
+        text, attachments, subject = _extract_msg(content)
+        return text, None, attachments, subject
+    if ext == ".docx":
+        return _extract_docx(content), None, [], None
+    if ext in _OCR_EXTENSIONS:
+        return _extract_image_text(content), None, [], None
+    return None, None, [], None
+
+
+_ONDERWERP_RE = re.compile(r"^Onderwerp:\s*(.*)$", re.MULTILINE)
+
+
+def _normalize_subject(subject: str) -> str:
+    """Item 1069: onderwerp normaliseren voor thread-matching - zelfde
+    Re:/Fwd:-voorvoegsel-strip als _normalize_filename_stem, maar dan
+    herhaald (een mail kan "Re: Re: Fwd: ..." worden na een lange thread)."""
+    stem = subject.strip()
+    while True:
+        stripped = _REPLY_PREFIX_RE.sub("", stem).strip()
+        if stripped == stem:
+            return stem.lower()
+        stem = stripped
+
+
+def _link_related_msg_items(session: Session, user: User, item: MindboxItem, subject: str) -> None:
+    """Item 1069 (Bart): 'stel ik upload mijn relevante email van een hele
+    dag, dan is de kans aanwezig dat er verschillende mailtjes replies zijn
+    op elkaar... we kunnen die dus meteen linken' - onderwerp (na strippen
+    van Re:/Fwd:) vergelijken met al geuploade .msg-items van dezelfde
+    gebruiker; bij een match de meest recent geuploade kandidaat linken als
+    reply_to. Heuristiek (geen echte thread-reconstructie via Message-ID),
+    dus bewust een BEST-EFFORT verrijking - nooit de upload zelf laten falen."""
+    normalized = _normalize_subject(subject)
+    if not normalized:
+        return
+    candidates = session.exec(
+        select(MindboxItem)
+        .where(
+            MindboxItem.user_id == user.id,
+            MindboxItem.id != item.id,
+            col(MindboxItem.original_filename).ilike("%.msg"),
+            col(MindboxItem.parsed_text).is_not(None),
+        )
+        .order_by(col(MindboxItem.created_at).desc())
+    ).all()
+    for candidate in candidates:
+        match = _ONDERWERP_RE.search(candidate.parsed_text or "")
+        if match and _normalize_subject(match.group(1)) == normalized:
+            session.add(MindboxItemLink(item_id=item.id, link_type="reply_to", target_item_id=candidate.id))
+            session.commit()
+            return
+
+
 def save_upload(
     session: Session, user: User, filename: str, content: bytes, content_type: str | None,
     case_id: str | None = None, force: bool = False, parent_item_id: str | None = None,
     link_target_item_id: str | None = None, link_type: str | None = None,
 ) -> tuple[MindboxItem, "MindboxCase | None"]:
-    ext = Path(filename or "upload").suffix.lower()
+    # Outlook-bijlagenamen bevatten soms een trailing NULL-byte of spatie
+    # (bv. "factuur.pdf\x00") - Path(...).suffix neemt dat anders mee in de
+    # extensie (".pdf\x00"), wat nooit in ALLOWED_EXTENSIONS staat en de
+    # upload onterecht laat falen. Eenmalig opschonen, gebruikt door alle
+    # andere plekken in deze functie die filename verder gebruiken.
+    filename = (filename or "upload").replace("\x00", "").strip()
+    ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
         raise AppError(f"Bestandsextensie niet toegestaan: {ext or '(geen)'}. Toegestaan: {allowed}", status_code=400)
@@ -230,7 +418,14 @@ def save_upload(
         except UnicodeDecodeError:
             text_content = None
 
+    # Item 1068 (Bart): "minder tokens verbranden" - mechanische extractie
+    # (PyMuPDF/extract-msg/python-docx, geen LLM) i.p.v. altijd te wachten op
+    # de handmatige/LLM-stap in File.ParseToTekst. Bijlagen uit een .msg
+    # worden pas ná het committen van dit item aangemaakt (item.id nodig).
+    parsed_text, preview_bytes, pending_attachments, msg_subject = _auto_extract(ext, content)
+
     rel_path = _write_bytes(user.id, ext, content)
+    preview_path = _write_bytes(user.id, ".png", preview_bytes) if preview_bytes else None
     item = MindboxItem(
         user_id=user.id,
         original_filename=original_filename,
@@ -240,11 +435,19 @@ def save_upload(
         content_hash=content_hash,
         parent_item_id=parent_item_id,
         text_content=text_content,
+        parsed_text=parsed_text,
+        preview_path=preview_path,
     )
     session.add(item)
     session.commit()
     session.refresh(item)
 
+    # Item 1068 (vervolg, Bart): "die zie ik niet terug" - dit item MOET al
+    # zijn eigen case-koppeling(en) hebben VOORDAT bijlagen worden verwerkt,
+    # want die erven ze via get_item_case_ids(parent_item_id) hieronder. Stond
+    # eerst na de bijlagen-loop, waardoor elke automatisch geextraheerde
+    # bijlage een lege case-lijst erfde (bestond wel, maar onzichtbaar in elke
+    # case-gescoped view).
     event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
     linked_case_ids = inherited_case_ids if parent_item_id is not None else ([case_id] if case_id is not None else [])
     for cid in linked_case_ids:
@@ -254,6 +457,31 @@ def save_upload(
         session.add(MindboxItemLink(item_id=item.id, link_type=link_type, target_item_id=link_target_item_id))
     if linked_case_ids or link_target_item_id is not None:
         session.commit()
+
+    for att_name, att_bytes, att_content_type in pending_attachments:
+        try:
+            save_upload(session, user, att_name, att_bytes, att_content_type, parent_item_id=item.id)
+        except AppError as att_error:
+            # Item 1068 (vervolg, Bart): "die zie ik niet terug" (2e keer) -
+            # dezelfde bijlage (bv. eenzelfde factuur-PDF) komt vaak in
+            # meerdere losse mails/cases voor. content_hash-deduplicatie
+            # blokkeert dan een nieuwe upload (409), maar het BESTAANDE
+            # exemplaar hing alleen aan zijn EERSTE case - hier alsnog aan
+            # de huidige case('s) koppelen i.p.v. de bijlage stil te laten
+            # verdwijnen. Andere fouten (bv. extensie niet toegestaan)
+            # blijven wel gewoon overgeslagen.
+            if att_error.code == "mindbox_duplicate_file" and att_error.extra:
+                existing_id = att_error.extra.get("item_id")
+                existing_case_ids = set(att_error.extra.get("case_ids") or [])
+                for cid in linked_case_ids:
+                    if cid not in existing_case_ids:
+                        session.add(MindboxItemLink(item_id=existing_id, link_type=LINK_CASE_MEMBER, target_case_id=cid))
+                if linked_case_ids:
+                    session.commit()
+            continue
+
+    if msg_subject:
+        _link_related_msg_items(session, user, item, msg_subject)
 
     # Alleen suggereren als het bestand nog geen case heeft (en geen bijlage
     # is - een bijlage heeft de case(s) van de ouder al) - anders is de vraag
@@ -313,6 +541,7 @@ def item_to_dict(session: Session, item: MindboxItem) -> dict:
         "notes": item.notes,
         "parsed_text": item.parsed_text,
         "text_content": item.text_content,
+        "has_preview": item.preview_path is not None,
         "parent_item_id": item.parent_item_id,
         "kind": item.kind,
         "case_ids": get_item_case_ids(session, item.id),
@@ -413,6 +642,19 @@ def get_item_file_path(session: Session, user: User, item_id: str) -> tuple[Path
     if not abs_path.is_file():
         raise AppError("Bestand niet gevonden op schijf", status_code=404)
     return abs_path, item
+
+
+def get_item_preview_path(session: Session, user: User, item_id: str) -> Path:
+    """Item 1068: losse route voor de automatisch gegenereerde preview-
+    afbeelding (bv. pagina 1 van een .pdf) - analoog aan get_item_file_path,
+    maar preview_path i.p.v. file_path."""
+    item = get_item(session, user, item_id)
+    if not item.preview_path:
+        raise AppError("Geen preview beschikbaar voor dit bestand", status_code=404)
+    abs_path = _safe_path(user.id, Path(item.preview_path).name)
+    if not abs_path.is_file():
+        raise AppError("Preview niet gevonden op schijf", status_code=404)
+    return abs_path
 
 
 def export_email(session: Session, user: User, item_id: str, case_id: str) -> bytes:

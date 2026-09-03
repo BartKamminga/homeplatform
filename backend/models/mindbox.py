@@ -109,6 +109,11 @@ class MindboxItem(SQLModel, table=True):
     # brontekst van het bestand zelf, en her-materialiseerbaar via
     # services.update_item/_materialize_item_bytes.
     text_content:      Optional[str] = Field(default=None)
+    # Item 1068: automatisch gegenereerde voorbeeldafbeelding (bv. pagina 1
+    # van een .pdf) - relatief pad onder UPLOAD_ROOT, zelfde conventie als
+    # file_path. Los veld i.p.v. een eigen MindboxItem, zodat een preview
+    # geen aparte rij in de bestandenlijst wordt.
+    preview_path:      Optional[str] = Field(default=None)
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
 

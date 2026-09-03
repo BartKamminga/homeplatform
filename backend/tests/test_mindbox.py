@@ -3,6 +3,8 @@ delete van persoonsgebonden bestanden, plus generieke tekstitems met een
 optionele link naar hun bron (item 1058)."""
 import io
 
+import docx
+import pymupdf
 import pytest
 
 import services.mindbox as svc
@@ -103,6 +105,208 @@ def test_upload_rejects_file_too_large(client, user_token):
     big_content = b"x" * (26 * 1024 * 1024)  # boven MAX_SIZE_MB=25
     res = _upload(client, user_token, content=big_content)
     assert res.status_code == 400
+
+
+def _make_pdf_bytes(text: str) -> bytes:
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), text)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    return pdf_bytes
+
+
+def _make_docx_bytes(paragraphs: list[str]) -> bytes:
+    document = docx.Document()
+    for p in paragraphs:
+        document.add_paragraph(p)
+    buf = io.BytesIO()
+    document.save(buf)
+    return buf.getvalue()
+
+
+def test_uploading_a_pdf_auto_extracts_text_and_generates_a_preview(client, user_token):
+    """Item 1068 (Bart): 'minder tokens verbranden' - mechanische extractie
+    (PyMuPDF) i.p.v. altijd te wachten op de handmatige/LLM-stap."""
+    pdf_bytes = _make_pdf_bytes("Automatisch geextraheerde PDF-tekst")
+    res = _upload(client, user_token, filename="briefje.pdf", content=pdf_bytes, content_type="application/pdf")
+    assert res.status_code == 200
+    data = res.json()
+    assert "Automatisch geextraheerde PDF-tekst" in data["parsed_text"]
+    assert data["has_preview"] is True
+
+    preview = client.get(f"/api/mindbox/items/{data['id']}/preview", headers=_auth(user_token))
+    assert preview.status_code == 200
+    assert preview.headers["content-type"] == "image/png"
+
+
+def test_uploading_a_docx_auto_extracts_text(client, user_token):
+    docx_bytes = _make_docx_bytes(["Eerste alinea.", "Tweede alinea met meer tekst."])
+    res = _upload(
+        client, user_token, filename="verslag.docx", content=docx_bytes,
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "Eerste alinea." in data["parsed_text"]
+    assert "Tweede alinea met meer tekst." in data["parsed_text"]
+    assert data["has_preview"] is False
+
+
+def test_uploading_an_unparsable_msg_does_not_crash_and_leaves_parsed_text_empty(client, user_token):
+    """De testfixture-.msg elders in dit bestand is geen echt Outlook-
+    compound-bestand - auto-extractie moet dat stil opvangen (fallback op
+    de bestaande handmatige/LLM-stap in File.ParseToTekst) i.p.v. de hele
+    upload te laten falen."""
+    res = _upload(client, user_token, filename="niet-echt.msg", content=b"dit is geen geldig .msg-bestand")
+    assert res.status_code == 200
+    assert res.json()["parsed_text"] is None
+
+
+def test_auto_extracted_attachment_inherits_the_mails_case(client, user_token, monkeypatch):
+    """Bart: '.msg heeft attachments, maar die zie ik niet terug' - volgorde-
+    bug: de bijlagen-loop liep VOOR de case-koppeling van het mail-item zelf,
+    waardoor een automatisch geextraheerde bijlage altijd een lege case-lijst
+    erfde (get_item_case_ids op een nog niet gekoppeld ouder-item) - bestond
+    wel, maar was onzichtbaar in elke case-gescoped view. Dit test de .msg-
+    upload-in-1-keer-met-case_id-flow (i.p.v. los uploaden + later linken,
+    zoals test_upload_an_attachment_inherits_the_parents_case al dekt)."""
+    def fake_extract_msg(content):
+        text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Factuur\nDatum: 2026-08-01 09:00:00\n\nZie bijlage."
+        return text, [("factuur.pdf", b"%PDF-1.4 fake pdf bytes", "application/pdf")], "Factuur"
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    case_id = _case(client, user_token, "Mail met bijlage in 1 keer")
+    mail = client.post(
+        "/api/mindbox/items", params={"case_id": case_id},
+        files={"file": ("mail.msg", io.BytesIO(b"mail"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert mail.status_code == 200
+
+    attachments = client.get(f"/api/mindbox/items/{mail.json()['id']}/attachments", headers=_auth(user_token)).json()
+    assert len(attachments) == 1
+    assert attachments[0]["case_ids"] == [case_id]
+
+
+def test_reuploading_a_mail_with_a_duplicate_attachment_links_the_existing_one_to_the_new_case(client, user_token, monkeypatch):
+    """Bart: 'die zie ik niet terug' (2e keer, andere oorzaak) - dezelfde
+    factuur-PDF komt vaak in meerdere losse mails/cases voor (bv. een
+    doorgestuurd of opnieuw gedownload mailtje). content_hash-deduplicatie
+    blokkeert dan een nieuwe upload van de bijlage (409) omdat 'ie al
+    bestaat, maar dat bestaande exemplaar hing alleen aan zijn EERSTE case -
+    hij moet ook aan een 2e case gekoppeld worden i.p.v. stil te verdwijnen."""
+    def fake_extract_msg(content):
+        text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Factuur\nDatum: 2026-08-01 09:00:00\n\nZie bijlage."
+        return text, [("factuur.pdf", b"identieke pdf-bytes", "application/pdf")], "Factuur"
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    case_a = _case(client, user_token, "Case A")
+    case_b = _case(client, user_token, "Case B")
+
+    first_mail = client.post(
+        "/api/mindbox/items", params={"case_id": case_a},
+        files={"file": ("mail1.msg", io.BytesIO(b"mail1"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert first_mail.status_code == 200
+    first_attachment_id = client.get(
+        f"/api/mindbox/items/{first_mail.json()['id']}/attachments", headers=_auth(user_token)
+    ).json()[0]["id"]
+
+    second_mail = client.post(
+        "/api/mindbox/items", params={"case_id": case_b},
+        files={"file": ("mail2.msg", io.BytesIO(b"mail2 - andere bytes dan mail1"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert second_mail.status_code == 200
+
+    # Geen NIEUWE bijlage aangemaakt onder mail2 (content_hash-duplicaat) -
+    # het bestaande exemplaar moet nu wel aan case_b gekoppeld zijn.
+    assert client.get(f"/api/mindbox/items/{second_mail.json()['id']}/attachments", headers=_auth(user_token)).json() == []
+    items = client.get("/api/mindbox/items", params={"case_id": case_b}, headers=_auth(user_token)).json()
+    assert any(i["id"] == first_attachment_id for i in items)
+
+
+def test_link_related_msg_items_matches_on_normalized_subject(client, user_token, regular_user, session):
+    """Item 1069 (Bart): 'stel ik upload mijn relevante email van een hele
+    dag... we kunnen die dus meteen linken' - test de matching-heuristiek
+    rechtstreeks op service-niveau (geen echt .msg-bestand nodig, want
+    extract-msg heeft geen writer om er zelf een te genereren) door 2 items
+    te simuleren zoals _extract_msg ze zou opleveren (parsed_text met een
+    'Onderwerp:'-regel)."""
+    first_id = _upload(
+        client, user_token, filename="origineel.msg",
+        content=b"eerste mail placeholder bytes",
+    ).json()["id"]
+    first = session.get(svc.MindboxItem, first_id)
+    first.parsed_text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Vraag over de planning\nDatum: 2026-08-01 09:00:00\n\nInhoud."
+    session.add(first)
+    session.commit()
+
+    second_id = _upload(
+        client, user_token, filename="antwoord.msg",
+        content=b"tweede mail placeholder bytes",
+    ).json()["id"]
+    second = session.get(svc.MindboxItem, second_id)
+
+    svc._link_related_msg_items(session, regular_user, second, "RE: Vraag over de planning")
+
+    links = svc.get_item_links(session, second.id)
+    assert links == [{"link_id": links[0]["link_id"], "item_id": first.id, "link_type": "reply_to", "direction": "out"}]
+
+
+def test_uploading_a_reply_msg_auto_links_to_the_original(client, user_token, monkeypatch):
+    """Integratietest van de volledige upload-flow (i.p.v. rechtstreeks
+    _link_related_msg_items aan te roepen) - _extract_msg gemockt omdat
+    extract-msg geen writer heeft om zelf een geldig .msg-bestand te maken."""
+    subjects = iter(["Vraag over de planning", "RE: Vraag over de planning"])
+
+    def fake_extract_msg(content):
+        subject = next(subjects)
+        text = f"Van: a@x.nl\nAan: b@x.nl\nOnderwerp: {subject}\nDatum: 2026-08-01 09:00:00\n\nInhoud."
+        return text, [], subject
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    original_id = _upload(client, user_token, filename="origineel.msg", content=b"origineel").json()["id"]
+    reply = _upload(client, user_token, filename="antwoord.msg", content=b"antwoord")
+
+    assert reply.status_code == 200
+    assert reply.json()["links"] == [
+        {"link_id": reply.json()["links"][0]["link_id"], "item_id": original_id, "link_type": "reply_to", "direction": "out"}
+    ]
+
+
+def test_uploading_a_msg_with_a_null_byte_attachment_name_still_extracts_it(client, user_token, monkeypatch):
+    """Bart: 'heeft attachments, maar die zie ik niet terug' - Outlook geeft
+    soms een bijlagenaam terug met een trailing NULL-byte (bv.
+    "factuur.pdf\x00", ziet er in een terminal uit als een spatie), waardoor
+    Path(...).suffix ".pdf\x00" oplevert - nooit in ALLOWED_EXTENSIONS, dus
+    de bijlage-upload faalde stil in de except AppError: continue van de
+    bijlagen-loop. .strip() alleen is NIET genoeg (NULL is geen whitespace) -
+    _extract_msg/save_upload moeten NULL-bytes expliciet wegfilteren."""
+    def fake_extract_msg(content):
+        text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Factuur\nDatum: 2026-08-01 09:00:00\n\nZie bijlage."
+        return text, [("factuur.pdf\x00", b"%PDF-1.4 fake pdf bytes", "application/pdf")], "Factuur"
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    mail = _upload(client, user_token, filename="mail-met-bijlage.msg", content=b"mail")
+    assert mail.status_code == 200
+    mail_id = mail.json()["id"]
+
+    attachments = client.get(f"/api/mindbox/items/{mail_id}/attachments", headers=_auth(user_token)).json()
+    assert len(attachments) == 1
+    assert attachments[0]["original_filename"] == "factuur.pdf"
+
+
+def test_preview_endpoint_404s_when_there_is_no_preview(client, user_token):
+    item_id = _upload(client, user_token).json()["id"]
+    res = client.get(f"/api/mindbox/items/{item_id}/preview", headers=_auth(user_token))
+    assert res.status_code == 404
 
 
 def test_update_status_and_notes(client, user_token):

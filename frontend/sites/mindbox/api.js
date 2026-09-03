@@ -82,6 +82,18 @@ export async function fetchItemBlobUrl(id) {
   return URL.createObjectURL(blob)
 }
 
+// Item 1068: automatisch gegenereerde voorbeeldafbeelding (bv. pagina 1 van
+// een .pdf) - los endpoint van /download, dat het originele bestand geeft.
+export async function fetchItemPreviewBlobUrl(id) {
+  const token = localStorage.getItem('hp_token')
+  const res = await fetch(`/api/mindbox/items/${id}/preview`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Ophalen mislukt')
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
 // ---------------------------------------------------------------------------
 // Cases (container die items/responses aan elkaar koppelt)
 // ---------------------------------------------------------------------------
