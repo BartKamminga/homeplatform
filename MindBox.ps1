@@ -7,6 +7,7 @@
 #   .\MindBox.ps1 -ListCases                                          # toon cases
 #   .\MindBox.ps1 -ListContexts                                       # toon contexts
 #   .\MindBox.ps1 -ListKnowledge                                      # toon kennis-items
+#   .\MindBox.ps1 -UpdateKnowledge -Name "<naam>" -Text "..."          # kennis-item bijwerken (find-or-create op naam)
 #   .\MindBox.ps1 -Get -Id <item_id>                                  # 1 item in detail
 #   .\MindBox.ps1 -Run -Id <item_id>                                  # download bestand + briefing-.md in mindbox_work/
 #   .\MindBox.ps1 -Run -All                                           # hetzelfde voor alle nog niet-afgeronde items
@@ -48,6 +49,7 @@ param(
     [switch]$ListCases,
     [switch]$ListContexts,
     [switch]$ListKnowledge,
+    [switch]$UpdateKnowledge,
     [switch]$Get,
     [switch]$Run,
     [switch]$Status,
@@ -290,6 +292,22 @@ if ($ListKnowledge) {
     foreach ($k in $knowledge) {
         Write-Host ("{0,-38} {1}" -f $k.id, $k.name)
     }
+    exit 0
+}
+
+# Item 1057 (Bart): "Knowledge items kunnen updaten" - find-or-create op naam,
+# zelfde patroon als -ContactNote hierboven, zodat een recipe een kennis-item
+# kan bijwerken (of aanmaken) zonder eerst de ID te hoeven opzoeken.
+if ($UpdateKnowledge) {
+    if (-not $Name -or -not $Text) { Write-Host "Geef -Name en -Text op"; exit 1 }
+    $existing = ApiGet "/mindbox/knowledge"
+    $existing = @($existing | Where-Object { $_.name -eq $Name })
+    if ($existing.Count -gt 0) {
+        $entry = ApiPatch "/mindbox/knowledge/$($existing[0].id)" @{ content = $Text }
+    } else {
+        $entry = ApiPost "/mindbox/knowledge" @{ name = $Name; content = $Text }
+    }
+    Write-Host "[OK] Kennis-item '$($entry.name)': bijgewerkt"
     exit 0
 }
 
@@ -671,4 +689,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
