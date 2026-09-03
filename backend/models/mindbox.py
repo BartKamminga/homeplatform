@@ -12,8 +12,9 @@ class MindboxCase(SQLModel, table=True):
     """Container die meerdere MindboxItems aan elkaar koppelt (Bart,
     2-09-2026: 'vaak zal een MindboxItem vervolg krijgen') - bv. een
     mailwisseling met meerdere binnengekomen mails en meerdere concept-
-    antwoorden (item 1058: responses zijn zelf ook MindboxItems, kind=
-    "response"), of een dossier met meerdere documenten. context_id
+    antwoorden (item 1058: een concept-antwoord is gewoon een generiek
+    tekstitem met text_content, geen apart "response"-kind), of een
+    dossier met meerdere documenten. context_id
     koppelt optioneel EEN herbruikbare persona/instructie (MindboxContext)
     aan de HELE case (Bart, item 1051: 'ik wil toch per case een context,
     niet per bestand.. dat is ingewikkeld') - was eerst per item, dat bleek
@@ -97,15 +98,16 @@ class MindboxItem(SQLModel, table=True):
     # services.save_upload).
     parent_item_id:    Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
     # Item 1058: "alles is een bestand" - kind onderscheidt een echte upload
-    # van gegenereerde/gematerialiseerde content (bv. "response", later
-    # "case_export") die dezelfde entiteit gebruikt i.p.v. een eigen tabel.
-    kind:              str      = Field(default="upload")  # upload | response | case_export
-    # Het bewerkbare, geauteurde antwoord voor kind != "upload" (bv. een
-    # concept-reply) - anders dan parsed_text, dat is AUTOMATISCHE extractie
-    # uit de bytes van een geuploade file. file_path/size_bytes/content_hash
-    # worden voor deze kinds gematerialiseerd (echt bestand op schijf, zie
-    # services._materialize_item_bytes) zodat download/verwijderen precies
-    # hetzelfde werken als voor een upload - geen kind-branching nodig daar.
+    # van gegenereerde/gematerialiseerde content (bv. "case_export") die
+    # dezelfde entiteit gebruikt i.p.v. een eigen tabel.
+    kind:              str      = Field(default="upload")  # upload | case_export
+    # De bewerkbare inhoud van het bestand zelf, voor tekstachtige extensies
+    # (.txt/.json/.md/.csv) - automatisch gevuld bij upload (save_upload) of
+    # gematerialiseerd bij generatie (bv. een concept-antwoord, case_export).
+    # Anders dan parsed_text (AUTOMATISCHE extractie van de INHOUD van een
+    # ANDER bestandstype, bv. de mail-body van een .msg) is text_content de
+    # brontekst van het bestand zelf, en her-materialiseerbaar via
+    # services.update_item/_materialize_item_bytes.
     text_content:      Optional[str] = Field(default=None)
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)

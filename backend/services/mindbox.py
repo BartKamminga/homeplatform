@@ -553,17 +553,27 @@ def _render_case_items_section(session: Session, items: list[MindboxItem]) -> st
 def render_case_export_markdown(
     session: Session, case: MindboxCase, context: "MindboxContext | None",
     contacts: list[MindboxContact], events: list[MindboxCaseEvent], items: list[MindboxItem],
+    knowledge: list[MindboxKnowledge],
 ) -> bytes:
     """Item 1058 (Bart): een case moet net als een item als lokaal bestand
     te downloaden zijn voor AI-verwerking - analoog aan de briefing.md die
     MindBox.ps1 -Run al voor een los item genereert (case + context +
-    contacten + tijdlijn samengevat), maar dan voor de HELE case."""
+    contacten + tijdlijn samengevat), maar dan voor de HELE case.
+
+    Kennis (MindboxKnowledge) is bewust case-onafhankelijk (geen case_id,
+    zie models/mindbox.py) - toch hoort de VOLLEDIGE bibliotheek bij elke
+    case-export, want het is altijd relevante achtergrondinfo bij het
+    werken aan een case (Bart: "hele case downloaden, inclusief context,
+    knowledge en contacts")."""
     contacts_md = "\n".join(
         f"- {c.display_name or c.email} ({c.email})" for c in contacts
     ) or "(geen contacten gekoppeld)"
     timeline_md = "\n".join(
         f"- {e.created_at:%Y-%m-%d %H:%M} - {e.event_type}: {e.description}" for e in events
     ) or "(geen activiteit)"
+    knowledge_md = "\n\n".join(
+        f"### {k.name}\n\n{k.content}" for k in knowledge
+    ) or "(geen kennis-items)"
     items_md = _render_case_items_section(session, items)
     text = (
         f"# Case: {case.name}\n\n"
@@ -573,6 +583,7 @@ def render_case_export_markdown(
         f"## Omschrijving\n\n{case.description or '(geen omschrijving)'}\n\n"
         f"## Context-instructie\n\n{context.content if context else '(geen context gekoppeld)'}\n\n"
         f"## Contacten\n\n{contacts_md}\n\n"
+        f"## Kennisbibliotheek\n\n{knowledge_md}\n\n"
         f"## Bestanden en relaties\n\n{items_md}\n\n"
         f"## Tijdlijn\n\n{timeline_md}\n"
     )
@@ -588,7 +599,8 @@ def export_case(session: Session, user: User, case_id: str) -> MindboxItem:
     contacts = _get_case_contacts(session, case_id)
     events = get_case_events(session, user, case_id)
     items = get_items(session, user, case_id)
-    markdown = render_case_export_markdown(session, case, context, contacts, events, items)
+    knowledge = get_knowledge_list(session, user)
+    markdown = render_case_export_markdown(session, case, context, contacts, events, items, knowledge)
 
     item = session.exec(
         select(MindboxItem)

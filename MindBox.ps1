@@ -31,6 +31,7 @@
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
 #   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/sessie-notities/case-export terugzien
+#   .\MindBox.ps1 -ExportCase -CaseId <id>                             # hele case downloaden (context+kennis+contacten+bestandenlijst+tijdlijn)
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
 #   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
 #
@@ -75,6 +76,7 @@ param(
     [switch]$UnlinkCase,
     [switch]$LinkItem,
     [switch]$UnlinkItem,
+    [switch]$ExportCase,
     [switch]$Explain,
     [switch]$DefineCommand,
 
@@ -82,18 +84,47 @@ param(
     [switch]$Force,
     [ValidateSet("prod", "acc", "local")]
     [string]$Env        = "prod",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        $envName = "prod"; if ($fakeBound['Env']) { $envName = $fakeBound['Env'] }
+        Complete-MindboxItem $PSScriptRoot $envName $wordToComplete
+    })]
     [string]$Id         = "",
     [string]$Ids        = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        $envName = "prod"; if ($fakeBound['Env']) { $envName = $fakeBound['Env'] }
+        Complete-MindboxCase $PSScriptRoot $envName $wordToComplete
+    })]
     [string]$CaseId     = "",
     [string]$ParentId   = "",
     [string]$ContactId  = "",
     [string]$ContextId  = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        $envName = "prod"; if ($fakeBound['Env']) { $envName = $fakeBound['Env'] }
+        Complete-MindboxItem $PSScriptRoot $envName $wordToComplete
+    })]
     [string]$TargetId   = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        @('case_member', 'source_of', 'reply_to', 'related_to', 'duplicate_of', 'text_preview') |
+            Where-Object { $_ -like "$wordToComplete*" } |
+            ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "link_type: $_") }
+    })]
     [string]$LinkType   = "",
     [string]$LinkId     = "",
     [string]$Value      = "",
     [string]$Text       = "",
     [string]$Content    = "",
+    [ArgumentCompleter({
+        param($cmdName, $paramName, $wordToComplete, $commandAst, $fakeBound)
+        . "$PSScriptRoot\MindBoxCompletion.ps1"
+        Complete-MindboxCommand $PSScriptRoot $wordToComplete $fakeBound
+    })]
     [string]$Command    = "",
     [string]$Name       = "",
     [string]$Email      = "",
@@ -735,6 +766,21 @@ if ($Upload) {
 }
 
 # ---------------------------------------------------------------------------
+# ExportCase — hele case (context+kennis+contacten+bestandenlijst+tijdlijn)
+# als 1 lokaal .md-bestand, los van -LoadSession (die ook alle bestanden zelf
+# downloadt + briefing.md per bestand genereert - dit is puur de samenvatting).
+# ---------------------------------------------------------------------------
+if ($ExportCase) {
+    if (-not $CaseId) { Write-Host "Geef -CaseId op"; exit 1 }
+    $exported = ApiPost "/mindbox/cases/$CaseId/export" @{}
+    New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+    $exportFile = Join-Path $WorkDir $exported.original_filename
+    ApiDownload "/mindbox/items/$($exported.id)/download" $exportFile
+    Write-Host "[OK] Case-export (context/kennis/contacten/tijdlijn/relaties) gedownload naar: $exportFile"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
 # AddEvent — vrije aantekening op een case-tijdlijn (bv. sessie-samenvatting)
 # ---------------------------------------------------------------------------
 if ($AddEvent) {
@@ -825,7 +871,7 @@ if ($LoadSession) {
         New-Item -ItemType Directory -Force -Path $caseDir | Out-Null
         $exportFile = Join-Path $caseDir $exported.original_filename
         ApiDownload "/mindbox/items/$($exported.id)/download" $exportFile
-        Write-Host "`n--- Case-export (context/contacten/tijdlijn/relaties) ---"
+        Write-Host "`n--- Case-export (context/kennis/contacten/tijdlijn/relaties) ---"
         Write-Host "Gedownload naar: $exportFile"
     } catch {}
 
@@ -833,4 +879,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -ExportCase | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
