@@ -2,12 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem, unlinkItemCase, exportCase,
+  linkItems, unlinkItems,
   listResponses, createResponse, updateResponse, listContexts, listContacts,
   listCommands,
 } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
+
+const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
+
+// Item 1058 (vervolg, Bart): "ik snap niet hoe ik links moet aanmaken...
+// tussen bestanden in een case" - de relaties-UI stond alleen in de vlakke
+// Bestanden-tab (ItemsPage.jsx), niet hier waar je een case daadwerkelijk
+// aan het werken bent. Zelfde vaste lijst + "anders..." als daar.
+const LINK_TYPE_OPTIONS = [
+  { value: 'related_to', label: 'gerelateerd aan' },
+  { value: 'duplicate_of', label: 'duplicaat van' },
+  { value: 'source_of', label: 'bron van' },
+  { value: 'reply_to', label: 'vervolg op' },
+]
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -162,6 +176,10 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [error, setError] = useState('')
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
+  const [expandedLinksId, setExpandedLinksId] = useState(null)
+  const [linkTargetId, setLinkTargetId] = useState('')
+  const [linkType, setLinkType] = useState('')
+  const [linkTypeCustom, setLinkTypeCustom] = useState('')
   const fileInputRef = useRef(null)
   const [confirmAction, confirmDialog] = useConfirm()
 
@@ -312,6 +330,35 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   // gegroepeerd uit dezelfde al-opgehaalde lijst, geen extra request nodig.
   function attachmentsOf(itemId) {
     return items.filter(i => i.parent_item_id === itemId)
+  }
+
+  // Item 1058 (vervolg): generieke item<->item-relaties, het andere item
+  // resolven uit de al-opgehaalde `items` van deze case (zelfde patroon als
+  // attachmentsOf hierboven en ItemsPage.jsx's linksOf).
+  function linksOf(item) {
+    return (item.links || []).map(l => ({ ...l, other: items.find(i => i.id === l.item_id) }))
+  }
+
+  function toggleLinksPanel(itemId) {
+    setExpandedLinksId(id => (id === itemId ? null : itemId))
+    setLinkTargetId('')
+    setLinkType('')
+    setLinkTypeCustom('')
+  }
+
+  async function handleCreateLink(item) {
+    const type = linkType === CUSTOM_LINK_TYPE_SENTINEL ? linkTypeCustom.trim() : linkType
+    if (!linkTargetId || !type) return
+    await linkItems(item.id, linkTargetId, type)
+    setLinkTargetId('')
+    setLinkType('')
+    setLinkTypeCustom('')
+    load()
+  }
+
+  async function handleUnlinkItems(linkId) {
+    await unlinkItems(linkId)
+    load()
   }
 
   async function handleAddNote() {
@@ -472,7 +519,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px',
               background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 12,
-              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id) ? '6px 6px 0 0' : 6,
+              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id || expandedLinksId === item.id) ? '6px 6px 0 0' : 6,
             }}>
               <span>{item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span></span>
               <textarea
@@ -500,6 +547,9 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                     📎 {attachmentsOf(item.id).length}
                   </button>
                 )}
+                <button onClick={() => toggleLinksPanel(item.id)} title="Relaties met andere bestanden tonen/bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
+                  🔗{linksOf(item).length ? ` ${linksOf(item).length}` : ''}
+                </button>
               </div>
             </div>
             {expandedParsedId === item.id && item.parsed_text && (
@@ -524,6 +574,56 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                       <button onClick={() => downloadItem(att.id, att.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {expandedLinksId === item.id && (
+              <div style={{
+                padding: '8px 10px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+                borderRadius: '0 0 6px 6px', fontSize: 12,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, color: 'var(--color-text-muted)' }}>RELATIES MET ANDERE BESTANDEN</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {linksOf(item).map(l => (
+                    <span key={l.link_id} style={{ padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99 }}>
+                      {l.direction === 'out' ? '→' : '←'} {l.other?.original_filename || l.item_id} ({l.link_type})
+                      <span onClick={() => handleUnlinkItems(l.link_id)} title="Loskoppelen" style={{ marginLeft: 4, cursor: 'pointer' }}>✕</span>
+                    </span>
+                  ))}
+                  {!linksOf(item).length && <span style={{ color: 'var(--color-text-muted)' }}>Nog geen relaties.</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={linkTargetId}
+                    onChange={e => setLinkTargetId(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+                  >
+                    <option value="">Kies bestand uit deze case...</option>
+                    {items.filter(i => i.id !== item.id).map(i => <option key={i.id} value={i.id}>{i.original_filename}</option>)}
+                  </select>
+                  <select
+                    value={linkType}
+                    onChange={e => setLinkType(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+                  >
+                    <option value="">Link-type...</option>
+                    {LINK_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    <option value={CUSTOM_LINK_TYPE_SENTINEL}>anders...</option>
+                  </select>
+                  {linkType === CUSTOM_LINK_TYPE_SENTINEL && (
+                    <input
+                      value={linkTypeCustom}
+                      onChange={e => setLinkTypeCustom(e.target.value)}
+                      placeholder="eigen link-type"
+                      style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+                    />
+                  )}
+                  <button
+                    onClick={() => handleCreateLink(item)}
+                    style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}
+                  >
+                    Koppelen
+                  </button>
                 </div>
               </div>
             )}
