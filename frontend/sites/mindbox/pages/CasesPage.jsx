@@ -192,10 +192,17 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   // staan, ik verwacht daar de lijst uit de commando's te zien" - i.p.v. een
   // vaste findCommand()-lookup per notation_key, itereren over ALLE
   // commando's met het juiste entity zodat nieuw aangemaakte Case.*/File.*
-  // commando's hier automatisch verschijnen. param_kind 'id' filtert
-  // Case.Save/Case.Load eruit - die nemen een NAAM als param, niet caseObj.id.
-  const caseCommands = commands.filter(c => c.entity === 'Case' && c.param_kind === 'id')
+  // commando's hier automatisch verschijnen. EERSTE fix filterde op
+  // param_kind==='id', maar Case.Save/Case.Load/Case.CreateFromDisk nemen
+  // juist de case-NAAM als param (param_kind==='name') - die bleven dus
+  // alsnog onzichtbaar. Nu alle entity==='Case'-commando's tonen, met het
+  // juiste param per param_kind (caseObj.name i.p.v. caseObj.id).
+  const caseCommands = commands.filter(c => c.entity === 'Case')
   const fileCommands = commands.filter(c => c.entity === 'File' && c.param_kind === 'id')
+
+  function caseCommandParam(command) {
+    return command.param_kind === 'name' ? caseObj.name : caseObj.id
+  }
 
   async function handleUpload(file) {
     if (!file) return
@@ -384,8 +391,8 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
         {caseCommands.map(c => (
           <CopyButton
             key={c.id}
-            text={buildCommandString(c, caseObj.id, env)}
-            label={buildCommandString(c, caseObj.id, env)}
+            text={buildCommandString(c, caseCommandParam(c), env)}
+            label={buildCommandString(c, caseCommandParam(c), env)}
             icon={c.icon}
             mono
             title={c.description || c.notation_key}

@@ -163,6 +163,13 @@ function ApiDownload([string]$Path, [string]$OutFile) {
     }
 }
 
+# Item 1063 (Bart): "case dirname een naam geven die meer op de naam van de
+# case lijkt" - zelfde conventie als backend/services/mindbox.py's _slugify.
+function Slugify([string]$Text) {
+    $slug = ([regex]::Replace($Text.ToLower(), "[^a-z0-9]+", "-")).Trim("-")
+    if ($slug) { $slug } else { "case" }
+}
+
 # PowerShell 5.1 heeft geen -Form (dat kwam pas in PS7) - multipart/form-data
 # hier zelf opbouwen. De ISO-8859-1-heenenweer-truc is nodig om willekeurige
 # binaire bestandsinhoud (niet alleen tekst) veilig als .NET-string te
@@ -391,18 +398,12 @@ if ($Get) {
 # Run — download bestand(en) + briefing-.md, klaar voor een Claude Code-sessie
 # ---------------------------------------------------------------------------
 function RunItem([object]$item) {
-    $itemDir = Join-Path $WorkDir $item.id
-    New-Item -ItemType Directory -Force -Path $itemDir | Out-Null
-
-    $localFile = Join-Path $itemDir $item.original_filename
-    ApiDownload "/mindbox/items/$($item.id)/download" $localFile
-
     # Context zit sinds item 1051 op de CASE, niet meer op het item apart
     # ("ik wil toch per case een context, niet per bestand.. dat is
     # ingewikkeld") - dus eerst de case(s) ophalen, en daaruit de context.
     # Item 1058: een item kan aan 0+ cases hangen (case_ids i.p.v. case_id) -
-    # de briefing toont ze allemaal; context komt van de EERSTE case met een
-    # context (in de praktijk hangt een item vrijwel altijd aan 0 of 1 case).
+    # de briefing toont ze allemaal; context/mapnaam komt van de EERSTE case
+    # (in de praktijk hangt een item vrijwel altijd aan 0 of 1 case).
     $firstCaseId = if ($item.case_ids -and $item.case_ids.Count -gt 0) { $item.case_ids[0] } else { $null }
     $caseNames = @()
     $contextContent = ""
@@ -424,6 +425,17 @@ function RunItem([object]$item) {
         } catch {}
     }
     $caseName = $caseNames -join ", "
+
+    # Item 1063 (Bart): "case dirname een naam geven die meer op de naam van
+    # de case lijkt" - mindbox_work/<case-naam>/<item-id>/ i.p.v. plat
+    # mindbox_work/<item-id>/, zodat downloads van 1 case herkenbaar bij
+    # elkaar staan (case-loze items blijven plat onder mindbox_work/).
+    $caseDirName = if ($caseNames.Count -gt 0) { Slugify $caseNames[0] } else { $null }
+    $itemDir = if ($caseDirName) { Join-Path (Join-Path $WorkDir $caseDirName) $item.id } else { Join-Path $WorkDir $item.id }
+    New-Item -ItemType Directory -Force -Path $itemDir | Out-Null
+
+    $localFile = Join-Path $itemDir $item.original_filename
+    ApiDownload "/mindbox/items/$($item.id)/download" $localFile
 
     $md = @"
 # Mindbox item: $($item.original_filename)
@@ -692,7 +704,7 @@ if ($LoadSession) {
         Write-Host $n.description
         Write-Host ""
     }
-    if ($items.Count) { Write-Host "`nBriefing.md per bestand staat in $WorkDir\<item_id>\" }
+    if ($items.Count) { Write-Host "`nBriefing.md per bestand staat in $WorkDir\$(Slugify $case.name)\<item_id>\" }
     exit 0
 }
 
