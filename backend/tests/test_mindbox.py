@@ -706,6 +706,12 @@ def test_export_case_produces_a_downloadable_briefing(client, user_token):
     assert exported.status_code == 200
     data = exported.json()
     assert data["kind"] == "case_export"
+    # Item 1066 (Bart): "md file ook als tekst content laten zien, net als
+    # txt files" - een case-export is functioneel een tekstitem en moet dus
+    # ook text_content hebben (bewerkbaar/inline zichtbaar), niet alleen
+    # downloadbaar als kaal bestand.
+    assert data["text_content"] is not None
+    assert "Export-case" in data["text_content"]
 
     downloaded = client.get(f"/api/mindbox/items/{data['id']}/download", headers=_auth(user_token))
     assert downloaded.status_code == 200

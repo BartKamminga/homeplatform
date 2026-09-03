@@ -618,6 +618,12 @@ def export_case(session: Session, user: User, case_id: str) -> MindboxItem:
         session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=case_id))
 
     _materialize_item_bytes(item, markdown, "text/markdown", f"case-export-{_slugify(case.name)}.md", ".md")
+    # Item 1066 (Bart): "md file ook als tekst content laten zien, net als
+    # txt files" - _materialize_item_bytes zet nooit text_content (dat doet
+    # alleen save_upload's TEXT_EXTENSIONS-pad), dus zonder deze regel bleef
+    # een case-export altijd "download only" i.p.v. inline bewerkbaar/
+    # zichtbaar zoals elk ander tekstitem.
+    item.text_content = markdown.decode("utf-8")
     session.add(item)
     session.commit()
     session.refresh(item)

@@ -67,6 +67,21 @@ export async function downloadItem(id, filename) {
   URL.revokeObjectURL(url)
 }
 
+// Item 1065 (Bart): "ook plaatjes kunnen gebruiken" - een <img src=.../download>
+// werkt niet (MindBox-downloads zijn, anders dan het algemene uploads.py-
+// patroon, bewust WEL geauthenticeerd), dus de blob-URL client-side ophalen
+// i.p.v. de download rechtstreeks als src te gebruiken. Caller is verantwoordelijk
+// voor URL.revokeObjectURL bij unmount (zie ImageThumbnail.jsx).
+export async function fetchItemBlobUrl(id) {
+  const token = localStorage.getItem('hp_token')
+  const res = await fetch(`/api/mindbox/items/${id}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Ophalen mislukt')
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
 // ---------------------------------------------------------------------------
 // Cases (container die items/responses aan elkaar koppelt)
 // ---------------------------------------------------------------------------

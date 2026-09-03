@@ -10,6 +10,7 @@ import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import Modal from '@components/Modal.jsx'
 import RelationsGraph from './RelationsGraph.jsx'
 import CommandPicker from '../components/CommandPicker.jsx'
+import ImageThumbnail, { isImageItem } from '../components/ImageThumbnail.jsx'
 
 const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
 
@@ -586,6 +587,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               <span>
                 {item.text_content != null && <span title="Tekstbestand (bewerkbaar)" style={{ marginRight: 4 }}>📝</span>}
                 {item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span>
+                {isImageItem(item) && <ImageThumbnail itemId={item.id} />}
               </span>
               <textarea
                 defaultValue={item.notes || ''}
