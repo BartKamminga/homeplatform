@@ -243,6 +243,26 @@ def get_item_case_ids(session: Session, item_id: str) -> list[str]:
     ).all())
 
 
+def get_item_links(session: Session, item_id: str) -> list[dict]:
+    """Item 1058 (vervolg, Bart): 'ik wil ook relaties kunnen leggen tussen
+    bestanden met een linktype in de frontend' - ALLE item<->item-links
+    tonen (beide richtingen, dus ook 'waar wijs ik zelf naar toe' EN 'wie
+    wijst naar mij'), exclusief case_member (dat is de aparte case_ids -
+    dit is puur voor item<->item)."""
+    outgoing = session.exec(
+        select(MindboxItemLink).where(
+            MindboxItemLink.item_id == item_id, col(MindboxItemLink.target_item_id).is_not(None),
+        )
+    ).all()
+    incoming = session.exec(
+        select(MindboxItemLink).where(MindboxItemLink.target_item_id == item_id)
+    ).all()
+    return (
+        [{"link_id": l.id, "item_id": l.target_item_id, "link_type": l.link_type, "direction": "out"} for l in outgoing]
+        + [{"link_id": l.id, "item_id": l.item_id, "link_type": l.link_type, "direction": "in"} for l in incoming]
+    )
+
+
 def item_to_dict(session: Session, item: MindboxItem) -> dict:
     """Item 1052 (Bart): 'kan ik meerdere contacten aan een bestand
     koppelen?' - contact_ids is many-to-many (zie MindboxItemContact),
@@ -261,6 +281,7 @@ def item_to_dict(session: Session, item: MindboxItem) -> dict:
         "kind": item.kind,
         "case_ids": get_item_case_ids(session, item.id),
         "contact_ids": get_item_contact_ids(session, item.id),
+        "links": get_item_links(session, item.id),
         "created_at": item.created_at,
         "updated_at": item.updated_at,
     }

@@ -89,6 +89,15 @@ export function unlinkItemCase(itemId, caseId) {
   return api.delete(`/api/mindbox/items/${itemId}/cases/${caseId}`)
 }
 
+// Item 1058 (vervolg): generieke item<->item-relaties met een vrij link_type.
+export function linkItems(itemId, targetItemId, linkType) {
+  return api.post(`/api/mindbox/items/${itemId}/links`, { target_item_id: targetItemId, link_type: linkType })
+}
+
+export function unlinkItems(linkId) {
+  return api.delete(`/api/mindbox/links/${linkId}`)
+}
+
 // Item 1058: case-metadata + context + contacten + tijdlijn als 1 lokaal
 // bestand, analoog aan de MindBox.ps1 -Run briefing.md voor een los item.
 export function exportCase(caseId) {

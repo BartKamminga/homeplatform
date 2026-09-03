@@ -777,3 +777,65 @@ def test_exporting_another_users_case_is_rejected(client, user_token, admin_toke
     case_id = _case(client, admin_token, "Prive case")
     res = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token))
     assert res.status_code == 403
+
+
+def test_link_two_items_with_a_free_link_type(client, user_token):
+    """Item 1058 (vervolg, Bart): 'ik wil ook relaties kunnen leggen tussen
+    bestanden met een linktype in de frontend' - een generiek, vrij
+    link_type tussen 2 items."""
+    item_a = _upload(client, user_token, filename="a.msg").json()["id"]
+    item_b = _upload(client, user_token, filename="b.msg").json()["id"]
+
+    res = client.post(
+        f"/api/mindbox/items/{item_a}/links", json={"target_item_id": item_b, "link_type": "related_to"},
+        headers=_auth(user_token),
+    )
+    assert res.status_code == 200
+    a = res.json()
+    assert a["links"] == [{"link_id": a["links"][0]["link_id"], "item_id": item_b, "link_type": "related_to", "direction": "out"}]
+
+    b = client.get(f"/api/mindbox/items", headers=_auth(user_token)).json()
+    b_item = next(i for i in b if i["id"] == item_b)
+    assert b_item["links"] == [{"link_id": a["links"][0]["link_id"], "item_id": item_a, "link_type": "related_to", "direction": "in"}]
+
+
+def test_linking_the_same_pair_and_type_twice_is_idempotent(client, user_token):
+    item_a = _upload(client, user_token, filename="a.msg").json()["id"]
+    item_b = _upload(client, user_token, filename="b.msg").json()["id"]
+
+    client.post(f"/api/mindbox/items/{item_a}/links", json={"target_item_id": item_b, "link_type": "duplicate_of"}, headers=_auth(user_token))
+    res = client.post(f"/api/mindbox/items/{item_a}/links", json={"target_item_id": item_b, "link_type": "duplicate_of"}, headers=_auth(user_token))
+    assert len(res.json()["links"]) == 1
+
+
+def test_linking_an_item_to_itself_is_rejected(client, user_token):
+    item_id = _upload(client, user_token).json()["id"]
+    res = client.post(f"/api/mindbox/items/{item_id}/links", json={"target_item_id": item_id, "link_type": "related_to"}, headers=_auth(user_token))
+    assert res.status_code == 400
+
+
+def test_unlink_items_removes_the_link_for_both_sides(client, user_token):
+    item_a = _upload(client, user_token, filename="a.msg").json()["id"]
+    item_b = _upload(client, user_token, filename="b.msg").json()["id"]
+    created = client.post(
+        f"/api/mindbox/items/{item_a}/links", json={"target_item_id": item_b, "link_type": "related_to"},
+        headers=_auth(user_token),
+    ).json()
+    link_id = created["links"][0]["link_id"]
+
+    res = client.delete(f"/api/mindbox/links/{link_id}", headers=_auth(user_token))
+    assert res.status_code == 200
+    assert res.json()["links"] == []
+
+    b_item = next(i for i in client.get("/api/mindbox/items", headers=_auth(user_token)).json() if i["id"] == item_b)
+    assert b_item["links"] == []
+
+
+def test_linking_another_users_item_is_rejected(client, user_token, admin_token):
+    own_item = _upload(client, user_token).json()["id"]
+    other_item = _upload(client, admin_token).json()["id"]
+    res = client.post(
+        f"/api/mindbox/items/{own_item}/links", json={"target_item_id": other_item, "link_type": "related_to"},
+        headers=_auth(user_token),
+    )
+    assert res.status_code == 403

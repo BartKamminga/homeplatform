@@ -54,6 +54,13 @@ class MindboxCaseEventCreate(BaseModel):
     description:  str
 
 
+class MindboxItemLinkOut(BaseModel):
+    link_id:    str
+    item_id:    str
+    link_type:  str
+    direction:  str  # "out" | "in"
+
+
 class MindboxItemOut(BaseModel):
     id:                    str
     original_filename:     str
@@ -66,6 +73,7 @@ class MindboxItemOut(BaseModel):
     kind:                  str
     case_ids:              list[str]
     contact_ids:           list[str]
+    links:                 list[MindboxItemLinkOut]
     created_at:            datetime
     updated_at:            datetime
     # Alleen gevuld direct na een upload zonder case_id, als suggestie (item
