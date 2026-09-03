@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem, unlinkItemCase, exportCase,
-  linkItems, unlinkItems,
+  unlinkItems,
   listResponses, createResponse, updateResponse, listContexts, listContacts,
   listCommands,
 } from '../api.js'
@@ -11,19 +11,6 @@ import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
 import Modal from '@components/Modal.jsx'
 import RelationsGraph from './RelationsGraph.jsx'
-
-const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
-
-// Item 1058 (vervolg, Bart): "ik snap niet hoe ik links moet aanmaken...
-// tussen bestanden in een case" - de relaties-UI stond alleen in de vlakke
-// Bestanden-tab (ItemsPage.jsx), niet hier waar je een case daadwerkelijk
-// aan het werken bent. Zelfde vaste lijst + "anders..." als daar.
-const LINK_TYPE_OPTIONS = [
-  { value: 'related_to', label: 'gerelateerd aan' },
-  { value: 'duplicate_of', label: 'duplicaat van' },
-  { value: 'source_of', label: 'bron van' },
-  { value: 'reply_to', label: 'vervolg op' },
-]
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -179,11 +166,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
   const [expandedLinksId, setExpandedLinksId] = useState(null)
-  const [linkTargetId, setLinkTargetId] = useState('')
-  const [linkType, setLinkType] = useState('')
-  const [linkTypeCustom, setLinkTypeCustom] = useState('')
   const [showGraph, setShowGraph] = useState(false)
-  const [graphItems, setGraphItems] = useState([])
   const fileInputRef = useRef(null)
   const [confirmAction, confirmDialog] = useConfirm()
 
@@ -345,19 +328,6 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
 
   function toggleLinksPanel(itemId) {
     setExpandedLinksId(id => (id === itemId ? null : itemId))
-    setLinkTargetId('')
-    setLinkType('')
-    setLinkTypeCustom('')
-  }
-
-  async function handleCreateLink(item) {
-    const type = linkType === CUSTOM_LINK_TYPE_SENTINEL ? linkTypeCustom.trim() : linkType
-    if (!linkTargetId || !type) return
-    await linkItems(item.id, linkTargetId, type)
-    setLinkTargetId('')
-    setLinkType('')
-    setLinkTypeCustom('')
-    load()
   }
 
   async function handleUnlinkItems(linkId) {
@@ -427,14 +397,9 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   }
 
   // Item 1058 (vervolg, Bart): "eigenlijk wil ik de relaties met nette
-  // lijnen zien" - een verse, ONGEFILTERDE items-lijst (de `items`-state
-  // hierboven filtert responses eruit voor de Bestanden-sectie, maar de
-  // graph moet ze juist tonen - dat is het hele punt van het voorbeeld).
-  async function handleShowGraph() {
-    const all = await listItems(caseObj.id)
-    setGraphItems(all)
-    setShowGraph(true)
-  }
+  // lijnen zien" - RelationsGraph haalt zelf een VERSE, ONGEFILTERDE
+  // items-lijst op (de `items`-state hierboven filtert responses eruit voor
+  // de Bestanden-sectie, maar de graph moet ze juist tonen).
 
   return (
     <div
@@ -468,8 +433,8 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           📄 Exporteren
         </button>
         <button
-          onClick={handleShowGraph}
-          title="Relaties tussen bestanden in deze case als graph bekijken"
+          onClick={() => setShowGraph(true)}
+          title="Relaties tussen bestanden in deze case bekijken en aanmaken"
           style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
         >
           🔗 Relatie-graph
@@ -604,7 +569,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                 borderRadius: '0 0 6px 6px', fontSize: 12,
               }}>
                 <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, color: 'var(--color-text-muted)' }}>RELATIES MET ANDERE BESTANDEN</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
                   {linksOf(item).map(l => (
                     <span key={l.link_id} style={{ padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99 }}>
                       {l.direction === 'out' ? '→' : '←'} {l.other?.original_filename || l.item_id} ({l.link_type})
@@ -613,38 +578,11 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                   ))}
                   {!linksOf(item).length && <span style={{ color: 'var(--color-text-muted)' }}>Nog geen relaties.</span>}
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <select
-                    value={linkTargetId}
-                    onChange={e => setLinkTargetId(e.target.value)}
-                    style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-                  >
-                    <option value="">Kies bestand uit deze case...</option>
-                    {items.filter(i => i.id !== item.id).map(i => <option key={i.id} value={i.id}>{i.original_filename}</option>)}
-                  </select>
-                  <select
-                    value={linkType}
-                    onChange={e => setLinkType(e.target.value)}
-                    style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-                  >
-                    <option value="">Link-type...</option>
-                    {LINK_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    <option value={CUSTOM_LINK_TYPE_SENTINEL}>anders...</option>
-                  </select>
-                  {linkType === CUSTOM_LINK_TYPE_SENTINEL && (
-                    <input
-                      value={linkTypeCustom}
-                      onChange={e => setLinkTypeCustom(e.target.value)}
-                      placeholder="eigen link-type"
-                      style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-                    />
-                  )}
-                  <button
-                    onClick={() => handleCreateLink(item)}
-                    style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}
-                  >
-                    Koppelen
-                  </button>
+                {/* Item 1058 (vervolg, Bart): het select+select+knop-formulier
+                    hier was omslachtig - nieuwe relaties leggen kan nu in de
+                    Relatie-graph (2 bestanden aanklikken), zie de knop bovenin. */}
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  Nieuwe relatie leggen? Gebruik de "🔗 Relatie-graph"-knop bovenin.
                 </div>
               </div>
             )}
@@ -780,7 +718,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
       </ConfirmDialog>
       {showGraph && (
         <Modal title={`Relaties in "${caseObj.name}"`} onClose={() => setShowGraph(false)} width={860}>
-          <RelationsGraph items={graphItems} />
+          <RelationsGraph caseId={caseObj.id} />
         </Modal>
       )}
     </div>

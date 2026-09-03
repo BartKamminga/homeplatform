@@ -1,21 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, linkItemCase, unlinkItemCase, linkItems, unlinkItems, listContacts, unlinkItemContact, listCommands } from '../api.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, linkItemCase, unlinkItemCase, unlinkItems, listContacts, unlinkItemContact, listCommands } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
 
 const NEW_CASE_SENTINEL = '__new__'
-const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
-
-// Item 1058 (vervolg, Bart): "ik wil ook relaties kunnen leggen tussen
-// bestanden met een linktype" - vaste, herkenbare types + vrije "anders..."
-// (voorkomt typos/inconsistente types zonder de flexibiliteit weg te nemen).
-const LINK_TYPE_OPTIONS = [
-  { value: 'related_to', label: 'gerelateerd aan' },
-  { value: 'duplicate_of', label: 'duplicaat van' },
-  { value: 'source_of', label: 'bron van' },
-  { value: 'reply_to', label: 'vervolg op' },
-]
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'Nieuw' },
@@ -45,9 +34,6 @@ export default function ItemsPage({ onGoToExisting }) {
   const [expandedParsedId, setExpandedParsedId] = useState(null)
   const [expandedAttachmentsId, setExpandedAttachmentsId] = useState(null)
   const [expandedLinksId, setExpandedLinksId] = useState(null)
-  const [linkTargetId, setLinkTargetId] = useState('')
-  const [linkType, setLinkType] = useState('')
-  const [linkTypeCustom, setLinkTypeCustom] = useState('')
   const fileInputRef = useRef(null)
   const [confirmAction, confirmDialog] = useConfirm()
 
@@ -223,19 +209,6 @@ export default function ItemsPage({ onGoToExisting }) {
 
   function toggleLinksPanel(itemId) {
     setExpandedLinksId(id => (id === itemId ? null : itemId))
-    setLinkTargetId('')
-    setLinkType('')
-    setLinkTypeCustom('')
-  }
-
-  async function handleCreateLink(item) {
-    const type = linkType === CUSTOM_LINK_TYPE_SENTINEL ? linkTypeCustom.trim() : linkType
-    if (!linkTargetId || !type) return
-    await linkItems(item.id, linkTargetId, type)
-    setLinkTargetId('')
-    setLinkType('')
-    setLinkTypeCustom('')
-    load()
   }
 
   async function handleUnlinkItems(linkId) {
@@ -475,7 +448,7 @@ export default function ItemsPage({ onGoToExisting }) {
               borderRadius: '0 0 8px 8px', fontSize: 12,
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6, color: 'var(--color-text-muted)' }}>RELATIES MET ANDERE BESTANDEN</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
                 {linksOf(item).map(l => (
                   <span key={l.link_id} style={{ padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99 }}>
                     {l.direction === 'out' ? '→' : '←'} {l.other?.original_filename || l.item_id} ({l.link_type})
@@ -484,38 +457,11 @@ export default function ItemsPage({ onGoToExisting }) {
                 ))}
                 {!linksOf(item).length && <span style={{ color: 'var(--color-text-muted)' }}>Nog geen relaties.</span>}
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select
-                  value={linkTargetId}
-                  onChange={e => setLinkTargetId(e.target.value)}
-                  style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-                >
-                  <option value="">Kies bestand...</option>
-                  {items.filter(i => i.id !== item.id).map(i => <option key={i.id} value={i.id}>{i.original_filename}</option>)}
-                </select>
-                <select
-                  value={linkType}
-                  onChange={e => setLinkType(e.target.value)}
-                  style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-                >
-                  <option value="">Link-type...</option>
-                  {LINK_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  <option value={CUSTOM_LINK_TYPE_SENTINEL}>anders...</option>
-                </select>
-                {linkType === CUSTOM_LINK_TYPE_SENTINEL && (
-                  <input
-                    value={linkTypeCustom}
-                    onChange={e => setLinkTypeCustom(e.target.value)}
-                    placeholder="eigen link-type"
-                    style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-                  />
-                )}
-                <button
-                  onClick={() => handleCreateLink(item)}
-                  style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}
-                >
-                  Koppelen
-                </button>
+              {/* Item 1058 (vervolg, Bart): het select+select+knop-formulier
+                  hier was omslachtig - nieuwe relaties leggen kan nu in de
+                  "🔗 Relatie-graph" binnen een case (2 bestanden aanklikken). */}
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                Nieuwe relatie leggen? Open de case van dit bestand en gebruik de "🔗 Relatie-graph".
               </div>
             </div>
           )}
