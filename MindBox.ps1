@@ -16,12 +16,18 @@
 #   .\MindBox.ps1 -Note -Id <item_id> -Text "..."                     # notities bijwerken (Bart's EIGEN aantekening)
 #   .\MindBox.ps1 -ParsedText -Id <item_id> -Text "..."               # geextraheerde platte tekst van het bestand opslaan
 #   .\MindBox.ps1 -UploadAttachment -ParentId <mail_item_id> -FilePath <lokaal_pad> [-Force]
-#   .\MindBox.ps1 -Upload -CaseId <case_id> -FilePath <lokaal_pad> [-Force]         # bestand rechtstreeks in een case (geen bijlage)
+#   .\MindBox.ps1 -Upload -CaseId <case_id> -FilePath <lokaal_pad> [-TargetId <item_id> -LinkType <type>] [-Force]
+#                                                                       # bestand rechtstreeks in een case (geen bijlage),
+#                                                                       # optioneel meteen een relatie leggen naar een ander bestand
 #   .\MindBox.ps1 -ListContacts [-Email <email>]                       # toon contacten (optioneel filteren op e-mail)
 #   .\MindBox.ps1 -Contact -Id <item_id> -Email <email> [-Name "..."]  # contact TOEVOEGEN aan item (many-to-many, find-or-create op e-mail)
 #   .\MindBox.ps1 -UnlinkContact -Id <item_id> -ContactId <contact_id> # contact loskoppelen van item
 #   .\MindBox.ps1 -ContactNote -Email <email> -Text "..."              # profiel-notitie op een contact bijwerken (find-or-create)
-#   .\MindBox.ps1 -Respond -CaseId <id> -Ids "<item_id>,<item_id2>" -Content "..." [-ParentId <response_id>]
+#   .\MindBox.ps1 -CreateCase -Name "<naam>" [-ContextId <id>]         # nieuwe case aanmaken
+#   .\MindBox.ps1 -LinkCase -Id <item_id> -CaseId <case_id>            # bestand aan een case koppelen (many-to-many)
+#   .\MindBox.ps1 -UnlinkCase -Id <item_id> -CaseId <case_id>          # bestand loskoppelen van een case
+#   .\MindBox.ps1 -LinkItem -Id <item_id> -TargetId <id> -LinkType <type>   # relatie leggen tussen 2 bestanden (vrij link-type)
+#   .\MindBox.ps1 -UnlinkItem -LinkId <link_id>                        # relatie tussen 2 bestanden verwijderen
 #   .\MindBox.ps1 -AddEvent -CaseId <id> -Text "..." [-EventType session_note]
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
 #   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/responses/sessie-notities/case-export terugzien
@@ -55,7 +61,6 @@ param(
     [switch]$Status,
     [switch]$Note,
     [switch]$ParsedText,
-    [switch]$Respond,
     [switch]$AddEvent,
     [switch]$SaveSession,
     [switch]$LoadSession,
@@ -65,26 +70,35 @@ param(
     [switch]$Contact,
     [switch]$UnlinkContact,
     [switch]$ContactNote,
+    [switch]$CreateCase,
+    [switch]$LinkCase,
+    [switch]$UnlinkCase,
+    [switch]$LinkItem,
+    [switch]$UnlinkItem,
     [switch]$Explain,
     [switch]$DefineCommand,
 
     [switch]$All,
     [switch]$Force,
     [ValidateSet("prod", "acc", "local")]
-    [string]$Env       = "prod",
-    [string]$Id        = "",
-    [string]$Ids       = "",
-    [string]$CaseId    = "",
-    [string]$ParentId  = "",
-    [string]$ContactId = "",
-    [string]$Value     = "",
-    [string]$Text      = "",
-    [string]$Content   = "",
-    [string]$Command   = "",
-    [string]$Name      = "",
-    [string]$Email     = "",
-    [string]$FilePath  = "",
-    [string]$EventType = "session_note"
+    [string]$Env        = "prod",
+    [string]$Id         = "",
+    [string]$Ids        = "",
+    [string]$CaseId     = "",
+    [string]$ParentId   = "",
+    [string]$ContactId  = "",
+    [string]$ContextId  = "",
+    [string]$TargetId   = "",
+    [string]$LinkType   = "",
+    [string]$LinkId     = "",
+    [string]$Value      = "",
+    [string]$Text       = "",
+    [string]$Content    = "",
+    [string]$Command    = "",
+    [string]$Name       = "",
+    [string]$Email      = "",
+    [string]$FilePath   = "",
+    [string]$EventType  = "session_note"
 )
 
 # ---------------------------------------------------------------------------
@@ -529,10 +543,11 @@ Gedownload naar: ``$localFile``
 
 - Status bijwerken: ``.\MindBox.ps1 -Status -Id $($item.id) -Value done -Env $Env``
 $(if ($firstCaseId) {
-"- Concept-antwoord posten: ``.\MindBox.ps1 -Respond -CaseId $firstCaseId -Ids ""$($item.id)"" -Content ""..."" -Env $Env``
+"- Concept-antwoord/plan/samenvatting posten: schrijf lokaal een .txt/.eml/... weg, dan
+  ``.\MindBox.ps1 -Upload -CaseId $firstCaseId -FilePath <pad> -TargetId $($item.id) -LinkType response_to -Env $Env``
 - Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $firstCaseId -Text ""..."" -Env $Env``"
 } else {
-"- Responses horen altijd bij een case - koppel dit item eerst aan een case om een response te kunnen posten."
+"- Gegenereerde content posten kan zonder case, of koppel dit item eerst aan een case."
 })
 "@
     $mdPath = Join-Path $itemDir "briefing.md"
@@ -635,6 +650,52 @@ if ($ContactNote) {
 }
 
 # ---------------------------------------------------------------------------
+# CreateCase / LinkCase / UnlinkCase / LinkItem / UnlinkItem - item 1058
+# (vervolg, Bart): "de link is toch gewoon een MindBoxItem met een
+# relatielink naar de bron" - deze generieke koppel-acties bestonden al als
+# API-endpoint (many-to-many item<->case sinds increment 1, item<->item
+# sinds de relaties-graph), maar hadden nog geen MindBox.ps1-tegenhanger.
+# Nodig om bv. een "verplaats naar case"-recipe (UnlinkCase + LinkCase) in
+# de commando-catalogus te kunnen samenstellen.
+# ---------------------------------------------------------------------------
+if ($CreateCase) {
+    if (-not $Name) { Write-Host "Geef -Name op"; exit 1 }
+    $body = @{ name = $Name }
+    if ($ContextId) { $body.context_id = $ContextId }
+    $case = ApiPost "/mindbox/cases" $body
+    Write-Host "[OK] Case aangemaakt: $($case.name) ($($case.id))"
+    exit 0
+}
+
+if ($LinkCase) {
+    if (-not $Id -or -not $CaseId) { Write-Host "Geef -Id (item) en -CaseId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/items/$Id/cases/$CaseId" -Method POST -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): gekoppeld aan case $CaseId"
+    exit 0
+}
+
+if ($UnlinkCase) {
+    if (-not $Id -or -not $CaseId) { Write-Host "Geef -Id (item) en -CaseId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/items/$Id/cases/$CaseId" -Method DELETE -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): losgekoppeld van case $CaseId"
+    exit 0
+}
+
+if ($LinkItem) {
+    if (-not $Id -or -not $TargetId -or -not $LinkType) { Write-Host "Geef -Id, -TargetId en -LinkType op"; exit 1 }
+    $item = ApiPost "/mindbox/items/$Id/links" @{ target_item_id = $TargetId; link_type = $LinkType }
+    Write-Host "[OK] $($item.original_filename): relatie '$LinkType' gelegd naar $TargetId"
+    exit 0
+}
+
+if ($UnlinkItem) {
+    if (-not $LinkId) { Write-Host "Geef -LinkId op"; exit 1 }
+    $item = Invoke-RestMethod -Uri "$HP_API_BASE/mindbox/links/$LinkId" -Method DELETE -Headers @{ Authorization = "Bearer $HP_API_KEY" }
+    Write-Host "[OK] $($item.original_filename): relatie verwijderd"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
 # UploadAttachment — bijlage van een mail als eigen item opslaan (item 1051:
 # "hoe gaan we om met attachments in een mail?") - erft automatisch het
 # case_id van het ouder-item (-ParentId), server-side geregeld.
@@ -657,25 +718,19 @@ if ($Upload) {
     if (-not $CaseId -or -not $FilePath) { Write-Host "Geef -CaseId en -FilePath op"; exit 1 }
     $params = @{ case_id = $CaseId }
     if ($Force) { $params.force = "true" }
+    # Item 1058 (vervolg, Bart): "als er in de terminal (of externe agent)
+    # een response is voorbereid, moet die kunnen worden geupload met de
+    # juiste parameter (link/linkid/linktype)" - geldt voor ALLE gegenereerde
+    # bestanden (plannen, samenvattingen, plaatjes, ...), niet alleen
+    # concept-antwoorden. Beide of geen van beide meegeven.
+    if ($TargetId -and $LinkType) {
+        $params.link_target_item_id = $TargetId
+        $params.link_type = $LinkType
+    } elseif ($TargetId -or $LinkType) {
+        Write-Host "Geef zowel -TargetId als -LinkType op (of geen van beide)"; exit 1
+    }
     $item = ApiUploadFile "/mindbox/items" $FilePath $params
     Write-Host "[OK] Bestand geupload: $($item.original_filename) ($($item.id))"
-    exit 0
-}
-
-# ---------------------------------------------------------------------------
-# Respond — concept-antwoord/rapport posten, met bronvermelding
-# ---------------------------------------------------------------------------
-if ($Respond) {
-    if (-not $CaseId -or -not $Content) { Write-Host "Geef -CaseId en -Content op (responses horen altijd bij een case)"; exit 1 }
-    $sourceIds = @()
-    if ($Ids) { $sourceIds = $Ids -split "," | ForEach-Object { $_.Trim() } }
-    # [string[]]-cast is nodig: ConvertTo-Json zet een array met precies 1
-    # element anders om naar een kale JSON-string i.p.v. een array, wat de
-    # backend afwijst (422, list[str] verwacht een array).
-    $body = @{ content = $Content; source_item_ids = [string[]]$sourceIds }
-    if ($ParentId) { $body.parent_response_id = $ParentId }
-    $response = ApiPost "/mindbox/cases/$CaseId/responses" $body
-    Write-Host "[OK] Response aangemaakt: $($response.id)"
     exit 0
 }
 
@@ -738,8 +793,7 @@ if ($LoadSession) {
     # LET OP: @() moet op een APARTE regel staan, NA de Invoke-RestMethod-
     # aanroep (via ApiGet) - @(ApiGet ...) in 1 statement laat een array van
     # precies 2 elementen inklappen tot Count=1 (verrassende PS 5.1-
-    # eigenaardigheid, empirisch bevestigd 2026-09-02 - zie ook de
-    # [string[]]-castfix bij -Respond, een vergelijkbare array-valkuil).
+    # eigenaardigheid, empirisch bevestigd 2026-09-02).
     $items = ApiGet "/mindbox/items?case_id=$($case.id)"
     $items = @($items)
     Write-Host "`n--- Bestanden ($($items.Count)) - bezig met downloaden + briefing.md per bestand ---"
@@ -787,4 +841,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -Respond | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

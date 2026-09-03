@@ -11,15 +11,17 @@ import { labelStyle, fieldStyle, iconBtnStyle } from './commandStyles.js'
 const ENTITIES = [
   { key: '', label: '— geen (globaal) —', properties: [] },
   { key: 'Case', label: 'Case', properties: [
-    { key: 'name', label: 'naam', action: null },
+    { key: 'name', label: 'naam', action: 'CreateCase' },
     { key: 'context_id', label: 'gekoppelde context', action: null },
   ] },
   { key: 'File', label: 'File (Item)', properties: [
     { key: 'status', label: 'status', action: 'Status' },
     { key: 'notes', label: 'notities (Bart)', action: 'Note' },
     { key: 'parsed_text', label: 'geparste tekst', action: 'ParsedText' },
+    { key: 'text_content', label: 'bewerkbare tekstinhoud (bv. via -Upload op een .txt/.json/.md)', action: null },
     { key: 'contacts', label: 'gekoppelde contacten', action: 'Contact' },
-    { key: 'case_ids', label: 'gekoppelde case(s)', action: null },
+    { key: 'case_ids', label: 'gekoppelde case(s)', action: 'LinkCase' },
+    { key: 'links', label: 'relaties met andere bestanden (vrij link-type)', action: 'LinkItem' },
     { key: 'parent_item_id', label: 'parent (bijlage van)', action: 'UploadAttachment' },
   ] },
   { key: 'Context', label: 'Context', properties: [
@@ -30,10 +32,6 @@ const ENTITIES = [
     { key: 'email', label: 'e-mailadres', action: null },
     { key: 'display_name', label: 'weergavenaam', action: 'Contact' },
     { key: 'notes', label: 'profiel-notitie', action: 'ContactNote' },
-  ] },
-  { key: 'Response', label: 'Response', properties: [
-    { key: 'content', label: 'inhoud', action: 'Respond' },
-    { key: 'parent_response_id', label: 'vervolg op', action: 'Respond' },
   ] },
   { key: 'CaseEvent', label: 'Case Event (tijdlijn)', properties: [
     { key: 'event_type', label: 'type', action: 'AddEvent' },

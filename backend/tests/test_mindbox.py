@@ -1,5 +1,6 @@
 """Tests voor Mindbox (item 1050, Fase 1) - upload/lijst/patch/download/
-delete van persoonsgebonden bestanden, plus responses met bronvermelding."""
+delete van persoonsgebonden bestanden, plus generieke tekstitems met een
+optionele link naar hun bron (item 1058)."""
 import io
 
 import pytest
@@ -188,77 +189,58 @@ def _unlink_case(client, token, item_id, case_id):
     return client.delete(f"/api/mindbox/items/{item_id}/cases/{case_id}", headers=_auth(token))
 
 
-def test_create_response_with_sources_and_list_it(client, user_token):
+def _upload_text(client, token, content="Concept-antwoord op de mail", filename="concept.txt",
+                  case_id=None, link_target_item_id=None, link_type=None):
+    """Item 1058 (vervolg): een 'response' is nu gewoon een generieke tekst-
+    upload (.txt) - text_content wordt automatisch gevuld door save_upload,
+    optioneel met een link naar de bron via link_target_item_id/link_type."""
+    params = {}
+    if case_id is not None:
+        params["case_id"] = case_id
+    if link_target_item_id is not None:
+        params["link_target_item_id"] = link_target_item_id
+        params["link_type"] = link_type
+    return client.post(
+        "/api/mindbox/items", params=params,
+        files={"file": (filename, io.BytesIO(content.encode()), "text/plain")},
+        headers=_auth(token),
+    )
+
+
+def test_upload_a_text_file_populates_text_content_and_links_to_the_source(client, user_token):
     item_id = _upload(client, user_token).json()["id"]
     case_id = _case(client, user_token)
 
-    res = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Concept-antwoord op de mail", "source_item_ids": [item_id]},
-        headers=_auth(user_token),
-    )
+    res = _upload_text(client, user_token, case_id=case_id, link_target_item_id=item_id, link_type="source_of")
     assert res.status_code == 200
     data = res.json()
-    assert data["content"] == "Concept-antwoord op de mail"
-    assert data["case_id"] == case_id
-    assert data["source_item_ids"] == [item_id]
-    assert data["parent_response_id"] is None
+    assert data["text_content"] == "Concept-antwoord op de mail"
+    assert data["case_ids"] == [case_id]
+    assert data["links"] == [{"link_id": data["links"][0]["link_id"], "item_id": item_id, "link_type": "source_of", "direction": "out"}]
 
-    listed = client.get(f"/api/mindbox/cases/{case_id}/responses", headers=_auth(user_token))
+    listed = client.get("/api/mindbox/items", params={"case_id": case_id}, headers=_auth(user_token))
     assert len(listed.json()) == 1
-    assert listed.json()[0]["source_item_ids"] == [item_id]
 
 
-def test_create_response_without_a_case_is_rejected(client, user_token):
-    """Item 1051 (Bart): 'los bekijken van responses is niet relevant' -
-    responses zijn nu altijd case-gescoped, dus zonder case_id in de URL
-    bestaat het endpoint niet meer."""
-    item_id = _upload(client, user_token).json()["id"]
-    res = client.post(
-        "/api/mindbox/responses",
-        json={"content": "Concept", "source_item_ids": [item_id]},
-        headers=_auth(user_token),
-    )
-    assert res.status_code == 404
-
-
-def test_create_followup_response_links_to_parent(client, user_token):
-    item_id = _upload(client, user_token).json()["id"]
+def test_upload_a_text_file_without_a_link_is_allowed(client, user_token):
+    """Bart: 'mogelijk dat er niet in alle gevallen een echte link nodig is,
+    anders dan aan de case koppelen' - link_target_item_id/link_type zijn
+    beide optioneel."""
     case_id = _case(client, user_token)
-    first = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Eerste concept", "source_item_ids": [item_id]},
-        headers=_auth(user_token),
-    ).json()
-
-    followup = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Bijgewerkt na feedback", "source_item_ids": [item_id], "parent_response_id": first["id"]},
-        headers=_auth(user_token),
-    )
-    assert followup.status_code == 200
-    assert followup.json()["parent_response_id"] == first["id"]
+    res = _upload_text(client, user_token, case_id=case_id)
+    assert res.status_code == 200
+    assert res.json()["links"] == []
 
 
-def test_create_response_rejects_a_source_item_owned_by_another_user(client, user_token, admin_token):
-    item_id = _upload(client, admin_token).json()["id"]
-    case_id = _case(client, user_token)
-
-    res = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Poging tot misbruik", "source_item_ids": [item_id]},
-        headers=_auth(user_token),
-    )
-    assert res.status_code == 403
+def test_upload_a_text_file_with_only_a_link_target_is_rejected(client, user_token):
+    item_id = _upload(client, user_token).json()["id"]
+    res = _upload_text(client, user_token, link_target_item_id=item_id)
+    assert res.status_code == 400
 
 
-def test_create_response_in_another_users_case_is_rejected(client, user_token, admin_token):
-    case_id = _case(client, admin_token, "Prive-case van admin")
-    res = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Poging tot misbruik", "source_item_ids": []},
-        headers=_auth(user_token),
-    )
+def test_upload_a_text_file_linking_to_another_users_item_is_rejected(client, user_token, admin_token):
+    other_item_id = _upload(client, admin_token).json()["id"]
+    res = _upload_text(client, user_token, link_target_item_id=other_item_id, link_type="source_of")
     assert res.status_code == 403
 
 
@@ -434,27 +416,21 @@ def test_clear_case_from_an_item(client, user_token):
     assert cleared.json()["case_ids"] == []
 
 
-def test_deleting_a_case_unlinks_items_but_deletes_its_responses(client, user_token):
-    """Items kunnen los bestaan (blijven behouden, alleen ontkoppeld) maar
-    responses zijn altijd case-gebonden (item 1051) - die verdwijnen mee
-    met de case in plaats van los te blijven hangen."""
+def test_deleting_a_case_unlinks_items_including_generated_text_items(client, user_token):
+    """Item 1058 (vervolg): 'een case heeft alleen LEDEN' - ook een
+    gegenereerd tekstitem is nu gewoon een lid, dus die wordt bij het
+    verwijderen van de case ontkoppeld (behouden), niet meeverwijderd."""
     case_id = client.post("/api/mindbox/cases", json={"name": "Op te ruimen case"}, headers=_auth(user_token)).json()["id"]
     item_id = _upload(client, user_token).json()["id"]
     _link_case(client, user_token, item_id, case_id)
-    client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Concept", "source_item_ids": [item_id]},
-        headers=_auth(user_token),
-    )
+    _upload_text(client, user_token, case_id=case_id)
 
     delete_res = client.delete(f"/api/mindbox/cases/{case_id}", headers=_auth(user_token))
     assert delete_res.status_code == 200
 
     items_after = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
-    assert len(items_after) == 1  # de response-item is VERWIJDERD, niet alleen ontkoppeld
-    assert items_after[0]["case_ids"] == []
-    responses_after = client.get(f"/api/mindbox/cases/{case_id}/responses", headers=_auth(user_token))
-    assert responses_after.status_code == 404
+    assert len(items_after) == 2  # beide items blijven bestaan, alleen ontkoppeld
+    assert all(i["case_ids"] == [] for i in items_after)
 
 
 def test_a_users_case_is_not_usable_by_another_user(client, user_token, admin_token):
@@ -626,37 +602,55 @@ def test_deleting_the_parent_item_unlinks_its_attachments(client, user_token):
     assert attachment["parent_item_id"] is None
 
 
-def test_edit_a_response_and_log_a_case_event(client, user_token):
+def test_edit_a_text_items_content_and_log_a_case_event(client, user_token):
     case_id = _case(client, user_token)
-    response_id = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Eerste versie", "source_item_ids": []},
-        headers=_auth(user_token),
-    ).json()["id"]
+    item_id = _upload_text(client, user_token, content="Eerste versie", case_id=case_id).json()["id"]
 
     edited = client.patch(
-        f"/api/mindbox/cases/{case_id}/responses/{response_id}",
-        json={"content": "Bijgewerkte versie"},
-        headers=_auth(user_token),
+        f"/api/mindbox/items/{item_id}", json={"text_content": "Bijgewerkte versie"}, headers=_auth(user_token),
     )
     assert edited.status_code == 200
-    assert edited.json()["content"] == "Bijgewerkte versie"
+    assert edited.json()["text_content"] == "Bijgewerkte versie"
 
     events = client.get(f"/api/mindbox/cases/{case_id}/events", headers=_auth(user_token)).json()
     assert any(e["event_type"] == "response_edited" for e in events)
 
 
-def test_download_response_as_eml_logs_a_sent_event(client, user_token):
-    """Item 1058: een response is nu een MindboxItem - downloaden loopt via
-    de generieke /items/{id}/download i.p.v. een apart .eml-endpoint."""
+def test_editing_a_text_item_rematerializes_its_file(client, user_token):
     case_id = _case(client, user_token)
-    response_id = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Concept-antwoord", "source_item_ids": []},
-        headers=_auth(user_token),
-    ).json()["id"]
+    item_id = _upload_text(client, user_token, content="Eerste versie", case_id=case_id).json()["id"]
+    first_download = client.get(f"/api/mindbox/items/{item_id}/download", headers=_auth(user_token))
+    assert b"Eerste versie" in first_download.content
 
-    eml = client.get(f"/api/mindbox/items/{response_id}/download", headers=_auth(user_token))
+    client.patch(f"/api/mindbox/items/{item_id}", json={"text_content": "Bijgewerkte versie"}, headers=_auth(user_token))
+    second_download = client.get(f"/api/mindbox/items/{item_id}/download", headers=_auth(user_token))
+    assert b"Bijgewerkte versie" in second_download.content
+    assert b"Eerste versie" not in second_download.content
+
+
+def test_editing_text_content_of_a_regular_upload_is_rejected(client, user_token):
+    """update_item's text_content-pad is alleen bedoeld voor items die al
+    bewerkbare tekstinhoud hebben (item 1058, generiek) - een echte upload
+    zonder text_content (bv. een .msg) heeft niets om te her-materialiseren."""
+    item_id = _upload(client, user_token).json()["id"]
+    res = client.patch(f"/api/mindbox/items/{item_id}", json={"text_content": "Poging"}, headers=_auth(user_token))
+    assert res.status_code == 400
+
+
+def test_a_users_text_item_cannot_be_edited_by_another_user(client, user_token, admin_token):
+    item_id = _upload_text(client, user_token, content="Prive").json()["id"]
+
+    res = client.patch(f"/api/mindbox/items/{item_id}", json={"text_content": "Poging tot misbruik"}, headers=_auth(admin_token))
+    assert res.status_code == 403
+
+
+def test_export_text_item_as_eml_logs_a_sent_event(client, user_token):
+    """Item 1058 (vervolg): het .eml-formaat is een expliciete exportactie op
+    elk tekstitem, on-the-fly gerenderd - geen apart 'response'-endpoint."""
+    case_id = _case(client, user_token)
+    item_id = _upload_text(client, user_token, content="Concept-antwoord", case_id=case_id).json()["id"]
+
+    eml = client.post(f"/api/mindbox/items/{item_id}/export-eml", params={"case_id": case_id}, headers=_auth(user_token))
     assert eml.status_code == 200
     assert b"Concept-antwoord" in eml.content
 
@@ -664,71 +658,34 @@ def test_download_response_as_eml_logs_a_sent_event(client, user_token):
     assert any(e["event_type"] == "response_sent" for e in events)
 
 
-def test_a_response_is_visible_in_the_flat_items_list(client, user_token):
-    """Item 1058: responses zijn nu ook gewoon MindboxItems (kind=response),
-    zichtbaar in de platte /items-lijst - bevestigd met Bart."""
+def test_exporting_a_regular_upload_as_eml_is_rejected(client, user_token):
     case_id = _case(client, user_token)
-    response_id = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Concept-antwoord", "source_item_ids": []},
-        headers=_auth(user_token),
-    ).json()["id"]
-
-    items = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
-    response_item = next(i for i in items if i["id"] == response_id)
-    assert response_item["kind"] == "response"
+    item_id = _upload(client, user_token).json()["id"]
+    res = client.post(f"/api/mindbox/items/{item_id}/export-eml", params={"case_id": case_id}, headers=_auth(user_token))
+    assert res.status_code == 400
 
 
-def test_editing_a_response_rematerializes_its_file(client, user_token):
-    case_id = _case(client, user_token)
-    created = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Eerste versie", "source_item_ids": []},
-        headers=_auth(user_token),
-    ).json()
-    first_download = client.get(f"/api/mindbox/items/{created['id']}/download", headers=_auth(user_token))
-    assert b"Eerste versie" in first_download.content
+def test_exporting_a_text_item_for_another_users_case_is_rejected(client, user_token, admin_token):
+    own_case_id = _case(client, user_token)
+    other_case_id = _case(client, admin_token, "Prive-case van admin")
+    item_id = _upload_text(client, user_token, case_id=own_case_id).json()["id"]
 
-    client.patch(
-        f"/api/mindbox/cases/{case_id}/responses/{created['id']}",
-        json={"content": "Bijgewerkte versie"},
-        headers=_auth(user_token),
-    )
-    second_download = client.get(f"/api/mindbox/items/{created['id']}/download", headers=_auth(user_token))
-    assert b"Bijgewerkte versie" in second_download.content
-    assert b"Eerste versie" not in second_download.content
-
-
-def test_a_responses_content_hash_does_not_block_a_real_upload(client, user_token):
-    """Item 1058: de duplicaatdetectie bij upload is gescoped op kind=upload,
-    zodat de sha256 van een gegenereerd .eml-bestand nooit een echte upload
-    kan blokkeren, zelfs niet als de bytes toevallig identiek zijn."""
-    case_id = _case(client, user_token)
-    response_id = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Concept-antwoord", "source_item_ids": []},
-        headers=_auth(user_token),
-    ).json()["id"]
-    response_bytes = client.get(f"/api/mindbox/items/{response_id}/download", headers=_auth(user_token)).content
-
-    res = _upload(client, user_token, filename="identiek.txt", content=response_bytes)
-    assert res.status_code == 200
-
-
-def test_a_users_response_cannot_be_edited_by_another_user(client, user_token, admin_token):
-    case_id = _case(client, user_token)
-    response_id = client.post(
-        f"/api/mindbox/cases/{case_id}/responses",
-        json={"content": "Prive", "source_item_ids": []},
-        headers=_auth(user_token),
-    ).json()["id"]
-
-    res = client.patch(
-        f"/api/mindbox/cases/{case_id}/responses/{response_id}",
-        json={"content": "Poging tot misbruik"},
-        headers=_auth(admin_token),
-    )
+    res = client.post(f"/api/mindbox/items/{item_id}/export-eml", params={"case_id": other_case_id}, headers=_auth(user_token))
     assert res.status_code == 403
+
+
+def test_a_case_exports_content_hash_does_not_block_a_real_upload(client, user_token):
+    """Item 1058: de duplicaatdetectie bij upload is gescoped op kind='upload'
+    - een case-export (kind='case_export') mag nooit toevallig een legitieme
+    upload blokkeren. Tekstitems (via de generieke upload-flow) zijn wel
+    gewoon kind='upload' en vallen dus terecht onder dezelfde duplicaatregels
+    als elk ander bestand."""
+    case_id = _case(client, user_token)
+    export_id = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token)).json()["id"]
+    export_bytes = client.get(f"/api/mindbox/items/{export_id}/download", headers=_auth(user_token)).content
+
+    res = _upload(client, user_token, filename="identiek.md", content=export_bytes, content_type="text/markdown")
+    assert res.status_code == 200
 
 
 def test_export_case_produces_a_downloadable_briefing(client, user_token):

@@ -20,16 +20,23 @@ from models.mindbox import (
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
 CATEGORY = "mindbox"
 
-ALLOWED_EXTENSIONS = {".msg", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".csv"}
+ALLOWED_EXTENSIONS = {
+    ".msg", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".csv",
+    ".png", ".jpg", ".jpeg", ".json", ".md",
+}
+# Item 1058 (vervolg, Bart): "als het een tekstbestand is, wordt het type
+# .txt ... als het een json-bestand is, wordt het type .json" - elk bestand
+# met een van deze extensies krijgt automatisch text_content gevuld (zie
+# save_upload), zodat het generiek herbewerkbaar is - geen apart "tekstitem"-
+# concept nodig, gewoon een MindboxItem waarvan de bytes toevallig tekst zijn.
+TEXT_EXTENSIONS = {".txt", ".json", ".md", ".csv"}
 MAX_SIZE_MB = 25
 VALID_STATUSES = {"new", "in_progress", "done"}
-# Item 1058: generieke link_types voor MindboxItemLink - vervangen het
-# vroegere losse MindboxItem.case_id ("case_member") en, sinds responses zelf
-# MindboxItems zijn (kind="response"), MindboxResponseSource ("source_of")
-# en MindboxResponse.parent_response_id ("reply_to").
+# Item 1058: generiek link_type voor de item<->case-koppeling via
+# MindboxItemLink (vervangt het vroegere losse MindboxItem.case_id). Andere
+# link_types (source_of, reply_to, related_to, ...) zijn vrije strings -
+# gekozen door de gebruiker bij het aanmaken/uploaden, geen vaste constanten.
 LINK_CASE_MEMBER = "case_member"
-LINK_SOURCE_OF = "source_of"
-LINK_REPLY_TO = "reply_to"
 
 
 def _safe_path(user_id: str, filename: str) -> Path:
@@ -44,6 +51,15 @@ def _safe_path(user_id: str, filename: str) -> Path:
 def _owns(item: MindboxItem, user: User) -> None:
     if item.user_id != user.id:
         raise AppError("Geen toegang", status_code=403)
+
+
+def _assert_link_params(link_target_item_id: str | None, link_type: str | None) -> None:
+    """Item 1058 (vervolg, Bart): 'moet die kunnen worden geupload met de
+    juiste parameter (link/linkid/linktype)' - een optionele item<->item-link
+    bij het aanmaken van ELK gegenereerd/geupload bestand, niet alleen
+    responses. Beide of geen van beide - nooit een losse helft."""
+    if bool(link_target_item_id) != bool(link_type):
+        raise AppError("Geef zowel link_target_item_id als link_type op (of geen van beide)", status_code=400)
 
 
 def _write_bytes(user_id: str, ext: str, content: bytes) -> str:
@@ -147,6 +163,7 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
 def save_upload(
     session: Session, user: User, filename: str, content: bytes, content_type: str | None,
     case_id: str | None = None, force: bool = False, parent_item_id: str | None = None,
+    link_target_item_id: str | None = None, link_type: str | None = None,
 ) -> tuple[MindboxItem, "MindboxCase | None"]:
     ext = Path(filename or "upload").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -154,6 +171,9 @@ def save_upload(
         raise AppError(f"Bestandsextensie niet toegestaan: {ext or '(geen)'}. Toegestaan: {allowed}", status_code=400)
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
         raise AppError(f"Bestand te groot. Maximum is {MAX_SIZE_MB}MB", status_code=400)
+    _assert_link_params(link_target_item_id, link_type)
+    if link_target_item_id is not None:
+        get_item(session, user, link_target_item_id)  # bestaat + eigendom-check
 
     inherited_case_ids: list[str] = []
     if parent_item_id is not None:
@@ -198,6 +218,18 @@ def save_upload(
         stem, suffix = Path(filename).stem, Path(filename).suffix
         original_filename = f"{stem} (kopie {len(duplicates) + 1}){suffix}"
 
+    # Item 1058 (vervolg, Bart): "als het een tekstbestand is, wordt het type
+    # .txt/.json/..." - text_content automatisch vullen voor tekstachtige
+    # extensies, zodat het bestand generiek herbewerkbaar is (zie
+    # update_item) zonder een apart "tekstitem"-aanmaakpad nodig te hebben -
+    # ook een browser-getypte notitie is gewoon een .txt-upload.
+    text_content = None
+    if ext in TEXT_EXTENSIONS:
+        try:
+            text_content = content.decode("utf-8")
+        except UnicodeDecodeError:
+            text_content = None
+
     rel_path = _write_bytes(user.id, ext, content)
     item = MindboxItem(
         user_id=user.id,
@@ -207,6 +239,7 @@ def save_upload(
         size_bytes=len(content),
         content_hash=content_hash,
         parent_item_id=parent_item_id,
+        text_content=text_content,
     )
     session.add(item)
     session.commit()
@@ -217,7 +250,9 @@ def save_upload(
     for cid in linked_case_ids:
         session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=cid))
         _log_case_event(session, cid, user.id, "upload", event_desc)
-    if linked_case_ids:
+    if link_target_item_id is not None:
+        session.add(MindboxItemLink(item_id=item.id, link_type=link_type, target_item_id=link_target_item_id))
+    if linked_case_ids or link_target_item_id is not None:
         session.commit()
 
     # Alleen suggereren als het bestand nog geen case heeft (en geen bijlage
@@ -277,6 +312,7 @@ def item_to_dict(session: Session, item: MindboxItem) -> dict:
         "status": item.status,
         "notes": item.notes,
         "parsed_text": item.parsed_text,
+        "text_content": item.text_content,
         "parent_item_id": item.parent_item_id,
         "kind": item.kind,
         "case_ids": get_item_case_ids(session, item.id),
@@ -312,7 +348,7 @@ def get_item(session: Session, user: User, item_id: str) -> MindboxItem:
 
 def update_item(
     session: Session, user: User, item_id: str, status: str | None, notes: str | None,
-    parsed_text: str | None = None,
+    parsed_text: str | None = None, text_content: str | None = None,
 ) -> MindboxItem:
     """Item 1058: case-koppeling loopt niet meer via dit endpoint (een item
     kan aan 0+ cases hangen) - zie services.mindbox_links.link_item_to_case/
@@ -330,6 +366,18 @@ def update_item(
         item.parsed_text = parsed_text
         for cid in get_item_case_ids(session, item.id):
             _log_case_event(session, cid, user.id, "item_parsed", f"{item.original_filename}: tekst geextraheerd")
+    if text_content is not None:
+        # Item 1058 (vervolg): generiek "bewerk deze tekst opnieuw" - werkt
+        # voor ELK item met text_content (elke .txt-upload krijgt dat
+        # automatisch, zie save_upload), niet specifiek voor een
+        # "response"-concept.
+        if item.text_content is None:
+            raise AppError("Dit bestand heeft geen bewerkbare tekstinhoud", status_code=400)
+        item.text_content = text_content
+        ext = Path(item.original_filename).suffix or ".txt"
+        _materialize_item_bytes(item, text_content.encode("utf-8"), item.content_type or "text/plain", item.original_filename, ext)
+        for cid in get_item_case_ids(session, item.id):
+            _log_case_event(session, cid, user.id, "response_edited", f"{item.original_filename} bijgewerkt")
     item.updated_at = datetime.utcnow()
     session.add(item)
     session.commit()
@@ -364,115 +412,22 @@ def get_item_file_path(session: Session, user: User, item_id: str) -> tuple[Path
     abs_path = _safe_path(user.id, Path(item.file_path).name)
     if not abs_path.is_file():
         raise AppError("Bestand niet gevonden op schijf", status_code=404)
-    if item.kind == "response":
-        # Item 1058: het downloaden van een response-item IS het moment van
-        # intentie-tot-verzenden (zelfde gedrag als het vroegere aparte
-        # .eml-endpoint) - nu via de generieke download-route, voor elke
-        # case waar deze response bij hoort.
-        for cid in get_item_case_ids(session, item.id):
-            _log_case_event(session, cid, user.id, "response_sent", "Response gedownload als .eml, klaar voor verzending")
-        session.commit()
     return abs_path, item
 
 
-def _response_item_to_dict(session: Session, item: MindboxItem, case_id: str) -> dict:
-    """Facade in exact dezelfde vorm als de vroegere MindboxResponseOut -
-    item 1058: een response is nu een MindboxItem (kind="response"), maar de
-    /cases/{id}/responses-contracten blijven ongewijzigd voor de aanroepers."""
-    source_ids = session.exec(
-        select(MindboxItemLink.target_item_id).where(
-            MindboxItemLink.item_id == item.id, MindboxItemLink.link_type == LINK_SOURCE_OF,
-        )
-    ).all()
-    reply_to = session.exec(
-        select(MindboxItemLink.target_item_id).where(
-            MindboxItemLink.item_id == item.id, MindboxItemLink.link_type == LINK_REPLY_TO,
-        )
-    ).first()
-    return {
-        "id": item.id,
-        "content": item.text_content or "",
-        "parent_response_id": reply_to,
-        "case_id": case_id,
-        "source_item_ids": list(source_ids),
-        "original_filename": item.original_filename,
-        "created_at": item.created_at,
-    }
-
-
-def get_response_item(session: Session, user: User, response_id: str) -> MindboxItem:
-    item = get_item(session, user, response_id)
-    if item.kind != "response":
-        raise AppError("Response niet gevonden", status_code=404)
-    return item
-
-
-def create_response_item(
-    session: Session, user: User, case_id: str, content: str, source_item_ids: list[str],
-    parent_response_id: str | None = None,
-) -> dict:
+def export_email(session: Session, user: User, item_id: str, case_id: str) -> bytes:
+    """Item 1058 (vervolg, Bart): het .eml-ready-voor-verzending-formaat is
+    geen standaard meer maar een losse, expliciete exportactie op elk
+    tekstitem - rendert on-the-fly (geen persistente materialisatie, zelfde
+    stijl als het vroegere build_response_eml van vóór increment 2)."""
+    item = get_item(session, user, item_id)
+    if item.text_content is None:
+        raise AppError("Dit bestand heeft geen tekstinhoud om als e-mail te exporteren", status_code=400)
     case = get_case(session, user, case_id)  # bestaat + eigendom-check
-    for item_id in source_item_ids:
-        get_item(session, user, item_id)  # bestaat + eigendom-check
-    if parent_response_id is not None:
-        get_response_item(session, user, parent_response_id)  # bestaat + eigendom-check + is een response
-
-    item = MindboxItem(
-        user_id=user.id, kind="response", text_content=content,
-        original_filename="response.eml", file_path="", size_bytes=0,
-    )
-    session.add(item)
+    eml_bytes = render_response_eml(user.email, case.name, item.text_content)
+    _log_case_event(session, case_id, user.id, "response_sent", f"{item.original_filename} geexporteerd als .eml, klaar voor verzending")
     session.commit()
-    session.refresh(item)
-
-    eml_bytes = render_response_eml(user.email, case.name, content)
-    _materialize_item_bytes(item, eml_bytes, "message/rfc822", f"response-{item.id}.eml", ".eml")
-    session.add(item)
-
-    session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=case_id))
-    for source_id in source_item_ids:
-        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_SOURCE_OF, target_item_id=source_id))
-    if parent_response_id is not None:
-        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_REPLY_TO, target_item_id=parent_response_id))
-    _log_case_event(session, case_id, user.id, "response_created", f"Nieuwe response toegevoegd: {content[:80]}")
-    session.commit()
-    session.refresh(item)
-    return _response_item_to_dict(session, item, case_id)
-
-
-def get_response_items(session: Session, user: User, case_id: str) -> list[dict]:
-    get_case(session, user, case_id)  # bestaat + eigendom-check
-    query = (
-        select(MindboxItem)
-        .join(MindboxItemLink, MindboxItemLink.item_id == MindboxItem.id)
-        .where(
-            MindboxItem.user_id == user.id, MindboxItem.kind == "response",
-            MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
-        )
-        .order_by(col(MindboxItem.created_at).desc())
-    )
-    items = session.exec(query).all()
-    return [_response_item_to_dict(session, item, case_id) for item in items]
-
-
-def update_response_item(session: Session, user: User, case_id: str, response_id: str, content: str) -> dict:
-    """Bart: 'ik kan me voorstellen dat het gepaste emailtje ook gekoppeld
-    kan worden aan het bestand... in welk formaat' - de verzonden mail zelf
-    kan gewoon als los bestand in de case ge-upload worden (bestaat al); dit
-    hier is de andere helft: het concept-antwoord zelf kunnen bijwerken naar
-    wat er uiteindelijk daadwerkelijk verstuurd is."""
-    item = get_response_item(session, user, response_id)
-    if case_id not in get_item_case_ids(session, item.id):
-        raise AppError("Response hoort niet bij deze case", status_code=404)
-    case = get_case(session, user, case_id)
-    item.text_content = content
-    eml_bytes = render_response_eml(user.email, case.name, content)
-    _materialize_item_bytes(item, eml_bytes, "message/rfc822", item.original_filename, ".eml")
-    session.add(item)
-    _log_case_event(session, case_id, user.id, "response_edited", "Response bijgewerkt")
-    session.commit()
-    session.refresh(item)
-    return _response_item_to_dict(session, item, case_id)
+    return eml_bytes
 
 
 # ---------------------------------------------------------------------------
@@ -537,29 +492,17 @@ def update_case(
 
 def delete_case(session: Session, user: User, case_id: str) -> None:
     case = get_case(session, user, case_id)
-    # Item 1058: alleen de link naar DEZE case verwijderen - een item dat aan
-    # meerdere cases hangt moet die andere koppeling(en) behouden.
-    case_member_links = list(session.exec(
+    # Item 1058 (vervolg): een case heeft alleen LEDEN (via case_member-
+    # links) - verwijderen van een case verwijdert nooit bestanden, alleen de
+    # koppeling (net als een gewone unlink). Consistent voor elk item, ook
+    # gegenereerde tekstitems - er is geen apart "response"-concept meer dat
+    # zijn eigen levensduur aan de case bindt.
+    for link in session.exec(
         select(MindboxItemLink).where(
             MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
         )
-    ).all())
-    for link in case_member_links:
-        item = session.get(MindboxItem, link.item_id)
+    ).all():
         session.delete(link)
-        # Responses zijn altijd case-gebonden (item 1051) - kunnen niet
-        # losgekoppeld blijven bestaan zoals gewone items, dus verdwijnen mee
-        # met de case (i.t.t. uploads, die wel los kunnen bestaan).
-        if item and item.kind == "response":
-            for other in session.exec(select(MindboxItemLink).where(MindboxItemLink.item_id == item.id)).all():
-                session.delete(other)
-            for other in session.exec(select(MindboxItemLink).where(MindboxItemLink.target_item_id == item.id)).all():
-                session.delete(other)
-            if item.file_path:
-                abs_path = _safe_path(item.user_id, Path(item.file_path).name)
-                if abs_path.exists():
-                    abs_path.unlink()
-            session.delete(item)
     for event in session.exec(select(MindboxCaseEvent).where(MindboxCaseEvent.case_id == case_id)).all():
         session.delete(event)
     session.delete(case)
@@ -597,7 +540,7 @@ def _render_case_items_section(session: Session, items: list[MindboxItem]) -> st
     for item in items:
         if item.kind == "case_export":
             continue  # het export-bestand zichzelf niet in de eigen lijst opnemen
-        marker = "📧" if item.kind == "response" else "📄"
+        marker = "📝" if item.text_content else "📄"
         lines.append(f"- {marker} {item.original_filename} ({item.status})")
         for link in get_item_links(session, item.id):
             other = session.get(MindboxItem, link["item_id"])

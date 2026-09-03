@@ -2,15 +2,27 @@ import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
   listItems, uploadItem, updateItem, downloadItem, unlinkItemCase, exportCase,
-  unlinkItems,
-  listResponses, createResponse, updateResponse, listContexts, listContacts,
-  listCommands,
+  unlinkItems, linkItems, exportEmail,
+  listContexts, listContacts, listCommands,
 } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
 import Modal from '@components/Modal.jsx'
 import RelationsGraph from './RelationsGraph.jsx'
+
+const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
+
+// Item 1058 (vervolg, Bart): "de website krijgt een generieke oplossing door
+// een nieuw MindBoxItem aan te maken van het type txt en een linktype te
+// kiezen" - vaste, herkenbare types + vrije "anders...", zelfde lijst als
+// ItemsPage.jsx/RelationsGraph.jsx.
+const LINK_TYPE_OPTIONS = [
+  { value: 'related_to', label: 'gerelateerd aan' },
+  { value: 'duplicate_of', label: 'duplicaat van' },
+  { value: 'source_of', label: 'bron van' },
+  { value: 'reply_to', label: 'vervolg op' },
+]
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -37,7 +49,7 @@ const EVENT_ICON = {
 }
 
 // Outlook-achtig: linkerkolom = cases (mappen), rechterpaneel = detail van de
-// geselecteerde case (items/responses/tijdlijn) - Bart, 2-09-2026.
+// geselecteerde case (bestanden/tijdlijn) - Bart, 2-09-2026.
 export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting }) {
   const [cases, setCases] = useState([])
   const [selected, setSelected] = useState(null)
@@ -79,7 +91,7 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
   }
 
   async function handleDelete(c) {
-    if (!(await confirmAction(`Case "${c.name}" verwijderen? Bestanden blijven bestaan (verliezen de koppeling), maar responses in deze case worden verwijderd.`))) return
+    if (!(await confirmAction(`Case "${c.name}" verwijderen? Bestanden blijven bestaan, alleen de koppeling met deze case verdwijnt.`))) return
     await deleteCase(c.id)
     if (selected?.id === c.id) setSelected(null)
     loadCases()
@@ -153,7 +165,6 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
 
 function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [items, setItems] = useState([])
-  const [responses, setResponses] = useState([])
   const [events, setEvents] = useState([])
   const [contexts, setContexts] = useState([])
   const [contacts, setContacts] = useState([])
@@ -171,12 +182,10 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   const [confirmAction, confirmDialog] = useConfirm()
 
   function load() {
-    // Item 1058: responses zijn nu ook MindboxItems (kind=response) en komen
-    // dus mee in GET /items?case_id=... - hier eruit filteren, want deze
-    // `items`-state is de BESTANDEN-sectie/bronnenlijst; responses hebben al
-    // hun eigen RESPONSES-sectie hieronder (listResponses).
-    listItems(caseObj.id).then(list => setItems(list.filter(i => i.kind !== 'response'))).catch(() => {})
-    listResponses(caseObj.id).then(setResponses).catch(() => {})
+    // Item 1058 (vervolg): geen apart "response"-concept meer - elk
+    // gegenereerd tekstbestand is gewoon een MindboxItem en verschijnt
+    // gewoon tussen de andere bestanden (herkenbaar aan text_content).
+    listItems(caseObj.id).then(setItems).catch(() => {})
     listCaseEvents(caseObj.id).then(setEvents).catch(() => {})
     listContexts().then(setContexts).catch(() => {})
     listContacts().then(setContacts).catch(() => {})
@@ -342,50 +351,66 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     load()
   }
 
-  const emptyResponseForm = { content: '', source_item_ids: [], parent_response_id: '' }
-  const [showResponseForm, setShowResponseForm] = useState(false)
-  const [responseForm, setResponseForm] = useState(emptyResponseForm)
+  // Item 1058 (vervolg, Bart): "de website krijgt een generieke oplossing
+  // door een nieuw MindBoxItem aan te maken van het type txt en een
+  // linktype te kiezen" - geen los "response"-endpoint meer: getypte tekst
+  // wordt client-side een Blob en gaat door dezelfde upload-route als elk
+  // ander bestand (save_upload vult text_content automatisch voor .txt).
+  // Bart: de oude "BRONNEN"-checkboxlijst (meerdere bestanden in 1 keer
+  // aanvinken) was nuttig - dat patroon blijft, alleen generiek (niet meer
+  // response-specifiek) en met een vrij te kiezen link_type voor alle
+  // aangevinkte bestanden samen.
+  const emptyTextForm = { content: '', filename: '', linkTargetIds: [], linkType: '', linkTypeCustom: '' }
+  const [showTextForm, setShowTextForm] = useState(false)
+  const [textForm, setTextForm] = useState(emptyTextForm)
 
-  function toggleResponseSource(itemId) {
-    setResponseForm(f => ({
+  function toggleTextFormLink(itemId) {
+    setTextForm(f => ({
       ...f,
-      source_item_ids: f.source_item_ids.includes(itemId)
-        ? f.source_item_ids.filter(x => x !== itemId)
-        : [...f.source_item_ids, itemId],
+      linkTargetIds: f.linkTargetIds.includes(itemId)
+        ? f.linkTargetIds.filter(id => id !== itemId)
+        : [...f.linkTargetIds, itemId],
     }))
   }
 
-  async function handleSaveResponse() {
-    if (!responseForm.content.trim()) return
-    await createResponse(caseObj.id, {
-      content: responseForm.content,
-      source_item_ids: responseForm.source_item_ids,
-      parent_response_id: responseForm.parent_response_id || null,
-    })
-    setResponseForm(emptyResponseForm)
-    setShowResponseForm(false)
+  async function handleCreateTextItem() {
+    if (!textForm.content.trim()) return
+    const stem = textForm.filename.trim() || 'notitie'
+    const filename = stem.toLowerCase().endsWith('.txt') ? stem : `${stem}.txt`
+    const file = new File([textForm.content], filename, { type: 'text/plain' })
+    const linkType = textForm.linkType === CUSTOM_LINK_TYPE_SENTINEL ? textForm.linkTypeCustom.trim() : textForm.linkType
+    const item = await uploadItem(file, caseObj.id)
+    if (textForm.linkTargetIds.length && linkType) {
+      for (const targetId of textForm.linkTargetIds) {
+        await linkItems(item.id, targetId, linkType)
+      }
+    }
+    setTextForm(emptyTextForm)
+    setShowTextForm(false)
+    load()
+    onChanged()
+  }
+
+  const [editingTextId, setEditingTextId] = useState(null)
+  const [editingText, setEditingText] = useState('')
+
+  function startEditText(item) {
+    setEditingTextId(item.id)
+    setEditingText(item.text_content || '')
+  }
+
+  async function saveEditedText(item) {
+    if (!editingText.trim()) return
+    await updateItem(item.id, { text_content: editingText })
+    setEditingTextId(null)
     load()
   }
 
-  const [editingResponseId, setEditingResponseId] = useState(null)
-  const [editingContent, setEditingContent] = useState('')
-
-  function handleStartEditResponse(r) {
-    setEditingResponseId(r.id)
-    setEditingContent(r.content)
-  }
-
-  async function handleSaveEditedResponse(responseId) {
-    if (!editingContent.trim()) return
-    await updateResponse(caseObj.id, responseId, { content: editingContent })
-    setEditingResponseId(null)
-    load()
-  }
-
-  // Item 1058: een response is nu een MindboxItem - downloadItem() bedient
-  // 'm al (backend logt "response_sent" als side-effect van de download).
-  async function handleDownloadEml(response) {
-    await downloadItem(response.id, response.original_filename)
+  // Item 1058 (vervolg): het .eml-ready-voor-verzending-formaat is een
+  // losse, expliciete exportactie op elk tekstitem (backend logt
+  // "response_sent" als side-effect).
+  async function handleExportEmail(item) {
+    await exportEmail(item.id, caseObj.id, item.original_filename.replace(/\.[^.]+$/, '.eml'))
     load()  // tijdlijn verversen na de "response_sent"-event
   }
 
@@ -395,11 +420,6 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     const item = await exportCase(caseObj.id)
     await downloadItem(item.id, item.original_filename)
   }
-
-  // Item 1058 (vervolg, Bart): "eigenlijk wil ik de relaties met nette
-  // lijnen zien" - RelationsGraph haalt zelf een VERSE, ONGEFILTERDE
-  // items-lijst op (de `items`-state hierboven filtert responses eruit voor
-  // de Bestanden-sectie, maar de graph moet ze juist tonen).
 
   return (
     <div
@@ -497,17 +517,79 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
             {uploading ? 'Bezig...' : '+ Toevoegen'}
           </button>
           <input ref={fileInputRef} type="file" onChange={handleFileChange} style={{ display: 'none' }} />
+          <button
+            onClick={() => { setShowTextForm(s => !s); setTextForm(emptyTextForm) }}
+            style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
+          >
+            + Tekst document
+          </button>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>of sleep een bestand in dit vlak</span>
         </div>
+        {showTextForm && (
+          <div style={{ padding: 10, marginBottom: 8, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <textarea
+              value={textForm.content}
+              onChange={e => setTextForm(f => ({ ...f, content: e.target.value }))}
+              placeholder="Inhoud (bv. een concept-antwoord, plan of samenvatting)..."
+              style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
+            />
+            <input
+              value={textForm.filename}
+              onChange={e => setTextForm(f => ({ ...f, filename: e.target.value }))}
+              placeholder="Bestandsnaam (optioneel, bv. plan.txt)"
+              style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+            />
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>RELATIES (optioneel)</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {items.map(i => (
+                  <label key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={textForm.linkTargetIds.includes(i.id)} onChange={() => toggleTextFormLink(i.id)} />
+                    {i.original_filename}
+                  </label>
+                ))}
+                {!items.length && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Nog geen bestanden in deze case om een relatie mee te leggen.</span>}
+              </div>
+            </div>
+            {!!textForm.linkTargetIds.length && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={textForm.linkType}
+                  onChange={e => setTextForm(f => ({ ...f, linkType: e.target.value }))}
+                  style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+                >
+                  <option value="">Link-type voor alle aangevinkte bestanden...</option>
+                  {LINK_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  <option value={CUSTOM_LINK_TYPE_SENTINEL}>anders...</option>
+                </select>
+                {textForm.linkType === CUSTOM_LINK_TYPE_SENTINEL && (
+                  <input
+                    value={textForm.linkTypeCustom}
+                    onChange={e => setTextForm(f => ({ ...f, linkTypeCustom: e.target.value }))}
+                    placeholder="eigen link-type"
+                    style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+                  />
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowTextForm(false)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
+              <button onClick={handleCreateTextItem} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {items.filter(item => !item.parent_item_id).map(item => (
             <div key={item.id}>
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center', padding: '8px 10px',
               background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 12,
-              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id || expandedLinksId === item.id) ? '6px 6px 0 0' : 6,
+              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id || expandedLinksId === item.id || editingTextId === item.id) ? '6px 6px 0 0' : 6,
             }}>
-              <span>{item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span></span>
+              <span>
+                {item.text_content != null && <span title="Tekstbestand (bewerkbaar)" style={{ marginRight: 4 }}>📝</span>}
+                {item.original_filename} <span style={{ color: 'var(--color-text-muted)' }}>· {item.status}</span>
+              </span>
               <textarea
                 defaultValue={item.notes || ''}
                 placeholder="Extra info / context voor verwerking..."
@@ -523,6 +605,12 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
                 ))}
                 <button onClick={() => downloadItem(item.id, item.original_filename)} title="Downloaden" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⬇</button>
                 <button onClick={() => handleUnlink(item)} title="Loskoppelen van deze case" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>⤫</button>
+                {item.text_content != null && (
+                  <>
+                    <button onClick={() => startEditText(item)} title="Bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
+                    <button onClick={() => handleExportEmail(item)} title="Exporteer als .eml, klaar voor verzending" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
+                  </>
+                )}
                 {item.parsed_text && (
                   <button onClick={() => setExpandedParsedId(id => id === item.id ? null : item.id)} title="Geparste tekst tonen/verbergen" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
                     {expandedParsedId === item.id ? '▲' : '▼'}
@@ -545,6 +633,22 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
               }}>
                 <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>GEPARSTE TEKST VAN HET BESTAND</div>
                 {item.parsed_text}
+              </div>
+            )}
+            {editingTextId === item.id && (
+              <div style={{
+                padding: '8px 10px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+                borderRadius: '0 0 6px 6px', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <textarea
+                  value={editingText}
+                  onChange={e => setEditingText(e.target.value)}
+                  style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
+                />
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setEditingTextId(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
+                  <button onClick={() => saveEditedText(item)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+                </div>
               </div>
             )}
             {expandedAttachmentsId === item.id && !!attachmentsOf(item.id).length && (
@@ -590,92 +694,6 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
           ))}
           {!items.length && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen bestanden in deze case.</div>}
         </div>
-      </section>
-
-      {/* Responses in deze case (item 1051: altijd case-gescoped, geen losse Responses-tab meer) */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)' }}>RESPONSES ({responses.length})</div>
-          <button
-            onClick={() => { setShowResponseForm(s => !s); setResponseForm(emptyResponseForm) }}
-            style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}
-          >
-            + Nieuwe response
-          </button>
-        </div>
-        {showResponseForm && (
-          <div style={{ padding: 10, marginBottom: 8, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <textarea
-              value={responseForm.content}
-              onChange={e => setResponseForm(f => ({ ...f, content: e.target.value }))}
-              placeholder="Inhoud van de response..."
-              style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
-            />
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>BRONNEN</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {items.map(i => (
-                  <label key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 8px', border: '1px solid var(--color-border)', borderRadius: 99, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={responseForm.source_item_ids.includes(i.id)} onChange={() => toggleResponseSource(i.id)} />
-                    {i.original_filename}
-                  </label>
-                ))}
-                {!items.length && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Nog geen bestanden in deze case om als bron te koppelen.</span>}
-              </div>
-            </div>
-            {!!responses.length && (
-              <select
-                value={responseForm.parent_response_id}
-                onChange={e => setResponseForm(f => ({ ...f, parent_response_id: e.target.value }))}
-                style={{ padding: '4px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)' }}
-              >
-                <option value="">Geen opvolging (nieuwe response)</option>
-                {responses.map(r => (
-                  <option key={r.id} value={r.id}>Opvolging op: {r.content.slice(0, 60)}...</option>
-                ))}
-              </select>
-            )}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowResponseForm(false)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
-              <button onClick={handleSaveResponse} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
-            </div>
-          </div>
-        )}
-        {responses.map(r => (
-          <div key={r.id} style={{ padding: 8, fontSize: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, marginBottom: 6 }}>
-            {editingResponseId === r.id ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <textarea
-                  value={editingContent}
-                  onChange={e => setEditingContent(e.target.value)}
-                  style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
-                />
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                  <button onClick={() => setEditingResponseId(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
-                  <button onClick={() => handleSaveEditedResponse(r.id)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ whiteSpace: 'pre-wrap' }}>{r.content}</div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6, fontSize: 10, color: 'var(--color-text-muted)' }}>
-              <span>{fmtDate(r.created_at)}</span>
-              {r.source_item_ids.map(id => {
-                const source = items.find(i => i.id === id)
-                return <span key={id} style={{ padding: '1px 6px', border: '1px solid var(--color-border)', borderRadius: 99 }}>📎 {source?.original_filename || id}</span>
-              })}
-              {r.parent_response_id && <span style={{ fontStyle: 'italic' }}>↳ vervolg op een eerdere response</span>}
-              {editingResponseId !== r.id && (
-                <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                  <CopyButton text={r.content} icon="📋" title="Kopieer naar klembord" style={{ padding: '2px 6px', fontSize: 11 }} />
-                  <button onClick={() => handleDownloadEml(r)} title="Download als .eml, klaar voor verzending" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
-                  <button onClick={() => handleStartEditResponse(r)} title="Bewerken" style={{ padding: '2px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {!responses.length && !showResponseForm && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen responses in deze case.</div>}
       </section>
 
       {/* Tijdlijn */}

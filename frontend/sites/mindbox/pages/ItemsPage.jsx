@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, linkItemCase, unlinkItemCase, unlinkItems, listContacts, unlinkItemContact, listCommands } from '../api.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, linkItemCase, unlinkItemCase, unlinkItems, exportEmail, listContacts, unlinkItemContact, listCommands } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
@@ -216,6 +216,33 @@ export default function ItemsPage({ onGoToExisting }) {
     load()
   }
 
+  // Item 1058 (vervolg): generiek "bewerk deze tekst opnieuw" voor elk item
+  // met text_content, ongeacht waarvoor het gebruikt wordt.
+  const [editingTextId, setEditingTextId] = useState(null)
+  const [editingText, setEditingText] = useState('')
+
+  function startEditText(item) {
+    setEditingTextId(item.id)
+    setEditingText(item.text_content || '')
+  }
+
+  async function saveEditedText(item) {
+    if (!editingText.trim()) return
+    await updateItem(item.id, { text_content: editingText })
+    setEditingTextId(null)
+    load()
+  }
+
+  // Exporteren als .eml vereist een case (voor de "Re: {case}"-subject en de
+  // tijdlijn) - alleen aanbieden als het item aan precies 1 case hangt, om
+  // niet te hoeven kiezen welke case bedoeld is.
+  async function handleExportEmail(item) {
+    const caseId = item.case_ids?.[0]
+    if (!caseId) return
+    await exportEmail(item.id, caseId, item.original_filename.replace(/\.[^.]+$/, '.eml'))
+    load()
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -270,15 +297,15 @@ export default function ItemsPage({ onGoToExisting }) {
             style={{
               display: 'grid', gridTemplateColumns: '1fr 130px 160px 1fr auto', gap: 12, alignItems: 'start',
               padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id || expandedLinksId === item.id) ? '8px 8px 0 0' : 8,
+              borderRadius: (expandedParsedId === item.id || expandedAttachmentsId === item.id || expandedLinksId === item.id || editingTextId === item.id) ? '8px 8px 0 0' : 8,
             }}
           >
             <div>
               <div style={{ fontWeight: 600, fontSize: 13 }}>
-                {/* Item 1058: "alles is een bestand" - een response is ook
-                    gewoon een MindboxItem, hier zichtbaar met een icoon
-                    zodat gegenereerde content herkenbaar is t.o.v. uploads. */}
-                {item.kind === 'response' && <span title="Response (gegenereerd)" style={{ marginRight: 4 }}>📧</span>}
+                {/* Item 1058 (vervolg): geen apart "response"-concept meer -
+                    text_content geeft aan dat dit een bewerkbaar/gegenereerd
+                    tekstbestand is, ongeacht waarvoor het gebruikt wordt. */}
+                {item.text_content != null && <span title="Tekstbestand (bewerkbaar)" style={{ marginRight: 4 }}>📝</span>}
                 {item.original_filename}
               </div>
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
@@ -371,6 +398,14 @@ export default function ItemsPage({ onGoToExisting }) {
               >
                 ⬇
               </button>
+              {item.text_content != null && (
+                <>
+                  <button onClick={() => startEditText(item)} title="Bewerken" style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✎</button>
+                  {item.case_ids?.length === 1 && (
+                    <button onClick={() => handleExportEmail(item)} title="Exporteer als .eml, klaar voor verzending" style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>✉️</button>
+                  )}
+                </>
+              )}
               <button
                 onClick={() => handleDelete(item)}
                 disabled={!!item.case_ids?.length}
@@ -417,6 +452,22 @@ export default function ItemsPage({ onGoToExisting }) {
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>GEPARSTE TEKST VAN HET BESTAND</div>
               {item.parsed_text}
+            </div>
+          )}
+          {editingTextId === item.id && (
+            <div style={{
+              padding: '10px 16px', background: 'var(--color-background)', border: '1px solid var(--color-border)', borderTop: 'none',
+              borderRadius: '0 0 8px 8px', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              <textarea
+                value={editingText}
+                onChange={e => setEditingText(e.target.value)}
+                style={{ padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                <button onClick={() => setEditingTextId(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>Annuleren</button>
+                <button onClick={() => saveEditedText(item)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>Opslaan</button>
+              </div>
             </div>
           )}
           {expandedAttachmentsId === item.id && !!attachmentsOf(item.id).length && (

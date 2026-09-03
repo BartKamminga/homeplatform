@@ -10,13 +10,21 @@ export function listItems(caseId) {
   return api.get(`/api/mindbox/items${query}`)
 }
 
-export async function uploadItem(file, caseId, force = false) {
+// Item 1058 (vervolg): linkTargetItemId/linkType zijn optioneel - meteen een
+// relatie leggen bij het aanmaken (bv. een terminal/agent-sessie die een
+// plan/samenvatting voorbereidt EN weet waar het bij hoort), of geen van
+// beide voor een gewone upload zonder directe relatie.
+export async function uploadItem(file, caseId, force = false, linkTargetItemId = null, linkType = null) {
   const token = localStorage.getItem('hp_token')
   const formData = new FormData()
   formData.append('file', file, file.name)
   const params = new URLSearchParams()
   if (caseId) params.set('case_id', caseId)
   if (force) params.set('force', 'true')
+  if (linkTargetItemId && linkType) {
+    params.set('link_target_item_id', linkTargetItemId)
+    params.set('link_type', linkType)
+  }
   const query = params.toString() ? `?${params}` : ''
   const res = await fetch(`/api/mindbox/items${query}`, {
     method: 'POST',
@@ -182,25 +190,24 @@ export function unlinkItemContact(itemId, contactId) {
   return api.delete(`/api/mindbox/items/${itemId}/contact/${contactId}`)
 }
 
-// ---------------------------------------------------------------------------
-// Responses (altijd case-gescoped, item 1051 - los bekijken is niet relevant)
-// ---------------------------------------------------------------------------
-
-export function listResponses(caseId) {
-  return api.get(`/api/mindbox/cases/${caseId}/responses`)
+// Item 1058 (vervolg): het .eml-ready-voor-verzending-formaat is geen
+// standaard meer maar een losse, expliciete exportactie op elk tekstitem
+// (item.text_content gezet) - on-the-fly gerenderd, download rechtstreeks.
+export async function exportEmail(itemId, caseId, filename) {
+  const token = localStorage.getItem('hp_token')
+  const res = await fetch(`/api/mindbox/items/${itemId}/export-eml?case_id=${encodeURIComponent(caseId)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Exporteren mislukt')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || `${itemId}.eml`
+  a.click()
+  URL.revokeObjectURL(url)
 }
-
-export function createResponse(caseId, data) {
-  return api.post(`/api/mindbox/cases/${caseId}/responses`, data)
-}
-
-export function updateResponse(caseId, responseId, data) {
-  return api.patch(`/api/mindbox/cases/${caseId}/responses/${responseId}`, data)
-}
-
-// Item 1058: een response is nu een MindboxItem - downloaden loopt via de
-// generieke downloadItem() hierboven (1 downloadpad voor alles), geen apart
-// .eml-endpoint meer.
 
 // ---------------------------------------------------------------------------
 // Commands (item 1053) - de env.MindBox.Entity.Cmd(#id)-catalogus, backend-

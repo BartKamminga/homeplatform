@@ -9,7 +9,13 @@ import { listItems, linkItems, unlinkItems } from '../api.js'
 // klik 2 nodes aan om te koppelen (type verschijnt in een klein paneeltje),
 // klik een lijn aan om 'm te verwijderen. De graph is nu zowel overzicht
 // als bewerkscherm i.p.v. een apart select+select+knop-formulier per item.
-const KIND_ICON = { upload: '📄', response: '📧', case_export: '📋' }
+// Item 1058 (vervolg): geen apart "response"-kind meer - text_content geeft
+// aan dat een item een bewerkbaar/gegenereerd tekstbestand is.
+const KIND_ICON = { case_export: '📋' }
+function iconFor(item) {
+  if (KIND_ICON[item.kind]) return KIND_ICON[item.kind]
+  return item.text_content != null ? '📝' : '📄'
+}
 const NODE_WIDTH = 200
 const NODE_HEIGHT = 44
 const CUSTOM_LINK_TYPE_SENTINEL = '__custom__'
@@ -37,7 +43,7 @@ function buildGraph(items, selectedId) {
   const itemIds = new Set(items.map(i => i.id))
   const rawNodes = items.map(item => ({
     id: item.id,
-    data: { label: `${KIND_ICON[item.kind] || '📄'} ${item.original_filename}` },
+    data: { label: `${iconFor(item)} ${item.original_filename}` },
     position: { x: 0, y: 0 },
     style: {
       fontSize: 12, padding: '8px 10px', borderRadius: 8, width: NODE_WIDTH, cursor: 'pointer',

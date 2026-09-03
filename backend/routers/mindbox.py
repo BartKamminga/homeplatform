@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -69,6 +69,7 @@ class MindboxItemOut(BaseModel):
     status:                str
     notes:                 Optional[str]
     parsed_text:           Optional[str]
+    text_content:          Optional[str]
     parent_item_id:        Optional[str]
     kind:                  str
     case_ids:              list[str]
@@ -86,6 +87,7 @@ class MindboxItemUpdate(BaseModel):
     status:         Optional[str] = None
     notes:          Optional[str] = None
     parsed_text:    Optional[str] = None
+    text_content:   Optional[str] = None
 
 
 class MindboxContextOut(BaseModel):
@@ -124,24 +126,6 @@ class MindboxKnowledgeUpdate(BaseModel):
     content:  Optional[str] = None
 
 
-class MindboxResponseCreate(BaseModel):
-    content:             str
-    source_item_ids:     list[str] = []
-    parent_response_id:  Optional[str] = None
-
-
-class MindboxResponseUpdate(BaseModel):
-    content: str
-
-
-class MindboxResponseOut(BaseModel):
-    id:                  str
-    content:             str
-    parent_response_id:  Optional[str]
-    case_id:             str
-    source_item_ids:     list[str]
-    original_filename:   str
-    created_at:          datetime
 
 
 # ---------------------------------------------------------------------------
@@ -163,12 +147,15 @@ async def upload_item(
     case_id: Optional[str] = None,
     force: bool = False,
     parent_item_id: Optional[str] = None,
+    link_target_item_id: Optional[str] = None,
+    link_type: Optional[str] = None,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     content = await file.read()
     item, suggested_case = svc.save_upload(
         session, user, file.filename, content, file.content_type, case_id, force, parent_item_id,
+        link_target_item_id, link_type,
     )
     log_action(session, "mindbox.upload", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "filename": item.original_filename, "case_id": case_id, "parent_item_id": parent_item_id})
@@ -195,7 +182,7 @@ def update_item(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    item = svc.update_item(session, user, item_id, data.status, data.notes, data.parsed_text)
+    item = svc.update_item(session, user, item_id, data.status, data.notes, data.parsed_text, data.text_content)
     log_action(session, "mindbox.update", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "fields": list(data.model_dump(exclude_unset=True))})
     return svc.item_to_dict(session, item)
@@ -209,6 +196,23 @@ def download_item(
 ):
     abs_path, item = svc.get_item_file_path(session, user, item_id)
     return FileResponse(str(abs_path), filename=item.original_filename)
+
+
+@router.post("/items/{item_id}/export-eml")
+def export_item_email(
+    item_id: str,
+    case_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Item 1058 (vervolg): het .eml-ready-voor-verzending-formaat is geen
+    standaard meer maar een losse, expliciete exportactie - on-the-fly
+    gerenderd, niets wordt persistent gematerialiseerd."""
+    eml_bytes = svc.export_email(session, user, item_id, case_id)
+    return Response(
+        content=eml_bytes, media_type="message/rfc822",
+        headers={"Content-Disposition": f'attachment; filename="{item_id}.eml"'},
+    )
 
 
 @router.delete("/items/{item_id}")
@@ -375,55 +379,6 @@ def export_case(
     item = svc.export_case(session, user, case_id)
     log_action(session, "mindbox.case.export", site="mindbox", user_id=user.id, payload={"case_id": case_id, "item_id": item.id})
     return svc.item_to_dict(session, item)
-
-
-# ---------------------------------------------------------------------------
-# Responses (VERPLICHT case-gescoped, item 1051: los bekijken is niet
-# relevant - vandaar geen los /responses-endpoint meer maar altijd via
-# /cases/{case_id}/responses, net als de events hieronder)
-# ---------------------------------------------------------------------------
-
-@router.get("/cases/{case_id}/responses", response_model=list[MindboxResponseOut])
-def list_responses(
-    case_id: str,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    return svc.get_response_items(session, user, case_id)
-
-
-@router.post("/cases/{case_id}/responses", response_model=MindboxResponseOut)
-def create_response(
-    case_id: str,
-    data: MindboxResponseCreate,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    response = svc.create_response_item(
-        session, user, case_id, data.content, data.source_item_ids, data.parent_response_id,
-    )
-    log_action(session, "mindbox.response.create", site="mindbox", user_id=user.id,
-               payload={"response_id": response["id"], "case_id": case_id, "source_item_ids": data.source_item_ids})
-    return response
-
-
-@router.patch("/cases/{case_id}/responses/{response_id}", response_model=MindboxResponseOut)
-def update_response(
-    case_id: str,
-    response_id: str,
-    data: MindboxResponseUpdate,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    response = svc.update_response_item(session, user, case_id, response_id, data.content)
-    log_action(session, "mindbox.response.update", site="mindbox", user_id=user.id,
-               payload={"response_id": response_id, "case_id": case_id})
-    return response
-
-
-# Item 1058: geen apart .eml-endpoint meer - een response is nu een
-# MindboxItem, dus GET /items/{id}/download bedient 'm al (1 downloadpad
-# voor alles, motief achter "alles is een bestand").
 
 
 # ---------------------------------------------------------------------------
