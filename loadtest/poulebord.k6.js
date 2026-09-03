@@ -36,46 +36,58 @@ const TOTAL_DURATION = `${stageDurationToSeconds(STAGE_DURATION) * 3}s`
 const boardWriteFailRate = new Rate('board_write_failed')
 const simDuration = new Trend('scenario_simulate_duration', true)
 
-export const options = {
-  scenarios: {
-    // "poulebord load" — bezoekers die een board openen en standen/wedstrijden bekijken.
-    board_reads: {
-      executor: 'ramping-vus',
-      exec: 'browseBoard',
-      startVUs: 1,
-      stages: [
-        { duration: STAGE_DURATION, target: READ_MAX_VUS },
-        { duration: STAGE_DURATION, target: READ_MAX_VUS },
-        { duration: STAGE_DURATION, target: 0 },
-      ],
-      gracefulRampDown: '10s',
-    },
-    // Concurrent geschreven boards, laag maar constant — dit is de test voor de
-    // SQLite-writer-lock: als dit gaat falen/vertragen terwijl reads gezond
-    // blijven, is dat het bewijs.
-    board_writes: {
-      executor: 'constant-arrival-rate',
-      exec: 'saveBoard',
-      rate: WRITE_RATE,
-      timeUnit: '1s',
-      duration: TOTAL_DURATION,
-      preAllocatedVUs: 5,
-      maxVUs: 20,
-    },
-    // "scenario-functies" — de Monte Carlo/positie-simulaties zijn CPU-zwaar,
-    // dit laat zien of één uvicorn-worker daar al onderuit gaat.
-    scenario_calc: {
-      executor: 'ramping-vus',
-      exec: 'runScenario',
-      startVUs: 0,
-      stages: [
-        { duration: STAGE_DURATION, target: SIM_MAX_VUS },
-        { duration: STAGE_DURATION, target: SIM_MAX_VUS },
-        { duration: STAGE_DURATION, target: 0 },
-      ],
-      gracefulRampDown: '10s',
-    },
+// k6's executors accepteren geen 0-waarden (ramping-vus wil minstens 1 VU op
+// enig moment, constant-arrival-rate wil rate > 0) — scenario's met VUS/rate 0
+// worden daarom overgeslagen i.p.v. de hele run te laten crashen. Dat maakt
+// gerichte isolatietests mogelijk (bv. SIM_MAX_VUS=0 om alleen reads+writes
+// te meten, of WRITE_RATE=0 om alleen de CPU-belasting van simulate te meten).
+const scenarios = {
+  // "poulebord load" — bezoekers die een board openen en standen/wedstrijden bekijken.
+  board_reads: {
+    executor: 'ramping-vus',
+    exec: 'browseBoard',
+    startVUs: 1,
+    stages: [
+      { duration: STAGE_DURATION, target: READ_MAX_VUS },
+      { duration: STAGE_DURATION, target: READ_MAX_VUS },
+      { duration: STAGE_DURATION, target: 0 },
+    ],
+    gracefulRampDown: '10s',
   },
+}
+
+if (WRITE_RATE > 0) {
+  // Concurrent geschreven boards — dit is de test voor de SQLite-writer-lock:
+  // als dit gaat falen/vertragen terwijl reads gezond blijven, is dat het bewijs.
+  scenarios.board_writes = {
+    executor: 'constant-arrival-rate',
+    exec: 'saveBoard',
+    rate: WRITE_RATE,
+    timeUnit: '1s',
+    duration: TOTAL_DURATION,
+    preAllocatedVUs: 5,
+    maxVUs: 20,
+  }
+}
+
+if (SIM_MAX_VUS > 0) {
+  // "scenario-functies" — de Monte Carlo/positie-simulaties zijn CPU-zwaar,
+  // dit laat zien of één uvicorn-worker daar al onderuit gaat.
+  scenarios.scenario_calc = {
+    executor: 'ramping-vus',
+    exec: 'runScenario',
+    startVUs: 0,
+    stages: [
+      { duration: STAGE_DURATION, target: SIM_MAX_VUS },
+      { duration: STAGE_DURATION, target: SIM_MAX_VUS },
+      { duration: STAGE_DURATION, target: 0 },
+    ],
+    gracefulRampDown: '10s',
+  }
+}
+
+export const options = {
+  scenarios,
   thresholds: {
     // Informatief, niet hard falend — we willen de cijfers zien, niet de build blokkeren.
     http_req_duration: ['p(95)<5000'],
