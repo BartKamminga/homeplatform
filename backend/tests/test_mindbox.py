@@ -190,6 +190,46 @@ def test_auto_extracted_attachment_inherits_the_mails_case(client, user_token, m
     assert attachments[0]["case_ids"] == [case_id]
 
 
+def test_reuploading_a_mail_with_a_duplicate_attachment_links_the_existing_one_to_the_new_case(client, user_token, monkeypatch):
+    """Bart: 'die zie ik niet terug' (2e keer, andere oorzaak) - dezelfde
+    factuur-PDF komt vaak in meerdere losse mails/cases voor (bv. een
+    doorgestuurd of opnieuw gedownload mailtje). content_hash-deduplicatie
+    blokkeert dan een nieuwe upload van de bijlage (409) omdat 'ie al
+    bestaat, maar dat bestaande exemplaar hing alleen aan zijn EERSTE case -
+    hij moet ook aan een 2e case gekoppeld worden i.p.v. stil te verdwijnen."""
+    def fake_extract_msg(content):
+        text = "Van: a@x.nl\nAan: b@x.nl\nOnderwerp: Factuur\nDatum: 2026-08-01 09:00:00\n\nZie bijlage."
+        return text, [("factuur.pdf", b"identieke pdf-bytes", "application/pdf")], "Factuur"
+
+    monkeypatch.setattr(svc, "_extract_msg", fake_extract_msg)
+
+    case_a = _case(client, user_token, "Case A")
+    case_b = _case(client, user_token, "Case B")
+
+    first_mail = client.post(
+        "/api/mindbox/items", params={"case_id": case_a},
+        files={"file": ("mail1.msg", io.BytesIO(b"mail1"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert first_mail.status_code == 200
+    first_attachment_id = client.get(
+        f"/api/mindbox/items/{first_mail.json()['id']}/attachments", headers=_auth(user_token)
+    ).json()[0]["id"]
+
+    second_mail = client.post(
+        "/api/mindbox/items", params={"case_id": case_b},
+        files={"file": ("mail2.msg", io.BytesIO(b"mail2 - andere bytes dan mail1"), "application/vnd.ms-outlook")},
+        headers=_auth(user_token),
+    )
+    assert second_mail.status_code == 200
+
+    # Geen NIEUWE bijlage aangemaakt onder mail2 (content_hash-duplicaat) -
+    # het bestaande exemplaar moet nu wel aan case_b gekoppeld zijn.
+    assert client.get(f"/api/mindbox/items/{second_mail.json()['id']}/attachments", headers=_auth(user_token)).json() == []
+    items = client.get("/api/mindbox/items", params={"case_id": case_b}, headers=_auth(user_token)).json()
+    assert any(i["id"] == first_attachment_id for i in items)
+
+
 def test_link_related_msg_items_matches_on_normalized_subject(client, user_token, regular_user, session):
     """Item 1069 (Bart): 'stel ik upload mijn relevante email van een hele
     dag... we kunnen die dus meteen linken' - test de matching-heuristiek

@@ -461,10 +461,23 @@ def save_upload(
     for att_name, att_bytes, att_content_type in pending_attachments:
         try:
             save_upload(session, user, att_name, att_bytes, att_content_type, parent_item_id=item.id)
-        except AppError:
-            # Bv. bijlage-extensie niet toegestaan of een duplicaat van een
-            # al bestaand bestand - mag de rest van de mail-upload niet laten
-            # falen, dit is een best-effort verrijking, geen kernactie.
+        except AppError as att_error:
+            # Item 1068 (vervolg, Bart): "die zie ik niet terug" (2e keer) -
+            # dezelfde bijlage (bv. eenzelfde factuur-PDF) komt vaak in
+            # meerdere losse mails/cases voor. content_hash-deduplicatie
+            # blokkeert dan een nieuwe upload (409), maar het BESTAANDE
+            # exemplaar hing alleen aan zijn EERSTE case - hier alsnog aan
+            # de huidige case('s) koppelen i.p.v. de bijlage stil te laten
+            # verdwijnen. Andere fouten (bv. extensie niet toegestaan)
+            # blijven wel gewoon overgeslagen.
+            if att_error.code == "mindbox_duplicate_file" and att_error.extra:
+                existing_id = att_error.extra.get("item_id")
+                existing_case_ids = set(att_error.extra.get("case_ids") or [])
+                for cid in linked_case_ids:
+                    if cid not in existing_case_ids:
+                        session.add(MindboxItemLink(item_id=existing_id, link_type=LINK_CASE_MEMBER, target_case_id=cid))
+                if linked_case_ids:
+                    session.commit()
             continue
 
     if msg_subject:
