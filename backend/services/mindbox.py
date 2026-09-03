@@ -13,8 +13,8 @@ from core.exceptions import AppError
 from core.settings import settings
 from models.core import User
 from models.mindbox import (
-    MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxItemContact, MindboxItemLink,
-    MindboxKnowledge,
+    MindboxCase, MindboxCaseEvent, MindboxContact, MindboxContext, MindboxItem, MindboxItemContact,
+    MindboxItemLink, MindboxKnowledge,
 )
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
@@ -543,6 +543,87 @@ def delete_case(session: Session, user: User, case_id: str) -> None:
         session.delete(event)
     session.delete(case)
     session.commit()
+
+
+def _slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "case"
+
+
+def _get_case_contacts(session: Session, case_id: str) -> list[MindboxContact]:
+    """Item 1058: hergebruikt dezelfde afleiding als CasesPage.jsx's
+    `caseContacts` (client-side) - maar hier server-side nodig voor de
+    case-export, die geen los frontend-request per contact kan doen."""
+    item_ids = session.exec(
+        select(MindboxItemLink.item_id).where(
+            MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
+        )
+    ).all()
+    if not item_ids:
+        return []
+    contact_ids = list(session.exec(
+        select(MindboxItemContact.contact_id).where(col(MindboxItemContact.item_id).in_(item_ids)).distinct()
+    ).all())
+    if not contact_ids:
+        return []
+    return list(session.exec(select(MindboxContact).where(col(MindboxContact.id).in_(contact_ids))).all())
+
+
+def render_case_export_markdown(
+    case: MindboxCase, context: "MindboxContext | None", contacts: list[MindboxContact], events: list[MindboxCaseEvent],
+) -> bytes:
+    """Item 1058 (Bart): een case moet net als een item als lokaal bestand
+    te downloaden zijn voor AI-verwerking - analoog aan de briefing.md die
+    MindBox.ps1 -Run al voor een los item genereert (case + context +
+    contacten + tijdlijn samengevat), maar dan voor de HELE case."""
+    contacts_md = "\n".join(
+        f"- {c.display_name or c.email} ({c.email})" for c in contacts
+    ) or "(geen contacten gekoppeld)"
+    timeline_md = "\n".join(
+        f"- {e.created_at:%Y-%m-%d %H:%M} - {e.event_type}: {e.description}" for e in events
+    ) or "(geen activiteit)"
+    text = (
+        f"# Case: {case.name}\n\n"
+        f"- Status: {case.status}\n"
+        f"- Aangemaakt: {case.created_at}\n"
+        f"- Context/persona: {context.name if context else '(geen)'}\n\n"
+        f"## Omschrijving\n\n{case.description or '(geen omschrijving)'}\n\n"
+        f"## Context-instructie\n\n{context.content if context else '(geen context gekoppeld)'}\n\n"
+        f"## Contacten\n\n{contacts_md}\n\n"
+        f"## Tijdlijn\n\n{timeline_md}\n"
+    )
+    return text.encode("utf-8")
+
+
+def export_case(session: Session, user: User, case_id: str) -> MindboxItem:
+    """Genereert (of her-genereert, bij een volgende export) een MindboxItem
+    met kind="case_export" - hergebruikt dezelfde materialisatie-machinerie
+    als een response, dus download/verwijderen werken al generiek."""
+    case = get_case(session, user, case_id)
+    context = get_context(session, user, case.context_id) if case.context_id else None
+    contacts = _get_case_contacts(session, case_id)
+    events = get_case_events(session, user, case_id)
+    markdown = render_case_export_markdown(case, context, contacts, events)
+
+    item = session.exec(
+        select(MindboxItem)
+        .join(MindboxItemLink, MindboxItemLink.item_id == MindboxItem.id)
+        .where(
+            MindboxItem.kind == "case_export", MindboxItemLink.link_type == LINK_CASE_MEMBER,
+            MindboxItemLink.target_case_id == case_id,
+        )
+    ).first()
+    if not item:
+        item = MindboxItem(user_id=user.id, kind="case_export", original_filename="case-export.md", file_path="", size_bytes=0)
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=case_id))
+
+    _materialize_item_bytes(item, markdown, "text/markdown", f"case-export-{_slugify(case.name)}.md", ".md")
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
 
 
 # ---------------------------------------------------------------------------

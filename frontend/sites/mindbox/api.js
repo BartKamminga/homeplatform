@@ -89,6 +89,12 @@ export function unlinkItemCase(itemId, caseId) {
   return api.delete(`/api/mindbox/items/${itemId}/cases/${caseId}`)
 }
 
+// Item 1058: case-metadata + context + contacten + tijdlijn als 1 lokaal
+// bestand, analoog aan de MindBox.ps1 -Run briefing.md voor een los item.
+export function exportCase(caseId) {
+  return api.post(`/api/mindbox/cases/${caseId}/export`)
+}
+
 export function listCaseEvents(caseId) {
   return api.get(`/api/mindbox/cases/${caseId}/events`)
 }

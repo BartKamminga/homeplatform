@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
-  listItems, uploadItem, updateItem, downloadItem, unlinkItemCase,
+  listItems, uploadItem, updateItem, downloadItem, unlinkItemCase, exportCase,
   listResponses, createResponse, updateResponse, listContexts, listContacts,
   listCommands,
 } from '../api.js'
@@ -361,6 +361,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
     load()  // tijdlijn verversen na de "response_sent"-event
   }
 
+  // Item 1058 (Bart): case + context + contacten + tijdlijn als 1 lokaal
+  // bestand kunnen downloaden, analoog aan de item-briefing.md.
+  async function handleExportCase() {
+    const item = await exportCase(caseObj.id)
+    await downloadItem(item.id, item.original_filename)
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -385,6 +392,13 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
             style={{ padding: '3px 8px', fontSize: 11 }}
           />
         ))}
+        <button
+          onClick={handleExportCase}
+          title="Case + context + contacten + tijdlijn downloaden als 1 bestand"
+          style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}
+        >
+          📄 Exporteren
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <select
             value={caseObj.status}

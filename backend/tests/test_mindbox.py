@@ -729,3 +729,51 @@ def test_a_users_response_cannot_be_edited_by_another_user(client, user_token, a
         headers=_auth(admin_token),
     )
     assert res.status_code == 403
+
+
+def test_export_case_produces_a_downloadable_briefing(client, user_token):
+    """Item 1058, increment 3: case + context + contacten + tijdlijn als 1
+    lokaal bestand, analoog aan de item-briefing.md."""
+    context_id = client.post(
+        "/api/mindbox/contexts", json={"name": "Manager", "content": "Reageer kort en zakelijk."},
+        headers=_auth(user_token),
+    ).json()["id"]
+    case_id = client.post(
+        "/api/mindbox/cases", json={"name": "Export-case", "context_id": context_id}, headers=_auth(user_token),
+    ).json()["id"]
+    item_id = _upload(client, user_token, filename="mail.msg").json()["id"]
+    _link_case(client, user_token, item_id, case_id)
+    client.post(f"/api/mindbox/items/{item_id}/contact", json={"email": "sender@voorbeeld.nl"}, headers=_auth(user_token))
+
+    exported = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token))
+    assert exported.status_code == 200
+    data = exported.json()
+    assert data["kind"] == "case_export"
+
+    downloaded = client.get(f"/api/mindbox/items/{data['id']}/download", headers=_auth(user_token))
+    assert downloaded.status_code == 200
+    content = downloaded.content.decode("utf-8")
+    assert "Export-case" in content
+    assert "Reageer kort en zakelijk." in content
+    assert "sender@voorbeeld.nl" in content
+
+
+def test_exporting_a_case_twice_reuses_the_same_item(client, user_token):
+    case_id = _case(client, user_token, "Herhaald te exporteren")
+
+    first = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token)).json()
+    client.patch(f"/api/mindbox/cases/{case_id}", json={"description": "Bijgewerkte omschrijving"}, headers=_auth(user_token))
+    second = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token)).json()
+
+    assert first["id"] == second["id"]
+    items = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
+    assert len([i for i in items if i["kind"] == "case_export"]) == 1
+
+    content = client.get(f"/api/mindbox/items/{second['id']}/download", headers=_auth(user_token)).content
+    assert b"Bijgewerkte omschrijving" in content
+
+
+def test_exporting_another_users_case_is_rejected(client, user_token, admin_token):
+    case_id = _case(client, admin_token, "Prive case")
+    res = client.post(f"/api/mindbox/cases/{case_id}/export", headers=_auth(user_token))
+    assert res.status_code == 403

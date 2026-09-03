@@ -358,6 +358,17 @@ def delete_case(
     return {"ok": True}
 
 
+@router.post("/cases/{case_id}/export", response_model=MindboxItemOut)
+def export_case(
+    case_id: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    item = svc.export_case(session, user, case_id)
+    log_action(session, "mindbox.case.export", site="mindbox", user_id=user.id, payload={"case_id": case_id, "item_id": item.id})
+    return svc.item_to_dict(session, item)
+
+
 # ---------------------------------------------------------------------------
 # Responses (VERPLICHT case-gescoped, item 1051: los bekijken is niet
 # relevant - vandaar geen los /responses-endpoint meer maar altijd via
