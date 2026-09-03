@@ -19,7 +19,7 @@ const ENTITIES = [
     { key: 'notes', label: 'notities (Bart)', action: 'Note' },
     { key: 'parsed_text', label: 'geparste tekst', action: 'ParsedText' },
     { key: 'contacts', label: 'gekoppelde contacten', action: 'Contact' },
-    { key: 'case_id', label: 'gekoppelde case', action: null },
+    { key: 'case_ids', label: 'gekoppelde case(s)', action: null },
     { key: 'parent_item_id', label: 'parent (bijlage van)', action: 'UploadAttachment' },
   ] },
   { key: 'Context', label: 'Context', properties: [

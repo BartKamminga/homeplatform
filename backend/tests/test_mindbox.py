@@ -50,7 +50,7 @@ def test_set_parsed_text_on_an_item_and_log_a_case_event(client, user_token):
     (Barts eigen aantekening)."""
     case_id = _case(client, user_token)
     item_id = _upload(client, user_token).json()["id"]
-    client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, item_id, case_id)
 
     updated = client.patch(
         f"/api/mindbox/items/{item_id}", json={"parsed_text": "Geextraheerde mailtekst..."}, headers=_auth(user_token)
@@ -149,12 +149,12 @@ def test_deleting_a_case_linked_item_is_rejected_until_unlinked(client, user_tok
     dan pas verwijderen."""
     item_id = _upload(client, user_token).json()["id"]
     case_id = _case(client, user_token)
-    client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, item_id, case_id)
 
     blocked = client.delete(f"/api/mindbox/items/{item_id}", headers=_auth(user_token))
     assert blocked.status_code == 400
 
-    client.patch(f"/api/mindbox/items/{item_id}", json={"clear_case": True}, headers=_auth(user_token))
+    _unlink_case(client, user_token, item_id, case_id)
     allowed = client.delete(f"/api/mindbox/items/{item_id}", headers=_auth(user_token))
     assert allowed.status_code == 200
 
@@ -178,6 +178,14 @@ def test_a_users_items_are_not_visible_to_another_user(client, user_token, admin
 
 def _case(client, token, name="Testcase"):
     return client.post("/api/mindbox/cases", json={"name": name}, headers=_auth(token)).json()["id"]
+
+
+def _link_case(client, token, item_id, case_id):
+    return client.post(f"/api/mindbox/items/{item_id}/cases/{case_id}", headers=_auth(token))
+
+
+def _unlink_case(client, token, item_id, case_id):
+    return client.delete(f"/api/mindbox/items/{item_id}/cases/{case_id}", headers=_auth(token))
 
 
 def test_create_response_with_sources_and_list_it(client, user_token):
@@ -347,7 +355,7 @@ def test_create_case_and_upload_item_into_it(client, user_token):
         headers=_auth(user_token),
     )
     assert res.status_code == 200
-    assert res.json()["case_id"] == case_id
+    assert res.json()["case_ids"] == [case_id]
 
     listed = client.get("/api/mindbox/items", params={"case_id": case_id}, headers=_auth(user_token))
     assert len(listed.json()) == 1
@@ -356,14 +364,46 @@ def test_create_case_and_upload_item_into_it(client, user_token):
 def test_add_a_followup_item_to_an_existing_case(client, user_token):
     case_id = client.post("/api/mindbox/cases", json={"name": "Vervolgmail-case"}, headers=_auth(user_token)).json()["id"]
     first_id = _upload(client, user_token, filename="mail1.msg").json()["id"]
-    client.patch(f"/api/mindbox/items/{first_id}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, first_id, case_id)
 
     second_id = _upload(client, user_token, filename="mail2.msg").json()["id"]
-    linked = client.patch(f"/api/mindbox/items/{second_id}", json={"case_id": case_id}, headers=_auth(user_token))
-    assert linked.json()["case_id"] == case_id
+    linked = _link_case(client, user_token, second_id, case_id)
+    assert linked.json()["case_ids"] == [case_id]
 
     listed = client.get("/api/mindbox/items", params={"case_id": case_id}, headers=_auth(user_token))
     assert len(listed.json()) == 2
+
+
+def test_an_item_can_belong_to_multiple_cases(client, user_token):
+    """Item 1058: case-koppeling is many-to-many i.p.v. 1 case per item."""
+    case_a = _case(client, user_token, "Case A")
+    case_b = _case(client, user_token, "Case B")
+    item_id = _upload(client, user_token).json()["id"]
+
+    _link_case(client, user_token, item_id, case_a)
+    linked = _link_case(client, user_token, item_id, case_b)
+    assert sorted(linked.json()["case_ids"]) == sorted([case_a, case_b])
+
+    items_in_a = client.get("/api/mindbox/items", params={"case_id": case_a}, headers=_auth(user_token)).json()
+    items_in_b = client.get("/api/mindbox/items", params={"case_id": case_b}, headers=_auth(user_token)).json()
+    assert [i["id"] for i in items_in_a] == [item_id]
+    assert [i["id"] for i in items_in_b] == [item_id]
+
+
+def test_deleting_one_of_an_items_two_cases_keeps_the_other_link(client, user_token):
+    """Item 1058: verwijderen van case A mag de koppeling met case B niet
+    aantasten - alleen de link naar de verwijderde case verdwijnt."""
+    case_a = _case(client, user_token, "Te verwijderen")
+    case_b = _case(client, user_token, "Blijft bestaan")
+    item_id = _upload(client, user_token).json()["id"]
+    _link_case(client, user_token, item_id, case_a)
+    _link_case(client, user_token, item_id, case_b)
+
+    delete_res = client.delete(f"/api/mindbox/cases/{case_a}", headers=_auth(user_token))
+    assert delete_res.status_code == 200
+
+    items = client.get("/api/mindbox/items", headers=_auth(user_token)).json()
+    assert items[0]["case_ids"] == [case_b]
 
 
 def test_all_items_in_a_case_share_the_cases_single_context(client, user_token):
@@ -376,8 +416,8 @@ def test_all_items_in_a_case_share_the_cases_single_context(client, user_token):
 
     item1 = _upload(client, user_token, filename="a.msg").json()["id"]
     item2 = _upload(client, user_token, filename="b.msg").json()["id"]
-    client.patch(f"/api/mindbox/items/{item1}", json={"case_id": case_id}, headers=_auth(user_token))
-    client.patch(f"/api/mindbox/items/{item2}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, item1, case_id)
+    _link_case(client, user_token, item2, case_id)
 
     case = client.get("/api/mindbox/cases", headers=_auth(user_token)).json()[0]
     assert case["context_id"] == context_id
@@ -388,10 +428,10 @@ def test_all_items_in_a_case_share_the_cases_single_context(client, user_token):
 def test_clear_case_from_an_item(client, user_token):
     case_id = client.post("/api/mindbox/cases", json={"name": "Tijdelijke case"}, headers=_auth(user_token)).json()["id"]
     item_id = _upload(client, user_token).json()["id"]
-    client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, item_id, case_id)
 
-    cleared = client.patch(f"/api/mindbox/items/{item_id}", json={"clear_case": True}, headers=_auth(user_token))
-    assert cleared.json()["case_id"] is None
+    cleared = _unlink_case(client, user_token, item_id, case_id)
+    assert cleared.json()["case_ids"] == []
 
 
 def test_deleting_a_case_unlinks_items_but_deletes_its_responses(client, user_token):
@@ -400,7 +440,7 @@ def test_deleting_a_case_unlinks_items_but_deletes_its_responses(client, user_to
     met de case in plaats van los te blijven hangen."""
     case_id = client.post("/api/mindbox/cases", json={"name": "Op te ruimen case"}, headers=_auth(user_token)).json()["id"]
     item_id = _upload(client, user_token).json()["id"]
-    client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, item_id, case_id)
     client.post(
         f"/api/mindbox/cases/{case_id}/responses",
         json={"content": "Concept", "source_item_ids": [item_id]},
@@ -411,7 +451,7 @@ def test_deleting_a_case_unlinks_items_but_deletes_its_responses(client, user_to
     assert delete_res.status_code == 200
 
     item = client.get("/api/mindbox/items", headers=_auth(user_token)).json()[0]
-    assert item["case_id"] is None
+    assert item["case_ids"] == []
     responses_after = client.get(f"/api/mindbox/cases/{case_id}/responses", headers=_auth(user_token))
     assert responses_after.status_code == 404
 
@@ -420,7 +460,7 @@ def test_a_users_case_is_not_usable_by_another_user(client, user_token, admin_to
     case_id = client.post("/api/mindbox/cases", json={"name": "Prive case"}, headers=_auth(user_token)).json()["id"]
     item_id = _upload(client, admin_token).json()["id"]
 
-    res = client.patch(f"/api/mindbox/items/{item_id}", json={"case_id": case_id}, headers=_auth(admin_token))
+    res = _link_case(client, admin_token, item_id, case_id)
     assert res.status_code == 403
 
 
@@ -501,12 +541,12 @@ def test_upload_suggests_a_case_based_on_reply_prefix(client, user_token):
     puur een suggestie in de response, nooit automatisch gekoppeld."""
     case_id = _case(client, user_token, "SRE-vacature-kwestie")
     first = _upload(client, user_token, filename="medior_senior SRE engineer.msg", content=b"origineel")
-    client.patch(f"/api/mindbox/items/{first.json()['id']}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, first.json()["id"], case_id)
 
     reply = _upload(client, user_token, filename="RE_ medior_senior SRE engineer.msg", content=b"antwoord")
     assert reply.status_code == 200
     data = reply.json()
-    assert data["case_id"] is None  # NIET automatisch gekoppeld
+    assert data["case_ids"] == []  # NIET automatisch gekoppeld
     assert data["suggested_case_id"] == case_id
     assert data["suggested_case_name"] == "SRE-vacature-kwestie"
 
@@ -514,7 +554,7 @@ def test_upload_suggests_a_case_based_on_reply_prefix(client, user_token):
 def test_upload_does_not_suggest_a_case_for_unrelated_filenames(client, user_token):
     case_id = _case(client, user_token, "Onduidelijke naam")
     first = _upload(client, user_token, filename="xyz123.msg", content=b"a")
-    client.patch(f"/api/mindbox/items/{first.json()['id']}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, first.json()["id"], case_id)
 
     unrelated = _upload(client, user_token, filename="heel andere naam.msg", content=b"b")
     assert unrelated.json()["suggested_case_id"] is None
@@ -537,7 +577,7 @@ def test_upload_an_attachment_inherits_the_parents_case(client, user_token):
     case_id = _case(client, user_token, "Mail met bijlage")
     mail = _upload(client, user_token, filename="mail.msg", content=b"mail body")
     mail_id = mail.json()["id"]
-    client.patch(f"/api/mindbox/items/{mail_id}", json={"case_id": case_id}, headers=_auth(user_token))
+    _link_case(client, user_token, mail_id, case_id)
 
     attachment = client.post(
         "/api/mindbox/items",
@@ -548,7 +588,7 @@ def test_upload_an_attachment_inherits_the_parents_case(client, user_token):
     assert attachment.status_code == 200
     data = attachment.json()
     assert data["parent_item_id"] == mail_id
-    assert data["case_id"] == case_id  # geerfd, niet expliciet meegegeven
+    assert data["case_ids"] == [case_id]  # geerfd, niet expliciet meegegeven
     assert data["suggested_case_id"] is None  # geen suggestie nodig voor een bijlage
 
     listed = client.get(f"/api/mindbox/items/{mail_id}/attachments", headers=_auth(user_token))

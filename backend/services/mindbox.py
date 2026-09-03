@@ -13,7 +13,7 @@ from core.exceptions import AppError
 from core.settings import settings
 from models.core import User
 from models.mindbox import (
-    MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxItemContact,
+    MindboxCase, MindboxCaseEvent, MindboxContext, MindboxItem, MindboxItemContact, MindboxItemLink,
     MindboxKnowledge, MindboxResponse, MindboxResponseSource,
 )
 
@@ -23,6 +23,9 @@ CATEGORY = "mindbox"
 ALLOWED_EXTENSIONS = {".msg", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".csv"}
 MAX_SIZE_MB = 25
 VALID_STATUSES = {"new", "in_progress", "done"}
+# Item 1058: generiek link_type voor de item<->case-koppeling via
+# MindboxItemLink (vervangt het vroegere losse MindboxItem.case_id).
+LINK_CASE_MEMBER = "case_member"
 
 
 def _safe_path(user_id: str, filename: str) -> Path:
@@ -74,17 +77,19 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
     if not normalized:
         return None
     candidates = session.exec(
-        select(MindboxItem).where(
+        select(MindboxItem, MindboxItemLink.target_case_id)
+        .join(MindboxItemLink, MindboxItemLink.item_id == MindboxItem.id)
+        .where(
             MindboxItem.user_id == user.id,
             MindboxItem.id != item_id,
-            col(MindboxItem.case_id).is_not(None),
+            MindboxItemLink.link_type == LINK_CASE_MEMBER,
         )
     ).all()
     best_case_id, best_ratio = None, 0.0
-    for candidate in candidates:
+    for candidate, candidate_case_id in candidates:
         ratio = difflib.SequenceMatcher(None, normalized, _normalize_filename_stem(candidate.original_filename)).ratio()
         if ratio > best_ratio:
-            best_ratio, best_case_id = ratio, candidate.case_id
+            best_ratio, best_case_id = ratio, candidate_case_id
     if best_case_id and best_ratio >= _SUGGESTION_SIMILARITY_THRESHOLD:
         return session.get(MindboxCase, best_case_id)
     return None
@@ -101,13 +106,15 @@ def save_upload(
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
         raise AppError(f"Bestand te groot. Maximum is {MAX_SIZE_MB}MB", status_code=400)
 
+    inherited_case_ids: list[str] = []
     if parent_item_id is not None:
         # Item 1051 (Bart): "hoe gaan we om met attachments in een mail?" -
-        # een bijlage erft ALTIJD het case_id van het ouder-item, ongeacht
-        # wat er verder is meegegeven (een bijlage hoort bij hetzelfde
+        # een bijlage erft ALTIJD de case-koppeling(en) van het ouder-item,
+        # ongeacht wat er verder is meegegeven (een bijlage hoort bij hetzelfde
         # dossier als de mail waar 'ie uit komt).
-        parent = get_item(session, user, parent_item_id)
-        case_id = parent.case_id
+        get_item(session, user, parent_item_id)
+        inherited_case_ids = get_item_case_ids(session, parent_item_id)
+        case_id = None
     elif case_id is not None:
         get_case(session, user, case_id)  # bestaat + eigendom-check
 
@@ -124,7 +131,10 @@ def save_upload(
             f"Dit bestand is al eerder geupload als '{existing.original_filename}'",
             status_code=409,
             code="mindbox_duplicate_file",
-            extra={"item_id": existing.id, "original_filename": existing.original_filename, "case_id": existing.case_id},
+            extra={
+                "item_id": existing.id, "original_filename": existing.original_filename,
+                "case_ids": get_item_case_ids(session, existing.id),
+            },
         )
 
     original_filename = filename
@@ -148,19 +158,24 @@ def save_upload(
         size_bytes=len(content),
         content_hash=content_hash,
         parent_item_id=parent_item_id,
-        case_id=case_id,
     )
     session.add(item)
-    event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
-    _log_case_event(session, case_id, user.id, "upload", event_desc)
     session.commit()
     session.refresh(item)
 
+    event_desc = f"Bijlage geupload: {filename}" if parent_item_id else f"Bestand geupload: {filename}"
+    linked_case_ids = inherited_case_ids if parent_item_id is not None else ([case_id] if case_id is not None else [])
+    for cid in linked_case_ids:
+        session.add(MindboxItemLink(item_id=item.id, link_type=LINK_CASE_MEMBER, target_case_id=cid))
+        _log_case_event(session, cid, user.id, "upload", event_desc)
+    if linked_case_ids:
+        session.commit()
+
     # Alleen suggereren als het bestand nog geen case heeft (en geen bijlage
-    # is - een bijlage heeft de case van de ouder al) - anders is de vraag
+    # is - een bijlage heeft de case(s) van de ouder al) - anders is de vraag
     # al beantwoord door de upload zelf.
     suggested_case = None
-    if case_id is None and parent_item_id is None:
+    if not linked_case_ids and parent_item_id is None:
         suggested_case = _find_suggested_case(session, user, item.id, filename)
     return item, suggested_case
 
@@ -171,10 +186,20 @@ def get_item_contact_ids(session: Session, item_id: str) -> list[str]:
     ).all())
 
 
+def get_item_case_ids(session: Session, item_id: str) -> list[str]:
+    return list(session.exec(
+        select(MindboxItemLink.target_case_id).where(
+            MindboxItemLink.item_id == item_id, MindboxItemLink.link_type == LINK_CASE_MEMBER,
+        )
+    ).all())
+
+
 def item_to_dict(session: Session, item: MindboxItem) -> dict:
     """Item 1052 (Bart): 'kan ik meerdere contacten aan een bestand
     koppelen?' - contact_ids is many-to-many (zie MindboxItemContact),
-    dus hier resolven i.p.v. rechtstreeks een attribuut op MindboxItem."""
+    dus hier resolven i.p.v. rechtstreeks een attribuut op MindboxItem.
+    case_ids is sinds item 1058 op dezelfde manier many-to-many, via
+    MindboxItemLink i.p.v. het vroegere losse MindboxItem.case_id."""
     return {
         "id": item.id,
         "original_filename": item.original_filename,
@@ -184,7 +209,7 @@ def item_to_dict(session: Session, item: MindboxItem) -> dict:
         "notes": item.notes,
         "parsed_text": item.parsed_text,
         "parent_item_id": item.parent_item_id,
-        "case_id": item.case_id,
+        "case_ids": get_item_case_ids(session, item.id),
         "contact_ids": get_item_contact_ids(session, item.id),
         "created_at": item.created_at,
         "updated_at": item.updated_at,
@@ -200,7 +225,9 @@ def get_attachments(session: Session, user: User, item_id: str) -> list[MindboxI
 def get_items(session: Session, user: User, case_id: str | None = None) -> list[MindboxItem]:
     query = select(MindboxItem).where(MindboxItem.user_id == user.id)
     if case_id is not None:
-        query = query.where(MindboxItem.case_id == case_id)
+        query = query.join(MindboxItemLink, MindboxItemLink.item_id == MindboxItem.id).where(
+            MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
+        )
     return list(session.exec(query.order_by(col(MindboxItem.created_at).desc())).all())
 
 
@@ -214,26 +241,24 @@ def get_item(session: Session, user: User, item_id: str) -> MindboxItem:
 
 def update_item(
     session: Session, user: User, item_id: str, status: str | None, notes: str | None,
-    parsed_text: str | None = None, case_id: str | None = None, clear_case: bool = False,
+    parsed_text: str | None = None,
 ) -> MindboxItem:
+    """Item 1058: case-koppeling loopt niet meer via dit endpoint (een item
+    kan aan 0+ cases hangen) - zie services.mindbox_links.link_item_to_case/
+    unlink_item_from_case, zelfde patroon als contact-linking daarvoor al."""
     item = get_item(session, user, item_id)
     if status is not None:
         if status not in VALID_STATUSES:
             raise AppError(f"Ongeldige status: {status}", status_code=400)
         item.status = status
-        _log_case_event(session, item.case_id, user.id, "status_change", f"{item.original_filename}: status -> {status}")
+        for cid in get_item_case_ids(session, item.id):
+            _log_case_event(session, cid, user.id, "status_change", f"{item.original_filename}: status -> {status}")
     if notes is not None:
         item.notes = notes
     if parsed_text is not None:
         item.parsed_text = parsed_text
-        _log_case_event(session, item.case_id, user.id, "item_parsed", f"{item.original_filename}: tekst geextraheerd")
-    if clear_case:
-        _log_case_event(session, item.case_id, user.id, "item_removed", f"{item.original_filename} losgekoppeld van deze case")
-        item.case_id = None
-    elif case_id is not None:
-        get_case(session, user, case_id)  # bestaat + eigendom-check
-        item.case_id = case_id
-        _log_case_event(session, case_id, user.id, "item_added", f"{item.original_filename} toegevoegd aan deze case")
+        for cid in get_item_case_ids(session, item.id):
+            _log_case_event(session, cid, user.id, "item_parsed", f"{item.original_filename}: tekst geextraheerd")
     item.updated_at = datetime.utcnow()
     session.add(item)
     session.commit()
@@ -243,7 +268,7 @@ def update_item(
 
 def delete_item(session: Session, user: User, item_id: str) -> None:
     item = get_item(session, user, item_id)
-    if item.case_id:
+    if get_item_case_ids(session, item.id):
         # Item 1051 (Bart): "verwijderen van bestanden die aan een case zijn
         # gekoppeld is niet mogelijk vanaf de bestand-route" - eerst
         # ontkoppelen (via de case, met de unlink-knop), dan verwijderen.
@@ -259,7 +284,6 @@ def delete_item(session: Session, user: User, item_id: str) -> None:
     abs_path = _safe_path(user.id, Path(item.file_path).name)
     if abs_path.exists():
         abs_path.unlink()
-    _log_case_event(session, item.case_id, user.id, "item_removed", f"{item.original_filename} verwijderd")
     session.delete(item)
     session.commit()
 
@@ -432,9 +456,14 @@ def update_case(
 
 def delete_case(session: Session, user: User, case_id: str) -> None:
     case = get_case(session, user, case_id)
-    for item in session.exec(select(MindboxItem).where(MindboxItem.case_id == case_id)).all():
-        item.case_id = None
-        session.add(item)
+    # Item 1058: alleen de link naar DEZE case verwijderen - een item dat aan
+    # meerdere cases hangt moet die andere koppeling(en) behouden.
+    for link in session.exec(
+        select(MindboxItemLink).where(
+            MindboxItemLink.link_type == LINK_CASE_MEMBER, MindboxItemLink.target_case_id == case_id,
+        )
+    ).all():
+        session.delete(link)
     # Responses zijn altijd case-gebonden (item 1051) - kunnen niet losgekoppeld
     # blijven bestaan, dus verdwijnen mee met de case (i.t.t. items, die wel
     # los kunnen bestaan en daarom alleen ontkoppeld worden).

@@ -70,8 +70,8 @@ class MindboxItem(SQLModel, table=True):
     1050): puur opslag + status + vrij notitieveld, geen geautomatiseerde
     verwerking. Bart/Claude bekijken en verwerken items samen in een Claude
     Code-sessie; het notities-veld is bedoeld voor context/voorbereiding die
-    Bart daarbij zelf invult. case_id koppelt optioneel dit item aan een
-    MindboxCase (bv. een mailwisseling met vervolgmails) - de instructie-
+    Bart daarbij zelf invult. Koppeling aan 0+ MindboxCases loopt via
+    MindboxItemLink (link_type="case_member", item 1058) - de instructie-
     /persona-context zit op de CASE (zie MindboxCase.context_id), niet hier."""
     __tablename__ = "mindbox_items"
 
@@ -95,9 +95,28 @@ class MindboxItem(SQLModel, table=True):
     # een mail?". Zelfde patroon als MindboxResponse.parent_response_id.
     # Erft altijd het case_id van het ouder-item (zie services.save_upload).
     parent_item_id:    Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
-    case_id:           Optional[str] = Field(default=None, foreign_key="mindbox_cases.id")
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
+
+
+class MindboxItemLink(SQLModel, table=True):
+    """Generieke koppeling van een MindboxItem naar een ANDER item of een
+    case, met een vrij link_type (bv. "case_member", later ook "source_of",
+    "reply_to") - item 1058 (Bart): "alles is een bestand ... en linken aan
+    de bron met een link type" - 1 koppelmechanisme i.p.v. een nieuwe
+    bespoke join-tabel per relatie-soort. Vervangt het vroegere losse
+    MindboxItem.case_id (1 case per item) - een item kan nu aan 0+ cases
+    hangen. Precies 1 van target_item_id/target_case_id moet gezet zijn -
+    services-laag-invariant (zie mindbox_links._assert_single_target),
+    geen DB CHECK - zelfde conventie als de rest van deze module."""
+    __tablename__ = "mindbox_item_links"
+
+    id:              str      = Field(default_factory=new_uuid, primary_key=True)
+    item_id:         str      = Field(foreign_key="mindbox_items.id", index=True)
+    link_type:       str      = Field(index=True)
+    target_item_id:  Optional[str] = Field(default=None, foreign_key="mindbox_items.id", index=True)
+    target_case_id:  Optional[str] = Field(default=None, foreign_key="mindbox_cases.id", index=True)
+    created_at:      datetime = Field(default_factory=datetime.utcnow)
 
 
 class MindboxContact(SQLModel, table=True):

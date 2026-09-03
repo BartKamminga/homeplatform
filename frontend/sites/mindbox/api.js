@@ -79,6 +79,16 @@ export function deleteCase(id) {
   return api.delete(`/api/mindbox/cases/${id}`)
 }
 
+// Item 1058: een item kan aan 0+ cases hangen (case_ids) - koppelen/
+// ontkoppelen loopt via deze losse endpoints, niet meer via updateItem.
+export function linkItemCase(itemId, caseId) {
+  return api.post(`/api/mindbox/items/${itemId}/cases/${caseId}`)
+}
+
+export function unlinkItemCase(itemId, caseId) {
+  return api.delete(`/api/mindbox/items/${itemId}/cases/${caseId}`)
+}
+
 export function listCaseEvents(caseId) {
   return api.get(`/api/mindbox/cases/${caseId}/events`)
 }

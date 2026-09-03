@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, listContacts, unlinkItemContact, listCommands } from '../api.js'
+import { listItems, uploadItem, updateItem, deleteItem, downloadItem, listCases, createCase, linkItemCase, unlinkItemCase, listContacts, unlinkItemContact, listCommands } from '../api.js'
 import { buildCommandString, fetchMindboxEnv } from '../utils.js'
 import { ConfirmDialog, useConfirm } from '@components/ConfirmDialog.jsx'
 import CopyButton from '@components/CopyButton.jsx'
@@ -68,7 +68,7 @@ export default function ItemsPage({ onGoToExisting }) {
         const link = await confirmAction(
           `Dit bestand lijkt gerelateerd aan case "${item.suggested_case_name}" - koppelen?`
         )
-        if (link) await updateItem(item.id, { case_id: item.suggested_case_id })
+        if (link) await linkItemCase(item.id, item.suggested_case_id)
       }
       load()
     } catch (err) {
@@ -139,21 +139,27 @@ export default function ItemsPage({ onGoToExisting }) {
 
   // Bart, item 1051: "ik kan bij een net geuploade file niet direct een
   // case selecteren" - case-koppeling nu ook los, direct in de vlakke
-  // bestandenlijst mogelijk (niet alleen vanuit CaseDetail).
+  // bestandenlijst mogelijk (niet alleen vanuit CaseDetail). Item 1058: een
+  // item kan aan 0+ cases hangen - dit VOEGT TOE (many-to-many), zelfde
+  // semantiek als contact-koppeling.
   async function handleCaseChange(item, caseId) {
+    if (!caseId) return
     if (caseId === NEW_CASE_SENTINEL) {
       // Bart: "of een nieuwe case aanmaken, en koppelen" - in 1 stap vanuit
       // de vlakke bestandenlijst, zonder eerst naar de Cases-tab te gaan.
       const name = window.prompt('Naam van de nieuwe case:')
       if (!name?.trim()) return
       const created = await createCase({ name: name.trim() })
-      await updateItem(item.id, { case_id: created.id })
+      await linkItemCase(item.id, created.id)
       listCases().then(setCases).catch(() => {})
-    } else if (caseId) {
-      await updateItem(item.id, { case_id: caseId })
     } else {
-      await updateItem(item.id, { clear_case: true })
+      await linkItemCase(item.id, caseId)
     }
+    load()
+  }
+
+  async function handleUnlinkCase(item, caseId) {
+    await unlinkItemCase(item.id, caseId)
     load()
   }
 
@@ -173,6 +179,12 @@ export default function ItemsPage({ onGoToExisting }) {
   // gegroepeerd uit dezelfde al-opgehaalde lijst, geen extra request nodig.
   function attachmentsOf(itemId) {
     return items.filter(i => i.parent_item_id === itemId)
+  }
+
+  // Item 1058: many-to-many i.p.v. losse case_id - zelfde patroon als
+  // contactsOf hieronder.
+  function casesOf(item) {
+    return cases.filter(c => item.case_ids?.includes(c.id))
   }
 
   // Item 1052: contact-koppeling gebeurt via MindBox.ps1 -Contact (find-or-
@@ -270,20 +282,32 @@ export default function ItemsPage({ onGoToExisting }) {
                 <option key={o.value} value={o.value}>
                   {/* Item 1051 (Bart): eenmaal gekoppeld aan een case is
                       "Nieuw" niet meer accuraat - het is dan al getriaged. */}
-                  {o.value === 'new' && item.case_id ? 'Gekoppeld' : o.label}
+                  {o.value === 'new' && item.case_ids?.length ? 'Gekoppeld' : o.label}
                 </option>
               ))}
             </select>
 
-            <select
-              value={item.case_id || ''}
-              onChange={e => handleCaseChange(item, e.target.value)}
-              style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
-            >
-              <option value="">Geen case</option>
-              {cases.map(c => <option key={c.id} value={c.id}>📁 {c.name}</option>)}
-              <option value={NEW_CASE_SENTINEL}>+ Nieuwe case...</option>
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {!!casesOf(item).length && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {casesOf(item).map(c => (
+                    <span key={c.id} title={c.name} style={{ fontSize: 11, padding: '1px 6px', border: '1px solid var(--color-border)', borderRadius: 99 }}>
+                      📁 {c.name}
+                      <span onClick={() => handleUnlinkCase(item, c.id)} title="Loskoppelen" style={{ marginLeft: 3, cursor: 'pointer' }}>✕</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <select
+                value=""
+                onChange={e => handleCaseChange(item, e.target.value)}
+                style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)' }}
+              >
+                <option value="">+ Case toevoegen</option>
+                {cases.filter(c => !item.case_ids?.includes(c.id)).map(c => <option key={c.id} value={c.id}>📁 {c.name}</option>)}
+                <option value={NEW_CASE_SENTINEL}>+ Nieuwe case...</option>
+              </select>
+            </div>
 
             <textarea
               defaultValue={item.notes || ''}
@@ -326,12 +350,12 @@ export default function ItemsPage({ onGoToExisting }) {
               </button>
               <button
                 onClick={() => handleDelete(item)}
-                disabled={!!item.case_id}
-                title={item.case_id ? 'Gekoppeld aan een case - ontkoppel eerst (in de case) om te kunnen verwijderen' : 'Verwijderen'}
+                disabled={!!item.case_ids?.length}
+                title={item.case_ids?.length ? 'Gekoppeld aan een case - ontkoppel eerst (in de case) om te kunnen verwijderen' : 'Verwijderen'}
                 style={{
                   padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent',
-                  color: item.case_id ? 'var(--color-text-muted)' : 'var(--color-danger)',
-                  cursor: item.case_id ? 'not-allowed' : 'pointer', opacity: item.case_id ? 0.5 : 1,
+                  color: item.case_ids?.length ? 'var(--color-text-muted)' : 'var(--color-danger)',
+                  cursor: item.case_ids?.length ? 'not-allowed' : 'pointer', opacity: item.case_ids?.length ? 0.5 : 1,
                 }}
               >
                 ✕

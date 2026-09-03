@@ -141,7 +141,7 @@ export default function ContactsPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {itemsOf(c.id).map(item => (
                     <div key={item.id} style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                      {item.case_id ? `📁 ${caseNameOf(item.case_id) || item.case_id}` : '📥 Bestanden'} · {item.original_filename}
+                      {item.case_ids?.length ? `📁 ${item.case_ids.map(id => caseNameOf(id) || id).join(', ')}` : '📥 Bestanden'} · {item.original_filename}
                     </div>
                   ))}
                 </div>

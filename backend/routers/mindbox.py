@@ -63,7 +63,7 @@ class MindboxItemOut(BaseModel):
     notes:                 Optional[str]
     parsed_text:           Optional[str]
     parent_item_id:        Optional[str]
-    case_id:               Optional[str]
+    case_ids:              list[str]
     contact_ids:           list[str]
     created_at:            datetime
     updated_at:            datetime
@@ -77,8 +77,6 @@ class MindboxItemUpdate(BaseModel):
     status:         Optional[str] = None
     notes:          Optional[str] = None
     parsed_text:    Optional[str] = None
-    case_id:        Optional[str] = None
-    clear_case:     bool = False
 
 
 class MindboxContextOut(BaseModel):
@@ -187,9 +185,7 @@ def update_item(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    item = svc.update_item(
-        session, user, item_id, data.status, data.notes, data.parsed_text, data.case_id, data.clear_case,
-    )
+    item = svc.update_item(session, user, item_id, data.status, data.notes, data.parsed_text)
     log_action(session, "mindbox.update", site="mindbox", user_id=user.id,
                payload={"item_id": item.id, "fields": list(data.model_dump(exclude_unset=True))})
     return svc.item_to_dict(session, item)

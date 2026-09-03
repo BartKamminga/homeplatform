@@ -254,7 +254,7 @@ if ($List) {
     Write-Host ("{0,-38} {1,-30} {2,-12} {3}" -f "ID","BESTAND","STATUS","CASE")
     Write-Host ("-" * 100)
     foreach ($i in $items) {
-        $case = if ($i.case_id) { $i.case_id.Substring(0,8) } else { "-" }
+        $case = if ($i.case_ids -and $i.case_ids.Count -gt 0) { ($i.case_ids | ForEach-Object { $_.Substring(0,8) }) -join "," } else { "-" }
         Write-Host ("{0,-38} {1,-30} {2,-12} {3}" -f $i.id, $i.original_filename, $i.status, $case)
     }
     exit 0
@@ -399,24 +399,31 @@ function RunItem([object]$item) {
 
     # Context zit sinds item 1051 op de CASE, niet meer op het item apart
     # ("ik wil toch per case een context, niet per bestand.. dat is
-    # ingewikkeld") - dus eerst de case ophalen, en daaruit de context.
-    $caseName = ""
+    # ingewikkeld") - dus eerst de case(s) ophalen, en daaruit de context.
+    # Item 1058: een item kan aan 0+ cases hangen (case_ids i.p.v. case_id) -
+    # de briefing toont ze allemaal; context komt van de EERSTE case met een
+    # context (in de praktijk hangt een item vrijwel altijd aan 0 of 1 case).
+    $firstCaseId = if ($item.case_ids -and $item.case_ids.Count -gt 0) { $item.case_ids[0] } else { $null }
+    $caseNames = @()
     $contextContent = ""
     $contextName = ""
-    if ($item.case_id) {
+    if ($item.case_ids -and $item.case_ids.Count -gt 0) {
         try {
             $cases = ApiGet "/mindbox/cases"
-            $c = $cases | Where-Object { $_.id -eq $item.case_id }
-            if ($c) {
-                $caseName = $c.name
-                if ($c.context_id) {
-                    $contexts = ApiGet "/mindbox/contexts"
-                    $ctx = $contexts | Where-Object { $_.id -eq $c.context_id }
-                    if ($ctx) { $contextName = $ctx.name; $contextContent = $ctx.content }
+            foreach ($cid in $item.case_ids) {
+                $c = $cases | Where-Object { $_.id -eq $cid }
+                if ($c) {
+                    $caseNames += $c.name
+                    if (-not $contextName -and $c.context_id) {
+                        $contexts = ApiGet "/mindbox/contexts"
+                        $ctx = $contexts | Where-Object { $_.id -eq $c.context_id }
+                        if ($ctx) { $contextName = $ctx.name; $contextContent = $ctx.content }
+                    }
                 }
             }
         } catch {}
     }
+    $caseName = $caseNames -join ", "
 
     $md = @"
 # Mindbox item: $($item.original_filename)
@@ -446,9 +453,9 @@ Gedownload naar: ``$localFile``
 ## Na afloop van de sessie
 
 - Status bijwerken: ``.\MindBox.ps1 -Status -Id $($item.id) -Value done -Env $Env``
-$(if ($item.case_id) {
-"- Concept-antwoord posten: ``.\MindBox.ps1 -Respond -CaseId $($item.case_id) -Ids ""$($item.id)"" -Content ""..."" -Env $Env``
-- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $($item.case_id) -Text ""..."" -Env $Env``"
+$(if ($firstCaseId) {
+"- Concept-antwoord posten: ``.\MindBox.ps1 -Respond -CaseId $firstCaseId -Ids ""$($item.id)"" -Content ""..."" -Env $Env``
+- Sessie-notitie op de case: ``.\MindBox.ps1 -AddEvent -CaseId $firstCaseId -Text ""..."" -Env $Env``"
 } else {
 "- Responses horen altijd bij een case - koppel dit item eerst aan een case om een response te kunnen posten."
 })

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   listCases, createCase, updateCase, deleteCase, listCaseEvents, addCaseEvent,
-  listItems, uploadItem, updateItem, downloadItem,
+  listItems, uploadItem, updateItem, downloadItem, unlinkItemCase,
   listResponses, createResponse, updateResponse, downloadResponseEml, listContexts, listContacts,
   listCommands,
 } from '../api.js'
@@ -236,7 +236,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
   function handleDuplicateGoToExisting() {
     const { existing } = duplicatePrompt
     setDuplicatePrompt(null)
-    if (existing.case_id !== caseObj.id) onGoToExisting?.(existing)
+    if (!existing.case_ids?.includes(caseObj.id)) onGoToExisting?.(existing)
   }
 
   async function handleFileChange(e) {
@@ -283,7 +283,7 @@ function CaseDetail({ caseObj, onChanged, onGoToExisting }) {
 
   async function handleUnlink(item) {
     if (!(await confirmAction(`"${item.original_filename}" loskoppelen van deze case?`))) return
-    await updateItem(item.id, { clear_case: true })
+    await unlinkItemCase(item.id, caseObj.id)
     load()
     onChanged()
   }
