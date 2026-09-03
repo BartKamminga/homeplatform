@@ -35,12 +35,15 @@ jobs:
       - name: k6 draaien tegen acc (localhost:8081)
         run: |
           rm -rf /tmp/k6-out && mkdir -p /tmp/k6-out && chmod 777 /tmp/k6-out
+          echo "Live dashboard (grafieken tijdens de run): http://192.168.30.232:5665"
           docker run --rm --name k6-loadtest-run --network host \
             -e BASE_URL=http://localhost:8081 \
             -e STAGE_DURATION="${{ inputs.stage_duration }}" \
             -e READ_MAX_VUS="${{ inputs.read_max_vus }}" \
             -e SIM_MAX_VUS="${{ inputs.sim_max_vus }}" \
             -e WRITE_RATE="${{ inputs.write_rate }}" \
+            -e K6_WEB_DASHBOARD=true \
+            -e K6_WEB_DASHBOARD_EXPORT=/output/report.html \
             -v "$PWD/loadtest:/scripts" \
             -v /tmp/k6-out:/output \
             grafana/k6 run /scripts/poulebord.k6.js
@@ -55,6 +58,15 @@ jobs:
       - name: Resultaten in Job Summary zetten
         if: always()
         run: cat /tmp/k6-out/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "Geen summary.md (test waarschijnlijk niet gestart/afgerond)"
+
+      - name: HTML-rapport (grafieken) als artifact bewaren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-report
+          path: /tmp/k6-out/report.html
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Docker-stats stoppen en tonen
         if: always()
