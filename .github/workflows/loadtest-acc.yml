@@ -1,0 +1,83 @@
+name: Loadtest Poulebord (acc)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage_duration:
+        description: "Duur van elke ramp-fase (bv. 1m, 30s) — totale test = 3x deze duur"
+        default: "1m"
+      read_max_vus:
+        description: "Max gelijktijdige board-reads (standen/wedstrijden bekijken)"
+        default: "30"
+      sim_max_vus:
+        description: "Max gelijktijdige scenario-simulaties (Monte Carlo, CPU-zwaar)"
+        default: "10"
+      write_rate:
+        description: "Boards opslaan per seconde (test SQLite-writer-lock)"
+        default: "2"
+
+jobs:
+  loadtest-acc:
+    runs-on: [self-hosted, g4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker-stats vastleggen tijdens de test
+        run: |
+          rm -f /tmp/k6-docker-stats.log
+          ( while true; do
+              date -u +%FT%TZ >> /tmp/k6-docker-stats.log
+              docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' >> /tmp/k6-docker-stats.log
+              sleep 5
+            done ) &
+          echo $! > /tmp/k6-docker-stats.pid
+
+      - name: k6 draaien tegen acc (localhost:8081)
+        run: |
+          rm -rf /tmp/k6-out && mkdir -p /tmp/k6-out
+          docker run --rm --name k6-loadtest-run --network host \
+            -e BASE_URL=http://localhost:8081 \
+            -e STAGE_DURATION="${{ inputs.stage_duration }}" \
+            -e READ_MAX_VUS="${{ inputs.read_max_vus }}" \
+            -e SIM_MAX_VUS="${{ inputs.sim_max_vus }}" \
+            -e WRITE_RATE="${{ inputs.write_rate }}" \
+            -v "$PWD/loadtest:/scripts" \
+            -v /tmp/k6-out:/output \
+            grafana/k6 run /scripts/poulebord.k6.js
+
+      # Vangnet: als je de run in de Actions-UI annuleert, wordt deze job
+      # afgebroken maar draait de container soms door op de self-hosted runner
+      # (geen gegarandeerde signal-forwarding). Expliciet opruimen dus.
+      - name: Container opruimen bij annuleren
+        if: cancelled()
+        run: docker kill k6-loadtest-run 2>/dev/null || true
+
+      - name: Resultaten in Job Summary zetten
+        if: always()
+        run: cat /tmp/k6-out/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "Geen summary.md (test waarschijnlijk niet gestart/afgerond)"
+
+      - name: Docker-stats stoppen en tonen
+        if: always()
+        run: |
+          kill "$(cat /tmp/k6-docker-stats.pid)" 2>/dev/null || true
+          {
+            echo "<details><summary>Docker stats tijdens de test</summary>"
+            echo ""
+            echo '```'
+            cat /tmp/k6-docker-stats.log 2>/dev/null || echo "geen stats gelogd"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: SQLite lock-fouten in backend-logs opzoeken
+        if: always()
+        run: |
+          {
+            echo "<details><summary>'database is locked' / OperationalError in backend_acc-logs (laatste 15 min)</summary>"
+            echo ""
+            echo '```'
+            docker logs --since 15m homeplatform_backend_acc 2>&1 \
+              | grep -i -E "database is locked|OperationalError" || echo "geen lock-fouten gevonden"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
