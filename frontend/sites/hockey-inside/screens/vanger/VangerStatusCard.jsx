@@ -116,14 +116,13 @@ function VangerTuning({ settings, onSave }) {
 // preview zijn samengevoegd in ScanPlanPreview.jsx (mockup-layout: settings
 // links, preview rechts, queue-invloed onder) - hier alleen nog de
 // values/set/save doorgeven die VangerTab.jsx via useSettingsForm optilt.
-export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, onToggleMatchday, vangerSettings, onSaveSettings, scanPlanForm }) {
+export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, vangerSettings, onSaveSettings, scanPlanForm }) {
   const [settingsOpen, toggleSettingsOpen] = useCollapse(false)
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
   const ghost = vangerStatus.ghost || {}
   const ghostEnabled = vangerStatus.ghost_enabled !== false
   const scanPlanEnabled = vangerStatus.scan_plan_enabled !== false
-  const matchdayEnabled = vangerStatus.active_matchday_enabled !== false
 
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '4px 14px' }}>
@@ -159,10 +158,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
       {settingsOpen && (
         <>
           <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
-          <ScanPlanPreview
-            values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save}
-            matchdayEnabled={matchdayEnabled} onToggleMatchday={onToggleMatchday}
-          />
+          <ScanPlanPreview values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save} />
         </>
       )}
     </div>

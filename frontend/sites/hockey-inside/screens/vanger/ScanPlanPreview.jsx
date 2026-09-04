@@ -22,14 +22,14 @@ const SCOPES = [
       desc: 'De start-check bevestigde status=live. Vanaf dat moment scant het systeem elke "retry/live-cadans"-minuten opnieuw, tot het voorspelde einde + de retry/live-stop-marge.' },
     { id: 'runs_over', label: 'Wedstrijd loopt uit',
       desc: 'De end-check op het voorspelde eindtijdstip leverde nog geen eindstand op (verlenging, shoot-outs, vertraging). Vanaf dan dezelfde retry-cadans als "live bevestigd", tot de retry/live-stop-marge verstrijkt.' },
-    { id: 'unknown_start', label: 'Onbekende starttijd',
-      desc: 'hockey.nl heeft nog geen kick-off-tijd gepubliceerd (placeholder 00:00). Zolang de wedstrijddatum binnen het "vooruitkijken"-venster valt, wordt er periodiek herchecked, binnen het scan-venster.' },
   ] },
   { id: 'poule', label: 'Poule & Competitie', scenarios: [
     { id: 'no_match_today', label: 'Geen wedstrijd vandaag',
       desc: 'Geen wedstrijd gepland voor deze poule vandaag, maar er komt binnen 7 dagen nog wel een. De dagelijkse fallback houdt de poule toch periodiek ververst binnen het scan-venster, als vangnet voor correcties.' },
     { id: 'healthy', label: "Poule is 'gezond' - geskipt",
       desc: 'Alle wedstrijden hebben een bekende starttijd én de laatst gespeelde wedstrijd heeft al een eindstand. De dagelijkse fallback wordt dan bewust overgeslagen - niets te ontdekken, geen scan nodig.' },
+    { id: 'unknown_start', label: "Poule is niet 'gezond' (onbekende starttijd)",
+      desc: 'hockey.nl heeft nog geen kick-off-tijd gepubliceerd voor een wedstrijd in deze poule (placeholder 00:00) - dat maakt de poule "niet gezond" (naast een gemiste eindstand, zie het vorige scenario). Zolang de wedstrijddatum binnen het "vooruitkijken"-venster valt, wordt er periodiek herchecked, binnen het scan-venster.' },
     { id: 'landelijk', label: 'Landelijke competitie',
       desc: 'Bij een landelijke competitie (hl_comp_id) worden ALLE onderliggende poules met 1 gecombineerde get_competition_detail-scan ververst, i.p.v. elke poule apart.' },
   ] },
@@ -78,6 +78,21 @@ function computeWindow(rows) {
   min -= pad
   max += Math.max(pad, 1)
   return { min, max, span: max - min }
+}
+
+// item 1084 (Bart, 4-09-2026: "wedstrijd moet over 1 dag een view geven"):
+// het Wedstrijd-scope krijgt altijd een vaste dag-as (middernacht tot
+// middernacht, op de dag van "nu") i.p.v. een venster dat meebeweegt met de
+// ticks - alle match-scenario's spelen zich af rond dezelfde kalenderdag
+// (normal/never_live/live_confirmed/runs_over verschuiven het wedstrijd-
+// tijdstip hoogstens een paar uur t.o.v. nu), dus dit geeft een stabiele,
+// herkenbare dagweergave zoals de Kalender-dagview.
+function dayWindow(anchorIso) {
+  if (!anchorIso) return null
+  const start = new Date(anchorIso)
+  start.setHours(0, 0, 0, 0)
+  const min = start.getTime()
+  return { min, max: min + DAY_MS, span: DAY_MS }
 }
 
 function Axis({ window: win, cls = 'axis' }) {
@@ -211,7 +226,7 @@ const IMPACT_COLORS = {
   manual_weekly: 'var(--col-clublist)', club_scan: 'var(--col-clubscan)', club_list: 'var(--col-clublist)',
 }
 
-export default function ScanPlanPreview({ values, set, save, matchdayEnabled, onToggleMatchday }) {
+export default function ScanPlanPreview({ values, set, save }) {
   const [scope, setScope] = useState('match')
   const [scenario, setScenario] = useState('normal')
   const candidateFilter = useCandidateQueueFilter()
@@ -232,7 +247,7 @@ export default function ScanPlanPreview({ values, set, save, matchdayEnabled, on
     ...(candidateFilter.filter.categories.includes('Senioren') ? CANDIDATE_GENDERS_SEN : []),
   ]
 
-  const win = computeWindow(rows)
+  const win = scope === 'match' ? dayWindow(now) : computeWindow(rows)
   const useRows = scope === 'match'
   const relevantGroups = SCOPE_GROUPS[scope] || []
   const values_ = values || {}
@@ -269,10 +284,6 @@ export default function ScanPlanPreview({ values, set, save, matchdayEnabled, on
 
           <div className="group">
             <div className="group-title">Overig</div>
-            <div className="field-row">
-              <label title="Alleen de event-driven matchday-boost voor publicatie-competities met scan_profile 'actief' aan/uit.">Matchday-interval actief</label>
-              <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
-            </div>
             <div className="field-row">
               <label title="Comma-gescheiden hockey.nl team_ids - pushmelding bij eindstand (item 1001)">Meldingen team-id(s)</label>
               <input type="text" style={{ width: 100, textAlign: 'left' }} placeholder="123456,789012" value={values_[NOTIFY_KEY] ?? ''} onChange={e => set(NOTIFY_KEY, e.target.value)} />

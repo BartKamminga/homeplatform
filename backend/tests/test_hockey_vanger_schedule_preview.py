@@ -55,6 +55,19 @@ def test_preview_scenario_never_commits_candidate_settings(session):
     assert row.value == "90"
 
 
+def test_preview_poule_unknown_start_returns_recheck_ticks(session):
+    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="unknown_start", settings={}), session=session, _=None)
+    ticks = result["rows"][0]["ticks"]
+    assert ticks and all(t["reason"] == "unknown_start_recheck" for t in ticks)
+
+
+def test_preview_match_scope_no_longer_accepts_unknown_start(session):
+    import pytest
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException):
+        preview_scenario(PreviewScenarioIn(scope="match", scenario="unknown_start", settings={}), session=session, _=None)
+
+
 def test_preview_poule_healthy_marks_ticks_skipped(session):
     result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="healthy", settings={}), session=session, _=None)
     ticks = result["rows"][0]["ticks"]

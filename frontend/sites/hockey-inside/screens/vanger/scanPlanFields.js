@@ -60,11 +60,14 @@ export const SCAN_PLAN_GROUPS = [
   },
 ]
 
-// item 1084: welke groepen relevant zijn per scope (zelfde als de mockup's
-// SCOPES[].groups) - gebruikt om irrelevante instellingen te dimmen.
+// item 1084: welke groepen relevant zijn per scope - gebruikt om
+// irrelevante instellingen te dimmen. "Onbekende starttijd" hoort bij
+// Poule & Competitie (Bart, 4-09-2026: "'Onbekende starttijd' kan naar
+// poule en competitie") - het scenario zelf is verhuisd naar dat scope in
+// ScanPlanPreview.jsx.
 export const SCOPE_GROUPS = {
-  match: ['Wedstrijd-timing', 'Onbekende starttijd', 'Systeem'],
-  poule: ['Dagelijkse fallback', 'Systeem'],
+  match: ['Wedstrijd-timing', 'Systeem'],
+  poule: ['Dagelijkse fallback', 'Onbekende starttijd', 'Systeem'],
   club: ['Club-discovery'],
   season: [],
 }

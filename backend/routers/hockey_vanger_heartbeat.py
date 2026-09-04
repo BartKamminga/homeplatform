@@ -18,7 +18,6 @@ from routers.hockey_vanger_smartscan_control import (
     GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY,
 )
 from services.hockey_poule_capture_core import notify_new_phase_indeling
-from services.hockey_vanger_scanplan import ACTIVE_MATCHDAY_ENABLED_KEY
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
 from services.hockey_vanger_settings import NOTIFY_TEAM_IDS_KEY, _get_int_setting, _get_str_setting
 
@@ -98,8 +97,6 @@ def get_vanger_status(
     result["ghost_enabled"] = ghost_row.value != "0" if ghost_row else True
     scan_plan_row = session.get(AppSetting, SCAN_PLAN_ENABLED_KEY)
     result["scan_plan_enabled"] = scan_plan_row.value != "0" if scan_plan_row else True
-    matchday_row = session.get(AppSetting, ACTIVE_MATCHDAY_ENABLED_KEY)
-    result["active_matchday_enabled"] = matchday_row.value != "0" if matchday_row else True
     return result
 
 

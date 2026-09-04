@@ -12,9 +12,7 @@ from sqlmodel import Session
 from core.auth import get_current_user
 from core.database import get_session
 from models.settings import AppSetting
-from services.hockey_vanger_scanplan import (
-    ACTIVE_MATCHDAY_ENABLED_KEY, SKIP_HEALTHY_DAILY_FALLBACK_KEY, run_scan_plan_pass,
-)
+from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY, run_scan_plan_pass
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
 from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting
 from services.hockey_vanger_smartscan import (
@@ -211,25 +209,6 @@ def scan_plan_toggle(
         row.value = value; session.add(row)
     else:
         session.add(AppSetting(key=SCAN_PLAN_ENABLED_KEY, value=value))
-    session.commit()
-    return {"enabled": enabled}
-
-
-@router.post("/vanger/scan-plan/matchday-toggle")
-def scan_plan_matchday_toggle(
-    session: Session = Depends(get_session),
-    _=Depends(get_current_user),
-):
-    """item 968: los van scan_plan_toggle - zet alleen de event-driven
-    matchday-boost in _step_active_profiles aan/uit; "active"-competities
-    (publicatie-gekoppeld) blijven bij uitschakelen gewoon dagelijks scannen."""
-    row = session.get(AppSetting, ACTIVE_MATCHDAY_ENABLED_KEY)
-    enabled = not (row.value != "0" if row else True)
-    value = "1" if enabled else "0"
-    if row:
-        row.value = value; session.add(row)
-    else:
-        session.add(AppSetting(key=ACTIVE_MATCHDAY_ENABLED_KEY, value=value))
     session.commit()
     return {"enabled": enabled}
 

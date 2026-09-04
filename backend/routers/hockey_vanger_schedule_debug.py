@@ -465,10 +465,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
     live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
     burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
-    unknown_lookahead_d  = _get_int_setting(session, "unknown_start_lookahead_days", 5)
-    unknown_fallback_h   = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     window_start_h       = _get_int_setting(session, "scan_window_start_hour", 9)
-    window_end_h         = _get_int_setting(session, "scan_window_end_hour", 18)
 
     team, poule = _preview_team_poule()
     horizon_end = now + timedelta(days=7)
@@ -476,15 +473,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     start_check_offset = timedelta(minutes=live_check_delay_m)
 
     bars = []
-    if scenario == "unknown_start":
-        match_date = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        match = _preview_match(match_date)
-        poule.last_scanned_at = None
-        ticks = _poule_unknown_start_events(
-            poule, team, [match], now, horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
-        )
-        autoscan_ticks = [_tick(e) for e in ticks]
-    elif scenario == "normal":
+    if scenario == "normal":
         match_start = now + timedelta(minutes=20)
         poule.last_scanned_at = None
         match = _preview_match(match_start)
@@ -591,6 +580,31 @@ def _preview_poule_rows(session: Session, now: datetime, scenario: str) -> List[
         return [{
             "key": "healthy", "label": "Poule is 'gezond'", "sub": "alle starttijden bekend, laatste uitslag binnen",
             "ticks": ticks, "past": [], "note": "dagelijkse fallback wordt hier bewust overgeslagen (skip_if_healthy)",
+        }]
+    if scenario == "unknown_start":
+        # Bart, 4-09-2026: hoort bij Poule & Competitie, niet bij Wedstrijd -
+        # de precieze wedstrijd-dag is hier per definitie nog onbekend
+        # (placeholder middernacht), dus dit past niet in een 1-dags
+        # wedstrijd-tijdlijn. Framing als "niet gezond" sluit aan bij
+        # _is_healthy (services/hockey_vanger_scanplan.py): een poule is pas
+        # gezond als ALLE starttijden bekend zijn EN de laatste uitslag
+        # binnen is - dit scenario toont de eerste van die twee oorzaken.
+        unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+        unknown_fallback_h = _get_int_setting(session, "unknown_start_fallback_hours", 8)
+        unknown_horizon_end = now + timedelta(days=max(unknown_lookahead_d + 2, 5))
+        match_date = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        unknown_match = HockeyPouleMatch(
+            poule_id=PREVIEW_POULE_ID, match_id=-2, home_team_id=-1, away_team_id=-2,
+            match_date=match_date.isoformat(), status="",
+        )
+        poule.last_scanned_at = None
+        ticks = _poule_unknown_start_events(
+            poule, team, [unknown_match], now, unknown_horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+        )
+        return [{
+            "key": "unknown_start", "label": "Poule is niet 'gezond' (onbekende starttijd)",
+            "sub": "wedstrijd bekend, nog geen kick-off-tijd gepubliceerd",
+            "ticks": [_tick(e) for e in ticks], "past": [], "note": "",
         }]
     raise HTTPException(400, "onbekend scenario")
 
