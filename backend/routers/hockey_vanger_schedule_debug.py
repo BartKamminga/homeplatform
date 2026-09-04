@@ -513,6 +513,21 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     else:
         raise HTTPException(400, "onbekend scenario")
 
+    # item 1084 (Bart, 4-09-2026: "ik zie het effect van retry/live cadans
+    # niet terug"): match_live/retry_match_end zijn DYNAMISCH - het
+    # scanschema plant nooit een hele reeks vooraf, alleen de eerstvolgende
+    # tick (zie _matchday_events's docstring) - dus een wijziging aan
+    # retry_match_end_min verschuift die ene tick maar hoogstens een paar
+    # minuten, nauwelijks zichtbaar op de tijdlijn. Een expliciete notitie
+    # met de cadans erin maakt het effect van de instelling wel meteen
+    # zichtbaar, zonder een niet-bestaande reeks vooraf te verzinnen.
+    _cadence_label = {"match_live": "Match-live", "retry_match_end": "Retry match-end"}
+    autoscan_ticks = [
+        {**t, "note": f"{_cadence_label[t['reason']]} - herhaalt elke {retry_match_end_m} min tot burst-stop"}
+        if t["reason"] in _cadence_label else t
+        for t in autoscan_ticks
+    ]
+
     # item 1084 (Bart, 4-09-2026: "wekelijkse ronde... kan weg onder
     # 'Wedstrijd' - niet relevant hier"): de wekelijkse niet-autoscan-ronde
     # is een poule/competitie-brede cadans, niet aan DEZE wedstrijd of dag

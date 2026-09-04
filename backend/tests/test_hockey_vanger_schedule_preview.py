@@ -45,6 +45,15 @@ def test_preview_match_setting_change_shifts_end_check_tick(session):
     assert end_a != end_b
 
 
+def test_preview_match_live_confirmed_shows_retry_cadence_in_note(session):
+    a = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "7"}), session=session, _=None)
+    b = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "25"}), session=session, _=None)
+    note_a = next(t["note"] for t in a["rows"][0]["ticks"] if t["reason"] == "match_live")
+    note_b = next(t["note"] for t in b["rows"][0]["ticks"] if t["reason"] == "match_live")
+    assert "7 min" in note_a
+    assert "25 min" in note_b
+
+
 def test_preview_scenario_never_commits_candidate_settings(session):
     session.add(AppSetting(key="match_duration_min", value="90"))
     session.commit()
