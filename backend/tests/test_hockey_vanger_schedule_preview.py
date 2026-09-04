@@ -22,6 +22,14 @@ def test_preview_match_normal_has_two_rows_and_two_ticks(session):
     assert reasons == {"match_start_check", "match_end_check"}
 
 
+def test_preview_match_normal_returns_a_now_marker_and_a_match_bar(session):
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="normal", settings={}), session=session, _=None)
+    assert result["now"]
+    bars = result["rows"][0]["bars"]
+    assert len(bars) == 1 and bars[0]["label"] == "Wedstrijd"
+    assert result["rows"][1]["bars"][0]["dimmed"] is True
+
+
 def test_preview_match_never_live_has_no_start_check_tick_but_a_past_marker(session):
     result = preview_scenario(PreviewScenarioIn(scope="match", scenario="never_live", settings={}), session=session, _=None)
     autoscan = result["rows"][0]

@@ -475,6 +475,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     past: List[dict] = []
     start_check_offset = timedelta(minutes=live_check_delay_m)
 
+    bars = []
     if scenario == "unknown_start":
         match_date = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         match = _preview_match(match_date)
@@ -487,6 +488,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         match_start = now + timedelta(minutes=20)
         poule.last_scanned_at = None
         match = _preview_match(match_start)
+        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
         autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
             poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
         )]
@@ -494,6 +496,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         match_start = now - start_check_offset - timedelta(minutes=5)
         poule.last_scanned_at = None
         match = _preview_match(match_start)
+        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
         past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest - geen live gemeld"})
         autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
             poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
@@ -502,6 +505,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         match_start = now - start_check_offset - timedelta(minutes=5)
         poule.last_scanned_at = None
         match = _preview_match(match_start, status="live")
+        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
         past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "bevestigd live"})
         autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
             poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
@@ -511,6 +515,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         match_end = match_start + timedelta(minutes=match_duration_m)
         poule.last_scanned_at = match_end + timedelta(minutes=1)
         match = _preview_match(match_start)
+        bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
         past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest"})
         past.append({"planned_at": _iso(match_end), "reason": "match_end_check", "note": "geen eindstand"})
         autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
@@ -531,11 +536,12 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     return [
         {
             "key": "autoscan", "label": "Autoscan", "sub": "binnen publicatie, scan_profile=active",
-            "ticks": autoscan_ticks, "past": past, "note": "volle matchday-burst rond de eigen wedstrijd",
+            "ticks": autoscan_ticks, "past": past, "bars": bars, "note": "volle matchday-burst rond de eigen wedstrijd",
         },
         {
             "key": "non_autoscan", "label": "Niet-autoscan", "sub": "buiten publicatie, of scan_profile=manual",
-            "ticks": non_autoscan_ticks, "past": [], "note": "geen matchday-burst - alleen de wekelijkse ronde, ongeacht wedstrijdtijd",
+            "ticks": non_autoscan_ticks, "past": [], "bars": [{**b, "dimmed": True} for b in bars],
+            "note": "geen matchday-burst - alleen de wekelijkse ronde, ongeacht wedstrijdtijd",
         },
     ]
 
@@ -675,7 +681,7 @@ def preview_scenario(
             rows = _preview_club_rows(session, now, body.scenario)
         else:
             rows = _preview_season_rows(session, now, body.scenario)
-    return {"rows": rows}
+    return {"rows": rows, "now": _iso(now)}
 
 
 class ShadowRunIn(BaseModel):

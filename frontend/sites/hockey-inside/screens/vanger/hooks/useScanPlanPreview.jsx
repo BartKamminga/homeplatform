@@ -7,6 +7,7 @@ import { previewScanPlanScenario } from '../../../api.js'
 // backend-call zelf is snel (1 gefabriceerd object, geen DB-scan).
 export function useScanPlanPreview(scope, scenario, settings) {
   const [rows, setRows] = useState([])
+  const [now, setNow] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const requestIdRef = useRef(0)
@@ -20,6 +21,7 @@ export function useScanPlanPreview(scope, scenario, settings) {
         .then(d => {
           if (requestIdRef.current !== requestId) return
           setRows(d.rows || [])
+          setNow(d.now || null)
           setError('')
         })
         .catch(e => {
@@ -33,5 +35,5 @@ export function useScanPlanPreview(scope, scenario, settings) {
     return () => clearTimeout(t)
   }, [scope, scenario, settingsKey])
 
-  return { rows, loading, error }
+  return { rows, now, loading, error }
 }
