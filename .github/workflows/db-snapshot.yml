@@ -23,6 +23,16 @@ jobs:
       - name: Acc backend stoppen
         run: docker stop homeplatform_backend_acc || true
 
+      - name: Prod WAL checkpointen (item 1083 - WAL-mode)
+        run: |
+          docker exec homeplatform_backend python3 -c "
+          import sqlite3
+          con = sqlite3.connect('/app/db/homeplatform.sqlite')
+          con.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          con.close()
+          print('WAL gecheckpoint - hoofdbestand bevat nu alle commits')
+          "
+
       - name: DB kopiëren van prod naar acc
         run: |
           mkdir -p $(dirname $ACC_DB)
