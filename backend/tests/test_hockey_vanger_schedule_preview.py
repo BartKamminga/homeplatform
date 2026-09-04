@@ -128,9 +128,18 @@ def test_preview_poule_missing_result_returns_daily_fallback_ticks(session):
     assert row["ticks"] and all(t["reason"] == "daily_fallback" for t in row["ticks"])
 
 
+def test_preview_club_scope_returns_both_rows_regardless_of_scenario(session):
+    # item 1084 (Bart, 4-09-2026: "pak maar op" - Club dezelfde behandeling
+    # als Poule & Competitie): geen scenario-tabs meer - altijd beide
+    # activiteiten samen.
+    result = preview_scenario(PreviewScenarioIn(scope="club", scenario="anything", settings={}), session=session, _=None)
+    assert [r["key"] for r in result["rows"]] == ["club_scan", "club_list"]
+
+
 def test_preview_club_scan_never_lands_on_weekend(session):
-    result = preview_scenario(PreviewScenarioIn(scope="club", scenario="club_scan", settings={"club_scan_days": "1"}), session=session, _=None)
-    for t in result["rows"][0]["ticks"]:
+    result = preview_scenario(PreviewScenarioIn(scope="club", scenario="x", settings={"club_scan_days": "1"}), session=session, _=None)
+    club_scan_row = next(r for r in result["rows"] if r["key"] == "club_scan")
+    for t in club_scan_row["ticks"]:
         dow = datetime.fromisoformat(t["planned_at"].rstrip("Z")).weekday()
         assert dow < 5
 

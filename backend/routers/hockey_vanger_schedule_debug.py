@@ -689,16 +689,7 @@ def _preview_poule_rows(session: Session, now: datetime) -> List[dict]:
     return [up_to_date_row, missing_result_row, unknown_start_row]
 
 
-def _preview_club_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
-    club_scan_days = _get_int_setting(session, "club_scan_days", 1)
-    club_list_days = _get_int_setting(session, "club_list_scan_days", 7)
-    if scenario == "club_scan":
-        interval_h, cmd_type, reason, skip_weekend = club_scan_days * 24, "scan_club", "club_scan", True
-    elif scenario == "club_list":
-        interval_h, cmd_type, reason, skip_weekend = club_list_days * 24, "get_clubs", "club_list", False
-    else:
-        raise HTTPException(400, "onbekend scenario")
-
+def _club_cadence_ticks(now: datetime, interval_h: int, cmd_type: str, reason: str, skip_weekend: bool) -> List[dict]:
     horizon_end = now + timedelta(days=max(interval_h / 24 * 4, 14))
     raw = _cadence_events(
         "club", -1, cmd_type, {"label": "Preview-club"}, None, now, horizon_end, interval_h, reason,
@@ -716,9 +707,28 @@ def _preview_club_rows(session: Session, now: datetime, scenario: str) -> List[d
             planned_at = planned_at + timedelta(days=7 - planned_at.weekday())
             note = "doorgeschoven vanaf het weekend"
         ticks.append({"planned_at": _iso(planned_at), "reason": e["reason"], "ghost": False, "note": note})
+    return ticks
 
-    label = "Individuele club" if scenario == "club_scan" else "Alle clubs (clublijst)"
-    return [{"key": scenario, "label": label, "sub": f"cadans {interval_h // 24} dag(en)", "ticks": ticks, "past": [], "note": ""}]
+
+def _preview_club_rows(session: Session, now: datetime) -> List[dict]:
+    """item 1084 (Bart, 4-09-2026: "pak maar op" - Club dezelfde behandeling
+    als Poule & Competitie: "geen sub keuze"): geen scenario-tabs meer -
+    individuele club-rescan en clublijst-ververs zijn geen alternatieve
+    situaties (zoals bij Poule & Competitie), maar 2 ALTIJD parallel lopende
+    periodieke activiteiten - dus gewoon beide tegelijk als rijen tonen."""
+    club_scan_days = _get_int_setting(session, "club_scan_days", 1)
+    club_list_days = _get_int_setting(session, "club_list_scan_days", 7)
+    club_scan_row = {
+        "key": "club_scan", "label": "Individuele club", "sub": f"cadans {club_scan_days} dag(en), nooit in het weekend",
+        "ticks": _club_cadence_ticks(now, club_scan_days * 24, "scan_club", "club_scan", skip_weekend=True),
+        "past": [], "note": "elke club wordt periodiek herscand op nieuwe teams/poules",
+    }
+    club_list_row = {
+        "key": "club_list", "label": "Alle clubs (clublijst)", "sub": f"cadans {club_list_days} dag(en)",
+        "ticks": _club_cadence_ticks(now, club_list_days * 24, "get_clubs", "club_list", skip_weekend=False),
+        "past": [], "note": "1 scan voor alle clubs samen, om nieuw toegetreden clubs te ontdekken",
+    }
+    return [club_scan_row, club_list_row]
 
 
 def _preview_season_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
@@ -772,7 +782,7 @@ def preview_scenario(
         elif body.scope == "poule":
             rows = _preview_poule_rows(session, now)
         elif body.scope == "club":
-            rows = _preview_club_rows(session, now, body.scenario)
+            rows = _preview_club_rows(session, now)
         else:
             rows = _preview_season_rows(session, now, body.scenario)
     return {"rows": rows, "now": _iso(now)}

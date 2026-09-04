@@ -25,12 +25,8 @@ const SCOPES = [
   ] },
   { id: 'poule', label: 'Poule & Competitie', scenarios: [],
     desc: 'Een poule/competitie wordt continu gecheckt op 2 dingen: een ontbrekende wedstrijdstarttijd en een ontbrekende wedstrijduitslag. Zodra hockey.nl beide publiceert, is de poule "bijgewerkt" en stopt de bijbehorende hercheck-cadans vanzelf. Een landelijke competitie (hl_comp_id) wordt hierbij exact hetzelfde behandeld als 1 poule - alleen met 1 gecombineerde scan voor alle onderliggende poules samen, i.p.v. een losse scan per poule.' },
-  { id: 'club', label: 'Club & Alle Clubs', scenarios: [
-    { id: 'club_scan', label: 'Individuele club',
-      desc: 'Elke club wordt periodiek herscand op nieuwe teams/poules - nooit in het weekend (zaterdag/zondag worden overgeslagen, doorgeschoven naar maandag).' },
-    { id: 'club_list', label: 'Alle clubs (clublijst)',
-      desc: 'De volledige clublijst van de bond wordt periodiek in zijn geheel opnieuw opgehaald - 1 scan voor alle clubs samen, om nieuw toegetreden clubs te ontdekken.' },
-  ] },
+  { id: 'club', label: 'Club & Alle Clubs', scenarios: [],
+    desc: 'Twee altijd parallel lopende periodieke activiteiten, geen alternatieve situaties: elke club wordt individueel herscand op nieuwe teams/poules (nooit in het weekend - zaterdag/zondag worden overgeslagen, doorgeschoven naar maandag), en los daarvan wordt de volledige clublijst van de bond periodiek in zijn geheel opnieuw opgehaald om nieuw toegetreden clubs te ontdekken.' },
   { id: 'season', label: 'Seizoen', scenarios: [
     { id: 'phases', label: 'Seizoensfases',
       desc: 'Het seizoen valt uiteen in fases (afgeleid uit de KNHB-speeldagenkalender): veld-najaar, zaal, veld-voorjaar. Alleen tijdens de zaal-fase tellen ZA-competities mee als "actief" voor het hockey_type-filter.' },
@@ -120,12 +116,11 @@ function Tick({ t, window: win }) {
   )
 }
 
-function SingleView({ row, window: win, now, weekend }) {
+function SingleView({ row, window: win, now }) {
   return (
     <>
       <Axis window={win} />
       <div className="track">
-        {weekend && <WeekendBands window={win} />}
         {(row.bars || []).map((b, i) => (
           <div key={i} className={b.label === 'Wedstrijd' ? 'match-bar' : 'phase-bar'} style={{
             left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5) + '%',
@@ -152,6 +147,7 @@ function RowsView({ rows, window: win, now }) {
           <div className="row-label">{row.label}</div>
           <div className="row-sub">{row.sub}</div>
           <div className="row-track">
+            {row.key === 'club_scan' && <WeekendBands window={win} />}
             {(row.bars || []).map((b, i) => (
               <div key={i} className={'row-bar' + (b.dimmed ? ' dimmed' : '')} style={{
                 left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1) + '%', background: 'var(--col-match)',
@@ -240,7 +236,7 @@ export default function ScanPlanPreview({ values, set, save }) {
   // ALLE scopes inclusief Wedstrijd - blijft vanzelf binnen 1 dag omdat de
   // match-ticks nooit meer dan een paar uur uit elkaar liggen.
   const win = computeWindow(rows)
-  const useRows = scope === 'match' || scope === 'poule'
+  const useRows = scope === 'match' || scope === 'poule' || scope === 'club'
   const relevantGroups = SCOPE_GROUPS[scope] || []
 
   return (
@@ -333,7 +329,7 @@ export default function ScanPlanPreview({ values, set, save }) {
               ? <div className="empty-note">{scope === 'season' && currentScenarioId === 'phases' ? 'Nog geen kalenderdata voor dit seizoen.' : 'Geen scan-momenten in dit scenario.'}</div>
               : useRows
                 ? <RowsView rows={rows} window={win} now={now} />
-                : <SingleView row={rows[0]} window={win} now={now} weekend={scope === 'club' && currentScenarioId === 'club_scan'} />}
+                : <SingleView row={rows[0]} window={win} now={now} />}
           </div>
 
           <Legend rows={rows} />
