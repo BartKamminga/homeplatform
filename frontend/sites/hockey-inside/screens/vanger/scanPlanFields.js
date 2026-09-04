@@ -17,10 +17,18 @@ export const SCAN_PLAN_GROUPS = [
     ],
   },
   {
-    title: 'Dagelijkse fallback',
+    // item 1084 (Bart, 4-09-2026: "leg eens uit wat die eerste nog doet"
+    // + "volgens mij moeten we naar onbekende starttijd en missende
+    // wedstrijduitslagen"): active_daily_fallback_hours is geen losstaande
+    // "dagelijkse fallback" meer - het IS het hercheck-interval voor een
+    // poule/competitie met een wedstrijd zonder eindstand (_is_healthy's
+    // andere onbekende-starttijd-vlag heeft al zijn eigen, snellere cadans
+    // hieronder). Titel/label hernoemd om dat expliciet te maken, zelfde
+    // structuur als de Onbekende-starttijd-groep.
+    title: 'Missende wedstrijduitslagen',
     fields: [
-      { key: 'active_daily_fallback_hours', label: 'Interval (u)',
-        help: 'Hoe vaak een poule zonder wedstrijd vandaag alsnog ververst wordt - vangnet voor correcties.' },
+      { key: 'active_daily_fallback_hours', label: 'Hercheck-interval (u)',
+        help: 'Hoe vaak een poule/competitie met een wedstrijd zonder eindstand herchecked wordt, totdat hockey.nl de uitslag publiceert.' },
     ],
   },
   {
@@ -29,7 +37,7 @@ export const SCAN_PLAN_GROUPS = [
       { key: 'unknown_start_lookahead_days', label: 'Vooruitkijken (dagen)',
         help: 'Tot hoeveel dagen vooruit een wedstrijd zonder bekende starttijd extra vaak gecheckt wordt.' },
       { key: 'unknown_start_fallback_hours', label: 'Hercheck-interval (u)',
-        help: 'Hoe vaak zo\'n wedstrijd zonder starttijd binnen dat venster wordt herchecked.' },
+        help: 'Hoe vaak zo\'n wedstrijd zonder starttijd binnen dat venster wordt herchecked, totdat hockey.nl de starttijd publiceert.' },
     ],
   },
   {
@@ -65,7 +73,7 @@ export const SCAN_PLAN_GROUPS = [
 // ScanPlanPreview.jsx.
 export const SCOPE_GROUPS = {
   match: ['Wedstrijd-timing', 'Systeem'],
-  poule: ['Dagelijkse fallback', 'Onbekende starttijd', 'Systeem'],
+  poule: ['Missende wedstrijduitslagen', 'Onbekende starttijd', 'Systeem'],
   club: ['Club-discovery'],
   season: [],
 }

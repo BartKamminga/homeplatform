@@ -142,6 +142,8 @@
 .spp .row-tick .lbl { font-size: 8px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap; max-width: 70px; text-align: center; }
 .spp .row-tick.ghost .dot { background: transparent !important; border: 1.5px dotted var(--color-text-light); }
 .spp .row-tick.ghost .lbl { opacity: .35; font-style: italic; }
+.spp .row-tick.skipped .dot { opacity: .25; border-style: dashed; }
+.spp .row-tick.skipped .lbl { opacity: .4; }
 .spp .row-note { font-size: 9.5px; color: var(--color-text-muted); font-style: italic; margin-top: 4px; }
 
 .spp .impact-layout { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: start; margin-top: 4px; }

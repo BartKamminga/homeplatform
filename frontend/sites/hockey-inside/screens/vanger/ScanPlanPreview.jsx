@@ -23,16 +23,8 @@ const SCOPES = [
     { id: 'runs_over', label: 'Wedstrijd loopt uit',
       desc: 'De end-check op het voorspelde eindtijdstip leverde nog geen eindstand op (verlenging, shoot-outs, vertraging). Vanaf dan dezelfde retry-cadans als "live bevestigd", tot de retry/live-stop-marge verstrijkt.' },
   ] },
-  { id: 'poule', label: 'Poule & Competitie', scenarios: [
-    { id: 'no_match_today', label: 'Geen wedstrijd vandaag',
-      desc: 'Geen wedstrijd gepland voor deze poule vandaag, maar er komt binnen 7 dagen nog wel een. De dagelijkse fallback houdt de poule toch periodiek ververst binnen het scan-venster, als vangnet voor correcties.' },
-    { id: 'healthy', label: "Poule is 'gezond' - geskipt",
-      desc: 'Alle wedstrijden hebben een bekende starttijd én de laatst gespeelde wedstrijd heeft al een eindstand. De dagelijkse fallback wordt dan bewust overgeslagen - niets te ontdekken, geen scan nodig.' },
-    { id: 'unknown_start', label: "Poule is niet 'gezond' (onbekende starttijd)",
-      desc: 'hockey.nl heeft nog geen kick-off-tijd gepubliceerd voor een wedstrijd in deze poule (placeholder 00:00) - dat maakt de poule "niet gezond" (naast een gemiste eindstand, zie het vorige scenario). Zolang de wedstrijddatum binnen het "vooruitkijken"-venster valt, wordt er periodiek herchecked, binnen het scan-venster.' },
-    { id: 'landelijk', label: 'Landelijke competitie',
-      desc: 'Bij een landelijke competitie (hl_comp_id) worden ALLE onderliggende poules met 1 gecombineerde get_competition_detail-scan ververst, i.p.v. elke poule apart.' },
-  ] },
+  { id: 'poule', label: 'Poule & Competitie', scenarios: [],
+    desc: 'Een poule/competitie wordt continu gecheckt op 2 dingen: een ontbrekende wedstrijdstarttijd en een ontbrekende wedstrijduitslag. Zodra hockey.nl beide publiceert, is de poule "bijgewerkt" en stopt de bijbehorende hercheck-cadans vanzelf. Een landelijke competitie (hl_comp_id) wordt hierbij exact hetzelfde behandeld als 1 poule - alleen met 1 gecombineerde scan voor alle onderliggende poules samen, i.p.v. een losse scan per poule.' },
   { id: 'club', label: 'Club & Alle Clubs', scenarios: [
     { id: 'club_scan', label: 'Individuele club',
       desc: 'Elke club wordt periodiek herscand op nieuwe teams/poules - nooit in het weekend (zaterdag/zondag worden overgeslagen, doorgeschoven naar maandag).' },
@@ -169,7 +161,7 @@ function RowsView({ rows, window: win, now }) {
           </div>
           <div className="row-ticks">
             {(row.ticks || []).map((t, i) => (
-              <div key={i} className={'row-tick' + (t.ghost ? ' ghost' : '')} style={{ left: pctOf(win, t.planned_at) + '%' }}>
+              <div key={i} className={'row-tick' + (t.ghost ? ' ghost' : '') + (t.skipped ? ' skipped' : '')} style={{ left: pctOf(win, t.planned_at) + '%' }}>
                 <div className="dot" style={{ background: REASON_META[t.reason]?.color || 'var(--color-primary)' }} />
                 <div className="lbl">{t.note || REASON_META[t.reason]?.label || t.reason}</div>
               </div>
@@ -221,8 +213,16 @@ export default function ScanPlanPreview({ values, set, save }) {
   const { notify_team_ids: _notify, ...settings } = values || {}
 
   const currentScope = SCOPES.find(s => s.id === scope)
-  const currentScenarioId = currentScope.scenarios.some(s => s.id === scenario) ? scenario : currentScope.scenarios[0].id
-  const currentScenario = currentScope.scenarios.find(s => s.id === currentScenarioId)
+  // item 1084 (Bart, 4-09-2026: "geen sub keuze"): Poule & Competitie heeft
+  // geen scenario-tabs meer (scenarios: []) - toont altijd alle situaties
+  // tegelijk. 'default' is een vaste, betekenisloze scenario-waarde puur om
+  // de bestaande preview-scenario-route aan te roepen; de backend negeert
+  // 'm voor scope=poule.
+  const hasScenarios = currentScope.scenarios.length > 0
+  const currentScenarioId = hasScenarios
+    ? (currentScope.scenarios.some(s => s.id === scenario) ? scenario : currentScope.scenarios[0].id)
+    : 'default'
+  const currentScenario = hasScenarios ? currentScope.scenarios.find(s => s.id === currentScenarioId) : currentScope
 
   const { rows, now, loading: previewLoading } = useScanPlanPreview(scope, currentScenarioId, settings)
   const { result: shadow, loading: shadowLoading } = useShadowRun(settings, candidateFilter.filter)
@@ -240,7 +240,7 @@ export default function ScanPlanPreview({ values, set, save }) {
   // ALLE scopes inclusief Wedstrijd - blijft vanzelf binnen 1 dag omdat de
   // match-ticks nooit meer dan een paar uur uit elkaar liggen.
   const win = computeWindow(rows)
-  const useRows = scope === 'match'
+  const useRows = scope === 'match' || scope === 'poule'
   const relevantGroups = SCOPE_GROUPS[scope] || []
 
   return (
@@ -253,11 +253,13 @@ export default function ScanPlanPreview({ values, set, save }) {
           <button key={s.id} className={'scope-tab' + (s.id === scope ? ' active' : '')} onClick={() => { setScope(s.id); setScenario(s.scenarios[0].id) }}>{s.label}</button>
         ))}
       </div>
-      <div className="tabs">
-        {currentScope.scenarios.map(sc => (
-          <button key={sc.id} className={'tab' + (sc.id === currentScenarioId ? ' active' : '')} onClick={() => setScenario(sc.id)}>{sc.label}</button>
-        ))}
-      </div>
+      {hasScenarios && (
+        <div className="tabs">
+          {currentScope.scenarios.map(sc => (
+            <button key={sc.id} className={'tab' + (sc.id === currentScenarioId ? ' active' : '')} onClick={() => setScenario(sc.id)}>{sc.label}</button>
+          ))}
+        </div>
+      )}
 
       <div className="spp-layout">
         <div className="spp-card">
@@ -325,12 +327,6 @@ export default function ScanPlanPreview({ values, set, save }) {
             {win && <div className="meta">{fmtMeta(win.span)}</div>}
           </div>
           <div className="scenario-desc">{currentScenario.desc}</div>
-
-          {scope === 'poule' && currentScenarioId === 'landelijk' && (
-            <div className="chip-row">
-              {['Poule 1', 'Poule 2', 'Poule 3', 'Poule 4'].map(p => <span key={p} className="chip merged">{p} → 1 scan</span>)}
-            </div>
-          )}
 
           <div style={{ opacity: previewLoading ? 0.5 : 1, transition: 'opacity .15s' }}>
             {!win

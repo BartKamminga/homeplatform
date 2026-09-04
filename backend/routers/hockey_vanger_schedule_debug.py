@@ -23,7 +23,7 @@ from routers.hockey_vanger_smartscan_control import _ghost_enabled, _set_ghost_t
 from services.hockey_vanger_filters import DISC_FILTER_AGE, DISC_FILTER_CAT, DISC_FILTER_CLUB, DISC_FILTER_GENDER, DISC_FILTER_HT, _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
 from services.hockey_vanger_schedule import (
-    DEFAULT_HORIZON_DAYS, _cadence_events, _landelijke_daily_fallback_events, _poule_daily_fallback_events,
+    DEFAULT_HORIZON_DAYS, _cadence_events, _poule_daily_fallback_events,
     _poule_matchday_events, _poule_unknown_start_events, build_schedule_events, promote_due_schedule_entries,
     rebuild_schedule,
 )
@@ -460,6 +460,54 @@ def _next_manual_weekly_tick(now: datetime, horizon_end: datetime, comp_id: int,
     return day if day <= horizon_end else None
 
 
+# item 1084 (Bart, 4-09-2026: "dit moet wel precies zijn"): puur een
+# veiligheidsklep tegen een oneindige lus (bv. retry_match_end_min=0) - geen
+# esthetische beperking. Bij de defaults (retry 10 min, burst-stop 2u na
+# einde) levert dat ~12 echte ticks op, ruim onder deze grens.
+MAX_DYNAMIC_TICKS = 50
+
+
+def _dynamic_tick_series(
+    poule: HockeyPoule, team: HockeyTeam, match: HockeyPouleMatch, now: datetime, horizon_end: datetime,
+    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int, reasons: set,
+) -> List[dict]:
+    """item 1084 (Bart, 4-09-2026: "ik zie het wel in tekst staan maar niet
+    in scan's en dat wil ik juist"): match_live/retry_match_end zijn
+    DYNAMISCH - het echte scanschema plant nooit een hele reeks vooraf,
+    alleen de eerstvolgende tick (_matchday_events' docstring). Om de reeks
+    tóch zichtbaar te maken zonder de planningsregel zelf te dupliceren,
+    simuleert dit een opeenvolging van ECHTE scans: elke tick komt uit een
+    aparte aanroep van de echte _poule_matchday_events, waarna
+    poule.last_scanned_at op die tick gezet wordt (alsof die scan net is
+    binnengekomen) vóór de volgende aanroep - exact wat er in het echte
+    systeem gebeurt als na elk resultaat het schema herbouwd wordt. Stopt
+    vanzelf zodra _poule_matchday_events geen tick meer teruggeeft (de
+    burst_stop_h-deadline is dan gepasseerd), of bij MAX_DYNAMIC_TICKS als
+    veiligheidsklep.
+
+    `reasons` accepteert meerdere reason-waarden omdat een levende wedstrijd
+    die haar voorspelde einde voorbijschiet zonder eindstand, ONGEMERKT van
+    match_live naar retry_match_end overgaat (beide lezen last_scanned_at +
+    retry_match_end_m als volgende tick, zodra dat tijdstip voorbij het
+    voorspelde einde valt telt _matchday_events het als retry_match_end i.p.v.
+    match_live) - een reëel, door de echte functie zelf bepaald gedrag, geen
+    aanname van deze preview."""
+    ticks: List[dict] = []
+    for _ in range(MAX_DYNAMIC_TICKS):
+        events = _poule_matchday_events(
+            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        )
+        dynamic = [e for e in events if e["reason"] in reasons]
+        if not dynamic:
+            break
+        tick = dynamic[0]
+        if ticks and tick["planned_at"] <= ticks[-1]["planned_at"]:
+            break
+        ticks.append(tick)
+        poule.last_scanned_at = tick["planned_at"]
+    return ticks
+
+
 def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
     match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
     retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
@@ -492,41 +540,48 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         )]
     elif scenario == "live_confirmed":
         match_start = now - start_check_offset - timedelta(minutes=5)
-        poule.last_scanned_at = None
         match = _preview_match(match_start, status="live")
         bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
         past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "bevestigd live"})
-        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
+        # de match_end_check-tick is een echte, EENMALIGE tick (niet
+        # dynamisch herhaald) - 1x apart ophalen vóór de match_live-reeks
+        # last_scanned_at gaat verschuiven.
+        poule.last_scanned_at = None
+        end_check_ticks = [_tick(e) for e in _poule_matchday_events(
             poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
-        )]
+        ) if e["reason"] == "match_end_check"]
+        # de match_live-reeks stopt vanzelf zodra last_scanned_at het
+        # voorspelde einde passeert (is_first flipt naar False in
+        # _matchday_events, dezelfde tick claimt daarna de reason
+        # retry_match_end i.p.v. match_live - een echt, door de functie
+        # zelf bepaald omslagpunt). poule.last_scanned_at staat na deze
+        # aanroep al op die laatste live-tick, dus de vervolgaanroep
+        # hieronder zet de cadans naadloos voort als retry_match_end tot
+        # de burst_stop-deadline.
+        poule.last_scanned_at = None
+        live_ticks = _dynamic_tick_series(
+            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"match_live"},
+        )
+        retry_after_live_ticks = _dynamic_tick_series(
+            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"retry_match_end"},
+        )
+        autoscan_ticks = end_check_ticks + [_tick(e) for e in live_ticks] + [_tick(e) for e in retry_after_live_ticks]
     elif scenario == "runs_over":
         match_start = now - timedelta(minutes=match_duration_m + 5)
         match_end = match_start + timedelta(minutes=match_duration_m)
-        poule.last_scanned_at = match_end + timedelta(minutes=1)
         match = _preview_match(match_start)
         bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
         past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest"})
         past.append({"planned_at": _iso(match_end), "reason": "match_end_check", "note": "geen eindstand"})
-        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
-            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        # last_scanned_at net na het einde -> de eerste _matchday_events-
+        # aanroep in de reeks levert meteen een retry_match_end op i.p.v.
+        # nog een (dan dubbele) eerste match_end_check.
+        poule.last_scanned_at = match_end + timedelta(minutes=1)
+        autoscan_ticks = [_tick(e) for e in _dynamic_tick_series(
+            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"retry_match_end"},
         )]
     else:
         raise HTTPException(400, "onbekend scenario")
-
-    # item 1084 (Bart, 4-09-2026: "ik zie het effect van retry/live cadans
-    # niet terug"): match_live/retry_match_end zijn DYNAMISCH - het
-    # scanschema plant nooit een hele reeks vooraf, alleen de eerstvolgende
-    # tick (zie _matchday_events's docstring) - dus een wijziging aan
-    # retry_match_end_min verschuift die ene tick maar hoogstens een paar
-    # minuten, nauwelijks zichtbaar op de tijdlijn. Een expliciete notitie
-    # met de cadans erin maakt het effect van de instelling wel meteen
-    # zichtbaar, zonder een niet-bestaande reeks vooraf te verzinnen.
-    _cadence_label = {"match_live": "Match-live", "retry_match_end": "Retry match-end"}
-    autoscan_ticks = [
-        {**t, "note": f"{_cadence_label[t['reason']]} - herhaalt elke {retry_match_end_m} min tot burst-stop"}
-        if t["reason"] in _cadence_label else t
-        for t in autoscan_ticks
-    ]
 
     # item 1084 (Bart, 4-09-2026: "wekelijkse ronde... kan weg onder
     # 'Wedstrijd' - niet relevant hier"): de wekelijkse niet-autoscan-ronde
@@ -550,83 +605,88 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     ]
 
 
-def _preview_poule_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
+def _preview_poule_rows(session: Session, now: datetime) -> List[dict]:
+    """item 1084 (Bart, 4-09-2026: "geen sub keuze"... "Poule en hl_comp
+    precies hetzelfde behandelen"): geen scenario-tabs meer - toont altijd
+    alle 3 situaties tegelijk als lijst. Een landelijke competitie wordt in
+    de echte code (_landelijke_daily_fallback_events/_landelijke_unknown_
+    start_events) met exact dezelfde regels behandeld als 1 poule (alleen
+    de vereniging van alle wedstrijden in al haar poules) - vandaar geen
+    apart "landelijke competitie"-scenario meer, alleen een toelichting."""
     daily_fallback_h = _get_int_setting(session, "active_daily_fallback_hours", 24)
     window_start_h    = _get_int_setting(session, "scan_window_start_hour", 9)
     window_end_h      = _get_int_setting(session, "scan_window_end_hour", 18)
+    unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+    unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
     # Bart, 4-09-2026: "venster voor de poule en competitie moet zijn niet 3
     # dagen maar het aantal scanschema-horizon dagen" - zelfde instelling
     # (schedule_horizon_days) als het echte scanschema (build_schedule_events)
     # gebruikt, i.p.v. een losse, vaste 3-dagen-aanname hier.
     horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
     horizon_end = now + timedelta(days=horizon_days)
-    team, poule = _preview_team_poule()
 
-    if scenario == "landelijk":
-        comp = HockeyCompetition(hl_comp_id=PREVIEW_COMP_ID, name="Preview landelijke competitie", class_name="Landelijk", season="preview")
-        poules = [
-            HockeyPoule(poule_id=PREVIEW_POULE_ID - i, name=f"Poule {i + 1}", competition_id=PREVIEW_COMP_ID, season="preview")
-            for i in range(4)
-        ]
-        matches = [
-            HockeyPouleMatch(
-                poule_id=p.poule_id, match_id=-100 - i, home_team_id=-1, away_team_id=-2,
-                match_date=(now + timedelta(days=5 + i)).isoformat(), status="",
-            )
-            for i, p in enumerate(poules)
-        ]
-        ticks = _landelijke_daily_fallback_events(comp, matches, None, now, horizon_end, daily_fallback_h, window_start_h, window_end_h)
-        ticks = [{**_tick(e), "note": f"1 scan voor {len(poules)} poules"} for e in ticks]
-        return [{
-            "key": "landelijk", "label": "Landelijke competitie", "sub": f"{len(poules)} poules, 1 gecombineerde scan",
-            "ticks": ticks, "past": [], "note": "",
-        }]
+    # Situatie 1: bijgewerkt ("gezond") - laatste wedstrijd heeft een
+    # eindstand, eerstvolgende wedstrijd heeft een bekende starttijd.
+    team1, poule1 = _preview_team_poule()
+    poule1.last_scanned_at = now - timedelta(hours=daily_fallback_h * 2)
+    up_to_date_matches = [
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-1, home_team_id=-1, away_team_id=-2,
+                          match_date=(now - timedelta(days=2)).isoformat(), status="final", home_score=2, away_score=1),
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-2, home_team_id=-1, away_team_id=-2,
+                          match_date=(now + timedelta(days=5)).isoformat(), status=""),
+    ]
+    skipped_ticks = _poule_daily_fallback_events(
+        poule1, team1, up_to_date_matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, skip_if_healthy=False,
+    )
+    up_to_date_row = {
+        "key": "up_to_date", "label": "Poule/competitie is bijgewerkt",
+        "sub": "alle starttijden bekend, laatste uitslag binnen",
+        "ticks": [{**_tick(e), "skipped": True, "note": "overgeslagen - bijgewerkt" if i == 0 else ""} for i, e in enumerate(skipped_ticks)],
+        "past": [], "note": "dagelijkse fallback wordt bewust overgeslagen (skip_if_healthy) - niets te ontdekken, geen scan nodig",
+    }
 
-    match = HockeyPouleMatch(
-        poule_id=PREVIEW_POULE_ID, match_id=-1, home_team_id=-1, away_team_id=-2,
-        match_date=(now + timedelta(days=5)).isoformat(), status="",
+    # Situatie 2: mist wedstrijduitslagen - 1 wedstrijd al gespeeld zonder
+    # eindstand + 1 toekomstige wedstrijd (nodig voor _has_remaining_matches/
+    # require_match_within_days - anders beschouwt het echte systeem het
+    # seizoen als voorbij, zie item 1016, en stopt de fallback juist).
+    team2, poule2 = _preview_team_poule()
+    poule2.last_scanned_at = now - timedelta(hours=daily_fallback_h * 2)
+    missing_result_matches = [
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-3, home_team_id=-1, away_team_id=-2,
+                          match_date=(now - timedelta(days=1)).isoformat(), status=""),
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-4, home_team_id=-1, away_team_id=-2,
+                          match_date=(now + timedelta(days=5)).isoformat(), status=""),
+    ]
+    missing_result_ticks = _poule_daily_fallback_events(
+        poule2, team2, missing_result_matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, skip_if_healthy=False,
     )
-    poule.last_scanned_at = now - timedelta(hours=daily_fallback_h * 2)
-    raw_ticks = _poule_daily_fallback_events(
-        poule, team, [match], now, horizon_end, daily_fallback_h, window_start_h, window_end_h, skip_if_healthy=False,
+    missing_result_row = {
+        "key": "missing_result", "label": "Poule/competitie mist wedstrijduitslagen",
+        "sub": f"hercheck elke {daily_fallback_h}u",
+        "ticks": [_tick(e) for e in missing_result_ticks], "past": [],
+        "note": f"blijft elke {daily_fallback_h}u herchecken totdat hockey.nl de uitslag publiceert - dan stopt deze cadans vanzelf (poule wordt weer 'bijgewerkt')",
+    }
+
+    # Situatie 3: mist wedstrijdstarttijden - wedstrijddatum bekend (placeholder
+    # middernacht), nog geen kick-off-tijd.
+    team3, poule3 = _preview_team_poule()
+    poule3.last_scanned_at = None
+    unknown_horizon_end = now + timedelta(days=max(unknown_lookahead_d + 2, horizon_days))
+    unknown_match = HockeyPouleMatch(
+        poule_id=PREVIEW_POULE_ID, match_id=-5, home_team_id=-1, away_team_id=-2,
+        match_date=(now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat(), status="",
     )
-    if scenario == "no_match_today":
-        return [{
-            "key": "no_match_today", "label": "Geen wedstrijd vandaag", "sub": "eerstvolgende wedstrijd over 5 dagen",
-            "ticks": [_tick(e) for e in raw_ticks], "past": [], "note": "dagelijkse fallback blijft actief als vangnet",
-        }]
-    if scenario == "healthy":
-        ticks = [{**_tick(e), "skipped": True, "note": "overgeslagen - gezond" if i == 0 else ""} for i, e in enumerate(raw_ticks)]
-        return [{
-            "key": "healthy", "label": "Poule is 'gezond'", "sub": "alle starttijden bekend, laatste uitslag binnen",
-            "ticks": ticks, "past": [], "note": "dagelijkse fallback wordt hier bewust overgeslagen (skip_if_healthy)",
-        }]
-    if scenario == "unknown_start":
-        # Bart, 4-09-2026: hoort bij Poule & Competitie, niet bij Wedstrijd -
-        # de precieze wedstrijd-dag is hier per definitie nog onbekend
-        # (placeholder middernacht), dus dit past niet in een 1-dags
-        # wedstrijd-tijdlijn. Framing als "niet gezond" sluit aan bij
-        # _is_healthy (services/hockey_vanger_scanplan.py): een poule is pas
-        # gezond als ALLE starttijden bekend zijn EN de laatste uitslag
-        # binnen is - dit scenario toont de eerste van die twee oorzaken.
-        unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
-        unknown_fallback_h = _get_int_setting(session, "unknown_start_fallback_hours", 8)
-        unknown_horizon_end = now + timedelta(days=max(unknown_lookahead_d + 2, 5))
-        match_date = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        unknown_match = HockeyPouleMatch(
-            poule_id=PREVIEW_POULE_ID, match_id=-2, home_team_id=-1, away_team_id=-2,
-            match_date=match_date.isoformat(), status="",
-        )
-        poule.last_scanned_at = None
-        ticks = _poule_unknown_start_events(
-            poule, team, [unknown_match], now, unknown_horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
-        )
-        return [{
-            "key": "unknown_start", "label": "Poule is niet 'gezond' (onbekende starttijd)",
-            "sub": "wedstrijd bekend, nog geen kick-off-tijd gepubliceerd",
-            "ticks": [_tick(e) for e in ticks], "past": [], "note": "",
-        }]
-    raise HTTPException(400, "onbekend scenario")
+    unknown_start_ticks = _poule_unknown_start_events(
+        poule3, team3, [unknown_match], now, unknown_horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+    )
+    unknown_start_row = {
+        "key": "missing_start_time", "label": "Poule/competitie mist wedstrijdstarttijden",
+        "sub": f"hercheck elke {unknown_fallback_h}u",
+        "ticks": [_tick(e) for e in unknown_start_ticks], "past": [],
+        "note": f"blijft elke {unknown_fallback_h}u herchecken totdat hockey.nl de starttijd publiceert - dan stopt deze cadans vanzelf",
+    }
+
+    return [up_to_date_row, missing_result_row, unknown_start_row]
 
 
 def _preview_club_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
@@ -710,7 +770,7 @@ def preview_scenario(
         if body.scope == "match":
             rows = _preview_match_rows(session, now, body.scenario)
         elif body.scope == "poule":
-            rows = _preview_poule_rows(session, now, body.scenario)
+            rows = _preview_poule_rows(session, now)
         elif body.scope == "club":
             rows = _preview_club_rows(session, now, body.scenario)
         else:

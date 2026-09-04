@@ -45,13 +45,44 @@ def test_preview_match_setting_change_shifts_end_check_tick(session):
     assert end_a != end_b
 
 
-def test_preview_match_live_confirmed_shows_retry_cadence_in_note(session):
-    a = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "7"}), session=session, _=None)
-    b = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "25"}), session=session, _=None)
-    note_a = next(t["note"] for t in a["rows"][0]["ticks"] if t["reason"] == "match_live")
-    note_b = next(t["note"] for t in b["rows"][0]["ticks"] if t["reason"] == "match_live")
-    assert "7 min" in note_a
-    assert "25 min" in note_b
+def test_preview_match_live_confirmed_shows_a_real_retry_series(session):
+    # Bart, 4-09-2026: "ik zie het wel in tekst staan maar niet in scan's en
+    # dat wil ik juist" - meerdere match_live-ticks, elk retry_match_end_min
+    # uit elkaar, i.p.v. 1 tick met een tekstuele toelichting.
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "10", "burst_stop_hours_after_last_match": "2"}), session=session, _=None)
+    live_ticks = [t for t in result["rows"][0]["ticks"] if t["reason"] == "match_live"]
+    assert len(live_ticks) >= 2
+    from datetime import datetime
+    times = [datetime.fromisoformat(t["planned_at"].rstrip("Z")) for t in live_ticks]
+    gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]
+    assert all(abs(g - 10) < 0.01 for g in gaps)
+
+
+def test_preview_match_runs_over_shows_a_real_retry_series(session):
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="runs_over", settings={"retry_match_end_min": "15"}), session=session, _=None)
+    retry_ticks = [t for t in result["rows"][0]["ticks"] if t["reason"] == "retry_match_end"]
+    assert len(retry_ticks) >= 2
+    from datetime import datetime
+    times = [datetime.fromisoformat(t["planned_at"].rstrip("Z")) for t in retry_ticks]
+    gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]
+    assert all(abs(g - 15) < 0.01 for g in gaps)
+
+
+def test_preview_match_live_series_transitions_to_retry_and_stops_at_burst_stop_deadline(session):
+    # Bart, 4-09-2026: "wat is burst stop? welke setting beinvloedt dat
+    # dan?" - burst_stop_hours_after_last_match is de deadline NA het
+    # voorspelde wedstrijdeinde: match_live-ticks lopen door tot het
+    # voorspelde einde (onafhankelijk van burst_stop_h), pas de
+    # AANSLUITENDE retry_match_end-cadans erna wordt door burst_stop_h
+    # begrensd.
+    short = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "10", "burst_stop_hours_after_last_match": "1"}), session=session, _=None)
+    long = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "10", "burst_stop_hours_after_last_match": "6"}), session=session, _=None)
+    short_live = len([t for t in short["rows"][0]["ticks"] if t["reason"] == "match_live"])
+    long_live = len([t for t in long["rows"][0]["ticks"] if t["reason"] == "match_live"])
+    assert short_live == long_live  # onafhankelijk van burst_stop_h
+    short_retry = len([t for t in short["rows"][0]["ticks"] if t["reason"] == "retry_match_end"])
+    long_retry = len([t for t in long["rows"][0]["ticks"] if t["reason"] == "retry_match_end"])
+    assert long_retry > short_retry  # wél begrensd door burst_stop_h
 
 
 def test_preview_scenario_never_commits_candidate_settings(session):
@@ -64,12 +95,6 @@ def test_preview_scenario_never_commits_candidate_settings(session):
     assert row.value == "90"
 
 
-def test_preview_poule_unknown_start_returns_recheck_ticks(session):
-    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="unknown_start", settings={}), session=session, _=None)
-    ticks = result["rows"][0]["ticks"]
-    assert ticks and all(t["reason"] == "unknown_start_recheck" for t in ticks)
-
-
 def test_preview_match_scope_no_longer_accepts_unknown_start(session):
     import pytest
     from fastapi import HTTPException
@@ -77,10 +102,30 @@ def test_preview_match_scope_no_longer_accepts_unknown_start(session):
         preview_scenario(PreviewScenarioIn(scope="match", scenario="unknown_start", settings={}), session=session, _=None)
 
 
-def test_preview_poule_healthy_marks_ticks_skipped(session):
-    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="healthy", settings={}), session=session, _=None)
-    ticks = result["rows"][0]["ticks"]
-    assert ticks and all(t["skipped"] for t in ticks)
+def test_preview_poule_scope_returns_the_3_situations_regardless_of_scenario(session):
+    # item 1084 (Bart, 4-09-2026: "geen sub keuze"): Poule & Competitie
+    # heeft geen scenario-tabs meer - retourneert altijd alle 3 situaties
+    # samen, wat er ook als scenario wordt meegegeven.
+    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="anything", settings={}), session=session, _=None)
+    assert [r["key"] for r in result["rows"]] == ["up_to_date", "missing_result", "missing_start_time"]
+
+
+def test_preview_poule_up_to_date_marks_ticks_skipped(session):
+    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="x", settings={}), session=session, _=None)
+    up_to_date = next(r for r in result["rows"] if r["key"] == "up_to_date")
+    assert up_to_date["ticks"] and all(t["skipped"] for t in up_to_date["ticks"])
+
+
+def test_preview_poule_missing_start_time_returns_recheck_ticks(session):
+    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="x", settings={}), session=session, _=None)
+    row = next(r for r in result["rows"] if r["key"] == "missing_start_time")
+    assert row["ticks"] and all(t["reason"] == "unknown_start_recheck" for t in row["ticks"])
+
+
+def test_preview_poule_missing_result_returns_daily_fallback_ticks(session):
+    result = preview_scenario(PreviewScenarioIn(scope="poule", scenario="x", settings={}), session=session, _=None)
+    row = next(r for r in result["rows"] if r["key"] == "missing_result")
+    assert row["ticks"] and all(t["reason"] == "daily_fallback" for t in row["ticks"])
 
 
 def test_preview_club_scan_never_lands_on_weekend(session):
