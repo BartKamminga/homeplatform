@@ -112,143 +112,10 @@ function VangerTuning({ settings, onSave }) {
   )
 }
 
-// Scan-plan instellingen (item 720): tijdgestuurde queuing los van Scout/Ghost —
-// globaal, niet per client. Gegroepeerd per categorie i.p.v. 1 platte lijst
-// (Bart, 30-08-2026: "de settings moeten echt duidelijker op de vanger tab
-// komen") - elk veld heeft een korte uitleg via de title-tooltip.
-const SCAN_PLAN_GROUPS = [
-  {
-    title: 'Wedstrijd-timing',
-    fields: [
-      { key: 'match_duration_min', label: 'Wedstrijdduur (min)', width: 44,
-        help: 'Aangenomen duur van een wedstrijd - bepaalt wanneer match_end_check begint (het voorspelde einde).' },
-      { key: 'live_check_delay_min', label: 'Match-start-check na start (min)', width: 44,
-        help: 'Hoe lang na de voorspelde starttijd 1x gecheckt wordt of de wedstrijd live staat.' },
-      { key: 'active_matchday_interval_min', label: 'Match-start-check venster (min)', width: 44,
-        help: 'Hoe lang het match-start-check-moment "open" blijft staan voordat het als gemist wordt beschouwd.' },
-      { key: 'retry_match_end_min', label: 'Retry/live-cadans (min)', width: 44,
-        help: 'Hoe snel opnieuw gecheckt wordt na een nog-niet-finaal match_end_check-resultaat, of periodiek tijdens een bevestigd live wedstrijd (match_live). Elke retry is dynamisch - alleen de eerstvolgende staat gepland.' },
-      { key: 'burst_stop_hours_after_last_match', label: 'Retry/live-stop (u na eigen einde)', width: 44,
-        help: 'Uiterste tijd per wedstrijd (ná haar EIGEN voorspelde einde) dat retry_match_end/match_live nog doorgaat als de uitslag maar niet verschijnt.' },
-    ],
-  },
-  {
-    title: 'Dagelijkse fallback',
-    fields: [
-      { key: 'active_daily_fallback_hours', label: 'Interval (u)', width: 44,
-        help: 'Hoe vaak een poule zonder wedstrijd vandaag alsnog ververst wordt - vangnet voor correcties.' },
-    ],
-  },
-  {
-    title: 'Onbekende starttijd',
-    fields: [
-      { key: 'unknown_start_lookahead_days', label: 'Vooruitkijken (dagen)', width: 44,
-        help: 'Tot hoeveel dagen vooruit een wedstrijd zonder bekende starttijd extra vaak gecheckt wordt.' },
-      { key: 'unknown_start_fallback_hours', label: 'Hercheck-interval (u)', width: 44,
-        help: 'Hoe vaak zo\'n wedstrijd zonder starttijd binnen dat venster wordt herchecked.' },
-    ],
-  },
-  {
-    title: 'Club-discovery',
-    fields: [
-      { key: 'club_list_scan_days', label: 'Clublijst (dagen)', width: 40,
-        help: 'Hoe vaak de volledige clublijst van de bond wordt opgehaald.' },
-      { key: 'club_scan_days', label: 'Club-scan (dagen)', width: 40,
-        help: 'Hoe vaak een individuele club opnieuw gescand wordt voor nieuwe poules. Nooit in het weekend.' },
-    ],
-  },
-  {
-    title: 'Systeem',
-    fields: [
-      { key: 'profile_scan_interval_min', label: 'Scan-plan interval (min)', width: 44,
-        help: 'Hoe vaak de scan-plan-pass als geheel draait - bepaalt ook hoe snel het scanschema ververst.' },
-      { key: 'stale_cmd_timeout_min', label: 'Stuck-cmd-timeout (min)', width: 44,
-        help: 'Na hoeveel minuten een vastgelopen cmd (bezig zonder resultaat) als mislukt wordt teruggezet.' },
-      { key: 'schedule_horizon_days', label: 'Scanschema-horizon (dagen)', width: 44,
-        help: 'Hoeveel dagen vooruit het scanschema plant (zichtbaar in de Kalender/Debug-tab).' },
-      { key: 'scan_window_start_hour', label: 'Scan-venster start (uur)', width: 40,
-        help: 'Niet-wedstrijd-gebonden scans (fallback, wekelijks) worden niet vóór dit uur ingepland.' },
-      { key: 'scan_window_end_hour', label: 'Scan-venster eind (uur)', width: 40,
-        help: 'Niet-wedstrijd-gebonden scans worden niet na dit uur ingepland - schuift door naar de volgende ochtend.' },
-    ],
-  },
-]
-
-const SCAN_PLAN_FIELDS = SCAN_PLAN_GROUPS.flatMap(g => g.fields)
-export const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
-
-// item 1001, Fase A: comma-gescheiden hockey.nl team_ids die een pushmelding
-// krijgen zodra hun wedstrijd eindstand krijgt - los tekstveld, geen getal.
-export const NOTIFY_KEY = 'notify_team_ids'
-
-// item 1084: values/set/save komen van useSettingsForm, nu een niveau hoger
-// (VangerTab.jsx) opgetild i.p.v. hier lokaal aangeroepen - zo kan de scan-
-// plan-preview (ScanPlanPreview.jsx) dezelfde, nog-niet-opgeslagen waarden
-// live meelezen terwijl je typt, zonder eerst op "Opslaan" te hoeven klikken.
-function ScanPlanTuning({ settings, values, set, save, matchdayEnabled, onToggleMatchday }) {
-  if (!settings) return null
-
-  const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 0', borderTop: '1px solid var(--color-border)', fontSize: 11, color: 'var(--color-text-muted)' }}>
-      <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: '.05em' }}>SCAN-PLAN</div>
-
-      {SCAN_PLAN_GROUPS.map(group => (
-        <div key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text)', opacity: 0.75 }}>{group.title}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingLeft: 2 }}>
-            {group.fields.map(f => (
-              <label key={f.key} title={f.help} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
-                {f.label}
-                <input
-                  type="number" min="1" style={inputStyle(f.width)}
-                  value={values[f.key] ?? ''}
-                  onChange={e => set(f.key, e.target.value)}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text)', opacity: 0.75 }}>Overig</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingLeft: 2 }}>
-          <label
-            title="Alleen de event-driven matchday-boost voor publicatie-competities met scan_profile 'actief' aan/uit - bij uit blijven die competities gewoon op de dagelijkse interval scannen. Competities op 'handmatig' worden hoe dan ook nooit geraakt."
-            style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
-          >
-            <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
-            Matchday-interval actief
-          </label>
-          <label
-            title="Comma-gescheiden hockey.nl team_ids - zodra een wedstrijd van een van deze teams eindstand krijgt, gaat er een pushmelding uit (item 1001)"
-            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            Meldingen voor team-id(s)
-            <input
-              type="text" placeholder="bv. 123456,789012"
-              style={{ ...inputStyle(140) }}
-              value={values[NOTIFY_KEY] ?? ''}
-              onChange={e => set(NOTIFY_KEY, e.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
-      <div>
-        <button
-          onClick={save}
-          style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-        >
-          Opslaan
-        </button>
-      </div>
-    </div>
-  )
-}
-
+// item 1084: het scan-plan-instellingenformulier + queue-filter + tijdlijn-
+// preview zijn samengevoegd in ScanPlanPreview.jsx (mockup-layout: settings
+// links, preview rechts, queue-invloed onder) - hier alleen nog de
+// values/set/save doorgeven die VangerTab.jsx via useSettingsForm optilt.
 export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, onToggleMatchday, vangerSettings, onSaveSettings, scanPlanForm }) {
   const [settingsOpen, toggleSettingsOpen] = useCollapse(false)
   if (!vangerStatus) return null
@@ -292,11 +159,10 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
       {settingsOpen && (
         <>
           <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
-          <ScanPlanTuning
-            settings={vangerSettings} values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save}
+          <ScanPlanPreview
+            values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save}
             matchdayEnabled={matchdayEnabled} onToggleMatchday={onToggleMatchday}
           />
-          <ScanPlanPreview values={scanPlanForm.values} />
         </>
       )}
     </div>

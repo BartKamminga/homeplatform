@@ -1,0 +1,161 @@
+/* item 1084: 1-op-1 overgenomen uit de goedgekeurde HTML-mockup (Bart,
+   4-09-2026: "gewoon precies hetzelfde nabouwen") - de mockup's kleuren
+   bleken toevallig al exact de dark-theme tokens van deze app te zijn
+   (--color-primary/--color-surface/etc, zie frontend/core/theme.css), dus
+   hier direct de echte var(--color-...)-tokens gebruikt i.p.v. een eigen
+   kopie - dat laat het ook automatisch meewerken met de andere thema's
+   (light/dim/amber). Alleen de vaste, categorale reason-kleuren (col-match,
+   col-start-check, ...) zijn losse, theme-onafhankelijke custom properties. */
+.spp {
+  --col-match: #2a78d6;
+  --col-good: #0ca30c;
+  --col-start-check: #2ab7ca;
+  --col-end-check: #eb6834;
+  --col-retry: #f2994a;
+  --col-live: #0ca30c;
+  --col-fallback: #8a5cf6;
+  --col-unknown: #c026d3;
+  --col-clublist: #f59e0b;
+  --col-clubscan: #38bdf8;
+  --col-veld: #2a78d6;
+  --col-zaal: #8a5cf6;
+  font-size: 13px;
+  color: var(--color-text);
+}
+.spp * { box-sizing: border-box; }
+
+.spp .spp-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+.spp .spp-sub { color: var(--color-text-muted); font-size: 10.5px; margin-bottom: 10px; }
+
+.spp .spp-card {
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
+  padding: 14px; margin-bottom: 12px;
+}
+
+.spp .scope-tabs { display: flex; gap: 4px; margin-bottom: 10px; background: var(--color-surface-2); border-radius: 10px; padding: 4px; width: fit-content; }
+.spp .scope-tab {
+  padding: 7px 14px; border-radius: 7px; border: none; background: transparent;
+  color: var(--color-text-muted); font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 600;
+}
+.spp .scope-tab.active { background: var(--color-primary); color: var(--color-background); }
+
+.spp .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.spp .tab {
+  padding: 7px 12px; border-radius: 16px; border: 1px solid var(--color-border);
+  background: transparent; color: var(--color-text-muted); font-size: 11.5px; cursor: pointer;
+  font-family: inherit; transition: all .12s;
+}
+.spp .tab:hover { border-color: var(--color-text-light); }
+.spp .tab.active { background: color-mix(in srgb, var(--color-primary) 12%, transparent); border-color: var(--color-primary); color: var(--color-primary); font-weight: 600; }
+
+.spp .spp-layout { display: grid; grid-template-columns: 280px 1fr; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .spp .spp-layout { grid-template-columns: 1fr; } }
+
+.spp .group { margin-bottom: 12px; }
+.spp .group.inactive { opacity: .3; pointer-events: none; }
+.spp .group-title { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--color-text-muted); opacity: .8; margin-bottom: 6px; }
+.spp .field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.spp .field-row label { color: var(--color-text-muted); font-size: 11px; cursor: help; }
+.spp .field-row input {
+  width: 56px; font-size: 11px; padding: 3px 5px; border-radius: 4px;
+  border: 1px solid var(--color-border); background: var(--color-background); color: var(--color-text);
+  text-align: right; font-family: inherit;
+}
+.spp .field-row input:focus { outline: 1px solid var(--color-primary); border-color: var(--color-primary); }
+
+.spp .timeline-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.spp .timeline-header .title { font-size: 12px; font-weight: 700; }
+.spp .timeline-header .meta { font-size: 10.5px; color: var(--color-text-muted); }
+.spp .scenario-desc { font-size: 11px; color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.5; }
+
+.spp .axis { position: relative; height: 18px; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
+.spp .axis span { position: absolute; font-size: 9px; color: var(--color-text-muted); transform: translateX(-50%); }
+
+.spp .track { position: relative; height: 34px; margin-bottom: 2px; }
+.spp .match-bar {
+  position: absolute; top: 8px; height: 18px; border-radius: 4px;
+  display: flex; align-items: center; padding: 0 6px; font-size: 9px; color: white; font-weight: 600;
+  white-space: nowrap; overflow: hidden;
+}
+.spp .phase-bar {
+  position: absolute; top: 4px; height: 26px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center; font-size: 9px; color: white; font-weight: 600;
+  white-space: nowrap; overflow: hidden; opacity: .85;
+}
+.spp .now-line { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--color-primary); opacity: .8; }
+.spp .now-line::after { content: 'nu'; position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 8px; color: var(--color-primary); font-weight: 700; }
+.spp .weekend-band { position: absolute; top: 0; bottom: 0; background: var(--color-text-light); opacity: .3; }
+
+.spp .ticks-track { position: relative; height: 46px; }
+.spp .ticks-track.multi-row { height: auto; min-height: 46px; padding-bottom: 8px; }
+.spp .tick { position: absolute; top: 0; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); }
+.spp .tick .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--color-surface); box-shadow: 0 0 0 1px var(--color-border); }
+.spp .tick .stem { width: 1px; height: 8px; background: var(--color-border); }
+.spp .tick .lbl { font-size: 8.5px; color: var(--color-text-muted); margin-top: 3px; white-space: nowrap; max-width: 76px; text-align: center; line-height: 1.2; }
+.spp .tick .time { font-size: 8px; color: var(--color-text-muted); opacity: .7; }
+.spp .tick.dimmed .dot { opacity: .35; }
+.spp .tick.dimmed .lbl { opacity: .5; text-decoration: line-through; }
+.spp .tick.skipped .dot { opacity: .2; border-style: dashed; }
+.spp .tick.skipped .lbl { opacity: .35; }
+.spp .tick.ghost .dot { background: transparent !important; border: 1.5px dotted var(--color-text-light); }
+.spp .tick.ghost .lbl { opacity: .35; font-style: italic; }
+.spp .tick.ghost .time { opacity: .3; }
+
+.spp .pill-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.spp .pill-lbl { width: 52px; flex-shrink: 0; font-size: 10.5px; color: var(--color-text-muted); }
+.spp .pill-group { display: flex; flex-wrap: wrap; gap: 5px; }
+.spp .pill {
+  padding: 4px 10px; border-radius: 14px; border: 1px solid var(--color-border);
+  background: transparent; color: var(--color-text-muted); font-size: 10.5px; cursor: pointer; font-family: inherit;
+}
+.spp .pill.selected { background: #ff3e6c; border-color: #ff3e6c; color: white; font-weight: 600; }
+
+.spp .filter-verdict {
+  font-size: 11px; margin-top: 8px; padding: 6px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent); border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent); color: var(--color-text-muted);
+}
+.spp .filter-verdict b { color: var(--color-primary); }
+
+.spp .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-border); font-size: 10px; color: var(--color-text-muted); }
+.spp .legend .item { display: flex; align-items: center; gap: 4px; }
+.spp .legend .sw { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.spp .empty-note { text-align: center; color: var(--color-text-muted); font-size: 11px; font-style: italic; padding: 16px 0; }
+.spp .callout {
+  margin-top: 10px; padding: 8px 10px; border-radius: 7px; background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent); font-size: 11px; color: var(--color-text-muted); line-height: 1.5;
+}
+.spp .callout b { color: var(--color-text); }
+
+.spp .rows-axis { position: relative; height: 16px; border-bottom: 1px solid var(--color-border); margin-bottom: 10px; }
+.spp .rows-axis span { position: absolute; font-size: 9px; color: var(--color-text-muted); transform: translateX(-50%); }
+.spp .row-block { margin-bottom: 18px; }
+.spp .row-block:last-child { margin-bottom: 0; }
+.spp .row-label { font-size: 11.5px; font-weight: 700; color: var(--color-text); }
+.spp .row-sub { font-size: 9.5px; color: var(--color-text-muted); margin-bottom: 6px; }
+.spp .row-track { position: relative; height: 22px; margin-bottom: 2px; }
+.spp .row-bar { position: absolute; top: 4px; height: 14px; border-radius: 3px; opacity: 1; }
+.spp .row-bar.dimmed { opacity: .3; }
+.spp .row-ticks { position: relative; height: 40px; }
+.spp .row-tick { position: absolute; top: 0; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); }
+.spp .row-tick .dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--color-surface); }
+.spp .row-tick .lbl { font-size: 8px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap; max-width: 70px; text-align: center; }
+.spp .row-tick.ghost .dot { background: transparent !important; border: 1.5px dotted var(--color-text-light); }
+.spp .row-tick.ghost .lbl { opacity: .35; font-style: italic; }
+.spp .row-note { font-size: 9.5px; color: var(--color-text-muted); font-style: italic; margin-top: 4px; }
+
+.spp .impact-layout { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: start; margin-top: 4px; }
+.spp .impact-total { font-size: 22px; font-weight: 700; color: var(--color-primary); margin-bottom: 2px; }
+.spp .impact-total .unit { font-size: 11px; color: var(--color-text-muted); font-weight: 400; margin-left: 6px; }
+.spp .impact-bar { display: flex; height: 18px; border-radius: 5px; overflow: hidden; margin: 10px 0; border: 1px solid var(--color-border); }
+.spp .impact-bar .seg { height: 100%; transition: width .15s; }
+.spp .impact-breakdown { display: flex; flex-direction: column; gap: 5px; }
+.spp .impact-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.spp .impact-row .sw { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.spp .impact-row .lbl { flex: 1; color: var(--color-text-muted); }
+.spp .impact-row .val { font-weight: 700; color: var(--color-text); min-width: 70px; text-align: right; }
+.spp .impact-row .val .small { font-weight: 400; color: var(--color-text-muted); font-size: 10px; }
+
+.spp .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.spp .chip { font-size: 9.5px; padding: 3px 8px; border-radius: 12px; border: 1px solid var(--color-border); color: var(--color-text-muted); background: var(--color-surface-2); }
+.spp .chip.merged { border-color: var(--col-match); color: var(--col-match); }

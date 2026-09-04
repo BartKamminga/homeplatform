@@ -3,12 +3,15 @@ import { useScanPlanPreview } from './hooks/useScanPlanPreview.jsx'
 import { useShadowRun } from './hooks/useShadowRun.jsx'
 import { useCandidateQueueFilter } from './hooks/useCandidateQueueFilter.jsx'
 import { REASON_META } from './reasonMeta.js'
+import { SCAN_PLAN_GROUPS, SCOPE_GROUPS, NOTIFY_KEY } from './scanPlanFields.js'
+import './scanPlanPreview.css'
 
-// item 1084: scope-tabs + scenario-tabs + tijdlijn + queue-filter-pills +
-// queue-impact-paneel - 1-op-1 de HTML-mockup die samen met Bart is
-// doorontwikkeld (4-09-2026: "dat is een betere versie"), nu gevoed door de
-// echte backend-routes (preview-scenario/shadow-run) i.p.v. een JS-
-// herberekening.
+// item 1084: 1-op-1 nagebouwd op de goedgekeurde HTML-mockup (Bart,
+// 4-09-2026: "gewoon precies hetzelfde nabouwen") - zelfde class-namen/CSS
+// als de mockup (scanPlanPreview.css), zelfde layout (instellingen LINKS,
+// tijdlijn-preview RECHTS, queue-invloed ONDER, over de volle breedte),
+// gevoed door de echte backend-routes (preview-scenario/shadow-run) i.p.v.
+// een JS-herberekening.
 const SCOPES = [
   { id: 'match', label: 'Wedstrijd', scenarios: [
     { id: 'normal', label: 'Normale wedstrijd',
@@ -45,6 +48,7 @@ const SCOPES = [
 ]
 
 const DAY_MS = 24 * 3600 * 1000
+const PHASE_COLOR = { 'Veld najaar': 'var(--col-veld)', Zaal: 'var(--col-zaal)', 'Veld voorjaar': 'var(--col-veld)', 'Indeling verwacht': 'var(--color-text-muted)' }
 
 function fmtAxis(iso, spanMs) {
   const d = new Date(iso)
@@ -76,140 +80,105 @@ function computeWindow(rows) {
   return { min, max, span: max - min }
 }
 
-function tabBtn(active, label, onClick, key, variant) {
-  const scopeStyle = variant === 'scope'
-    ? { padding: '6px 13px', borderRadius: 7, border: 'none', background: active ? 'var(--color-primary)' : 'transparent', color: active ? '#1a1a10' : 'var(--color-text-muted)', fontWeight: 600 }
-    : { padding: '5px 11px', borderRadius: 14, border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`, background: active ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent', color: active ? 'var(--color-primary)' : 'var(--color-text-muted)', fontWeight: active ? 600 : 400 }
+function Axis({ window: win, cls = 'axis' }) {
+  const steps = 8
   return (
-    <button key={key} onClick={onClick} style={{
-      fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', ...scopeStyle,
-    }}>{label}</button>
-  )
-}
-
-function Axis({ window: win }) {
-  const steps = 7
-  return (
-    <div style={{ position: 'relative', height: 16, borderBottom: '1px solid var(--color-border)', marginBottom: 4 }}>
+    <div className={cls}>
       {Array.from({ length: steps + 1 }, (_, i) => {
         const t = win.min + (win.span * i) / steps
-        return (
-          <span key={i} style={{ position: 'absolute', left: (i / steps) * 100 + '%', fontSize: 9, color: 'var(--color-text-muted)', transform: 'translateX(-50%)' }}>
-            {fmtAxis(t, win.span)}
-          </span>
-        )
+        return <span key={i} style={{ left: (i / steps) * 100 + '%' }}>{fmtAxis(t, win.span)}</span>
       })}
     </div>
   )
 }
 
-const PHASE_COLOR = { 'Veld najaar': '#2a78d6', Zaal: '#8a5cf6', 'Veld voorjaar': '#2a78d6', 'Indeling verwacht': '#64748b' }
-
-function Bars({ bars, window: win, height = 34 }) {
-  const pct = iso => Math.min(100, Math.max(0, ((new Date(iso).getTime() - win.min) / win.span) * 100))
-  return (
-    <>
-      {(bars || []).map((b, i) => (
-        <div key={i} title={b.label} style={{
-          position: 'absolute', left: pct(b.from) + '%', width: Math.max(pct(b.to) - pct(b.from), 1.2) + '%',
-          top: height === 34 ? 8 : 4, height: height === 34 ? 18 : 14, borderRadius: 4,
-          background: PHASE_COLOR[b.label] || 'var(--color-primary)', opacity: b.dimmed ? 0.3 : 0.9,
-          display: 'flex', alignItems: 'center', justifyContent: height !== 34 ? 'center' : 'flex-start', padding: '0 6px',
-          fontSize: 9, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden',
-        }}>{b.label}</div>
-      ))}
-    </>
-  )
-}
+function pctOf(win, iso) { return Math.min(100, Math.max(0, ((new Date(iso).getTime() - win.min) / win.span) * 100)) }
 
 function WeekendBands({ window: win }) {
   const bands = []
   const start = new Date(win.min)
   start.setHours(0, 0, 0, 0)
   for (let t = start.getTime(); t < win.max; t += DAY_MS) {
-    const dow = new Date(t).getDay() // 0=zo, 6=za
+    const dow = new Date(t).getDay()
     if (dow === 0 || dow === 6) {
       const left = Math.max(0, ((t - win.min) / win.span) * 100)
       const right = Math.min(100, ((t + DAY_MS - win.min) / win.span) * 100)
       if (right > left) bands.push({ left, width: right - left })
     }
   }
-  return bands.map((b, i) => (
-    <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: b.left + '%', width: b.width + '%', background: 'rgba(255,255,255,0.04)' }} />
-  ))
+  return bands.map((b, i) => <div key={i} className="weekend-band" style={{ left: b.left + '%', width: b.width + '%' }} />)
 }
 
 function NowLine({ now, window: win }) {
   if (!now) return null
   const t = new Date(now).getTime()
   if (t < win.min || t > win.max) return null
-  const left = ((t - win.min) / win.span) * 100
-  return (
-    <div style={{ position: 'absolute', top: -4, bottom: -4, left: left + '%', width: 2, background: 'var(--color-primary)', opacity: 0.8 }}>
-      <span style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', fontSize: 8, color: 'var(--color-primary)', fontWeight: 700, whiteSpace: 'nowrap' }}>nu</span>
-    </div>
-  )
+  return <div className="now-line" style={{ left: ((t - win.min) / win.span) * 100 + '%' }} />
 }
 
-function Tick({ t, window: win, detailed }) {
-  const left = Math.min(100, Math.max(0, ((new Date(t.planned_at).getTime() - win.min) / win.span) * 100))
-  const color = REASON_META[t.reason]?.color || 'var(--color-primary)'
-  const label = t.note || REASON_META[t.reason]?.label || t.reason
+function Tick({ t, window: win }) {
+  const cls = 'tick' + (t.dimmed ? ' dimmed' : '') + (t.skipped ? ' skipped' : '') + (t.ghost ? ' ghost' : '')
   return (
-    <div style={{ position: 'absolute', left: left + '%', top: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translateX(-50%)' }}>
-      <div style={{
-        width: detailed ? 10 : 9, height: detailed ? 10 : 9, borderRadius: '50%',
-        background: t.ghost ? 'transparent' : color,
-        border: t.ghost ? '1.5px dotted rgba(150,150,150,0.5)' : t.skipped ? '2px dashed var(--color-text-muted)' : '2px solid var(--color-surface)',
-        opacity: t.skipped ? 0.4 : 1,
-      }} />
-      {detailed && <div style={{ width: 1, height: 8, background: 'var(--color-border)' }} />}
-      <div style={{
-        fontSize: 8.5, color: 'var(--color-text-muted)', marginTop: 3, whiteSpace: 'nowrap', maxWidth: 84,
-        textAlign: 'center', lineHeight: 1.2, opacity: t.ghost ? 0.5 : 1, fontStyle: t.ghost ? 'italic' : 'normal',
-      }}>{label}</div>
-      {detailed && <div style={{ fontSize: 8, color: 'var(--color-text-muted)', opacity: 0.7 }}>{fmtTickTime(t.planned_at, win.span)}</div>}
+    <div className={cls} style={{ left: pctOf(win, t.planned_at) + '%' }}>
+      <div className="dot" style={{ background: REASON_META[t.reason]?.color || 'var(--color-primary)' }} />
+      <div className="stem" />
+      <div className="lbl">{t.note || REASON_META[t.reason]?.label || t.reason}</div>
+      <div className="time">{fmtTickTime(t.planned_at, win.span)}</div>
     </div>
   )
 }
 
 function SingleView({ row, window: win, now, weekend }) {
   return (
-    <div>
+    <>
       <Axis window={win} />
-      <div style={{ position: 'relative', height: (row.bars || []).length ? 34 : 10, marginBottom: 2 }}>
+      <div className="track">
         {weekend && <WeekendBands window={win} />}
-        <Bars bars={row.bars} window={win} height={34} />
+        {(row.bars || []).map((b, i) => (
+          <div key={i} className={b.label === 'Wedstrijd' ? 'match-bar' : 'phase-bar'} style={{
+            left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5) + '%',
+            background: b.label === 'Wedstrijd' ? 'var(--col-match)' : (PHASE_COLOR[b.label] || 'var(--color-primary)'),
+            opacity: b.dimmed ? 0.3 : undefined,
+          }}>{b.label}</div>
+        ))}
         <NowLine now={now} window={win} />
       </div>
-      <div style={{ position: 'relative', height: 52, marginTop: 8 }}>
-        {!row.ticks?.length
-          ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 11, fontStyle: 'italic', padding: '16px 0' }}>Geen scanmomenten gepland in dit venster.</div>
-          : row.ticks.map((t, i) => <Tick key={i} t={t} window={win} detailed />)}
+      <div className={'ticks-track' + ((row.ticks || []).length > 6 ? ' multi-row' : '')}>
+        {!row.ticks?.length && <div className="empty-note">Geen scanmomenten gepland in dit venster.</div>}
+        {(row.ticks || []).map((t, i) => <Tick key={i} t={t} window={win} />)}
       </div>
-    </div>
+    </>
   )
 }
 
 function RowsView({ rows, window: win, now }) {
   return (
-    <div>
-      <Axis window={win} />
+    <>
+      <Axis window={win} cls="rows-axis" />
       {rows.map(row => (
-        <div key={row.key} style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700 }}>{row.label}</div>
-          <div style={{ fontSize: 9.5, color: 'var(--color-text-muted)', marginBottom: 6 }}>{row.sub}</div>
-          <div style={{ position: 'relative', height: 22, marginBottom: 2 }}>
-            <Bars bars={row.bars} window={win} height={22} />
+        <div key={row.key} className="row-block">
+          <div className="row-label">{row.label}</div>
+          <div className="row-sub">{row.sub}</div>
+          <div className="row-track">
+            {(row.bars || []).map((b, i) => (
+              <div key={i} className={'row-bar' + (b.dimmed ? ' dimmed' : '')} style={{
+                left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1) + '%', background: 'var(--col-match)',
+              }} />
+            ))}
             <NowLine now={now} window={win} />
           </div>
-          <div style={{ position: 'relative', height: 40 }}>
-            {(row.ticks || []).map((t, i) => <Tick key={i} t={t} window={win} detailed={false} />)}
+          <div className="row-ticks">
+            {(row.ticks || []).map((t, i) => (
+              <div key={i} className={'row-tick' + (t.ghost ? ' ghost' : '')} style={{ left: pctOf(win, t.planned_at) + '%' }}>
+                <div className="dot" style={{ background: REASON_META[t.reason]?.color || 'var(--color-primary)' }} />
+                <div className="lbl">{t.note || REASON_META[t.reason]?.label || t.reason}</div>
+              </div>
+            ))}
           </div>
-          {row.note && <div style={{ fontSize: 9.5, color: 'var(--color-text-muted)', fontStyle: 'italic', marginTop: 4 }}>{row.note}</div>}
+          {row.note && <div className="row-note">{row.note}</div>}
         </div>
       ))}
-    </div>
+    </>
   )
 }
 
@@ -224,14 +193,11 @@ function Legend({ rows }) {
   }
   if (!reasons.size) return null
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12, paddingTop: 8, borderTop: '1px solid var(--color-border)', fontSize: 10, color: 'var(--color-text-muted)' }}>
+    <div className="legend">
       {[...reasons].map(r => (
-        <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: REASON_META[r]?.color || 'var(--color-primary)', flexShrink: 0 }} />
-          {REASON_META[r]?.label || r}
-        </div>
+        <div key={r} className="item"><span className="sw" style={{ background: REASON_META[r]?.color || 'var(--color-primary)' }} />{REASON_META[r]?.label || r}</div>
       ))}
-      {hasGhostOrSkipped && <div style={{ opacity: 0.7 }}>gestippeld/vaag = zou hier staan mét autoscan, of overgeslagen</div>}
+      {hasGhostOrSkipped && <div className="item" style={{ opacity: 0.7 }}>gestippeld/vaag = zou hier staan mét autoscan, of overgeslagen</div>}
     </div>
   )
 }
@@ -239,61 +205,13 @@ function Legend({ rows }) {
 const CANDIDATE_GENDERS_JUN = ['Jongens', 'Meisjes']
 const CANDIDATE_GENDERS_SEN = ['Heren', 'Dames']
 
-function FilterPill({ on, label, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      fontSize: 10.5, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
-      border: `1px solid ${on ? '#ff3e6c' : 'var(--color-border)'}`,
-      background: on ? '#ff3e6c' : 'transparent',
-      color: on ? '#fff' : 'var(--color-text-muted)', fontWeight: on ? 600 : 400,
-    }}>{label}</button>
-  )
-}
-
 const IMPACT_COLORS = {
-  match_start_check: '#2ab7ca', match_end_check: '#eb6834', retry_match_end: '#f2994a', match_live: '#0ca30c',
-  daily_fallback: '#8a5cf6', unknown_start_recheck: '#c026d3', new_or_empty: '#64748b',
-  manual_weekly: '#4f46e5', club_scan: '#0891b2', club_list: '#0e7490',
+  match_start_check: 'var(--col-start-check)', match_end_check: 'var(--col-end-check)', retry_match_end: 'var(--col-retry)', match_live: 'var(--col-live)',
+  daily_fallback: 'var(--col-fallback)', unknown_start_recheck: 'var(--col-unknown)', new_or_empty: 'var(--color-text-muted)',
+  manual_weekly: 'var(--col-clublist)', club_scan: 'var(--col-clubscan)', club_list: 'var(--col-clublist)',
 }
 
-function ImpactPanel({ shadow, loading }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px dashed var(--color-border)' }}>
-      <div style={{ fontSize: 11, fontWeight: 700 }}>📊 Invloed op de scanqueue</div>
-      <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>echte shadow-run (build_schedule_events, 14 dagen) - reageert op elke instelling en het queue-filter hieronder</div>
-      {loading && !shadow && <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>Berekenen...</div>}
-      {shadow && (
-        <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .15s' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 2 }}>
-            {shadow.totals.matches_filter}
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400, marginLeft: 6 }}>
-              van de {shadow.totals.planned} geplande scans (14 dagen) binnen het filter
-            </span>
-          </div>
-          <div style={{ display: 'flex', height: 16, borderRadius: 5, overflow: 'hidden', margin: '8px 0', border: '1px solid var(--color-border)' }}>
-            {Object.entries(shadow.by_reason).map(([reason, count]) => (
-              <div key={reason} title={`${REASON_META[reason]?.label || reason}: ${count}`} style={{
-                width: (shadow.totals.planned > 0 ? count / shadow.totals.planned * 100 : 0) + '%',
-                background: IMPACT_COLORS[reason] || 'var(--color-primary)',
-              }} />
-            ))}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {Object.entries(shadow.by_reason).sort((a, b) => b[1] - a[1]).map(([reason, count]) => (
-              <div key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-                <span style={{ width: 9, height: 9, borderRadius: 2, background: IMPACT_COLORS[reason] || 'var(--color-primary)', flexShrink: 0 }} />
-                <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>{REASON_META[reason]?.label || reason}</span>
-                <span style={{ fontWeight: 700 }}>{count} <span style={{ fontWeight: 400, color: 'var(--color-text-muted)', fontSize: 10 }}>/ 14 dagen</span></span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function ScanPlanPreview({ values }) {
+export default function ScanPlanPreview({ values, set, save, matchdayEnabled, onToggleMatchday }) {
   const [scope, setScope] = useState('match')
   const [scenario, setScenario] = useState('normal')
   const candidateFilter = useCandidateQueueFilter()
@@ -316,73 +234,147 @@ export default function ScanPlanPreview({ values }) {
 
   const win = computeWindow(rows)
   const useRows = scope === 'match'
-  const isPhases = scope === 'season' && currentScenarioId === 'phases'
+  const relevantGroups = SCOPE_GROUPS[scope] || []
+  const values_ = values || {}
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 0', borderTop: '1px solid var(--color-border)', fontSize: 11 }}>
-      <div style={{ fontWeight: 700, fontSize: 11 }}>⚙ Scan-plan preview</div>
+    <div className="spp">
+      <div className="spp-title">⚙ Scan-plan preview</div>
+      <div className="spp-sub">Instellingen wijzigen werkt meteen door in de tijdlijn en de queue-invloed - pas "Opslaan" zet ze ook echt vast.</div>
 
-      <div style={{ display: 'flex', gap: 3, background: 'var(--color-surface-2, var(--color-bg))', borderRadius: 10, padding: 3, width: 'fit-content' }}>
-        {SCOPES.map(s => tabBtn(s.id === scope, s.label, () => { setScope(s.id); setScenario(s.scenarios[0].id) }, s.id, 'scope'))}
+      <div className="scope-tabs">
+        {SCOPES.map(s => (
+          <button key={s.id} className={'scope-tab' + (s.id === scope ? ' active' : '')} onClick={() => { setScope(s.id); setScenario(s.scenarios[0].id) }}>{s.label}</button>
+        ))}
       </div>
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-        {currentScope.scenarios.map(sc => tabBtn(sc.id === currentScenarioId, sc.label, () => setScenario(sc.id), sc.id, 'scenario'))}
-      </div>
-
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontSize: 12, fontWeight: 700 }}>{currentScenario.label}</div>
-          {win && <div style={{ fontSize: 10.5, color: 'var(--color-text-muted)' }}>{fmtMeta(win.span)}</div>}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>{currentScenario.desc}</div>
-
-        {scope === 'poule' && currentScenarioId === 'landelijk' && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-            {['Poule 1', 'Poule 2', 'Poule 3', 'Poule 4'].map(p => (
-              <span key={p} style={{ fontSize: 9.5, padding: '3px 8px', borderRadius: 12, border: '1px solid var(--color-primary)', color: 'var(--color-primary)' }}>{p} → 1 scan</span>
-            ))}
-          </div>
-        )}
-
-        <div style={{ opacity: previewLoading ? 0.5 : 1, transition: 'opacity .15s' }}>
-          {!win
-            ? <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 11, fontStyle: 'italic', padding: '16px 0' }}>
-                {isPhases ? 'Nog geen kalenderdata voor dit seizoen.' : 'Geen scan-momenten in dit scenario.'}
-              </div>
-            : useRows
-              ? <RowsView rows={rows} window={win} now={now} />
-              : <SingleView row={rows[0]} window={win} now={now} weekend={scope === 'club' && currentScenarioId === 'club_scan'} />}
-        </div>
-
-        <Legend rows={rows} />
+      <div className="tabs">
+        {currentScope.scenarios.map(sc => (
+          <button key={sc.id} className={'tab' + (sc.id === currentScenarioId ? ' active' : '')} onClick={() => setScenario(sc.id)}>{sc.label}</button>
+        ))}
       </div>
 
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)' }}>QUEUE-FILTER (kandidaat, wijzigt de echte filter niet)</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 52 }}>Niveau</span>
-            {['Junioren', 'Senioren'].map(cat => (
-              <FilterPill key={cat} on={candidateFilter.filter.categories.includes(cat)} label={cat} onClick={() => candidateFilter.toggleNiveau(cat)} />
-            ))}
-          </div>
-          {genderOptions.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 52 }}>Geslacht</span>
-              {genderOptions.map(g => (
-                <FilterPill key={g} on={candidateFilter.filter.genders.includes(g)} label={g} onClick={() => candidateFilter.toggleGender(g)} />
+      <div className="spp-layout">
+        <div className="spp-card">
+          {SCAN_PLAN_GROUPS.map(group => (
+            <div key={group.title} className={'group' + (relevantGroups.length && !relevantGroups.includes(group.title) ? ' inactive' : '')}>
+              <div className="group-title">{group.title}</div>
+              {group.fields.map(f => (
+                <div key={f.key} className="field-row">
+                  <label title={f.help}>{f.label}</label>
+                  <input type="number" min="1" value={values_[f.key] ?? ''} onChange={e => set(f.key, e.target.value)} />
+                </div>
               ))}
             </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', width: 52 }}>Type</span>
-            {['VE', 'ZA'].map(ht => (
-              <FilterPill key={ht} on={candidateFilter.filter.hockey_types.includes(ht)} label={ht === 'VE' ? '🏑 Veld' : '🏒 Zaal'} onClick={() => candidateFilter.toggleHt(ht)} />
-            ))}
+          ))}
+
+          <div className="group">
+            <div className="group-title">Overig</div>
+            <div className="field-row">
+              <label title="Alleen de event-driven matchday-boost voor publicatie-competities met scan_profile 'actief' aan/uit.">Matchday-interval actief</label>
+              <input type="checkbox" checked={matchdayEnabled} onChange={onToggleMatchday} />
+            </div>
+            <div className="field-row">
+              <label title="Comma-gescheiden hockey.nl team_ids - pushmelding bij eindstand (item 1001)">Meldingen team-id(s)</label>
+              <input type="text" style={{ width: 100, textAlign: 'left' }} placeholder="123456,789012" value={values_[NOTIFY_KEY] ?? ''} onChange={e => set(NOTIFY_KEY, e.target.value)} />
+            </div>
+          </div>
+
+          <div className="group" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+            <div className="group-title">📱 Queue-filter</div>
+            <div className="pill-row">
+              <span className="pill-lbl">Niveau</span>
+              <div className="pill-group">
+                {['Junioren', 'Senioren'].map(cat => (
+                  <button key={cat} className={'pill' + (candidateFilter.filter.categories.includes(cat) ? ' selected' : '')} onClick={() => candidateFilter.toggleNiveau(cat)}>{cat}</button>
+                ))}
+              </div>
+            </div>
+            {genderOptions.length > 0 && (
+              <div className="pill-row">
+                <span className="pill-lbl">Geslacht</span>
+                <div className="pill-group">
+                  {genderOptions.map(g => (
+                    <button key={g} className={'pill' + (candidateFilter.filter.genders.includes(g) ? ' selected' : '')} onClick={() => candidateFilter.toggleGender(g)}>{g}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="pill-row">
+              <span className="pill-lbl">Type</span>
+              <div className="pill-group">
+                {['VE', 'ZA'].map(ht => (
+                  <button key={ht} className={'pill' + (candidateFilter.filter.hockey_types.includes(ht) ? ' selected' : '')} onClick={() => candidateFilter.toggleHt(ht)}>{ht === 'VE' ? '🏑 Veldhockey' : '🏒 Zaalhockey'}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <button
+              onClick={save}
+              style={{ fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 5, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}
+            >Opslaan</button>
           </div>
         </div>
 
-        <ImpactPanel shadow={shadow} loading={shadowLoading} />
+        <div className="spp-card">
+          <div className="timeline-header">
+            <div className="title">{currentScenario.label}</div>
+            {win && <div className="meta">{fmtMeta(win.span)}</div>}
+          </div>
+          <div className="scenario-desc">{currentScenario.desc}</div>
+
+          {scope === 'poule' && currentScenarioId === 'landelijk' && (
+            <div className="chip-row">
+              {['Poule 1', 'Poule 2', 'Poule 3', 'Poule 4'].map(p => <span key={p} className="chip merged">{p} → 1 scan</span>)}
+            </div>
+          )}
+
+          <div style={{ opacity: previewLoading ? 0.5 : 1, transition: 'opacity .15s' }}>
+            {!win
+              ? <div className="empty-note">{scope === 'season' && currentScenarioId === 'phases' ? 'Nog geen kalenderdata voor dit seizoen.' : 'Geen scan-momenten in dit scenario.'}</div>
+              : useRows
+                ? <RowsView rows={rows} window={win} now={now} />
+                : <SingleView row={rows[0]} window={win} now={now} weekend={scope === 'club' && currentScenarioId === 'club_scan'} />}
+          </div>
+
+          <Legend rows={rows} />
+        </div>
+      </div>
+
+      <div className="spp-card">
+        <div className="timeline-header" style={{ marginBottom: 4 }}>
+          <div className="title">📊 Invloed op de scanqueue</div>
+          <div className="meta">echte shadow-run (14 dagen) - reageert op elke instelling en het queue-filter hierboven</div>
+        </div>
+        {shadowLoading && !shadow && <div className="empty-note">Berekenen...</div>}
+        {shadow && (
+          <div className="impact-layout" style={{ opacity: shadowLoading ? 0.5 : 1, transition: 'opacity .15s' }}>
+            <div>
+              <div className="impact-total">
+                {shadow.totals.matches_filter}
+                <span className="unit">van de {shadow.totals.planned} geplande scans (14 dagen) binnen het filter</span>
+              </div>
+              <div className="impact-bar">
+                {Object.entries(shadow.by_reason).map(([reason, count]) => (
+                  <div key={reason} className="seg" title={`${REASON_META[reason]?.label || reason}: ${count}`} style={{
+                    width: (shadow.totals.planned > 0 ? count / shadow.totals.planned * 100 : 0) + '%',
+                    background: IMPACT_COLORS[reason] || 'var(--color-primary)',
+                  }} />
+                ))}
+              </div>
+              <div className="impact-breakdown">
+                {Object.entries(shadow.by_reason).sort((a, b) => b[1] - a[1]).map(([reason, count]) => (
+                  <div key={reason} className="impact-row">
+                    <span className="sw" style={{ background: IMPACT_COLORS[reason] || 'var(--color-primary)' }} />
+                    <span className="lbl">{REASON_META[reason]?.label || reason}</span>
+                    <span className="val">{count} <span className="small">/ 14 dagen</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
