@@ -22,6 +22,7 @@ from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filte
 from services.hockey_vanger_scanplan import _team_by_poule
 from services.hockey_vanger_settings import (
     _get_int_setting, get_notify_team_ids, get_season_calendar_events, get_season_phases, get_target_season,
+    is_zaal_active,
 )
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -101,6 +102,10 @@ def get_scan_calendar(
     comp_by_id = {c.id: c for c in all_comps}
     comp_by_hl_id = {c.hl_comp_id: c for c in all_comps if c.hl_comp_id}
     team_by_poule = _team_by_poule(session)
+    # item 1080: 1x vooraf berekend i.p.v. per poule opnieuw (zelfde N+1 als
+    # item 1048, hier tot nu toe niet meegefixed - ~900 poules x losse
+    # is_zaal_active/team-lookup binnen _cmd_matches_filter).
+    zaal_active = is_zaal_active(session, now)
 
     poule_results = []
     for poule in poules:
@@ -113,12 +118,15 @@ def get_scan_calendar(
         if is_landelijke:
             in_filter = _cmd_matches_filter(
                 session, "get_competition_detail", {"comp_id": comp.hl_comp_id, "label": comp.name},
-                ages, club, cats, hts, genders,
+                ages, club, cats, hts, genders, zaal_active=zaal_active,
             )
         else:
             team = team_by_poule.get(poule.poule_id)
             params = {"team_id": team.team_id} if team else {}
-            in_filter = _cmd_matches_filter(session, "get_poule", params, ages, club, cats, hts, genders)
+            in_filter = _cmd_matches_filter(
+                session, "get_poule", params, ages, club, cats, hts, genders,
+                zaal_active=zaal_active, team=team,
+            )
         if poule.competition_id in active_comp_ids:
             scan_profile = "active"
         elif poule.competition_id in manual_comp_ids:
