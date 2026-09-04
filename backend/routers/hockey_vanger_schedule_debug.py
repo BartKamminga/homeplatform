@@ -539,7 +539,12 @@ def _preview_poule_rows(session: Session, now: datetime, scenario: str) -> List[
     daily_fallback_h = _get_int_setting(session, "active_daily_fallback_hours", 24)
     window_start_h    = _get_int_setting(session, "scan_window_start_hour", 9)
     window_end_h      = _get_int_setting(session, "scan_window_end_hour", 18)
-    horizon_end = now + timedelta(days=3)
+    # Bart, 4-09-2026: "venster voor de poule en competitie moet zijn niet 3
+    # dagen maar het aantal scanschema-horizon dagen" - zelfde instelling
+    # (schedule_horizon_days) als het echte scanschema (build_schedule_events)
+    # gebruikt, i.p.v. een losse, vaste 3-dagen-aanname hier.
+    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+    horizon_end = now + timedelta(days=horizon_days)
     team, poule = _preview_team_poule()
 
     if scenario == "landelijk":

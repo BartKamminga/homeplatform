@@ -10,8 +10,6 @@ export const SCAN_PLAN_GROUPS = [
         help: 'Aangenomen duur van een wedstrijd - bepaalt wanneer match_end_check begint (het voorspelde einde).' },
       { key: 'live_check_delay_min', label: 'Match-start-check na start (min)',
         help: 'Hoe lang na de voorspelde starttijd 1x gecheckt wordt of de wedstrijd live staat.' },
-      { key: 'active_matchday_interval_min', label: 'Match-start-check venster (min)',
-        help: 'Hoe lang het match-start-check-moment "open" blijft staan voordat het als gemist wordt beschouwd.' },
       { key: 'retry_match_end_min', label: 'Retry/live-cadans (min)',
         help: 'Hoe snel opnieuw gecheckt wordt na een nog-niet-finaal match_end_check-resultaat, of periodiek tijdens een bevestigd live wedstrijd (match_live). Elke retry is dynamisch - alleen de eerstvolgende staat gepland.' },
       { key: 'burst_stop_hours_after_last_match', label: 'Retry/live-stop (u na eigen einde)',

@@ -124,7 +124,6 @@ SCAN_PLAN_DEFAULTS = {
     "profile_scan_interval_min":   20,
     "match_duration_min":          90,
     "active_daily_fallback_hours": 24,
-    "active_matchday_interval_min": 45,
     "retry_match_end_min":         10,
     "stale_cmd_timeout_min":       10,
     "live_check_delay_min":        15,
@@ -163,7 +162,6 @@ class VangerSettingsIn(BaseModel):
     profile_scan_interval_min:     Optional[int] = None
     match_duration_min:            Optional[int] = None
     active_daily_fallback_hours:   Optional[int] = None
-    active_matchday_interval_min:  Optional[int] = None
     retry_match_end_min:           Optional[int] = None
     stale_cmd_timeout_min:         Optional[int] = None
     live_check_delay_min:          Optional[int] = None
@@ -202,7 +200,6 @@ def update_vanger_settings(
         ("profile_scan_interval_min", body.profile_scan_interval_min),
         ("match_duration_min", body.match_duration_min),
         ("active_daily_fallback_hours", body.active_daily_fallback_hours),
-        ("active_matchday_interval_min", body.active_matchday_interval_min),
         ("retry_match_end_min", body.retry_match_end_min),
         ("stale_cmd_timeout_min", body.stale_cmd_timeout_min),
         ("live_check_delay_min", body.live_check_delay_min),
@@ -235,7 +232,7 @@ def update_vanger_settings(
 
     # Bart, 30-08-2026: het scanschema is een momentopname, gebouwd met de
     # instellingen zoals ze WAREN bij de laatste rebuild - zonder dit bleef
-    # een gewijzigde instelling (bv. active_matchday_interval_min) onzichtbaar
+    # een gewijzigde instelling (bv. active_daily_fallback_hours) onzichtbaar
     # in de Debug-tab/Kalender totdat er toevallig weer een scan-plan-pass
     # draaide (die uitstaat zolang scan_plan_enabled=0, dus in de praktijk
     # nooit vanzelf).

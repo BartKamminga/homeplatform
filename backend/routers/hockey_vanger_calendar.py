@@ -38,7 +38,6 @@ def _iso(dt: datetime) -> str:
 
 SCAN_PLAN_SETTINGS = {
     "match_duration_min":          90,
-    "active_matchday_interval_min": 45,
     "active_daily_fallback_hours":  24,
     "stale_cmd_timeout_min":        10,
     "burst_stop_hours_after_last_match": 2,

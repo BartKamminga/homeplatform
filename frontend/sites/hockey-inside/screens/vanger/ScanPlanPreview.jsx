@@ -80,22 +80,6 @@ function computeWindow(rows) {
   return { min, max, span: max - min }
 }
 
-// item 1084 (Bart, 4-09-2026: "wedstrijd moet over 1 dag een view geven",
-// vervolgens: "de periode die ik wil zien in de dag view is van 8:00 tot
-// 19:00 ==>> scan venster start/end waarden van het systeem"): het
-// Wedstrijd-scope krijgt altijd een vaste dag-as - niet middernacht tot
-// middernacht, maar het echte, ingestelde scan-venster (scan_window_start_
-// hour/scan_window_end_hour, dezelfde instelling die ook daily_fallback/
-// unknown_start/manual_weekly klemt) - op de dag van "nu".
-function dayWindow(anchorIso, startHour, endHour) {
-  if (!anchorIso) return null
-  const start = new Date(anchorIso)
-  start.setHours(startHour, 0, 0, 0)
-  const end = new Date(anchorIso)
-  end.setHours(endHour, 0, 0, 0)
-  return { min: start.getTime(), max: end.getTime(), span: end.getTime() - start.getTime() }
-}
-
 function Axis({ window: win, cls = 'axis' }) {
   const steps = 8
   return (
@@ -249,9 +233,13 @@ export default function ScanPlanPreview({ values, set, save }) {
   ]
 
   const values_ = values || {}
-  const win = scope === 'match'
-    ? dayWindow(now, Number(values_.scan_window_start_hour) || 9, Number(values_.scan_window_end_hour) || 18)
-    : computeWindow(rows)
+  // item 1084 (Bart, 4-09-2026): een vast dagvenster (scan-venster-uren)
+  // maakte de wedstrijd zelf onleesbaar klein op de as - "ik wil de periode
+  // tijdens en om de wedstrijd goed inzichtelijk hebben". computeWindow
+  // zoomt altijd in op de daadwerkelijke ticks/balk (met wat marge), voor
+  // ALLE scopes inclusief Wedstrijd - blijft vanzelf binnen 1 dag omdat de
+  // match-ticks nooit meer dan een paar uur uit elkaar liggen.
+  const win = computeWindow(rows)
   const useRows = scope === 'match'
   const relevantGroups = SCOPE_GROUPS[scope] || []
 
