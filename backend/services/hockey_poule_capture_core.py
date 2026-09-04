@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 import re
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from models.hockey_discovery import (
     HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam, HockeyTeamPoule,
@@ -334,8 +334,15 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
 
     is_target = body.season == target_season
     teams_created = teams_updated = extra_poules_linked = 0
+    # item 1075: 1x gebatchd i.p.v. per team een losse select (6-12 teams per
+    # capture, maar gebeurt bij elke binnenkomende scan de hele dag door).
+    existing_by_id = {
+        t.team_id: t for t in session.exec(
+            select(HockeyTeam).where(col(HockeyTeam.team_id).in_([t_in.id for t_in in body.teams_in_poule]))
+        ).all()
+    } if body.teams_in_poule else {}
     for t_in in body.teams_in_poule:
-        existing = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == t_in.id)).first()
+        existing = existing_by_id.get(t_in.id)
         if existing:
             if is_target and existing.recent_poule_id != body.poule_id:
                 # Team heeft al een primaire poule dit seizoen en die hoort bij

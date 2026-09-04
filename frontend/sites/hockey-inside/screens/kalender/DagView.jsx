@@ -244,6 +244,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
 
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+      <style>{`@keyframes hiLiveBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }`}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--color-border)' }}>
         <button onClick={() => shiftDay(-1)} style={navBtnStyle}>←</button>
         <strong style={{ fontSize: 13 }}>{date.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}</strong>
@@ -357,6 +358,7 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
                     position: 'absolute', left: `${x1}%`, width: `${Math.max(0.6, x2 - x1)}%`, top: 7, height: 16,
                     background: COL_MATCH, borderRadius: 3,
                     outline: isLive ? `2px solid ${COL_GOOD}` : 'none',
+                    animation: isLive ? 'hiLiveBlink 0.7s ease-in-out infinite' : 'none',
                   }}
                 >
                   {isLive && (

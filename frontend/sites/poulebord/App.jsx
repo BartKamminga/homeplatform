@@ -9,6 +9,7 @@ import { MyBoardsView } from './MyBoardsView.jsx'
 import { SearchView } from './SearchView.jsx'
 import { SaveBoardDialog } from './SaveBoardDialog.jsx'
 import { BrowseView } from './BrowseView.jsx'
+import { LiveMatchesModal } from './LiveMatchesModal.jsx'
 
 // ── App ───────────────────────────────────────────────────────────────────────
 // item 692: publicatie/tag/navigatie-state zit in usePublicationBrowse en alle
@@ -39,6 +40,7 @@ export default function App() {
   const [queryDrafts, setQueryDrafts]         = useState({})
   const [myBoardsView, setMyBoardsView]       = useState(false)
   const [searchMode, setSearchMode]           = useState(false)
+  const [liveOpen, setLiveOpen]               = useState(false)
   const [searchQ, setSearchQ]                 = useState('')
   const searchRef                             = useRef(null)
   const [searchResults, setSearchResults]     = useState(null)
@@ -194,6 +196,14 @@ export default function App() {
         myBoards={myBoards} club={club} clubEdit={clubEdit} setClubEdit={setClubEdit}
         clubs={clubs} saveClub={saveClub} totalPins={totalPins}
         all={all} selectedPub={selectedPub} onPubChange={handlePubChange}
+        onOpenLive={() => setLiveOpen(true)}
+      />
+
+      <LiveMatchesModal
+        open={liveOpen}
+        tid={selectedPub?.id}
+        tournamentName={selectedPub?.name}
+        onClose={() => setLiveOpen(false)}
       />
 
       <SaveBoardDialog

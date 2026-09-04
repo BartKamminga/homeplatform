@@ -54,5 +54,7 @@ export const getTagRoundMatches = (tid, tags, stat, scope, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/round-matches?${tagQuery(tags, { stat, scope, limit })}`)
 export const getUpcomingMatches = (tid, tags, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/upcoming-matches?${tagQuery(tags, { limit })}`)
+export const getLiveMatches = (tid, tags) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/live-matches?${tagQuery(tags, {})}`)
 export const getClubRanking = (tid, tags, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/club-ranking?${tagQuery(tags, { limit })}`)

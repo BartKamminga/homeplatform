@@ -15,7 +15,7 @@ from models.hockey_discovery import (
 )
 from models.hockey import HockeyPublicationTagCategory
 from services.hockey_query_scope import compute_win_streaks
-from services.hockey_scope import get_comp_link_tags, get_visible_comp_links
+from services.hockey_scope import get_comp_link_tags_bulk, get_visible_comp_links, get_visible_comp_links_bulk
 from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-public"])
@@ -49,7 +49,12 @@ def get_tournament_competition_standings(
     tid: str,
     session: Session = Depends(get_session),
 ):
-    """Lees standings per gekoppelde competitie voor een publicatie."""
+    """Lees standings per gekoppelde competitie voor een publicatie.
+
+    item 1076: was voorheen 2 + 5xL + 4xP losse queries (L=gekoppelde
+    competities, P=totaal poules) - bij 10 competities/50 poules al ~250
+    round trips voor 1 view. Nu vooraf 1x gebatchd per soort data over ALLE
+    competities/poules heen, dan in Python samengevoegd."""
     links = get_visible_comp_links(session, tid)
 
     if not links:
@@ -59,31 +64,63 @@ def get_tournament_competition_standings(
     # niets aan de AND-filterlogica op tag-naam) zodat poulebord tags gegroepeerd
     # kan tonen zonder een extra round-trip.
     cats_by_id = {c.id: c for c in session.exec(select(HockeyPublicationTagCategory)).all()}
+    tags_by_link = get_comp_link_tags_bulk(session, [lnk.id for lnk in links])
+
+    comp_ids = [lnk.competition_id for lnk in links]
+    comps_by_id = {
+        c.id: c for c in session.exec(
+            select(HockeyCompetition).where(col(HockeyCompetition.id).in_(comp_ids))
+        ).all()
+    }
+
+    all_poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids)).order_by(HockeyPoule.name)
+    ).all()
+    poules_by_comp: dict = {}
+    for p in all_poules:
+        poules_by_comp.setdefault(p.competition_id, []).append(p)
+    all_ext_ids = [p.poule_id for p in all_poules]
+
+    match_counts: dict = {}
+    if all_ext_ids:
+        for m in session.exec(
+            select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(all_ext_ids))
+        ).all():
+            mc = match_counts.setdefault(m.poule_id, {"total": 0, "played": 0})
+            mc["total"] += 1
+            if m.status == "final":
+                mc["played"] += 1
+    streaks = compute_win_streaks(session, all_ext_ids) if all_ext_ids else {}
+
+    standings_by_poule: dict = {}
+    if all_ext_ids:
+        all_rows = session.exec(
+            select(HockeyPouleStanding)
+            .where(col(HockeyPouleStanding.poule_id).in_(all_ext_ids))
+            .order_by(HockeyPouleStanding.position, HockeyPouleStanding.points.desc())  # type: ignore[attr-defined]
+        ).all()
+        for r in all_rows:
+            standings_by_poule.setdefault(r.poule_id, []).append(r)
+
+    poule_ids_without_rows = [pid for pid in all_ext_ids if pid not in standings_by_poule]
+    pending_by_poule: dict = {}
+    if poule_ids_without_rows:
+        pending_teams = session.exec(
+            select(HockeyTeam)
+            .where(col(HockeyTeam.recent_poule_id).in_(poule_ids_without_rows))
+            .order_by(HockeyTeam.name)
+        ).all()
+        for t in pending_teams:
+            pending_by_poule.setdefault(t.recent_poule_id, []).append(t.name)
+
+    all_team_ids = [r.team_id for rows in standings_by_poule.values() for r in rows]
+    teams, clubs = resolve_team_clubs(session, all_team_ids)
 
     competitions = []
     for lnk in links:
-        comp = session.get(HockeyCompetition, lnk.competition_id)
+        comp = comps_by_id.get(lnk.competition_id)
         if not comp:
             continue
-        assigned_tags = get_comp_link_tags(session, lnk.id)
-        poules = session.exec(
-            select(HockeyPoule)
-            .where(HockeyPoule.competition_id == lnk.competition_id)
-            .order_by(HockeyPoule.name)
-        ).all()
-        match_counts: dict = {}
-        streaks: dict = {}
-        if poules:
-            ext_ids = [p.poule_id for p in poules]
-            for m in session.exec(
-                select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(ext_ids))
-            ).all():
-                mc = match_counts.setdefault(m.poule_id, {"total": 0, "played": 0})
-                mc["total"] += 1
-                if m.status == "final":
-                    mc["played"] += 1
-            streaks = compute_win_streaks(session, ext_ids)
-
         comp_entry = {
             "link_id":     lnk.id,
             "id":          comp.id,
@@ -99,35 +136,19 @@ def get_tournament_competition_standings(
                     "category_name": cats_by_id[ft.category_id].name if ft.category_id in cats_by_id else None,
                     "category_order": cats_by_id[ft.category_id].order if ft.category_id in cats_by_id else None,
                 }
-                for ft in assigned_tags
+                for ft in tags_by_link.get(lnk.id, [])
             ],
             "poules":      [],
         }
-        for poule in poules:
-            rows = session.exec(
-                select(HockeyPouleStanding)
-                .where(HockeyPouleStanding.poule_id == poule.poule_id)
-                .order_by(
-                    HockeyPouleStanding.position,
-                    HockeyPouleStanding.points.desc(),  # type: ignore[attr-defined]
-                )
-            ).all()
-            teams_pending = []
-            if not rows:
-                pending_teams = session.exec(
-                    select(HockeyTeam)
-                    .where(HockeyTeam.recent_poule_id == poule.poule_id)
-                    .order_by(HockeyTeam.name)
-                ).all()
-                teams_pending = [t.name for t in pending_teams]
+        for poule in poules_by_comp.get(lnk.competition_id, []):
+            rows = standings_by_poule.get(poule.poule_id, [])
             mc = match_counts.get(poule.poule_id, {"total": 0, "played": 0})
-            teams, clubs = resolve_team_clubs(session, [r.team_id for r in rows])
             comp_entry["poules"].append({
                 "id":             poule.id,
                 "name":           poule.name,
                 "poule_id":       poule.poule_id,
                 "ai_note":        poule.ai_note,
-                "teams_pending":  teams_pending,
+                "teams_pending":  pending_by_poule.get(poule.poule_id, []),
                 "matches_total":  mc["total"],
                 "matches_played": mc["played"],
                 "standings": [
@@ -241,10 +262,11 @@ def search_discovery(q: str, session: Session = Depends(get_session)):
     pubs = session.exec(
         select(HockeyPublication).where(HockeyPublication.published == True)  # noqa: E712
     ).all()
+    links_by_pub = get_visible_comp_links_bulk(session, [pub.id for pub in pubs])
     pub_by_comp_id = {}
     link_by_comp_id = {}
     for pub in pubs:
-        for lnk in get_visible_comp_links(session, pub.id):
+        for lnk in links_by_pub.get(pub.id, []):
             pub_by_comp_id.setdefault(lnk.competition_id, pub)
             link_by_comp_id.setdefault(lnk.competition_id, lnk)
     if not pub_by_comp_id:
@@ -254,6 +276,7 @@ def search_discovery(q: str, session: Session = Depends(get_session)):
         select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(list(pub_by_comp_id.keys())))
     ).all()
     poule_by_ext_id = {p.poule_id: p for p in poules}
+    tags_by_link = get_comp_link_tags_bulk(session, [lnk.id for lnk in link_by_comp_id.values()])
 
     teams = session.exec(select(HockeyTeam)).all()
     results, seen = [], set()
@@ -271,7 +294,7 @@ def search_discovery(q: str, session: Session = Depends(get_session)):
             continue
         seen.add(phase_id)
         lnk = link_by_comp_id.get(poule.competition_id)
-        tags = get_comp_link_tags(session, lnk.id) if lnk else []
+        tags = tags_by_link.get(lnk.id, []) if lnk else []
         results.append({
             "phase_id":        phase_id,
             "pool_name":       poule.name,

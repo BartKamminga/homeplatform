@@ -303,6 +303,23 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
     current_poule_map: Dict[int, int] = {}
     newly_finished: list = []  # item 1001/1013: zelfde "net final geworden"-detectie als apply_poule_capture
 
+    # item 1075: standings-team-lookup vooraf 1x gebatchd over ALLE poules in
+    # deze response i.p.v. per standings-rij een losse select (was dubbel
+    # geneste N+1: poules x teams-per-poule). existing_teams_by_id wordt
+    # verderop bijgewerkt zodra een nieuw team wordt aangemaakt, zodat een
+    # team_id dat in meerdere poules van dezelfde response voorkomt niet
+    # dubbel aangemaakt wordt (zelfde effect als de autoflush die de oude,
+    # per-rij query hier eerder al aan gaf).
+    standings_team_ids = {
+        tid for pd in poules_list for s in (pd.get("standings") or [])
+        if (tid := (s.get("team") or {}).get("id"))
+    }
+    existing_teams_by_id = {
+        t.team_id: t for t in session.exec(
+            select(HockeyTeam).where(col(HockeyTeam.team_id).in_(standings_team_ids))
+        ).all()
+    } if standings_team_ids else {}
+
     for poule_data in poules_list:
         poule_id   = poule_data.get("id")
         poule_name = poule_data.get("name", "")
@@ -381,9 +398,9 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                 tid  = team.get("id")
                 if tid:
                     teams_found_set.add(tid)
-                    ht_row = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == tid)).first()
+                    ht_row = existing_teams_by_id.get(tid)
                     if not ht_row:
-                        session.add(HockeyTeam(
+                        ht_row = HockeyTeam(
                             team_id=tid,
                             club_external_id=team.get("federation_reference_id") or "",
                             name=team.get("name", ""),
@@ -392,7 +409,9 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                             hockey_type=team.get("hockey_type") or "VE",
                             category_group_name=_derive_category(team.get("name", "")),
                             discovered_at=now, updated_at=now,
-                        ))
+                        )
+                        session.add(ht_row)
+                        existing_teams_by_id[tid] = ht_row
                     elif not ht_row.club_external_id and team.get("federation_reference_id"):
                         ht_row.club_external_id = team["federation_reference_id"]
                         ht_row.updated_at = now

@@ -71,7 +71,7 @@ export function Header({
   myBoardsView, setMyBoardsView, boardOn, setBoardOn, toggleBoard,
   searchMode, setSearchMode, openSearch, closeSearch, searchQ, setSearchQ, searchRef,
   myBoards, club, clubEdit, setClubEdit, clubs, saveClub, totalPins,
-  all, selectedPub, onPubChange,
+  all, selectedPub, onPubChange, onOpenLive,
 }) {
   return (
     <div style={{ background: C.deep, position: 'sticky', top: 0, zIndex: 10,
@@ -94,6 +94,13 @@ export function Header({
           borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
           color: searchMode ? C.gold : C.muted, fontSize: 11, whiteSpace: 'nowrap', fontFamily: 'inherit',
         }}>🔍</button>
+        {selectedPub && (
+          <button onClick={onOpenLive} title="Live wedstrijden" style={{
+            background: 'transparent', border: `1px solid ${C.border}`,
+            borderRadius: 16, padding: '4px 9px', cursor: 'pointer',
+            color: '#e5484d', fontSize: 11, whiteSpace: 'nowrap', fontFamily: 'inherit',
+          }}>🔴</button>
+        )}
         {myBoards.length > 0 && (
           <button onClick={() => { setMyBoardsView(v => !v); setBoardOn(false); setSearchMode(false) }} style={{
             background: myBoardsView ? 'rgba(207,159,63,0.15)' : 'transparent',
