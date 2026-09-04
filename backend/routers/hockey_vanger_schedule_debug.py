@@ -513,14 +513,14 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
     else:
         raise HTTPException(400, "onbekend scenario")
 
-    weekly_at = _next_manual_weekly_tick(now, horizon_end, PREVIEW_COMP_ID, window_start_h)
-    non_autoscan_ticks = []
-    if weekly_at:
-        non_autoscan_ticks.append({
-            "planned_at": _iso(weekly_at), "reason": "manual_weekly", "ghost": False,
-            "note": "wekelijkse ronde (vaste dag, niet aan de wedstrijd gebonden)",
-        })
-    non_autoscan_ticks += [{**t, "ghost": True, "note": "(zou hier staan bij autoscan)"} for t in autoscan_ticks]
+    # item 1084 (Bart, 4-09-2026: "wekelijkse ronde... kan weg onder
+    # 'Wedstrijd' - niet relevant hier"): de wekelijkse niet-autoscan-ronde
+    # is een poule/competitie-brede cadans, niet aan DEZE wedstrijd of dag
+    # gebonden (en valt sowieso vaak buiten de nieuwe 1-dags wedstrijd-as) -
+    # hoort dus niet in deze per-wedstrijd tijdlijn. De niet-autoscan-rij
+    # toont daarom alleen nog de ghost-ticks (wat er ZOU gebeuren met
+    # autoscan) ter vergelijking.
+    non_autoscan_ticks = [{**t, "ghost": True, "note": "(zou hier staan bij autoscan)"} for t in autoscan_ticks]
 
     return [
         {
@@ -530,7 +530,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         {
             "key": "non_autoscan", "label": "Niet-autoscan", "sub": "buiten publicatie, of scan_profile=manual",
             "ticks": non_autoscan_ticks, "past": [], "bars": [{**b, "dimmed": True} for b in bars],
-            "note": "geen matchday-burst - alleen de wekelijkse ronde, ongeacht wedstrijdtijd",
+            "note": "geen matchday-burst voor deze wedstrijd - de competitie krijgt wel nog een wekelijkse ronde, los van deze dag (zie Poule & Competitie)",
         },
     ]
 

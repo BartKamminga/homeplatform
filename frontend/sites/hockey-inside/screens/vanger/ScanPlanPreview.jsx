@@ -80,19 +80,20 @@ function computeWindow(rows) {
   return { min, max, span: max - min }
 }
 
-// item 1084 (Bart, 4-09-2026: "wedstrijd moet over 1 dag een view geven"):
-// het Wedstrijd-scope krijgt altijd een vaste dag-as (middernacht tot
-// middernacht, op de dag van "nu") i.p.v. een venster dat meebeweegt met de
-// ticks - alle match-scenario's spelen zich af rond dezelfde kalenderdag
-// (normal/never_live/live_confirmed/runs_over verschuiven het wedstrijd-
-// tijdstip hoogstens een paar uur t.o.v. nu), dus dit geeft een stabiele,
-// herkenbare dagweergave zoals de Kalender-dagview.
-function dayWindow(anchorIso) {
+// item 1084 (Bart, 4-09-2026: "wedstrijd moet over 1 dag een view geven",
+// vervolgens: "de periode die ik wil zien in de dag view is van 8:00 tot
+// 19:00 ==>> scan venster start/end waarden van het systeem"): het
+// Wedstrijd-scope krijgt altijd een vaste dag-as - niet middernacht tot
+// middernacht, maar het echte, ingestelde scan-venster (scan_window_start_
+// hour/scan_window_end_hour, dezelfde instelling die ook daily_fallback/
+// unknown_start/manual_weekly klemt) - op de dag van "nu".
+function dayWindow(anchorIso, startHour, endHour) {
   if (!anchorIso) return null
   const start = new Date(anchorIso)
-  start.setHours(0, 0, 0, 0)
-  const min = start.getTime()
-  return { min, max: min + DAY_MS, span: DAY_MS }
+  start.setHours(startHour, 0, 0, 0)
+  const end = new Date(anchorIso)
+  end.setHours(endHour, 0, 0, 0)
+  return { min: start.getTime(), max: end.getTime(), span: end.getTime() - start.getTime() }
 }
 
 function Axis({ window: win, cls = 'axis' }) {
@@ -247,10 +248,12 @@ export default function ScanPlanPreview({ values, set, save }) {
     ...(candidateFilter.filter.categories.includes('Senioren') ? CANDIDATE_GENDERS_SEN : []),
   ]
 
-  const win = scope === 'match' ? dayWindow(now) : computeWindow(rows)
+  const values_ = values || {}
+  const win = scope === 'match'
+    ? dayWindow(now, Number(values_.scan_window_start_hour) || 9, Number(values_.scan_window_end_hour) || 18)
+    : computeWindow(rows)
   const useRows = scope === 'match'
   const relevantGroups = SCOPE_GROUPS[scope] || []
-  const values_ = values || {}
 
   return (
     <div className="spp">
