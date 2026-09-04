@@ -2,6 +2,7 @@
 Fase 2d, RFTR-B2) - was letterlijk dubbel in routers/hockey_vanger.py en
 services/hockey_vanger_scanplan.py."""
 
+from contextlib import contextmanager
 from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
 
@@ -57,6 +58,29 @@ def _set_str_setting(session: Session, key: str, value: str) -> None:
         session.add(row)
     else:
         session.add(AppSetting(key=key, value=value))
+
+
+@contextmanager
+def candidate_settings_scope(session: Session, overrides: Dict[str, str]):
+    """item 1084: tijdelijke, NOOIT-gecommitte AppSetting-override voor de
+    scan-plan-preview/shadow-run - laat de bestaande scheduler-functies
+    (build_schedule_events e.a., die settings via _get_int_setting/
+    _get_str_setting uit de sessie lezen) ongewijzigd, door de kandidaat-
+    waarden vóór de aanroep in dezelfde (nog niet gecommitte) sessie te
+    zetten. Roep binnen dit blok nooit iets aan dat commit() doet - alleen
+    build_schedule_events en andere pure lees/bereken-functies, nooit
+    rebuild_schedule/rebuild_schedule_for_target (die persisteren naar
+    ScanScheduleEntry). session.rollback() staat in een finally, dus ook bij
+    een exception verdwijnen de kandidaat-waarden altijd weer - get_session()
+    (core/database.py) doet sowieso geen impliciete commit bij teardown, dit
+    is een tweede, expliciete laag bovenop die garantie."""
+    try:
+        for key, value in overrides.items():
+            _set_str_setting(session, key, value)
+        session.flush()
+        yield session
+    finally:
+        session.rollback()
 
 
 def get_notify_team_ids(session: Session) -> set:

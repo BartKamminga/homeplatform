@@ -1,5 +1,5 @@
 import { useCollapse, Toggle } from '../ui.jsx'
-import { useSettingsForm } from './hooks/useSettingsForm.jsx'
+import ScanPlanPreview from './ScanPlanPreview.jsx'
 
 // Twee client-types kunnen dezelfde cmd-queue bedienen, tegelijk:
 //   Scout — de Chrome-extensie, handmatig vanaf een laptop (debug/kleine acties)
@@ -174,15 +174,17 @@ const SCAN_PLAN_GROUPS = [
 ]
 
 const SCAN_PLAN_FIELDS = SCAN_PLAN_GROUPS.flatMap(g => g.fields)
-const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
+export const SCAN_PLAN_KEYS = SCAN_PLAN_FIELDS.map(f => f.key)
 
 // item 1001, Fase A: comma-gescheiden hockey.nl team_ids die een pushmelding
 // krijgen zodra hun wedstrijd eindstand krijgt - los tekstveld, geen getal.
-const NOTIFY_KEY = 'notify_team_ids'
+export const NOTIFY_KEY = 'notify_team_ids'
 
-function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday }) {
-  const { values, set, save } = useSettingsForm(settings, [...SCAN_PLAN_KEYS, NOTIFY_KEY], onSave, [NOTIFY_KEY])
-
+// item 1084: values/set/save komen van useSettingsForm, nu een niveau hoger
+// (VangerTab.jsx) opgetild i.p.v. hier lokaal aangeroepen - zo kan de scan-
+// plan-preview (ScanPlanPreview.jsx) dezelfde, nog-niet-opgeslagen waarden
+// live meelezen terwijl je typt, zonder eerst op "Opslaan" te hoeven klikken.
+function ScanPlanTuning({ settings, values, set, save, matchdayEnabled, onToggleMatchday }) {
   if (!settings) return null
 
   const inputStyle = w => ({ width: w, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' })
@@ -246,7 +248,7 @@ function ScanPlanTuning({ settings, onSave, matchdayEnabled, onToggleMatchday })
   )
 }
 
-export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, onToggleMatchday, vangerSettings, onSaveSettings }) {
+export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, onToggleMatchday, vangerSettings, onSaveSettings, scanPlanForm }) {
   const [settingsOpen, toggleSettingsOpen] = useCollapse(false)
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
@@ -290,9 +292,10 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
         <>
           <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
           <ScanPlanTuning
-            settings={vangerSettings} onSave={onSaveSettings}
+            settings={vangerSettings} values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save}
             matchdayEnabled={matchdayEnabled} onToggleMatchday={onToggleMatchday}
           />
+          <ScanPlanPreview values={scanPlanForm.values} />
         </>
       )}
     </div>

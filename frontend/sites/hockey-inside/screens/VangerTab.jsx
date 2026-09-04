@@ -7,7 +7,8 @@ import { useSmartScan }      from './vanger/hooks/useSmartScan.jsx'
 import { useVangerStatus }   from './vanger/hooks/useVangerStatus.jsx'
 import { useQueueFilter }    from './vanger/hooks/useQueueFilter.jsx'
 import { useVangerSettings } from './vanger/hooks/useVangerSettings.jsx'
-import VangerStatusCard  from './vanger/VangerStatusCard.jsx'
+import { useSettingsForm } from './vanger/hooks/useSettingsForm.jsx'
+import VangerStatusCard, { SCAN_PLAN_KEYS, NOTIFY_KEY } from './vanger/VangerStatusCard.jsx'
 import CmdQueueSection   from './vanger/CmdQueueSection.jsx'
 import QueueFilterBar    from './vanger/QueueFilterBar.jsx'
 import QueueRulesInfo    from './vanger/QueueRulesInfo.jsx'
@@ -25,6 +26,10 @@ export default function VangerTab() {
   const vangerStatus   = useVangerStatus(cmdQueue.flash)
   const queueFilter    = useQueueFilter(discovery.setQueue)
   const vangerSettings = useVangerSettings(cmdQueue.flash)
+  // item 1084: opgetild uit VangerStatusCard.jsx/ScanPlanTuning zodat de
+  // scan-plan-preview dezelfde, nog-niet-opgeslagen instellingswaarden kan
+  // meelezen terwijl je typt (zie ScanPlanTuning's docstring-commentaar).
+  const scanPlanForm = useSettingsForm(vangerSettings.vangerSettings, [...SCAN_PLAN_KEYS, NOTIFY_KEY], vangerSettings.saveVangerSettings, [NOTIFY_KEY])
 
   // Gedeelde 8s-poll voor live status tijdens een achtergrond-scan (Ghost/Scout
   // kunnen buiten deze pagina om draaien) - één gezamenlijke interval i.p.v. 3
@@ -58,6 +63,7 @@ export default function VangerTab() {
         onToggleScanPlan={vangerStatus.toggleScanPlanEnabled}
         onToggleMatchday={vangerStatus.toggleActiveMatchdayEnabled}
         vangerSettings={vangerSettings.vangerSettings} onSaveSettings={vangerSettings.saveVangerSettings}
+        scanPlanForm={scanPlanForm}
       />
 
       {/* item 543: contextbadge when no clubs have been scanned yet */}
