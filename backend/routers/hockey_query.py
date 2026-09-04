@@ -277,6 +277,48 @@ def get_upcoming_matches(
     return {"tags": tag, "rows": rows}
 
 
+@router.get("/public/tournaments/{tid}/query/live-matches")
+def get_live_matches(
+    tid: str,
+    tag: Optional[List[str]] = Query(None),
+    session: Session = Depends(get_session),
+):
+    """Wedstrijden die nu live staan (status=live) binnen een publicatie - item 1079,
+    voor de Poulebord live-knop. Zelfde gebatchde scoped_poules-opzet als de andere
+    query-templates hierboven (item 1076-patroon): geen N+1, ongeacht hoeveel
+    poules de publicatie heeft."""
+    scoped = scoped_poules(session, tid, tag)
+    if not scoped:
+        return {"tags": tag, "rows": []}
+
+    poule_ext_ids = [p.poule_id for p, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+
+    live = session.exec(
+        select(HockeyPouleMatch)
+        .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
+        .where(HockeyPouleMatch.status == "live")
+        .order_by(HockeyPouleMatch.match_date)
+    ).all()
+    if not live:
+        return {"tags": tag, "rows": []}
+
+    rows = []
+    for m in live:
+        poule, comp = poule_by_ext.get(m.poule_id, (None, None))
+        rows.append({
+            "match_id":         m.match_id,
+            "home_team":        m.home_team_name,
+            "away_team":        m.away_team_name,
+            "home_score":       m.home_score,
+            "away_score":       m.away_score,
+            "match_date":       m.match_date,
+            "poule_name":       poule.name if poule else None,
+            "competition_name": comp.name if comp else None,
+        })
+    return {"tags": tag, "rows": rows}
+
+
 @router.get("/public/tournaments/{tid}/query/club-ranking")
 def get_club_ranking(
     tid: str,
