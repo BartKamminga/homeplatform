@@ -1,12 +1,13 @@
 """Poulebord — query-templates op niveau-tag (ranglijst + rondehighlights)."""
 
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, col, select
 
 from core.database import get_session
-from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
+from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_query_scope import (
     ALL_RANKING_STATS,
     RANKING_STATS,
@@ -18,6 +19,7 @@ from services.hockey_query_scope import (
     scoped_matches,
     scoped_poules,
 )
+from services.hockey_scope import get_comp_link_tags_bulk, get_publication_links
 from services.hockey_teams import resolve_team_clubs, club_logo_for_team
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-query"])
@@ -283,40 +285,87 @@ def get_live_matches(
     tag: Optional[List[str]] = Query(None),
     session: Session = Depends(get_session),
 ):
-    """Wedstrijden die nu live staan (status=live) binnen een publicatie - item 1079,
-    voor de Poulebord live-knop. Zelfde gebatchde scoped_poules-opzet als de andere
-    query-templates hierboven (item 1076-patroon): geen N+1, ongeacht hoeveel
-    poules de publicatie heeft."""
-    scoped = scoped_poules(session, tid, tag)
-    if not scoped:
-        return {"tags": tag, "rows": []}
+    """Wedstrijden die nu live staan OF vandaag al zijn afgerond (status=live/final)
+    binnen een publicatie - item 1079, voor de Poulebord live-knop. Een net
+    afgelopen wedstrijd valt niet meteen uit de lijst (blijft als "afgelopen"
+    zichtbaar zolang het nog dezelfde dag is). Gegroepeerd per competitie (met
+    haar niveau-tags) en daarbinnen per poule, zodat meerdere gelijktijdige
+    wedstrijden in dezelfde competitie/poule niet als losse, ongelabelde rijen
+    verschijnen (Bart, 4-09-2026: "MO14 - TopKlasse, Zuid Nederland - Poule
+    B..."). Zelfde gebatchde opzet als de andere query-templates hierboven
+    (item 1076-patroon): een vast, klein aantal queries, ongeacht hoeveel
+    poules/competities de publicatie heeft."""
+    links = get_publication_links(session, tid, tag)
+    if not links:
+        return {"tags": tag, "groups": []}
 
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
-    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+    comp_ids = [lnk.competition_id for lnk in links]
+    link_by_comp_id = {lnk.competition_id: lnk for lnk in links}
+    comps_by_id = {
+        c.id: c for c in session.exec(
+            select(HockeyCompetition).where(col(HockeyCompetition.id).in_(comp_ids))
+        ).all()
+    }
+    tags_by_link = get_comp_link_tags_bulk(session, [lnk.id for lnk in links])
 
-    live = session.exec(
+    poules = session.exec(select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids))).all()
+    poule_ext_ids = [p.poule_id for p in poules]
+    poule_by_ext = {p.poule_id: p for p in poules}
+    if not poule_ext_ids:
+        return {"tags": tag, "groups": []}
+
+    # item 1079 (Bart, 4-09-2026: "laat de wedstrijd in het lijstje staan...
+    # maar dan als afgelopen"): een net afgelopen wedstrijd verdwijnt niet
+    # meteen uit de lijst zodra status live->final gaat, maar blijft zichtbaar
+    # (als "afgelopen") zolang hij nog VANDAAG is - anders lijkt het net
+    # geëindigde duel plotseling nooit gespeeld te zijn.
+    today_str = (datetime.utcnow() + timedelta(hours=2)).date().isoformat()
+    candidates = session.exec(
         select(HockeyPouleMatch)
         .where(col(HockeyPouleMatch.poule_id).in_(poule_ext_ids))
-        .where(HockeyPouleMatch.status == "live")
+        .where(col(HockeyPouleMatch.status).in_(["live", "final"]))
         .order_by(HockeyPouleMatch.match_date)
     ).all()
-    if not live:
-        return {"tags": tag, "rows": []}
+    today = [m for m in candidates if (m.match_date or "")[:10] == today_str]
+    if not today:
+        return {"tags": tag, "groups": []}
 
-    rows = []
-    for m in live:
-        poule, comp = poule_by_ext.get(m.poule_id, (None, None))
-        rows.append({
-            "match_id":         m.match_id,
-            "home_team":        m.home_team_name,
-            "away_team":        m.away_team_name,
-            "home_score":       m.home_score,
-            "away_score":       m.away_score,
-            "match_date":       m.match_date,
-            "poule_name":       poule.name if poule else None,
-            "competition_name": comp.name if comp else None,
+    # comp_id -> {competition_name, tags, poules: {poule_id -> {poule_name, matches}}}
+    comp_groups: dict = {}
+    for m in today:
+        poule = poule_by_ext.get(m.poule_id)
+        if not poule:
+            continue
+        comp = comps_by_id.get(poule.competition_id)
+        lnk = link_by_comp_id.get(poule.competition_id)
+        comp_group = comp_groups.setdefault(poule.competition_id, {
+            "competition_name": (lnk.label if lnk and lnk.label else (comp.name if comp else None)),
+            "tags": [t.name for t in tags_by_link.get(lnk.id, [])] if lnk else [],
+            "poules": {},
         })
-    return {"tags": tag, "rows": rows}
+        poule_group = comp_group["poules"].setdefault(poule.poule_id, {"poule_name": poule.name, "matches": []})
+        poule_group["matches"].append({
+            "match_id":   m.match_id,
+            "status":     m.status,
+            "home_team":  m.home_team_name,
+            "away_team":  m.away_team_name,
+            "home_score": m.home_score,
+            "away_score": m.away_score,
+            "match_date": m.match_date,
+        })
+
+    groups = [
+        {
+            "competition_name": g["competition_name"],
+            "tags":              g["tags"],
+            "poules":            [
+                {"poule_name": pg["poule_name"], "matches": pg["matches"]}
+                for pg in g["poules"].values()
+            ],
+        }
+        for g in comp_groups.values()
+    ]
+    return {"tags": tag, "groups": groups}
 
 
 @router.get("/public/tournaments/{tid}/query/club-ranking")

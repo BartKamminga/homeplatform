@@ -202,6 +202,7 @@ export default function App() {
       <LiveMatchesModal
         open={liveOpen}
         tid={selectedPub?.id}
+        tournamentName={selectedPub?.name}
         onClose={() => setLiveOpen(false)}
       />
 
