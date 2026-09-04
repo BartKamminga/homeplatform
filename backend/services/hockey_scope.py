@@ -2,7 +2,7 @@
 
 from typing import Optional, Sequence
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from models.hockey import HockeyPublicationComp, HockeyPublicationCompTag, HockeyPublicationTag
 
@@ -26,6 +26,42 @@ def get_comp_link_tags(session: Session, comp_link_id: str):
         .order_by(HockeyPublicationTag.order, HockeyPublicationTag.name)
     ).all()
     return [tag for _, tag in rows]
+
+
+def get_visible_comp_links_bulk(session: Session, publication_ids: Sequence[str]):
+    """Zichtbare competitie-koppelingen voor meerdere publicaties in 1 query -
+    publication_id -> [link, ...], op volgorde. Batched variant van
+    get_visible_comp_links (item 1076)."""
+    if not publication_ids:
+        return {}
+    links = session.exec(
+        select(HockeyPublicationComp)
+        .where(col(HockeyPublicationComp.publication_id).in_(publication_ids))
+        .where(HockeyPublicationComp.visible == True)  # noqa: E712
+        .order_by(HockeyPublicationComp.order)
+    ).all()
+    by_pub: dict = {}
+    for lnk in links:
+        by_pub.setdefault(lnk.publication_id, []).append(lnk)
+    return by_pub
+
+
+def get_comp_link_tags_bulk(session: Session, comp_link_ids: Sequence[str]):
+    """Tags voor meerdere competitie-koppelingen in 1 query - comp_link_id -> [tag, ...],
+    op volgorde. Batched variant van get_comp_link_tags voor endpoints die over meerdere
+    links heen itereren (bv. de publieke competition-standings-feed, item 1076)."""
+    if not comp_link_ids:
+        return {}
+    rows = session.exec(
+        select(HockeyPublicationCompTag, HockeyPublicationTag)
+        .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
+        .where(col(HockeyPublicationCompTag.comp_link_id).in_(comp_link_ids))
+        .order_by(HockeyPublicationTag.order, HockeyPublicationTag.name)
+    ).all()
+    by_link: dict = {}
+    for link_tag, tag in rows:
+        by_link.setdefault(link_tag.comp_link_id, []).append(tag)
+    return by_link
 
 
 def get_link_ids_for_tags(session: Session, tag_names: Sequence[str]):

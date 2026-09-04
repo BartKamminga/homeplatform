@@ -37,7 +37,7 @@ from services.hockey_vanger_scanplan import (
     _manual_scan_weekday, _match_dt_info, _next_match_within, _pending_club_ext_ids, _pending_poule_ids,
     _poule_health, _scan_profile_comp_ids, _skip_healthy_daily_fallback, _team_by_poule, _team_for_poule,
 )
-from services.hockey_vanger_settings import _get_int_setting, get_target_season
+from services.hockey_vanger_settings import _get_int_setting, get_target_season, is_zaal_active
 
 DEFAULT_HORIZON_DAYS = 14
 DEFAULT_SCAN_WINDOW_START_HOUR = 9
@@ -434,6 +434,9 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
     seen: set = set()
     ages, club, cats, hts, genders = _get_queue_filter(session)
     team_by_poule = _team_by_poule(session)
+    # item 1048: 1x vooraf berekend i.p.v. per team opnieuw (was ~8.600 herhaalde
+    # is_zaal_active/team-lookups binnen deze loop, zie roadmap-notes 1048).
+    zaal_active = is_zaal_active(session, now)
 
     for t in session.exec(
         select(HockeyTeam)
@@ -445,7 +448,10 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
             break
         if _is_scoreless_youth(t.short_name):
             continue
-        if not _cmd_matches_filter(session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders):
+        if not _cmd_matches_filter(
+            session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders,
+            now=now, zaal_active=zaal_active, team=t,
+        ):
             continue
         pid = t.recent_poule_id
         if pid in captured_ids or pid in queued_poule_ids or pid in seen:
@@ -481,7 +487,10 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
             t = team_by_poule.get(p.poule_id)
             if not t:
                 continue
-            if not _cmd_matches_filter(session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders):
+            if not _cmd_matches_filter(
+                session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders,
+                now=now, zaal_active=zaal_active, team=t,
+            ):
                 continue
             events.append(_event(
                 "poule", p.poule_id, "get_poule",

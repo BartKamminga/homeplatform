@@ -138,7 +138,7 @@ def _is_scoreless_youth(short_name: str) -> bool:
 
 def _cmd_matches_filter(
     session: Session, cmd_type: str, params: dict, ages, club, cats, hts, genders,
-    now: Optional[datetime] = None,
+    now: Optional[datetime] = None, zaal_active: Optional[bool] = None, team: Optional[HockeyTeam] = None,
 ) -> bool:
     """Bepaalt of een cmd bij de huidige queue-filter past - gebruikt bij het
     OPPAKKEN (dequeue) van cmds, niet bij het aanmaken ervan (item 727): cmds die
@@ -149,15 +149,24 @@ def _cmd_matches_filter(
     uitgesloten door het hockey_type-filter zolang de zaalcompetitie voor het
     huidige doelseizoen daadwerkelijk actief is (is_zaal_active, gebaseerd op
     de exacte hockey_season_calendar-data) - buiten dat venster blijft ZA
-    uitgesloten zoals voorheen (er valt dan toch niets te scannen)."""
+    uitgesloten zoals voorheen (er valt dan toch niets te scannen).
+
+    item 1048: zaal_active/team zijn optioneel VOORAF berekend/opgehaald door
+    aanroepers die dit in een loop over veel teams doen (bv. _immediate_events,
+    ~8.600 teams) - "is de zaalcompetitie nu actief" hangt alleen af van
+    now+seizoen, niet van het team, en hoeft dus niet per team herberekend te
+    worden. Losse dequeue-aanroepen (1 cmd tegelijk) laten deze parameters
+    gewoon weg en krijgen exact het oude, per-call-verse gedrag."""
     now = now or datetime.utcnow()
-    zaal_active = is_zaal_active(session, now)
+    if zaal_active is None:
+        zaal_active = is_zaal_active(session, now)
 
     if cmd_type == "get_poule":
         team_id = params.get("team_id")
         if not team_id:
             return True
-        team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == team_id)).first()
+        if team is None:
+            team = session.exec(select(HockeyTeam).where(HockeyTeam.team_id == team_id)).first()
         if not team:
             return True
         if cats and team.category_group_name not in cats:
