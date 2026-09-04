@@ -1,4 +1,5 @@
 import { useCollapse, Toggle } from '../ui.jsx'
+import { useSettingsForm } from './hooks/useSettingsForm.jsx'
 import ScanPlanPreview from './ScanPlanPreview.jsx'
 
 // Twee client-types kunnen dezelfde cmd-queue bedienen, tegelijk:
