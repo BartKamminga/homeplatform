@@ -97,10 +97,31 @@ def _set_ghost_trigger(session: Session, now: datetime):
 def _maybe_run_scan_plan_pass(session: Session):
     """Draait de scan-plan-pass (item 720) op eigen cadans, los van de handmatige
     Ghost-trigger. Piggybackt op de al-bestaande poll van Ghost (elke ~15s) omdat dat
-    de enige continu actieve component in dit systeem is — geen aparte scheduler nodig."""
+    de enige continu actieve component in dit systeem is — geen aparte scheduler nodig.
+
+    item 1091 (Bart, 4-09-2026: "de ghost had even niets te doen, queue-items
+    kwamen niet op tijd binnen... ik wil promote_due_schedule_entries in
+    dezelfde tijd laten plaatsvinden als de ghost-timer"): promotie
+    (ScanScheduleEntry -> echte VangerCmd) draait daarom nu op ELKE
+    should-run-poll, ONGEACHT profile_scan_interval_min - het is een lichte
+    query (planned_at <= now, gecapt op STEP_MAX_CMDS), geen reden om 'm aan
+    dezelfde trage cadans te binden als de zware rebuild_schedule-stap
+    hieronder. Zonder dit kon een net due geworden scanschema-item tot
+    profile_scan_interval_min (default 20 min) blijven liggen voor promotie,
+    ongeacht hoe kort de onderliggende scan-cadans zelf staat ingesteld -
+    ondermijnt met name live-wedstrijd-tracking (items 969/970)."""
     if not _scan_plan_enabled(session):
         return
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    promoted = promote_due_schedule_entries(session, now)
+    # Ghost hoeft alleen wakker gemaakt te worden als er ECHT nieuw werk in
+    # de queue is gekomen (promoted) - een gereclaimede stale cmd (terug
+    # naar 'failed') levert geen nieuwe pending rij op en is dus geen reden.
+    if promoted > 0 and _ghost_enabled(session):
+        _set_ghost_trigger(session, now)
+    session.commit()
+
     interval_min = _get_int_setting(session, "profile_scan_interval_min", 20)
     row = session.get(AppSetting, SCAN_PLAN_LAST_RUN_KEY)
     last_run = None
@@ -121,19 +142,19 @@ def _maybe_run_scan_plan_pass(session: Session):
     # nog _reclaim_stale_in_progress (VangerCmd-hygiene) - de eigenlijke
     # ontdekking/cadans (club_list, new_or_empty, club_scan, landelijke
     # competities, active-profielen, manual_weekly) loopt volledig via het
-    # scanschema hieronder (rebuild_schedule + promote_due_schedule_entries)
-    # i.p.v. een parallelle schaduw-verversing naast de (nu buiten dienst
-    # gestelde) _step_*-functies.
+    # scanschema hieronder (rebuild_schedule + promote_due_schedule_entries
+    # hierboven) i.p.v. een parallelle schaduw-verversing naast de (nu
+    # buiten dienst gestelde) _step_*-functies.
     run_scan_plan_pass(session)
 
     horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
     rebuild_schedule(session, now, horizon_days)
-    promoted = promote_due_schedule_entries(session, now)
-
-    # Ghost hoeft alleen wakker gemaakt te worden als er ECHT nieuw werk in
-    # de queue is gekomen (promoted) - een gereclaimede stale cmd (terug
-    # naar 'failed') levert geen nieuwe pending rij op en is dus geen reden.
-    if promoted > 0 and _ghost_enabled(session):
+    # item 1091: nogmaals promoveren direct na de rebuild - een rebuild kan
+    # entries opleveren met planned_at in het (net) verleden/nu (bv. een
+    # net-live-geworden wedstrijd), die anders pas bij de VOLGENDE
+    # should-run-poll (~15s later) zouden worden opgepakt i.p.v. meteen.
+    promoted_after_rebuild = promote_due_schedule_entries(session, now)
+    if promoted_after_rebuild > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()
 
