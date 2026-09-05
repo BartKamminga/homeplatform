@@ -311,13 +311,21 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
         session.flush()
         for md in body.matches_data:
             is_fin = md.status == "final"
+            # Bart, 5-09-2026 ("staat de live score er wel in?"): de raw
+            # hockey.nl-data bevat het score-veld ook tijdens een LOPENDE
+            # wedstrijd (status=live) - md.home_score/away_score is dus al
+            # correct geparsed door _parse_raw_poule, ongeacht status. Deze
+            # rij nulde die waarde eerder onnodig als de wedstrijd nog niet
+            # 'final' was, waardoor de live-score-UI (DagView.jsx, Poulebord
+            # LiveMatchesModal, item 1079) altijd 0-0 liet zien tijdens een
+            # wedstrijd. Simpelweg altijd opslaan wat binnenkomt.
             session.add(HockeyPouleMatch(
                 poule_id=body.poule_id, match_id=md.match_id,
                 home_team_id=md.home_team_id, home_team_name=md.home_team_name,
                 away_team_id=md.away_team_id, away_team_name=md.away_team_name,
                 match_date=md.match_date, status=md.status,
-                home_score=md.home_score if is_fin else None,
-                away_score=md.away_score if is_fin else None,
+                home_score=md.home_score,
+                away_score=md.away_score,
                 round=md.round, updated_at=now,
             ))
             # item 1001: wedstrijd is in deze capture voor het eerst "final"

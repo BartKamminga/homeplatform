@@ -91,6 +91,24 @@ def test_apply_poule_capture_reports_a_match_that_just_became_final(session):
     assert result2.newly_finished[0]["away_score"] == 1
 
 
+def test_apply_poule_capture_stores_the_score_of_a_live_match(session):
+    """Bart, 5-09-2026 ("staat de live score er wel in?"): de raw data
+    bevat het score-veld ook tijdens een lopende wedstrijd - dit werd
+    voorheen genuld zolang status != 'final', waardoor DagView.jsx en de
+    Poulebord LiveMatchesModal altijd 0-0 lieten zien bij een live wedstrijd."""
+    target_season = get_target_season(session)
+    body = _body(poule_id=52, team_id=52, team_name="JO16-52",
+                 matches_data=[_match(3, "live", home_score=2, away_score=0)])
+    apply_poule_capture(session, body, target_season)
+    session.commit()
+
+    from models.hockey_discovery import HockeyPouleMatch
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.match_id == 3)).first()
+    assert match.status == "live"
+    assert match.home_score == 2
+    assert match.away_score == 0
+
+
 def test_apply_poule_capture_does_not_report_an_already_final_match_again(session):
     # Voorkomt dubbele meldingen bij een gewone herscan van een al-afgeronde
     # wedstrijd (bv. late standen-correctie).
