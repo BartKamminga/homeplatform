@@ -445,13 +445,16 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                 loc      = (m.get("location") or {})
                 facility = (loc.get("facility") or {})
                 field    = (loc.get("field") or {})
+                # Bart, 5-09-2026: zelfde fix als in apply_poule_capture -
+                # de raw data bevat het score-veld ook tijdens een lopende
+                # wedstrijd, niet alleen bij status=final. Altijd opslaan.
                 session.add(HockeyPouleMatch(
                     poule_id=poule_id, match_id=m.get("id"),
                     home_team_id=home.get("id"), home_team_name=home.get("name", ""),
                     away_team_id=away.get("id"), away_team_name=away.get("name", ""),
                     match_date=m.get("date"), status=m.get("status", ""),
-                    home_score=score.get("home") if is_final else None,
-                    away_score=score.get("away") if is_final else None,
+                    home_score=score.get("home"),
+                    away_score=score.get("away"),
                     round=m.get("round"),
                     location_name=facility.get("name"),
                     field_type=field.get("type"),

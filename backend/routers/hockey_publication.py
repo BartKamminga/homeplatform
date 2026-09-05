@@ -307,7 +307,11 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
         poule_list = []
         for p in poules:
             total  = session.exec(select(func.count()).select_from(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == p.id)).one()
-            played = session.exec(select(func.count()).select_from(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == p.id).where(HockeyPouleMatch.home_score != None)).one()  # noqa: E711
+            # item 5-09-2026 (live-score-fix): home_score is niet meer alleen
+            # bij status='final' gevuld (kan nu ook een lopende wedstrijd
+            # zijn) - "gespeeld" moet dus op status filteren, niet op de
+            # aan/afwezigheid van een score.
+            played = session.exec(select(func.count()).select_from(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == p.id).where(HockeyPouleMatch.status == "final")).one()
             poule_list.append({"id": p.id, "name": p.name, "poule_id": p.poule_id, "matches_total": total, "matches_played": played})
 
         result.append({
