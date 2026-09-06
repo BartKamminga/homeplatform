@@ -16,8 +16,34 @@ from models.hockey_discovery import (
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY
 from services.hockey_vanger_schedule import (
-    build_schedule_events, promote_due_schedule_entries, rebuild_schedule, rebuild_schedule_for_target,
+    _escalating_retry_offset_min, build_schedule_events, promote_due_schedule_entries, rebuild_schedule,
+    rebuild_schedule_for_target,
 )
+
+
+def test_escalating_retry_offset_min_grows_with_each_retry():
+    """item 1090: tussentijd vóór retry N = base * N (8, 16, 24, 32... i.p.v.
+    een vaste cadans)."""
+    base = 8
+    assert _escalating_retry_offset_min(0, base) == 8      # 1e retry
+    assert _escalating_retry_offset_min(8, base) == 24     # 2e retry (8 + 16)
+    assert _escalating_retry_offset_min(24, base) == 48    # 3e retry (24 + 24)
+    assert _escalating_retry_offset_min(48, base) == 80    # 4e retry (48 + 32)
+
+
+def test_escalating_retry_offset_min_uses_the_next_slot_when_elapsed_is_between_ticks():
+    """Geen state/teller nodig - puur uit de al verstreken tijd afgeleid,
+    dus ook correct als een scan wat later dan gepland binnenkomt."""
+    base = 8
+    assert _escalating_retry_offset_min(5, base) == 8      # nog voor de 1e cumulatieve tick
+    assert _escalating_retry_offset_min(10, base) == 24    # net voorbij de 1e (8), dus de 2e (24)
+
+
+def test_escalating_retry_offset_min_never_loops_forever_on_a_zero_or_negative_base():
+    """Verdediging tegen een oneindige lus als end_check_cadence_min ooit
+    0 of negatief zou zijn (geclamped naar minimaal 1)."""
+    assert _escalating_retry_offset_min(100, 0) > 0
+    assert _escalating_retry_offset_min(100, -5) > 0
 
 
 def _disable_skip_healthy_daily_fallback(session):
@@ -183,9 +209,8 @@ def test_match_live_fills_the_gap_between_match_start_check_and_the_predicted_en
     match_live events inplannen") dekt dat gat nu AL tijdens de wedstrijd
     (zolang die bevestigd live staat), niet pas na het voorspelde einde."""
     now = datetime.utcnow()
-    # Gestart 60 min geleden (exact het einde van het match_start_check-
-    # venster: 15 min delay + 10 min retry_match_end), standaardduur 90 min
-    # -> nog 30 min te gaan tot het voorspelde einde.
+    # Gestart 60 min geleden, standaardduur 90 min -> nog 30 min te gaan tot
+    # het voorspelde einde.
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2), match_offset_hours=-1, status="live")
 
     events = build_schedule_events(session, now, horizon_days=1)
@@ -1202,11 +1227,14 @@ def test_rebuild_does_not_drop_an_overdue_daily_fallback_tick(session):
     )
 
 
-def test_rebuild_does_not_drop_an_overdue_match_start_check(session):
-    """item 1031, 2e bevinding: match_start_check gebruikt (als enige
-    matchday-reason) GEEN 'tick=max(tick,now)'-vangnet - zonder bescherming
-    verdween een gemist check-moment PERMANENT (geen catch-up zoals bij
-    daily_fallback, gewoon voorgoed weg voor die wedstrijd)."""
+def test_rebuild_does_not_drop_an_overdue_match_start_check_within_its_window(session):
+    """item 1031, 2e bevinding (nu binnen fase 1's eigen venster, item 1090):
+    match_start_check klemt zichzelf naar 'now' via _plan's tick=max(tick,now)
+    - een gemist check-moment (bv. Ghost was niet gestart) mag niet
+    stilzwijgend verdwijnen ZOLANG fase 1's venster (live_check_window_min)
+    nog niet verstreken is. Ná dat venster mag fase 1 wel bewust stoppen
+    (geen fase-overgang) - dat is nu een geaccepteerd onderdeel van het
+    fase-model, niet meer een op-zichzelf-staande bug."""
     now0 = datetime(2026, 9, 1, 10, 0, 0)
     comp = HockeyCompetition(
         external_id="test|start-check-drop", name="Start Check Drop Test", class_name="District",
@@ -1222,8 +1250,9 @@ def test_rebuild_does_not_drop_an_overdue_match_start_check(session):
         team_id=999102, club_external_id="SC_DROP_CLUB", name="Start Check Drop Team", short_name="H1",
         hockey_type="VE", category_group_name="Junioren", recent_poule_id=999102,
     ))
-    # Wedstrijd begint om 10:00 -> match_start_check zou op 10:15 moeten liggen
-    # (live_check_delay_min default 15).
+    # Wedstrijd begint om 10:00 -> eerste live-check zou op 10:05 moeten liggen
+    # (live_check_cadence_min default 5), venster loopt tot 10:20
+    # (live_check_window_min default 20).
     session.add(HockeyPouleMatch(
         poule_id=999102, match_id=1, home_team_id=999102, away_team_id=999103,
         status="scheduled", round=1, match_date=now0.isoformat(),
@@ -1234,16 +1263,55 @@ def test_rebuild_does_not_drop_an_overdue_match_start_check(session):
     rows = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 999102)).all()
     assert any(r.reason == "match_start_check" for r in rows)
 
-    # Ghost was niet gestart tussen 10:00 en 10:30 - het check-moment (10:15)
-    # is dus al gepasseerd voor de volgende rebuild draait.
-    now1 = now0 + timedelta(minutes=30)
+    # Ghost was niet gestart tussen 10:00 en 10:10 - het check-moment (10:05)
+    # is dus al gepasseerd voor de volgende rebuild draait, maar nog WEL
+    # binnen fase 1's venster (tot 10:20).
+    now1 = now0 + timedelta(minutes=10)
     rebuild_schedule(session, now1, 14)
     promoted = promote_due_schedule_entries(session, now1, cap=100)
 
     rows_after = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 999102)).all()
     assert any(r.reason == "match_start_check" for r in rows_after), (
-        "match_start_check mag niet stilzwijgend verdwijnen als een rebuild na het check-moment valt"
+        "match_start_check mag niet stilzwijgend verdwijnen als een rebuild na het check-moment "
+        "valt, zolang fase 1's eigen venster nog niet verstreken is"
     )
     assert promoted >= 1
     cmds = session.exec(select(VangerCmd)).all()
     assert any(c.cmd_type == "get_poule" and c.reason == "match_start_check" for c in cmds)
+
+
+def test_match_start_check_stops_once_its_own_window_has_elapsed(session):
+    """item 1090: fase 1 (Live-check) is bewust venster-begrensd - als de
+    wedstrijd binnen live_check_window_min geen live-status oplevert, stopt
+    fase 1 zonder fase-overgang (geen oneindige door-poll zoals de oude
+    match_start_check-bescherming zou impliceren). Fase 3 (Eind-check) start
+    sowieso op tijd, los van deze uitkomst."""
+    now0 = datetime(2026, 9, 1, 10, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|start-check-window-elapsed", name="Start Check Window Elapsed Test",
+        class_name="District", hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-sc-elapsed", competition_id=comp.id, scan_profile="active"))
+    poule = HockeyPoule(poule_id=999103, name="Poule SC Elapsed", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=999103, club_external_id="SC_ELAPSED_CLUB", name="Start Check Elapsed Team", short_name="H1",
+        hockey_type="VE", category_group_name="Junioren", recent_poule_id=999103,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=999103, match_id=1, home_team_id=999103, away_team_id=999104,
+        status="scheduled", round=1, match_date=now0.isoformat(),
+    ))
+    session.commit()
+
+    # Ghost pas weer actief na 30 min - ruim voorbij live_check_window_min (20).
+    now1 = now0 + timedelta(minutes=30)
+    rebuild_schedule(session, now1, 14)
+
+    rows = session.exec(select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 999103)).all()
+    assert not any(r.reason == "match_start_check" for r in rows)
+    # Fase 3 blijft wel gewoon bestaan, onafhankelijk van fase 1's uitkomst.
+    assert any(r.reason == "match_end_check" for r in rows)

@@ -36,7 +36,11 @@ const SCOPES = [
 ]
 
 const DAY_MS = 24 * 3600 * 1000
-const PHASE_COLOR = { 'Veld najaar': 'var(--col-veld)', Zaal: 'var(--col-zaal)', 'Veld voorjaar': 'var(--col-veld)', 'Indeling verwacht': 'var(--color-text-muted)' }
+const PHASE_COLOR = {
+  'Veld najaar': 'var(--col-veld)', Zaal: 'var(--col-zaal)', 'Veld voorjaar': 'var(--col-veld)', 'Indeling verwacht': 'var(--color-text-muted)',
+  // item 1090: fase-vensters op de wedstrijd-tijdlijn, zelfde kleurtaal als hun tick-stippen (reasonMeta.js).
+  Wedstrijd: 'var(--col-match)', 'Live-check': 'var(--col-start-check)', 'Live-recheck': 'var(--col-live)', 'Eind-check': 'var(--col-end-check)',
+}
 
 function fmtAxis(iso, spanMs) {
   const d = new Date(iso)
@@ -117,6 +121,8 @@ function Tick({ t, window: win }) {
 }
 
 function SingleView({ row, window: win, now }) {
+  // Alleen nog gebruikt door scope='season' (Seizoensfases) - match/poule/
+  // club gaan via RowsView (item 1090).
   return (
     <>
       <Axis window={win} />
@@ -142,19 +148,42 @@ function RowsView({ rows, window: win, now }) {
   return (
     <>
       <Axis window={win} cls="rows-axis" />
-      {rows.map(row => (
+      {rows.map(row => {
+        // item 1090 (Bart, 06-09-2026: "ik zie geen verschil in kleur"): de
+        // match-scope rijen (Autoscan/Niet-autoscan) gaan door RowsView, niet
+        // SingleView - hier tekende elke balk (Wedstrijd EN de fase-vlakken)
+        // in dezelfde blauwe kleur, dus Live-check/Eind-check waren
+        // onzichtbaar. Fase-balken (label != 'Wedstrijd') krijgen nu hun
+        // eigen kleur in een aparte rij direct onder de wedstrijd-balk.
+        const matchBars = (row.bars || []).filter(b => !b.label || b.label === 'Wedstrijd')
+        const phaseBars = (row.bars || []).filter(b => b.label && b.label !== 'Wedstrijd')
+        return (
         <div key={row.key} className="row-block">
           <div className="row-label">{row.label}</div>
           <div className="row-sub">{row.sub}</div>
           <div className="row-track">
             {row.key === 'club_scan' && <WeekendBands window={win} />}
-            {(row.bars || []).map((b, i) => (
+            {matchBars.map((b, i) => (
               <div key={i} className={'row-bar' + (b.dimmed ? ' dimmed' : '')} style={{
                 left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1) + '%', background: 'var(--col-match)',
               }} />
             ))}
             <NowLine now={now} window={win} />
           </div>
+          {phaseBars.length > 0 && (
+            <div className="row-phase-track">
+              {phaseBars.map((b, i) => {
+                const left = pctOf(win, b.from), width = Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5)
+                return (
+                  <div key={i} className="phase-band" style={{
+                    left: left + '%', width: width + '%',
+                    background: PHASE_COLOR[b.label] || 'var(--color-primary)',
+                    opacity: b.dimmed ? 0.35 : undefined,
+                  }}>{width > 7 ? b.label : ''}</div>
+                )
+              })}
+            </div>
+          )}
           <div className="row-ticks">
             {(row.ticks || []).map((t, i) => (
               <div key={i} className={'row-tick' + (t.ghost ? ' ghost' : '') + (t.skipped ? ' skipped' : '')} style={{ left: pctOf(win, t.planned_at) + '%' }}>
@@ -165,7 +194,8 @@ function RowsView({ rows, window: win, now }) {
           </div>
           {row.note && <div className="row-note">{row.note}</div>}
         </div>
-      ))}
+        )
+      })}
     </>
   )
 }
@@ -264,7 +294,10 @@ export default function ScanPlanPreview({ values, set, save }) {
               <div className="group-title">{group.title}</div>
               {group.fields.map(f => (
                 <div key={f.key} className="field-row">
-                  <label title={f.help}>{f.label}</label>
+                  <label title={f.help}>
+                    {f.phase && <span className="phase-pill" style={{ background: PHASE_COLOR[f.phase] || 'var(--color-primary)' }} />}
+                    {f.label}
+                  </label>
                   <input type="number" min="1" value={values_[f.key] ?? ''} onChange={e => set(f.key, e.target.value)} />
                 </div>
               ))}

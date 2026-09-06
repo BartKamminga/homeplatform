@@ -23,10 +23,13 @@ def test_preview_match_normal_has_two_rows_and_two_ticks(session):
 
 
 def test_preview_match_normal_returns_a_now_marker_and_a_match_bar(session):
+    # item 1090: naast de wedstrijd-balk ook de fase-vensters (Live-check,
+    # Eind-check) - Live-recheck ontbreekt hier bewust (nog niet live bevestigd).
     result = preview_scenario(PreviewScenarioIn(scope="match", scenario="normal", settings={}), session=session, _=None)
     assert result["now"]
     bars = result["rows"][0]["bars"]
-    assert len(bars) == 1 and bars[0]["label"] == "Wedstrijd"
+    labels = {b["label"] for b in bars}
+    assert labels == {"Wedstrijd", "Live-check", "Eind-check"}
     assert result["rows"][1]["bars"][0]["dimmed"] is True
 
 
@@ -35,6 +38,25 @@ def test_preview_match_never_live_has_no_start_check_tick_but_a_past_marker(sess
     autoscan = result["rows"][0]
     assert {t["reason"] for t in autoscan["ticks"]} == {"match_end_check"}
     assert autoscan["past"][0]["reason"] == "match_start_check"
+
+
+def test_preview_match_live_confirmed_bars_include_live_recheck_phase(session):
+    # item 1090 (Bart, 06-09-2026: "graag de fases weer geven op deze view"):
+    # Live-recheck-balk verschijnt alleen als de wedstrijd al bevestigd live
+    # is (normal/never_live/runs_over hebben dit niet).
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={}), session=session, _=None)
+    labels = {b["label"] for b in result["rows"][0]["bars"]}
+    assert labels == {"Wedstrijd", "Live-check", "Live-recheck", "Eind-check"}
+
+
+def test_preview_match_phase_bars_are_anchored_on_their_own_trigger(session):
+    # Live-check-venster begint op de starttijd zelf (niet pas bij de eerste
+    # tick, die een cadans-stap later valt) - Eind-check-venster begint op
+    # het voorspelde einde.
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="normal", settings={}), session=session, _=None)
+    bars = {b["label"]: b for b in result["rows"][0]["bars"]}
+    assert bars["Live-check"]["from"] == bars["Wedstrijd"]["from"]
+    assert bars["Eind-check"]["from"] == bars["Wedstrijd"]["to"]
 
 
 def test_preview_match_setting_change_shifts_end_check_tick(session):
@@ -47,9 +69,10 @@ def test_preview_match_setting_change_shifts_end_check_tick(session):
 
 def test_preview_match_live_confirmed_shows_a_real_retry_series(session):
     # Bart, 4-09-2026: "ik zie het wel in tekst staan maar niet in scan's en
-    # dat wil ik juist" - meerdere match_live-ticks, elk retry_match_end_min
-    # uit elkaar, i.p.v. 1 tick met een tekstuele toelichting.
-    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "10", "burst_stop_hours_after_last_match": "2"}), session=session, _=None)
+    # dat wil ik juist" - meerdere match_live-ticks, elk live_recheck_
+    # cadence_min uit elkaar (item 1090: fase 2, vaste cadans, i.t.t. fase
+    # 3's oplopende backoff), i.p.v. 1 tick met een tekstuele toelichting.
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"live_recheck_cadence_min": "10"}), session=session, _=None)
     live_ticks = [t for t in result["rows"][0]["ticks"] if t["reason"] == "match_live"]
     assert len(live_ticks) >= 2
     from datetime import datetime
@@ -58,31 +81,32 @@ def test_preview_match_live_confirmed_shows_a_real_retry_series(session):
     assert all(abs(g - 10) < 0.01 for g in gaps)
 
 
-def test_preview_match_runs_over_shows_a_real_retry_series(session):
-    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="runs_over", settings={"retry_match_end_min": "15"}), session=session, _=None)
+def test_preview_match_runs_over_shows_an_escalating_retry_series(session):
+    # item 1090 (Bart, 06-09-2026: "8, 8*2, 8*3... tussentijd"): fase 3's
+    # retry-cadans loopt op i.p.v. vast te staan - elke volgende tussenpoos
+    # groter dan de vorige.
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="runs_over", settings={"end_check_cadence_min": "8"}), session=session, _=None)
     retry_ticks = [t for t in result["rows"][0]["ticks"] if t["reason"] == "retry_match_end"]
-    assert len(retry_ticks) >= 2
+    assert len(retry_ticks) >= 3
     from datetime import datetime
     times = [datetime.fromisoformat(t["planned_at"].rstrip("Z")) for t in retry_ticks]
     gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]
-    assert all(abs(g - 15) < 0.01 for g in gaps)
+    assert all(b > a for a, b in zip(gaps, gaps[1:]))
 
 
-def test_preview_match_live_series_transitions_to_retry_and_stops_at_burst_stop_deadline(session):
-    # Bart, 4-09-2026: "wat is burst stop? welke setting beinvloedt dat
-    # dan?" - burst_stop_hours_after_last_match is de deadline NA het
-    # voorspelde wedstrijdeinde: match_live-ticks lopen door tot het
-    # voorspelde einde (onafhankelijk van burst_stop_h), pas de
-    # AANSLUITENDE retry_match_end-cadans erna wordt door burst_stop_h
-    # begrensd.
-    short = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "10", "burst_stop_hours_after_last_match": "1"}), session=session, _=None)
-    long = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"retry_match_end_min": "10", "burst_stop_hours_after_last_match": "6"}), session=session, _=None)
+def test_preview_match_live_series_stops_at_predicted_end_independent_of_end_check_window(session):
+    # item 1090 (was: burst_stop_hours_after_last_match): fase 2 (Live-
+    # recheck) loopt tot het voorspelde einde, ONAFHANKELIJK van
+    # end_check_window_min - dat begrenst alleen fase 3 (de escalerende
+    # eind-check-backoff die erna komt).
+    short = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"live_recheck_cadence_min": "10", "end_check_window_min": "60"}), session=session, _=None)
+    long = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={"live_recheck_cadence_min": "10", "end_check_window_min": "600"}), session=session, _=None)
     short_live = len([t for t in short["rows"][0]["ticks"] if t["reason"] == "match_live"])
     long_live = len([t for t in long["rows"][0]["ticks"] if t["reason"] == "match_live"])
-    assert short_live == long_live  # onafhankelijk van burst_stop_h
+    assert short_live == long_live  # onafhankelijk van end_check_window_min
     short_retry = len([t for t in short["rows"][0]["ticks"] if t["reason"] == "retry_match_end"])
     long_retry = len([t for t in long["rows"][0]["ticks"] if t["reason"] == "retry_match_end"])
-    assert long_retry > short_retry  # wél begrensd door burst_stop_h
+    assert long_retry > short_retry  # wél begrensd door end_check_window_min
 
 
 def test_preview_scenario_never_commits_candidate_settings(session):
