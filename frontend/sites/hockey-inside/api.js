@@ -72,6 +72,12 @@ export const promoteScheduleNow = ({ mode = 'hours', withinHours = 0, limit } = 
   return api.post(`/api/hockey/vanger/schedule/promote-now?${params.toString()}`)
 }
 
+// item 1084: scan-plan preview (snel, illustratief, gefabriceerd object) en
+// shadow-run (traag, echte build_schedule_events-aanroep) - beide met
+// candidate settings die de backend nooit commit (candidate_settings_scope).
+export const previewScanPlanScenario = (body) => api.post('/api/hockey/vanger/schedule/preview-scenario', body)
+export const shadowRunScanPlan       = (body) => api.post('/api/hockey/vanger/schedule/shadow-run', body)
+
 // Publieke detail-endpoints (wedstrijden + stand per poule)
 export const getCompetitionMatches   = (cid)    => api.get(`/api/hockey/public/competitions/${cid}/matches`)
 export const getHockeyPouleStandings = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/standings`)

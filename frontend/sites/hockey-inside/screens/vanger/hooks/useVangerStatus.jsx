@@ -31,12 +31,6 @@ export function useVangerStatus(flash) {
       .catch(() => {})
   }
 
-  function toggleActiveMatchdayEnabled() {
-    api.post('/api/hockey/vanger/scan-plan/matchday-toggle', {})
-      .then(r => { flash(r.enabled ? 'Matchday-interval weer aangezet' : 'Matchday-interval uitgeschakeld — publicatie-competities scannen alleen nog op de dagelijkse interval'); loadVangerStatus() })
-      .catch(() => {})
-  }
-
   function triggerScout() {
     setScoutBusy(true)
     api.post('/api/hockey/vanger/scout/trigger', {})
@@ -47,6 +41,6 @@ export function useVangerStatus(flash) {
 
   return {
     vangerStatus, ghostBusy, scoutBusy, loadVangerStatus,
-    triggerGhost, triggerScout, toggleGhostEnabled, toggleScanPlanEnabled, toggleActiveMatchdayEnabled,
+    triggerGhost, triggerScout, toggleGhostEnabled, toggleScanPlanEnabled,
   }
 }

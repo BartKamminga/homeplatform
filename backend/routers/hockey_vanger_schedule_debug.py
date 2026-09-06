@@ -8,19 +8,28 @@ enkele hockey.nl-scan (dat blijft scan_plan_enabled/ghost_enabled)."""
 
 import json
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.database import get_session
-from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, ScanScheduleEntry
+from models.hockey_discovery import (
+    HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry,
+)
 from routers.hockey_vanger_smartscan_control import _ghost_enabled, _set_ghost_trigger
-from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter
+from services.hockey_vanger_filters import DISC_FILTER_AGE, DISC_FILTER_CAT, DISC_FILTER_CLUB, DISC_FILTER_GENDER, DISC_FILTER_HT, _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
-from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
-from services.hockey_vanger_settings import _get_int_setting
+from services.hockey_vanger_schedule import (
+    DEFAULT_HORIZON_DAYS, _cadence_events, _poule_daily_fallback_events,
+    _poule_matchday_events, _poule_unknown_start_events, build_schedule_events, promote_due_schedule_entries,
+    rebuild_schedule,
+)
+from services.hockey_vanger_settings import (
+    PHASE_LABELS, _get_int_setting, candidate_settings_scope, get_season_phases, get_target_season, is_zaal_active,
+)
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
 
@@ -395,3 +404,442 @@ def promote_schedule_now(
         _set_ghost_trigger(session, now)
         session.commit()
     return {"ok": True, "promoted": promoted}
+
+
+# ── item 1084: scan-plan preview + shadow-run ───────────────────────────────
+# Puur illustratief/lezend (net als de rest van dit bestand) - de candidate-
+# settings uit de request worden nooit gecommit (candidate_settings_scope
+# rollt altijd terug), en de gefabriceerde team/poule/competitie/match-
+# objecten hierbeneden worden nooit aan de sessie toegevoegd (geen
+# session.add()). Doel: dezelfde UX als de HTML-mockup die samen met Bart is
+# doorontwikkeld (4-09-2026), maar gevoed door de ECHTE event-generators
+# i.p.v. een JS-herberekening - zelfde reden als DagView.jsx destijds van
+# clientside herberekening naar echte backend-scanschema-data overstapte.
+
+PREVIEW_TEAM_ID = -1001
+PREVIEW_POULE_ID = -1001
+PREVIEW_COMP_ID = -1001
+
+
+def _preview_team_poule() -> tuple:
+    team = HockeyTeam(
+        team_id=PREVIEW_TEAM_ID, club_external_id="preview", name="Preview HC 1",
+        short_name="MO18-1", hockey_type="VE", category_group_name="Junioren",
+    )
+    poule = HockeyPoule(poule_id=PREVIEW_POULE_ID, name="Preview-poule", competition_id=PREVIEW_COMP_ID, season="preview")
+    return team, poule
+
+
+def _preview_match(match_date: datetime, status: str = "") -> HockeyPouleMatch:
+    return HockeyPouleMatch(
+        poule_id=PREVIEW_POULE_ID, match_id=-1, home_team_id=PREVIEW_TEAM_ID, home_team_name="Preview thuis",
+        away_team_id=-2, away_team_name="Preview uit", match_date=match_date.isoformat(), status=status,
+    )
+
+
+def _tick(e: dict, ghost: bool = False, note: Optional[str] = None) -> dict:
+    out = {"planned_at": _iso(e["planned_at"]), "reason": e["reason"], "ghost": ghost}
+    if note:
+        out["note"] = note
+    return out
+
+
+def _next_manual_weekly_tick(now: datetime, horizon_end: datetime, comp_id: int, window_start_h: int) -> Optional[datetime]:
+    """Reproduceert de dagselectie uit _manual_weekly_events (hockey_vanger_
+    schedule.py) voor 1 gefabriceerde competitie, i.p.v. alle manual-
+    competities in de sessie te doorlopen - puur voor de illustratieve
+    preview, zelfde formule (_manual_scan_weekday)."""
+    target_wd = _manual_scan_weekday(comp_id)
+    day = now.replace(hour=window_start_h, minute=0, second=0, microsecond=0)
+    if day < now:
+        day += timedelta(days=1)
+    while day.weekday() != target_wd:
+        day += timedelta(days=1)
+        if day > horizon_end:
+            return None
+    return day if day <= horizon_end else None
+
+
+# item 1084 (Bart, 4-09-2026: "dit moet wel precies zijn"): puur een
+# veiligheidsklep tegen een oneindige lus (bv. retry_match_end_min=0) - geen
+# esthetische beperking. Bij de defaults (retry 10 min, burst-stop 2u na
+# einde) levert dat ~12 echte ticks op, ruim onder deze grens.
+MAX_DYNAMIC_TICKS = 50
+
+
+def _dynamic_tick_series(
+    poule: HockeyPoule, team: HockeyTeam, match: HockeyPouleMatch, now: datetime, horizon_end: datetime,
+    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int, reasons: set,
+) -> List[dict]:
+    """item 1084 (Bart, 4-09-2026: "ik zie het wel in tekst staan maar niet
+    in scan's en dat wil ik juist"): match_live/retry_match_end zijn
+    DYNAMISCH - het echte scanschema plant nooit een hele reeks vooraf,
+    alleen de eerstvolgende tick (_matchday_events' docstring). Om de reeks
+    tóch zichtbaar te maken zonder de planningsregel zelf te dupliceren,
+    simuleert dit een opeenvolging van ECHTE scans: elke tick komt uit een
+    aparte aanroep van de echte _poule_matchday_events, waarna
+    poule.last_scanned_at op die tick gezet wordt (alsof die scan net is
+    binnengekomen) vóór de volgende aanroep - exact wat er in het echte
+    systeem gebeurt als na elk resultaat het schema herbouwd wordt. Stopt
+    vanzelf zodra _poule_matchday_events geen tick meer teruggeeft (de
+    burst_stop_h-deadline is dan gepasseerd), of bij MAX_DYNAMIC_TICKS als
+    veiligheidsklep.
+
+    `reasons` accepteert meerdere reason-waarden omdat een levende wedstrijd
+    die haar voorspelde einde voorbijschiet zonder eindstand, ONGEMERKT van
+    match_live naar retry_match_end overgaat (beide lezen last_scanned_at +
+    retry_match_end_m als volgende tick, zodra dat tijdstip voorbij het
+    voorspelde einde valt telt _matchday_events het als retry_match_end i.p.v.
+    match_live) - een reëel, door de echte functie zelf bepaald gedrag, geen
+    aanname van deze preview."""
+    ticks: List[dict] = []
+    for _ in range(MAX_DYNAMIC_TICKS):
+        events = _poule_matchday_events(
+            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        )
+        dynamic = [e for e in events if e["reason"] in reasons]
+        if not dynamic:
+            break
+        tick = dynamic[0]
+        if ticks and tick["planned_at"] <= ticks[-1]["planned_at"]:
+            break
+        ticks.append(tick)
+        poule.last_scanned_at = tick["planned_at"]
+    return ticks
+
+
+def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
+    match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
+    retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
+    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
+    burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
+    window_start_h       = _get_int_setting(session, "scan_window_start_hour", 9)
+
+    team, poule = _preview_team_poule()
+    horizon_end = now + timedelta(days=7)
+    past: List[dict] = []
+    start_check_offset = timedelta(minutes=live_check_delay_m)
+
+    bars = []
+    if scenario == "normal":
+        match_start = now + timedelta(minutes=20)
+        poule.last_scanned_at = None
+        match = _preview_match(match_start)
+        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
+        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
+            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        )]
+    elif scenario == "never_live":
+        match_start = now - start_check_offset - timedelta(minutes=5)
+        poule.last_scanned_at = None
+        match = _preview_match(match_start)
+        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
+        past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest - geen live gemeld"})
+        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
+            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        )]
+    elif scenario == "live_confirmed":
+        match_start = now - start_check_offset - timedelta(minutes=5)
+        match = _preview_match(match_start, status="live")
+        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
+        past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "bevestigd live"})
+        # de match_end_check-tick is een echte, EENMALIGE tick (niet
+        # dynamisch herhaald) - 1x apart ophalen vóór de match_live-reeks
+        # last_scanned_at gaat verschuiven.
+        poule.last_scanned_at = None
+        end_check_ticks = [_tick(e) for e in _poule_matchday_events(
+            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        ) if e["reason"] == "match_end_check"]
+        # de match_live-reeks stopt vanzelf zodra last_scanned_at het
+        # voorspelde einde passeert (is_first flipt naar False in
+        # _matchday_events, dezelfde tick claimt daarna de reason
+        # retry_match_end i.p.v. match_live - een echt, door de functie
+        # zelf bepaald omslagpunt). poule.last_scanned_at staat na deze
+        # aanroep al op die laatste live-tick, dus de vervolgaanroep
+        # hieronder zet de cadans naadloos voort als retry_match_end tot
+        # de burst_stop-deadline.
+        poule.last_scanned_at = None
+        live_ticks = _dynamic_tick_series(
+            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"match_live"},
+        )
+        retry_after_live_ticks = _dynamic_tick_series(
+            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"retry_match_end"},
+        )
+        autoscan_ticks = end_check_ticks + [_tick(e) for e in live_ticks] + [_tick(e) for e in retry_after_live_ticks]
+    elif scenario == "runs_over":
+        match_start = now - timedelta(minutes=match_duration_m + 5)
+        match_end = match_start + timedelta(minutes=match_duration_m)
+        match = _preview_match(match_start)
+        bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
+        past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest"})
+        past.append({"planned_at": _iso(match_end), "reason": "match_end_check", "note": "geen eindstand"})
+        # last_scanned_at net na het einde -> de eerste _matchday_events-
+        # aanroep in de reeks levert meteen een retry_match_end op i.p.v.
+        # nog een (dan dubbele) eerste match_end_check.
+        poule.last_scanned_at = match_end + timedelta(minutes=1)
+        autoscan_ticks = [_tick(e) for e in _dynamic_tick_series(
+            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"retry_match_end"},
+        )]
+    else:
+        raise HTTPException(400, "onbekend scenario")
+
+    # item 1084 (Bart, 4-09-2026: "wekelijkse ronde... kan weg onder
+    # 'Wedstrijd' - niet relevant hier"): de wekelijkse niet-autoscan-ronde
+    # is een poule/competitie-brede cadans, niet aan DEZE wedstrijd of dag
+    # gebonden (en valt sowieso vaak buiten de nieuwe 1-dags wedstrijd-as) -
+    # hoort dus niet in deze per-wedstrijd tijdlijn. De niet-autoscan-rij
+    # toont daarom alleen nog de ghost-ticks (wat er ZOU gebeuren met
+    # autoscan) ter vergelijking.
+    non_autoscan_ticks = [{**t, "ghost": True, "note": "(zou hier staan bij autoscan)"} for t in autoscan_ticks]
+
+    return [
+        {
+            "key": "autoscan", "label": "Autoscan", "sub": "binnen publicatie, scan_profile=active",
+            "ticks": autoscan_ticks, "past": past, "bars": bars, "note": "volle matchday-burst rond de eigen wedstrijd",
+        },
+        {
+            "key": "non_autoscan", "label": "Niet-autoscan", "sub": "buiten publicatie, of scan_profile=manual",
+            "ticks": non_autoscan_ticks, "past": [], "bars": [{**b, "dimmed": True} for b in bars],
+            "note": "geen matchday-burst voor deze wedstrijd - de competitie krijgt wel nog een wekelijkse ronde, los van deze dag (zie Poule & Competitie)",
+        },
+    ]
+
+
+def _preview_poule_rows(session: Session, now: datetime) -> List[dict]:
+    """item 1084 (Bart, 4-09-2026: "geen sub keuze"... "Poule en hl_comp
+    precies hetzelfde behandelen"): geen scenario-tabs meer - toont altijd
+    alle 3 situaties tegelijk als lijst. Een landelijke competitie wordt in
+    de echte code (_landelijke_daily_fallback_events/_landelijke_unknown_
+    start_events) met exact dezelfde regels behandeld als 1 poule (alleen
+    de vereniging van alle wedstrijden in al haar poules) - vandaar geen
+    apart "landelijke competitie"-scenario meer, alleen een toelichting."""
+    daily_fallback_h = _get_int_setting(session, "active_daily_fallback_hours", 24)
+    window_start_h    = _get_int_setting(session, "scan_window_start_hour", 9)
+    window_end_h      = _get_int_setting(session, "scan_window_end_hour", 18)
+    unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
+    unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
+    # Bart, 4-09-2026: "venster voor de poule en competitie moet zijn niet 3
+    # dagen maar het aantal scanschema-horizon dagen" - zelfde instelling
+    # (schedule_horizon_days) als het echte scanschema (build_schedule_events)
+    # gebruikt, i.p.v. een losse, vaste 3-dagen-aanname hier.
+    horizon_days = _get_int_setting(session, "schedule_horizon_days", DEFAULT_HORIZON_DAYS)
+    horizon_end = now + timedelta(days=horizon_days)
+
+    # Situatie 1: bijgewerkt ("gezond") - laatste wedstrijd heeft een
+    # eindstand, eerstvolgende wedstrijd heeft een bekende starttijd.
+    team1, poule1 = _preview_team_poule()
+    poule1.last_scanned_at = now - timedelta(hours=daily_fallback_h * 2)
+    up_to_date_matches = [
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-1, home_team_id=-1, away_team_id=-2,
+                          match_date=(now - timedelta(days=2)).isoformat(), status="final", home_score=2, away_score=1),
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-2, home_team_id=-1, away_team_id=-2,
+                          match_date=(now + timedelta(days=5)).isoformat(), status=""),
+    ]
+    skipped_ticks = _poule_daily_fallback_events(
+        poule1, team1, up_to_date_matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, skip_if_healthy=False,
+    )
+    up_to_date_row = {
+        "key": "up_to_date", "label": "Poule/competitie is bijgewerkt",
+        "sub": "alle starttijden bekend, laatste uitslag binnen",
+        "ticks": [{**_tick(e), "skipped": True, "note": "overgeslagen - bijgewerkt" if i == 0 else ""} for i, e in enumerate(skipped_ticks)],
+        "past": [], "note": "dagelijkse fallback wordt bewust overgeslagen (skip_if_healthy) - niets te ontdekken, geen scan nodig",
+    }
+
+    # Situatie 2: mist wedstrijduitslagen - 1 wedstrijd al gespeeld zonder
+    # eindstand + 1 toekomstige wedstrijd (nodig voor _has_remaining_matches/
+    # require_match_within_days - anders beschouwt het echte systeem het
+    # seizoen als voorbij, zie item 1016, en stopt de fallback juist).
+    team2, poule2 = _preview_team_poule()
+    poule2.last_scanned_at = now - timedelta(hours=daily_fallback_h * 2)
+    missing_result_matches = [
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-3, home_team_id=-1, away_team_id=-2,
+                          match_date=(now - timedelta(days=1)).isoformat(), status=""),
+        HockeyPouleMatch(poule_id=PREVIEW_POULE_ID, match_id=-4, home_team_id=-1, away_team_id=-2,
+                          match_date=(now + timedelta(days=5)).isoformat(), status=""),
+    ]
+    missing_result_ticks = _poule_daily_fallback_events(
+        poule2, team2, missing_result_matches, now, horizon_end, daily_fallback_h, window_start_h, window_end_h, skip_if_healthy=False,
+    )
+    missing_result_row = {
+        "key": "missing_result", "label": "Poule/competitie mist wedstrijduitslagen",
+        "sub": f"hercheck elke {daily_fallback_h}u",
+        "ticks": [_tick(e) for e in missing_result_ticks], "past": [],
+        "note": f"blijft elke {daily_fallback_h}u herchecken totdat hockey.nl de uitslag publiceert - dan stopt deze cadans vanzelf (poule wordt weer 'bijgewerkt')",
+    }
+
+    # Situatie 3: mist wedstrijdstarttijden - wedstrijddatum bekend (placeholder
+    # middernacht), nog geen kick-off-tijd.
+    team3, poule3 = _preview_team_poule()
+    poule3.last_scanned_at = None
+    unknown_horizon_end = now + timedelta(days=max(unknown_lookahead_d + 2, horizon_days))
+    unknown_match = HockeyPouleMatch(
+        poule_id=PREVIEW_POULE_ID, match_id=-5, home_team_id=-1, away_team_id=-2,
+        match_date=(now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat(), status="",
+    )
+    unknown_start_ticks = _poule_unknown_start_events(
+        poule3, team3, [unknown_match], now, unknown_horizon_end, unknown_lookahead_d, unknown_fallback_h, window_start_h, window_end_h,
+    )
+    unknown_start_row = {
+        "key": "missing_start_time", "label": "Poule/competitie mist wedstrijdstarttijden",
+        "sub": f"hercheck elke {unknown_fallback_h}u",
+        "ticks": [_tick(e) for e in unknown_start_ticks], "past": [],
+        "note": f"blijft elke {unknown_fallback_h}u herchecken totdat hockey.nl de starttijd publiceert - dan stopt deze cadans vanzelf",
+    }
+
+    return [up_to_date_row, missing_result_row, unknown_start_row]
+
+
+def _club_cadence_ticks(now: datetime, interval_h: int, cmd_type: str, reason: str, skip_weekend: bool) -> List[dict]:
+    horizon_end = now + timedelta(days=max(interval_h / 24 * 4, 14))
+    raw = _cadence_events(
+        "club", -1, cmd_type, {"label": "Preview-club"}, None, now, horizon_end, interval_h, reason,
+        window_start_h=0, window_end_h=24,
+    )
+    ticks = []
+    for e in raw:
+        planned_at = e["planned_at"]
+        note = None
+        # item 1019/_immediate_events: club-scans slaan het weekend over (niet
+        # tijdsgevoelig genoeg om scan-capaciteit aan matchday-scans te
+        # onttrekken) - een echte, bestaande regel, hier als display-shift
+        # toegepast op de door _cadence_events berekende ticks.
+        if skip_weekend and planned_at.weekday() >= 5:
+            planned_at = planned_at + timedelta(days=7 - planned_at.weekday())
+            note = "doorgeschoven vanaf het weekend"
+        ticks.append({"planned_at": _iso(planned_at), "reason": e["reason"], "ghost": False, "note": note})
+    return ticks
+
+
+def _preview_club_rows(session: Session, now: datetime) -> List[dict]:
+    """item 1084 (Bart, 4-09-2026: "pak maar op" - Club dezelfde behandeling
+    als Poule & Competitie: "geen sub keuze"): geen scenario-tabs meer -
+    individuele club-rescan en clublijst-ververs zijn geen alternatieve
+    situaties (zoals bij Poule & Competitie), maar 2 ALTIJD parallel lopende
+    periodieke activiteiten - dus gewoon beide tegelijk als rijen tonen."""
+    club_scan_days = _get_int_setting(session, "club_scan_days", 1)
+    club_list_days = _get_int_setting(session, "club_list_scan_days", 7)
+    club_scan_row = {
+        "key": "club_scan", "label": "Individuele club", "sub": f"cadans {club_scan_days} dag(en), nooit in het weekend",
+        "ticks": _club_cadence_ticks(now, club_scan_days * 24, "scan_club", "club_scan", skip_weekend=True),
+        "past": [], "note": "elke club wordt periodiek herscand op nieuwe teams/poules",
+    }
+    club_list_row = {
+        "key": "club_list", "label": "Alle clubs (clublijst)", "sub": f"cadans {club_list_days} dag(en)",
+        "ticks": _club_cadence_ticks(now, club_list_days * 24, "get_clubs", "club_list", skip_weekend=False),
+        "past": [], "note": "1 scan voor alle clubs samen, om nieuw toegetreden clubs te ontdekken",
+    }
+    return [club_scan_row, club_list_row]
+
+
+def _preview_season_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
+    if scenario == "phases":
+        target_season = get_target_season(session)
+        phases = get_season_phases(session, target_season)
+        if not phases:
+            return [{
+                "key": "phases", "label": "Seizoensfases", "sub": target_season, "ticks": [], "past": [], "bars": [],
+                "note": "hockey_season_calendar heeft nog geen rijen voor dit seizoen",
+            }]
+        bars = [{"from": p["start"], "to": p["end"], "label": PHASE_LABELS.get(p["id"], p["id"])} for p in phases]
+        return [{"key": "phases", "label": "Seizoensfases", "sub": target_season, "ticks": [], "past": [], "bars": bars, "note": ""}]
+    if scenario == "manual_weekly":
+        window_start_h = _get_int_setting(session, "scan_window_start_hour", 9)
+        horizon_end = now + timedelta(days=21)
+        ticks = []
+        for i in range(5):
+            at = _next_manual_weekly_tick(now, horizon_end, PREVIEW_COMP_ID - 100 - i, window_start_h)
+            if at:
+                ticks.append({"planned_at": _iso(at), "reason": "manual_weekly", "ghost": False, "note": f"competitie {i + 1}"})
+        return [{
+            "key": "manual_weekly", "label": "Wekelijkse ronde (niet-autoscan)", "sub": "5 voorbeeldcompetities, verspreid over de werkweek",
+            "ticks": ticks, "past": [], "bars": [], "note": "",
+        }]
+    raise HTTPException(400, "onbekend scenario")
+
+
+class PreviewScenarioIn(BaseModel):
+    scope: str
+    scenario: str
+    settings: Dict[str, str] = {}
+
+
+@router.post("/vanger/schedule/preview-scenario")
+def preview_scenario(
+    body: PreviewScenarioIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """item 1084: snelle, illustratieve preview (1 gefabriceerd object, geen
+    DB-scan) - bedoeld om op elke instellingswijziging (licht gedebounced)
+    aangeroepen te worden. Roept de echte event-generators aan binnen een
+    tijdelijke, nooit-gecommitte candidate-settings-override."""
+    if body.scope not in {"match", "poule", "club", "season"}:
+        raise HTTPException(400, "onbekende scope")
+    now = datetime.utcnow()
+    with candidate_settings_scope(session, body.settings):
+        if body.scope == "match":
+            rows = _preview_match_rows(session, now, body.scenario)
+        elif body.scope == "poule":
+            rows = _preview_poule_rows(session, now)
+        elif body.scope == "club":
+            rows = _preview_club_rows(session, now)
+        else:
+            rows = _preview_season_rows(session, now, body.scenario)
+    return {"rows": rows, "now": _iso(now)}
+
+
+class ShadowRunIn(BaseModel):
+    settings: Dict[str, str] = {}
+    age_groups: List[str] = []
+    club_external_id: Optional[str] = None
+    categories: List[str] = []
+    hockey_types: List[str] = []
+    genders: List[str] = []
+    horizon_days: int = DEFAULT_HORIZON_DAYS
+
+
+@router.post("/vanger/schedule/shadow-run")
+def shadow_run(
+    body: ShadowRunIn,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """item 1084: ECHTE schaduw-run van build_schedule_events op
+    productieschaal, met candidate settings + candidate queue-filter - nooit
+    gecommit (candidate_settings_scope rollt in een finally altijd terug).
+    Zwaarder dan preview-scenario (volledige DB-scan), dus aan de frontend-
+    kant zwaarder gedebounced. team-lookups 1x gebatchd (item 1048-patroon) -
+    nooit _cmd_matches_filter zonder team= aanroepen binnen een loop, anders
+    herintroduceert dit exact de N+1 die item 1048 wegwerkte."""
+    now = datetime.utcnow()
+    horizon_days = max(1, min(body.horizon_days, 30))
+    overrides = dict(body.settings)
+    overrides[DISC_FILTER_AGE]    = ",".join(body.age_groups)
+    overrides[DISC_FILTER_CLUB]   = body.club_external_id or ""
+    overrides[DISC_FILTER_CAT]    = ",".join(body.categories)
+    overrides[DISC_FILTER_HT]     = ",".join(body.hockey_types)
+    overrides[DISC_FILTER_GENDER] = ",".join(body.genders)
+
+    with candidate_settings_scope(session, overrides):
+        events = build_schedule_events(session, now, horizon_days)
+        ages, club, cats, hts, genders = _get_queue_filter(session)
+        zaal_active = is_zaal_active(session, now)
+
+        parsed = [(e, json.loads(e["params"])) for e in events]
+        team_ids = {p.get("team_id") for e, p in parsed if e["cmd_type"] == "get_poule"}
+        team_ids.discard(None)
+        team_by_id = {
+            t.team_id: t for t in session.exec(select(HockeyTeam).where(col(HockeyTeam.team_id).in_(team_ids))).all()
+        } if team_ids else {}
+
+        matches_filter = 0
+        by_reason: Dict[str, int] = {}
+        for e, params in parsed:
+            by_reason[e["reason"]] = by_reason.get(e["reason"], 0) + 1
+            team = team_by_id.get(params.get("team_id")) if e["cmd_type"] == "get_poule" else None
+            if _cmd_matches_filter(
+                session, e["cmd_type"], params, ages, club, cats, hts, genders, now=now, zaal_active=zaal_active, team=team,
+            ):
+                matches_filter += 1
+
+    return {"totals": {"planned": len(events), "matches_filter": matches_filter}, "by_reason": by_reason}
