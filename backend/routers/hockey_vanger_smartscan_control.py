@@ -4,13 +4,15 @@ Scout (Chrome-extensie) trigger-endpoints - opgesplitst uit hockey_vanger.py
 bewust af van het gelijknamige services/hockey_vanger_smartscan.py om
 import-verwarring (module vs. router) te voorkomen."""
 
+import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from core.auth import get_current_user
-from core.database import get_session
+from core.database import engine, get_session
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import (
     ACTIVE_MATCHDAY_ENABLED_KEY, SKIP_HEALTHY_DAILY_FALLBACK_KEY, run_scan_plan_pass,
@@ -22,6 +24,7 @@ from services.hockey_vanger_smartscan import (
 )
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
+logger = logging.getLogger("homeplatform")
 
 # ── Smart Scan coordinator ───────────────────────────────
 
@@ -157,6 +160,27 @@ def _maybe_run_scan_plan_pass(session: Session):
     if promoted_after_rebuild > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()
+
+
+SCAN_PLAN_LOOP_INTERVAL_SEC = 15  # zelfde cadans als Ghost's eigen poll-interval (POLL_IDLE_SEC)
+
+
+async def scan_plan_background_loop() -> None:
+    """item 1092 (vervolg 1091): promotie van due ScanScheduleEntry-items mag
+    niet afhangen van welk endpoint een client toevallig pollt. should-run
+    triggert _maybe_run_scan_plan_pass, maar zodra Ghost een sessie open
+    houdt met een lege queue pollt hij i.p.v. daarvan cmd-queue/next (net als
+    Scout) - dat endpoint triggert geen promotie, dus stond promotie tot 20
+    min (ghost_idle_timeout_min) stil. Deze taak draait onafhankelijk van elk
+    client-poll-patroon, zelfde opzet als scrapster's _background_refresh_loop."""
+    await asyncio.sleep(5)  # wacht tot de app opgestart is
+    while True:
+        try:
+            with Session(engine) as session:
+                _maybe_run_scan_plan_pass(session)
+        except Exception:
+            logger.exception("scan_plan_background_loop: iteratie mislukt")
+        await asyncio.sleep(SCAN_PLAN_LOOP_INTERVAL_SEC)
 
 
 @router.post("/vanger/ghost/trigger")
