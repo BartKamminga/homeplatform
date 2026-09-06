@@ -39,7 +39,7 @@ const DAY_MS = 24 * 3600 * 1000
 const PHASE_COLOR = {
   'Veld najaar': 'var(--col-veld)', Zaal: 'var(--col-zaal)', 'Veld voorjaar': 'var(--col-veld)', 'Indeling verwacht': 'var(--color-text-muted)',
   // item 1090: fase-vensters op de wedstrijd-tijdlijn, zelfde kleurtaal als hun tick-stippen (reasonMeta.js).
-  'Live-check': 'var(--col-start-check)', 'Live-recheck': 'var(--col-live)', 'Eind-check': 'var(--col-end-check)',
+  Wedstrijd: 'var(--col-match)', 'Live-check': 'var(--col-start-check)', 'Live-recheck': 'var(--col-live)', 'Eind-check': 'var(--col-end-check)',
 }
 
 function fmtAxis(iso, spanMs) {
@@ -123,28 +123,30 @@ function Tick({ t, window: win }) {
 function SingleView({ row, window: win, now }) {
   const matchBars = (row.bars || []).filter(b => b.label === 'Wedstrijd')
   const phaseBars = (row.bars || []).filter(b => b.label !== 'Wedstrijd')
-  const PHASE_LANE_H = 18
-  const trackH = 34 + phaseBars.length * PHASE_LANE_H
   return (
     <>
       <Axis window={win} />
-      <div className="track" style={{ height: trackH }}>
+      <div className="track">
+        {/* item 1090 (Bart, 06-09-2026): 1 rij - fase-vlakken (Live-check/
+            Live-recheck/Eind-check) vol gekleurd ONDER de wedstrijd-balk,
+            die zelf een omlijnd kader is (geen volle vulling) zodat de
+            fase-kleur eronder zichtbaar blijft waar ze overlappen; steekt
+            een fase-venster verder dan de wedstrijd (bv. Eind-check na
+            afloop), dan zie je de fase-kleur gewoon doorlopen. */}
+        {phaseBars.map((b, i) => {
+          const left = pctOf(win, b.from), width = Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5)
+          return (
+            <div key={i} className="phase-band" style={{
+              left: left + '%', width: width + '%',
+              background: PHASE_COLOR[b.label] || 'var(--color-primary)',
+              opacity: b.dimmed ? 0.25 : undefined,
+            }}>{width > 7 ? b.label : ''}</div>
+          )
+        })}
         {matchBars.map((b, i) => (
           <div key={i} className="match-bar" style={{
             left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5) + '%',
-            background: 'var(--col-match)', opacity: b.dimmed ? 0.3 : undefined,
-          }}>{b.label}</div>
-        ))}
-        {/* item 1090: elke fase (Live-check/Live-recheck/Eind-check) als eigen
-            lane onder de wedstrijd-balk, geankerd op haar eigen trigger -
-            voorheen was alleen de eerste tick-stip zichtbaar, wat het venster
-            zelf 'later' leek te laten beginnen dan het echt doet. */}
-        {phaseBars.map((b, i) => (
-          <div key={i} className="phase-lane" style={{
-            top: 34 + i * PHASE_LANE_H,
-            left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5) + '%',
-            background: PHASE_COLOR[b.label] || 'var(--color-primary)',
-            opacity: b.dimmed ? 0.25 : 0.8,
+            opacity: b.dimmed ? 0.4 : undefined,
           }}>{b.label}</div>
         ))}
         <NowLine now={now} window={win} />
@@ -153,6 +155,13 @@ function SingleView({ row, window: win, now }) {
         {!row.ticks?.length && <div className="empty-note">Geen scanmomenten gepland in dit venster.</div>}
         {(row.ticks || []).map((t, i) => <Tick key={i} t={t} window={win} />)}
       </div>
+      {phaseBars.length > 0 && (
+        <div className="phase-caption">
+          {phaseBars.filter((b, i, arr) => arr.findIndex(x => x.label === b.label) === i).map(b => (
+            <div key={b.label} className="item"><span className="sw" style={{ background: PHASE_COLOR[b.label] || 'var(--color-primary)' }} />{b.label}</div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -283,7 +292,10 @@ export default function ScanPlanPreview({ values, set, save }) {
               <div className="group-title">{group.title}</div>
               {group.fields.map(f => (
                 <div key={f.key} className="field-row">
-                  <label title={f.help}>{f.label}</label>
+                  <label title={f.help}>
+                    {f.phase && <span className="phase-pill" style={{ background: PHASE_COLOR[f.phase] || 'var(--color-primary)' }} />}
+                    {f.label}
+                  </label>
                   <input type="number" min="1" value={values_[f.key] ?? ''} onChange={e => set(f.key, e.target.value)} />
                 </div>
               ))}
