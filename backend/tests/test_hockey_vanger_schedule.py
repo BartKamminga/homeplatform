@@ -939,6 +939,37 @@ def test_immediate_events_includes_a_club_once_the_scan_interval_has_passed(sess
     )
 
 
+def test_immediate_events_skip_club_scan_on_the_weekend_but_keep_club_list(session):
+    """item 1085: geport vanuit het inmiddels verwijderde _step_club_scan
+    (Bart, 30-08-2026, "club scans niet in het weekend") - club-detail-scans
+    zijn niet tijdsgevoelig, dus wachten ze in het weekend (piek voor
+    matchday-scans) tot maandag. club_list kent deze uitsluiting niet."""
+    saturday = datetime(2026, 9, 5, 10, 0, 0)  # zaterdag
+    session.add(HockeyClub(
+        external_id="CLUB_WEEKEND", name="Weekend Test Club", friendly_name="Weekend Test Club",
+        detail_loaded=False,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, saturday, horizon_days=1)
+
+    assert not any(e["reason"] == "club_scan" for e in events)
+    assert any(e["reason"] == "club_list" for e in events)
+
+
+def test_immediate_events_include_club_scan_on_a_weekday(session):
+    monday = datetime(2026, 9, 7, 10, 0, 0)  # maandag
+    session.add(HockeyClub(
+        external_id="CLUB_WEEKDAY", name="Weekday Test Club", friendly_name="Weekday Test Club",
+        detail_loaded=False,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, monday, horizon_days=1)
+
+    assert any(e["reason"] == "club_scan" for e in events)
+
+
 def test_immediate_events_includes_an_already_captured_poule_with_no_matches_yet(session):
     """item 1019: fase 2 van _step_new_or_empty_poules (lege poule IN
     target_season zonder wedstrijden) ontbrak hier - een poule die al wel
