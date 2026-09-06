@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { pill } from '../ui.jsx'
 import { classRank } from './discoveryHelpers.js'
 import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
@@ -10,7 +11,25 @@ import CompEntry from './CompEntry.jsx'
 // specifieke props.
 
 export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = false }) {
-  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule } = useDiscoveryTree()
+  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, addSingleCmd, clubMap, onDeletePoule } = useDiscoveryTree()
+  // item 1105: per kolom (comp.id) een eigen busy/melding-state - de kolommen
+  // zelf zijn geen aparte componenten (ontstaan via .map() hieronder), dus
+  // 1 gedeelde, per-id-geindexeerde state i.p.v. useState per kolom.
+  const [dirtyBusy, setDirtyBusy] = useState({})
+  const [dirtyMsg,  setDirtyMsg]  = useState({})
+
+  async function handleScanDirtyPoules(e, compId, poules) {
+    e.stopPropagation()
+    setDirtyBusy(prev => ({ ...prev, [compId]: true }))
+    for (const p of poules) {
+      const team = teamsByPoule[p.poule_id]?.[0]
+      if (!team) continue
+      await addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: team.team_id, label: p.name })
+    }
+    setDirtyBusy(prev => ({ ...prev, [compId]: false }))
+    setDirtyMsg(prev => ({ ...prev, [compId]: `✓ ${poules.length}` }))
+    setTimeout(() => setDirtyMsg(prev => { const n = { ...prev }; delete n[compId]; return n }), 3000)
+  }
 
   if (nmComps.length === 1) {
     // item 636: in per-competitie view (showDistBadge) niet nested tonen — op zelfde niveau als multi-entry headers
@@ -55,6 +74,8 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
           const colBusyCount          = cPoules.filter(p => p.busy).length
           const colOverdueResultCount = cPoules.filter(p => p.overdue_result).length
           const colUnknownStartCount  = cPoules.filter(p => p.unknown_start).length
+          // item 1105: zelfde "vuil"-definitie als CompEntry.jsx.
+          const colDirtyPoules = cPoules.filter(p => p.unknown_start || p.overdue_result)
           return (
             <div key={c.id} style={{
               flex: '1 1 220px', minWidth: 210, maxWidth: 340,
@@ -74,6 +95,19 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
                   {colOverdueResultCount > 0 && <span style={pill('partial')} title="Aantal poules met een gespeelde wedstrijd zonder uitslag">⚠ {colOverdueResultCount}</span>}
                   {colUnknownStartCount > 0 && <span style={pill('info')} title="Aantal poules met een onbekende starttijd binnen een week (normaal bij seizoensstart)">❔ {colUnknownStartCount}</span>}
                   {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳', 'var(--color-border)')}
+                  {!c.hl_comp_id && colDirtyPoules.length > 0 && (
+                    <button
+                      onClick={e => handleScanDirtyPoules(e, c.id, colDirtyPoules)}
+                      disabled={!!dirtyBusy[c.id]}
+                      title={`${colDirtyPoules.length} poule(s) met onbekende starttijd of late uitslag in 1x scannen`}
+                      style={{
+                        fontSize: 9, padding: '1px 6px', borderRadius: 4, fontFamily: 'inherit', flexShrink: 0,
+                        border: '1px solid var(--color-warning)', color: 'var(--color-warning)', background: 'none',
+                        cursor: dirtyBusy[c.id] ? 'default' : 'pointer',
+                      }}>
+                      {dirtyBusy[c.id] ? '…' : dirtyMsg[c.id] || `🧹 ${colDirtyPoules.length}`}
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Poules in deze kolom */}
