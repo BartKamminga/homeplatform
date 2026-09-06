@@ -121,14 +121,19 @@ def _explain_reason(
     if reason == "match_end_check":
         return "Wedstrijd van vandaag naar verwachting afgelopen, nog geen definitieve uitslag bekend (eerste check)."
     if reason == "retry_match_end":
-        retry_m = _get_int_setting(session, "retry_match_end_min", 10)
-        return f"Eerdere check na het einde leverde nog geen definitieve uitslag - hercheck elke {retry_m} min."
+        base_m = _get_int_setting(session, "end_check_cadence_min", 8)
+        window_m = _get_int_setting(session, "end_check_window_min", 120)
+        return (
+            f"Eerdere check na het einde leverde nog geen definitieve uitslag - oplopende hercheck-"
+            f"tussenpozen (begin {base_m} min, dan {base_m}x2, {base_m}x3...) tot max {window_m} min na het einde."
+        )
     if reason == "match_start_check":
-        delay_m = _get_int_setting(session, "live_check_delay_min", 15)
-        return f"Wedstrijd van vandaag is {delay_m} min geleden begonnen - check of hij inmiddels live staat."
+        window_m = _get_int_setting(session, "live_check_window_min", 20)
+        cadence_m = _get_int_setting(session, "live_check_cadence_min", 5)
+        return f"Wedstrijd van vandaag is begonnen - de eerste {window_m} min elke {cadence_m} min checken of hij al live staat."
     if reason == "match_live":
-        retry_m = _get_int_setting(session, "retry_match_end_min", 10)
-        return f"Wedstrijd bevestigd live - hercheck elke {retry_m} min totdat de wedstrijd is afgelopen."
+        cadence_m = _get_int_setting(session, "live_recheck_cadence_min", 4)
+        return f"Wedstrijd bevestigd live - hercheck elke {cadence_m} min totdat de wedstrijd is afgelopen."
     if reason == "new_or_empty":
         return "Nieuw ontdekt (nog geen data bekend) - directe eerste scan."
     if reason == "club_scan":
@@ -460,16 +465,17 @@ def _next_manual_weekly_tick(now: datetime, horizon_end: datetime, comp_id: int,
     return day if day <= horizon_end else None
 
 
-# item 1084 (Bart, 4-09-2026: "dit moet wel precies zijn"): puur een
-# veiligheidsklep tegen een oneindige lus (bv. retry_match_end_min=0) - geen
-# esthetische beperking. Bij de defaults (retry 10 min, burst-stop 2u na
-# einde) levert dat ~12 echte ticks op, ruim onder deze grens.
+# item 1084/1090 (Bart, 4-09-2026/6-09-2026: "dit moet wel precies zijn"):
+# puur een veiligheidsklep tegen een oneindige lus - geen esthetische
+# beperking. Bij de defaults (oplopende backoff, basis 8 min, venster 120
+# min) levert dat ~5 echte retry-ticks op, ruim onder deze grens.
 MAX_DYNAMIC_TICKS = 50
 
 
 def _dynamic_tick_series(
     poule: HockeyPoule, team: HockeyTeam, match: HockeyPouleMatch, now: datetime, horizon_end: datetime,
-    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int, reasons: set,
+    match_duration_m: int, live_check_window_m: int, live_check_cadence_m: int,
+    live_recheck_cadence_m: int, end_check_window_m: int, end_check_cadence_m: int, reasons: set,
 ) -> List[dict]:
     """item 1084 (Bart, 4-09-2026: "ik zie het wel in tekst staan maar niet
     in scan's en dat wil ik juist"): match_live/retry_match_end zijn
@@ -481,21 +487,15 @@ def _dynamic_tick_series(
     poule.last_scanned_at op die tick gezet wordt (alsof die scan net is
     binnengekomen) vóór de volgende aanroep - exact wat er in het echte
     systeem gebeurt als na elk resultaat het schema herbouwd wordt. Stopt
-    vanzelf zodra _poule_matchday_events geen tick meer teruggeeft (de
-    burst_stop_h-deadline is dan gepasseerd), of bij MAX_DYNAMIC_TICKS als
-    veiligheidsklep.
-
-    `reasons` accepteert meerdere reason-waarden omdat een levende wedstrijd
-    die haar voorspelde einde voorbijschiet zonder eindstand, ONGEMERKT van
-    match_live naar retry_match_end overgaat (beide lezen last_scanned_at +
-    retry_match_end_m als volgende tick, zodra dat tijdstip voorbij het
-    voorspelde einde valt telt _matchday_events het als retry_match_end i.p.v.
-    match_live) - een reëel, door de echte functie zelf bepaald gedrag, geen
-    aanname van deze preview."""
+    vanzelf zodra _poule_matchday_events geen tick meer teruggeeft (fase 3's
+    end_check_window_m-deadline is dan gepasseerd, item 1090), of bij
+    MAX_DYNAMIC_TICKS als veiligheidsklep."""
     ticks: List[dict] = []
     for _ in range(MAX_DYNAMIC_TICKS):
         events = _poule_matchday_events(
-            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+            poule, team, [match], now, horizon_end,
+            match_duration_m, live_check_window_m, live_check_cadence_m,
+            live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
         )
         dynamic = [e for e in events if e["reason"] in reasons]
         if not dynamic:
@@ -509,16 +509,21 @@ def _dynamic_tick_series(
 
 
 def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[dict]:
-    match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
-    retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
-    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
-    burst_stop_h         = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
-    window_start_h       = _get_int_setting(session, "scan_window_start_hour", 9)
+    match_duration_m       = _get_int_setting(session, "match_duration_min", 90)
+    live_check_window_m    = _get_int_setting(session, "live_check_window_min", 20)
+    live_check_cadence_m   = _get_int_setting(session, "live_check_cadence_min", 5)
+    live_recheck_cadence_m = _get_int_setting(session, "live_recheck_cadence_min", 4)
+    end_check_window_m     = _get_int_setting(session, "end_check_window_min", 120)
+    end_check_cadence_m    = _get_int_setting(session, "end_check_cadence_min", 8)
+    window_start_h         = _get_int_setting(session, "scan_window_start_hour", 9)
 
     team, poule = _preview_team_poule()
     horizon_end = now + timedelta(days=7)
     past: List[dict] = []
-    start_check_offset = timedelta(minutes=live_check_delay_m)
+    matchday_args = (
+        match_duration_m, live_check_window_m, live_check_cadence_m,
+        live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
+    )
 
     bars = []
     if scenario == "normal":
@@ -526,59 +531,62 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         poule.last_scanned_at = None
         match = _preview_match(match_start)
         bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
-        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
-            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
-        )]
+        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(poule, team, [match], now, horizon_end, *matchday_args)]
     elif scenario == "never_live":
-        match_start = now - start_check_offset - timedelta(minutes=5)
+        # Fase 1 (Live-check) is venster-begrensd (item 1090) - ruim voorbij
+        # live_check_window_m gestart, dus het venster is al verstreken
+        # zonder bevestiging.
+        match_start = now - timedelta(minutes=live_check_window_m + 5)
         poule.last_scanned_at = None
         match = _preview_match(match_start)
         bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
-        past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest - geen live gemeld"})
-        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(
-            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
-        )]
+        past.append({
+            "planned_at": _iso(match_start + timedelta(minutes=live_check_window_m)),
+            "reason": "match_start_check", "note": "venster verstreken - geen live gemeld",
+        })
+        autoscan_ticks = [_tick(e) for e in _poule_matchday_events(poule, team, [match], now, horizon_end, *matchday_args)]
     elif scenario == "live_confirmed":
-        match_start = now - start_check_offset - timedelta(minutes=5)
+        match_start = now - timedelta(minutes=live_check_cadence_m + 5)
         match = _preview_match(match_start, status="live")
-        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
-        past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "bevestigd live"})
-        # de match_end_check-tick is een echte, EENMALIGE tick (niet
-        # dynamisch herhaald) - 1x apart ophalen vóór de match_live-reeks
+        match_end = match_start + timedelta(minutes=match_duration_m)
+        bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
+        past.append({
+            "planned_at": _iso(match_start + timedelta(minutes=live_check_cadence_m)),
+            "reason": "match_start_check", "note": "bevestigd live",
+        })
+        # match_end_check (fase 3's eerste check) is ONAFHANKELIJK van fase
+        # 1/2 (item 1090) - altijd op het voorspelde einde, ongeacht wat de
+        # live-recheck-reeks doet. 1x apart ophalen vóór de match_live-reeks
         # last_scanned_at gaat verschuiven.
         poule.last_scanned_at = None
         end_check_ticks = [_tick(e) for e in _poule_matchday_events(
-            poule, team, [match], now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+            poule, team, [match], now, horizon_end, *matchday_args,
         ) if e["reason"] == "match_end_check"]
-        # de match_live-reeks stopt vanzelf zodra last_scanned_at het
-        # voorspelde einde passeert (is_first flipt naar False in
-        # _matchday_events, dezelfde tick claimt daarna de reason
-        # retry_match_end i.p.v. match_live - een echt, door de functie
-        # zelf bepaald omslagpunt). poule.last_scanned_at staat na deze
-        # aanroep al op die laatste live-tick, dus de vervolgaanroep
-        # hieronder zet de cadans naadloos voort als retry_match_end tot
-        # de burst_stop-deadline.
+        # de match_live-reeks stopt vanzelf zodra het voorspelde einde bereikt
+        # is (fase 2's eigen venster, item 1090) - fase 3 neemt het daarna
+        # over, gesimuleerd door last_scanned_at op het einde zelf te zetten
+        # vóór de escalerende retry-reeks.
         poule.last_scanned_at = None
-        live_ticks = _dynamic_tick_series(
-            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"match_live"},
-        )
-        retry_after_live_ticks = _dynamic_tick_series(
-            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"retry_match_end"},
-        )
+        live_ticks = _dynamic_tick_series(poule, team, match, now, horizon_end, *matchday_args, {"match_live"})
+        poule.last_scanned_at = match_end
+        retry_after_live_ticks = _dynamic_tick_series(poule, team, match, now, horizon_end, *matchday_args, {"retry_match_end"})
         autoscan_ticks = end_check_ticks + [_tick(e) for e in live_ticks] + [_tick(e) for e in retry_after_live_ticks]
     elif scenario == "runs_over":
         match_start = now - timedelta(minutes=match_duration_m + 5)
         match_end = match_start + timedelta(minutes=match_duration_m)
         match = _preview_match(match_start)
         bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
-        past.append({"planned_at": _iso(match_start + start_check_offset), "reason": "match_start_check", "note": "geweest"})
+        past.append({
+            "planned_at": _iso(match_start + timedelta(minutes=live_check_cadence_m)),
+            "reason": "match_start_check", "note": "geweest",
+        })
         past.append({"planned_at": _iso(match_end), "reason": "match_end_check", "note": "geen eindstand"})
         # last_scanned_at net na het einde -> de eerste _matchday_events-
         # aanroep in de reeks levert meteen een retry_match_end op i.p.v.
         # nog een (dan dubbele) eerste match_end_check.
         poule.last_scanned_at = match_end + timedelta(minutes=1)
         autoscan_ticks = [_tick(e) for e in _dynamic_tick_series(
-            poule, team, match, now, horizon_end, match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h, {"retry_match_end"},
+            poule, team, match, now, horizon_end, *matchday_args, {"retry_match_end"},
         )]
     else:
         raise HTTPException(400, "onbekend scenario")

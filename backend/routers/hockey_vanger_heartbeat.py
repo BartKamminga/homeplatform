@@ -124,10 +124,12 @@ SCAN_PLAN_DEFAULTS = {
     "profile_scan_interval_min":   20,
     "match_duration_min":          90,
     "active_daily_fallback_hours": 24,
-    "retry_match_end_min":         10,
     "stale_cmd_timeout_min":       10,
-    "live_check_delay_min":        15,
-    "burst_stop_hours_after_last_match": 2,
+    "live_check_window_min":       20,
+    "live_check_cadence_min":      5,
+    "live_recheck_cadence_min":    4,
+    "end_check_window_min":        120,
+    "end_check_cadence_min":       8,
     "unknown_start_lookahead_days": 5,
     "unknown_start_fallback_hours": 8,
     "schedule_horizon_days": 14,
@@ -162,10 +164,12 @@ class VangerSettingsIn(BaseModel):
     profile_scan_interval_min:     Optional[int] = None
     match_duration_min:            Optional[int] = None
     active_daily_fallback_hours:   Optional[int] = None
-    retry_match_end_min:           Optional[int] = None
     stale_cmd_timeout_min:         Optional[int] = None
-    live_check_delay_min:          Optional[int] = None
-    burst_stop_hours_after_last_match: Optional[int] = None
+    live_check_window_min:         Optional[int] = None
+    live_check_cadence_min:        Optional[int] = None
+    live_recheck_cadence_min:      Optional[int] = None
+    end_check_window_min:          Optional[int] = None
+    end_check_cadence_min:         Optional[int] = None
     unknown_start_lookahead_days:  Optional[int] = None
     unknown_start_fallback_hours:  Optional[int] = None
     schedule_horizon_days:         Optional[int] = None
@@ -200,10 +204,12 @@ def update_vanger_settings(
         ("profile_scan_interval_min", body.profile_scan_interval_min),
         ("match_duration_min", body.match_duration_min),
         ("active_daily_fallback_hours", body.active_daily_fallback_hours),
-        ("retry_match_end_min", body.retry_match_end_min),
         ("stale_cmd_timeout_min", body.stale_cmd_timeout_min),
-        ("live_check_delay_min", body.live_check_delay_min),
-        ("burst_stop_hours_after_last_match", body.burst_stop_hours_after_last_match),
+        ("live_check_window_min", body.live_check_window_min),
+        ("live_check_cadence_min", body.live_check_cadence_min),
+        ("live_recheck_cadence_min", body.live_recheck_cadence_min),
+        ("end_check_window_min", body.end_check_window_min),
+        ("end_check_cadence_min", body.end_check_cadence_min),
         ("unknown_start_lookahead_days", body.unknown_start_lookahead_days),
         ("unknown_start_fallback_hours", body.unknown_start_fallback_hours),
         ("schedule_horizon_days", body.schedule_horizon_days),

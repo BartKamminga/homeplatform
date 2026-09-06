@@ -45,19 +45,19 @@ DEFAULT_SCAN_WINDOW_END_HOUR = 18
 # door een rebuild zodra ze al due zijn (planned_at <= now) maar nog niet
 # gepromoveerd - ze hebben geen eigen 'trek naar nu toe'-vangnet en zouden
 # zonder deze bescherming een gemist moment kwijtraken (daily_fallback/
-# unknown_start_recheck/manual_weekly schuiven dan een hele cyclus door;
-# match_start_check verdwijnt zelfs voorgoed, zie _matchday_events).
+# unknown_start_recheck/manual_weekly schuiven dan een hele cyclus door).
 #
-# BEWUST NIET in deze lijst: match_end_check/retry_match_end/match_live
-# (die klemmen zichzelf al naar 'now' via _plan()'s tick=max(tick,now) en
-# worden dus, zolang ze niet gepromoveerd zijn, ELKE rebuild opnieuw op het
-# actuele 'now' herberekend - ze MOETEN dus gewoon vervangen worden, anders
-# stapelen ze duplicaten op met een steeds iets ander planned_at), en new_or_
-# empty/club_scan/club_list (_immediate_events geeft die altijd een vers
-# planned_at=now; _pending_poule_ids/_pending_club_ext_ids checken alleen
-# VangerCmd, niet ScanScheduleEntry, dus zonder vervanging zouden die zich
-# elke rebuild klonen).
-PROTECTED_DUE_REASONS = {"daily_fallback", "unknown_start_recheck", "manual_weekly", "match_start_check"}
+# BEWUST NIET in deze lijst: match_start_check/match_end_check/retry_match_
+# end/match_live (item 1090: alle 4 wedstrijd-fases klemmen zichzelf al naar
+# 'now' via _plan()'s tick=max(tick,now) en worden dus, zolang ze niet
+# gepromoveerd zijn, ELKE rebuild opnieuw op het actuele 'now' herberekend -
+# ze MOETEN dus gewoon vervangen worden, anders stapelen ze duplicaten op
+# met een steeds iets ander planned_at), en new_or_empty/club_scan/club_list
+# (_immediate_events geeft die altijd een vers planned_at=now;
+# _pending_poule_ids/_pending_club_ext_ids checken alleen VangerCmd, niet
+# ScanScheduleEntry, dus zonder vervanging zouden die zich elke rebuild
+# klonen).
+PROTECTED_DUE_REASONS = {"daily_fallback", "unknown_start_recheck", "manual_weekly"}
 
 
 def _clamp_to_window(dt: datetime, start_hour: int, end_hour: int) -> datetime:
@@ -81,39 +81,65 @@ def _event(target_type: str, target_id: int, cmd_type: str, params: dict, planne
     }
 
 
+def _escalating_retry_offset_min(elapsed_m: float, base_m: int) -> float:
+    """item 1090 (Bart, 06-09-2026): oplopende eind-check-backoff - de
+    tussentijd vóór retry N is base_m * N (8, 16, 24, 32... min i.p.v. een
+    vaste cadans), zonder een aparte teller bij te hoeven houden: puur uit
+    hoeveel tijd er al verstreken is sinds het voorspelde einde (elapsed_m)
+    valt af te leiden welke cumulatieve tick de eerstvolgende is. Geclipt
+    door de aanroeper binnen end_check_window_m (via _plan's deadline-
+    check) - deze functie zelf kent geen bovengrens."""
+    base_m = max(1, base_m)  # tegen een oneindige lus als de instelling ooit 0/negatief zou zijn
+    n = 1
+    cumulative = base_m * n
+    while cumulative <= elapsed_m:
+        n += 1
+        cumulative += base_m * n
+    return cumulative
+
+
 def _matchday_events(
     target_type: str, target_id, cmd_type: str, params: dict, matches: List[HockeyPouleMatch],
     last_scanned_at: Optional[datetime], now: datetime, horizon_end: datetime,
-    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int,
+    match_duration_m: int, live_check_window_m: int, live_check_cadence_m: int,
+    live_recheck_cadence_m: int, end_check_window_m: int, end_check_cadence_m: int,
 ) -> List[dict]:
-    """Max. 2 vooraf geplande momenten per wedstrijd - match_start_check kort
-    na aanvang, match_end_check op het voorspelde einde - zelfde regels als
-    _matchday_due_reason in hockey_vanger_scanplan.py. Gedeeld tussen 1
-    poule (_poule_matchday_events) en de vereniging van alle wedstrijden in
-    de poules van 1 landelijke competitie (_landelijke_matchday_events).
+    """item 1090 (Bart, 06-09-2026): 3 wedstrijd-fases, elk met een eigen
+    instelbaar venster + cadans binnenin - geen scan-type mag buiten zijn
+    eigen fase-venster vallen. Vervangt het eerdere 'max. 2 vooraf geplande
+    momenten'-model (match_start_check 1x, match_end_check/retry_match_end
+    op 1 gedeelde cadans). Gedeeld tussen 1 poule (_poule_matchday_events) en
+    de vereniging van alle wedstrijden in de poules van 1 landelijke
+    competitie (_landelijke_matchday_events).
 
-    Volledig PER WEDSTRIJD (Bart, 30-08-2026: "per wedstrijd zijn er
-    maximaal 2 geplande scans, een start en een end... als de match end
-    scan het gewenste resultaat oplevert dan geen extra scan, anders
-    schedulen en rebuild") - GEEN gedeelde dag-brede cadans meer tussen los
-    van elkaar staande wedstrijden. Een eerdere dag-brede aanpak liet een
-    poule met bv. een wedstrijd om 10:20 en een om 14:30 de hele dode
-    periode ertussen (waarin niets te ontdekken viel) toch doorscannen,
-    puur omdat de dag als geheel nog niet "af" was.
+    Fase 1 (Live-check, reason=match_start_check): vanaf starttijd, binnen
+    live_check_window_m minuten, elke live_check_cadence_m minuten checken
+    of de wedstrijd al 'live' staat. Venster verstreken zonder bevestiging ->
+    fase 1 stopt vanzelf (geen fase-overgang) - fase 3 start sowieso op tijd,
+    los van fase 1/2.
 
-    Een vervolgscan is altijd DYNAMISCH, nooit vooraf als losse reeks
-    gepland: match_end_check zonder 'final' resultaat -> retry_match_end
-    (Bart: "als daar niets uitkomt komt er dynamisch weer een queue item
-    bij"), match_start_check die een levende wedstrijd blijkt -> match_live
-    (Bart: "net als bij match_start_scan -> blijkt live wedstrijd te zijn ->
-    match_live events inplannen"). Onderscheid eerste-check-vs-retry:
-    last_scanned_at (poule-breed, 1 get_poule ververst alle wedstrijden
-    tegelijk) nog van vóór het eigen einde van DEZE wedstrijd -> eerste
-    check (match_end_check); al minstens 1x gecheckt ná het einde, nog
-    steeds niet final -> retry_match_end, retry_match_end_m minuten later.
-    post_cmd_result herbouwt het schema al meteen na elk echt resultaat
-    (Wijziging 1), dus de volgende rebuild berekent vanzelf de eerstvolgende
-    tick voor DIE wedstrijd opnieuw."""
+    Fase 2 (Live-recheck, reason=match_live): zodra een eerdere scan al
+    bevestigd heeft dat de wedstrijd echt live staat (m.status == "live") -
+    niet elke wedstrijd krijgt live-status op hockey.nl (item 969), dus
+    vooraf blind inplannen zou onnodige calls opleveren. Venster = tot het
+    voorspelde einde, cadans = live_recheck_cadence_m.
+
+    Fase 3 (Eind-check, reason=match_end_check/retry_match_end): vanaf het
+    voorspelde einde (match_duration_m), ONAFHANKELIJK van fase 1/2. Eerste
+    check meteen op het einde zelf; daarna een OPLOPENDE backoff (Bart,
+    06-09-2026: '8, 8*2, 8*3... tussen tijd') i.p.v. een vaste cadans - de
+    tussentijd vóór retry N is end_check_cadence_m * N (8/16/24/32/... min),
+    zie _escalating_retry_offset_min. Venster = end_check_window_m minuten
+    na het einde - een harde bovengrens, geen check mag daarbuiten vallen.
+    Venster verstreken zonder uitslag -> geen matchday-event meer voor deze
+    wedstrijd, valt terug op het poule-niveau-vangnet (daily_fallback).
+
+    Onderscheid eerste-check-vs-retry (fase 3): last_scanned_at (poule-breed,
+    1 get_poule ververst alle wedstrijden tegelijk) nog van vóór het eigen
+    einde van DEZE wedstrijd -> eerste check; al minstens 1x gecheckt ná het
+    einde, nog steeds niet final -> retry. post_cmd_result herbouwt het
+    schema al meteen na elk echt resultaat, dus de volgende rebuild berekent
+    vanzelf de eerstvolgende tick voor DIE wedstrijd opnieuw."""
     valid_matches: List[Tuple[datetime, HockeyPouleMatch]] = []
     for m in matches:
         if not m.match_date:
@@ -149,55 +175,62 @@ def _matchday_events(
 
     for start, m in valid_matches:
         end = start + timedelta(minutes=match_duration_m)
-        deadline = end + timedelta(hours=burst_stop_h)
 
+        # Fase 3 (Eind-check): onafhankelijk van fase 1/2, altijd berekend
+        # zodra de wedstrijd nog niet 'final' is.
         if m.status != "final":
+            end_deadline = end + timedelta(minutes=end_check_window_m)
             is_first = last_scanned_at is None or last_scanned_at < end
             if is_first:
-                _plan(end, deadline, "match_end_check")
+                _plan(end, end_deadline, "match_end_check")
             else:
-                _plan(last_scanned_at + timedelta(minutes=retry_match_end_m), deadline, "retry_match_end")
+                elapsed_m = (last_scanned_at - end).total_seconds() / 60
+                offset_m = _escalating_retry_offset_min(elapsed_m, end_check_cadence_m)
+                _plan(end + timedelta(minutes=offset_m), end_deadline, "retry_match_end")
 
-        check_at = start + timedelta(minutes=live_check_delay_m)
-        if now <= check_at <= horizon_end and check_at not in seen_at:
-            seen_at.add(check_at)
-            events.append(_event(target_type, target_id, cmd_type, params, check_at, "match_start_check"))
+        # Fase 1 (Live-check): alleen zolang nog niet bevestigd live/final.
+        if m.status not in ("live", "final"):
+            window_end = start + timedelta(minutes=live_check_window_m)
+            first_tick = start + timedelta(minutes=live_check_cadence_m)
+            next_tick = first_tick if (last_scanned_at is None or last_scanned_at < start) \
+                else last_scanned_at + timedelta(minutes=live_check_cadence_m)
+            _plan(next_tick, window_end, "match_start_check")
 
-        # match_live (Bart, 30-08-2026): zodra een eerdere scan al heeft
-        # bevestigd dat de wedstrijd echt live staat (m.status == "live") -
-        # niet elke wedstrijd krijgt live-status op hockey.nl (item 969),
-        # dus vooraf blind inplannen voor een wedstrijd die (nog) niet
-        # blijkt te leven zou onnodige calls in het schema tonen. Dynamisch,
-        # 1 eerstvolgende tick op de retry_match_end_m-cadans - net als
-        # retry_match_end hierboven.
+        # Fase 2 (Live-recheck): zodra een eerdere scan al bevestigd heeft
+        # dat de wedstrijd echt live staat - dynamisch, 1 eerstvolgende tick
+        # op live_recheck_cadence_m, tot het voorspelde einde.
         if m.status != "live":
             continue
-        min_live_tick = start + timedelta(minutes=live_check_delay_m + retry_match_end_m)
-        base = last_scanned_at + timedelta(minutes=retry_match_end_m) if last_scanned_at else min_live_tick
-        _plan(max(base, min_live_tick), deadline, "match_live")
+        base = last_scanned_at + timedelta(minutes=live_recheck_cadence_m) if last_scanned_at \
+            else start + timedelta(minutes=live_recheck_cadence_m)
+        _plan(base, end, "match_live")
     return events
 
 
 def _poule_matchday_events(
     poule: HockeyPoule, team: HockeyTeam, matches: List[HockeyPouleMatch], now: datetime, horizon_end: datetime,
-    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int,
+    match_duration_m: int, live_check_window_m: int, live_check_cadence_m: int,
+    live_recheck_cadence_m: int, end_check_window_m: int, end_check_cadence_m: int,
 ) -> List[dict]:
     params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
     return _matchday_events(
         "poule", poule.poule_id, "get_poule", params, matches, poule.last_scanned_at, now, horizon_end,
-        match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        match_duration_m, live_check_window_m, live_check_cadence_m,
+        live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
     )
 
 
 def _landelijke_matchday_events(
     comp: HockeyCompetition, matches: List[HockeyPouleMatch], last_scanned_at: Optional[datetime],
     now: datetime, horizon_end: datetime,
-    match_duration_m: int, retry_match_end_m: int, live_check_delay_m: int, burst_stop_h: int,
+    match_duration_m: int, live_check_window_m: int, live_check_cadence_m: int,
+    live_recheck_cadence_m: int, end_check_window_m: int, end_check_cadence_m: int,
 ) -> List[dict]:
     params = {"comp_id": comp.hl_comp_id, "label": comp.name}
     return _matchday_events(
         "competition", comp.hl_comp_id, "get_competition_detail", params, matches, last_scanned_at, now, horizon_end,
-        match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+        match_duration_m, live_check_window_m, live_check_cadence_m,
+        live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
     )
 
 
@@ -559,10 +592,12 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
     """Berekent het VOLLEDIGE scanschema voor [now, now+horizon_days] - geen
     bijwerkingen, puur een lijst events. rebuild_schedule persisteert dit."""
     horizon_end = now + timedelta(days=horizon_days)
-    match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
-    retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
-    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
-    burst_stop_h        = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
+    match_duration_m       = _get_int_setting(session, "match_duration_min", 90)
+    live_check_window_m    = _get_int_setting(session, "live_check_window_min", 20)
+    live_check_cadence_m   = _get_int_setting(session, "live_check_cadence_min", 5)
+    live_recheck_cadence_m = _get_int_setting(session, "live_recheck_cadence_min", 4)
+    end_check_window_m     = _get_int_setting(session, "end_check_window_min", 120)
+    end_check_cadence_m    = _get_int_setting(session, "end_check_cadence_min", 8)
     daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
     unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
     unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
@@ -597,7 +632,8 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
             matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).all()
             matchday_evts = _poule_matchday_events(
                 poule, team, matches, now, horizon_end,
-                match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+                match_duration_m, live_check_window_m, live_check_cadence_m,
+                live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
             )
             # Prioriteitsvolgorde zoals _matchday_due_reason: een matchday-
             # burst/live-check-scan werkt last_scanned_at al bij, wat de
@@ -633,7 +669,8 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
         last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
         matchday_evts = _landelijke_matchday_events(
             comp, matches, last_scanned_at, now, horizon_end,
-            match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+            match_duration_m, live_check_window_m, live_check_cadence_m,
+            live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
         )
         preempt = sorted(e["planned_at"] for e in matchday_evts)
         unknown_evts = _landelijke_unknown_start_events(
@@ -659,10 +696,12 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
     build_schedule_events, hergebruikt door rebuild_schedule_for_target.
     manual_weekly/new_or_empty/club_scan/club_list horen hier bewust niet
     bij - die hangen niet af van het resultaat van 1 scan."""
-    match_duration_m    = _get_int_setting(session, "match_duration_min", 90)
-    retry_match_end_m   = _get_int_setting(session, "retry_match_end_min", 10)
-    live_check_delay_m  = _get_int_setting(session, "live_check_delay_min", 15)
-    burst_stop_h        = _get_int_setting(session, "burst_stop_hours_after_last_match", 2)
+    match_duration_m       = _get_int_setting(session, "match_duration_min", 90)
+    live_check_window_m    = _get_int_setting(session, "live_check_window_min", 20)
+    live_check_cadence_m   = _get_int_setting(session, "live_check_cadence_min", 5)
+    live_recheck_cadence_m = _get_int_setting(session, "live_recheck_cadence_min", 4)
+    end_check_window_m     = _get_int_setting(session, "end_check_window_min", 120)
+    end_check_cadence_m    = _get_int_setting(session, "end_check_cadence_min", 8)
     daily_fallback_h    = _get_int_setting(session, "active_daily_fallback_hours", 24)
     unknown_lookahead_d = _get_int_setting(session, "unknown_start_lookahead_days", 5)
     unknown_fallback_h  = _get_int_setting(session, "unknown_start_fallback_hours", 8)
@@ -691,7 +730,8 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
         matches = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).all()
         matchday_evts = _poule_matchday_events(
             poule, team, matches, now, horizon_end,
-            match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+            match_duration_m, live_check_window_m, live_check_cadence_m,
+            live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
         )
         preempt = sorted(e["planned_at"] for e in matchday_evts)
         unknown_evts = _poule_unknown_start_events(
@@ -721,7 +761,8 @@ def _target_events(session: Session, now: datetime, horizon_end: datetime, targe
         last_scanned_at = None if any(p.last_scanned_at is None for p in poules) else min(p.last_scanned_at for p in poules)
         matchday_evts = _landelijke_matchday_events(
             comp, matches, last_scanned_at, now, horizon_end,
-            match_duration_m, retry_match_end_m, live_check_delay_m, burst_stop_h,
+            match_duration_m, live_check_window_m, live_check_cadence_m,
+            live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
         )
         preempt = sorted(e["planned_at"] for e in matchday_evts)
         unknown_evts = _landelijke_unknown_start_events(

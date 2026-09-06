@@ -40,16 +40,17 @@ def _setup_active_competition(session, now, last_scanned_at):
 
 def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
     """match_end_check/retry_match_end is volledig PER WEDSTRIJD (Bart,
-    30-08-2026) - deze test verifieert dat een gewijzigde retry_match_end_min
-    de eerstvolgende retry-tick verschuift. last_scanned_at ligt hier NA het
-    voorspelde einde van de wedstrijd (13 min geleden) - dus is dit al een
-    retry_match_end-scenario (er is al 1x gecheckt ná het einde), niet de
-    initiele match_end_check (die altijd op het vaste, voorspelde einde zelf
-    valt en dus niet van een interval-instelling afhangt)."""
+    30-08-2026) - deze test verifieert dat een gewijzigde end_check_cadence_min
+    (item 1090: basis van de oplopende eind-check-backoff) de eerstvolgende
+    retry-tick verschuift. last_scanned_at ligt hier NA het voorspelde einde
+    van de wedstrijd (13 min geleden) - dus is dit al een retry_match_end-
+    scenario (er is al 1x gecheckt ná het einde), niet de initiele
+    match_end_check (die altijd op het vaste, voorspelde einde zelf valt en
+    dus niet van een interval-instelling afhangt)."""
     now = datetime.utcnow()
     _setup_active_competition(session, now, last_scanned_at=now - timedelta(minutes=5))
 
-    update_vanger_settings(VangerSettingsIn(retry_match_end_min=45), session=session, _=None)
+    update_vanger_settings(VangerSettingsIn(end_check_cadence_min=45), session=session, _=None)
     ticks_45 = sorted(
         e.planned_at for e in session.exec(
             select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "retry_match_end")
@@ -57,7 +58,7 @@ def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
     )
     assert len(ticks_45) == 1
 
-    update_vanger_settings(VangerSettingsIn(retry_match_end_min=10), session=session, _=None)
+    update_vanger_settings(VangerSettingsIn(end_check_cadence_min=10), session=session, _=None)
     ticks_10 = sorted(
         e.planned_at for e in session.exec(
             select(ScanScheduleEntry).where(ScanScheduleEntry.target_id == 444, ScanScheduleEntry.reason == "retry_match_end")
@@ -65,4 +66,4 @@ def test_updating_settings_rebuilds_the_schedule_with_the_new_interval(session):
     )
     assert len(ticks_10) == 1
     assert ticks_10[0] != ticks_45[0]  # instelling is echt doorgevoerd
-    assert ticks_10[0] < ticks_45[0]  # kortere interval -> eerdere eerstvolgende tick
+    assert ticks_10[0] < ticks_45[0]  # kortere basis-cadans -> eerdere eerstvolgende tick
