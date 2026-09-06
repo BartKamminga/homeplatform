@@ -23,10 +23,13 @@ def test_preview_match_normal_has_two_rows_and_two_ticks(session):
 
 
 def test_preview_match_normal_returns_a_now_marker_and_a_match_bar(session):
+    # item 1090: naast de wedstrijd-balk ook de fase-vensters (Live-check,
+    # Eind-check) - Live-recheck ontbreekt hier bewust (nog niet live bevestigd).
     result = preview_scenario(PreviewScenarioIn(scope="match", scenario="normal", settings={}), session=session, _=None)
     assert result["now"]
     bars = result["rows"][0]["bars"]
-    assert len(bars) == 1 and bars[0]["label"] == "Wedstrijd"
+    labels = {b["label"] for b in bars}
+    assert labels == {"Wedstrijd", "Live-check", "Eind-check"}
     assert result["rows"][1]["bars"][0]["dimmed"] is True
 
 
@@ -35,6 +38,25 @@ def test_preview_match_never_live_has_no_start_check_tick_but_a_past_marker(sess
     autoscan = result["rows"][0]
     assert {t["reason"] for t in autoscan["ticks"]} == {"match_end_check"}
     assert autoscan["past"][0]["reason"] == "match_start_check"
+
+
+def test_preview_match_live_confirmed_bars_include_live_recheck_phase(session):
+    # item 1090 (Bart, 06-09-2026: "graag de fases weer geven op deze view"):
+    # Live-recheck-balk verschijnt alleen als de wedstrijd al bevestigd live
+    # is (normal/never_live/runs_over hebben dit niet).
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="live_confirmed", settings={}), session=session, _=None)
+    labels = {b["label"] for b in result["rows"][0]["bars"]}
+    assert labels == {"Wedstrijd", "Live-check", "Live-recheck", "Eind-check"}
+
+
+def test_preview_match_phase_bars_are_anchored_on_their_own_trigger(session):
+    # Live-check-venster begint op de starttijd zelf (niet pas bij de eerste
+    # tick, die een cadans-stap later valt) - Eind-check-venster begint op
+    # het voorspelde einde.
+    result = preview_scenario(PreviewScenarioIn(scope="match", scenario="normal", settings={}), session=session, _=None)
+    bars = {b["label"]: b for b in result["rows"][0]["bars"]}
+    assert bars["Live-check"]["from"] == bars["Wedstrijd"]["from"]
+    assert bars["Eind-check"]["from"] == bars["Wedstrijd"]["to"]
 
 
 def test_preview_match_setting_change_shifts_end_check_tick(session):

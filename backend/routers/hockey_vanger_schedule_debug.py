@@ -525,21 +525,40 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         live_recheck_cadence_m, end_check_window_m, end_check_cadence_m,
     )
 
+    def _phase_bars(match_start: datetime, match_end: datetime, live_recheck_from: Optional[datetime] = None) -> List[dict]:
+        """item 1090 (Bart, 06-09-2026, "graag de fases weer geven op deze
+        view"): elke fase getekend als eigen balk, geankerd op haar eigen
+        trigger - Live-check op de starttijd, Eind-check op het voorspelde
+        einde - i.p.v. alleen losse tick-stippen, die zonder vensterbalk
+        lieten lijken dat een fase 'later' begint dan hij in werkelijkheid
+        doet (de eerste tick zelf valt altijd een cadans-stap ná de trigger,
+        het VENSTER zelf begint wel meteen op de trigger)."""
+        bars = [
+            {"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"},
+            {"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=live_check_window_m)), "label": "Live-check"},
+            {"from": _iso(match_end), "to": _iso(match_end + timedelta(minutes=end_check_window_m)), "label": "Eind-check"},
+        ]
+        if live_recheck_from:
+            bars.append({"from": _iso(live_recheck_from), "to": _iso(match_end), "label": "Live-recheck"})
+        return bars
+
     bars = []
     if scenario == "normal":
         match_start = now + timedelta(minutes=20)
+        match_end = match_start + timedelta(minutes=match_duration_m)
         poule.last_scanned_at = None
         match = _preview_match(match_start)
-        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
+        bars = _phase_bars(match_start, match_end)
         autoscan_ticks = [_tick(e) for e in _poule_matchday_events(poule, team, [match], now, horizon_end, *matchday_args)]
     elif scenario == "never_live":
         # Fase 1 (Live-check) is venster-begrensd (item 1090) - ruim voorbij
         # live_check_window_m gestart, dus het venster is al verstreken
         # zonder bevestiging.
         match_start = now - timedelta(minutes=live_check_window_m + 5)
+        match_end = match_start + timedelta(minutes=match_duration_m)
         poule.last_scanned_at = None
         match = _preview_match(match_start)
-        bars = [{"from": _iso(match_start), "to": _iso(match_start + timedelta(minutes=match_duration_m)), "label": "Wedstrijd"}]
+        bars = _phase_bars(match_start, match_end)
         past.append({
             "planned_at": _iso(match_start + timedelta(minutes=live_check_window_m)),
             "reason": "match_start_check", "note": "venster verstreken - geen live gemeld",
@@ -549,7 +568,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         match_start = now - timedelta(minutes=live_check_cadence_m + 5)
         match = _preview_match(match_start, status="live")
         match_end = match_start + timedelta(minutes=match_duration_m)
-        bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
+        bars = _phase_bars(match_start, match_end, live_recheck_from=match_start + timedelta(minutes=live_check_cadence_m))
         past.append({
             "planned_at": _iso(match_start + timedelta(minutes=live_check_cadence_m)),
             "reason": "match_start_check", "note": "bevestigd live",
@@ -575,7 +594,7 @@ def _preview_match_rows(session: Session, now: datetime, scenario: str) -> List[
         match_start = now - timedelta(minutes=match_duration_m + 5)
         match_end = match_start + timedelta(minutes=match_duration_m)
         match = _preview_match(match_start)
-        bars = [{"from": _iso(match_start), "to": _iso(match_end), "label": "Wedstrijd"}]
+        bars = _phase_bars(match_start, match_end)
         past.append({
             "planned_at": _iso(match_start + timedelta(minutes=live_check_cadence_m)),
             "reason": "match_start_check", "note": "geweest",
