@@ -127,30 +127,32 @@ function SingleView({ row, window: win, now }) {
     <>
       <Axis window={win} />
       <div className="track">
-        {/* item 1090 (Bart, 06-09-2026): 1 rij - fase-vlakken (Live-check/
-            Live-recheck/Eind-check) vol gekleurd ONDER de wedstrijd-balk,
-            die zelf een omlijnd kader is (geen volle vulling) zodat de
-            fase-kleur eronder zichtbaar blijft waar ze overlappen; steekt
-            een fase-venster verder dan de wedstrijd (bv. Eind-check na
-            afloop), dan zie je de fase-kleur gewoon doorlopen. */}
-        {phaseBars.map((b, i) => {
-          const left = pctOf(win, b.from), width = Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5)
-          return (
-            <div key={i} className="phase-band" style={{
-              left: left + '%', width: width + '%',
-              background: PHASE_COLOR[b.label] || 'var(--color-primary)',
-              opacity: b.dimmed ? 0.25 : undefined,
-            }}>{width > 7 ? b.label : ''}</div>
-          )
-        })}
         {matchBars.map((b, i) => (
           <div key={i} className="match-bar" style={{
             left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5) + '%',
-            opacity: b.dimmed ? 0.4 : undefined,
+            background: 'var(--col-match)', opacity: b.dimmed ? 0.3 : undefined,
           }}>{b.label}</div>
         ))}
         <NowLine now={now} window={win} />
       </div>
+      {/* item 1090 (Bart, 06-09-2026: "zet de fases in een balk onder de
+          wedstrijdbalk, en geef ze de juiste kleur"): 1 aparte balk-rij met
+          duidelijke, effen kleursegmenten per fase - "erachter" plakken
+          (vorige versie) was te subtiel om te zien. */}
+      {phaseBars.length > 0 && (
+        <div className="phase-track">
+          {phaseBars.map((b, i) => {
+            const left = pctOf(win, b.from), width = Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5)
+            return (
+              <div key={i} className="phase-band" style={{
+                left: left + '%', width: width + '%',
+                background: PHASE_COLOR[b.label] || 'var(--color-primary)',
+                opacity: b.dimmed ? 0.35 : undefined,
+              }}>{width > 7 ? b.label : ''}</div>
+            )
+          })}
+        </div>
+      )}
       <div className={'ticks-track' + ((row.ticks || []).length > 6 ? ' multi-row' : '')}>
         {!row.ticks?.length && <div className="empty-note">Geen scanmomenten gepland in dit venster.</div>}
         {(row.ticks || []).map((t, i) => <Tick key={i} t={t} window={win} />)}

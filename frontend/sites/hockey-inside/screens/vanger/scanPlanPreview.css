@@ -76,20 +76,17 @@
 .spp .axis span { position: absolute; font-size: 9px; color: var(--color-text-muted); transform: translateX(-50%); }
 
 .spp .track { position: relative; height: 34px; margin-bottom: 2px; }
-/* item 1090 (Bart, 06-09-2026): 1 rij - de fase-vlakken (Live-check/Live-
-   recheck/Eind-check) liggen VOL GEKLEURD in dezelfde baan als de
-   wedstrijd-balk, de wedstrijd-balk zelf is een omlijnd kader (geen volle
-   vulling) zodat de fase-kleur eronder zichtbaar blijft waar ze overlappen;
-   waar een fase-venster verder reikt dan de wedstrijd (bv. Eind-check na
-   afloop) zie je gewoon de fase-kleur doorlopen. */
 .spp .match-bar {
   position: absolute; top: 8px; height: 18px; border-radius: 4px;
-  display: flex; align-items: center; padding: 0 6px; font-size: 9px; font-weight: 700;
-  white-space: nowrap; overflow: hidden; background: transparent;
-  border: 2px solid var(--col-match); color: var(--col-match);
+  display: flex; align-items: center; padding: 0 6px; font-size: 9px; color: white; font-weight: 600;
+  white-space: nowrap; overflow: hidden;
 }
+/* item 1090 (Bart, 06-09-2026: "zet de fases in een balk onder de
+   wedstrijdbalk, en geef ze de juiste kleur"): eigen balk-rij, direct onder
+   de wedstrijd-balk, met duidelijke effen kleursegmenten per fase. */
+.spp .phase-track { position: relative; height: 16px; margin-bottom: 4px; }
 .spp .phase-band {
-  position: absolute; top: 8px; height: 18px; border-radius: 4px;
+  position: absolute; top: 0; height: 16px; border-radius: 3px;
   display: flex; align-items: center; justify-content: center; font-size: 8px; color: white; font-weight: 600;
   white-space: nowrap; overflow: hidden;
 }
