@@ -14,13 +14,11 @@ dat voorkomt de drift tussen backend-logica en frontend-weergave die eerder
 herhaaldelijk tot bugs leidde.
 
 item 1019 (Fase C-cutover, 31-08-2026): rebuild_schedule + promote_due_
-schedule_entries zijn niet langer een parallelle schaduw-verversing naast
-de _step_*-functies in hockey_vanger_scanplan.py - dat zijn nu de ENIGE
-bron voor club_list/new_or_empty/club_scan/landelijke competities/active-
-profielen/manual_weekly. De oude _step_*-functies staan daar nog
-gedefinieerd (SUPERSEDED, tijdelijk bewaard voor rollback/referentie) maar
-worden niet meer aangeroepen vanuit run_scan_plan_pass. add_vanger_cmd's
-bestaande dedup blijft relevant (bv. tegen handmatige/ad-hoc toevoegingen)."""
+schedule_entries zijn de ENIGE bron voor club_list/new_or_empty/club_scan/
+landelijke competities/active-profielen/manual_weekly. De oude _step_*-
+functies die dit voorheen deden (hockey_vanger_scanplan.py) zijn inmiddels
+verwijderd (item 1085) - add_vanger_cmd's bestaande dedup blijft relevant
+(bv. tegen handmatige/ad-hoc toevoegingen)."""
 
 import json
 from datetime import datetime, timedelta
