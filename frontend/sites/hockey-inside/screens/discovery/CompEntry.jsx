@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { pill } from '../ui.jsx'
 import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
 
@@ -8,11 +9,32 @@ import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
 // sinds RFTR-B6 (item 989, fase 6.2) uit DiscoveryTreeContext i.p.v. props.
 
 export default function CompEntry({ comp: c, nested = false, distBadge = null }) {
-  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule } = useDiscoveryTree()
+  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, addSingleCmd, clubMap, onDeletePoule } = useDiscoveryTree()
+  const [dirtyBusy, setDirtyBusy] = useState(false)
+  const [dirtyMsg,  setDirtyMsg]  = useState('')
 
   const cKey    = 'comp_' + c.id
   const cOpen   = expanded.has(cKey)
   const cPoules = capturedPoulesByComp[c.id] || []
+  // item 1105 (Bart, 06-09-2026: "alleen de vuile poules toevoegen aan de
+  // cmd queue"): "vuil" = dezelfde definitie als elders in de scan-scheduler
+  // (_is_healthy in hockey_vanger_scanplan.py) - unknown_start of
+  // overdue_result. busy (een wedstrijd loopt nu) telt bewust NIET mee, dat
+  // is puur informatief, geen "niet up-to-date"-signaal.
+  const dirtyPoules = cPoules.filter(p => p.unknown_start || p.overdue_result)
+
+  async function handleScanDirtyPoules(e) {
+    e.stopPropagation()
+    setDirtyBusy(true); setDirtyMsg('')
+    for (const p of dirtyPoules) {
+      const team = teamsByPoule[p.poule_id]?.[0]
+      if (!team) continue
+      await addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: team.team_id, label: p.name })
+    }
+    setDirtyBusy(false)
+    setDirtyMsg(`✓ ${dirtyPoules.length}`)
+    setTimeout(() => setDirtyMsg(''), 3000)
+  }
   // Poule/competitie-health (Bart, 30-08-2026): "bezig" (een wedstrijd loopt
   // nu, hoeft niet per se bevestigd live te zijn), "onbekende tijd" en
   // "uitslag laat" - puur afgeleid uit match-data (routers/hockey_capture.py
@@ -48,6 +70,22 @@ export default function CompEntry({ comp: c, nested = false, distBadge = null })
         {overdueResultCount > 0 && <span style={pill('partial')} title="Aantal poules met een gespeelde wedstrijd zonder uitslag">⚠ {overdueResultCount} uitslag laat</span>}
         {unknownStartCount > 0 && <span style={pill('muted')} title="Aantal poules met een onbekende starttijd binnen een week (normaal bij seizoensstart)">❔ {unknownStartCount} tijd onbekend</span>}
         {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳ comp', '#b45309')}
+        {/* item 1105: landelijke competities hebben de '⟳ comp'-knop al
+            hierboven - die ververst in 1 call toch alle poules (add_vanger_
+            cmd redirect), dus geen aparte per-poule-bulkknop nodig. */}
+        {!c.hl_comp_id && dirtyPoules.length > 0 && (
+          <button
+            onClick={handleScanDirtyPoules}
+            disabled={dirtyBusy}
+            title={`${dirtyPoules.length} poule(s) met onbekende starttijd of late uitslag in 1x scannen`}
+            style={{
+              fontSize: 10, padding: '1px 7px', borderRadius: 4, fontFamily: 'inherit', flexShrink: 0,
+              border: '1px solid var(--color-warning)', color: 'var(--color-warning)', background: 'none',
+              cursor: dirtyBusy ? 'default' : 'pointer',
+            }}>
+            {dirtyBusy ? '…' : dirtyMsg || `🧹 ${dirtyPoules.length} vuil`}
+          </button>
+        )}
       </div>
 
       {cOpen && (

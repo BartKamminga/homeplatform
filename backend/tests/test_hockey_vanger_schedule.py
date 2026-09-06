@@ -14,7 +14,7 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
 from models.settings import AppSetting
-from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY
+from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY, _manual_scan_weekday
 from services.hockey_vanger_schedule import (
     _escalating_retry_offset_min, build_schedule_events, promote_due_schedule_entries, rebuild_schedule,
     rebuild_schedule_for_target,
@@ -1315,3 +1315,323 @@ def test_match_start_check_stops_once_its_own_window_has_elapsed(session):
     assert not any(r.reason == "match_start_check" for r in rows)
     # Fase 3 blijft wel gewoon bestaan, onafhankelijk van fase 1's uitkomst.
     assert any(r.reason == "match_end_check" for r in rows)
+
+
+# ── item 1106 (vervolg op 1085): testdekking-gaten die de oude _step_*-
+# tests wel hadden maar de nieuwe schedule.py-suite niet - hidden-
+# competition-skip, new_or_empty filter/hl-skip, manual_weekly-varianten,
+# landelijke burst-from-any-poule/season-over, daily-fallback-toggle,
+# reason-tagging bij promotie. "live-check-does-not-refire" uit de oude
+# lijst is bewust NIET geport - fase 1 (item 1090) mag juist wel opnieuw
+# vuren binnen zijn eigen venster, dat is nu een geaccepteerd onderdeel van
+# het fase-model (zie test_match_start_check_stops_once_its_own_window_
+# has_elapsed hierboven), geen bug meer om tegen te bewaken. ─────────────
+
+def test_active_competition_with_a_hidden_link_falls_back_to_manual_weekly_event(session):
+    """item 1022: net als een niet-gepubliceerde publicatie (published=False,
+    zie test_unpublished_active_competition_falls_back_to_manual_weekly_event
+    hierboven) moet ook een individueel onzichtbaar gezette koppeling
+    (HockeyPublicationComp.visible=False) een scan_profile='active'-
+    competitie laten terugvallen op manual_weekly i.p.v. de volle matchday-
+    behandeling."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|hidden-link-schedule", name="Hidden Link Schedule Test",
+        class_name="District", hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublication(id="pub-hidden", name="Hidden Pub", published=True))
+    session.add(HockeyPublicationComp(publication_id="pub-hidden", competition_id=comp.id, scan_profile="active", visible=False))
+    poule = HockeyPoule(poule_id=1001, name="Poule H", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=101, club_external_id="HH11ZZ0", name="Hidden Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=1001,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=1001, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    assert any(e["reason"] == "manual_weekly" and e["target_id"] == 1001 for e in events)
+    matchday_reasons = {"match_start_check", "match_end_check", "retry_match_end", "match_live", "daily_fallback"}
+    assert not any(e["target_id"] == 1001 and e["reason"] in matchday_reasons for e in events)
+
+
+def test_immediate_events_new_or_empty_phase_one_skips_a_team_outside_the_queue_filter(session):
+    """_immediate_events fase 1 (team met recent_poule_id, poule nog niet
+    gecaptured) moet het queue-filter respecteren - default cats=["Junioren"]
+    zonder AppSetting-override, dus een Senioren-team moet hier buiten vallen."""
+    now = datetime.utcnow()
+    session.add(HockeyTeam(
+        team_id=7003, club_external_id="HH11ZZ0", name="Phase1 Filter Team", short_name="H2",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=88888,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert not any(e["reason"] == "new_or_empty" and e["target_id"] == 88888 for e in events)
+
+
+def test_immediate_events_new_or_empty_phase_two_skips_a_team_outside_the_queue_filter(session):
+    """Zelfde filter-check, maar dan fase 2 (poule bestaat al, nog geen
+    wedstrijden) - zie test_immediate_events_includes_an_already_captured_
+    poule_with_no_matches_yet hierboven voor de positieve variant."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|empty-poule-filter-skip", name="Empty Poule Filter Skip", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    poule = HockeyPoule(poule_id=7002, name="Poule Leeg Filter", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=7002, club_external_id="HH11ZZ0", name="Empty Poule Filter Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=7002,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert not any(e["reason"] == "new_or_empty" and e["target_id"] == 7002 for e in events)
+
+
+def test_immediate_events_new_or_empty_phase_two_skips_an_hl_linked_poule(session):
+    """Fase 2 moet, net als fase 1 (test_hl_linked_poule_is_excluded_from_
+    poule_events hierboven test dat voor de matchday-kant), een poule onder
+    een hl_comp_id-gekoppelde competitie overslaan - die wordt al in 1x
+    ververst via de landelijke-lus."""
+    now = datetime.utcnow()
+    _allow_all_categories(session)
+    comp = HockeyCompetition(
+        external_id="test|empty-poule-hl-skip", name="Empty Poule HL Skip", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=44,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    poule = HockeyPoule(poule_id=7001, name="Poule Leeg HL", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=7001, club_external_id="HH11ZZ0", name="Empty Poule HL Team", short_name="JO16-2",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=7001,
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    assert not any(e["reason"] == "new_or_empty" and e["target_id"] == 7001 for e in events)
+
+
+def test_manual_weekly_only_fires_on_the_assigned_weekday(session):
+    """De wekelijkse ronde mag alleen op DIE ENE, deterministisch afgeleide
+    werkdag verschijnen (_manual_scan_weekday), niet op elke dag binnen de
+    horizon."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|manual-weekday-check", name="Manual Weekday Check", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual-wd", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(poule_id=1002, name="Poule MW", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=102, club_external_id="HH11ZZ0", name="Manual WD Team", short_name="M2",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=1002,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=1002, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+    manual_events = [e for e in events if e["reason"] == "manual_weekly" and e["target_id"] == 1002]
+
+    expected_weekday = _manual_scan_weekday(comp.id)
+    assert manual_events
+    assert all(e["planned_at"].weekday() == expected_weekday for e in manual_events)
+
+
+def test_manual_weekly_skips_a_healthy_poule(session):
+    """item 1018: mirror van de gezond-skip - een manual-profile poule waar
+    alles bekend is (geen onbekende starttijd, geen gespeelde-niet-finale
+    wedstrijd) hoeft niet in de wekelijkse ronde."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|manual-healthy-skip", name="Manual Healthy Skip", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual-healthy", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(poule_id=1003, name="Poule MW Healthy", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=103, club_external_id="HH11ZZ0", name="Manual Healthy Team", short_name="M3",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=1003,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=1003, match_id=1, home_team_id=1, away_team_id=2,
+        status="final", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    assert not any(e["reason"] == "manual_weekly" and e["target_id"] == 1003 for e in events)
+
+
+def test_manual_weekly_skips_a_poule_under_an_hl_linked_manual_competition(session):
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|manual-hl-skip", name="Manual HL Skip", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=66,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual-hl", competition_id=comp.id, scan_profile="manual"))
+    poule = HockeyPoule(poule_id=1004, name="Poule MW HL", competition_id=comp.id, season="2026-2027")
+    session.add(poule)
+    session.add(HockeyTeam(
+        team_id=104, club_external_id="HH11ZZ0", name="Manual HL Team", short_name="M4",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=1004,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=1004, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    assert not any(e["reason"] == "manual_weekly" and e["target_id"] == 1004 for e in events)
+
+
+def test_manual_weekly_ignores_a_fully_active_and_visible_competition(session):
+    """Een scan_profile='active'-competitie die wel publiek zichtbaar is
+    krijgt de volle matchday-behandeling, GEEN wekelijkse ronde erbovenop -
+    _scan_profile_comp_ids scheidt deze twee groepen scherp."""
+    now = datetime.utcnow()
+    _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    assert not any(e["reason"] == "manual_weekly" and e["target_id"] == 444 for e in events)
+
+
+def test_landelijke_burst_triggers_from_a_match_in_any_member_poule(session):
+    """Een landelijke competitie wordt behandeld als 1 grote poule over de
+    VERENIGING van alle wedstrijden in al haar poules - een match_end_check-
+    burst moet dus ook triggeren als slechts EEN van de onderliggende poules
+    een (voorbij) wedstrijd heeft, niet alleen als alle poules er een hebben."""
+    now = datetime(2026, 9, 1, 10, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|hl-burst-any-poule", name="Landelijk Burst Any Poule", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=111,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPoule(poule_id=1101, name="Poule A", competition_id=comp.id, season="2026-2027",
+                             last_scanned_at=now - timedelta(hours=2)))
+    session.add(HockeyPouleMatch(
+        poule_id=1101, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(now - timedelta(hours=1)).isoformat(),
+    ))
+    # Poule B: geen wedstrijden vandaag, niets bijzonders - de burst mag
+    # hierdoor niet worden tegengehouden.
+    session.add(HockeyPoule(poule_id=1102, name="Poule B", competition_id=comp.id, season="2026-2027",
+                             last_scanned_at=now - timedelta(hours=2)))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    hl_events = [e for e in events if e["target_type"] == "competition" and e["target_id"] == 111]
+    assert any(e["reason"] in ("match_end_check", "retry_match_end") for e in hl_events)
+
+
+def test_landelijke_daily_fallback_stops_once_all_poules_are_done_for_the_season(session):
+    now = datetime(2026, 9, 1, 10, 0, 0)
+    comp = HockeyCompetition(
+        external_id="test|hl-season-over", name="Landelijk Season Over", class_name="Topklasse",
+        hockey_type="VE", season="2026-2027", hl_comp_id=112,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPoule(poule_id=1103, name="Poule Done", competition_id=comp.id, season="2026-2027",
+                             last_scanned_at=now - timedelta(hours=25)))
+    # Enige bekende wedstrijd is al lang geweest en final -> seizoen voorbij,
+    # geen daily_fallback meer nodig.
+    session.add(HockeyPouleMatch(
+        poule_id=1103, match_id=1, home_team_id=1, away_team_id=2,
+        status="final", round=1, match_date=(now - timedelta(days=10)).isoformat(),
+    ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=14)
+
+    assert not any(
+        e["target_type"] == "competition" and e["target_id"] == 112 and e["reason"] == "daily_fallback"
+        for e in events
+    )
+
+
+def test_daily_fallback_still_fires_for_a_healthy_poule_when_the_toggle_is_off(session):
+    """Tegenhanger van test_daily_fallback_event_is_not_generated_for_a_
+    healthy_poule_by_default: met skip_healthy_daily_fallback expliciet UIT
+    (_disable_skip_healthy_daily_fallback) blijft de dagelijkse fallback ook
+    voor een gezonde (final, geen onbekende starttijd) poule gewoon lopen -
+    het toggle-gedrag zelf, niet alleen de default-stand."""
+    now = datetime.utcnow()
+    _disable_skip_healthy_daily_fallback(session)
+    poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=25))
+    match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
+    match.status = "final"
+    session.add(match)
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=2)
+
+    assert any(e["reason"] == "daily_fallback" and e["target_id"] == 444 for e in events)
+
+
+def test_promote_due_schedule_entries_tags_every_matchday_reason_on_the_vanger_cmd(session):
+    """item 1019: alleen daily_fallback was end-to-end getest (reason op de
+    gepromoveerde VangerCmd, zie test_promote_due_schedule_entries_creates_a_
+    vanger_cmd hierboven) - add_vanger_cmd's reason-doorgifte is generiek,
+    maar verdient expliciete dekking voor de andere veelgebruikte reasons."""
+    now = datetime.utcnow()
+    _allow_all_categories(session)
+    reasons = ["match_end_check", "match_start_check", "match_live", "manual_weekly"]
+    for i, reason in enumerate(reasons):
+        poule_id = 2000 + i
+        session.add(ScanScheduleEntry(
+            target_type="poule", target_id=poule_id, cmd_type="get_poule",
+            params=json.dumps({"poule_id": poule_id, "team_id": 900 + i, "label": f"Test {reason}"}),
+            planned_at=now - timedelta(minutes=1), reason=reason,
+        ))
+    session.commit()
+
+    promoted = promote_due_schedule_entries(session, now, cap=10)
+
+    assert promoted == len(reasons)
+    cmds_by_params = {c.params: c.reason for c in session.exec(select(VangerCmd)).all()}
+    for i, reason in enumerate(reasons):
+        poule_id = 2000 + i
+        params = json.dumps({"poule_id": poule_id, "team_id": 900 + i, "label": f"Test {reason}"})
+        assert cmds_by_params[params] == reason
