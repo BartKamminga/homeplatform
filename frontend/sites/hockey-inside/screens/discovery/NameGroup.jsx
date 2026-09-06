@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { pill } from '../ui.jsx'
 import { classRank } from './discoveryHelpers.js'
 import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
@@ -10,7 +11,28 @@ import CompEntry from './CompEntry.jsx'
 // specifieke props.
 
 export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = false }) {
-  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap, onDeletePoule } = useDiscoveryTree()
+  const { expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, addSingleCmd, clubMap, onDeletePoule } = useDiscoveryTree()
+  // item 1105 (Bart, 06-09-2026, na feedback: "gebruik de icoontjes voor de
+  // bezem, een voor de uitslagen de andere voor de starttijd"): de ⚠/❔-
+  // rollup-badges zelf klikbaar, per kolom + per groep-type een eigen busy/
+  // melding-state (kolommen zijn geen aparte componenten, dus geindexeerd
+  // op `${comp.id}_result`/`${comp.id}_start` i.p.v. losse useState's).
+  const [groupBusy, setGroupBusy] = useState({})
+  const [groupMsg,  setGroupMsg]  = useState({})
+
+  async function handleScanGroup(e, key, poules) {
+    e.stopPropagation()
+    if (!poules.length) return
+    setGroupBusy(prev => ({ ...prev, [key]: true }))
+    for (const p of poules) {
+      const team = teamsByPoule[p.poule_id]?.[0]
+      if (!team) continue
+      await addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: team.team_id, label: p.name })
+    }
+    setGroupBusy(prev => ({ ...prev, [key]: false }))
+    setGroupMsg(prev => ({ ...prev, [key]: `✓ ${poules.length}` }))
+    setTimeout(() => setGroupMsg(prev => { const n = { ...prev }; delete n[key]; return n }), 3000)
+  }
 
   if (nmComps.length === 1) {
     // item 636: in per-competitie view (showDistBadge) niet nested tonen — op zelfde niveau als multi-entry headers
@@ -53,8 +75,12 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
           // 2 losse velden) - ook hier tonen, deze multi-kolom weergave
           // rendert poules zelf i.p.v. via CompEntry.
           const colBusyCount          = cPoules.filter(p => p.busy).length
-          const colOverdueResultCount = cPoules.filter(p => p.overdue_result).length
-          const colUnknownStartCount  = cPoules.filter(p => p.unknown_start).length
+          const colOverdueResultPoules = cPoules.filter(p => p.overdue_result)
+          const colUnknownStartPoules  = cPoules.filter(p => p.unknown_start)
+          const colOverdueResultCount = colOverdueResultPoules.length
+          const colUnknownStartCount  = colUnknownStartPoules.length
+          const resultKey = c.id + '_result'
+          const startKey  = c.id + '_start'
           return (
             <div key={c.id} style={{
               flex: '1 1 220px', minWidth: 210, maxWidth: 340,
@@ -71,8 +97,25 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   {colBusyCount > 0 && <span style={pill('danger')} title="Aantal poules met een wedstrijd die nu loopt">🔴 {colBusyCount}</span>}
-                  {colOverdueResultCount > 0 && <span style={pill('partial')} title="Aantal poules met een gespeelde wedstrijd zonder uitslag">⚠ {colOverdueResultCount}</span>}
-                  {colUnknownStartCount > 0 && <span style={pill('info')} title="Aantal poules met een onbekende starttijd binnen een week (normaal bij seizoensstart)">❔ {colUnknownStartCount}</span>}
+                  {/* item 1105: landelijke competities hebben de '⟳'-knop al
+                      hierrechts - die ververst in 1 call toch alle poules,
+                      dus deze badges blijven daar puur informatief. */}
+                  {colOverdueResultCount > 0 && (
+                    <span
+                      onClick={e => !c.hl_comp_id && handleScanGroup(e, resultKey, colOverdueResultPoules)}
+                      style={{ ...pill('partial'), cursor: !c.hl_comp_id && !groupBusy[resultKey] ? 'pointer' : 'default' }}
+                      title={c.hl_comp_id ? 'Aantal poules met een gespeelde wedstrijd zonder uitslag' : `${colOverdueResultCount} poule(s) met late uitslag scannen`}>
+                      {groupBusy[resultKey] ? '…' : groupMsg[resultKey] || `⚠ ${colOverdueResultCount}`}
+                    </span>
+                  )}
+                  {colUnknownStartCount > 0 && (
+                    <span
+                      onClick={e => !c.hl_comp_id && handleScanGroup(e, startKey, colUnknownStartPoules)}
+                      style={{ ...pill('info'), cursor: !c.hl_comp_id && !groupBusy[startKey] ? 'pointer' : 'default' }}
+                      title={c.hl_comp_id ? 'Aantal poules met een onbekende starttijd binnen een week' : `${colUnknownStartCount} poule(s) met onbekende starttijd scannen`}>
+                      {groupBusy[startKey] ? '…' : groupMsg[startKey] || `❔ ${colUnknownStartCount}`}
+                    </span>
+                  )}
                   {c.hl_comp_id && cmdBtn('get_competition_detail', { comp_id: c.hl_comp_id, label: c.name }, '⟳', 'var(--color-border)')}
                 </div>
               </div>
