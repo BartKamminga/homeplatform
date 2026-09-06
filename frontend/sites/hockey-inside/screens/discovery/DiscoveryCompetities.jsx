@@ -95,7 +95,7 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
   }
 
   const treeContextValue = {
-    expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, clubMap,
+    expanded, toggle, capturedPoulesByComp, teamsByPoule, cmdBtn, addSingleCmd, clubMap,
     onDeletePoule: handleDeletePoule,
   }
 
