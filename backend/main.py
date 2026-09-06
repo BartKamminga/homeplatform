@@ -93,6 +93,7 @@ async def lifespan(_app: FastAPI):
         _asyncio.create_task(_run_download(_job_id))
 
     _asyncio.create_task(_background_refresh_loop())
+    _asyncio.create_task(hockey_vanger_smartscan_control.scan_plan_background_loop())
 
     yield
 
