@@ -121,49 +121,25 @@ function Tick({ t, window: win }) {
 }
 
 function SingleView({ row, window: win, now }) {
-  const matchBars = (row.bars || []).filter(b => b.label === 'Wedstrijd')
-  const phaseBars = (row.bars || []).filter(b => b.label !== 'Wedstrijd')
+  // Alleen nog gebruikt door scope='season' (Seizoensfases) - match/poule/
+  // club gaan via RowsView (item 1090).
   return (
     <>
       <Axis window={win} />
       <div className="track">
-        {matchBars.map((b, i) => (
-          <div key={i} className="match-bar" style={{
+        {(row.bars || []).map((b, i) => (
+          <div key={i} className={b.label === 'Wedstrijd' ? 'match-bar' : 'phase-bar'} style={{
             left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5) + '%',
-            background: 'var(--col-match)', opacity: b.dimmed ? 0.3 : undefined,
+            background: b.label === 'Wedstrijd' ? 'var(--col-match)' : (PHASE_COLOR[b.label] || 'var(--color-primary)'),
+            opacity: b.dimmed ? 0.3 : undefined,
           }}>{b.label}</div>
         ))}
         <NowLine now={now} window={win} />
       </div>
-      {/* item 1090 (Bart, 06-09-2026: "zet de fases in een balk onder de
-          wedstrijdbalk, en geef ze de juiste kleur"): 1 aparte balk-rij met
-          duidelijke, effen kleursegmenten per fase - "erachter" plakken
-          (vorige versie) was te subtiel om te zien. */}
-      {phaseBars.length > 0 && (
-        <div className="phase-track">
-          {phaseBars.map((b, i) => {
-            const left = pctOf(win, b.from), width = Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5)
-            return (
-              <div key={i} className="phase-band" style={{
-                left: left + '%', width: width + '%',
-                background: PHASE_COLOR[b.label] || 'var(--color-primary)',
-                opacity: b.dimmed ? 0.35 : undefined,
-              }}>{width > 7 ? b.label : ''}</div>
-            )
-          })}
-        </div>
-      )}
       <div className={'ticks-track' + ((row.ticks || []).length > 6 ? ' multi-row' : '')}>
         {!row.ticks?.length && <div className="empty-note">Geen scanmomenten gepland in dit venster.</div>}
         {(row.ticks || []).map((t, i) => <Tick key={i} t={t} window={win} />)}
       </div>
-      {phaseBars.length > 0 && (
-        <div className="phase-caption">
-          {phaseBars.filter((b, i, arr) => arr.findIndex(x => x.label === b.label) === i).map(b => (
-            <div key={b.label} className="item"><span className="sw" style={{ background: PHASE_COLOR[b.label] || 'var(--color-primary)' }} />{b.label}</div>
-          ))}
-        </div>
-      )}
     </>
   )
 }
@@ -172,19 +148,42 @@ function RowsView({ rows, window: win, now }) {
   return (
     <>
       <Axis window={win} cls="rows-axis" />
-      {rows.map(row => (
+      {rows.map(row => {
+        // item 1090 (Bart, 06-09-2026: "ik zie geen verschil in kleur"): de
+        // match-scope rijen (Autoscan/Niet-autoscan) gaan door RowsView, niet
+        // SingleView - hier tekende elke balk (Wedstrijd EN de fase-vlakken)
+        // in dezelfde blauwe kleur, dus Live-check/Eind-check waren
+        // onzichtbaar. Fase-balken (label != 'Wedstrijd') krijgen nu hun
+        // eigen kleur in een aparte rij direct onder de wedstrijd-balk.
+        const matchBars = (row.bars || []).filter(b => !b.label || b.label === 'Wedstrijd')
+        const phaseBars = (row.bars || []).filter(b => b.label && b.label !== 'Wedstrijd')
+        return (
         <div key={row.key} className="row-block">
           <div className="row-label">{row.label}</div>
           <div className="row-sub">{row.sub}</div>
           <div className="row-track">
             {row.key === 'club_scan' && <WeekendBands window={win} />}
-            {(row.bars || []).map((b, i) => (
+            {matchBars.map((b, i) => (
               <div key={i} className={'row-bar' + (b.dimmed ? ' dimmed' : '')} style={{
                 left: pctOf(win, b.from) + '%', width: Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1) + '%', background: 'var(--col-match)',
               }} />
             ))}
             <NowLine now={now} window={win} />
           </div>
+          {phaseBars.length > 0 && (
+            <div className="row-phase-track">
+              {phaseBars.map((b, i) => {
+                const left = pctOf(win, b.from), width = Math.max(pctOf(win, b.to) - pctOf(win, b.from), 1.5)
+                return (
+                  <div key={i} className="phase-band" style={{
+                    left: left + '%', width: width + '%',
+                    background: PHASE_COLOR[b.label] || 'var(--color-primary)',
+                    opacity: b.dimmed ? 0.35 : undefined,
+                  }}>{width > 7 ? b.label : ''}</div>
+                )
+              })}
+            </div>
+          )}
           <div className="row-ticks">
             {(row.ticks || []).map((t, i) => (
               <div key={i} className={'row-tick' + (t.ghost ? ' ghost' : '') + (t.skipped ? ' skipped' : '')} style={{ left: pctOf(win, t.planned_at) + '%' }}>
@@ -195,7 +194,8 @@ function RowsView({ rows, window: win, now }) {
           </div>
           {row.note && <div className="row-note">{row.note}</div>}
         </div>
-      ))}
+        )
+      })}
     </>
   )
 }

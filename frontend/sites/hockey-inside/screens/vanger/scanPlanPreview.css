@@ -81,25 +81,20 @@
   display: flex; align-items: center; padding: 0 6px; font-size: 9px; color: white; font-weight: 600;
   white-space: nowrap; overflow: hidden;
 }
-/* item 1090 (Bart, 06-09-2026: "zet de fases in een balk onder de
-   wedstrijdbalk, en geef ze de juiste kleur"): eigen balk-rij, direct onder
-   de wedstrijd-balk, met duidelijke effen kleursegmenten per fase. */
-.spp .phase-track { position: relative; height: 16px; margin-bottom: 4px; }
-.spp .phase-band {
-  position: absolute; top: 0; height: 16px; border-radius: 3px;
-  display: flex; align-items: center; justify-content: center; font-size: 8px; color: white; font-weight: 600;
-  white-space: nowrap; overflow: hidden;
-}
 .spp .phase-bar {
   position: absolute; top: 4px; height: 26px; border-radius: 4px;
   display: flex; align-items: center; justify-content: center; font-size: 9px; color: white; font-weight: 600;
   white-space: nowrap; overflow: hidden; opacity: .85;
 }
-/* item 1090: kleurenlegenda voor de fase-vlakken, ook zichtbaar als een
-   smal venster geen ruimte heeft voor een label erin (zie phase-band). */
-.spp .phase-caption { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 8px; font-size: 9.5px; color: var(--color-text-muted); }
-.spp .phase-caption .item { display: flex; align-items: center; gap: 4px; }
-.spp .phase-caption .sw { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+/* item 1090 (Bart, 06-09-2026: "zet de fases in een balk onder de
+   wedstrijdbalk, en geef ze de juiste kleur"): fase-vlakken (Live-check/
+   Live-recheck/Eind-check) in de match-scope rijen (RowsView) - eigen
+   balk-rij, direct onder de wedstrijd-balk, effen kleur per fase. */
+.spp .phase-band {
+  position: absolute; top: 0; height: 16px; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center; font-size: 8px; color: white; font-weight: 600;
+  white-space: nowrap; overflow: hidden;
+}
 .spp .now-line { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--color-primary); opacity: .8; }
 .spp .now-line::after { content: 'nu'; position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 8px; color: var(--color-primary); font-weight: 700; }
 .spp .weekend-band { position: absolute; top: 0; bottom: 0; background: var(--color-text-light); opacity: .3; }
@@ -154,6 +149,10 @@
 .spp .row-track { position: relative; height: 22px; margin-bottom: 2px; }
 .spp .row-bar { position: absolute; top: 4px; height: 14px; border-radius: 3px; opacity: 1; }
 .spp .row-bar.dimmed { opacity: .3; }
+/* item 1090: fase-vlakken (Live-check/Live-recheck/Eind-check) in de
+   match-scope rijen (Autoscan/Niet-autoscan, via RowsView) - eigen rij
+   direct onder de wedstrijd-balk, elk zijn eigen kleur. */
+.spp .row-phase-track { position: relative; height: 16px; margin-bottom: 4px; }
 .spp .row-ticks { position: relative; height: 40px; }
 .spp .row-tick { position: absolute; top: 0; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); }
 .spp .row-tick .dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--color-surface); }
