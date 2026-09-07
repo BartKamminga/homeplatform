@@ -4,12 +4,12 @@ import { api } from '@core/api.js'
 // Uitgesplitst uit useVangerState.jsx (RFTR-B6, item 989).
 // setQueue: setter uit useDiscoveryData - een gewijzigd filter ververst de
 // poule-queue meteen. item 1089: leeftijd/club/geslacht-dimensies
-// verwijderd, alleen Niveau/Type resteren.
+// verwijderd, alleen Niveau/Type resteren. item 1111: dit is nu de ENIGE
+// queue-filter-editor (verplaatst naar Instellingen in de Scout-tab) - de
+// losse balk onderaan de tab (incl. de nooit-echt-gebruikte
+// showWaiting/disc_show_waiting-toggle) is vervallen.
 export function useQueueFilter(setQueue) {
   const [qFilter, setQFilter] = useState({ categories: ['Junioren'], hockey_types: ['VE'] })
-  const [showWaiting, setShowWaiting] = useState(() => {
-    try { return localStorage.getItem('disc_show_waiting') !== 'false' } catch { return true }
-  })
 
   useEffect(() => {
     api.get('/api/hockey/queue-filter').then(r => setQFilter({
@@ -30,5 +30,5 @@ export function useQueueFilter(setQueue) {
   function toggleNiveau(cat) { const n = qFilter.categories.includes(cat) ? qFilter.categories.filter(c => c !== cat) : [...qFilter.categories, cat]; saveFilter({ ...qFilter, categories: n.length ? n : ['Junioren'] }) }
   function toggleHt(ht)      { const n = qFilter.hockey_types.includes(ht) ? qFilter.hockey_types.filter(h => h !== ht) : [...qFilter.hockey_types, ht]; saveFilter({ ...qFilter, hockey_types: n.length ? n : ['VE'] }) }
 
-  return { qFilter, setQFilter, showWaiting, setShowWaiting, saveFilter, toggleNiveau, toggleHt }
+  return { qFilter, setQFilter, saveFilter, toggleNiveau, toggleHt }
 }

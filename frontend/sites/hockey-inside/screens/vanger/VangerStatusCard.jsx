@@ -116,7 +116,7 @@ function VangerTuning({ settings, onSave }) {
 // preview zijn samengevoegd in ScanPlanPreview.jsx (mockup-layout: settings
 // links, preview rechts, queue-invloed onder) - hier alleen nog de
 // values/set/save doorgeven die VangerTab.jsx via useSettingsForm optilt.
-export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, vangerSettings, onSaveSettings, scanPlanForm }) {
+export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy, onStartScout, scoutBusy, onToggleGhost, onToggleScanPlan, vangerSettings, onSaveSettings, scanPlanForm, queueFilter }) {
   const [settingsOpen, toggleSettingsOpen] = useCollapse(false)
   if (!vangerStatus) return null
   const scout = vangerStatus.scout || {}
@@ -158,7 +158,7 @@ export default function VangerStatusCard({ vangerStatus, onStartGhost, ghostBusy
       {settingsOpen && (
         <>
           <VangerTuning settings={vangerSettings} onSave={onSaveSettings} />
-          <ScanPlanPreview values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save} />
+          <ScanPlanPreview values={scanPlanForm.values} set={scanPlanForm.set} save={scanPlanForm.save} queueFilter={queueFilter} />
         </>
       )}
     </div>
