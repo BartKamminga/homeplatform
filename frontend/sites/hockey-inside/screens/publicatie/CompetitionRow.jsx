@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { card, deleteBtn } from '../styles.js'
-import { Toggle } from '../ui.jsx'
+import { Toggle, pill } from '../ui.jsx'
+import { useQueueCmd } from '../queueShared.jsx'
 
 // ── CompetitionRow ─────────────────────────────────────────────────────────────
 // item 747 (correctie): geen poule-lijst/accordeon meer op deze rij - alleen
@@ -20,6 +21,28 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
   const available   = globalTags
     .filter(t => !assignedIds.has(t.id))
     .sort((a, b) => (a.category_order ?? 0) - (b.category_order ?? 0) || a.name.localeCompare(b.name))
+
+  // item 1105 vervolg (Bart, 07-09-2026): zelfde klikbare ⚠/❔-badges als
+  // Discovery, hier over de poules van DEZE competitie-koppeling - team_id
+  // komt al mee in lnk.poules (backend, hockey_publication.py), geen
+  // aparte teams-fetch nodig.
+  const { addSingleCmd } = useQueueCmd()
+  const [groupBusy, setGroupBusy] = useState({})
+  const [groupMsg,  setGroupMsg]  = useState({})
+  const overdueResultPoules = poules.filter(p => p.overdue_result && p.team_id)
+  const unknownStartPoules  = poules.filter(p => p.unknown_start && p.team_id)
+
+  async function handleScanGroup(e, key, group) {
+    e.stopPropagation()
+    if (!group.length) return
+    setGroupBusy(prev => ({ ...prev, [key]: true }))
+    for (const p of group) {
+      await addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: p.team_id, label: p.name })
+    }
+    setGroupBusy(prev => ({ ...prev, [key]: false }))
+    setGroupMsg(prev => ({ ...prev, [key]: `✓ ${group.length}` }))
+    setTimeout(() => setGroupMsg(prev => { const n = { ...prev }; delete n[key]; return n }), 3000)
+  }
 
   const suggestedTags = globalTags.filter(gt =>
     !assignedIds.has(gt.id) &&
@@ -49,6 +72,22 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
             </span>
           )}
         </div>
+        {overdueResultPoules.length > 0 && (
+          <span
+            onClick={e => handleScanGroup(e, 'result', overdueResultPoules)}
+            style={{ ...pill('partial'), cursor: !groupBusy.result ? 'pointer' : 'default' }}
+            title={`${overdueResultPoules.length} poule(s) met late uitslag scannen`}>
+            {groupBusy.result ? '…' : groupMsg.result || `⚠ ${overdueResultPoules.length}`}
+          </span>
+        )}
+        {unknownStartPoules.length > 0 && (
+          <span
+            onClick={e => handleScanGroup(e, 'start', unknownStartPoules)}
+            style={{ ...pill('muted'), cursor: !groupBusy.start ? 'pointer' : 'default' }}
+            title={`${unknownStartPoules.length} poule(s) met onbekende starttijd scannen`}>
+            {groupBusy.start ? '…' : groupMsg.start || `❔ ${unknownStartPoules.length}`}
+          </span>
+        )}
         <Toggle on={lnk.visible} onChange={e => { e.stopPropagation(); onToggleVisible() }}
           onLabel="● Zichtbaar" offLabel="○ Concept" offVariant="partial"
           title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'} />

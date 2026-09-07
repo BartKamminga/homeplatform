@@ -5,11 +5,16 @@ volledige dekking maar vangen van ongelukjes uit Fase 3's bestand-
 verplaatsingen: elke functie minstens één keer aanroepen tegen een lege of
 minimale DB en de verwachte vorm bevestigen."""
 
+from datetime import datetime, timedelta
+
 from models.hockey import HockeyPublicationComp
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleStanding, HockeyTeam
+from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam
 from models.settings import AppSetting  # noqa: F401 - registreert app_settings-tabel voor create_all
 from routers.hockey_clubs import ClubDetailIn, ClubIn, ClubsBody, TeamIn, list_clubs, list_youth_teams, upsert_club_detail, upsert_clubs
-from routers.hockey_publication import PublicationCreate, TagCreate, create_publication, create_tag, list_publications, list_tags
+from routers.hockey_publication import (
+    PublicationCreate, TagCreate, create_publication, create_tag, list_publication_competitions, list_publications,
+    list_tags,
+)
 from routers.hockey_public import (
     get_competition_matches, get_public_season, list_public_clubs, list_public_publications, search_discovery,
 )
@@ -117,6 +122,63 @@ def test_create_and_list_publication(session):
     listed = list_publications(session=session, _=None)
     assert listed[0]["name"] == "Test Publicatie"
     assert listed[0]["competition_count"] == 0
+
+
+def test_list_publications_includes_dirty_poule_counts(session):
+    """item 1105 vervolg (Bart, 07-09-2026: "ook voor de publicatie tab wil
+    ik die mogelijkheden"): overdue_result_count/unknown_start_count per
+    publicatie, gebatcht over alle gekoppelde competities/poules."""
+    pub = create_publication(PublicationCreate(name="Dirty Count Test"), session=session, user=admin_user_stub())
+    comp = HockeyCompetition(
+        external_id="test|pub-dirty-count", name="Dirty Count Comp", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id=pub.id, competition_id=comp.id, scan_profile="active"))
+    # Vuile poule: wedstrijd gespeeld, geen uitslag (overdue_result).
+    session.add(HockeyPoule(poule_id=90001, name="Dirty Poule", competition_id=comp.id, season="2026-2027"))
+    session.add(HockeyPouleMatch(
+        poule_id=90001, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(datetime.utcnow() - timedelta(hours=4)).isoformat(),
+    ))
+    # Schone poule: geen wedstrijden -> geen health-entry -> niet meegeteld.
+    session.add(HockeyPoule(poule_id=90002, name="Clean Poule", competition_id=comp.id, season="2026-2027"))
+    session.commit()
+
+    listed = list_publications(session=session, _=None)
+    row = next(p for p in listed if p["id"] == pub.id)
+    assert row["overdue_result_count"] == 1
+    assert row["unknown_start_count"] == 0
+
+
+def test_list_publication_competitions_includes_poule_health_and_team_id(session):
+    pub = create_publication(PublicationCreate(name="Detail Health Test"), session=session, user=admin_user_stub())
+    comp = HockeyCompetition(
+        external_id="test|pub-detail-health", name="Detail Health Comp", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id=pub.id, competition_id=comp.id, scan_profile="active"))
+    session.add(HockeyPoule(poule_id=90003, name="Health Poule", competition_id=comp.id, season="2026-2027"))
+    session.add(HockeyTeam(
+        team_id=5001, club_external_id="HH11ZZ0", name="Health Team", short_name="H1",
+        hockey_type="VE", category_group_name="Senioren", recent_poule_id=90003,
+    ))
+    session.add(HockeyPouleMatch(
+        poule_id=90003, match_id=1, home_team_id=1, away_team_id=2,
+        status="scheduled", round=1, match_date=(datetime.utcnow() - timedelta(hours=4)).isoformat(),
+    ))
+    session.commit()
+
+    result = list_publication_competitions(pub.id, session=session, _=None)
+    poule_row = result[0]["poules"][0]
+    assert poule_row["overdue_result"] is True
+    assert poule_row["unknown_start"] is False
+    assert poule_row["team_id"] == 5001
 
 
 def test_create_tag_is_idempotent_by_name(session):
