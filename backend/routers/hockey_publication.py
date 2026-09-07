@@ -369,6 +369,8 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
                 "id": p.id, "name": p.name, "poule_id": p.poule_id, "matches_total": total, "matches_played": played,
                 "busy": h.get("busy", False), "overdue_result": h.get("overdue_result", False),
                 "unknown_start": h.get("unknown_start", False), "team_id": team.team_id if team else None,
+                # item 1096a: scan-actualiteit-badge op CompetitionRow/PublicatieCard.
+                "last_scanned_at": p.last_scanned_at.isoformat() + "Z" if p.last_scanned_at else None,
             })
 
         result.append({

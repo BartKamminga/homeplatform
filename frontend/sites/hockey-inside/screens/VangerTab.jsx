@@ -11,7 +11,6 @@ import { useSettingsForm } from './vanger/hooks/useSettingsForm.jsx'
 import { SCAN_PLAN_KEYS, NOTIFY_KEY } from './vanger/scanPlanFields.js'
 import VangerStatusCard from './vanger/VangerStatusCard.jsx'
 import CmdQueueSection   from './vanger/CmdQueueSection.jsx'
-import QueueFilterBar    from './vanger/QueueFilterBar.jsx'
 import QueueRulesInfo    from './vanger/QueueRulesInfo.jsx'
 import QueuesPanel       from './vanger/QueuesPanel.jsx'
 import NotificationSubscribeToggle from '@components/NotificationSubscribeToggle.jsx'
@@ -63,7 +62,7 @@ export default function VangerTab() {
         onToggleGhost={vangerStatus.toggleGhostEnabled}
         onToggleScanPlan={vangerStatus.toggleScanPlanEnabled}
         vangerSettings={vangerSettings.vangerSettings} onSaveSettings={vangerSettings.saveVangerSettings}
-        scanPlanForm={scanPlanForm}
+        scanPlanForm={scanPlanForm} queueFilter={queueFilter}
       />
 
       {/* item 543: contextbadge when no clubs have been scanned yet */}
@@ -95,13 +94,6 @@ export default function VangerTab() {
       />
 
       <QueueRulesInfo />
-
-      <QueueFilterBar
-        qFilter={queueFilter.qFilter} queue={discovery.queue} clubs={discovery.clubs} showWaiting={queueFilter.showWaiting}
-        onToggleNiveau={queueFilter.toggleNiveau} onToggleGender={queueFilter.toggleGender}
-        onToggleHt={queueFilter.toggleHt} onToggleAge={queueFilter.toggleAge}
-        onSaveFilter={queueFilter.saveFilter} onSetShowWaiting={queueFilter.setShowWaiting}
-      />
 
       {confirmDialog}
     </div>

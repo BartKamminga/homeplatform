@@ -54,7 +54,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
         _smart_scan_set_state(session, "")
         return {"added": 0, "reason": "max_cmds"}
 
-    _, _, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     clubs_scanned_this_session = session.exec(
         select(HockeyClub).where(HockeyClub.last_scanned_at >= started_at)
@@ -80,7 +80,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
         tq = tq.where(col(HockeyTeam.recent_poule_id).is_not(None))
         tq = tq.where(HockeyTeam.no_new_poule_confirmed == False)  # noqa: E712
         tq = tq.where(HockeyTeam.season_pending == False)  # noqa: E712
-        tq = apply_team_filter(tq, cats, hts, genders)
+        tq = apply_team_filter(tq, cats, hts)
         teams = session.exec(tq).all()
 
         seen_pids: set = set()
@@ -109,7 +109,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
             if extra_rows:
                 extra_teams_q = apply_team_filter(
                     select(HockeyTeam).where(col(HockeyTeam.team_id).in_({r.team_id for r in extra_rows})),
-                    cats, hts, genders,
+                    cats, hts,
                 )
                 extra_teams_by_id = {t.team_id: t for t in session.exec(extra_teams_q).all()}
                 for r in extra_rows:
@@ -148,7 +148,7 @@ def _smart_scan_discovery_next(session: Session, started_at: datetime, cmd_count
     cq = select(HockeyTeam).where(
         HockeyTeam.no_new_poule_confirmed == False,  # noqa: E712
     )
-    cq = apply_team_filter(cq, cats, hts, genders)
+    cq = apply_team_filter(cq, cats, hts)
     pending_teams = session.exec(cq).all()
 
     club_counts: Dict[str, int] = {}
@@ -195,10 +195,10 @@ def _smart_scan_try_advance(session: Session):
     # item 727: cmds die door de queue-filter worden overgeslagen tellen niet mee als
     # "nog te doen" - anders blijft smart-scan voor altijd wachten op werk dat nooit
     # opgepakt gaat worden zolang het huidige filter actief staat.
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     pending_matching = sum(
         1 for c in session.exec(select(VangerCmd).where(VangerCmd.status == "pending")).all()
-        if _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), ages, club, cats, hts, genders)
+        if _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), cats, hts)
     )
     if in_progress + pending_matching > 0:
         return

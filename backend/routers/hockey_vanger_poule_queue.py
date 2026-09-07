@@ -9,7 +9,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import HockeyClub, HockeyPoule, HockeyTeam, HockeyTeamPoule
-from services.hockey_vanger_filters import _age_group_of, _age_sort_key, _get_queue_filter, apply_team_filter
+from services.hockey_vanger_filters import _age_sort_key, _get_queue_filter, apply_team_filter
 from services.hockey_vanger_settings import get_target_season
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-vanger"])
@@ -40,9 +40,9 @@ def get_poule_queue(
 ):
     """Generieke poule-queue — filter volledig vanuit AppSettings."""
     target_season = get_target_season(session)
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
-    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
+    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts)
     q = q.order_by(col(HockeyTeam.short_name))
     teams_with = session.exec(q).all()
 
@@ -63,7 +63,7 @@ def get_poule_queue(
     if extra_rows:
         extra_teams_q = apply_team_filter(
             select(HockeyTeam).where(col(HockeyTeam.team_id).in_({r.team_id for r in extra_rows})),
-            cats, hts, genders,
+            cats, hts,
         )
         extra_teams_by_id = {t.team_id: t for t in session.exec(extra_teams_q).all()}
         for r in extra_rows:
@@ -114,7 +114,7 @@ def get_poule_queue(
     n_captured = sum(1 for r in result if r["captured"] and not r["stale"])
     n_stale    = sum(1 for r in result if r["stale"])
 
-    q2 = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_(None)), cats, hts, genders)
+    q2 = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_(None)), cats, hts)
     q2 = q2.order_by(col(HockeyTeam.short_name))
     teams_waiting = session.exec(q2).all()
 
@@ -133,20 +133,6 @@ def get_poule_queue(
         for t in teams_waiting
     ]
 
-    filter_active = bool(ages or club)
-    if filter_active:
-        filtered = [r for r in result if
-            (not ages or _age_group_of(r["short_name"]) in ages) and
-            (not club or r["club_external_id"] == club
-             or club in r.get("clubs_in_poule", []))
-        ]
-        f_cap   = sum(1 for r in filtered if r["captured"] and not r["stale"])
-        f_stale = sum(1 for r in filtered if r["stale"])
-    else:
-        filtered = result
-        f_cap    = n_captured
-        f_stale  = n_stale
-
     return {
         "total":             total,
         "captured":          n_captured,
@@ -155,12 +141,6 @@ def get_poule_queue(
         "waiting":           len(waiting),
         "target_season":     target_season,
         "poules":            result + waiting,
-        "filter_active":     filter_active,
-        "filtered_poules":   filtered if filter_active else [],
-        "filtered_total":    len(filtered),
-        "filtered_captured": f_cap,
-        "filtered_missing":  len(filtered) - f_cap - f_stale,
-        "filtered_stale":    f_stale,
     }
 
 
@@ -171,13 +151,13 @@ def get_poule_queue_next(
 ):
     """Volgende niet-gecaptured poule item (hoog leeftijdsgetal eerst)."""
     target_season = get_target_season(session)
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     captured_ids = {p.poule_id for p in session.exec(
         select(HockeyPoule).where(HockeyPoule.season == target_season)
     ).all()}
 
-    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
+    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts)
     q = q.order_by(col(HockeyTeam.short_name))
     teams = session.exec(q).all()
 
@@ -216,7 +196,7 @@ def get_poule_queue_next(
     if extra_rows:
         extra_teams_q = apply_team_filter(
             select(HockeyTeam).where(col(HockeyTeam.team_id).in_({r.team_id for r in extra_rows})),
-            cats, hts, genders,
+            cats, hts,
         )
         extra_teams_by_id = {t.team_id: t for t in session.exec(extra_teams_q).all()}
         for r in extra_rows:
@@ -234,19 +214,6 @@ def get_poule_queue_next(
                 "hockey_type":      t.hockey_type,
             })
 
-    if ages:
-        candidates = [c for c in candidates if _age_group_of(c["short_name"]) in ages]
-    if club:
-        club_poule_ids = {
-            t.recent_poule_id for t in teams
-            if t.club_external_id == club and t.recent_poule_id
-        }
-        club_poule_ids |= {
-            r.poule_id for r in extra_rows
-            if (t := extra_teams_by_id.get(r.team_id)) and t.club_external_id == club
-        }
-        candidates = [c for c in candidates if c["poule_id"] in club_poule_ids]
-
     if not candidates:
         return {"done": True}
 
@@ -260,10 +227,10 @@ def get_club_scan_queue(
     _=Depends(get_current_user),
 ):
     """Clubs waarvan teams no_new_poule_confirmed of season_pending hebben."""
-    _, _, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     q = apply_team_filter(select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
-    ), cats, hts, genders)
+    ), cats, hts)
     teams = session.exec(q).all()
 
     counts: Dict[str, int] = {}
@@ -297,10 +264,10 @@ def get_club_scan_queue_next(
     _=Depends(get_current_user),
 ):
     """Volgende club om te scannen (meeste pending teams eerst)."""
-    _, _, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     q = apply_team_filter(select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
-    ), cats, hts, genders)
+    ), cats, hts)
     teams = session.exec(q).all()
 
     if not teams:

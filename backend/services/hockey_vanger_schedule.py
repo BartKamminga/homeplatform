@@ -60,18 +60,35 @@ DEFAULT_SCAN_WINDOW_END_HOUR = 18
 PROTECTED_DUE_REASONS = {"daily_fallback", "unknown_start_recheck", "manual_weekly"}
 
 
-def _clamp_to_window(dt: datetime, start_hour: int, end_hour: int) -> datetime:
+def _clamp_to_window(dt: datetime, start_hour: int, end_hour: int, jitter_key: Optional[int] = None) -> datetime:
     """Niet-wedstrijd-gebonden scan-momenten (dagelijkse fallback, onbekende-
     starttijd-recheck, wekelijkse niet-autoscan-ronde) horen binnen een
     ingesteld dagvenster te vallen (default 09:00-18:00) i.p.v. op een
     willekeurig berekend uur (bv. 03:00) - matchday-burst/live-check blijven
-    ONGEMOEID, die tijden zijn al aan een echte wedstrijd gebonden."""
+    ONGEMOEID, die tijden zijn al aan een echte wedstrijd gebonden.
+
+    item 1110 (Bart, 07-09-2026: "nu staat alles op 11u... doe een
+    voorstel... moet lijken op handmatig bekijken van de website"):
+    jitter_key (bv. poule_id/comp_id) geeft elk doel een eigen,
+    deterministische tijd BINNEN het venster i.p.v. altijd exact
+    start_hour:00 (bij een geklemde tick) of het toevallig overgeerfde
+    kloktijdstip van last_scanned_at+interval (bij een tick die toevallig al
+    binnen het venster viel). Zonder jitter_key (unknown_start_recheck,
+    ongewijzigd) blijft het oude gedrag gelden - alleen daily_fallback
+    gebruikt dit (zie _cadence_events' jitter-param)."""
     if dt.hour < start_hour:
-        return dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
-    if dt.hour >= end_hour:
+        result = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    elif dt.hour >= end_hour:
         next_day = dt + timedelta(days=1)
-        return next_day.replace(hour=start_hour, minute=0, second=0, microsecond=0)
-    return dt
+        result = next_day.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    elif jitter_key is None:
+        return dt
+    else:
+        result = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    if jitter_key is not None:
+        window_minutes = max(1, (end_hour - start_hour) * 60)
+        result += timedelta(minutes=jitter_key % window_minutes)
+    return result
 
 
 def _event(target_type: str, target_id: int, cmd_type: str, params: dict, planned_at: datetime, reason: str) -> dict:
@@ -239,6 +256,7 @@ def _cadence_events(
     interval_h: int, reason: str, window_start_h: int, window_end_h: int,
     preempting_at: Optional[List[datetime]] = None, same_day_preempt: bool = False,
     require_match_within_days: Optional[int] = None, matches: Optional[List[HockeyPouleMatch]] = None,
+    jitter: bool = False,
 ) -> List[dict]:
     """Vaste cadans (daily_fallback/unknown_start_recheck) vanaf
     last_scanned_at. preempting_at is een gesorteerde lijst van momenten
@@ -283,9 +301,10 @@ def _cadence_events(
     tick = base + timedelta(hours=interval_h)
     events = []
     seen_display: set = set()
+    jitter_key = target_id if jitter else None
     while tick <= horizon_end:
         moved = False
-        display_date = _clamp_to_window(tick, window_start_h, window_end_h).date()
+        display_date = _clamp_to_window(tick, window_start_h, window_end_h, jitter_key).date()
         while idx < len(preempting) and (
             preempting[idx].date() <= display_date if same_day_preempt else preempting[idx] <= tick
         ):
@@ -293,11 +312,11 @@ def _cadence_events(
             tick = base + timedelta(hours=interval_h)
             idx += 1
             moved = True
-            display_date = _clamp_to_window(tick, window_start_h, window_end_h).date()
+            display_date = _clamp_to_window(tick, window_start_h, window_end_h, jitter_key).date()
         if moved:
             continue
         if tick >= now and (require_match_within_days is None or _next_match_within(matches, tick, require_match_within_days)):
-            display_at = _clamp_to_window(tick, window_start_h, window_end_h)
+            display_at = _clamp_to_window(tick, window_start_h, window_end_h, jitter_key)
             if display_at not in seen_display:
                 seen_display.add(display_at)
                 events.append(_event(target_type, target_id, cmd_type, params, display_at, reason))
@@ -374,7 +393,7 @@ def _poule_daily_fallback_events(
     return _cadence_events(
         "poule", poule.poule_id, "get_poule", params, poule.last_scanned_at, now, horizon_end,
         daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at, same_day_preempt=True,
-        require_match_within_days=DAILY_FALLBACK_LOOKAHEAD_DAYS, matches=matches,
+        require_match_within_days=DAILY_FALLBACK_LOOKAHEAD_DAYS, matches=matches, jitter=True,
     )
 
 
@@ -389,7 +408,7 @@ def _landelijke_daily_fallback_events(
     return _cadence_events(
         "competition", comp.hl_comp_id, "get_competition_detail", params, last_scanned_at, now, horizon_end,
         daily_fallback_h, "daily_fallback", window_start_h, window_end_h, preempting_at, same_day_preempt=True,
-        require_match_within_days=DAILY_FALLBACK_LOOKAHEAD_DAYS, matches=matches,
+        require_match_within_days=DAILY_FALLBACK_LOOKAHEAD_DAYS, matches=matches, jitter=True,
     )
 
 
@@ -463,7 +482,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
     queued_poule_ids = _pending_poule_ids(session)
     captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
     seen: set = set()
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     team_by_poule = _team_by_poule(session)
     # item 1048: 1x vooraf berekend i.p.v. per team opnieuw (was ~8.600 herhaalde
     # is_zaal_active/team-lookups binnen deze loop, zie roadmap-notes 1048).
@@ -480,7 +499,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
         if _is_scoreless_youth(t.short_name):
             continue
         if not _cmd_matches_filter(
-            session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders,
+            session, "get_poule", {"team_id": t.team_id}, cats, hts,
             now=now, zaal_active=zaal_active, team=t,
         ):
             continue
@@ -519,7 +538,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
             if not t:
                 continue
             if not _cmd_matches_filter(
-                session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders,
+                session, "get_poule", {"team_id": t.team_id}, cats, hts,
                 now=now, zaal_active=zaal_active, team=t,
             ):
                 continue
@@ -927,7 +946,7 @@ def promote_due_schedule_entries(
     al-done cmd van dezelfde vroegtijdige promotie - zie item 1031)."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
 
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     query = select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")
     if limit_promoted is None:
@@ -947,7 +966,7 @@ def promote_due_schedule_entries(
             entry.status = "cancelled"
             session.add(entry)
             continue
-        if not _cmd_matches_filter(session, entry.cmd_type, params, ages, club, cats, hts, genders):
+        if not _cmd_matches_filter(session, entry.cmd_type, params, cats, hts):
             entry.status = "cancelled"
             session.add(entry)
             continue

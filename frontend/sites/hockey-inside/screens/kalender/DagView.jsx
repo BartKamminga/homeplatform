@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toDateStr } from './KalenderTab.jsx'
 import { eventsOnDate, phaseColor, phaseForDate } from './seasonPhases.js'
 import { REASON_META } from '../vanger/reasonMeta.js'
+import ScanActivityPanel from '../vanger/ScanActivityPanel.jsx'
 
 // Gevalideerde categorale kleuren (dataviz-skill, validate_palette.js) -
 // blauw=wedstrijd. Los van het thema omdat dit een vaste, betekenisvolle
@@ -474,6 +475,8 @@ export default function DagView({ data, date, onDateChange, onNavigateToDebug })
           </div>
         </div>
       )}
+
+      <ScanActivityPanel dateStr={toDateStr(date)} />
 
       {tooltip && (
         <div style={{

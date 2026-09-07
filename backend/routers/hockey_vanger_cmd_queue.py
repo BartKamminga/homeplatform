@@ -20,7 +20,7 @@ from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from services.hockey_vanger_filters import (
-    _GENDER_PREFIX, _age_group_of, _age_sort_key, _cmd_matches_filter, _get_queue_filter,
+    _age_sort_key, _cmd_matches_filter, _get_queue_filter,
     _is_scoreless_youth, apply_team_filter,
 )
 from services.hockey_vanger_ingest import (
@@ -119,13 +119,13 @@ def get_cmd_queue(
         select(VangerCmd).order_by(col(VangerCmd.id).desc()).limit(200)
     ).all()
 
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     def _row(c):
         params = json.loads(c.params)
         filtered_out = (
             c.status == "pending"
-            and not _cmd_matches_filter(session, c.cmd_type, params, ages, club, cats, hts, genders)
+            and not _cmd_matches_filter(session, c.cmd_type, params, cats, hts)
         )
         return {
             "id":             c.id,
@@ -153,13 +153,13 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
     Retourneert (added, stale_poule_ids) - stale_poule_ids wordt door de
     aanroeper teruggegeven als 'stale_skip'-telling."""
     target_season = get_target_season(session)
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     captured_ids = {p.poule_id for p in session.exec(
         select(HockeyPoule).where(HockeyPoule.season == target_season)
     ).all()}
 
-    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts, genders)
+    q = apply_team_filter(select(HockeyTeam).where(col(HockeyTeam.recent_poule_id).is_not(None)), cats, hts)
     q = q.order_by(col(HockeyTeam.short_name))
     teams = session.exec(q).all()
 
@@ -171,12 +171,9 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
 
     seen: set = set()
     candidates = []
-    club_poule_ids: set = set()
     for t in teams:
         if _is_scoreless_youth(t.short_name):
             continue
-        if club and t.club_external_id == club and t.recent_poule_id:
-            club_poule_ids.add(t.recent_poule_id)
         pid = t.recent_poule_id
         if not pid or pid in captured_ids or pid in seen or pid in skip_ids:
             continue
@@ -192,15 +189,13 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
     if extra_rows:
         extra_teams_q = apply_team_filter(
             select(HockeyTeam).where(col(HockeyTeam.team_id).in_({r.team_id for r in extra_rows})),
-            cats, hts, genders,
+            cats, hts,
         )
         extra_teams_by_id = {t.team_id: t for t in session.exec(extra_teams_q).all()}
         for r in extra_rows:
             t = extra_teams_by_id.get(r.team_id)
             if not t or _is_scoreless_youth(t.short_name):
                 continue
-            if club and t.club_external_id == club:
-                club_poule_ids.add(r.poule_id)
             pid = r.poule_id
             if pid in captured_ids or pid in seen or r.season_pending or r.no_new_poule_confirmed:
                 continue
@@ -212,11 +207,9 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
                 "hockey_type": t.hockey_type,
             })
 
-    if ages:
-        candidates = [c for c in candidates if _age_group_of(c["label"]) in ages]
-    if club:
-        candidates = [c for c in candidates if c["poule_id"] in club_poule_ids]
-
+    # item 1089: leeftijd/club-post-filter verwijderd - de prioriterings-sort
+    # op leeftijdsgroep (oudste eerst) blijft bestaan, dat is queue-VOLGORDE,
+    # geen filter-dimensie.
     candidates.sort(key=lambda x: -_age_sort_key("label")(x))
 
     added = 0
@@ -234,10 +227,10 @@ def _fill_poules(session: Session, now: datetime, pending_params: set) -> tuple:
 def _fill_clubs(session: Session, now: datetime, pending_params: set) -> int:
     """Queuet scan_club-cmds voor clubs met wachtende teams (meeste eerst),
     plus nog nooit gescande clubs (0 wachtende teams)."""
-    _, _, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     q = apply_team_filter(select(HockeyTeam).where(
         (HockeyTeam.no_new_poule_confirmed == True) | (HockeyTeam.season_pending == True)  # noqa: E712
-    ), cats, hts, genders)
+    ), cats, hts)
     teams = session.exec(q).all()
 
     counts_by_club: Dict[str, int] = {}
@@ -279,7 +272,7 @@ def _fill_poules_refresh(session: Session, now: datetime, pending_params: set, m
     cutoff  = now - timedelta(days=max_age_days)
 
     target_season = get_target_season(session)
-    _, _, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     q = (
         select(HockeyPoule)
@@ -305,10 +298,6 @@ def _fill_poules_refresh(session: Session, now: datetime, pending_params: set, m
             continue
         if hts and (not t or t.hockey_type not in hts):
             continue
-        if genders and t:
-            prefixes = {_GENDER_PREFIX[g] for g in genders if g in _GENDER_PREFIX}
-            if not any((t.short_name or "").startswith(p) for p in prefixes):
-                continue
 
         pid_str = str(poule.poule_id)
         if pid_str in pending_params or poule.poule_id in pending_params:
@@ -446,13 +435,13 @@ def get_cmd_queue_next(
     queue-filter - dat is expliciete gebruikersintentie, geen automatische
     scan-plan-beslissing die het filter zou moeten respecteren."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     pending = session.exec(
         select(VangerCmd).where(VangerCmd.status == "pending").order_by(col(VangerCmd.id).asc())
     ).all()
     cmd = None
     for c in pending:
-        if c.reason is None or _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), ages, club, cats, hts, genders):
+        if c.reason is None or _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), cats, hts):
             cmd = c
             break
     if not cmd:

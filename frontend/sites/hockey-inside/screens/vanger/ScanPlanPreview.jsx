@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useScanPlanPreview } from './hooks/useScanPlanPreview.jsx'
 import { useShadowRun } from './hooks/useShadowRun.jsx'
-import { useCandidateQueueFilter } from './hooks/useCandidateQueueFilter.jsx'
 import { REASON_META } from './reasonMeta.js'
 import { SCAN_PLAN_GROUPS, SCOPE_GROUPS, NOTIFY_KEY } from './scanPlanFields.js'
 import './scanPlanPreview.css'
@@ -220,19 +219,15 @@ function Legend({ rows }) {
   )
 }
 
-const CANDIDATE_GENDERS_JUN = ['Jongens', 'Meisjes']
-const CANDIDATE_GENDERS_SEN = ['Heren', 'Dames']
-
 const IMPACT_COLORS = {
   match_start_check: 'var(--col-start-check)', match_end_check: 'var(--col-end-check)', retry_match_end: 'var(--col-retry)', match_live: 'var(--col-live)',
   daily_fallback: 'var(--col-fallback)', unknown_start_recheck: 'var(--col-unknown)', new_or_empty: 'var(--color-text-muted)',
   manual_weekly: 'var(--col-clublist)', club_scan: 'var(--col-clubscan)', club_list: 'var(--col-clublist)',
 }
 
-export default function ScanPlanPreview({ values, set, save }) {
+export default function ScanPlanPreview({ values, set, save, queueFilter }) {
   const [scope, setScope] = useState('match')
   const [scenario, setScenario] = useState('normal')
-  const candidateFilter = useCandidateQueueFilter()
 
   // notify_team_ids beinvloedt geen enkele scheduling-regel - niet
   // meesturen naar de preview-routes, scheelt een zinloze override.
@@ -251,12 +246,7 @@ export default function ScanPlanPreview({ values, set, save }) {
   const currentScenario = hasScenarios ? currentScope.scenarios.find(s => s.id === currentScenarioId) : currentScope
 
   const { rows, now, loading: previewLoading } = useScanPlanPreview(scope, currentScenarioId, settings)
-  const { result: shadow, loading: shadowLoading } = useShadowRun(settings, candidateFilter.filter)
-
-  const genderOptions = [
-    ...(candidateFilter.filter.categories.includes('Junioren') ? CANDIDATE_GENDERS_JUN : []),
-    ...(candidateFilter.filter.categories.includes('Senioren') ? CANDIDATE_GENDERS_SEN : []),
-  ]
+  const { result: shadow, loading: shadowLoading } = useShadowRun(settings, queueFilter.qFilter)
 
   const values_ = values || {}
   // item 1084 (Bart, 4-09-2026): een vast dagvenster (scan-venster-uren)
@@ -314,29 +304,22 @@ export default function ScanPlanPreview({ values, set, save }) {
 
           <div className="group" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
             <div className="group-title">📱 Queue-filter</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: -4, marginBottom: 4 }}>
+              Wijzigingen hier slaan direct op (geen "Opslaan" nodig) - dit is het echte, actieve filter.
+            </div>
             <div className="pill-row">
               <span className="pill-lbl">Niveau</span>
               <div className="pill-group">
                 {['Junioren', 'Senioren'].map(cat => (
-                  <button key={cat} className={'pill' + (candidateFilter.filter.categories.includes(cat) ? ' selected' : '')} onClick={() => candidateFilter.toggleNiveau(cat)}>{cat}</button>
+                  <button key={cat} className={'pill' + (queueFilter.qFilter.categories.includes(cat) ? ' selected' : '')} onClick={() => queueFilter.toggleNiveau(cat)}>{cat}</button>
                 ))}
               </div>
             </div>
-            {genderOptions.length > 0 && (
-              <div className="pill-row">
-                <span className="pill-lbl">Geslacht</span>
-                <div className="pill-group">
-                  {genderOptions.map(g => (
-                    <button key={g} className={'pill' + (candidateFilter.filter.genders.includes(g) ? ' selected' : '')} onClick={() => candidateFilter.toggleGender(g)}>{g}</button>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="pill-row">
               <span className="pill-lbl">Type</span>
               <div className="pill-group">
                 {['VE', 'ZA'].map(ht => (
-                  <button key={ht} className={'pill' + (candidateFilter.filter.hockey_types.includes(ht) ? ' selected' : '')} onClick={() => candidateFilter.toggleHt(ht)}>{ht === 'VE' ? '🏑 Veldhockey' : '🏒 Zaalhockey'}</button>
+                  <button key={ht} className={'pill' + (queueFilter.qFilter.hockey_types.includes(ht) ? ' selected' : '')} onClick={() => queueFilter.toggleHt(ht)}>{ht === 'VE' ? '🏑 Veldhockey' : '🏒 Zaalhockey'}</button>
                 ))}
               </div>
             </div>

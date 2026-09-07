@@ -61,18 +61,3 @@ def test_poule_queue_next_includes_an_extra_poule_as_a_candidate(session):
     # leeftijdsgetal wint, hier zijn poule_id 100/200 gelijk qua team dus
     # controleren we alleen dat 1 van de 2 als kandidaat teruggegeven wordt.
     assert result["poule_id"] in (100, 200)
-
-
-def test_poule_queue_next_club_filter_also_matches_extra_poules(session):
-    session.add(_team(team_id=1, name="A1", short_name="JO16-1", club_external_id="CLUB_A", recent_poule_id=100))
-    session.add(HockeyTeamPoule(team_id=1, poule_id=200, season=TARGET_SEASON))
-    session.commit()
-
-    from services.hockey_vanger_filters import DISC_FILTER_CLUB
-    from models.settings import AppSetting
-    session.add(AppSetting(key=DISC_FILTER_CLUB, value="CLUB_A"))
-    session.commit()
-
-    result = get_poule_queue_next(session=session, _=None)
-    assert result["done"] is False
-    assert result["poule_id"] in (100, 200)

@@ -72,6 +72,13 @@ export const promoteScheduleNow = ({ mode = 'hours', withinHours = 0, limit } = 
   return api.post(`/api/hockey/vanger/schedule/promote-now?${params.toString()}`)
 }
 
+// items 1108/1096/1097/1104: geaggregeerde scan-statistieken, los van de
+// live debug-browse hierboven.
+export const getStatsForDay      = (date, bucketMin) => api.get(`/api/hockey/vanger/stats/day?date=${date}${bucketMin ? `&bucket_min=${bucketMin}` : ''}`)
+export const getStatsSummary     = (days = 30)  => api.get(`/api/hockey/vanger/stats/summary?days=${days}`)
+export const getPouleRanking     = (days = 7, limit = 20) => api.get(`/api/hockey/vanger/stats/poule-ranking?days=${days}&limit=${limit}`)
+export const getCompetitionStats = (competitionId, days = 30) => api.get(`/api/hockey/vanger/stats/competition/${competitionId}?days=${days}`)
+
 // item 1084: scan-plan preview (snel, illustratief, gefabriceerd object) en
 // shadow-run (traag, echte build_schedule_events-aanroep) - beide met
 // candidate settings die de backend nooit commit (candidate_settings_scope).
