@@ -65,6 +65,27 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, reorderable, is
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{t.name}</div>
           {t.season && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.season}</div>}
         </div>
+        {/* item 1105 vervolg (Bart, 07-09-2026: "graag de uitlijning van de
+            publicatie buttons aan de compbuttons, voor/naast de
+            zichtbaarheid"): badges als eigen rij-elementen VOOR de toggle-
+            kolom, net als bij CompetitionRow - niet mee gestapeld in die
+            kolom, dat gaf een verticale stapeling i.p.v. inline uitlijning. */}
+        {t.overdue_result_count > 0 && (
+          <span
+            onClick={e => handleScanDirtyGroup(e, 'overdue_result', 'result')}
+            style={{ ...pill('partial'), cursor: !groupBusy.result ? 'pointer' : 'default', flexShrink: 0 }}
+            title={`${t.overdue_result_count} poule(s) met late uitslag scannen (alle competities in deze publicatie)`}>
+            {groupBusy.result ? '…' : groupMsg.result || `⚠ ${t.overdue_result_count}`}
+          </span>
+        )}
+        {t.unknown_start_count > 0 && (
+          <span
+            onClick={e => handleScanDirtyGroup(e, 'unknown_start', 'start')}
+            style={{ ...pill('muted'), cursor: !groupBusy.start ? 'pointer' : 'default', flexShrink: 0 }}
+            title={`${t.unknown_start_count} poule(s) met onbekende starttijd scannen (alle competities in deze publicatie)`}>
+            {groupBusy.start ? '…' : groupMsg.start || `❔ ${t.unknown_start_count}`}
+          </span>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
           {isAdmin ? (
             <Toggle
@@ -77,22 +98,6 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, reorderable, is
           ) : null}
           {t.competition_count > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.competition_count} comp.</span>
-          )}
-          {t.overdue_result_count > 0 && (
-            <span
-              onClick={e => handleScanDirtyGroup(e, 'overdue_result', 'result')}
-              style={{ ...pill('partial'), cursor: !groupBusy.result ? 'pointer' : 'default' }}
-              title={`${t.overdue_result_count} poule(s) met late uitslag scannen (alle competities in deze publicatie)`}>
-              {groupBusy.result ? '…' : groupMsg.result || `⚠ ${t.overdue_result_count}`}
-            </span>
-          )}
-          {t.unknown_start_count > 0 && (
-            <span
-              onClick={e => handleScanDirtyGroup(e, 'unknown_start', 'start')}
-              style={{ ...pill('muted'), cursor: !groupBusy.start ? 'pointer' : 'default' }}
-              title={`${t.unknown_start_count} poule(s) met onbekende starttijd scannen (alle competities in deze publicatie)`}>
-              {groupBusy.start ? '…' : groupMsg.start || `❔ ${t.unknown_start_count}`}
-            </span>
           )}
         </div>
       </div>
