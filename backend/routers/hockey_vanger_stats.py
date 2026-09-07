@@ -17,7 +17,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import (
-    HockeyClub, HockeyCompetition, HockeyPoule, ScanHistoryDaily, ScanScheduleEntry, VangerCmd,
+    HockeyClub, HockeyCompetition, HockeyPoule, ScanHistoryDaily, ScanScheduleEntry,
 )
 from routers.hockey_vanger_schedule_debug import _iso, _label_for
 
@@ -239,15 +239,9 @@ def competition_stats(
 
     totals_by_date: Dict[str, int] = defaultdict(int)
     scan_count_by_poule: Dict[int, int] = defaultdict(int)
-    vanger_cmd_ids: List[int] = []
-    unlinked_count = 0
     for e in entries:
         totals_by_date[e.planned_at.date().isoformat()] += 1
         scan_count_by_poule[e.target_id] += 1
-        if e.vanger_cmd_id is not None:
-            vanger_cmd_ids.append(e.vanger_cmd_id)
-        else:
-            unlinked_count += 1
 
     daily_totals = []
     cursor = since
@@ -257,22 +251,23 @@ def competition_stats(
         daily_totals.append({"date": d, "total": totals_by_date.get(d, 0)})
         cursor += timedelta(days=1)
 
-    # item 1096b: best-effort - VangerCmd-rijen kunnen door de gebruiker
-    # opgeruimd zijn (DELETE /cmd-queue?scope=...), dan valt de uitkomst
-    # terug op "unknown" i.p.v. een onterecht harde 0.
-    success = failed = 0
-    if vanger_cmd_ids:
-        cmds = session.exec(
-            select(VangerCmd).where(col(VangerCmd.id).in_(vanger_cmd_ids))
-        ).all()
-        found_ids = {c.id for c in cmds}
-        for c in cmds:
-            if c.status == "done":
-                success += 1
-            elif c.status in ("failed", "skipped"):
-                failed += 1
-        unlinked_count += len(vanger_cmd_ids) - len(found_ids)
-    unknown = unlinked_count
+    # item 07-09-2026 ("als de scan-queue is opgeruimd dan mist deze info?"):
+    # ScanHistoryDaily.target_type/target_id (i.p.v. een join naar VangerCmd)
+    # is de PERMANENTE bron - blijft kloppen ook nadat de vanger-queue is
+    # opgeruimd. Historische rijen van vóór deze kolommen bestonden hebben
+    # target_type=NULL en tellen dus niet mee - dat is geen fout, die
+    # koppeling is nooit vastgelegd. "unknown" is wat er volgens het
+    # scanschema wél gescand is maar nog geen success/failed-uitkomst heeft
+    # (bv. nog pending/in_progress, of zo'n oudere rij).
+    history_rows = session.exec(
+        select(ScanHistoryDaily)
+        .where(ScanHistoryDaily.target_type == "poule")
+        .where(col(ScanHistoryDaily.target_id).in_(poule_ids))
+        .where(ScanHistoryDaily.date >= since.date().isoformat())
+    ).all() if poule_ids else []
+    success = sum(r.count for r in history_rows if r.outcome == "success")
+    failed = sum(r.count for r in history_rows if r.outcome == "failed")
+    unknown = max(0, sum(scan_count_by_poule.values()) - success - failed)
 
     planned_poule_ids = {
         e.target_id for e in session.exec(

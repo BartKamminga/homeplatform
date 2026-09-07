@@ -7,7 +7,7 @@ cmd_queue.py en test_hockey_vanger_post_cmd_result.py."""
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import sentry_sdk
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,6 +34,20 @@ from services.hockey_vanger_settings import _get_int_setting, get_target_season
 from services.hockey_vanger_smartscan import _smart_scan_try_advance
 
 logger = logging.getLogger(__name__)
+
+
+def _target_for_cmd(cmd_type: str, params: dict) -> Tuple[Optional[str], Optional[int]]:
+    """Poule/competitie-doel voor een cmd (get_poule/get_competition_detail) -
+    gebruikt voor zowel de scanschema-rebuild-trigger hieronder als de
+    permanente per-doel scan-uitkomst-telling (record_scan_outcome, item
+    07-09-2026: 'als de scan-queue is opgeruimd dan mist deze info?').
+    scan_club/get_clubs/get_competitions hebben geen eenduidig telbaar doel
+    (external_id is geen int, bulk-calls hebben geen 1 target) - (None, None)."""
+    if cmd_type == "get_poule":
+        return "poule", params.get("poule_id")
+    if cmd_type == "get_competition_detail":
+        return "competition", params.get("comp_id")
+    return None, None
 
 
 def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: datetime) -> None:
@@ -68,10 +82,7 @@ def _maybe_rebuild_schedule_after_result(session: Session, cmd: VangerCmd, now: 
         params = json.loads(cmd.params)
     except (ValueError, TypeError):
         return
-    if cmd.cmd_type == "get_poule":
-        target_type, target_id = "poule", params.get("poule_id")
-    else:
-        target_type, target_id = "competition", params.get("comp_id")
+    target_type, target_id = _target_for_cmd(cmd.cmd_type, params)
     if not target_id:
         return
     try:
@@ -540,7 +551,8 @@ def post_cmd_result(
         cmd.error       = body.error
         cmd.finished_at = now
         session.add(cmd)
-        record_scan_outcome(session, cmd.reason, success=False, when=now)
+        _target_type, _target_id = _target_for_cmd(cmd.cmd_type, params)
+        record_scan_outcome(session, cmd.reason, success=False, when=now, target_type=_target_type, target_id=_target_id)
 
         if cmd.cmd_type == "get_poule" and not body.error:
             poule_id = params.get("poule_id")
@@ -619,7 +631,8 @@ def post_cmd_result(
         cmd.finished_at    = now
         cmd.result_summary = json.dumps(summary_data)
         session.add(cmd)
-        record_scan_outcome(session, cmd.reason, success=False, when=now)
+        _target_type, _target_id = _target_for_cmd(cmd.cmd_type, params)
+        record_scan_outcome(session, cmd.reason, success=False, when=now, target_type=_target_type, target_id=_target_id)
         session.commit()
         _maybe_rebuild_schedule_after_result(session, cmd, now)
         return {"ok": False, "status": "failed", "error": str(e)}
@@ -640,7 +653,8 @@ def post_cmd_result(
     cmd.finished_at    = now
     cmd.result_summary = json.dumps(summary_data)
     session.add(cmd)
-    record_scan_outcome(session, cmd.reason, success=True, when=now)
+    _target_type, _target_id = _target_for_cmd(cmd.cmd_type, params)
+    record_scan_outcome(session, cmd.reason, success=True, when=now, target_type=_target_type, target_id=_target_id)
     session.commit()
     _maybe_rebuild_schedule_after_result(session, cmd, now)
     notify_finished_matches(session, newly_finished)

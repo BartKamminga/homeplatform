@@ -5,7 +5,7 @@ vanger_stats.py, items 1108/1096/1097/1104) - los van de live debug-browse
 import json
 from datetime import datetime, timedelta
 
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, ScanHistoryDaily, ScanScheduleEntry, VangerCmd
+from models.hockey_discovery import HockeyCompetition, HockeyPoule, ScanHistoryDaily, ScanScheduleEntry
 from routers.hockey_vanger_stats import competition_stats, poule_ranking, stats_for_day, stats_summary
 
 
@@ -24,11 +24,11 @@ def _setup_poule(session, poule_id, name="Poule A", comp_name="Comp A"):
     return comp, poule
 
 
-def _promoted(target_type, target_id, planned_at, reason, vanger_cmd_id=None):
+def _promoted(target_type, target_id, planned_at, reason):
     return ScanScheduleEntry(
         target_type=target_type, target_id=target_id, cmd_type="get_poule",
         params=json.dumps({"poule_id": target_id}), planned_at=planned_at, reason=reason,
-        status="promoted", vanger_cmd_id=vanger_cmd_id,
+        status="promoted",
     )
 
 
@@ -99,15 +99,19 @@ def test_poule_ranking_sorts_poules_by_scan_count_descending(session):
 
 
 def test_competition_stats_reports_per_poule_counts_and_falls_back_to_unknown_outcome(session):
+    """item 07-09-2026 ('als de scan-queue is opgeruimd dan mist deze
+    info?'): de uitkomst komt niet meer uit een join naar VangerCmd (die
+    kan opgeruimd zijn), maar uit ScanHistoryDaily.target_type/target_id -
+    permanent, ook als de queue leeg is."""
     comp, poule = _setup_poule(session, poule_id=20, name="Poule met scans")
     now = datetime.utcnow()
-    cmd = VangerCmd(cmd_type="get_poule", params="{}", status="done")
-    session.add(cmd)
-    session.commit()
-    session.refresh(cmd)
-    session.add(_promoted("poule", poule.poule_id, now, "daily_fallback", vanger_cmd_id=cmd.id))
-    # Geen vanger_cmd_id (of gewiste rij) -> telt mee als "unknown".
-    session.add(_promoted("poule", poule.poule_id, now, "daily_fallback", vanger_cmd_id=None))
+    session.add(_promoted("poule", poule.poule_id, now, "daily_fallback"))
+    # 2e scan heeft nog geen ScanHistoryDaily-uitkomst (bv. nog pending) -> "unknown".
+    session.add(_promoted("poule", poule.poule_id, now, "daily_fallback"))
+    session.add(ScanHistoryDaily(
+        date=now.date().isoformat(), reason="daily_fallback", outcome="success", count=1,
+        target_type="poule", target_id=poule.poule_id,
+    ))
     session.add(ScanScheduleEntry(
         target_type="poule", target_id=poule.poule_id, cmd_type="get_poule", params="{}",
         planned_at=now + timedelta(days=1), reason="daily_fallback", status="planned",
