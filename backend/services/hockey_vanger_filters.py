@@ -1,5 +1,8 @@
-"""Vanger-queue-filter helpers (leeftijd/geslacht/categorie) - verplaatst uit
-routers/hockey_vanger.py (item 696)."""
+"""Vanger-queue-filter helpers (categorie/hockey_type) - verplaatst uit
+routers/hockey_vanger.py (item 696). Leeftijd/geslacht/club waren ooit ook
+filter-dimensies, verwijderd in item 1089 (alleen Niveau/Type resteren) -
+_age_group_of/_age_sort_key/_AGE_RE_GENERIC blijven bestaan, die dienen nog
+altijd queue-PRIORITERING (oudste leeftijdsgroep eerst), niet het filter."""
 
 import re
 from datetime import datetime
@@ -22,13 +25,8 @@ from services.hockey_vanger_settings import is_zaal_active
 _AGE_RE         = re.compile(r"[JM][OZ](1[1-8])-")
 _AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
 
-DISC_FILTER_AGE    = "disc_queue_age_groups"
-DISC_FILTER_CLUB   = "disc_queue_club"
 DISC_FILTER_CAT    = "disc_queue_category"
 DISC_FILTER_HT     = "disc_queue_hockey_type"
-DISC_FILTER_GENDER = "disc_queue_gender"
-
-_GENDER_PREFIX = {"Jongens": "J", "Meisjes": "M", "Heren": "H", "Dames": "D"}
 
 # Competitienamen ("Gold Cup Dames", "Landelijk Jongens O18") hebben geen
 # teamnaam-prefix zoals "H8"/"JO16-1" om op te matchen (_derive_category in
@@ -52,14 +50,6 @@ def _derive_competition_category(name: str) -> str:
     return ""
 
 
-def _derive_competition_gender(name: str) -> str:
-    n = (name or "").lower()
-    for label, word in _GENDER_PREFIX.items():
-        if label.lower() in n:
-            return label
-    return ""
-
-
 def _is_target_age(short_name: str) -> bool:
     return bool(_AGE_RE.search(short_name or ""))
 
@@ -70,44 +60,22 @@ def _age_group_of(short_name: str) -> str:
 
 
 def _get_queue_filter(session: Session):
-    age_row    = session.get(AppSetting, DISC_FILTER_AGE)
-    club_row   = session.get(AppSetting, DISC_FILTER_CLUB)
-    cat_row    = session.get(AppSetting, DISC_FILTER_CAT)
-    ht_row     = session.get(AppSetting, DISC_FILTER_HT)
-    gender_row = session.get(AppSetting, DISC_FILTER_GENDER)
-    ages    = [a for a in (age_row.value    if age_row    else "").split(",") if a]
-    club    = (club_row.value or None)       if club_row   else None
-    cats    = [c for c in (cat_row.value    if cat_row    else "Junioren").split(",") if c]
-    hts     = [h for h in (ht_row.value     if ht_row     else "VE"      ).split(",") if h]
-    genders = [g for g in (gender_row.value if gender_row else ""         ).split(",") if g]
-    return ages, club, cats, hts, genders
+    cat_row = session.get(AppSetting, DISC_FILTER_CAT)
+    ht_row  = session.get(AppSetting, DISC_FILTER_HT)
+    cats = [c for c in (cat_row.value if cat_row else "Junioren").split(",") if c]
+    hts  = [h for h in (ht_row.value  if ht_row  else "VE"      ).split(",") if h]
+    return cats, hts
 
 
-def _apply_gender_filter(q, genders):
-    """Filter op geslacht via LIKE-prefix op short_name (J/M/H/D)."""
-    if not genders:
-        return q
-    conds = [col(HockeyTeam.short_name).like(f"{_GENDER_PREFIX[g]}%")
-             for g in genders if g in _GENDER_PREFIX]
-    if not conds:
-        return q
-    combined = conds[0]
-    for c in conds[1:]:
-        combined = combined | c
-    return q.where(combined)
-
-
-def apply_team_filter(q, cats, hts, genders):
-    """Combineert het 3-voudige category/hockey_type/gender-queryfilter dat
-    9x herhaald stond over hockey_vanger.py/hockey_vanger_smartscan.py (RFTR-B2,
-    Fase 2e). Leeftijd (ages) en club zitten hier bewust niet in - die worden
-    per aanroeper op de al-uitgevoerde teamlijst toegepast (leeftijd via
-    _age_group_of op short_name, niet als kolomfilter)."""
+def apply_team_filter(q, cats, hts):
+    """Combineert het 2-voudige category/hockey_type-queryfilter dat herhaald
+    stond over hockey_vanger.py/hockey_vanger_smartscan.py (RFTR-B2, Fase 2e).
+    Item 1089: geslacht/leeftijd/club-dimensies zijn hieruit verwijderd."""
     if cats:
         q = q.where(col(HockeyTeam.category_group_name).in_(cats))
     if hts:
         q = q.where(col(HockeyTeam.hockey_type).in_(hts))
-    return _apply_gender_filter(q, genders)
+    return q
 
 
 def _age_sort_key(field=None):
@@ -137,7 +105,7 @@ def _is_scoreless_youth(short_name: str) -> bool:
 
 
 def _cmd_matches_filter(
-    session: Session, cmd_type: str, params: dict, ages, club, cats, hts, genders,
+    session: Session, cmd_type: str, params: dict, cats, hts,
     now: Optional[datetime] = None, zaal_active: Optional[bool] = None, team: Optional[HockeyTeam] = None,
 ) -> bool:
     """Bepaalt of een cmd bij de huidige queue-filter past - gebruikt bij het
@@ -173,14 +141,6 @@ def _cmd_matches_filter(
             return False
         if hts and team.hockey_type not in hts and not (team.hockey_type == "ZA" and zaal_active):
             return False
-        if club and team.club_external_id != club:
-            return False
-        if ages and _age_group_of(team.short_name) not in ages:
-            return False
-        if genders:
-            prefixes = {_GENDER_PREFIX[g] for g in genders if g in _GENDER_PREFIX}
-            if prefixes and not any((team.short_name or "").startswith(p) for p in prefixes):
-                return False
         return True
     if cmd_type == "get_competition_detail":
         # Landelijke competities (bv. "Gold Cup Dames") hebben geen team_id om op
@@ -203,8 +163,6 @@ def _cmd_matches_filter(
         if hts and hockey_type not in hts and not (hockey_type == "ZA" and zaal_active):
             return False
         if cats and _derive_competition_category(label) not in cats:
-            return False
-        if genders and _derive_competition_gender(label) not in genders:
             return False
         return True
     if cmd_type == "scan_club":

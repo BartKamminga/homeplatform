@@ -20,7 +20,7 @@ from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry,
 )
 from routers.hockey_vanger_smartscan_control import _ghost_enabled, _set_ghost_trigger
-from services.hockey_vanger_filters import DISC_FILTER_AGE, DISC_FILTER_CAT, DISC_FILTER_CLUB, DISC_FILTER_GENDER, DISC_FILTER_HT, _cmd_matches_filter, _get_queue_filter
+from services.hockey_vanger_filters import DISC_FILTER_CAT, DISC_FILTER_HT, _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
 from services.hockey_vanger_schedule import (
     DEFAULT_HORIZON_DAYS, _cadence_events, _poule_daily_fallback_events,
@@ -267,7 +267,7 @@ def browse_schedule(
     # bij promotie. Net als bij de Vanger-queue-debug (filtered_out) wordt
     # dit dynamisch herberekend i.p.v. opgeslagen, zodat het altijd de
     # HUIDIGE filterinstelling weerspiegelt.
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     now = datetime.utcnow()
 
     items = []
@@ -275,7 +275,7 @@ def browse_schedule(
         params = params_by_id[entry.id]
         filtered_out = (
             entry.status == "cancelled" and bool(params)
-            and not _cmd_matches_filter(session, entry.cmd_type, params, ages, club, cats, hts, genders)
+            and not _cmd_matches_filter(session, entry.cmd_type, params, cats, hts)
         )
         poule = poule_by_id.get(entry.target_id) if entry.target_type == "poule" else None
         comp_for_poule = comp_by_id.get(poule.competition_id) if poule else None
@@ -817,11 +817,8 @@ def preview_scenario(
 
 class ShadowRunIn(BaseModel):
     settings: Dict[str, str] = {}
-    age_groups: List[str] = []
-    club_external_id: Optional[str] = None
     categories: List[str] = []
     hockey_types: List[str] = []
-    genders: List[str] = []
     horizon_days: int = DEFAULT_HORIZON_DAYS
 
 
@@ -841,15 +838,12 @@ def shadow_run(
     now = datetime.utcnow()
     horizon_days = max(1, min(body.horizon_days, 30))
     overrides = dict(body.settings)
-    overrides[DISC_FILTER_AGE]    = ",".join(body.age_groups)
-    overrides[DISC_FILTER_CLUB]   = body.club_external_id or ""
-    overrides[DISC_FILTER_CAT]    = ",".join(body.categories)
-    overrides[DISC_FILTER_HT]     = ",".join(body.hockey_types)
-    overrides[DISC_FILTER_GENDER] = ",".join(body.genders)
+    overrides[DISC_FILTER_CAT] = ",".join(body.categories)
+    overrides[DISC_FILTER_HT]  = ",".join(body.hockey_types)
 
     with candidate_settings_scope(session, overrides):
         events = build_schedule_events(session, now, horizon_days)
-        ages, club, cats, hts, genders = _get_queue_filter(session)
+        cats, hts = _get_queue_filter(session)
         zaal_active = is_zaal_active(session, now)
 
         parsed = [(e, json.loads(e["params"])) for e in events]
@@ -865,7 +859,7 @@ def shadow_run(
             by_reason[e["reason"]] = by_reason.get(e["reason"], 0) + 1
             team = team_by_id.get(params.get("team_id")) if e["cmd_type"] == "get_poule" else None
             if _cmd_matches_filter(
-                session, e["cmd_type"], params, ages, club, cats, hts, genders, now=now, zaal_active=zaal_active, team=team,
+                session, e["cmd_type"], params, cats, hts, now=now, zaal_active=zaal_active, team=team,
             ):
                 matches_filter += 1
 

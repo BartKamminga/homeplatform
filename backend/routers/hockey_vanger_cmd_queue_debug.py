@@ -53,14 +53,14 @@ def browse_cmd_queue(
     total = len(matching)
     page = matching[offset:offset + limit]
 
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     items = []
     for cmd in page:
         try:
             params = json.loads(cmd.params)
         except (ValueError, TypeError):
             params = {}
-        in_filter = _cmd_matches_filter(session, cmd.cmd_type, params, ages, club, cats, hts, genders)
+        in_filter = _cmd_matches_filter(session, cmd.cmd_type, params, cats, hts)
         items.append({
             "id": cmd.id,
             "cmd_type": cmd.cmd_type,
@@ -83,7 +83,7 @@ def preview_next_cmd(
     """Simuleert GET /vanger/cmd-queue/next (welke cmd Ghost/Scout nu zou
     oppakken) ZONDER de queue te muteren - om de queue-filter te debuggen
     (roadmap-melding: cmds bleven stilzwijgend uren buiten het filter liggen)."""
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     pending = session.exec(
         select(VangerCmd).where(VangerCmd.status == "pending").order_by(col(VangerCmd.id).asc())
     ).all()
@@ -93,7 +93,7 @@ def preview_next_cmd(
             params = json.loads(cmd.params)
         except (ValueError, TypeError):
             continue
-        if _cmd_matches_filter(session, cmd.cmd_type, params, ages, club, cats, hts, genders):
+        if _cmd_matches_filter(session, cmd.cmd_type, params, cats, hts):
             return {
                 "found": True,
                 "skipped_count": skipped,

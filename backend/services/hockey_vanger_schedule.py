@@ -482,7 +482,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
     queued_poule_ids = _pending_poule_ids(session)
     captured_ids = {p.poule_id for p in session.exec(select(HockeyPoule)).all()}
     seen: set = set()
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
     team_by_poule = _team_by_poule(session)
     # item 1048: 1x vooraf berekend i.p.v. per team opnieuw (was ~8.600 herhaalde
     # is_zaal_active/team-lookups binnen deze loop, zie roadmap-notes 1048).
@@ -499,7 +499,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
         if _is_scoreless_youth(t.short_name):
             continue
         if not _cmd_matches_filter(
-            session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders,
+            session, "get_poule", {"team_id": t.team_id}, cats, hts,
             now=now, zaal_active=zaal_active, team=t,
         ):
             continue
@@ -538,7 +538,7 @@ def _immediate_events(session: Session, now: datetime, target_season: str, cap: 
             if not t:
                 continue
             if not _cmd_matches_filter(
-                session, "get_poule", {"team_id": t.team_id}, ages, club, cats, hts, genders,
+                session, "get_poule", {"team_id": t.team_id}, cats, hts,
                 now=now, zaal_active=zaal_active, team=t,
             ):
                 continue
@@ -946,7 +946,7 @@ def promote_due_schedule_entries(
     al-done cmd van dezelfde vroegtijdige promotie - zie item 1031)."""
     from routers.hockey_vanger_cmd_queue import add_vanger_cmd  # lokale import: voorkomt circulaire import op module-niveau
 
-    ages, club, cats, hts, genders = _get_queue_filter(session)
+    cats, hts = _get_queue_filter(session)
 
     query = select(ScanScheduleEntry).where(ScanScheduleEntry.status == "planned")
     if limit_promoted is None:
@@ -966,7 +966,7 @@ def promote_due_schedule_entries(
             entry.status = "cancelled"
             session.add(entry)
             continue
-        if not _cmd_matches_filter(session, entry.cmd_type, params, ages, club, cats, hts, genders):
+        if not _cmd_matches_filter(session, entry.cmd_type, params, cats, hts):
             entry.status = "cancelled"
             session.add(entry)
             continue

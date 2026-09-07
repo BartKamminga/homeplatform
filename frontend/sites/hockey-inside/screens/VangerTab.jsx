@@ -97,10 +97,9 @@ export default function VangerTab() {
       <QueueRulesInfo />
 
       <QueueFilterBar
-        qFilter={queueFilter.qFilter} queue={discovery.queue} clubs={discovery.clubs} showWaiting={queueFilter.showWaiting}
-        onToggleNiveau={queueFilter.toggleNiveau} onToggleGender={queueFilter.toggleGender}
-        onToggleHt={queueFilter.toggleHt} onToggleAge={queueFilter.toggleAge}
-        onSaveFilter={queueFilter.saveFilter} onSetShowWaiting={queueFilter.setShowWaiting}
+        qFilter={queueFilter.qFilter} queue={discovery.queue} showWaiting={queueFilter.showWaiting}
+        onToggleNiveau={queueFilter.toggleNiveau} onToggleHt={queueFilter.toggleHt}
+        onSetShowWaiting={queueFilter.setShowWaiting}
       />
 
       {confirmDialog}

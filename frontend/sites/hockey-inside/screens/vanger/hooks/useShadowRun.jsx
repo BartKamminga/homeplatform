@@ -20,8 +20,7 @@ export function useShadowRun(settings, queueFilter, horizonDays = 14) {
       const filter = JSON.parse(filterKey)
       shadowRunScanPlan({
         settings: JSON.parse(settingsKey),
-        age_groups: filter.age_groups, club_external_id: filter.club_external_id,
-        categories: filter.categories, hockey_types: filter.hockey_types, genders: filter.genders,
+        categories: filter.categories, hockey_types: filter.hockey_types,
         horizon_days: horizonDays,
       })
         .then(d => {

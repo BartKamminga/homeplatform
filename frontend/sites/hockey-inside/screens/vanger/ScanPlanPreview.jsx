@@ -220,9 +220,6 @@ function Legend({ rows }) {
   )
 }
 
-const CANDIDATE_GENDERS_JUN = ['Jongens', 'Meisjes']
-const CANDIDATE_GENDERS_SEN = ['Heren', 'Dames']
-
 const IMPACT_COLORS = {
   match_start_check: 'var(--col-start-check)', match_end_check: 'var(--col-end-check)', retry_match_end: 'var(--col-retry)', match_live: 'var(--col-live)',
   daily_fallback: 'var(--col-fallback)', unknown_start_recheck: 'var(--col-unknown)', new_or_empty: 'var(--color-text-muted)',
@@ -252,11 +249,6 @@ export default function ScanPlanPreview({ values, set, save }) {
 
   const { rows, now, loading: previewLoading } = useScanPlanPreview(scope, currentScenarioId, settings)
   const { result: shadow, loading: shadowLoading } = useShadowRun(settings, candidateFilter.filter)
-
-  const genderOptions = [
-    ...(candidateFilter.filter.categories.includes('Junioren') ? CANDIDATE_GENDERS_JUN : []),
-    ...(candidateFilter.filter.categories.includes('Senioren') ? CANDIDATE_GENDERS_SEN : []),
-  ]
 
   const values_ = values || {}
   // item 1084 (Bart, 4-09-2026): een vast dagvenster (scan-venster-uren)
@@ -322,16 +314,6 @@ export default function ScanPlanPreview({ values, set, save }) {
                 ))}
               </div>
             </div>
-            {genderOptions.length > 0 && (
-              <div className="pill-row">
-                <span className="pill-lbl">Geslacht</span>
-                <div className="pill-group">
-                  {genderOptions.map(g => (
-                    <button key={g} className={'pill' + (candidateFilter.filter.genders.includes(g) ? ' selected' : '')} onClick={() => candidateFilter.toggleGender(g)}>{g}</button>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="pill-row">
               <span className="pill-lbl">Type</span>
               <div className="pill-group">

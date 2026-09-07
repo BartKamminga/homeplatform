@@ -56,9 +56,8 @@ def get_scan_calendar(
     range_to   = _parse_date(to)    or (now + timedelta(days=45))
 
     settings = {key: _get_int_setting(session, key, default) for key, default in SCAN_PLAN_SETTINGS.items()}
-    ages, club, cats, hts, genders = _get_queue_filter(session)
-    queue_filter = {"age_groups": ages, "club_external_id": club, "categories": cats,
-                     "hockey_types": hts, "genders": genders}
+    cats, hts = _get_queue_filter(session)
+    queue_filter = {"categories": cats, "hockey_types": hts}
     notify_team_ids = sorted(get_notify_team_ids(session))
 
     active_comp_ids = set(session.exec(
@@ -117,13 +116,13 @@ def get_scan_calendar(
         if is_landelijke:
             in_filter = _cmd_matches_filter(
                 session, "get_competition_detail", {"comp_id": comp.hl_comp_id, "label": comp.name},
-                ages, club, cats, hts, genders, zaal_active=zaal_active,
+                cats, hts, zaal_active=zaal_active,
             )
         else:
             team = team_by_poule.get(poule.poule_id)
             params = {"team_id": team.team_id} if team else {}
             in_filter = _cmd_matches_filter(
-                session, "get_poule", params, ages, club, cats, hts, genders,
+                session, "get_poule", params, cats, hts,
                 zaal_active=zaal_active, team=team,
             )
         if poule.competition_id in active_comp_ids:
