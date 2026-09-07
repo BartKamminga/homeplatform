@@ -46,6 +46,15 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
   const ngOpen   = expanded.has(ngKey)
   const ngPoules = nmComps.reduce((s, c) => s + (capturedPoulesByComp[c.id]?.length ?? 0), 0)
   const ngTotal  = nmComps.reduce((s, c) => s + (c.poule_count || 0), 0)
+  // item 1105 vervolg (Bart, 07-09-2026: "op het hoogste niveau ook een
+  // mogelijkheid voor het queue van vuile poules"): aggregeert over ALLE
+  // klasse-varianten in deze naamgroep i.p.v. per kolom apart te moeten
+  // uitklappen - landelijke (hl_comp_id) competities blijven uitgesloten,
+  // die hebben al hun eigen volledige-rescan-knop per kolom.
+  const ngOverdueResultPoules = nmComps.filter(c => !c.hl_comp_id).flatMap(c => (capturedPoulesByComp[c.id] || []).filter(p => p.overdue_result))
+  const ngUnknownStartPoules  = nmComps.filter(c => !c.hl_comp_id).flatMap(c => (capturedPoulesByComp[c.id] || []).filter(p => p.unknown_start))
+  const ngResultKey = ngKey + '_result'
+  const ngStartKey  = ngKey + '_start'
   // item 643: kolommen sorteren op class_name hiërarchie (Topklasse < Subtopklasse < 1e klas < 2e klas …)
   const colItems = showDistBadge
     ? nmComps
@@ -61,6 +70,22 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
         <span style={{ flex: 1 }}>{nm}</span>
         <span style={{ fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.6 }}>{nmComps.length}×</span>
         <span style={pill(ngPoules > 0 ? 'partial' : 'muted')}>{ngPoules}/{ngTotal} poules</span>
+        {ngOverdueResultPoules.length > 0 && (
+          <span
+            onClick={e => handleScanGroup(e, ngResultKey, ngOverdueResultPoules)}
+            style={{ ...pill('partial'), cursor: !groupBusy[ngResultKey] ? 'pointer' : 'default' }}
+            title={`${ngOverdueResultPoules.length} poule(s) met late uitslag scannen (alle klasses in deze groep)`}>
+            {groupBusy[ngResultKey] ? '…' : groupMsg[ngResultKey] || `⚠ ${ngOverdueResultPoules.length}`}
+          </span>
+        )}
+        {ngUnknownStartPoules.length > 0 && (
+          <span
+            onClick={e => handleScanGroup(e, ngStartKey, ngUnknownStartPoules)}
+            style={{ ...pill('info'), cursor: !groupBusy[ngStartKey] ? 'pointer' : 'default' }}
+            title={`${ngUnknownStartPoules.length} poule(s) met onbekende starttijd scannen (alle klasses in deze groep)`}>
+            {groupBusy[ngStartKey] ? '…' : groupMsg[ngStartKey] || `❔ ${ngUnknownStartPoules.length}`}
+          </span>
+        )}
       </div>
       {/* Kolommen: één per district/klasse */}
       {ngOpen && <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 10, marginTop: 3 }}>
