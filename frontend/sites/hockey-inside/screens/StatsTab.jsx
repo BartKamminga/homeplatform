@@ -3,6 +3,8 @@ import { api } from '@core/api.js'
 import { statBox, statNum, statLbl } from './ui.jsx'
 import { ghostBtn } from './styles.js'
 import { resolveHockeyType } from './hockeyTypeHelpers.js'
+import ScanEfficiencySection from './vanger/ScanEfficiencySection.jsx'
+import PouleRankingSection from './vanger/PouleRankingSection.jsx'
 
 export default function StatsTab() {
   const [clubs,       setClubs]       = useState([])
@@ -271,6 +273,9 @@ export default function StatsTab() {
           </div>
         </div>
       )}
+
+      <ScanEfficiencySection section={section} />
+      <PouleRankingSection section={section} />
 
     </div>
   )

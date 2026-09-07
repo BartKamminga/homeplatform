@@ -5,8 +5,9 @@ import {
 import { ghostBtn, mutedText } from '../styles.js'
 import { formatMatchDateTime } from '@core/matchDate.js'
 import { useAsyncData } from './hooks/useAsyncData.jsx'
+import ScanStatsTab from './ScanStatsTab.jsx'
 
-const TABS = ['Standen', 'Programma', 'Uitslagen']
+const TABS = ['Standen', 'Programma', 'Uitslagen', 'Scan-stats']
 const emptyState = { padding: 20, ...mutedText(13) }
 
 // ── StandenTab ─────────────────────────────────────────────────────────────────
@@ -192,6 +193,7 @@ export default function CompetitieDetailView({ lnk, onBack }) {
       {tab === 'Standen'   && <StandenTab   lnk={lnk} />}
       {tab === 'Programma' && <ProgrammaTab lnk={lnk} />}
       {tab === 'Uitslagen' && <UitslagenTab lnk={lnk} />}
+      {tab === 'Scan-stats' && <ScanStatsTab lnk={lnk} />}
     </div>
   )
 }

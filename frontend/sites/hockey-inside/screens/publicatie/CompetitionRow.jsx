@@ -11,6 +11,19 @@ import { useQueueCmd } from '../queueShared.jsx'
 // scan_profile-toggle gebruiken nu exact hetzelfde ●/○-patroon + kleuren als
 // de publicatie-published-toggle, i.p.v. eigen icoon/emoji-stijlen.
 
+// item 1096a: "hoe up-to-date zijn de scans van deze competitie" - de
+// OUDSTE last_scanned_at van de poules wint (die bepaalt of je de
+// competitie als geheel kan vertrouwen), niet het gemiddelde.
+function freshnessBadge(poules) {
+  const withScan = poules.filter(p => p.last_scanned_at)
+  if (withScan.length === 0) return null
+  const oldest = withScan.reduce((a, b) => (a.last_scanned_at < b.last_scanned_at ? a : b))
+  const hours = (Date.now() - new Date(oldest.last_scanned_at).getTime()) / 3_600_000
+  const label = hours < 1 ? '<1u' : hours < 48 ? `${Math.round(hours)}u` : `${Math.round(hours / 24)}d`
+  const stale = hours >= 48
+  return { label, stale, missing: withScan.length < poules.length }
+}
+
 export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onRemove, onOpenDetail }) {
   const [showTagPicker, setShowTagPicker] = useState(false)
   const pickerRef   = useRef(null)
@@ -31,6 +44,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
   const [groupMsg,  setGroupMsg]  = useState({})
   const overdueResultPoules = poules.filter(p => p.overdue_result && p.team_id)
   const unknownStartPoules  = poules.filter(p => p.unknown_start && p.team_id)
+  const freshness           = freshnessBadge(poules)
 
   async function handleScanGroup(e, key, group) {
     e.stopPropagation()
@@ -69,6 +83,14 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
           {poules.length > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8 }}>
               {poules.length} poule{poules.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          {freshness && (
+            <span
+              title={freshness.missing ? 'Niet alle poules zijn ooit gescand' : 'Oudste last_scanned_at van de poules in deze competitie'}
+              style={{ fontSize: 10, color: freshness.stale ? 'var(--color-warning)' : 'var(--color-text-muted)', marginLeft: 8 }}
+            >
+              🕓 {freshness.label}{freshness.missing ? '*' : ''}
             </span>
           )}
         </div>
