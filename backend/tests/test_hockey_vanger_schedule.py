@@ -16,9 +16,34 @@ from models.hockey_discovery import (
 from models.settings import AppSetting
 from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY, _manual_scan_weekday
 from services.hockey_vanger_schedule import (
-    _escalating_retry_offset_min, build_schedule_events, promote_due_schedule_entries, rebuild_schedule,
-    rebuild_schedule_for_target,
+    _clamp_to_window, _escalating_retry_offset_min, build_schedule_events, promote_due_schedule_entries,
+    rebuild_schedule, rebuild_schedule_for_target,
 )
+
+
+def test_clamp_to_window_without_jitter_key_keeps_old_behaviour():
+    """Zonder jitter_key (unknown_start_recheck) blijft het gedrag van vóór
+    item 1110 ongewijzigd: een tick al binnen het venster wordt niet
+    aangepast, alleen een tick erbuiten klemt naar start_hour:00."""
+    inside = datetime(2026, 9, 1, 11, 30, 0)
+    assert _clamp_to_window(inside, 9, 18) == inside
+    too_early = datetime(2026, 9, 1, 3, 0, 0)
+    assert _clamp_to_window(too_early, 9, 18) == datetime(2026, 9, 1, 9, 0, 0)
+    too_late = datetime(2026, 9, 1, 22, 0, 0)
+    assert _clamp_to_window(too_late, 9, 18) == datetime(2026, 9, 2, 9, 0, 0)
+
+
+def test_clamp_to_window_with_jitter_key_spreads_within_the_window():
+    """item 1110: met jitter_key wordt ALTIJD start_hour + (jitter_key %
+    vensterbreedte) gebruikt, ook als de rauwe tick toevallig al binnen het
+    venster viel - dat is precies de fix voor de samenklontering."""
+    inside = datetime(2026, 9, 1, 11, 30, 0)
+    result = _clamp_to_window(inside, 9, 18, jitter_key=444)
+    assert result == datetime(2026, 9, 1, 16, 24, 0)  # 09:00 + (444 % 540) min
+    # Andere jitter_key -> ander tijdstip, zelfde dag.
+    result2 = _clamp_to_window(inside, 9, 18, jitter_key=555)
+    assert result2 == datetime(2026, 9, 1, 9, 15, 0)  # 09:00 + (555 % 540) min
+    assert result != result2
 
 
 def test_escalating_retry_offset_min_grows_with_each_retry():
@@ -44,6 +69,15 @@ def test_escalating_retry_offset_min_never_loops_forever_on_a_zero_or_negative_b
     0 of negatief zou zijn (geclamped naar minimaal 1)."""
     assert _escalating_retry_offset_min(100, 0) > 0
     assert _escalating_retry_offset_min(100, -5) > 0
+
+
+def _jittered_minutes(target_id: int, start_hour: int = 9, end_hour: int = 18) -> int:
+    """item 1110: zelfde formule als _clamp_to_window's jitter - minuten
+    sinds middernacht waarop daily_fallback voor dit doel wordt weergegeven,
+    zodat tests niet de exacte offset per poule_id/comp_id hoeven te
+    hardcoderen."""
+    window_minutes = (end_hour - start_hour) * 60
+    return start_hour * 60 + target_id % window_minutes
 
 
 def _disable_skip_healthy_daily_fallback(session):
@@ -270,7 +304,10 @@ def test_match_end_check_and_match_start_check_do_not_duplicate_when_they_land_o
 
 
 def test_daily_fallback_event_is_generated_within_horizon(session):
-    now = datetime.utcnow()
+    # Vast tijdstip i.p.v. utcnow() (was toevallig altijd binnen het venster
+    # afhankelijk van het actuele kloktijdstip) - 08:00, dus last_scanned_at
+    # (2u terug) + 24u komt uit op de volgende dag 08:00, vóór het venster.
+    now = datetime(2026, 9, 1, 8, 0, 0)
     _disable_skip_healthy_daily_fallback(session)
     poule = _setup_active_competition(session, now, last_scanned_at=now - timedelta(hours=2))
     match = session.exec(select(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == poule.poule_id)).first()
@@ -282,8 +319,13 @@ def test_daily_fallback_event_is_generated_within_horizon(session):
 
     fallback = [e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == 444]
     assert fallback
-    expected = poule.last_scanned_at + timedelta(hours=24)
-    assert fallback[0]["planned_at"] == expected
+    # item 1110: de weergegeven tijd is nu gejitterd (deterministisch per
+    # poule_id) i.p.v. het rauwe last_scanned_at+24u kloktijdstip te behouden
+    # - de DATUM blijft wel exact zoals de oude clamp-logica die zou geven
+    # (tick-uur 08 < scan_window_start_hour 9 -> zelfde dag, venster-start).
+    raw_tick = poule.last_scanned_at + timedelta(hours=24)
+    jittered = _jittered_minutes(444)
+    assert fallback[0]["planned_at"] == raw_tick.replace(hour=jittered // 60, minute=jittered % 60, second=0, microsecond=0)
 
 
 def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(session):
@@ -335,7 +377,11 @@ def test_daily_fallback_does_not_land_inside_an_active_matchday_burst_window(ses
     assert burst_ticks
     assert fallback
     assert fallback[0]["planned_at"] > burst_ticks[-1]
-    assert fallback[0]["planned_at"] == burst_ticks[-1] + timedelta(hours=24)
+    # item 1110: de tijd-component is nu gejitterd (poule_id 555), alleen de
+    # DATUM volgt nog uit de oude "24u na de laatste burst-tick"-berekening.
+    raw_tick = burst_ticks[-1] + timedelta(hours=24)
+    jittered = _jittered_minutes(555)
+    assert fallback[0]["planned_at"] == raw_tick.replace(hour=jittered // 60, minute=jittered % 60, second=0, microsecond=0)
 
 
 def test_daily_fallback_is_skipped_when_a_matchday_scan_is_already_planned_that_same_day(session):
@@ -1077,7 +1123,11 @@ def test_daily_fallback_is_clamped_into_the_scan_window(session):
     events = build_schedule_events(session, now, horizon_days=2)
 
     fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
-    assert fallback["planned_at"].hour == 9
+    # item 1110: geklemd naar het venster, maar nu met een per-poule jitter
+    # bovenop start_hour i.p.v. altijd exact start_hour:00.
+    jittered = _jittered_minutes(poule.poule_id)
+    assert fallback["planned_at"].hour == jittered // 60
+    assert fallback["planned_at"].minute == jittered % 60
     assert fallback["planned_at"].date() == now.date()
 
 
@@ -1091,7 +1141,13 @@ def test_daily_fallback_within_the_window_is_unchanged(session):
     events = build_schedule_events(session, now, horizon_days=2)
 
     fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
-    assert fallback["planned_at"].hour == 10
+    # item 1110: "binnen het venster" betekent nu ook - de tick wordt niet
+    # meer als kloktijd overgenomen, ook een tick die toevallig al binnen
+    # het venster viel krijgt de eigen jitter-tijd (dat is precies de fix
+    # voor de samenklontering rond 1 uur).
+    jittered = _jittered_minutes(poule.poule_id)
+    assert fallback["planned_at"].hour == jittered // 60
+    assert fallback["planned_at"].minute == jittered % 60
 
 
 def test_daily_fallback_past_the_window_rolls_to_the_next_day(session):
@@ -1104,7 +1160,9 @@ def test_daily_fallback_past_the_window_rolls_to_the_next_day(session):
     events = build_schedule_events(session, now, horizon_days=3)
 
     fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
-    assert fallback["planned_at"].hour == 9
+    jittered = _jittered_minutes(poule.poule_id)
+    assert fallback["planned_at"].hour == jittered // 60
+    assert fallback["planned_at"].minute == jittered % 60
     assert fallback["planned_at"].date() == (now + timedelta(days=1)).date()
 
 
@@ -1121,7 +1179,9 @@ def test_scan_window_is_configurable(session):
     events = build_schedule_events(session, now, horizon_days=2)
 
     fallback = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == poule.poule_id)
-    assert fallback["planned_at"].hour == 7
+    jittered = _jittered_minutes(poule.poule_id, start_hour=7, end_hour=20)
+    assert fallback["planned_at"].hour == jittered // 60
+    assert fallback["planned_at"].minute == jittered % 60
 
 
 def test_match_end_check_and_match_start_check_are_not_clamped_to_the_scan_window(session):
@@ -1209,15 +1269,18 @@ def test_rebuild_does_not_drop_an_overdue_daily_fallback_tick(session):
 
     rebuild_schedule(session, now0, 14)
     promote_due_schedule_entries(session, now0, cap=100)
-    # De daily_fallback-tick klemt naar 09:00 (scan_window_start_hour) - om
-    # 08:00 nog niet due. Andere reasons (bv. club_list) kunnen wel al
-    # gepromoveerd zijn, dat is niet waar deze test op let.
+    # De daily_fallback-tick klemt naar scan_window_start_hour + een per-
+    # poule jitter (item 1110, i.p.v. altijd exact 09:00) - om 08:00 nog
+    # niet due. Andere reasons (bv. club_list) kunnen wel al gepromoveerd
+    # zijn, dat is niet waar deze test op let.
     cmds_before = session.exec(select(VangerCmd)).all()
     assert not any(c.cmd_type == "get_poule" and c.reason == "daily_fallback" for c in cmds_before)
 
-    # Ghost was niet gestart / de volgende pass viel pas 90 min later - NA het
-    # geplande tijdstip (09:00).
-    now1 = now0 + timedelta(hours=1, minutes=30)
+    # Ghost was niet gestart / de volgende pass viel pas ruim NA het
+    # gejitterde due-moment (i.p.v. een hardcoded 90 min - die viel toevallig
+    # nog vóór de jitter van deze specifieke poule_id).
+    jittered = _jittered_minutes(999101)
+    now1 = now0.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(minutes=jittered + 30)
     rebuild_schedule(session, now1, 14)
     promote_due_schedule_entries(session, now1, cap=100)
 
@@ -1608,6 +1671,45 @@ def test_daily_fallback_still_fires_for_a_healthy_poule_when_the_toggle_is_off(s
     events = build_schedule_events(session, now, horizon_days=2)
 
     assert any(e["reason"] == "daily_fallback" and e["target_id"] == 444 for e in events)
+
+
+def test_daily_fallback_jitter_spreads_different_poules_across_the_window(session):
+    """item 1110 (Bart, 07-09-2026: "nu staat alles op 11u... we kunnen dit
+    beter verdelen... moet lijken op handmatig bekijken van de website"): 2
+    poules met exact dezelfde last_scanned_at (dus dezelfde rauwe tick)
+    krijgen toch een verschillend, stabiel tijdstip binnen het scan-venster
+    - dat voorkomt precies de samenklontering die de aanleiding was."""
+    now = datetime(2026, 9, 1, 8, 0, 0)
+    _disable_skip_healthy_daily_fallback(session)
+    comp = HockeyCompetition(
+        external_id="test|jitter-spread", name="Jitter Spread Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-jitter", competition_id=comp.id, scan_profile="active"))
+    same_last_scanned = now - timedelta(hours=2)
+    for poule_id, team_id in ((7101, 8101), (7102, 8102)):
+        session.add(HockeyPoule(poule_id=poule_id, name=f"Poule {poule_id}", competition_id=comp.id,
+                                 season="2026-2027", last_scanned_at=same_last_scanned))
+        session.add(HockeyTeam(
+            team_id=team_id, club_external_id="HH11ZZ0", name=f"Jitter Team {poule_id}", short_name=f"H{poule_id}",
+            hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule_id,
+        ))
+        session.add(HockeyPouleMatch(
+            poule_id=poule_id, match_id=poule_id, home_team_id=team_id, away_team_id=team_id + 1,
+            status="scheduled", round=1, match_date=(now + timedelta(days=3)).isoformat(),
+        ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=1)
+
+    fallback_a = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == 7101)
+    fallback_b = next(e for e in events if e["reason"] == "daily_fallback" and e["target_id"] == 7102)
+    assert fallback_a["planned_at"] != fallback_b["planned_at"]
+    assert fallback_a["planned_at"].hour * 60 + fallback_a["planned_at"].minute == _jittered_minutes(7101)
+    assert fallback_b["planned_at"].hour * 60 + fallback_b["planned_at"].minute == _jittered_minutes(7102)
 
 
 def test_promote_due_schedule_entries_tags_every_matchday_reason_on_the_vanger_cmd(session):
