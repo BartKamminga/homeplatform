@@ -66,6 +66,8 @@ def test_error_result_records_a_failed_scan_history_entry(session):
     assert row.reason == "daily_fallback"
     assert row.outcome == "failed"
     assert row.count == 1
+    assert row.target_type == "poule"
+    assert row.target_id == 1
 
 
 def test_unknown_cmd_id_raises_404(session):
@@ -215,6 +217,12 @@ def test_get_poule_result_records_a_successful_scan_history_entry(session):
     assert row.reason == "matchday_burst"
     assert row.outcome == "success"
     assert row.count == 1
+    # item 07-09-2026 ('als de scan-queue is opgeruimd dan mist deze info?'):
+    # target_type/target_id moeten hier ECHT gevuld worden, niet alleen op
+    # unit-testniveau (test_hockey_vanger_scan_history.py) maar ook end-to-end
+    # via post_cmd_result.
+    assert row.target_type == "poule"
+    assert row.target_id == 102
 
 
 def test_get_poule_result_does_not_duplicate_archive_for_same_session(session):

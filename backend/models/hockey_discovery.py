@@ -153,17 +153,32 @@ class ScanHistoryDaily(SQLModel, table=True):
     'zowel de vanger-queue als het archief zijn te clearen, dus geen van
     beide is een betrouwbare historie'). Bijgewerkt in post_cmd_result op het
     moment dat een resultaat binnenkomt (succes of mislukt) - dus onafhankelijk
-    van of de onderliggende VangerCmd/DataCapture-rij later wordt gewist."""
+    van of de onderliggende VangerCmd/DataCapture-rij later wordt gewist.
+
+    target_type/target_id (item 07-09-2026, vervolg op 1096b: 'als de scan-
+    queue is opgeruimd dan mist deze info?'): optionele poule/competitie-
+    dimensie, zodat de per-competitie scan-uitkomst (ScanStatsTab.jsx) ook
+    NA het opruimen van de vanger-queue betrouwbaar blijft - voorheen liep
+    die uitkomst via een join naar VangerCmd, dat net zo goed opgeruimd kan
+    worden. club_scan/club_list-reasons hebben geen los te tellen doel
+    (external_id is geen int, en get_clubs/get_competitions zijn bulk-calls
+    zonder 1 target) - die blijven NULL, tellen alleen mee in de
+    systeembrede /stats/summary-som per reason."""
     __tablename__ = "scan_history_daily"
     __table_args__ = (
-        UniqueConstraint("date", "reason", "outcome", name="ux_scan_history_daily_date_reason_outcome"),
+        UniqueConstraint(
+            "date", "reason", "outcome", "target_type", "target_id",
+            name="ux_scan_history_daily_date_reason_outcome_target",
+        ),
     )
 
-    id:      int = Field(default=None, primary_key=True)
-    date:    str = Field(index=True)  # "YYYY-MM-DD", UTC
-    reason:  str = Field(index=True)  # zelfde waarden als VangerCmd.reason, "onbekend" als er geen reason bekend is
-    outcome: str = Field(index=True)  # success | failed
-    count:   int = Field(default=0)
+    id:          int            = Field(default=None, primary_key=True)
+    date:        str            = Field(index=True)  # "YYYY-MM-DD", UTC
+    reason:      str            = Field(index=True)  # zelfde waarden als VangerCmd.reason, "onbekend" als er geen reason bekend is
+    outcome:     str            = Field(index=True)  # success | failed
+    count:       int            = Field(default=0)
+    target_type: Optional[str]  = Field(default=None, index=True)  # poule | competition | None
+    target_id:   Optional[int]  = Field(default=None, index=True)  # poule_id / hl_comp_id, afhankelijk van target_type
 
 
 class ScanScheduleEntry(SQLModel, table=True):

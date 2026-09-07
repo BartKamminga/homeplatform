@@ -635,6 +635,44 @@ def test_manual_weekly_event_is_generated_on_the_assigned_weekday(session):
     assert any(e["reason"] == "manual_weekly" and e["target_id"] == 999 for e in events)
 
 
+def test_manual_weekly_jitter_spreads_different_poules_across_the_window(session):
+    """item (Bart, 07-09-2026, vervolg op 1110: "manual_weekly ook
+    verspreiden over de dag, niet allemaal om 11uur"): 2 poules onder
+    dezelfde manual-competitie (dus dezelfde toegewezen weekdag) krijgen
+    toch een verschillend, stabiel tijdstip binnen het scan-venster -
+    zelfde jitter-formule als daily_fallback (per poule_id), niet per
+    competitie (die zou voor alle poules identiek zijn)."""
+    now = datetime.utcnow()
+    comp = HockeyCompetition(
+        external_id="test|manual-jitter-spread", name="Manual Jitter Spread Test", class_name="District",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    session.add(HockeyPublicationComp(publication_id="pub-manual-jitter", competition_id=comp.id, scan_profile="manual"))
+    for poule_id, team_id in ((7201, 8201), (7202, 8202)):
+        session.add(HockeyPoule(poule_id=poule_id, name=f"Poule {poule_id}", competition_id=comp.id, season="2026-2027"))
+        session.add(HockeyTeam(
+            team_id=team_id, club_external_id="HH11ZZ0", name=f"Manual Jitter Team {poule_id}", short_name=f"H{poule_id}",
+            hockey_type="VE", category_group_name="Senioren", recent_poule_id=poule_id,
+        ))
+        # item 1018: "ongezond" (overdue_result) - anders wordt dit event geskipt.
+        session.add(HockeyPouleMatch(
+            poule_id=poule_id, match_id=poule_id, home_team_id=team_id, away_team_id=team_id + 1,
+            status="scheduled", round=1, match_date=(now - timedelta(hours=4)).isoformat(),
+        ))
+    session.commit()
+
+    events = build_schedule_events(session, now, horizon_days=7)
+
+    manual_a = next(e for e in events if e["reason"] == "manual_weekly" and e["target_id"] == 7201)
+    manual_b = next(e for e in events if e["reason"] == "manual_weekly" and e["target_id"] == 7202)
+    assert manual_a["planned_at"] != manual_b["planned_at"]
+    assert manual_a["planned_at"].hour * 60 + manual_a["planned_at"].minute == _jittered_minutes(7201)
+    assert manual_b["planned_at"].hour * 60 + manual_b["planned_at"].minute == _jittered_minutes(7202)
+
+
 def test_unpublished_active_competition_falls_back_to_manual_weekly_event(session):
     """item 1022: een scan_profile='active'-competitie die niet publiek
     zichtbaar is (HockeyPublication.published=False) krijgt in de preview
@@ -1226,7 +1264,8 @@ def test_manual_weekly_uses_the_configurable_window_start_hour(session):
     events = build_schedule_events(session, now, horizon_days=7)
 
     manual = next(e for e in events if e["reason"] == "manual_weekly" and e["target_id"] == 999)
-    assert manual["planned_at"].hour == 11
+    jittered = _jittered_minutes(999, start_hour=11)
+    assert manual["planned_at"].hour * 60 + manual["planned_at"].minute == jittered
 
 
 def test_rebuild_does_not_drop_an_overdue_daily_fallback_tick(session):

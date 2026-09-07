@@ -49,9 +49,11 @@ export default function ScanStatsTab({ lnk }) {
       {outcomeTotal > 0 && (
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 6 }}>UITKOMST</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
-            Op basis van nog niet opgeruimde scan-queue-rijen — kan onvolledig zijn.
-          </div>
+          {unknown > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+              "?" = nog geen success/failed-uitkomst bekend (bv. nog pending, of van vóór 07-09-2026 - toen begon de permanente per-poule-telling).
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8, border: '1px solid var(--color-border)', color: 'var(--color-success)' }}>✓ {success}</span>
             <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8, border: '1px solid var(--color-border)', color: 'var(--color-danger)' }}>✗ {failed}</span>
