@@ -413,7 +413,8 @@ def _landelijke_daily_fallback_events(
 
 
 def _manual_weekly_events(
-    session: Session, now: datetime, horizon_end: datetime, team_by_poule: Dict[int, HockeyTeam], window_start_h: int,
+    session: Session, now: datetime, horizon_end: datetime, team_by_poule: Dict[int, HockeyTeam],
+    window_start_h: int, window_end_h: int,
 ) -> List[dict]:
     # item 1022: bevat ook 'active'-competities zonder publieke zichtbaarheid
     # (concept-publicatie of onzichtbare koppeling) - zie _scan_profile_comp_ids.
@@ -452,7 +453,11 @@ def _manual_weekly_events(
                 if not team:
                     continue
                 params = {"poule_id": poule.poule_id, "team_id": team.team_id, "label": team.name + " — " + (poule.name or "")}
-                events.append(_event("poule", poule.poule_id, "get_poule", params, day, "manual_weekly"))
+                # item: alle manual_weekly-poules kwamen op exact hetzelfde
+                # klokmoment uit (window_start_h:00) - zelfde deterministische
+                # per-poule jitter als daily_fallback (item 1110).
+                planned_at = _clamp_to_window(day, window_start_h, window_end_h, poule.poule_id)
+                events.append(_event("poule", poule.poule_id, "get_poule", params, planned_at, "manual_weekly"))
         day += timedelta(days=1)
     return events
 
@@ -704,7 +709,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
         )
         events += matchday_evts + unknown_evts + fallback_evts
 
-    events += _manual_weekly_events(session, now, horizon_end, team_by_poule, window_start_h)
+    events += _manual_weekly_events(session, now, horizon_end, team_by_poule, window_start_h, window_end_h)
     events += _immediate_events(session, now, get_target_season(session), STEP_MAX_CMDS)
     return events
 

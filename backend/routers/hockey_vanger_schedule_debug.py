@@ -23,7 +23,7 @@ from routers.hockey_vanger_smartscan_control import _ghost_enabled, _set_ghost_t
 from services.hockey_vanger_filters import DISC_FILTER_CAT, DISC_FILTER_HT, _cmd_matches_filter, _get_queue_filter
 from services.hockey_vanger_scanplan import _manual_scan_weekday, _match_dt_info
 from services.hockey_vanger_schedule import (
-    DEFAULT_HORIZON_DAYS, _cadence_events, _poule_daily_fallback_events,
+    DEFAULT_HORIZON_DAYS, _cadence_events, _clamp_to_window, _poule_daily_fallback_events,
     _poule_matchday_events, _poule_unknown_start_events, build_schedule_events, promote_due_schedule_entries,
     rebuild_schedule,
 )
@@ -449,11 +449,15 @@ def _tick(e: dict, ghost: bool = False, note: Optional[str] = None) -> dict:
     return out
 
 
-def _next_manual_weekly_tick(now: datetime, horizon_end: datetime, comp_id: int, window_start_h: int) -> Optional[datetime]:
+def _next_manual_weekly_tick(
+    now: datetime, horizon_end: datetime, comp_id: int, window_start_h: int, window_end_h: int,
+) -> Optional[datetime]:
     """Reproduceert de dagselectie uit _manual_weekly_events (hockey_vanger_
     schedule.py) voor 1 gefabriceerde competitie, i.p.v. alle manual-
     competities in de sessie te doorlopen - puur voor de illustratieve
-    preview, zelfde formule (_manual_scan_weekday)."""
+    preview, zelfde formule (_manual_scan_weekday). item: zelfde per-doel
+    jitter als de echte functie (daar op poule_id, hier bij gebrek aan een
+    echte poule op comp_id - illustreert wel dezelfde spreiding)."""
     target_wd = _manual_scan_weekday(comp_id)
     day = now.replace(hour=window_start_h, minute=0, second=0, microsecond=0)
     if day < now:
@@ -462,7 +466,9 @@ def _next_manual_weekly_tick(now: datetime, horizon_end: datetime, comp_id: int,
         day += timedelta(days=1)
         if day > horizon_end:
             return None
-    return day if day <= horizon_end else None
+    if day > horizon_end:
+        return None
+    return _clamp_to_window(day, window_start_h, window_end_h, comp_id)
 
 
 # item 1084/1090 (Bart, 4-09-2026/6-09-2026: "dit moet wel precies zijn"):
@@ -771,10 +777,11 @@ def _preview_season_rows(session: Session, now: datetime, scenario: str) -> List
         return [{"key": "phases", "label": "Seizoensfases", "sub": target_season, "ticks": [], "past": [], "bars": bars, "note": ""}]
     if scenario == "manual_weekly":
         window_start_h = _get_int_setting(session, "scan_window_start_hour", 9)
+        window_end_h   = _get_int_setting(session, "scan_window_end_hour", 18)
         horizon_end = now + timedelta(days=21)
         ticks = []
         for i in range(5):
-            at = _next_manual_weekly_tick(now, horizon_end, PREVIEW_COMP_ID - 100 - i, window_start_h)
+            at = _next_manual_weekly_tick(now, horizon_end, PREVIEW_COMP_ID - 100 - i, window_start_h, window_end_h)
             if at:
                 ticks.append({"planned_at": _iso(at), "reason": "manual_weekly", "ghost": False, "note": f"competitie {i + 1}"})
         return [{
