@@ -99,22 +99,6 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, reorderable, is
           {t.competition_count > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.competition_count} comp.</span>
           )}
-          {t.overdue_result_count > 0 && (
-            <span
-              onClick={e => handleScanDirtyGroup(e, 'overdue_result', 'result')}
-              style={{ ...pill('partial'), cursor: !groupBusy.result ? 'pointer' : 'default' }}
-              title={`${t.overdue_result_count} poule(s) met late uitslag scannen (alle competities in deze publicatie)`}>
-              {groupBusy.result ? '…' : groupMsg.result || `⚠ ${t.overdue_result_count}`}
-            </span>
-          )}
-          {t.unknown_start_count > 0 && (
-            <span
-              onClick={e => handleScanDirtyGroup(e, 'unknown_start', 'start')}
-              style={{ ...pill('muted'), cursor: !groupBusy.start ? 'pointer' : 'default' }}
-              title={`${t.unknown_start_count} poule(s) met onbekende starttijd scannen (alle competities in deze publicatie)`}>
-              {groupBusy.start ? '…' : groupMsg.start || `❔ ${t.unknown_start_count}`}
-            </span>
-          )}
         </div>
       </div>
     </div>
