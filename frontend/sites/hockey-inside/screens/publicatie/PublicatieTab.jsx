@@ -1,17 +1,44 @@
 import { useState, useEffect } from 'react'
 import {
   getPublications, createPublication, updatePublication,
-  reorderPublications, deletePublication, getMe,
+  reorderPublications, deletePublication, getMe, getPublicationComps,
   KNOWN_SEASONS,
 } from '../../api.js'
 import CompetitiesTab from './CompetitiesTab.jsx'
 import { ghostBtn, primaryBtn, inputStyle } from '../styles.js'
-import { Toggle } from '../ui.jsx'
+import { Toggle, pill } from '../ui.jsx'
+import { useQueueCmd } from '../queueShared.jsx'
 import CreateNamedSeasonModal from '@components/CreateNamedSeasonModal.jsx'
 
 // ── Publicatie kaart ──────────────────────────────────────────────────────────
 
 function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, reorderable, isFirst, isLast, onMoveUp, onMoveDown }) {
+  const { addSingleCmd } = useQueueCmd()
+  const [groupBusy, setGroupBusy] = useState({})
+  const [groupMsg,  setGroupMsg]  = useState({})
+
+  // item 1105 vervolg (Bart, 07-09-2026: "ook voor de publicatie tab wil ik
+  // die mogelijkheden"): zelfde klikbare ⚠/❔-badges als Discovery, maar dan
+  // geaggregeerd over ALLE competities van deze publicatie. De lijst-view
+  // heeft alleen de tellingen (overdue_result_count/unknown_start_count,
+  // licht gehouden) - bij een klik pas de volledige poule-lijst (met
+  // team_id) ophalen via GET /publications/{pid}/competitions.
+  async function handleScanDirtyGroup(e, field, key) {
+    e.stopPropagation()
+    setGroupBusy(prev => ({ ...prev, [key]: true }))
+    try {
+      const comps = await getPublicationComps(t.id)
+      const poules = comps.flatMap(c => (c.poules || []).filter(p => p[field] && p.team_id))
+      for (const p of poules) {
+        await addSingleCmd('get_poule', { poule_id: p.poule_id, team_id: p.team_id, label: p.name })
+      }
+      setGroupMsg(prev => ({ ...prev, [key]: `✓ ${poules.length}` }))
+    } finally {
+      setGroupBusy(prev => ({ ...prev, [key]: false }))
+      setTimeout(() => setGroupMsg(prev => { const n = { ...prev }; delete n[key]; return n }), 3000)
+    }
+  }
+
   return (
     <div
       onClick={() => onOpen(t)}
@@ -50,6 +77,22 @@ function PublicatieCard({ t, isAdmin, onOpen, onTogglePublished, reorderable, is
           ) : null}
           {t.competition_count > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.competition_count} comp.</span>
+          )}
+          {t.overdue_result_count > 0 && (
+            <span
+              onClick={e => handleScanDirtyGroup(e, 'overdue_result', 'result')}
+              style={{ ...pill('partial'), cursor: !groupBusy.result ? 'pointer' : 'default' }}
+              title={`${t.overdue_result_count} poule(s) met late uitslag scannen (alle competities in deze publicatie)`}>
+              {groupBusy.result ? '…' : groupMsg.result || `⚠ ${t.overdue_result_count}`}
+            </span>
+          )}
+          {t.unknown_start_count > 0 && (
+            <span
+              onClick={e => handleScanDirtyGroup(e, 'unknown_start', 'start')}
+              style={{ ...pill('muted'), cursor: !groupBusy.start ? 'pointer' : 'default' }}
+              title={`${t.unknown_start_count} poule(s) met onbekende starttijd scannen (alle competities in deze publicatie)`}>
+              {groupBusy.start ? '…' : groupMsg.start || `❔ ${t.unknown_start_count}`}
+            </span>
           )}
         </div>
       </div>

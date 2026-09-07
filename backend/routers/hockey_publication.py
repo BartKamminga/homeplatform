@@ -1,11 +1,11 @@
 """Hockey Inside — publicatie CRUD, competitie-koppelingen en tags."""
 
 import re
-from typing import Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, select, func
+from sqlmodel import Session, col, select, func
 
 from core.database import get_session
 from core.auth import get_current_user, require_admin
@@ -20,6 +20,7 @@ from models.hockey import (
     HockeyPublicationCompTag,
 )
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch
+from services.hockey_vanger_scanplan import _poule_health, _team_by_poule
 
 router = APIRouter(prefix="/api/hockey/publications", tags=["hockey-publications"])
 
@@ -95,14 +96,49 @@ def list_publications(session: Session = Depends(get_session), _: User = Depends
         select(HockeyPublication)
         .order_by(HockeyPublication.season.desc(), HockeyPublication.order, HockeyPublication.name)
     ).all()
+
+    # item 1105 vervolg (Bart, 07-09-2026: "ook voor de publicatie tab wil ik
+    # die mogelijkheden"): vuile-poules-aggregatie per publicatie, 1x
+    # gebatcht over ALLE publicaties/competities/poules i.p.v. een aparte
+    # round-trip per publicatie (zou anders N+1 worden op deze lijst-view).
+    # Alleen de TELLING hier - de badge-klik haalt zelf de volledige poule-
+    # lijst op via GET /{pid}/competitions (die al team_id/health teruggeeft)
+    # om deze lichte lijst-endpoint niet te belasten met een volledige
+    # geneste poule-dump per publicatie.
+    links = session.exec(select(HockeyPublicationComp)).all()
+    comp_ids_by_pub: Dict[str, List[int]] = {}
+    for lnk in links:
+        comp_ids_by_pub.setdefault(lnk.publication_id, []).append(lnk.competition_id)
+    all_comp_ids = list({cid for cids in comp_ids_by_pub.values() for cid in cids})
+    poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(all_comp_ids))
+    ).all() if all_comp_ids else []
+    poule_ids_by_comp: Dict[int, List[int]] = {}
+    for poule in poules:
+        poule_ids_by_comp.setdefault(poule.competition_id, []).append(poule.poule_id)
+    health = _poule_health(session, [poule.poule_id for poule in poules])
+
     result = []
     for p in pubs:
         count = session.exec(
             select(func.count()).select_from(HockeyPublicationComp)
             .where(HockeyPublicationComp.publication_id == p.id)
         ).one()
+        overdue_result_count = 0
+        unknown_start_count = 0
+        for comp_id in comp_ids_by_pub.get(p.id, []):
+            for poule_id in poule_ids_by_comp.get(comp_id, []):
+                h = health.get(poule_id)
+                if not h:
+                    continue
+                if h["overdue_result"]:
+                    overdue_result_count += 1
+                if h["unknown_start"]:
+                    unknown_start_count += 1
         d = p.model_dump()
         d["competition_count"] = count
+        d["overdue_result_count"] = overdue_result_count
+        d["unknown_start_count"] = unknown_start_count
         result.append(d)
     return result
 
@@ -291,12 +327,27 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
         .where(HockeyPublicationComp.publication_id == pid)
         .order_by(HockeyPublicationComp.order)
     ).all()
+
+    # item 1105 vervolg: poule-health + team_id 1x gebatcht over ALLE
+    # competities in deze publicatie, i.p.v. herhaald per competitie/poule -
+    # zelfde patroon als hockey_capture.py::list_poules. team_id (de
+    # primaire, niet-jeugd-scoreloze team-koppeling) wordt hier meegegeven
+    # zodat de frontend voor een "scan deze vuile poules"-actie geen aparte
+    # teams-fetch nodig heeft.
+    comp_ids = [lnk.competition_id for lnk in links]
+    all_poules = session.exec(
+        select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids))
+    ).all() if comp_ids else []
+    poules_by_comp: Dict[int, list] = {}
+    for poule in all_poules:
+        poules_by_comp.setdefault(poule.competition_id, []).append(poule)
+    health = _poule_health(session, [poule.poule_id for poule in all_poules])
+    team_by_poule = _team_by_poule(session)
+
     result = []
     for lnk in links:
         comp = session.get(HockeyCompetition, lnk.competition_id)
-        poules = session.exec(
-            select(HockeyPoule).where(HockeyPoule.competition_id == lnk.competition_id).order_by(HockeyPoule.name)
-        ).all()
+        poules = sorted(poules_by_comp.get(lnk.competition_id, []), key=lambda p: p.name or "")
         assigned_tags = session.exec(
             select(HockeyPublicationCompTag, HockeyPublicationTag)
             .join(HockeyPublicationTag, HockeyPublicationCompTag.tag_id == HockeyPublicationTag.id)
@@ -312,7 +363,13 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
             # zijn) - "gespeeld" moet dus op status filteren, niet op de
             # aan/afwezigheid van een score.
             played = session.exec(select(func.count()).select_from(HockeyPouleMatch).where(HockeyPouleMatch.poule_id == p.id).where(HockeyPouleMatch.status == "final")).one()
-            poule_list.append({"id": p.id, "name": p.name, "poule_id": p.poule_id, "matches_total": total, "matches_played": played})
+            h = health.get(p.poule_id, {})
+            team = team_by_poule.get(p.poule_id)
+            poule_list.append({
+                "id": p.id, "name": p.name, "poule_id": p.poule_id, "matches_total": total, "matches_played": played,
+                "busy": h.get("busy", False), "overdue_result": h.get("overdue_result", False),
+                "unknown_start": h.get("unknown_start", False), "team_id": team.team_id if team else None,
+            })
 
         result.append({
             "id":             lnk.id,
