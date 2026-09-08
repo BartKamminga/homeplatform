@@ -73,6 +73,7 @@ from routers import mindbox  # noqa: E402
 from routers import mindbox_contacts  # noqa: E402
 from routers import mindbox_commands  # noqa: E402
 from routers import mindbox_links  # noqa: E402
+from routers import mindbox_deadlines  # noqa: E402
 from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
@@ -180,6 +181,7 @@ app.include_router(mindbox.router)
 app.include_router(mindbox_contacts.router)
 app.include_router(mindbox_commands.router)
 app.include_router(mindbox_links.router)
+app.include_router(mindbox_deadlines.router)
 app.include_router(bug_reports.router)
 app.include_router(push.router)
 app.include_router(tournix.router)

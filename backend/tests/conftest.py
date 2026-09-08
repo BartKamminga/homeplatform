@@ -20,6 +20,13 @@ from models.core import User, Group, UserGroup
 
 @pytest.fixture(name="engine")
 def engine_fixture():
+    # `main` importeren VOORDAT create_all() draait - anders kent
+    # SQLModel.metadata nog niet alle modellen die alleen via een
+    # routers/*.py-import geregistreerd worden (bv. mindbox_deadlines,
+    # mindbox_commands), en ontbreekt hun tabel als dit de EERSTE test in
+    # het hele pytest-proces is die de client/engine-fixture gebruikt
+    # (module-cache zorgt dat elke latere test het al wel goed heeft).
+    import main  # noqa: F401
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
