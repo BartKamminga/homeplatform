@@ -75,3 +75,23 @@ def create_entry(
     return entry
 
 
+@router.delete("/api/admin/changelog/{entry_id}")
+def delete_entry(
+    entry_id: str,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """Correctie-mogelijkheid voor een verkeerd aangemaakte entry (bv. een
+    hergebruikt versienummer via roadmap.ps1 -Close) - er is geen update-
+    endpoint, dus fouten worden hersteld door de foute rij te verwijderen en
+    de juiste opnieuw aan te maken."""
+    entry = session.get(ChangelogEntry, entry_id)
+    if not entry:
+        return {"ok": True}
+    session.delete(entry)
+    session.commit()
+    log_action(session, "changelog.delete", user_id=admin.id,
+               payload={"version": entry.version, "site": entry.site, "title": entry.title})
+    return {"ok": True}
+
+
