@@ -57,12 +57,47 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
   const [newCaseName, setNewCaseName] = useState('')
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
+  const [reportByCaseId, setReportByCaseId] = useState({})
   const [confirmAction, confirmDialog] = useConfirm()
 
   function loadCases() {
     listCases().then(setCases).catch(e => setError(e.message))
   }
   useEffect(() => { loadCases() }, [])
+
+  // Item 1125-vervolg (Bart, 8-9-2026): "de laatste rapportage status ook
+  // via de case list kunnen inzien... linkje naar het html bestand" - per
+  // case opzoeken of er een status-rapportage.html-item bestaat, zodat de
+  // caselijst er direct naar kan linken zonder eerst de case te openen.
+  useEffect(() => {
+    if (!cases.length) return
+    Promise.all(cases.map(c => listItems(c.id).then(items => [c.id, items]).catch(() => [c.id, []])))
+      .then(pairs => {
+        const map = {}
+        for (const [caseId, items] of pairs) {
+          const report = items.find(i => i.original_filename === 'status-rapportage.html')
+          if (report) map[caseId] = report
+        }
+        setReportByCaseId(map)
+      })
+  }, [cases])
+
+  async function openReport(item, e) {
+    e.stopPropagation()
+    // Geen fetchItemBlobUrl() hier - die geeft de content_type van de
+    // server terug, en die staat voor uploads (MindBox.ps1) altijd op
+    // "application/octet-stream" (multipart-Content-Type wordt niet per
+    // extensie afgeleid). Zonder een expliciete text/html-blob probeert de
+    // browser het bestand te downloaden i.p.v. in het nieuwe tabblad te
+    // tonen zoals Bart vroeg.
+    const token = localStorage.getItem('hp_token')
+    const res = await fetch(`/api/mindbox/items/${item.id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const bytes = await res.blob()
+    const htmlBlob = new Blob([bytes], { type: 'text/html' })
+    window.open(URL.createObjectURL(htmlBlob), '_blank')
+  }
 
   // Item 1051: bij een duplicaat-upload elders (Bestanden-tab of een andere
   // case) kan de gebruiker naar de case van het bestaande bestand gestuurd
@@ -159,6 +194,9 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📁 {c.name}</span>
             </span>
             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              {reportByCaseId[c.id] && (
+                <span onClick={e => openReport(reportByCaseId[c.id], e)} title="Laatste status-rapportage openen (nieuw tabblad)" style={{ fontSize: 11, cursor: 'pointer' }}>📄</span>
+              )}
               <span onClick={e => { e.stopPropagation(); handleRename(c) }} title="Hernoemen" style={{ fontSize: 11, cursor: 'pointer' }}>✎</span>
               <span onClick={e => { e.stopPropagation(); handleDelete(c) }} title="Verwijderen" style={{ fontSize: 11, cursor: 'pointer', color: 'var(--color-danger)' }}>✕</span>
             </div>
