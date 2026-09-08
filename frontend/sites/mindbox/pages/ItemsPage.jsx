@@ -24,12 +24,24 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+// Item 1122 (Bart, 8-9-2026: "top idee!"): client-side substring-zoek over
+// de al geladen items - geen backend-wijziging nodig, parsed_text/
+// text_content zitten al in de payload (zie services.item_to_dict), en het
+// volume (tientallen items) rechtvaardigt geen aparte zoek-API.
+function matchesSearch(item, q) {
+  if (!q) return true
+  const needle = q.toLowerCase()
+  return [item.original_filename, item.parsed_text, item.text_content, item.notes]
+    .some(field => field?.toLowerCase().includes(needle))
+}
+
 export default function ItemsPage({ onGoToExisting }) {
   const [items, setItems] = useState([])
   const [cases, setCases] = useState([])
   const [contacts, setContacts] = useState([])
   const [commands, setCommands] = useState([])
   const [env, setEnv] = useState('Local')
+  const [q, setQ] = useState('')
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -276,6 +288,12 @@ export default function ItemsPage({ onGoToExisting }) {
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
           .msg, .doc(x), .xls(x), .ppt(x), .pdf, .txt, .csv — max 25MB, of sleep een bestand hierheen
         </span>
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="🔍 Zoeken (bestandsnaam/inhoud)..."
+          style={{ marginLeft: 'auto', padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)', minWidth: 220 }}
+        />
         {!!items.length && findCommand('Run') && (
           <CopyButton
             text={buildCommandString(findCommand('Run'), 'all', env)}
@@ -296,10 +314,16 @@ export default function ItemsPage({ onGoToExisting }) {
         </div>
       )}
 
+      {!!items.length && q && !items.some(item => !item.parent_item_id && matchesSearch(item, q)) && (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+          Geen bestanden gevonden voor "{q}".
+        </div>
+      )}
+
       {/* Bijlagen (item 1051) staan NIET los in de vlakke lijst - ze horen
           bij hun ouder-item en worden daar uitklapbaar getoond. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.filter(item => !item.parent_item_id).map(item => (
+        {items.filter(item => !item.parent_item_id && matchesSearch(item, q)).map(item => (
           <div key={item.id}>
           <div
             style={{

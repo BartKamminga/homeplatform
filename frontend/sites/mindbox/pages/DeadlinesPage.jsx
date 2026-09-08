@@ -47,26 +47,43 @@ export default function DeadlinesPage() {
   }
 
   async function save() {
-    if (!form.date || !form.title.trim()) return
+    // Bart, 8-9-2026: "opslaan agenda item werkt niet" - de guard hieronder
+    // gaf bij een leeg/ongeldig veld stil niets terug (geen foutmelding), en
+    // een mislukte API-call werd nergens opgevangen - dus "niks gebeurt er"
+    // was letterlijk het enige zichtbare gedrag. Nu altijd een duidelijke
+    // melding bij zowel validatie als een API-fout.
+    if (!form.date || !form.title.trim()) {
+      setError('Datum en titel zijn verplicht.')
+      return
+    }
+    setError('')
     const body = {
       date: form.date,
       title: form.title,
       description: form.description || null,
       case_id: form.case_id || null,
     }
-    if (editing?.id) {
-      await updateDeadline(editing.id, { ...body, clear_case: !form.case_id })
-    } else {
-      await createDeadline(body)
+    try {
+      if (editing?.id) {
+        await updateDeadline(editing.id, { ...body, clear_case: !form.case_id })
+      } else {
+        await createDeadline(body)
+      }
+      setEditing(null)
+      load()
+    } catch (e) {
+      setError(e.message || 'Opslaan mislukt')
     }
-    setEditing(null)
-    load()
   }
 
   async function remove(d) {
     if (!(await confirmAction(`Deadline "${d.title}" (${d.date}) verwijderen?`))) return
-    await deleteDeadline(d.id)
-    load()
+    try {
+      await deleteDeadline(d.id)
+      load()
+    } catch (e) {
+      setError(e.message || 'Verwijderen mislukt')
+    }
   }
 
   const today = todayIso()
