@@ -32,6 +32,7 @@
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
 #   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/sessie-notities/case-export terugzien
 #   .\MindBox.ps1 -ExportCase -CaseId <id>                             # hele case downloaden (context+kennis+contacten+bestandenlijst+tijdlijn)
+#   .\MindBox.ps1 -UpdateContent -Id <item_id> -FilePath <pad>          # bewerkbare inhoud herschrijven (bv. rapportage bijwerken)
 #   .\MindBox.ps1 -ListDeadlines                                       # toon belangrijke datums (kalender)
 #   .\MindBox.ps1 -AddDeadline -Date <yyyy-MM-dd> -Title "..." [-CaseId <id>] [-Text "..."]  # datum toevoegen
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
@@ -79,6 +80,7 @@ param(
     [switch]$LinkItem,
     [switch]$UnlinkItem,
     [switch]$ExportCase,
+    [switch]$UpdateContent,
     [switch]$ListDeadlines,
     [switch]$AddDeadline,
     [switch]$Explain,
@@ -783,6 +785,23 @@ if ($Upload) {
 }
 
 # ---------------------------------------------------------------------------
+# UpdateContent — item 1125 (Case.Rapportage): bewerkbare inhoud van een
+# BESTAAND tekstachtig item (.txt/.md/.html/...) herschrijven i.p.v. een
+# nieuwe kopie te uploaden - "overzichtelijk" (Bart) blijven bij herhaalde
+# rapportage-updates. -FilePath i.p.v. inline -Text: rapportages zijn te
+# groot voor de Windows command-line-lengtelimiet, zelfde reden als
+# -DefineCommand/-UploadAttachment.
+# ---------------------------------------------------------------------------
+if ($UpdateContent) {
+    if (-not $Id -or -not $FilePath) { Write-Host "Geef -Id en -FilePath op"; exit 1 }
+    if (-not (Test-Path $FilePath)) { Write-Host "[FOUT] Bestand niet gevonden: $FilePath"; exit 1 }
+    $content = Get-Content $FilePath -Raw -Encoding UTF8
+    $item = ApiPatch "/mindbox/items/$Id" @{ text_content = $content }
+    Write-Host "[OK] $($item.original_filename): inhoud bijgewerkt"
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
 # ExportCase — hele case (context+kennis+contacten+bestandenlijst+tijdlijn)
 # als 1 lokaal .md-bestand, los van -LoadSession (die ook alle bestanden zelf
 # downloadt + briefing.md per bestand genereert - dit is puur de samenvatting).
@@ -906,4 +925,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -ExportCase | -ListDeadlines | -AddDeadline | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -UpdateContent | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -ExportCase | -ListDeadlines | -AddDeadline | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

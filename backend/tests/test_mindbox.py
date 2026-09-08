@@ -832,6 +832,21 @@ def test_editing_a_text_item_rematerializes_its_file(client, user_token):
     assert b"Eerste versie" not in second_download.content
 
 
+def test_html_upload_is_editable_like_other_text_extensions(client, user_token):
+    """Item 1125 (Case.Rapportage): dossier-rapportages zijn .html-bestanden
+    die 'overzichtelijk' (Bart) herschreven moeten kunnen worden i.p.v. bij
+    elke run een nieuwe kopie te worden - vereist dat .html net als .txt/.md
+    automatisch text_content krijgt bij upload."""
+    item = _upload_text(client, user_token, content="<h1>v1</h1>", filename="status-rapportage.html").json()
+    assert item["text_content"] == "<h1>v1</h1>"
+
+    edited = client.patch(
+        f"/api/mindbox/items/{item['id']}", json={"text_content": "<h1>v2</h1>"}, headers=_auth(user_token),
+    )
+    assert edited.status_code == 200
+    assert edited.json()["text_content"] == "<h1>v2</h1>"
+
+
 def test_editing_text_content_of_a_regular_upload_is_rejected(client, user_token):
     """update_item's text_content-pad is alleen bedoeld voor items die al
     bewerkbare tekstinhoud hebben (item 1058, generiek) - een echte upload

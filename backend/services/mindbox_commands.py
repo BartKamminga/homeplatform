@@ -70,6 +70,8 @@ ELEMENTARY_ACTIONS = [
      "template": '-SaveSession -Name "{name}" -Text "..." -Env {env}'},
     {"key": "LoadSession", "group": "Sessie", "label": "-LoadSession — case+bestanden terugzien",
      "template": '-LoadSession -Name "{name}" -Env {env}'},
+    {"key": "UpdateContent", "group": "Bestand", "label": "-UpdateContent — bewerkbare inhoud van een bestand herschrijven (bv. een rapportage bijwerken i.p.v. dupliceren)",
+     "template": "-UpdateContent -Id {id} -FilePath <pad> -Env {env}"},
     {"key": "ListDeadlines", "group": "Kalender", "label": "-ListDeadlines — belangrijke datums oplijsten",
      "template": "-ListDeadlines -Env {env}"},
     {"key": "AddDeadline", "group": "Kalender", "label": "-AddDeadline — belangrijke datum toevoegen",

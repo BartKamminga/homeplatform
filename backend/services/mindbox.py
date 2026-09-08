@@ -28,14 +28,17 @@ CATEGORY = "mindbox"
 
 ALLOWED_EXTENSIONS = {
     ".msg", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".csv",
-    ".png", ".jpg", ".jpeg", ".json", ".md",
+    ".png", ".jpg", ".jpeg", ".json", ".md", ".html",
 }
 # Item 1058 (vervolg, Bart): "als het een tekstbestand is, wordt het type
 # .txt ... als het een json-bestand is, wordt het type .json" - elk bestand
 # met een van deze extensies krijgt automatisch text_content gevuld (zie
 # save_upload), zodat het generiek herbewerkbaar is - geen apart "tekstitem"-
 # concept nodig, gewoon een MindboxItem waarvan de bytes toevallig tekst zijn.
-TEXT_EXTENSIONS = {".txt", ".json", ".md", ".csv"}
+# .html toegevoegd voor item 1125 (Case.Rapportage) - dossier-rapportages
+# moeten "overzichtelijk" (Bart) herschrijfbaar zijn i.p.v. bij elke run een
+# nieuwe kopie te worden, dus text_content moet gevuld raken bij upload.
+TEXT_EXTENSIONS = {".txt", ".json", ".md", ".csv", ".html"}
 MAX_SIZE_MB = 25
 VALID_STATUSES = {"new", "in_progress", "done"}
 # Item 1058: generiek link_type voor de item<->case-koppeling via
