@@ -106,35 +106,51 @@ export default function DeadlinesPage() {
 
       {editing && (
         <div style={{ padding: 16, marginBottom: 16, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
+          {/* Item 1117-fix (Bart, 8-9-2026): datum+titel stonden naast elkaar
+              in 1 flex-rij, maar de globale theme-regel "input,select,textarea
+              {width:100%}" (theme.css) laat elk veld naar 100% van de rij
+              proberen te groeien - de 2 velden werden zo onduidelijk
+              samengeperst/door elkaar heen, waardoor Bart per ongeluk in het
+              omschrijving-veld typte i.p.v. titel. Nu elk veld op een eigen
+              rij MET een vast label, zelfde patroon als KnowledgePage.jsx. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Datum *
               <input
                 type="date"
                 value={form.date}
                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                 style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)' }}
               />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Titel *
               <input
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="Titel (bv. Go/no-go inhuur extra capaciteit)"
-                style={{ flex: 1, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)' }}
+                placeholder="bv. Go/no-go inhuur extra capaciteit"
+                style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)' }}
               />
-            </div>
-            <textarea
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Omschrijving (optioneel)..."
-              style={{ padding: '8px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
-            />
-            <select
-              value={form.case_id}
-              onChange={e => setForm(f => ({ ...f, case_id: e.target.value }))}
-              style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)' }}
-            >
-              <option value="">(geen case gekoppeld)</option>
-              {cases.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Omschrijving (optioneel)
+              <textarea
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                style={{ padding: '8px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)', minHeight: 80, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Case (optioneel)
+              <select
+                value={form.case_id}
+                onChange={e => setForm(f => ({ ...f, case_id: e.target.value }))}
+                style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)' }}
+              >
+                <option value="">(geen case gekoppeld)</option>
+                {cases.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setEditing(null)} style={{ padding: '6px 14px', fontSize: 13, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer' }}>
                 Annuleren
