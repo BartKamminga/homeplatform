@@ -32,6 +32,8 @@
 #   .\MindBox.ps1 -SaveSession -Name "<case naam>" -Text "..."         # sessie-samenvatting opslaan (maakt case aan indien nodig)
 #   .\MindBox.ps1 -LoadSession -Name "<case naam>"                     # case + bestanden/sessie-notities/case-export terugzien
 #   .\MindBox.ps1 -ExportCase -CaseId <id>                             # hele case downloaden (context+kennis+contacten+bestandenlijst+tijdlijn)
+#   .\MindBox.ps1 -ListDeadlines                                       # toon belangrijke datums (kalender)
+#   .\MindBox.ps1 -AddDeadline -Date <yyyy-MM-dd> -Title "..." [-CaseId <id>] [-Text "..."]  # datum toevoegen
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
 #   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
 #
@@ -77,6 +79,8 @@ param(
     [switch]$LinkItem,
     [switch]$UnlinkItem,
     [switch]$ExportCase,
+    [switch]$ListDeadlines,
+    [switch]$AddDeadline,
     [switch]$Explain,
     [switch]$DefineCommand,
 
@@ -129,7 +133,9 @@ param(
     [string]$Name       = "",
     [string]$Email      = "",
     [string]$FilePath   = "",
-    [string]$EventType  = "session_note"
+    [string]$EventType  = "session_note",
+    [string]$Date       = "",
+    [string]$Title      = ""
 )
 
 # ---------------------------------------------------------------------------
@@ -321,6 +327,17 @@ if ($ListCases) {
     foreach ($c in $cases) {
         $ctx = if ($c.context_id) { $c.context_id.Substring(0,8) } else { "-" }
         Write-Host ("{0,-38} {1,-30} {2,-10} {3}" -f $c.id, $c.name, $ctx, $c.updated_at)
+    }
+    exit 0
+}
+
+if ($ListDeadlines) {
+    $deadlines = ApiGet "/mindbox/deadlines"
+    Write-Host ("{0,-38} {1,-12} {2,-40} {3}" -f "ID","DATUM","TITEL","CASE")
+    Write-Host ("-" * 110)
+    foreach ($d in $deadlines) {
+        $case = if ($d.case_id) { $d.case_id.Substring(0,8) } else { "-" }
+        Write-Host ("{0,-38} {1,-12} {2,-40} {3}" -f $d.id, $d.date, $d.title, $case)
     }
     exit 0
 }
@@ -770,6 +787,16 @@ if ($Upload) {
 # als 1 lokaal .md-bestand, los van -LoadSession (die ook alle bestanden zelf
 # downloadt + briefing.md per bestand genereert - dit is puur de samenvatting).
 # ---------------------------------------------------------------------------
+if ($AddDeadline) {
+    if (-not $Date -or -not $Title) { Write-Host "Geef -Date (yyyy-MM-dd) en -Title op"; exit 1 }
+    $body = @{ date = $Date; title = $Title }
+    if ($Text) { $body.description = $Text }
+    if ($CaseId) { $body.case_id = $CaseId }
+    $deadline = ApiPost "/mindbox/deadlines" $body
+    Write-Host "[OK] Deadline aangemaakt: $($deadline.date) - $($deadline.title) ($($deadline.id))"
+    exit 0
+}
+
 if ($ExportCase) {
     if (-not $CaseId) { Write-Host "Geef -CaseId op"; exit 1 }
     $exported = ApiPost "/mindbox/cases/$CaseId/export" @{}
@@ -879,4 +906,4 @@ if ($LoadSession) {
     exit 0
 }
 
-Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -ExportCase | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"
+Write-Host "Gebruik: .\MindBox.ps1 -Setup | -List | -ListCases | -ListContexts | -ListKnowledge | -UpdateKnowledge | -Get | -Run | -Status | -Note | -ParsedText | -UploadAttachment | -Upload | -ListContacts | -Contact | -UnlinkContact | -ContactNote | -CreateCase | -LinkCase | -UnlinkCase | -LinkItem | -UnlinkItem | -ExportCase | -ListDeadlines | -AddDeadline | -AddEvent | -SaveSession | -LoadSession | -Explain | -DefineCommand"

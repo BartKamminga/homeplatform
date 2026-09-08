@@ -5,6 +5,7 @@ import ContextsPage from './pages/ContextsPage.jsx'
 import ContactsPage from './pages/ContactsPage.jsx'
 import KnowledgePage from './pages/KnowledgePage.jsx'
 import CommandsPage from './pages/CommandsPage.jsx'
+import DeadlinesPage from './pages/DeadlinesPage.jsx'
 
 // Responses hebben BEWUST geen eigen tab (item 1051, Bart: "het is niet
 // relevant om losse responses te bekijken") - responses zijn altijd
@@ -12,6 +13,7 @@ import CommandsPage from './pages/CommandsPage.jsx'
 const TABS = [
   { key: 'cases', label: '📁 Cases' },
   { key: 'items', label: '📥 Bestanden' },
+  { key: 'deadlines', label: '📅 Kalender' },
   { key: 'contexts', label: '🎭 Contexts' },
   { key: 'contacts', label: '👤 Contacts' },
   { key: 'knowledge', label: '📚 Kennis' },
@@ -75,6 +77,7 @@ export default function App() {
             onGoToExisting={goToExistingItem}
           />
         )}
+        {tab === 'deadlines' && <DeadlinesPage />}
         {tab === 'contexts' && <ContextsPage />}
         {tab === 'contacts' && <ContactsPage />}
         {tab === 'knowledge' && <KnowledgePage />}

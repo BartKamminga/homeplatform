@@ -237,6 +237,27 @@ export async function exportEmail(itemId, caseId, filename) {
 }
 
 // ---------------------------------------------------------------------------
+// Deadlines (item 1117) - agent-gecureerde, chronologische lijst van
+// belangrijke datums. Geen automatische datum-extractie uit vrije tekst.
+// ---------------------------------------------------------------------------
+
+export function listDeadlines() {
+  return api.get('/api/mindbox/deadlines')
+}
+
+export function createDeadline(data) {
+  return api.post('/api/mindbox/deadlines', data)
+}
+
+export function updateDeadline(id, data) {
+  return api.patch(`/api/mindbox/deadlines/${id}`, data)
+}
+
+export function deleteDeadline(id) {
+  return api.delete(`/api/mindbox/deadlines/${id}`)
+}
+
+// ---------------------------------------------------------------------------
 // Commands (item 1053) - de env.MindBox.Entity.Cmd(#id)-catalogus, backend-
 // gedreven zodat MindBox.ps1 dun kan blijven (-Explain leest dezelfde data).
 // ---------------------------------------------------------------------------

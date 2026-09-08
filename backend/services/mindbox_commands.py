@@ -70,6 +70,10 @@ ELEMENTARY_ACTIONS = [
      "template": '-SaveSession -Name "{name}" -Text "..." -Env {env}'},
     {"key": "LoadSession", "group": "Sessie", "label": "-LoadSession — case+bestanden terugzien",
      "template": '-LoadSession -Name "{name}" -Env {env}'},
+    {"key": "ListDeadlines", "group": "Kalender", "label": "-ListDeadlines — belangrijke datums oplijsten",
+     "template": "-ListDeadlines -Env {env}"},
+    {"key": "AddDeadline", "group": "Kalender", "label": "-AddDeadline — belangrijke datum toevoegen",
+     "template": '-AddDeadline -Date <yyyy-MM-dd> -Title "..." [-CaseId {id}] [-Text "..."] -Env {env}'},
     {"key": "Setup", "group": "Setup", "label": "-Setup — eenmalige login/API-key",
      "template": "-Setup -Env {env}"},
 ]
