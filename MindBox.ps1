@@ -690,12 +690,12 @@ if ($ContactNote) {
     $existing = ApiGet "/mindbox/contacts?email=$([uri]::EscapeDataString($Email))"
     $existing = @($existing)
     if ($existing.Count -gt 0) {
-        $contact = ApiPatch "/mindbox/contacts/$($existing[0].id)" @{ notes = $Text }
+        $contactObj = ApiPatch "/mindbox/contacts/$($existing[0].id)" @{ notes = $Text }
     } else {
-        $contact = ApiPost "/mindbox/contacts" @{ email = $Email }
-        $contact = ApiPatch "/mindbox/contacts/$($contact.id)" @{ notes = $Text }
+        $contactObj = ApiPost "/mindbox/contacts" @{ email = $Email }
+        $contactObj = ApiPatch "/mindbox/contacts/$($contactObj.id)" @{ notes = $Text }
     }
-    Write-Host "[OK] Contact $($contact.email): notitie opgeslagen"
+    Write-Host "[OK] Contact $($contactObj.email): notitie opgeslagen"
     exit 0
 }
 
