@@ -630,7 +630,7 @@ def delete_item(session: Session, user: User, item_id: str) -> None:
     for link in session.exec(select(MindboxItemContact).where(MindboxItemContact.item_id == item_id)).all():
         session.delete(link)
     abs_path = _safe_path(user.id, Path(item.file_path).name)
-    if abs_path.exists():
+    if abs_path.is_file():
         abs_path.unlink()
     session.delete(item)
     session.commit()
