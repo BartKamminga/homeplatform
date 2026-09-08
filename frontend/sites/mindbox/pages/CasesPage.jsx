@@ -55,6 +55,7 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
   const [cases, setCases] = useState([])
   const [selected, setSelected] = useState(null)
   const [newCaseName, setNewCaseName] = useState('')
+  const [q, setQ] = useState('')
   const [error, setError] = useState('')
   const [confirmAction, confirmDialog] = useConfirm()
 
@@ -120,9 +121,23 @@ export default function CasesPage({ focusCaseId, onConsumeFocus, onGoToExisting 
           />
           <button onClick={handleCreateCase} style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', cursor: 'pointer' }}>+</button>
         </div>
+        {/* Item 1122 (Bart, 8-9-2026: "top idee!"): client-side zoeken op
+            naam/omschrijving - zelfde aanpak als ItemsPage.jsx, geen
+            backend-wijziging nodig voor dit volume. */}
+        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--color-border)' }}>
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="🔍 Zoeken..."
+            style={{ width: '100%', padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--color-border)', boxSizing: 'border-box' }}
+          />
+        </div>
         {error && <div style={{ color: 'var(--color-danger)', fontSize: 12, padding: 10 }}>{error}</div>}
         {!cases.length && <div style={{ padding: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>Nog geen cases.</div>}
-        {cases.map(c => (
+        {!!cases.length && q && !cases.some(c => `${c.name} ${c.description || ''}`.toLowerCase().includes(q.toLowerCase())) && (
+          <div style={{ padding: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>Geen cases gevonden voor "{q}".</div>
+        )}
+        {cases.filter(c => `${c.name} ${c.description || ''}`.toLowerCase().includes(q.toLowerCase())).map(c => (
           <div
             key={c.id}
             onClick={() => setSelected(c)}
