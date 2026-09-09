@@ -54,11 +54,19 @@ function baseLabelFor(pin) {
   return `${base} ${periodLabel}`
 }
 
+// item 1109-vervolg: poule_name alleen is dubbelzinnig zodra de query meerdere
+// competities omspant (bv. "Alle niveaus") - "Poule A" bestaat in vrijwel elke
+// competitie. Competitienaam erbij tonen maakt duidelijk uit welke klasse een
+// rij komt.
+function pouleMeta(r) {
+  return [r.poule_name, r.competition_name].filter(Boolean).join(' · ')
+}
+
 function TeamRows({ rows, stat }) {
   return rows.map(r => (
     <RankRow key={`${r.rank}-${r.team_name}`}
       rank={r.rank} logoUrl={r.club_logo_url} name={r.team_name}
-      meta={r.poule_name} value={r[stat]} />
+      meta={pouleMeta(r)} value={r[stat]} />
   ))
 }
 
@@ -73,7 +81,7 @@ function MatchRows({ rows }) {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {r.home_team} <strong style={{ color: C.gold }}>{r.home_score}-{r.away_score}</strong> {r.away_team}
       </span>
-      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{r.poule_name}</span>
+      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{pouleMeta(r)}</span>
       <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0 }}>Δ{r.margin}</span>
     </div>
   ))
@@ -90,7 +98,7 @@ function UpcomingMatchRows({ rows }) {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {r.home_team} <span style={{ color: C.muted }}>vs</span> {r.away_team}
       </span>
-      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{r.poule_name}</span>
+      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{pouleMeta(r)}</span>
       <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, fontSize: 9, whiteSpace: 'nowrap',
         textTransform: 'uppercase', letterSpacing: '0.03em' }}>
         {r.type}
