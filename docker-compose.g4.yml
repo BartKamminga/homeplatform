@@ -31,7 +31,7 @@ services:
       - /home/bart/homeplatform/music/downloads:/app/downloads
       - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
       - /home/bart/homeplatform/plugins:/app/plugins
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
       - ./MindBox.ps1:/app/MindBox.ps1:ro
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
@@ -47,6 +47,12 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+      - DEV_SESSION_REPO_URL=${DEV_SESSION_REPO_URL:-git@github.com:BartKamminga/homeplatform.git}
+      - DEV_SESSION_GIT_USER_NAME=${DEV_SESSION_GIT_USER_NAME:-Claude Agent}
+      - DEV_SESSION_DEPLOY_KEY_HOST_PATH=${DEV_SESSION_DEPLOY_KEY_HOST_PATH:-/home/bart/homeplatform/secrets/claude-agent-deploy-key}
+      - DEV_SESSION_MEMORY_MB=${DEV_SESSION_MEMORY_MB:-2048}
+      - DEV_SESSION_MAX_CONCURRENT=${DEV_SESSION_MAX_CONCURRENT:-2}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

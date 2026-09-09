@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     FIETS_LOCATION_LABEL: str = "Rotterdam"
     WORKER_POLL_IDLE_SEC: int = 300  # zelfde interval als agent_worker (item 962) - alleen voor de "volgende run"-schatting
 
+    # Dev-sessions (agent-control): headless Claude Code CLI-containers
+    CLAUDE_CODE_OAUTH_TOKEN: str = ""  # long-lived token, lokaal gegenereerd via `claude setup-token`
+    DEV_SESSION_REPO_URL: str = "git@github.com:BartKamminga/homeplatform.git"
+    DEV_SESSION_GIT_USER_NAME: str = "Claude Agent"
+    DEV_SESSION_DEPLOY_KEY_HOST_PATH: str = "/home/bart/homeplatform/secrets/claude-agent-deploy-key"
+    DEV_SESSION_MEMORY_MB: int = 2048
+    DEV_SESSION_MAX_CONCURRENT: int = 2
+
     @property
     def is_dev(self) -> bool:
         return self.ENVIRONMENT == "development"

@@ -20,3 +20,9 @@ export const addTask     = (agentKey, instruction, contextKey, params) =>
 export const getKnowledge = (agentKey, contextKey) =>
   api.get(`/api/agent-control/agents/${agentKey}/knowledge${contextKey ? `?context_key=${encodeURIComponent(contextKey)}` : ''}`)
 export const getRunLog    = (agentKey) => api.get(`/api/agent-control/agents/${agentKey}/log`)
+
+export const listDevSessions  = () => api.get('/api/agent-control/dev-sessions')
+export const createDevSession = (body) => api.post('/api/agent-control/dev-sessions', body)
+export const stopDevSession   = (id) => api.post(`/api/agent-control/dev-sessions/${id}/stop`, {})
+export const startDevSession  = (id) => api.post(`/api/agent-control/dev-sessions/${id}/start`, {})
+export const removeDevSession = (id) => api.delete(`/api/agent-control/dev-sessions/${id}`)
