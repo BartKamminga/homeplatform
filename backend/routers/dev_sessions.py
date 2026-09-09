@@ -143,6 +143,7 @@ def create_dev_session(
             f"BRANCH={s.branch}",
             f"GIT_USER_NAME={settings.DEV_SESSION_GIT_USER_NAME}",
             "GIT_USER_EMAIL=bart.kamminga@nipv.nl",
+            f"SESSION_NAME={s.name or f'devsession-{env_tag}-{s.id}'}",
         ]
         if s.initial_prompt:
             env.append(f"INITIAL_PROMPT={s.initial_prompt}")
