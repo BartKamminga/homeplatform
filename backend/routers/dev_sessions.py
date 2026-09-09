@@ -112,9 +112,13 @@ def create_dev_session(
     session.commit()
     session.refresh(s)
 
-    s.container_name = f"homeplatform_devsession_{s.id}"
-    s.workspace_volume = f"claude_session_{s.id}_workspace"
-    s.home_volume = f"claude_session_{s.id}_home"
+    # env-prefix nodig omdat prod en acc op dezelfde Docker-daemon draaien
+    # (beide op de G4) - zonder dit zouden id's uit losse DB's (prod/acc)
+    # dezelfde container-/volumenaam kunnen opleveren.
+    env_tag = settings.ENVIRONMENT
+    s.container_name = f"homeplatform_devsession_{env_tag}_{s.id}"
+    s.workspace_volume = f"claude_session_{env_tag}_{s.id}_workspace"
+    s.home_volume = f"claude_session_{env_tag}_{s.id}_home"
     session.add(s)
     session.commit()
 
