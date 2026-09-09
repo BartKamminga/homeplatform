@@ -279,12 +279,12 @@ export function usePoulebordPins() {
     })
   }
 
-  function togglePoolPin(phaseId, poolName, tournamentName, compName) {
+  function togglePoolPin(phaseId, poolName, tournamentName, compName, tags) {
     const key = `${phaseId}::${poolName}`
     setPoolPins(prev => {
       const next = new Map(prev)
       if (next.has(key)) next.delete(key)
-      else next.set(key, { phaseId, poolName, tournamentName, compName })
+      else next.set(key, { phaseId, poolName, tournamentName, compName, tags })
       return next
     })
   }

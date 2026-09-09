@@ -1,4 +1,4 @@
-import { C } from './constants.js'
+import { C, badgeStyle } from './constants.js'
 import { OnFireBadge } from './OnFireBadge.jsx'
 
 // item 689: gedeelde bouwstenen voor "rang + logo + naam + waarde"-rijen,
@@ -24,8 +24,12 @@ export function TeamName({ name, logoUrl, showLogos, highlighted, note, streak }
 }
 
 // Flex-rij variant (QueryCard's TeamRows/ClubRankingRows): rangnummer, optioneel
-// logo, naam met ellipsis, optionele meta-tekst, waarde rechts.
-export function RankRow({ rank, logoUrl, name, meta, value }) {
+// logo, naam met ellipsis, optionele tag-badges + meta-tekst, waarde rechts.
+// item 1109-vervolg: tags (niveau/regio-classificatie) i.p.v. de volle
+// competitienaam - zodat je bij een cross-competitie query (bv. "Alle
+// niveaus") in 1 oogopslag ziet uit welke klasse een rij komt, i.p.v. een
+// lange naam die de rij domineert.
+export function RankRow({ rank, logoUrl, name, tags, meta, value }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
@@ -36,6 +40,11 @@ export function RankRow({ rank, logoUrl, name, meta, value }) {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         <TeamName name={name} logoUrl={logoUrl} showLogos={true} />
       </span>
+      {tags?.length > 0 && (
+        <span style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+          {tags.map((t, i) => <span key={t.id ?? i} style={badgeStyle()}>{t.name}</span>)}
+        </span>
+      )}
       {meta && <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{meta}</span>}
       <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, minWidth: 18, textAlign: 'right' }}>
         {value}
