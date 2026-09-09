@@ -208,7 +208,6 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
                     <DiscPouleTable
                       poule={poule}
                       club={club}
-                      tags={comp.fase_tags}
                       onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name, comp.name, comp.fase_tags) : undefined}
                       isPinned={poolPins?.has('disc_' + poule.id + '::' + poule.name)}
                       onOpenMatches={() => openMatches(poule)}
