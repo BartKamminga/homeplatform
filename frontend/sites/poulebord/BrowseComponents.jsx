@@ -7,7 +7,7 @@ import { ScenarioModal } from './ScenarioModal.jsx'
 
 // ── Discovery poule table ─────────────────────────────────────────────────────
 
-export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) {
+export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches, tags }) {
   const [scenarioTeam, setScenarioTeam] = useState(null)
   const rows = (poule.standings || []).map(r => ({
     id: r.team_name, team_id: r.team_id, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
@@ -25,6 +25,7 @@ export function DiscPouleTable({ poule, club, onPin, isPinned, onOpenMatches }) 
       )}
       <PouleCard
         title={poule.name}
+        tags={tags}
         rows={rows}
         club={club}
         onOpen={onOpenMatches}
@@ -59,7 +60,7 @@ export function CompetitionStandingsView({ fasesData, club }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {comp.poules.map(poule => (
                     <div key={poule.id} style={{ flex: '1 1 340px' }}>
-                      <DiscPouleTable poule={poule} club={club} />
+                      <DiscPouleTable poule={poule} club={club} tags={comp.fase_tags} />
                     </div>
                   ))}
                 </div>
@@ -99,7 +100,7 @@ export function PoolSearchCard({ result, poolPins, onPoolPin, onOpen }) {
         )}
       </div>
       <button
-        onClick={e => { e.stopPropagation(); onPoolPin(result.phase_id, result.pool_name, result.tournament_name) }}
+        onClick={e => { e.stopPropagation(); onPoolPin(result.phase_id, result.pool_name, result.tournament_name, (result.tags || []).map(name => ({ name }))) }}
         title={isPinned ? 'Verwijder van board' : 'Pin deze poule op je board'}
         style={{ ...pinButtonStyle(isPinned, 'sm'), margin: '0 12px' }}
       >📌</button>
@@ -121,7 +122,7 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
     if (!poules.length || !onPoolPin) return
     poules.forEach(p => {
       const pinned = poolPins?.has('disc_' + p.id + '::' + p.name)
-      if (allPinned ? pinned : !pinned) onPoolPin('disc_' + p.id, p.name, comp.name)
+      if (allPinned ? pinned : !pinned) onPoolPin('disc_' + p.id, p.name, comp.name, comp.fase_tags)
     })
   }
 
@@ -207,7 +208,8 @@ export function CompBrowseItem({ comp, club, expanded, onToggle, poolPins, onPoo
                     <DiscPouleTable
                       poule={poule}
                       club={club}
-                      onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name, comp.name) : undefined}
+                      tags={comp.fase_tags}
+                      onPin={onPoolPin ? () => onPoolPin('disc_' + poule.id, poule.name, comp.name, comp.fase_tags) : undefined}
                       isPinned={poolPins?.has('disc_' + poule.id + '::' + poule.name)}
                       onOpenMatches={() => openMatches(poule)}
                     />

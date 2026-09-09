@@ -65,6 +65,7 @@ export function PinnedPoolSlot({ pin, club, onUnpin }) {
       ) : (
         <PouleCard
           title={pin.poolName}
+          tags={pin.tags}
           rows={poolRows}
           club={club}
           onOpen={poolRows.length > 0 ? () => setModal(true) : undefined}

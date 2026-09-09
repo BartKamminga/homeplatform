@@ -43,7 +43,7 @@ export function SearchView({ searchQ, visible, searchResults, club, pins, poolPi
                   key={`${r.phase_id}::${r.pool_name}`}
                   result={r}
                   poolPins={poolPins}
-                  onPoolPin={(phaseId, poolName, tn) => onTogglePoolPin(phaseId, poolName, tn)}
+                  onPoolPin={(phaseId, poolName, tn, tags) => onTogglePoolPin(phaseId, poolName, tn, undefined, tags)}
                   onOpen={onOpenResult}
                 />
               ))}
