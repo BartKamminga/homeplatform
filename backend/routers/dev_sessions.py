@@ -69,19 +69,34 @@ def _tail_logs(container_id: str, lines: int = 20) -> str:
         return ""
 
 
-def _scan_remote_control_url(container_id: str) -> Optional[str]:
-    """claude.ai/code-link uit de container-logs vissen (die print /remote-
-    control zelf) - de sidebar op claude.ai/code zelf is wisselvallig (soms
-    verschijnt een gepairde sessie daar niet), dus dit is de betrouwbare bron."""
+def _tmux_capture(container_id: str, pane: str = "work", lines: int = 2000) -> str:
+    """Inhoud van een tmux-pane uitlezen via docker exec - `docker logs` ziet
+    alleen wat het hoofdproces (entrypoint.sh) zelf print, niet wat er ín een
+    tmux-sessie gebeurt (die heeft zijn eigen pseudo-terminal, los van de
+    container-logs)."""
     try:
-        logs = docker_api(
-            "GET", f"/containers/{container_id}/logs",
-            params={"stdout": "true", "stderr": "true", "tail": "1000"},
+        created = docker_api("POST", f"/containers/{container_id}/exec", json_body={
+            "Cmd": ["tmux", "capture-pane", "-t", pane, "-p", "-S", f"-{lines}"],
+            "AttachStdout": True,
+            "AttachStderr": True,
+            "Tty": True,
+        })
+        exec_id = created["Id"]
+        return docker_api(
+            "POST", f"/exec/{exec_id}/start",
+            json_body={"Detach": False, "Tty": True},
             parse_json=False,
-        )
+        ) or ""
     except Exception:
-        return None
-    matches = REMOTE_CONTROL_URL_RE.findall(logs or "")
+        return ""
+
+
+def _scan_remote_control_url(container_id: str) -> Optional[str]:
+    """claude.ai/code-link uit de tmux-pane vissen (die print /remote-control
+    zelf) - de sidebar op claude.ai/code zelf is wisselvallig (soms verschijnt
+    een gepairde sessie daar niet), dus dit is de betrouwbare bron."""
+    pane_content = _tmux_capture(container_id)
+    matches = REMOTE_CONTROL_URL_RE.findall(pane_content)
     return matches[-1] if matches else None
 
 
