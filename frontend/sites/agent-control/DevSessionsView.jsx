@@ -14,6 +14,7 @@ const STATUS_VARIANT = {
 export default function DevSessionsView({ onError }) {
   const [sessions, setSessions] = useState(null)
   const [showNew, setShowNew] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [branch, setBranch] = useState('develop')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -27,7 +28,7 @@ export default function DevSessionsView({ onError }) {
   function handleCreate() {
     setBusy(true)
     createDevSession({ branch, name: name || null })
-      .then(() => { setShowNew(false); setName(''); setBranch('develop'); refresh() })
+      .then(() => { setShowNew(false); setShowAdvanced(false); setName(''); setBranch('develop'); refresh() })
       .catch(err => onError(err.message))
       .finally(() => setBusy(false))
   }
@@ -75,16 +76,23 @@ export default function DevSessionsView({ onError }) {
         {showNew && (
           <div style={s.card}>
             <div style={s.field}>
-              <label style={s.label}>Branch</label>
-              <input value={branch} onChange={e => setBranch(e.target.value)} />
-            </div>
-            <div style={s.field}>
               <label style={s.label}>Label (optioneel)</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="bv. hockey-feature" />
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="bv. hockey-feature of mindbox-case-1234" />
             </div>
+            {!showAdvanced && (
+              <div style={{ ...s.hint, marginBottom: 12, cursor: 'pointer' }} onClick={() => setShowAdvanced(true)}>
+                Geavanceerd: andere branch dan <span style={s.code}>develop</span>
+              </div>
+            )}
+            {showAdvanced && (
+              <div style={s.field}>
+                <label style={s.label}>Branch</label>
+                <input value={branch} onChange={e => setBranch(e.target.value)} />
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button disabled={busy} onClick={handleCreate}>Aanmaken</button>
-              <button disabled={busy} onClick={() => setShowNew(false)}>Annuleren</button>
+              <button disabled={busy} onClick={() => { setShowNew(false); setShowAdvanced(false) }}>Annuleren</button>
             </div>
           </div>
         )}
