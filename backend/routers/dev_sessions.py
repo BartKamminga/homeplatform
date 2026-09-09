@@ -52,6 +52,20 @@ def _session_out(s: DevSession) -> dict:
     }
 
 
+def _tail_logs(container_id: str, lines: int = 20) -> str:
+    """Laatste regels van de container-output - container draait met Tty=true,
+    dus 1 platte tekststream, geen Docker-multiplexing-framing te ontwarren."""
+    try:
+        logs = docker_api(
+            "GET", f"/containers/{container_id}/logs",
+            params={"stdout": "true", "stderr": "true", "tail": str(lines)},
+            parse_json=False,
+        )
+        return (logs or "").strip()[-500:]
+    except Exception:
+        return ""
+
+
 def _reconcile(s: DevSession, session: Session) -> DevSession:
     """Live Docker-status erbij halen en de DB corrigeren als Docker iets
     anders zegt (bv. OOM-killed terwijl de DB nog "running" zegt) - zelfde
@@ -66,7 +80,7 @@ def _reconcile(s: DevSession, session: Session) -> DevSession:
     docker_status = (inspect or {}).get("State", {}).get("Status")
     if docker_status in ("exited", "dead") and s.status == "running":
         s.status = "error"
-        s.error = f"Container onverwacht gestopt (Docker-status: {docker_status})"
+        s.error = _tail_logs(s.container_id) or f"Container onverwacht gestopt (Docker-status: {docker_status})"
         session.add(s)
         session.commit()
         session.refresh(s)
