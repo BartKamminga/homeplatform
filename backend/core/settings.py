@@ -38,7 +38,13 @@ class Settings(BaseSettings):
     DEV_SESSION_GIT_USER_NAME: str = "Claude Agent"
     DEV_SESSION_DEPLOY_KEY_HOST_PATH: str = "/home/bart/homeplatform/secrets/claude-agent-deploy-key"
     DEV_SESSION_MEMORY_MB: int = 2048
-    DEV_SESSION_MAX_CONCURRENT: int = 2
+    DEV_SESSION_MAX_CONCURRENT_GIT: int = 1     # item 1134: max 1 git-gekoppelde sessie tegelijk (workspace/branch-conflicten)
+    DEV_SESSION_MAX_CONCURRENT_OTHER: int = 5   # ruimere marge voor lichte/headless sessies - puur host-resource-bescherming
+    # Host-paden (G4), niet de container-interne paden - de dev-session-container
+    # is een aparte container die via de Docker Engine API wordt aangemaakt, dus
+    # bind-mounts moeten wijzen naar paden op de Docker-host zelf.
+    DEV_SESSION_UPLOADS_HOST_PATH: str = "/home/bart/homeplatform/uploads"  # zelfde host-pad als backend's UPLOAD_ROOT-bind
+    DEV_SESSION_CONFIG_HOST_PATH: str = "/home/bart/homeplatform-secrets/session-config"  # per env_name een submap, bv. .../prod/.mindbox.config.prod.ps1
 
     @property
     def is_dev(self) -> bool:

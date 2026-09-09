@@ -52,7 +52,10 @@ services:
       - DEV_SESSION_GIT_USER_NAME=${DEV_SESSION_GIT_USER_NAME:-Claude Agent}
       - DEV_SESSION_DEPLOY_KEY_HOST_PATH=${DEV_SESSION_DEPLOY_KEY_HOST_PATH:-/home/bart/homeplatform/secrets/claude-agent-deploy-key}
       - DEV_SESSION_MEMORY_MB=${DEV_SESSION_MEMORY_MB:-2048}
-      - DEV_SESSION_MAX_CONCURRENT=${DEV_SESSION_MAX_CONCURRENT:-2}
+      - DEV_SESSION_MAX_CONCURRENT_GIT=${DEV_SESSION_MAX_CONCURRENT_GIT:-1}
+      - DEV_SESSION_MAX_CONCURRENT_OTHER=${DEV_SESSION_MAX_CONCURRENT_OTHER:-5}
+      - DEV_SESSION_UPLOADS_HOST_PATH=${DEV_SESSION_UPLOADS_HOST_PATH:-/home/bart/homeplatform-acc/uploads}
+      - DEV_SESSION_CONFIG_HOST_PATH=${DEV_SESSION_CONFIG_HOST_PATH:-/home/bart/homeplatform-secrets/session-config}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

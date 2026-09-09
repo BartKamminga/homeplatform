@@ -56,10 +56,12 @@ Bij `.\roadmap.ps1 -Close -Ids "..." -Version v4.1`:
 
 ## Technische afspraken
 
-### Taal in code
-- **Alle nieuwe code in het Engels**: variabelen, functienamen, class-namen, component-namen, bestandsnamen — vanaf nu Engels, ook in bestaande Nederlandstalige bestanden zodra je erin werkt.
+### Taal
+- **Gesprekken met Claude**: Nederlands.
+- **Code**: Engels — variabelen, functienamen, class-namen, component-namen, bestandsnamen — vanaf nu Engels, ook in bestaande Nederlandstalige bestanden zodra je erin werkt.
+- **UI van de apps (labels, knoppen, teksten die eindgebruikers zien)**: bij voorkeur ook Engels, zelfde regime als code — nieuwe UI-teksten in het Engels, bestaande Nederlandse UI-teksten omzetten zodra je erin werkt.
 - Comments, commit-messages, roadmap-items en changelog blijven Nederlands (projectbeheer-taal, ongewijzigd).
-- Bestaande Nederlandse code wordt niet met terugwerkende kracht in bulk omgezet — dat traject staat los op de roadmap (item 879).
+- Bestaande Nederlandse code/UI wordt niet met terugwerkende kracht in bulk omgezet — dat traject staat los op de roadmap (item 879).
 
 ### PowerShell
 - Shell is PowerShell 5.1 — geen `&&`, gebruik `;` of aparte statements.
