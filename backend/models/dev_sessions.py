@@ -23,6 +23,7 @@ class DevSession(SQLModel, table=True):
     home_volume:      Optional[str]      = Field(default=None)   # claude_session_{id}_home
     status:           str                = Field(default="creating")  # creating|running|stopped|error|removed
     error:            Optional[str]      = Field(default=None)
+    remote_control_url: Optional[str]    = Field(default=None)   # laatst geziene claude.ai/code-link uit /remote-control (container-logs, niet uit claude.ai's eigen sidebar - die is wisselvallig)
     memory_limit_mb:  int                = Field(default=2048)
     created_by:       Optional[str]      = Field(default=None, foreign_key="users.id")
     created_at:       datetime           = Field(default_factory=datetime.utcnow)

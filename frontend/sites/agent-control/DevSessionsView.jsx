@@ -54,11 +54,21 @@ export default function DevSessionsView({ onError }) {
             </div>
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>branch: {dev.branch}</div>
             {dev.error && <div style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>{dev.error}</div>}
-            <div style={s.hint}>
-              Verbind via SSH + <span style={s.code}>docker exec -it {dev.container_name} tmux attach -t work</span>{' '}
-              en start (of hervat) <span style={s.code}>claude</span>. Typ daarna <span style={s.code}>/remote-control</span>{' '}
-              voor een pairing-link naar claude.ai/code of de mobiele app (gebeurt niet automatisch).
-            </div>
+            {dev.remote_control_url && (
+              <div style={{ marginTop: 8 }}>
+                <a href={dev.remote_control_url} target="_blank" rel="noreferrer">Open in claude.ai/code</a>
+                <div style={s.hint}>
+                  Betrouwbaarder dan de sidebar op claude.ai/code zelf (die toont niet altijd elke gepairde sessie).
+                </div>
+              </div>
+            )}
+            {!dev.remote_control_url && (
+              <div style={s.hint}>
+                Verbind via SSH + <span style={s.code}>docker exec -it {dev.container_name} tmux attach -t work</span>{' '}
+                en start (of hervat) <span style={s.code}>claude</span>. Typ daarna <span style={s.code}>/remote-control</span>{' '}
+                voor een pairing-link (gebeurt niet automatisch) - verschijnt hier zodra 'm gevonden is.
+              </div>
+            )}
             <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
               {dev.status === 'running' && (
                 <button onClick={ev => handleAction(stopDevSession, dev.id, ev)}>Stop</button>
