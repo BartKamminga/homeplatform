@@ -18,6 +18,7 @@ from services.hockey_query_scope import (
     last_round_only,
     scoped_matches,
     scoped_poules,
+    tags_by_poule_ext,
 )
 from services.hockey_scope import get_comp_link_tags_bulk, get_publication_links
 from services.hockey_teams import resolve_team_clubs, club_logo_for_team
@@ -42,8 +43,9 @@ def get_tag_ranking(
     if not scoped:
         return {"tags": tag, "stat": stat, "rows": []}
 
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
-    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+    poule_ext_ids = [p.poule_id for p, _, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
+    tags_by_ext = tags_by_poule_ext(session, scoped)
     standings = session.exec(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
     ).all()
@@ -71,6 +73,7 @@ def get_tag_ranking(
             "club_logo_url":    club_logo_for_team(teams, clubs, r.team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
+            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(r.poule_id, [])],
             "points":           r.points,
             "won":              r.won,
             "drawn":            r.drawn,
@@ -104,8 +107,9 @@ def get_tag_round_scorers(
     if not scoped:
         return {"tags": tag, "stat": stat, "rows": []}
 
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
-    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+    poule_ext_ids = [p.poule_id for p, _, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
+    tags_by_ext = tags_by_poule_ext(session, scoped)
     matches, last_round = last_round_only(finished_matches(session, poule_ext_ids))
 
     totals: dict = {}  # (poule_ext_id, team_id) -> {team_name, goals_for, goals_against}
@@ -138,6 +142,7 @@ def get_tag_round_scorers(
             "club_logo_url":    club_logo_for_team(teams, clubs, team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
+            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(poule_ext_id, [])],
             "goals_for":        data["goals_for"],
             "goals_against":    data["goals_against"],
             "round":            last_round.get(poule_ext_id),
@@ -165,8 +170,9 @@ def get_tag_round_matches(
     if not scoped:
         return {"tags": tag, "stat": stat, "scope": scope, "rows": []}
 
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
-    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+    poule_ext_ids = [p.poule_id for p, _, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
+    tags_by_ext = tags_by_poule_ext(session, scoped)
     matches, _ = scoped_matches(session, poule_ext_ids, scope)
 
     candidates = []
@@ -193,6 +199,7 @@ def get_tag_round_matches(
             "margin":           margin,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
+            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(m.poule_id, [])],
             "round":            m.round,
         })
     return {"tags": tag, "stat": stat, "scope": scope, "rows": rows}
@@ -218,8 +225,9 @@ def get_upcoming_matches(
     if not scoped:
         return {"tags": tag, "rows": []}
 
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
-    poule_by_ext = {p.poule_id: (p, comp) for p, comp in scoped}
+    poule_ext_ids = [p.poule_id for p, _, _ in scoped]
+    poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
+    tags_by_ext = tags_by_poule_ext(session, scoped)
 
     scheduled = session.exec(
         select(HockeyPouleMatch)
@@ -275,6 +283,7 @@ def get_upcoming_matches(
             "match_date":       m.match_date,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
+            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(m.poule_id, [])],
         })
     return {"tags": tag, "rows": rows}
 
@@ -382,7 +391,7 @@ def get_club_ranking(
     if not scoped:
         return {"tags": tag, "rows": []}
 
-    poule_ext_ids = [p.poule_id for p, _ in scoped]
+    poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     standings = session.exec(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
     ).all()

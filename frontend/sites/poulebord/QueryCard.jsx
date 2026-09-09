@@ -56,17 +56,26 @@ function baseLabelFor(pin) {
 
 // item 1109-vervolg: poule_name alleen is dubbelzinnig zodra de query meerdere
 // competities omspant (bv. "Alle niveaus") - "Poule A" bestaat in vrijwel elke
-// competitie. Competitienaam erbij tonen maakt duidelijk uit welke klasse een
-// rij komt.
-function pouleMeta(r) {
-  return [r.poule_name, r.competition_name].filter(Boolean).join(' · ')
+// competitie. De niveau/regio-tags van de competitie erbij tonen maakt
+// duidelijk uit welke klasse een rij komt.
+function PouleMeta({ tags, name }) {
+  return (
+    <>
+      {tags?.length > 0 && (
+        <span style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+          {tags.map((t, i) => <span key={t.id ?? i} style={badgeStyle()}>{t.name}</span>)}
+        </span>
+      )}
+      {name && <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{name}</span>}
+    </>
+  )
 }
 
 function TeamRows({ rows, stat }) {
   return rows.map(r => (
     <RankRow key={`${r.rank}-${r.team_name}`}
       rank={r.rank} logoUrl={r.club_logo_url} name={r.team_name}
-      meta={pouleMeta(r)} value={r[stat]} />
+      tags={r.tags} meta={r.poule_name} value={r[stat]} />
   ))
 }
 
@@ -81,7 +90,7 @@ function MatchRows({ rows }) {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {r.home_team} <strong style={{ color: C.gold }}>{r.home_score}-{r.away_score}</strong> {r.away_team}
       </span>
-      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{pouleMeta(r)}</span>
+      <PouleMeta tags={r.tags} name={r.poule_name} />
       <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0 }}>Δ{r.margin}</span>
     </div>
   ))
@@ -98,7 +107,7 @@ function UpcomingMatchRows({ rows }) {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {r.home_team} <span style={{ color: C.muted }}>vs</span> {r.away_team}
       </span>
-      <span style={{ color: C.muted, fontSize: 10, flexShrink: 0 }}>{pouleMeta(r)}</span>
+      <PouleMeta tags={r.tags} name={r.poule_name} />
       <span style={{ color: C.gold, fontWeight: 700, flexShrink: 0, fontSize: 9, whiteSpace: 'nowrap',
         textTransform: 'uppercase', letterSpacing: '0.03em' }}>
         {r.type}

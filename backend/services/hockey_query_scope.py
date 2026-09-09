@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlmodel import Session, col, select
 
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch
-from services.hockey_scope import get_publication_links
+from services.hockey_scope import get_comp_link_tags_bulk, get_publication_links
 
 # stat -> (sleutel-functie, reverse) — reverse=True is "hoogste eerst"
 # "streak" (winstreak) staat er niet in: die vergt wedstrijdgeschiedenis i.p.v.
@@ -26,8 +26,10 @@ ROUND_MATCH_STATS = {"biggest_margin", "closest_match"}
 
 
 def scoped_poules(session: Session, tid: str, tags: Optional[List[str]]):
-    """Poules (+ hun competitie) van alle zichtbare comp-koppelingen in een publicatie, evt. gefilterd op 1+ tags (AND: moet ze allemaal hebben)."""
+    """Poules (+ hun competitie + comp-koppeling) van alle zichtbare comp-koppelingen
+    in een publicatie, evt. gefilterd op 1+ tags (AND: moet ze allemaal hebben)."""
     links = get_publication_links(session, tid, tags)
+    link_by_comp_id = {lnk.competition_id: lnk for lnk in links}
     comp_ids = [lnk.competition_id for lnk in links]
     if not comp_ids:
         return []
@@ -39,7 +41,19 @@ def scoped_poules(session: Session, tid: str, tags: Optional[List[str]]):
     poules = session.exec(
         select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids))
     ).all()
-    return [(p, comps.get(p.competition_id)) for p in poules]
+    return [(p, comps.get(p.competition_id), link_by_comp_id.get(p.competition_id)) for p in poules]
+
+
+def tags_by_poule_ext(session: Session, scoped: list):
+    """poule_id (extern) -> [tag, ...] - voor rijen die per stuk uit meerdere
+    competities kunnen komen (bv. een ranglijst over "Alle niveaus"), zodat de
+    frontend per rij kan tonen uit welke klasse een team komt (item 1109)."""
+    link_ids = {lnk.id for _, _, lnk in scoped if lnk}
+    tags_by_link = get_comp_link_tags_bulk(session, list(link_ids))
+    return {
+        p.poule_id: tags_by_link.get(lnk.id, [])
+        for p, _, lnk in scoped if lnk
+    }
 
 
 def finished_matches(session: Session, poule_ext_ids: list):
