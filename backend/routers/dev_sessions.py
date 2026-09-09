@@ -10,6 +10,7 @@ Claude's eigen Remote Control-pairing (claude.ai/code of de mobiele app).
 Image is hardcoded (geen `image`-veld in het request) zodat dit endpoint
 nooit een "start willekeurige container"-primitive kan worden."""
 
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -27,6 +28,7 @@ from models.dev_sessions import DevSession
 router = APIRouter(prefix="/api/agent-control/dev-sessions", tags=["dev-sessions"])
 
 DEV_SESSION_IMAGE = "homeplatform-claude-agent:latest"
+REMOTE_CONTROL_URL_RE = re.compile(r"https://claude\.ai/code/session_[A-Za-z0-9]+")
 
 
 def _now() -> datetime:
@@ -43,6 +45,7 @@ def _session_out(s: DevSession) -> dict:
         "container_id":     s.container_id,
         "status":           s.status,
         "error":            s.error,
+        "remote_control_url": s.remote_control_url,
         "memory_limit_mb":  s.memory_limit_mb,
         "created_by":       s.created_by,
         "created_at":       s.created_at.isoformat(),
@@ -66,11 +69,27 @@ def _tail_logs(container_id: str, lines: int = 20) -> str:
         return ""
 
 
+def _scan_remote_control_url(container_id: str) -> Optional[str]:
+    """claude.ai/code-link uit de container-logs vissen (die print /remote-
+    control zelf) - de sidebar op claude.ai/code zelf is wisselvallig (soms
+    verschijnt een gepairde sessie daar niet), dus dit is de betrouwbare bron."""
+    try:
+        logs = docker_api(
+            "GET", f"/containers/{container_id}/logs",
+            params={"stdout": "true", "stderr": "true", "tail": "1000"},
+            parse_json=False,
+        )
+    except Exception:
+        return None
+    matches = REMOTE_CONTROL_URL_RE.findall(logs or "")
+    return matches[-1] if matches else None
+
+
 def _reconcile(s: DevSession, session: Session) -> DevSession:
     """Live Docker-status erbij halen en de DB corrigeren als Docker iets
     anders zegt (bv. OOM-killed terwijl de DB nog "running" zegt) - zelfde
     patroon als infra.py, dat ook altijd live inspecteert i.p.v. cache
-    vertrouwt."""
+    vertrouwt. Scant ook de container-logs op de Remote Control-link."""
     if not s.container_id or s.status in ("removed",):
         return s
     try:
@@ -78,9 +97,17 @@ def _reconcile(s: DevSession, session: Session) -> DevSession:
     except Exception:
         return s
     docker_status = (inspect or {}).get("State", {}).get("Status")
+    changed = False
     if docker_status in ("exited", "dead") and s.status == "running":
         s.status = "error"
         s.error = _tail_logs(s.container_id) or f"Container onverwacht gestopt (Docker-status: {docker_status})"
+        changed = True
+    if docker_status == "running":
+        url = _scan_remote_control_url(s.container_id)
+        if url and url != s.remote_control_url:
+            s.remote_control_url = url
+            changed = True
+    if changed:
         session.add(s)
         session.commit()
         session.refresh(s)
