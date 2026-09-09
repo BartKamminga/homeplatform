@@ -55,7 +55,8 @@ export default function DevSessionsView({ onError }) {
             {dev.error && <div style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>{dev.error}</div>}
             <div style={s.hint}>
               Verbind via SSH + <span style={s.code}>docker exec -it {dev.container_name} tmux attach -t work</span>{' '}
-              en start (of hervat) <span style={s.code}>claude</span> — pair via claude.ai/code of de mobiele app.
+              en start (of hervat) <span style={s.code}>claude</span>. Typ daarna <span style={s.code}>/remote-control</span>{' '}
+              voor een pairing-link naar claude.ai/code of de mobiele app (gebeurt niet automatisch).
             </div>
             <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
               {dev.status === 'running' && (
