@@ -4,11 +4,11 @@ import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from core.auth import require_admin
+from core.docker_engine import docker_api
 from models.core import User
 
 router = APIRouter(prefix="/api", tags=["infra"])
 
-DOCKER_SOCK = "/var/run/docker.sock"
 _DB_DIR = "/app/db"
 _RUNNER_STATUS_FILE = os.path.join(_DB_DIR, "runner_status.json")
 _RESTART_FLAG       = os.path.join(_DB_DIR, "restart_runner")
@@ -19,12 +19,7 @@ _BACKUP_RE          = re.compile(r'^homeplatform-\d{4}-\d{2}-\d{2}\.sqlite$')
 
 def _docker(path: str):
     try:
-        import httpx
-        transport = httpx.HTTPTransport(uds=DOCKER_SOCK)
-        with httpx.Client(transport=transport, base_url="http://docker", timeout=5.0) as c:
-            r = c.get(path)
-            r.raise_for_status()
-            return r.json()
+        return docker_api("GET", path, timeout=5.0)
     except Exception:
         return None
 

@@ -37,6 +37,10 @@
 #   .\MindBox.ps1 -AddDeadline -Date <yyyy-MM-dd> -Title "..." [-CaseId <id>] [-Text "..."]  # datum toevoegen
 #   .\MindBox.ps1 -Explain -Command "<notatie>" [-Env prod|acc|local]  # toon de recipe voor een commando uit de catalogus
 #   .\MindBox.ps1 -DefineCommand -FilePath <commando.json>             # nieuw commando aan de catalogus toevoegen
+#   .\MindBox.ps1 -RunInSession -Command "Case.Run(#1234)" [-Env prod]  # start een losse Claude-CLI dev-session
+#                                                                       # (Docker, agent-control) met dit commando als
+#                                                                       # opdracht - geen assistent-chat nodig. Zie ook
+#                                                                       # -Text om een vrije prompt te geven i.p.v. -Command.
 #
 # -Env kiest de omgeving (prod/acc/local) - elke omgeving heeft een EIGEN
 # database, dus item/case-ID's van acc bestaan niet op prod en andersom.
@@ -85,6 +89,7 @@ param(
     [switch]$AddDeadline,
     [switch]$Explain,
     [switch]$DefineCommand,
+    [switch]$RunInSession,
 
     [switch]$All,
     [switch]$Force,
@@ -627,6 +632,25 @@ if ($Run) {
     } else {
         Write-Host "Geef -Id <item_id> of -All [-CaseId <id>] op"; exit 1
     }
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# RunInSession — start een losse Claude Code dev-session (Docker, agent-
+# control) met dit commando als opdracht, i.p.v. het via een assistent-chat
+# te laten uitvoeren. Blijft dun (item 1053): dit stuurt alleen de
+# commandonotatie door als vrije prompt, de dev-sessions-API en de container
+# weten niets van MindBox-specifieke betekenis.
+# ---------------------------------------------------------------------------
+if ($RunInSession) {
+    if (-not $Command -and -not $Text) { Write-Host "Geef -Command <notatie> of -Text <vrije prompt> op"; exit 1 }
+    $prompt = if ($Text) { $Text } else { "$Env.MindBox.$Command" }
+    $body = @{ branch = "develop"; initial_prompt = $prompt }
+    if ($Name) { $body.name = $Name }
+    $s = ApiPost "/agent-control/dev-sessions" $body
+    Write-Host "[OK] Dev-session #$($s.id) ($($s.status)) - $($s.container_name)"
+    Write-Host "     Prompt: $prompt"
+    Write-Host "     Attach: docker exec -it $($s.container_name) tmux attach -t work"
     exit 0
 }
 

@@ -1,0 +1,33 @@
+# docker-compose.claude-agent.yml
+# Losse, headless Claude Code CLI-sessie — los van de homeplatform-app-stack.
+# Bedoeld om te draaien op de G4, zodat je vanaf een ander device (browser/mobiel
+# via Remote Control) verder kan werken aan homeplatform zonder VS Code.
+#
+# Gebruik:
+#   docker compose -f docker-compose.claude-agent.yml up -d --build
+#   docker exec -it homeplatform_claude_agent tmux attach -t work
+#   (binnen tmux: `claude` starten, pairing-code volgen op claude.ai/code of de mobiele app)
+
+services:
+  claude_agent:
+    build:
+      context: ./docker/claude-agent
+      dockerfile: Dockerfile
+    container_name: homeplatform_claude_agent
+    stdin_open: true
+    tty: true
+    environment:
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - REPO_URL=${CLAUDE_AGENT_REPO_URL}
+      - BRANCH=${CLAUDE_AGENT_BRANCH:-develop}
+      - GIT_USER_NAME=${CLAUDE_AGENT_GIT_USER_NAME:-Claude Agent}
+      - GIT_USER_EMAIL=${CLAUDE_AGENT_GIT_USER_EMAIL:-bart.kamminga@nipv.nl}
+    volumes:
+      - claude_agent_workspace:/workspace
+      - claude_agent_home:/root/.claude
+      - ./secrets/claude-agent-deploy-key:/root/.ssh/id_ed25519:ro
+    restart: unless-stopped
+
+volumes:
+  claude_agent_workspace:
+  claude_agent_home:

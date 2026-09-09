@@ -14,6 +14,7 @@ from models.tournix import *  # noqa
 from models.hockey_discovery import *  # noqa
 from models.hockey_season_calendar import *  # noqa
 from models.agent_control import *  # noqa
+from models.dev_sessions import *  # noqa
 
 config = context.config
 
