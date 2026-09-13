@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { addReportLink, updateReportLink, deleteReportLink } from '../api.js'
 
 export const LINK_TYPES = [
@@ -8,6 +8,45 @@ export const LINK_TYPES = [
 
 function typeInfo(type) {
   return LINK_TYPES.find(t => t.value === type) || { label: type, icon: '🔗' }
+}
+
+let igScriptPromise = null
+function loadInstagramEmbedScript() {
+  if (window.instgrm) return Promise.resolve()
+  if (igScriptPromise) return igScriptPromise
+  igScriptPromise = new Promise(resolve => {
+    const existing = document.querySelector('script[src="https://www.instagram.com/embed.js"]')
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true })
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://www.instagram.com/embed.js'
+    script.async = true
+    script.onload = resolve
+    document.body.appendChild(script)
+  })
+  return igScriptPromise
+}
+
+function InstagramEmbed({ url, note }) {
+  useEffect(() => {
+    let cancelled = false
+    loadInstagramEmbedScript().then(() => {
+      if (!cancelled && window.instgrm) window.instgrm.Embeds.process()
+    })
+    return () => { cancelled = true }
+  }, [url])
+
+  return (
+    <div style={{ margin: '0 auto 12px', maxWidth: 540 }}>
+      {note && <p style={{ fontSize: 12, color: '#666', margin: '0 0 6px', textAlign: 'center' }}>{note}</p>}
+      <blockquote className="instagram-media" data-instgrm-permalink={url} data-instgrm-version="14"
+        style={{ background: '#FFF', border: 0, borderRadius: 12, margin: '0 auto', maxWidth: 540, width: '100%', minWidth: 250 }}>
+        <a href={url} target="_blank" rel="noreferrer">Bekijk deze post op Instagram</a>
+      </blockquote>
+    </div>
+  )
 }
 
 const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc', width: '100%', minWidth: 0 }
@@ -132,22 +171,31 @@ export function ExistingLinksEditor({ reportId, links, onChanged }) {
   )
 }
 
-// Publieke weergave: preview-tiles i.p.v. platte linkjes.
+// Publieke weergave: Instagram-links worden echt ingebed (embed.js-widget),
+// overige linktypes (bv. wedstrijdbeelden) blijven preview-tiles.
 export function LinkTiles({ links }) {
   if (!links || links.length === 0) return null
+  const instagramLinks = links.filter(l => l.link_type === 'instagram')
+  const otherLinks = links.filter(l => l.link_type !== 'instagram')
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginTop: 8 }}>
-      {links.map(l => {
-        const info = typeInfo(l.link_type)
-        return (
-          <a key={l.id} href={l.url} target="_blank" rel="noreferrer" className="yof-card"
-            style={{ display: 'block', textDecoration: 'none', color: 'inherit', textAlign: 'center', padding: 12 }}>
-            <div style={{ fontSize: 22 }}>{info.icon}</div>
-            <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>{info.label}</div>
-            {l.note && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{l.note}</div>}
-          </a>
-        )
-      })}
+    <div style={{ marginTop: 8 }}>
+      {instagramLinks.map(l => <InstagramEmbed key={l.id} url={l.url} note={l.note} />)}
+      {otherLinks.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+          {otherLinks.map(l => {
+            const info = typeInfo(l.link_type)
+            return (
+              <a key={l.id} href={l.url} target="_blank" rel="noreferrer" className="yof-card"
+                style={{ display: 'block', textDecoration: 'none', color: 'inherit', textAlign: 'center', padding: 12 }}>
+                <div style={{ fontSize: 22 }}>{info.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>{info.label}</div>
+                {l.note && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{l.note}</div>}
+              </a>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
