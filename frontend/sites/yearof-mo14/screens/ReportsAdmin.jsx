@@ -254,6 +254,15 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
     setEditing(false)
   }
 
+  if (editing && report.report_type === 'wedstrijd_beelden') {
+    return (
+      <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 10, background: '#fafafa' }}>
+        <ExistingLinksEditor reportId={report.id} links={report.links || []} onChanged={onLinksChanged} />
+        <button onClick={() => setEditing(false)} style={{ fontSize: 12, cursor: 'pointer' }}>Klaar</button>
+      </div>
+    )
+  }
+
   if (editing) {
     return (
       <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 10, background: '#fafafa' }}>
@@ -265,7 +274,6 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
           <select value={form.report_type} onChange={e => setForm({ ...form, report_type: e.target.value })} style={{ fontSize: 12 }}>
             <option value="wedstrijdverslag">Wedstrijdverslag</option>
             <option value="interview">Interview</option>
-            <option value="wedstrijd_beelden">Wedstrijdbeelden</option>
             <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
           </select>
           {form.report_type === 'interview' && (
@@ -282,9 +290,6 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
           style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
         <input value={form.author_name} onChange={e => setForm({ ...form, author_name: e.target.value })} placeholder="Door (naam, optioneel)"
           style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, margin: '4px 0 6px' }}>Linkjes (Instagram/Wedstrijdbeelden)</label>
-        <ExistingLinksEditor reportId={report.id} links={report.links || []} onChanged={onLinksChanged} />
 
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={save} style={{ fontSize: 12, cursor: 'pointer' }}>Opslaan</button>
