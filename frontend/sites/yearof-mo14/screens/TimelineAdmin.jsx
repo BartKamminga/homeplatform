@@ -135,6 +135,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
             <th style={{ padding: 6 }}>Titel</th>
             <th style={{ padding: 6 }}>Locatie</th>
             <th style={{ padding: 6 }}>Uitslag</th>
+            <th style={{ padding: 6 }}>Inhoud</th>
             <th style={{ padding: 6 }}></th>
           </tr>
         </thead>
@@ -146,8 +147,11 @@ export default function TimelineAdmin({ onOpenMatch }) {
               <td style={{ padding: 6 }}>
                 <button onClick={() => onOpenMatch(it.match_ref)} style={{
                   fontSize: 13, cursor: 'pointer', border: 'none', background: 'none', padding: 0,
-                  color: '#12203c', textDecoration: 'underline',
+                  color: '#12203c', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 6,
                 }}>
+                  {it.opponent_club_logo && (
+                    <img src={it.opponent_club_logo} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
+                  )}
                   {it.is_pinned ? '📌 ' : ''}{it.title}
                 </button>
               </td>
@@ -156,6 +160,11 @@ export default function TimelineAdmin({ onOpenMatch }) {
               </td>
               <td style={{ padding: 6 }}>
                 <ScoreCell item={it} onSave={saveScore} />
+              </td>
+              <td style={{ padding: 6 }}>
+                {it.has_photos && <span title="Foto's beschikbaar">📷</span>}
+                {it.has_report && <span title="Verslag/interview beschikbaar">📝</span>}
+                {it.has_footage && <span title="Wedstrijdbeelden beschikbaar">▶️</span>}
               </td>
               <td style={{ padding: 6, display: 'flex', gap: 6 }}>
                 {it.match_ref.startsWith('custom:') && it.kind === 'bijzonder' && (

@@ -5,7 +5,10 @@ function fmtDate(iso) {
   if (!iso) return '-'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
-  return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
+  const datePart = d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
+  const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(iso)
+  if (!hasTime) return datePart
+  return `${datePart} · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
 }
 
 export default function PublicTimeline({ onOpenEntry }) {
@@ -23,9 +26,19 @@ export default function PublicTimeline({ onOpenEntry }) {
       {items.map(it => (
         <a key={it.match_ref} className="yof-list-row"
           href="#" onClick={e => { e.preventDefault(); onOpenEntry(it.match_ref) }}>
-          <div>
-            <div style={{ fontSize: 13, color: '#666' }}>{fmtDate(it.date)}</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{it.title}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {it.opponent_club_logo && (
+              <img src={it.opponent_club_logo} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+            )}
+            <div>
+              <div style={{ fontSize: 13, color: '#666' }}>{fmtDate(it.date)}</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{it.title}</div>
+              <div style={{ display: 'flex', gap: 4, marginTop: 2, fontSize: 12 }}>
+                {it.has_photos && <span title="Foto's beschikbaar">📷</span>}
+                {it.has_report && <span title="Verslag/interview beschikbaar">📝</span>}
+                {it.has_footage && <span title="Wedstrijdbeelden beschikbaar">▶️</span>}
+              </div>
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {it.score_us != null && <strong>{it.score_us}-{it.score_them}</strong>}

@@ -387,6 +387,31 @@ def _custom_timeline_items(session: Session) -> list[dict]:
     return items
 
 
+def _annotate_content_flags(session: Session, items: list[dict]) -> list[dict]:
+    """Zet has_photos/has_report/has_footage per item - voor kleine
+    aanwezigheids-icoontjes op het tijdlijn-overzicht, zonder de content zelf
+    te tonen (dat blijft aan de detailpagina)."""
+    match_refs = [it["match_ref"] for it in items]
+    if not match_refs:
+        return items
+    photos = session.exec(
+        select(YearOfPhoto).where(YearOfPhoto.status == "published").where(col(YearOfPhoto.match_ref).in_(match_refs))
+    ).all()
+    photos_by_ref = {p.match_ref for p in photos}
+
+    reports = session.exec(
+        select(YearOfReport).where(YearOfReport.status == "published").where(col(YearOfReport.match_ref).in_(match_refs))
+    ).all()
+    reports_by_ref = {r.match_ref for r in reports if r.report_type in ("wedstrijdverslag", "interview")}
+    footage_by_ref = {r.match_ref for r in reports if r.report_type == "wedstrijd_beelden"}
+
+    for it in items:
+        it["has_photos"] = it["match_ref"] in photos_by_ref
+        it["has_report"] = it["match_ref"] in reports_by_ref
+        it["has_footage"] = it["match_ref"] in footage_by_ref
+    return items
+
+
 @router.get("/timeline")
 def get_timeline(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     """Competitiewedstrijden (read-only sync) + oefenwedstrijden/bijzondere dagen
@@ -394,7 +419,7 @@ def get_timeline(session: Session = Depends(get_session), _: None = Depends(requ
     genormaliseerde tag-doel voor latere content (fase 4/5)."""
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
     items.sort(key=lambda e: e["date"])
-    return items
+    return _annotate_content_flags(session, items)
 
 
 @router.get("/timeline/{match_ref}")
