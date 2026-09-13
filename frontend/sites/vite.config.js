@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const APPS = ['landing', 'admin', 'nkhockey', 'mixmusic', 'dontforget', 'account', 'tournix', 'fiets', 'poulebord', 'beatcrades', 'scrapster', 'hockey-inside', 'agent-control', 'mindbox']
+const APPS = ['landing', 'admin', 'nkhockey', 'mixmusic', 'dontforget', 'account', 'tournix', 'fiets', 'poulebord', 'beatcrades', 'scrapster', 'hockey-inside', 'agent-control', 'mindbox', 'yearof-mo14']
 
 function spaFallback() {
   return {
@@ -57,6 +57,7 @@ export default defineConfig({
         'hockey-inside': path.resolve(__dirname, 'hockey-inside/index.html'),
         'agent-control': path.resolve(__dirname, 'agent-control/index.html'),
         mindbox:         path.resolve(__dirname, 'mindbox/index.html'),
+        'yearof-mo14':   path.resolve(__dirname, 'yearof-mo14/index.html'),
       },
     },
   },
