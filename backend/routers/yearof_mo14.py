@@ -60,6 +60,7 @@ from core.settings import settings
 from models.core import User, UserApiKey
 from models.hockey_discovery import HockeyPoule
 from models.yearof import (
+    YearOfActionSettings,
     YearOfContributorLink,
     YearOfCustomEntry,
     YearOfPhoto,
@@ -163,7 +164,7 @@ def get_team_scope_cutoff(
 @router.get("/status")
 def status():
     """Publiek, geen auth — bewijst dat de site/router leeft."""
-    return {"site": "yearof-mo14", "fase": 7, "status": "teamlinkje-rotatie + content-scoping"}
+    return {"site": "yearof-mo14", "fase": 8, "status": "actiepagina + Pinksterweekend + polish"}
 
 
 @router.get("/me")
@@ -1141,3 +1142,47 @@ def reject_player_edit(
     session.add(edit)
     session.commit()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Actie-instellingen (fase 8, item 1150) — doelbedrag/voortgang + de simpele
+# betaallink-oplossing voor item 1153 (beheerder plakt zelf een extern
+# betaalverzoek, geen eigen payment-integratie).
+# ---------------------------------------------------------------------------
+
+class ActionSettingsUpdate(BaseModel):
+    goal_amount: Optional[int] = None
+    raised_amount: Optional[int] = None
+    donation_url: Optional[str] = None
+
+
+def _get_action_settings(session: Session) -> YearOfActionSettings:
+    settings_row = session.get(YearOfActionSettings, "default")
+    if not settings_row:
+        settings_row = YearOfActionSettings(id="default")
+        session.add(settings_row)
+        session.commit()
+        session.refresh(settings_row)
+    return settings_row
+
+
+@router.get("/action")
+def get_action_settings(session: Session = Depends(get_session)):
+    """Publiek, geen teamcode nodig — de thermometer mag iedereen zien."""
+    return _get_action_settings(session)
+
+
+@router.patch("/action")
+def update_action_settings(
+    body: ActionSettingsUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    settings_row = _get_action_settings(session)
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(settings_row, key, value)
+    settings_row.updated_at = datetime.utcnow()
+    session.add(settings_row)
+    session.commit()
+    session.refresh(settings_row)
+    return settings_row

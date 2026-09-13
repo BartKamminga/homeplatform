@@ -103,3 +103,7 @@ export const submitPlayerEdit   = (body)      => api.post('/api/yearof-mo14/play
 export const getPlayerEditsModeration = ()    => api.get('/api/yearof-mo14/player-edits/moderation')
 export const applyPlayerEdit    = (id)        => api.post(`/api/yearof-mo14/player-edits/${id}/apply`)
 export const rejectPlayerEdit   = (id)        => api.delete(`/api/yearof-mo14/player-edits/${id}`)
+
+// Actie-instellingen (doelbedrag/voortgang/betaallink)
+export const getActionSettings    = ()     => api.get('/api/yearof-mo14/action')
+export const updateActionSettings = (body) => api.patch('/api/yearof-mo14/action', body)

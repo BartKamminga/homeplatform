@@ -99,6 +99,20 @@ class YearOfPlayerEdit(SQLModel, table=True):
     created_at:   datetime        = Field(default_factory=datetime.utcnow)
 
 
+class YearOfActionSettings(SQLModel, table=True):
+    """Instellingen voor de inzamelactie (fase 8, item 1150) - 1 singleton-rij
+    (id vast op "default"). donation_url is de simpele oplossing voor item
+    1153 (betaallink): beheerder plakt zelf een extern betaalverzoek (bv.
+    Tikkie), geen eigen payment-integratie."""
+    __tablename__ = "yearof_action_settings"
+
+    id:            str            = Field(default="default", primary_key=True)
+    goal_amount:   int             = Field(default=4000)
+    raised_amount: int             = Field(default=0)
+    donation_url:  Optional[str]  = Field(default=None)
+    updated_at:    datetime        = Field(default_factory=datetime.utcnow)
+
+
 class YearOfContributorLink(SQLModel, table=True):
     """Wedstrijd-invullink (fase 5, item 1147): eenmalig/tijdelijk, gekoppeld
     aan 1 wedstrijd/dag en evt. 1 speler. Code-als-PK, zelfde patroon als

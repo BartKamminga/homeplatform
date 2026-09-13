@@ -6,6 +6,7 @@ import PlayersAdmin from './screens/PlayersAdmin.jsx'
 import TimelineAdmin from './screens/TimelineAdmin.jsx'
 import AccessAdmin from './screens/AccessAdmin.jsx'
 import RoadmapAdmin from './screens/RoadmapAdmin.jsx'
+import ActionAdmin from './screens/ActionAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
 import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import Gate from './screens/Gate.jsx'
@@ -37,6 +38,7 @@ function BeheerderPaneel() {
           { key: 'toegang', label: 'Toegang' },
           { key: 'fotos', label: "Foto's" },
           { key: 'verslagen', label: 'Verslagen' },
+          { key: 'actie', label: 'Actie' },
           { key: 'roadmap', label: 'Roadmap' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
@@ -55,6 +57,7 @@ function BeheerderPaneel() {
       {tab === 'toegang' && <AccessAdmin />}
       {tab === 'fotos' && <PhotosAdmin />}
       {tab === 'verslagen' && <ReportsAdmin />}
+      {tab === 'actie' && <ActionAdmin />}
       {tab === 'roadmap' && <RoadmapAdmin />}
       {tab === 'preview' && (
         <div style={{ margin: '0 -24px', border: '3px dashed #f4c81e' }}>
