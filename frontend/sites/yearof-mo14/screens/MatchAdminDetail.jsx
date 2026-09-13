@@ -1,86 +1,42 @@
 import { useState, useEffect } from 'react'
 import {
   getTimeline, getTimelineItem, getPlayers,
-  getReportsModeration, createReportDirect, updateReport, deleteReport, tagReport, untagReport,
+  getReportsModeration, updateReport, deleteReport, tagReport, untagReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
-  createContributorLink,
+  createContributorLink, listContributorLinks,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
+import { contributorLinkStatus } from '../linkStatus.js'
 import { ReportCard } from './ReportsAdmin.jsx'
 import { PhotoCard } from './PhotosAdmin.jsx'
 import PublicEntry from './PublicEntry.jsx'
 
-function QuickReportForm({ matchRef, onCreated }) {
+function NewMessageLinks({ matchRef, players, links, onCreated }) {
+  const [playerId, setPlayerId] = useState('')
   const [reportType, setReportType] = useState('wedstrijdverslag')
-  const [role, setRole] = useState('speelster')
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
   const [error, setError] = useState('')
+  const [copiedId, setCopiedId] = useState('')
 
-  async function submit() {
-    if (!title.trim() || !body.trim()) return
+  function playerName(id) {
+    return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name || '-'
+  }
+
+  async function make() {
     try {
-      await createReportDirect({
-        match_ref: matchRef,
-        report_type: reportType,
-        interviewee_role: reportType === 'interview' ? role : null,
-        title, body, status: 'published',
-      })
-      setTitle(''); setBody('')
+      const link = await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
+      window.open(`${window.location.origin}/yearof-mo14/?invul=${link.id}`, '_blank')
       onCreated()
     } catch (e) {
       setError(e.message)
     }
   }
 
-  return (
-    <div>
-      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
-          <option value="wedstrijdverslag">Wedstrijdverslag</option>
-          <option value="interview">Interview</option>
-          <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
-        </select>
-        {reportType === 'interview' && (
-          <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 12 }}>
-            <option value="speelster">Speelster</option>
-            <option value="coach">Coach</option>
-            <option value="ouder">Ouder</option>
-          </select>
-        )}
-      </div>
-      <input placeholder="Titel" value={title} onChange={e => setTitle(e.target.value)}
-        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-      <textarea placeholder="Tekst" value={body} onChange={e => setBody(e.target.value)} rows={3}
-        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-      <button onClick={submit} style={{ fontSize: 12, cursor: 'pointer' }}>Publiceren</button>
-    </div>
-  )
-}
-
-function QuickContributorLink({ matchRef, players }) {
-  const [playerId, setPlayerId] = useState('')
-  const [reportType, setReportType] = useState('interview')
-  const [link, setLink] = useState(null)
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState('')
-
-  async function make() {
-    try {
-      const l = await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
-      setLink(l)
-    } catch (e) {
-      setError(e.message)
-    }
-  }
-
-  async function copy() {
+  async function copy(link) {
     const url = `${window.location.origin}/yearof-mo14/?invul=${link.id}`
     try {
       await copyToClipboard(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopiedId(link.id)
+      setTimeout(() => setCopiedId(''), 2000)
     } catch (e) {
       setError(e.message)
     }
@@ -89,23 +45,52 @@ function QuickContributorLink({ matchRef, players }) {
   return (
     <div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
+          <option value="wedstrijdverslag">Wedstrijdverslag</option>
+          <option value="interview">Interview</option>
+        </select>
         <select value={playerId} onChange={e => setPlayerId(e.target.value)} style={{ fontSize: 12 }}>
-          <option value="">Voor het hele team</option>
+          <option value="">Voor het hele team / mezelf</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
         </select>
-        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
-          <option value="interview">Interview</option>
-          <option value="wedstrijdverslag">Wedstrijdverslag</option>
-        </select>
-        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw invullinkje</button>
+        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw bericht (opent invulpagina)</button>
       </div>
-      {link && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input readOnly value={`${window.location.origin}/yearof-mo14/?invul=${link.id}`} onFocus={e => e.target.select()}
-            style={{ flex: '1 1 220px', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
-          <button onClick={copy} style={{ fontSize: 11, cursor: 'pointer' }}>{copied ? 'Gekopieerd!' : 'Kopieer'}</button>
-        </div>
+
+      {links.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ textAlign: 'left', color: '#888' }}>
+              <th style={{ padding: 6 }}>Speler</th>
+              <th style={{ padding: 6 }}>Type</th>
+              <th style={{ padding: 6 }}>Status</th>
+              <th style={{ padding: 6 }}>Link</th>
+              <th style={{ padding: 6 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {links.map(l => {
+              const status = contributorLinkStatus(l)
+              const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
+              return (
+                <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
+                  <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
+                  <td style={{ padding: 6 }}>{l.report_type}</td>
+                  <td style={{ padding: 6, color: status.color, fontWeight: 600 }}>{status.label}</td>
+                  <td style={{ padding: 6, width: 200 }}>
+                    <input readOnly value={url} onFocus={e => e.target.select()}
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
+                  </td>
+                  <td style={{ padding: 6 }}>
+                    <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
+                      {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   )
@@ -117,6 +102,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
+  const [links, setLinks] = useState([])
   const [error, setError] = useState('')
 
   function loadReports() {
@@ -125,6 +111,9 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   function loadPhotos() {
     getPhotosModeration().then(rows => setPhotos(rows.filter(p => p.match_ref === matchRef))).catch(e => setError(e.message))
   }
+  function loadLinks() {
+    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(e => setError(e.message))
+  }
 
   useEffect(() => {
     getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
@@ -132,6 +121,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadPhotos()
+    loadLinks()
   }, [matchRef])
 
   function entryTitle(ref) {
@@ -202,13 +192,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
       ))}
       {reports.length === 0 && <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>Nog geen verslagen voor deze wedstrijd.</p>}
 
-      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Nieuw verslag/interview voor deze wedstrijd</h4>
-      <div style={{ marginBottom: 20 }}>
-        <QuickReportForm matchRef={matchRef} onCreated={loadReports} />
-      </div>
-
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Invullinkje voor deze wedstrijd</h4>
-      <QuickContributorLink matchRef={matchRef} players={players} />
+      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Nieuw bericht / invullinkjes voor deze wedstrijd</h4>
+      <NewMessageLinks matchRef={matchRef} players={players} links={links} onCreated={loadLinks} />
     </div>
   )
 }

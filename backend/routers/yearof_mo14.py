@@ -715,16 +715,31 @@ def list_contributor_links(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    return session.exec(select(YearOfContributorLink).order_by(YearOfContributorLink.created_at.desc())).all()
+    """Beheerder-only — inclusief status (opened_at + het lot van het bijbehorende
+    verslag, indien al ingevuld) zodat de UI geopend/ingevuld/concept/gepubliceerd
+    kan tonen zonder aparte round-trips."""
+    links = session.exec(select(YearOfContributorLink).order_by(YearOfContributorLink.created_at.desc())).all()
+    reports = session.exec(select(YearOfReport).where(col(YearOfReport.contributor_code).is_not(None))).all()
+    report_by_code = {r.contributor_code: r for r in reports}
+    return [
+        {**link.model_dump(), "report_status": report_by_code[link.id].status if link.id in report_by_code else None}
+        for link in links
+    ]
 
 
 @router.get("/contributor-links/{code}")
 def get_contributor_link_context(code: str, session: Session = Depends(get_session)):
     """Publiek — het invulformulier haalt hiermee de context op (welke wedstrijd,
-    voor wie) en checkt meteen of de link nog geldig is."""
+    voor wie) en checkt meteen of de link nog geldig is. Zet ook opened_at
+    (eerste keer) voor de statusweergave in het beheerderscherm."""
     link = session.get(YearOfContributorLink, code.strip().lower())
     if not link or link.revoked_at is not None or link.expires_at < datetime.utcnow():
         raise HTTPException(status_code=403, detail="Deze invullink is verlopen of ongeldig")
+
+    if link.opened_at is None:
+        link.opened_at = datetime.utcnow()
+        session.add(link)
+        session.commit()
 
     player = session.get(YearOfPlayer, link.player_id) if link.player_id else None
     items = _competition_timeline_items(session) + _custom_timeline_items(session)

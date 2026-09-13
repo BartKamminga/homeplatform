@@ -5,6 +5,7 @@ import {
   getReportsModeration, createReportDirect, updateReport, deleteReport, tagReport, untagReport,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
+import { contributorLinkStatus } from '../linkStatus.js'
 
 function ContributorLinks({ entries, players }) {
   const [links, setLinks] = useState([])
@@ -76,6 +77,7 @@ function ContributorLinks({ entries, players }) {
             <th style={{ padding: 6 }}>Voor</th>
             <th style={{ padding: 6 }}>Speler</th>
             <th style={{ padding: 6 }}>Type</th>
+            <th style={{ padding: 6 }}>Status</th>
             <th style={{ padding: 6 }}>Vervalt</th>
             <th style={{ padding: 6 }}>Link</th>
             <th style={{ padding: 6 }}></th>
@@ -85,11 +87,13 @@ function ContributorLinks({ entries, players }) {
           {links.map(l => {
             const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
             const expired = new Date(l.expires_at) < new Date()
+            const status = contributorLinkStatus(l)
             return (
               <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
                 <td style={{ padding: 6 }}>{entryTitle(l.match_ref)}</td>
                 <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
                 <td style={{ padding: 6 }}>{l.report_type}</td>
+                <td style={{ padding: 6, color: status.color, fontWeight: 600 }}>{status.label}</td>
                 <td style={{ padding: 6, color: (l.revoked_at || expired) ? '#c23b3b' : 'inherit' }}>
                   {l.expires_at?.slice(0, 10)}{expired ? ' (verlopen)' : ''}
                 </td>

@@ -123,6 +123,7 @@ class YearOfContributorLink(SQLModel, table=True):
     match_ref:   str
     player_id:   Optional[str]  = Field(default=None, foreign_key="yearof_players.id")
     report_type: str            = Field(default="interview")  # interview | wedstrijdverslag (bv. vooraf-preview)
+    opened_at:   Optional[datetime] = Field(default=None)  # eerste keer dat de invulpagina geopend werd
     expires_at:  datetime
     revoked_at: Optional[datetime] = Field(default=None)
     created_at: datetime        = Field(default_factory=datetime.utcnow)
