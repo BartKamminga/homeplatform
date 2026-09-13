@@ -157,7 +157,6 @@ def get_team_scope_cutoff(
     geen content-scoping meer nodig: alle gepubliceerde content is voor
     iedereen zichtbaar."""
     return None
-    return link.created_at
 
 
 @router.get("/status")
