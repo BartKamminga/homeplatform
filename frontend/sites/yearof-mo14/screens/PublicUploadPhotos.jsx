@@ -20,6 +20,29 @@ export default function PublicUploadPhotos() {
     }).catch(e => setError(e.message))
   }, [])
 
+  // Plakken (Ctrl+V) van een foto uit het klembord toevoegen, naast de bestandskiezer.
+  useEffect(() => {
+    function handlePaste(e) {
+      const items = Array.from(e.clipboardData?.items || [])
+      const pasted = items
+        .filter(item => item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean)
+      if (pasted.length) {
+        setFiles(prev => [...prev, ...pasted])
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [])
+
+  function addFiles(newFiles) {
+    setFiles(prev => [...prev, ...newFiles])
+  }
+  function removeFile(index) {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   async function submit() {
     if (!matchRef || files.length === 0) return
     setError('')
@@ -62,9 +85,27 @@ export default function PublicUploadPhotos() {
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s kiezen</label>
       <input type="file" accept="image/*" multiple
-        onChange={e => setFiles(Array.from(e.target.files || []))}
-        style={{ display: 'block', marginBottom: 14, fontSize: 14 }} />
+        onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = '' }}
+        style={{ display: 'block', marginBottom: 8, fontSize: 14 }} />
+      <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
+        Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V).
+      </p>
 
+      {files.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 10 }}>
+          {files.map((f, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <img src={URL.createObjectURL(f)} alt=""
+                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              <button onClick={() => removeFile(i)} style={{
+                position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
+                width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
+                background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
+              }}>&times;</button>
+            </div>
+          ))}
+        </div>
+      )}
       {files.length > 0 && <p style={{ fontSize: 13, color: '#666' }}>{files.length} foto&rsquo;s geselecteerd</p>}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
