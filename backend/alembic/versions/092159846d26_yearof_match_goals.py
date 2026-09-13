@@ -15,6 +15,15 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Idempotent: de app-lifespan draait SQLModel.metadata.create_all() bij elke
+    # backend-herstart, en die stap loopt in de deploy-pipeline vóór deze
+    # migratie - voor een gloednieuwe tabel kan die dus al bestaan tegen de tijd
+    # dat alembic hier komt.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "yearof_match_goals" in inspector.get_table_names():
+        return
+
     op.create_table(
         "yearof_match_goals",
         sa.Column("id", sa.String(), nullable=False),
