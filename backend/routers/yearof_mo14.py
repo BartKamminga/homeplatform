@@ -51,7 +51,7 @@ from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer
 from PIL import Image
 from pydantic import BaseModel
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, or_, select
 
 from core.auth import decode_token, get_current_user, hash_api_key
 from core.crud import get_or_404
@@ -1091,10 +1091,16 @@ def get_spotlight_reports(
     scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
 ):
     """"In de kijker" - beheerder selecteert handmatig welke berichten hier
-    verschijnen (featured=true). Zolang er nog niets geselecteerd is, valt dit
-    terug op het wedstrijdverslag van de meest recente wedstrijd, zodat de
-    pagina niet leeg is voor er iets gecureerd wordt."""
-    q = select(YearOfReport).where(YearOfReport.status == "published").where(YearOfReport.featured == True)  # noqa: E712
+    verschijnen (featured=true). Algemene berichten (report_type="nieuws")
+    staan er altijd bij - die zijn niet aan een wedstrijd gekoppeld en hebben
+    anders nergens op de publieke site een plek. Zolang er nog niets
+    gefeatured is en er geen nieuws is, valt dit terug op het wedstrijdverslag
+    van de meest recente wedstrijd, zodat de pagina niet leeg is."""
+    q = (
+        select(YearOfReport)
+        .where(YearOfReport.status == "published")
+        .where(or_(YearOfReport.featured == True, YearOfReport.report_type == "nieuws"))  # noqa: E712
+    )
     if scope_cutoff is not None:
         q = q.where(YearOfReport.created_at <= scope_cutoff)
     reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()

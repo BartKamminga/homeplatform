@@ -307,7 +307,7 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
         </span>
         {' · '}
         <span style={{ fontSize: 11, color: '#888' }}>{report.report_type} · {entryTitle(report.match_ref)}</span>
-        {report.featured && (
+        {(report.featured || report.report_type === 'nieuws') && (
           <>
             {' · '}
             <span style={{ fontSize: 11, color: '#a3245c', fontWeight: 700 }}>&#9733; In de kijker</span>
@@ -339,9 +339,11 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
         <button onClick={() => onTogglePublish(report)} style={{ fontSize: 12, cursor: 'pointer' }}>
           {report.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
         </button>
-        <button onClick={() => onSave(report.id, { featured: !report.featured })} style={{ fontSize: 12, cursor: 'pointer' }}>
-          {report.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
-        </button>
+        {report.report_type !== 'nieuws' && (
+          <button onClick={() => onSave(report.id, { featured: !report.featured })} style={{ fontSize: 12, cursor: 'pointer' }}>
+            {report.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
+          </button>
+        )}
         <button onClick={() => onDelete(report.id)} style={{ fontSize: 12, cursor: 'pointer' }}>Verwijderen</button>
       </div>
     </div>
