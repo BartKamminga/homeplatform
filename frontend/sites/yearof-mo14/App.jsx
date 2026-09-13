@@ -5,7 +5,6 @@ import { getMe } from './api.js'
 import PlayersAdmin from './screens/PlayersAdmin.jsx'
 import TimelineAdmin from './screens/TimelineAdmin.jsx'
 import AccessAdmin from './screens/AccessAdmin.jsx'
-import RoadmapAdmin from './screens/RoadmapAdmin.jsx'
 import ActionAdmin from './screens/ActionAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
 import ReportsAdmin from './screens/ReportsAdmin.jsx'
@@ -41,7 +40,6 @@ function BeheerderPaneel() {
           { key: 'fotos', label: "Foto's" },
           { key: 'verslagen', label: 'Verslagen' },
           { key: 'actie', label: 'Actie' },
-          { key: 'roadmap', label: 'Roadmap' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
           <button key={t.key} onClick={() => { setTab(t.key); setMatchDetailRef(null) }} style={{
@@ -64,7 +62,6 @@ function BeheerderPaneel() {
       {tab === 'fotos' && <PhotosAdmin />}
       {tab === 'verslagen' && <ReportsAdmin />}
       {tab === 'actie' && <ActionAdmin />}
-      {tab === 'roadmap' && <RoadmapAdmin />}
       {tab === 'preview' && (
         <div style={{ margin: '0 -24px', border: '3px dashed #f4c81e' }}>
           <PublicSite previewMode />

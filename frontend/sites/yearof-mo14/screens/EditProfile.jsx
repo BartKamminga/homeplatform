@@ -13,6 +13,7 @@ export default function EditProfile({ code }) {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     getProfileLinkContext(code).then(p => {
@@ -66,6 +67,48 @@ export default function EditProfile({ code }) {
     )
   }
   if (!player) return null
+
+  if (showPreview) {
+    const photoSrc = photoPreview || player.photo_url
+    return (
+      <div className="yof">
+        <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
+        <div className="yof-main">
+          <a className="yof-back" href="#" onClick={e => { e.preventDefault(); setShowPreview(false) }}>&larr; terug naar bewerken</a>
+          <div className="yof-card" style={{ textAlign: 'center' }}>
+            {photoSrc ? (
+              <img src={photoSrc} alt="" style={{
+                width: 72, height: 72, margin: '0 auto 12px', borderRadius: '50%', objectFit: 'cover', display: 'block',
+              }} />
+            ) : (
+              <div className="avatar" style={{
+                width: 72, height: 72, margin: '0 auto 12px', borderRadius: '50%',
+                background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20,
+              }}>
+                {player.shirt_number ?? '?'}
+              </div>
+            )}
+            <h2 style={{ margin: '0 0 2px', fontSize: 18 }}>{nickname || player.name}</h2>
+            {nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>}
+            <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
+              {position || '-'} {player.shirt_number ? `· #${player.shirt_number}` : ''}
+            </p>
+            {bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{bio}</p>}
+            {funFacts && (
+              <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;{funFacts}&rdquo;</p>
+            )}
+          </div>
+          <p style={{ fontSize: 12, color: '#999', textAlign: 'center', margin: '10px 0 0' }}>
+            Zo ziet jouw profiel eruit zodra dit is goedgekeurd. Nog niet verstuurd.
+          </p>
+          <button className="yof-btn" onClick={() => setShowPreview(false)} style={{ marginTop: 14 }}>
+            &larr; Terug om verder te bewerken
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (sent) {
     return (
@@ -133,9 +176,14 @@ export default function EditProfile({ code }) {
           placeholder="Bijv. je favoriete actie, hockeyheld, of waar je naar uitkijkt in Parijs"
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
-        <button className="yof-btn" onClick={submit} disabled={uploadingPhoto}>
-          {uploadingPhoto ? 'Foto uploaden...' : 'Opslaan (ter controle)'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="yof-btn" onClick={() => setShowPreview(true)} style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
+            Voorbeeld bekijken
+          </button>
+          <button className="yof-btn" onClick={submit} disabled={uploadingPhoto} style={{ flex: 1 }}>
+            {uploadingPhoto ? 'Foto uploaden...' : 'Opslaan (ter controle)'}
+          </button>
+        </div>
         <p style={{ fontSize: 12, color: '#999', textAlign: 'center', marginTop: 10 }}>
           Wijzigingen verschijnen pas online na goedkeuring door de teammanager.
         </p>

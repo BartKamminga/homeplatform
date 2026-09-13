@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getReports, getPlayers, getTimeline } from '../api.js'
+import { LinkTiles } from './ReportLinks.jsx'
 
 const ROLE_LABEL = { speelster: 'speelster', coach: 'coach', ouder: 'ouder' }
-
-function InstaEmbed({ url }) {
-  return <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>📸 Instagram-post bekijken</a>
-}
-function YoutubeEmbed({ url }) {
-  return <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>▶️ Video bekijken</a>
-}
 
 function AuthorAvatars({ playerIds, players }) {
   if (!playerIds || playerIds.length === 0) return null
@@ -89,8 +83,7 @@ export default function PublicSpotlight({ onOpenMatch }) {
               {open && (
                 <div onClick={e => e.stopPropagation()}>
                   <p style={{ margin: '0 0 8px', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
-                  {r.insta_url && <div style={{ marginBottom: 6 }}><InstaEmbed url={r.insta_url} /></div>}
-                  {r.youtube_url && <div style={{ marginBottom: 6 }}><YoutubeEmbed url={r.youtube_url} /></div>}
+                  <LinkTiles links={r.links} />
                 </div>
               )}
               {title && (

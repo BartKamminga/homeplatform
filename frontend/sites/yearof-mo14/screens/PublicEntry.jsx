@@ -1,20 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateReport } from '../api.js'
-
-function InstaEmbed({ url }) {
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="yof-card" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>
-      📸 Instagram-post bekijken
-    </a>
-  )
-}
-function YoutubeEmbed({ url }) {
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="yof-card" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>
-      ▶️ Video bekijken
-    </a>
-  )
-}
+import { LinkTiles } from './ReportLinks.jsx'
 
 export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
   const [item, setItem] = useState(null)
@@ -88,13 +74,7 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
               <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
               {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
-              {r.insta_url && <div style={{ marginTop: 8 }}><InstaEmbed url={r.insta_url} /></div>}
-              {r.youtube_url && <div style={{ marginTop: 8 }}><YoutubeEmbed url={r.youtube_url} /></div>}
-              {r.youtube_urls?.length > 0 && (
-                <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-                  {r.youtube_urls.map((url, i) => <YoutubeEmbed key={i} url={url} />)}
-                </div>
-              )}
+              <LinkTiles links={r.links} />
             </div>
           ))}
         </div>

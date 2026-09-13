@@ -24,6 +24,18 @@ export const getPlayer     = (id)        => api.get(withCode(`/api/yearof-mo14/p
 export const createPlayer  = (body)      => api.post('/api/yearof-mo14/players', body)
 export const updatePlayer  = (id, body)  => api.patch(`/api/yearof-mo14/players/${id}`, body)
 export const deletePlayer  = (id)        => api.delete(`/api/yearof-mo14/players/${id}`)
+export async function uploadPlayerPhotoAdmin(id, file) {
+  const fd = new FormData()
+  fd.append('file', file, file.name || 'profiel.jpg')
+  const res = await fetch(`/api/yearof-mo14/players/${id}/photo`, {
+    method: 'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('hp_token') || ''}` },
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody.detail || 'Upload mislukt')
+  }
+  return res.json()
+}
 
 // Teamlinkje (viewer-toegang)
 export const validateTeamCode = (code) => api.get(`/api/yearof-mo14/team-links/validate?code=${encodeURIComponent(code)}`)
@@ -77,6 +89,9 @@ export const setMatchGoal  = (matchRef, playerId, goals) => api.put(`/api/yearof
 // Verslagen & interviews
 export const submitReport        = (body)      => api.post('/api/yearof-mo14/reports', body)
 export const createReportDirect  = (body)      => api.post('/api/yearof-mo14/reports/direct', body)
+export const addReportLink       = (reportId, body) => api.post(`/api/yearof-mo14/reports/${reportId}/links`, body)
+export const updateReportLink    = (linkId, body)   => api.patch(`/api/yearof-mo14/reports/links/${linkId}`, body)
+export const deleteReportLink    = (linkId)         => api.delete(`/api/yearof-mo14/reports/links/${linkId}`)
 export const getReports          = (matchRef, reportType) => {
   const params = new URLSearchParams()
   if (matchRef) params.set('match_ref', matchRef)

@@ -143,12 +143,24 @@ class YearOfReport(SQLModel, table=True):
     title:            str
     body:             str
     author_name:      Optional[str]  = Field(default=None)
-    insta_url:        Optional[str]  = Field(default=None)
-    youtube_url:      Optional[str]  = Field(default=None)
-    youtube_urls:     Optional[str]  = Field(default=None)  # JSON-array, voor report_type="wedstrijd_beelden" (tot 4 links)
     contributor_code: Optional[str]  = Field(default=None)
     created_at:       datetime        = Field(default_factory=datetime.utcnow)
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)
+
+
+class YearOfReportLink(SQLModel, table=True):
+    """Generieke externe link bij een verslag (fase 5-uitbreiding): vervangt de
+    losse insta_url/youtube_url/youtube_urls-velden door 1 herbruikbare vorm.
+    link_type is vrije tekst, momenteel "instagram" en "video" (uitbreidbaar
+    zonder migratie)."""
+    __tablename__ = "yearof_report_links"
+
+    id:         str            = Field(default_factory=new_uuid, primary_key=True)
+    report_id:  str             = Field(foreign_key="yearof_reports.id", index=True)
+    link_type:  str             = Field(default="video")  # instagram | video
+    url:        str
+    note:       Optional[str]  = Field(default=None)
+    sort_order: int             = Field(default=0)
 
 
 class YearOfReportPlayerTag(SQLModel, table=True):

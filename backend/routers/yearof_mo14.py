@@ -38,7 +38,6 @@ Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
 """
 
 import io
-import json
 import random
 import shutil
 import string
@@ -71,6 +70,7 @@ from models.yearof import (
     YearOfPlayerEdit,
     YearOfProfileLink,
     YearOfReport,
+    YearOfReportLink,
     YearOfReportPlayerTag,
     YearOfTeamLink,
 )
@@ -843,8 +843,18 @@ class ReportSubmit(BaseModel):
     title: str
     body: str
     author_name: Optional[str] = None
-    insta_url: Optional[str] = None
-    youtube_url: Optional[str] = None
+
+
+class ReportLinkIn(BaseModel):
+    link_type: str  # instagram | video
+    url: str
+    note: Optional[str] = None
+
+
+class ReportLinkUpdate(BaseModel):
+    link_type: Optional[str] = None
+    url: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ReportCreate(BaseModel):
@@ -854,9 +864,7 @@ class ReportCreate(BaseModel):
     title: str
     body: str
     author_name: Optional[str] = None
-    insta_url: Optional[str] = None
-    youtube_url: Optional[str] = None
-    youtube_urls: Optional[list[str]] = None  # report_type="wedstrijd_beelden": tot 4 links
+    links: Optional[list[ReportLinkIn]] = None
     status: str = "published"
 
 
@@ -867,25 +875,28 @@ class ReportUpdate(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
     author_name: Optional[str] = None
-    insta_url: Optional[str] = None
-    youtube_url: Optional[str] = None
-    youtube_urls: Optional[list[str]] = None
     status: Optional[str] = None
 
 
-def _encode_youtube_urls(urls: Optional[list[str]]) -> Optional[str]:
-    if not urls:
-        return None
-    cleaned = [u.strip() for u in urls if u and u.strip()][:4]
-    return json.dumps(cleaned) if cleaned else None
+def _report_links(session: Session, report_id: str) -> list[dict]:
+    rows = session.exec(
+        select(YearOfReportLink).where(YearOfReportLink.report_id == report_id).order_by(YearOfReportLink.sort_order)
+    ).all()
+    return [{"id": r.id, "link_type": r.link_type, "url": r.url, "note": r.note} for r in rows]
 
 
-def _report_out(report: YearOfReport, player_ids: Optional[list[str]] = None) -> dict:
+def _add_report_links(session: Session, report_id: str, links: Optional[list[ReportLinkIn]]) -> None:
+    for i, link in enumerate(links or []):
+        if not link.url or not link.url.strip():
+            continue
+        session.add(YearOfReportLink(report_id=report_id, link_type=link.link_type, url=link.url.strip(),
+                                      note=link.note or None, sort_order=i))
+    session.commit()
+
+
+def _report_out(session: Session, report: YearOfReport, player_ids: Optional[list[str]] = None) -> dict:
     data = report.model_dump()
-    try:
-        data["youtube_urls"] = json.loads(report.youtube_urls) if report.youtube_urls else []
-    except (ValueError, TypeError):
-        data["youtube_urls"] = []
+    data["links"] = _report_links(session, report.id)
     if player_ids is not None:
         data["player_ids"] = player_ids
     return data
@@ -916,14 +927,12 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
         existing.title = body.title
         existing.body = body.body
         existing.author_name = body.author_name
-        existing.insta_url = body.insta_url
-        existing.youtube_url = body.youtube_url
         existing.status = "concept"
         existing.updated_at = datetime.utcnow()
         session.add(existing)
         session.commit()
         session.refresh(existing)
-        return _report_out(existing)
+        return _report_out(session, existing)
 
     report = YearOfReport(
         match_ref=link.match_ref,
@@ -933,8 +942,6 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
         title=body.title,
         body=body.body,
         author_name=body.author_name,
-        insta_url=body.insta_url,
-        youtube_url=body.youtube_url,
         contributor_code=code,
     )
     session.add(report)
@@ -945,7 +952,7 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
         session.add(YearOfReportPlayerTag(report_id=report.id, player_id=link.player_id))
         session.commit()
 
-    return _report_out(report)
+    return _report_out(session, report)
 
 
 @router.post("/reports/direct", status_code=201)
@@ -957,12 +964,13 @@ def create_report_direct(
     """Beheerder-only — een verslag direct schrijven (bv. het officiele
     wedstrijdverslag), mag standaard meteen published zijn."""
     data = body.model_dump()
-    data["youtube_urls"] = _encode_youtube_urls(data.pop("youtube_urls", None))
+    links = data.pop("links", None)
     report = YearOfReport(**data)
     session.add(report)
     session.commit()
     session.refresh(report)
-    return _report_out(report)
+    _add_report_links(session, report.id, [ReportLinkIn(**l) for l in (links or [])])
+    return _report_out(session, report)
 
 
 @router.get("/reports")
@@ -992,7 +1000,7 @@ def list_reports(
         for t in session.exec(select(YearOfReportPlayerTag).where(col(YearOfReportPlayerTag.report_id).in_(report_ids))).all():
             tags_by_report.setdefault(t.report_id, []).append(t.player_id)
 
-    return [_report_out(r, tags_by_report.get(r.id, [])) for r in reports]
+    return [_report_out(session, r, tags_by_report.get(r.id, [])) for r in reports]
 
 
 @router.get("/reports/moderation")
@@ -1005,7 +1013,7 @@ def list_reports_for_moderation(
     tags_by_report: dict[str, list[str]] = {}
     for t in all_tags:
         tags_by_report.setdefault(t.report_id, []).append(t.player_id)
-    return [_report_out(report, tags_by_report.get(report.id, [])) for report in reports]
+    return [_report_out(session, report, tags_by_report.get(report.id, [])) for report in reports]
 
 
 @router.patch("/reports/{report_id}")
@@ -1017,14 +1025,12 @@ def update_report(
 ):
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
     updates = body.model_dump(exclude_unset=True)
-    if "youtube_urls" in updates:
-        updates["youtube_urls"] = _encode_youtube_urls(updates["youtube_urls"])
     for key, value in updates.items():
         setattr(report, key, value)
     session.add(report)
     session.commit()
     session.refresh(report)
-    return _report_out(report)
+    return _report_out(session, report)
 
 
 @router.delete("/reports/{report_id}")
@@ -1036,7 +1042,54 @@ def delete_report(
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
     for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.report_id == report_id)).all():
         session.delete(tag)
+    for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report_id)).all():
+        session.delete(link)
     session.delete(report)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/reports/{report_id}/links", status_code=201)
+def add_report_link(
+    report_id: str,
+    body: ReportLinkIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    get_or_404(session, YearOfReport, report_id, "Verslag")
+    existing_count = len(session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report_id)).all())
+    link = YearOfReportLink(report_id=report_id, link_type=body.link_type, url=body.url, note=body.note,
+                            sort_order=existing_count)
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+@router.patch("/reports/links/{link_id}")
+def update_report_link(
+    link_id: str,
+    body: ReportLinkUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    link = get_or_404(session, YearOfReportLink, link_id, "Link")
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(link, key, value)
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+@router.delete("/reports/links/{link_id}")
+def delete_report_link(
+    link_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    link = get_or_404(session, YearOfReportLink, link_id, "Link")
+    session.delete(link)
     session.commit()
     return {"ok": True}
 
@@ -1146,20 +1199,7 @@ def get_profile_link_context(code: str, session: Session = Depends(get_session))
 PROFILE_PHOTO_ROOT = Path(settings.UPLOAD_ROOT).resolve() / "yearof-mo14" / "profile-photos"
 
 
-@router.post("/profile-links/{code}/photo")
-async def upload_profile_photo(
-    code: str,
-    file: UploadFile = File(...),
-    session: Session = Depends(get_session),
-):
-    """Publiek — via het profiellinkje zelf (geen teamcode nodig). Slaat 1
-    redelijk formaat op (geen 3 varianten zoals wedstrijdfotos - dit is een
-    simpele profielfoto) en geeft de URL terug om mee te sturen in
-    PlayerEditSubmit.photo_url; wordt pas na goedkeuring de echte foto."""
-    link = session.get(YearOfProfileLink, code.strip().lower())
-    if not link:
-        raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
-
+async def _save_profile_photo(file: UploadFile) -> str:
     ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
     if ext not in PHOTO_ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
@@ -1180,7 +1220,41 @@ async def upload_profile_photo(
     except Exception:
         raise HTTPException(status_code=400, detail="Kon foto niet verwerken (ongeldig beeldbestand)")
 
-    return {"photo_url": f"/api/yearof-mo14/profile-photos/{filename}"}
+    return f"/api/yearof-mo14/profile-photos/{filename}"
+
+
+@router.post("/profile-links/{code}/photo")
+async def upload_profile_photo(
+    code: str,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
+    """Publiek — via het profiellinkje zelf (geen teamcode nodig). Slaat 1
+    redelijk formaat op (geen 3 varianten zoals wedstrijdfotos - dit is een
+    simpele profielfoto) en geeft de URL terug om mee te sturen in
+    PlayerEditSubmit.photo_url; wordt pas na goedkeuring de echte foto."""
+    link = session.get(YearOfProfileLink, code.strip().lower())
+    if not link:
+        raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
+    photo_url = await _save_profile_photo(file)
+    return {"photo_url": photo_url}
+
+
+@router.post("/players/{player_id}/photo")
+async def upload_player_photo_admin(
+    player_id: str,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder-only — profielfoto direct instellen (geen concept-review,
+    in tegenstelling tot de publieke profiellink-route hierboven)."""
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player.photo_url = await _save_profile_photo(file)
+    session.add(player)
+    session.commit()
+    session.refresh(player)
+    return player
 
 
 @router.get("/profile-photos/{filename}")

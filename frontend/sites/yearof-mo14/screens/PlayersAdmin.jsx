@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { getPlayers, createPlayer, updatePlayer, deletePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
+import { getPlayers, createPlayer, updatePlayer, deletePlayer, uploadPlayerPhotoAdmin, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
+const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
+const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
 
 function ProfileLinkCell({ playerId, links, onCreated }) {
   const [copied, setCopied] = useState(false)
@@ -88,11 +90,25 @@ function EditPlayerRow({ player, onSave, onCancel }) {
     bio: player.bio || '',
     fun_facts: player.fun_facts || '',
   })
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [error, setError] = useState('')
+
+  function pickPhoto(file) {
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
 
   async function save() {
     if (!form.name.trim()) return
     try {
+      if (photoFile) {
+        setUploadingPhoto(true)
+        await uploadPlayerPhotoAdmin(player.id, photoFile)
+        setUploadingPhoto(false)
+      }
       await onSave({
         name: form.name,
         nickname: form.nickname || null,
@@ -102,30 +118,71 @@ function EditPlayerRow({ player, onSave, onCancel }) {
         fun_facts: form.fun_facts || null,
       })
     } catch (e) {
+      setUploadingPhoto(false)
       setError(e.message)
     }
   }
 
   return (
     <tr>
-      <td colSpan={6} style={{ padding: 10, background: '#fafafa', border: '1px solid #ddd', borderRadius: 8 }}>
+      <td colSpan={6} style={{ padding: 16, background: '#fafafa', border: '1px solid #ddd', borderRadius: 8 }}>
         {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-          <input style={inputStyle} placeholder="Naam" value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })} />
-          <input style={inputStyle} placeholder="Bijnaam" value={form.nickname}
-            onChange={e => setForm({ ...form, nickname: e.target.value })} />
-          <input style={{ ...inputStyle, width: 60 }} placeholder="Nr" value={form.shirt_number}
-            onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
-          <input style={inputStyle} placeholder="Positie" value={form.position}
-            onChange={e => setForm({ ...form, position: e.target.value })} />
+
+        <label style={labelStyle}>Profielfoto</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <img
+            src={photoPreview || player.photo_url || ''}
+            alt=""
+            style={{
+              width: 64, height: 64, borderRadius: '50%', objectFit: 'cover',
+              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)',
+              display: photoPreview || player.photo_url ? 'block' : 'none',
+            }}
+          />
+          {!photoPreview && !player.photo_url && (
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+            }}>
+              {form.shirt_number || '?'}
+            </div>
+          )}
+          <input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} style={{ fontSize: 13 }} />
         </div>
-        <textarea placeholder="Over mij (bio)" value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={2}
-          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8, borderRadius: 6, border: '1px solid #ccc' }} />
-        <textarea placeholder="Leuk weetje" value={form.fun_facts} onChange={e => setForm({ ...form, fun_facts: e.target.value })} rows={2}
-          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8, borderRadius: 6, border: '1px solid #ccc' }} />
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <label style={labelStyle}>Naam</label>
+            <input style={fieldStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <label style={labelStyle}>Bijnaam</label>
+            <input style={fieldStyle} value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} />
+          </div>
+          <div style={{ width: 80 }}>
+            <label style={labelStyle}>Nr</label>
+            <input style={fieldStyle} value={form.shirt_number} onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
+          </div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <label style={labelStyle}>Positie</label>
+            <input style={fieldStyle} value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} />
+          </div>
+        </div>
+
+        <label style={labelStyle}>Over mij</label>
+        <textarea style={{ ...fieldStyle, resize: 'vertical' }} rows={3} value={form.bio}
+          onChange={e => setForm({ ...form, bio: e.target.value })} />
+
+        <label style={labelStyle}>Leuk weetje</label>
+        <textarea style={{ ...fieldStyle, resize: 'vertical' }} rows={2} value={form.fun_facts}
+          placeholder="Bijv. je favoriete actie, hockeyheld, of waar je naar uitkijkt in Parijs"
+          onChange={e => setForm({ ...form, fun_facts: e.target.value })} />
+
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={save} style={{ fontSize: 12, cursor: 'pointer' }}>Opslaan</button>
+          <button onClick={save} disabled={uploadingPhoto} style={{ fontSize: 12, cursor: 'pointer' }}>
+            {uploadingPhoto ? 'Foto uploaden...' : 'Opslaan'}
+          </button>
           <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>Annuleren</button>
         </div>
       </td>
