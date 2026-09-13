@@ -147,7 +147,7 @@ function DirectReportForm({ entries, onCreated }) {
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
           <option value="wedstrijdverslag">Wedstrijdverslag</option>
           <option value="interview">Interview</option>
-          <option value="nieuws">Nieuws</option>
+          <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
         </select>
         {reportType === 'interview' && (
           <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 12 }}>
@@ -209,7 +209,7 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
           <select value={form.report_type} onChange={e => setForm({ ...form, report_type: e.target.value })} style={{ fontSize: 12 }}>
             <option value="wedstrijdverslag">Wedstrijdverslag</option>
             <option value="interview">Interview</option>
-            <option value="nieuws">Nieuws</option>
+            <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
           </select>
           {form.report_type === 'interview' && (
             <select value={form.interviewee_role} onChange={e => setForm({ ...form, interviewee_role: e.target.value })} style={{ fontSize: 12 }}>

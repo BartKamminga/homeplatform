@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getContributorContext, submitReport } from '../api.js'
+import { getContributorContext, submitReport, uploadPhoto } from '../api.js'
+import { compressImage } from '../compressImage.js'
+import { getStoredCode } from '../gate.js'
 
 export default function ContributeReport({ code }) {
   const [context, setContext] = useState(null)
@@ -7,8 +9,8 @@ export default function ContributeReport({ code }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [authorName, setAuthorName] = useState('')
-  const [instaUrl, setInstaUrl] = useState('')
-  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [files, setFiles] = useState([])
+  const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
 
   useEffect(() => {
@@ -19,26 +21,59 @@ export default function ContributeReport({ code }) {
         setTitle(existing.title || '')
         setBody(existing.body || '')
         setAuthorName(existing.author_name || '')
-        setInstaUrl(existing.insta_url || '')
-        setYoutubeUrl(existing.youtube_url || '')
       }
     }).catch(e => setError(e.message))
   }, [code])
 
+  // Plakken (Ctrl+V) van een foto uit het klembord toevoegen, naast de bestandskiezer.
+  useEffect(() => {
+    function handlePaste(e) {
+      const items = Array.from(e.clipboardData?.items || [])
+      const pasted = items
+        .filter(item => item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean)
+      if (pasted.length) setFiles(prev => [...prev, ...pasted])
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [])
+
+  function addFiles(newFiles) {
+    setFiles(prev => [...prev, ...newFiles])
+  }
+  function removeFile(index) {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   async function submit() {
     if (!title.trim() || !body.trim()) return
+    setSending(true)
     try {
       await submitReport({
         contributor_code: code,
         title,
         body,
         author_name: authorName || null,
-        insta_url: instaUrl || null,
-        youtube_url: youtubeUrl || null,
       })
+
+      if (files.length && context?.match_ref) {
+        const teamCode = getStoredCode()
+        for (const file of files) {
+          try {
+            const compressed = await compressImage(file)
+            await uploadPhoto(compressed, { matchRef: context.match_ref, photoType: 'actie', code: teamCode })
+          } catch {
+            // 1 mislukte foto mag het insturen van het verhaaltje niet blokkeren
+          }
+        }
+      }
+
       setSent(true)
     } catch (e) {
       setError(e.message)
+    } finally {
+      setSending(false)
     }
   }
 
@@ -110,19 +145,33 @@ export default function ContributeReport({ code }) {
         <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Optioneel"
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Instagram-post (optioneel)</label>
-        <input value={instaUrl} onChange={e => setInstaUrl(e.target.value)} placeholder="https://instagram.com/p/..."
-          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
-
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>YouTube-video (optioneel)</label>
-        <input value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..."
-          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s (optioneel)</label>
+        <input type="file" accept="image/*" multiple
+          onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = '' }}
+          style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
+        <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
+          Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V).
+        </p>
+        {files.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 14 }}>
+            {files.map((f, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                <img src={URL.createObjectURL(f)} alt=""
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                <button onClick={() => removeFile(i)} style={{
+                  position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
+                  width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
+                  background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
+                }}>&times;</button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-        <button className="yof-btn" onClick={submit}>Versturen ter controle</button>
-        <p style={{ fontSize: 12, color: '#999', textAlign: 'center', marginTop: 10 }}>
-          Foto&rsquo;s kun je apart toevoegen via &ldquo;Foto&rsquo;s toevoegen&rdquo; op de site.
-        </p>
+        <button className="yof-btn" onClick={submit} disabled={sending}>
+          {sending ? 'Versturen...' : 'Versturen ter controle'}
+        </button>
       </div>
     </div>
   )
