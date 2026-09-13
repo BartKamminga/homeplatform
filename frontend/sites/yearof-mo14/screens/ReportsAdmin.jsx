@@ -166,7 +166,7 @@ function DirectReportForm({ entries, onCreated }) {
   )
 }
 
-function ReportCard({ report, entries, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSave }) {
+export function ReportCard({ report, entries, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSave }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState(null)
 

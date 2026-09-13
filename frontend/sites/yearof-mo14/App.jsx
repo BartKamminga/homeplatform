@@ -9,6 +9,7 @@ import RoadmapAdmin from './screens/RoadmapAdmin.jsx'
 import ActionAdmin from './screens/ActionAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
 import ReportsAdmin from './screens/ReportsAdmin.jsx'
+import MatchAdminDetail from './screens/MatchAdminDetail.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
 import ContributeReport from './screens/ContributeReport.jsx'
@@ -20,6 +21,7 @@ function BeheerderPaneel() {
   const [me, setMe] = useState(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState('spelers')
+  const [matchDetailRef, setMatchDetailRef] = useState(null)
 
   useEffect(() => {
     getMe().then(setMe).catch(e => setError(e.message))
@@ -42,7 +44,7 @@ function BeheerderPaneel() {
           { key: 'roadmap', label: 'Roadmap' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
+          <button key={t.key} onClick={() => { setTab(t.key); setMatchDetailRef(null) }} style={{
             padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
             background: 'transparent', border: 'none', cursor: 'pointer',
             borderBottom: tab === t.key ? '2px solid #f4c81e' : '2px solid transparent',
@@ -53,7 +55,11 @@ function BeheerderPaneel() {
       </div>
 
       {tab === 'spelers' && <PlayersAdmin />}
-      {tab === 'wedstrijden' && <TimelineAdmin />}
+      {tab === 'wedstrijden' && (
+        matchDetailRef
+          ? <MatchAdminDetail matchRef={matchDetailRef} onBack={() => setMatchDetailRef(null)} />
+          : <TimelineAdmin onOpenMatch={setMatchDetailRef} />
+      )}
       {tab === 'toegang' && <AccessAdmin />}
       {tab === 'fotos' && <PhotosAdmin />}
       {tab === 'verslagen' && <ReportsAdmin />}

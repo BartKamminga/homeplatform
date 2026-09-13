@@ -876,7 +876,15 @@ def list_reports(
         q = q.where(YearOfReport.match_ref == match_ref)
     if report_type:
         q = q.where(YearOfReport.report_type == report_type)
-    return session.exec(q.order_by(YearOfReport.created_at.desc())).all()
+    reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()
+
+    report_ids = [r.id for r in reports]
+    tags_by_report: dict[str, list[str]] = {}
+    if report_ids:
+        for t in session.exec(select(YearOfReportPlayerTag).where(col(YearOfReportPlayerTag.report_id).in_(report_ids))).all():
+            tags_by_report.setdefault(t.report_id, []).append(t.player_id)
+
+    return [{**r.model_dump(), "player_ids": tags_by_report.get(r.id, [])} for r in reports]
 
 
 @router.get("/reports/moderation")
