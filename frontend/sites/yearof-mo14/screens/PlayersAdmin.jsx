@@ -130,24 +130,12 @@ function EditPlayerRow({ player, onSave, onCancel }) {
 
         <label style={labelStyle}>Profielfoto</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <img
-            src={photoPreview || player.photo_url || ''}
-            alt=""
-            style={{
-              width: 64, height: 64, borderRadius: '50%', objectFit: 'cover',
-              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)',
-              display: photoPreview || player.photo_url ? 'block' : 'none',
-            }}
-          />
-          {!photoPreview && !player.photo_url && (
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-            }}>
-              {form.shirt_number || '?'}
-            </div>
-          )}
+          <div className="yof-photo-tile">
+            {(photoPreview || player.photo_url)
+              ? <img src={photoPreview || player.photo_url} alt="" />
+              : <div className="no-photo">{form.shirt_number || '?'}</div>}
+            {form.shirt_number !== '' && <span className="shirt-badge">{form.shirt_number}</span>}
+          </div>
           <input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} style={{ fontSize: 13 }} />
         </div>
 

@@ -263,6 +263,7 @@ class CustomEntryIn(BaseModel):
     is_home: Optional[bool] = None
     score_us: Optional[int] = None
     score_them: Optional[int] = None
+    location: Optional[str] = None
     description: Optional[str] = None
     is_pinned: bool = False
 
@@ -275,6 +276,7 @@ class CustomEntryUpdate(BaseModel):
     is_home: Optional[bool] = None
     score_us: Optional[int] = None
     score_them: Optional[int] = None
+    location: Optional[str] = None
     description: Optional[str] = None
     is_pinned: Optional[bool] = None
 
@@ -352,6 +354,7 @@ def _competition_timeline_items(session: Session) -> list[dict]:
                 "is_home": is_home,
                 "score_us": (m["home_score"] if is_home else m["away_score"]) if status_key == "finished" else None,
                 "score_them": (m["away_score"] if is_home else m["home_score"]) if status_key == "finished" else None,
+                "location": m.get("location"),
                 "description": None,
                 "is_pinned": False,
                 "status": status_key,
@@ -373,6 +376,7 @@ def _custom_timeline_items(session: Session) -> list[dict]:
             "is_home": e.is_home,
             "score_us": e.score_us,
             "score_them": e.score_them,
+            "location": e.location,
             "description": e.description,
             "is_pinned": e.is_pinned,
             "status": "finished" if has_score else "scheduled",

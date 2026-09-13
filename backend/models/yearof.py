@@ -198,6 +198,7 @@ class YearOfCustomEntry(SQLModel, table=True):
     is_home:     Optional[bool]  = Field(default=None)
     score_us:    Optional[int]   = Field(default=None)
     score_them:  Optional[int]   = Field(default=None)
+    location:    Optional[str]  = Field(default=None)
     description: Optional[str]  = Field(default=None)
     is_pinned:   bool            = Field(default=False)  # bv. de Pinksterweekend-pagina
     created_at:  datetime        = Field(default_factory=datetime.utcnow)

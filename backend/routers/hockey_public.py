@@ -192,6 +192,7 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
                 "away_score": m.away_score,
                 "date":       m.match_date,
                 "round":      m.round,
+                "location":   m.location_name,
             }
             for m in finished
         ],
@@ -202,6 +203,7 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
                 "away":     m.away_team_name,
                 "date":     m.match_date,
                 "round":    m.round,
+                "location": m.location_name,
             }
             for m in scheduled
         ],

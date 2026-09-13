@@ -138,24 +138,12 @@ export default function EditProfile({ code }) {
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Profielfoto</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <img
-            src={photoPreview || player.photo_url || ''}
-            alt=""
-            style={{
-              width: 64, height: 64, borderRadius: '50%', objectFit: 'cover',
-              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)',
-              display: photoPreview || player.photo_url ? 'block' : 'none',
-            }}
-          />
-          {!photoPreview && !player.photo_url && (
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-            }}>
-              {player.shirt_number ?? '?'}
-            </div>
-          )}
+          <div className="yof-photo-tile">
+            {(photoPreview || player.photo_url)
+              ? <img src={photoPreview || player.photo_url} alt="" />
+              : <div className="no-photo">{player.shirt_number ?? '?'}</div>}
+            {player.shirt_number != null && <span className="shirt-badge">{player.shirt_number}</span>}
+          </div>
           <input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} style={{ fontSize: 13 }} />
         </div>
 

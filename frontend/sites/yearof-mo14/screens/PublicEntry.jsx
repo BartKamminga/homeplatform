@@ -37,7 +37,18 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
         <h2 style={{ margin: '10px 0 4px', fontSize: 18 }}>{item.title}</h2>
         <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
           {new Date(item.date).toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+          {(() => {
+            const d = new Date(item.date)
+            const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(item.date)
+            return hasTime ? ` · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}` : ''
+          })()}
         </p>
+        {item.location && (
+          <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+            📍 <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
+              target="_blank" rel="noreferrer" style={{ color: '#12203c' }}>{item.location}</a>
+          </p>
+        )}
         {item.score_us != null && (
           <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>{item.score_us} - {item.score_them}</p>
         )}

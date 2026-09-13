@@ -3,6 +3,37 @@ import { getTimeline, createEntry, updateEntry, deleteEntry } from '../api.js'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
 
+function fmtDateTime(iso) {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
+  const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(iso)
+  const datePart = d.toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  if (!hasTime) return datePart
+  const timePart = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  return `${datePart} ${timePart}`
+}
+
+function LocationCell({ item, onSave }) {
+  const [value, setValue] = useState(item.location || '')
+
+  if (!item.match_ref.startsWith('custom:')) {
+    return item.location
+      ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>{item.location}</a>
+      : <span style={{ color: '#999' }}>-</span>
+  }
+
+  async function save() {
+    if (value === (item.location || '')) return
+    await onSave(item.match_ref.replace('custom:', ''), { location: value || null })
+  }
+
+  return (
+    <input value={value} onChange={e => setValue(e.target.value)} onBlur={save}
+      placeholder="Locatie" style={{ width: 110, padding: '2px 4px', fontSize: 12 }} />
+  )
+}
+
 function ScoreCell({ item, onSave }) {
   const [us, setUs] = useState(item.score_us ?? '')
   const [them, setThem] = useState(item.score_them ?? '')
@@ -33,7 +64,7 @@ function ScoreCell({ item, onSave }) {
 export default function TimelineAdmin({ onOpenMatch }) {
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ kind: 'oefen', title: '', date: '', opponent: '', isPinned: false, scoreUs: '', scoreThem: '' })
+  const [form, setForm] = useState({ kind: 'oefen', title: '', date: '', opponent: '', location: '', isPinned: false, scoreUs: '', scoreThem: '' })
 
   function load() {
     getTimeline().then(setItems).catch(e => setError(e.message))
@@ -48,11 +79,12 @@ export default function TimelineAdmin({ onOpenMatch }) {
         title: form.title,
         date: form.date,
         opponent: form.opponent || null,
+        location: form.location || null,
         is_pinned: form.kind === 'bijzonder' ? form.isPinned : false,
         score_us: form.scoreUs === '' ? null : Number(form.scoreUs),
         score_them: form.scoreThem === '' ? null : Number(form.scoreThem),
       })
-      setForm({ kind: 'oefen', title: '', date: '', opponent: '', isPinned: false, scoreUs: '', scoreThem: '' })
+      setForm({ kind: 'oefen', title: '', date: '', opponent: '', location: '', isPinned: false, scoreUs: '', scoreThem: '' })
       load()
     } catch (e) {
       setError(e.message)
@@ -101,6 +133,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
             <th style={{ padding: 6 }}>Datum</th>
             <th style={{ padding: 6 }}>Soort</th>
             <th style={{ padding: 6 }}>Titel</th>
+            <th style={{ padding: 6 }}>Locatie</th>
             <th style={{ padding: 6 }}>Uitslag</th>
             <th style={{ padding: 6 }}></th>
           </tr>
@@ -108,7 +141,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
         <tbody>
           {items.map(it => (
             <tr key={it.match_ref} style={{ borderTop: '1px solid #eee' }}>
-              <td style={{ padding: 6 }}>{it.date?.slice(0, 10)}</td>
+              <td style={{ padding: 6 }}>{fmtDateTime(it.date)}</td>
               <td style={{ padding: 6 }}>{it.kind}</td>
               <td style={{ padding: 6 }}>
                 <button onClick={() => onOpenMatch(it.match_ref)} style={{
@@ -117,6 +150,9 @@ export default function TimelineAdmin({ onOpenMatch }) {
                 }}>
                   {it.is_pinned ? '📌 ' : ''}{it.title}
                 </button>
+              </td>
+              <td style={{ padding: 6 }}>
+                <LocationCell item={it} onSave={saveScore} />
               </td>
               <td style={{ padding: 6 }}>
                 <ScoreCell item={it} onSave={saveScore} />
@@ -143,10 +179,12 @@ export default function TimelineAdmin({ onOpenMatch }) {
         </select>
         <input style={inputStyle} placeholder="Titel" value={form.title}
           onChange={e => setForm({ ...form, title: e.target.value })} />
-        <input style={inputStyle} type="date" value={form.date}
+        <input style={inputStyle} type="datetime-local" value={form.date}
           onChange={e => setForm({ ...form, date: e.target.value })} />
         <input style={inputStyle} placeholder="Tegenstander (optioneel)" value={form.opponent}
           onChange={e => setForm({ ...form, opponent: e.target.value })} />
+        <input style={inputStyle} placeholder="Locatie (optioneel)" value={form.location}
+          onChange={e => setForm({ ...form, location: e.target.value })} />
         {form.kind === 'oefen' && (
           <>
             <input style={{ ...inputStyle, width: 50 }} type="number" placeholder="Uit" value={form.scoreUs}
