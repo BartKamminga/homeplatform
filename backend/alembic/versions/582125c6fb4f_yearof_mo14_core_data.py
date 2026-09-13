@@ -3,14 +3,14 @@ supportersite (item 1144): spelersroster en handmatige tijdlijn-items
 (oefenwedstrijden + vrije "bijzondere dagen") naast de KNHB/Poulebord-sync.
 
 Revision ID: 582125c6fb4f
-Revises: e7d9b1f3a5c9
+Revises: 1c3e5a7f9b0d
 Create Date: 2026-09-13
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "582125c6fb4f"
-down_revision = "e7d9b1f3a5c9"
+down_revision = "1c3e5a7f9b0d"
 branch_labels = None
 depends_on = None
 
