@@ -6,7 +6,7 @@ import {
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
-import { defaultNewLinks, NewLinksEditor, ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
+import { ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
 
 function ContributorLinks({ entries, players }) {
   const [links, setLinks] = useState([])
@@ -121,69 +121,107 @@ function ContributorLinks({ entries, players }) {
   )
 }
 
-function DirectReportForm({ entries, onCreated }) {
-  const [matchRef, setMatchRef] = useState('') // '' = geen specifieke wedstrijd (algemeen)
+const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
+const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
+
+// Los invulformulier voor een DOOR DE BEHEERDER direct geschreven verslag/
+// interview - bewust gescheiden van de linkjes-invoer (Instagram/wedstrijd-
+// beelden gaat via de wedstrijd-adminpagina, niet hier). Zelfde stijl en
+// voorbeeld-modus als de publieke invulpagina (ContributeReport.jsx) en het
+// spelersprofiel (EditProfile.jsx), zodat je precies ziet hoe het wordt.
+function NewReportForm({ entries, onCreated, onCancel }) {
+  const [matchRef, setMatchRef] = useState('')
   const [reportType, setReportType] = useState('wedstrijdverslag')
   const [role, setRole] = useState('speelster')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const [links, setLinks] = useState(defaultNewLinks())
+  const [authorName, setAuthorName] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
   async function submit() {
-    const isFootage = reportType === 'wedstrijd_beelden'
-    if (!isFootage && (!title.trim() || !body.trim())) return
+    if (!title.trim() || !body.trim()) return
+    setSending(true)
     try {
       await createReportDirect({
         match_ref: matchRef || null,
         report_type: reportType,
         interviewee_role: reportType === 'interview' ? role : null,
-        title: isFootage ? 'Wedstrijdbeelden' : title,
-        body: isFootage ? '' : body,
+        title, body,
+        author_name: authorName || null,
         status: 'published',
-        links: isFootage ? links : null,
       })
-      setTitle(''); setBody(''); setLinks(defaultNewLinks())
       onCreated()
     } catch (e) {
       setError(e.message)
+    } finally {
+      setSending(false)
     }
+  }
+
+  if (showPreview) {
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <a className="yof-back" href="#" onClick={e => { e.preventDefault(); setShowPreview(false) }}>&larr; terug naar bewerken</a>
+        <div className="yof-card" style={{ marginBottom: 10 }}>
+          <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{title || '(geen titel)'}</h4>
+          {authorName && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {authorName}</p>}
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{body || '(geen tekst)'}</p>
+        </div>
+        <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
+          Zo ziet dit bericht eruit op de site. Nog niet gepubliceerd.
+        </p>
+        <button className="yof-btn" onClick={() => setShowPreview(false)}>&larr; Terug om verder te bewerken</button>
+      </div>
+    )
   }
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Verslag / interview schrijven</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <h3 style={{ fontSize: 15, margin: 0 }}>Nieuw verslag / interview</h3>
+        <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>annuleren</button>
+      </div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        <select value={matchRef} onChange={e => setMatchRef(e.target.value)} style={{ fontSize: 12 }}>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        <select value={matchRef} onChange={e => setMatchRef(e.target.value)} style={{ fontSize: 13 }}>
           <option value="">Geen specifieke wedstrijd (algemeen)</option>
           {entries.map(it => <option key={it.match_ref} value={it.match_ref}>{it.title}</option>)}
         </select>
-        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
+        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 13 }}>
           <option value="wedstrijdverslag">Wedstrijdverslag</option>
           <option value="interview">Interview</option>
-          <option value="wedstrijd_beelden">Wedstrijdbeelden</option>
           <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
         </select>
         {reportType === 'interview' && (
-          <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 12 }}>
+          <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 13 }}>
             <option value="speelster">Speelster</option>
             <option value="coach">Coach</option>
             <option value="ouder">Ouder</option>
           </select>
         )}
       </div>
-      {reportType === 'wedstrijd_beelden' ? (
-        <NewLinksEditor links={links} onChange={setLinks} />
-      ) : (
-        <>
-          <input placeholder="Titel" value={title} onChange={e => setTitle(e.target.value)}
-            style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-          <textarea placeholder="Tekst" value={body} onChange={e => setBody(e.target.value)} rows={4}
-            style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-        </>
-      )}
-      <button onClick={submit} style={{ fontSize: 13, cursor: 'pointer' }}>Publiceren</button>
+
+      <label style={labelStyle}>Titel</label>
+      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd" style={wideFieldStyle} />
+
+      <label style={labelStyle}>Tekst</label>
+      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} style={wideFieldStyle} />
+
+      <label style={labelStyle}>Door (naam, optioneel)</label>
+      <input value={authorName} onChange={e => setAuthorName(e.target.value)} style={wideFieldStyle} />
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="yof-btn" onClick={() => setShowPreview(true)}
+          style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
+          Voorbeeld bekijken
+        </button>
+        <button className="yof-btn" onClick={submit} disabled={sending} style={{ flex: 1 }}>
+          {sending ? 'Publiceren...' : 'Publiceren'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -300,6 +338,7 @@ export default function ReportsAdmin() {
   const [entries, setEntries] = useState([])
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
+  const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
   function loadReports() {
@@ -356,7 +395,14 @@ export default function ReportsAdmin() {
   return (
     <div>
       <ContributorLinks entries={entries} players={players} />
-      <DirectReportForm entries={entries} onCreated={loadReports} />
+
+      {creating ? (
+        <NewReportForm entries={entries} onCreated={() => { setCreating(false); loadReports() }} onCancel={() => setCreating(false)} />
+      ) : (
+        <button onClick={() => setCreating(true)} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 20 }}>
+          + Nieuw verslag / interview schrijven
+        </button>
+      )}
 
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Verslagen &amp; interviews</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
