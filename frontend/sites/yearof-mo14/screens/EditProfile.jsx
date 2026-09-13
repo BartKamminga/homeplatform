@@ -74,6 +74,9 @@ export default function EditProfile({ code }) {
           <p style={{ fontSize: 14, color: '#666' }}>
             Je wijzigingen zijn verstuurd en verschijnen op je profiel zodra de teammanager ze heeft goedgekeurd.
           </p>
+          <button className="yof-btn" onClick={() => { setPhotoFile(null); setPhotoPreview(''); setSent(false) }}>
+            &larr; Terug om verder te bewerken
+          </button>
         </div>
       </div>
     )

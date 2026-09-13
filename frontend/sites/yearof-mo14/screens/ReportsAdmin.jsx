@@ -159,6 +159,116 @@ function DirectReportForm({ entries, onCreated }) {
   )
 }
 
+function ReportCard({ report, entries, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState(null)
+
+  function startEdit() {
+    setForm({
+      match_ref: report.match_ref || '',
+      report_type: report.report_type,
+      interviewee_role: report.interviewee_role || 'speelster',
+      title: report.title,
+      body: report.body,
+      author_name: report.author_name || '',
+      insta_url: report.insta_url || '',
+      youtube_url: report.youtube_url || '',
+    })
+    setEditing(true)
+  }
+
+  async function save() {
+    await onSave(report.id, {
+      match_ref: form.match_ref || null,
+      report_type: form.report_type,
+      interviewee_role: form.report_type === 'interview' ? form.interviewee_role : null,
+      title: form.title,
+      body: form.body,
+      author_name: form.author_name || null,
+      insta_url: form.insta_url || null,
+      youtube_url: form.youtube_url || null,
+    })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 10, background: '#fafafa' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <select value={form.match_ref} onChange={e => setForm({ ...form, match_ref: e.target.value })} style={{ fontSize: 12 }}>
+            <option value="">Geen specifieke wedstrijd (algemeen)</option>
+            {entries.map(it => <option key={it.match_ref} value={it.match_ref}>{it.title}</option>)}
+          </select>
+          <select value={form.report_type} onChange={e => setForm({ ...form, report_type: e.target.value })} style={{ fontSize: 12 }}>
+            <option value="wedstrijdverslag">Wedstrijdverslag</option>
+            <option value="interview">Interview</option>
+            <option value="nieuws">Nieuws</option>
+          </select>
+          {form.report_type === 'interview' && (
+            <select value={form.interviewee_role} onChange={e => setForm({ ...form, interviewee_role: e.target.value })} style={{ fontSize: 12 }}>
+              <option value="speelster">Speelster</option>
+              <option value="coach">Coach</option>
+              <option value="ouder">Ouder</option>
+            </select>
+          )}
+        </div>
+        <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Titel"
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        <textarea value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} rows={4} placeholder="Tekst"
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        <input value={form.author_name} onChange={e => setForm({ ...form, author_name: e.target.value })} placeholder="Door (naam, optioneel)"
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        <input value={form.insta_url} onChange={e => setForm({ ...form, insta_url: e.target.value })} placeholder="Instagram-link (optioneel)"
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        <input value={form.youtube_url} onChange={e => setForm({ ...form, youtube_url: e.target.value })} placeholder="YouTube-link (optioneel)"
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={save} style={{ fontSize: 12, cursor: 'pointer' }}>Opslaan</button>
+          <button onClick={() => setEditing(false)} style={{ fontSize: 12, cursor: 'pointer' }}>Annuleren</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+      <div>
+        <span style={{ color: report.status === 'published' ? '#16a34a' : '#d97706', fontWeight: 700, fontSize: 11 }}>
+          {report.status === 'published' ? 'Gepubliceerd' : 'Concept'}
+        </span>
+        {' · '}
+        <span style={{ fontSize: 11, color: '#888' }}>{report.report_type} · {entryTitle(report.match_ref)}</span>
+      </div>
+      <h4 style={{ margin: '6px 0 4px', fontSize: 14 }}>{report.title}</h4>
+      {report.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {report.author_name}</p>}
+      <p style={{ margin: '0 0 8px', fontSize: 13, whiteSpace: 'pre-wrap' }}>{report.body}</p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+        {players.map(pl => {
+          const tagged = report.player_ids.includes(pl.id)
+          return (
+            <button key={pl.id} onClick={() => onToggleTag(report, pl.id)}
+              style={{
+                border: 'none', borderRadius: 999, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
+                background: tagged ? '#16a34a' : '#e5e7eb', color: tagged ? 'white' : '#555',
+              }}>
+              {pl.nickname || pl.name}
+            </button>
+          )
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={startEdit} style={{ fontSize: 12, cursor: 'pointer' }}>Bewerken</button>
+        <button onClick={() => onTogglePublish(report)} style={{ fontSize: 12, cursor: 'pointer' }}>
+          {report.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
+        </button>
+        <button onClick={() => onDelete(report.id)} style={{ fontSize: 12, cursor: 'pointer' }}>Verwijderen</button>
+      </div>
+    </div>
+  )
+}
+
 export default function ReportsAdmin() {
   const [entries, setEntries] = useState([])
   const [players, setPlayers] = useState([])
@@ -207,6 +317,15 @@ export default function ReportsAdmin() {
     }
   }
 
+  async function saveEdit(id, body) {
+    try {
+      await updateReport(id, body)
+      loadReports()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div>
       <ContributorLinks entries={entries} players={players} />
@@ -216,42 +335,17 @@ export default function ReportsAdmin() {
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       {reports.map(r => (
-        <div key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
-            <div>
-              <span style={{ color: r.status === 'published' ? '#16a34a' : '#d97706', fontWeight: 700, fontSize: 11 }}>
-                {r.status === 'published' ? 'Gepubliceerd' : 'Concept'}
-              </span>
-              {' · '}
-              <span style={{ fontSize: 11, color: '#888' }}>{r.report_type} · {entryTitle(r.match_ref)}</span>
-            </div>
-          </div>
-          <h4 style={{ margin: '6px 0 4px', fontSize: 14 }}>{r.title}</h4>
-          {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
-          <p style={{ margin: '0 0 8px', fontSize: 13, whiteSpace: 'pre-wrap' }}>{r.body}</p>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-            {players.map(pl => {
-              const tagged = r.player_ids.includes(pl.id)
-              return (
-                <button key={pl.id} onClick={() => toggleTag(r, pl.id)}
-                  style={{
-                    border: 'none', borderRadius: 999, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
-                    background: tagged ? '#16a34a' : '#e5e7eb', color: tagged ? 'white' : '#555',
-                  }}>
-                  {pl.nickname || pl.name}
-                </button>
-              )
-            })}
-          </div>
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => togglePublish(r)} style={{ fontSize: 12, cursor: 'pointer' }}>
-              {r.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
-            </button>
-            <button onClick={() => remove(r.id)} style={{ fontSize: 12, cursor: 'pointer' }}>Verwijderen</button>
-          </div>
-        </div>
+        <ReportCard
+          key={r.id}
+          report={r}
+          entries={entries}
+          players={players}
+          entryTitle={entryTitle}
+          onTogglePublish={togglePublish}
+          onDelete={remove}
+          onToggleTag={toggleTag}
+          onSave={saveEdit}
+        />
       ))}
       {reports.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog geen verslagen.</p>}
     </div>
