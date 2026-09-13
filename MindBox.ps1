@@ -638,14 +638,16 @@ if ($Run) {
 # ---------------------------------------------------------------------------
 # RunInSession — start een losse Claude Code dev-session (Docker, agent-
 # control) met dit commando als opdracht, i.p.v. het via een assistent-chat
-# te laten uitvoeren. Blijft dun (item 1053): dit stuurt alleen de
-# commandonotatie door als vrije prompt, de dev-sessions-API en de container
-# weten niets van MindBox-specifieke betekenis.
+# te laten uitvoeren. Blijft dun (item 1053): stuurt de commandonotatie door
+# als vrije prompt - de dev-sessions-API kent alleen use_case="mindbox" (voor
+# defaults: geen git, wel meekijken, mindbox-onboarding-doc + read-only
+# bestandstoegang, zie item 1134) en env_name, geen MindBox-specifieke
+# betekenis van de notatie zelf.
 # ---------------------------------------------------------------------------
 if ($RunInSession) {
     if (-not $Command -and -not $Text) { Write-Host "Geef -Command <notatie> of -Text <vrije prompt> op"; exit 1 }
     $prompt = if ($Text) { $Text } else { "$Env.MindBox.$Command" }
-    $body = @{ branch = "develop"; initial_prompt = $prompt }
+    $body = @{ branch = "develop"; initial_prompt = $prompt; use_case = "mindbox"; env_name = $Env }
     if ($Name) { $body.name = $Name }
     $s = ApiPost "/agent-control/dev-sessions" $body
     Write-Host "[OK] Dev-session #$($s.id) ($($s.status)) - $($s.container_name)"

@@ -4,6 +4,10 @@
 # verbinding beeindigt het claude-proces) of na een herstart van de container
 # zelf (geen restart-policy, dus na een reboot staat 'ie uit).
 #
+# Alleen zinvol voor interactive=true sessies (tmux+Remote Control, item
+# 1134) - headless sessies (interactive=false) hebben geen tmux-pane, lees
+# daarvoor .claude-session.log via de dev-sessions-API/UI.
+#
 # Gebruik: ./resume-session.sh <container_name>
 set -e
 

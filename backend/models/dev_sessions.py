@@ -25,6 +25,12 @@ class DevSession(SQLModel, table=True):
     error:            Optional[str]      = Field(default=None)
     remote_control_url: Optional[str]    = Field(default=None)   # laatst geziene claude.ai/code-link uit /remote-control (container-logs, niet uit claude.ai's eigen sidebar - die is wisselvallig)
     memory_limit_mb:  int                = Field(default=2048)
+    # Item 1134: git-toegang en live-meekijken zijn losse assen, geen gekoppeld
+    # paar - een mindbox-sessie kan bv. git=False + interactive=True zijn.
+    git_enabled:      bool               = Field(default=True)   # git-clone/deploy-key/workspace-volume; concurrency-limiet (max 1) geldt alleen hierop
+    interactive:      bool               = Field(default=True)   # tmux+Remote Control (True) vs. headless claude -p + logbestand (False)
+    use_case:         Optional[str]      = Field(default=None)   # sleutel uit USE_CASE_PROFILES (mindbox/dev/fiets/hockey_inside/poulebord), None = vrije sessie
+    env_name:         str                = Field(default="prod")  # welke omgeving (prod/acc/local) de sessie's scripts/config moeten gebruiken
     created_by:       Optional[str]      = Field(default=None, foreign_key="users.id")
     created_at:       datetime           = Field(default_factory=datetime.utcnow)
     started_at:       Optional[datetime] = Field(default=None)

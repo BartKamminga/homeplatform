@@ -36,6 +36,7 @@ WORKDIR /workspace
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY build-check.sh /usr/local/bin/build-check.sh
+COPY onboarding/ /opt/onboarding/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/build-check.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

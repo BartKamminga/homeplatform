@@ -98,6 +98,12 @@
         file_server
     }
 
+    handle /yearof-mo14/* {
+        root * /srv/www
+        try_files {path} /yearof-mo14/index.html
+        file_server
+    }
+
     handle /assets/* {
         root * /srv/www
         file_server

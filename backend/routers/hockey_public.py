@@ -182,26 +182,36 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
     ).all()
     finished  = [m for m in matches if m.status == "final"]
     scheduled = [m for m in matches if m.status != "final"]
+
+    team_ids = {m.home_team_id for m in matches if m.home_team_id} | {m.away_team_id for m in matches if m.away_team_id}
+    teams, clubs = resolve_team_clubs(session, list(team_ids))
+
     return {
         "finished": [
             {
-                "match_id":   m.match_id,
-                "home":       m.home_team_name,
-                "away":       m.away_team_name,
-                "home_score": m.home_score,
-                "away_score": m.away_score,
-                "date":       m.match_date,
-                "round":      m.round,
+                "match_id":       m.match_id,
+                "home":           m.home_team_name,
+                "away":           m.away_team_name,
+                "home_score":     m.home_score,
+                "away_score":     m.away_score,
+                "date":           m.match_date,
+                "round":          m.round,
+                "location":       m.location_name,
+                "home_club_logo": club_logo_for_team(teams, clubs, m.home_team_id),
+                "away_club_logo": club_logo_for_team(teams, clubs, m.away_team_id),
             }
             for m in finished
         ],
         "scheduled": [
             {
-                "match_id": m.match_id,
-                "home":     m.home_team_name,
-                "away":     m.away_team_name,
-                "date":     m.match_date,
-                "round":    m.round,
+                "match_id":       m.match_id,
+                "home":           m.home_team_name,
+                "away":           m.away_team_name,
+                "date":           m.match_date,
+                "round":          m.round,
+                "location":       m.location_name,
+                "home_club_logo": club_logo_for_team(teams, clubs, m.home_team_id),
+                "away_club_logo": club_logo_for_team(teams, clubs, m.away_team_id),
             }
             for m in scheduled
         ],

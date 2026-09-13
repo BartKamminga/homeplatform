@@ -24,6 +24,7 @@ from core.docker_engine import docker_api
 from core.settings import settings
 from models.core import User
 from models.dev_sessions import DevSession
+from services.dev_session_use_cases import USE_CASE_PROFILES
 
 router = APIRouter(prefix="/api/agent-control/dev-sessions", tags=["dev-sessions"])
 
@@ -47,6 +48,11 @@ def _session_out(s: DevSession) -> dict:
         "error":            s.error,
         "remote_control_url": s.remote_control_url,
         "memory_limit_mb":  s.memory_limit_mb,
+        "git_enabled":      s.git_enabled,
+        "interactive":      s.interactive,
+        "use_case":         s.use_case,
+        "env_name":         s.env_name,
+        "headless_log":     _read_headless_log(s.container_id) if (not s.interactive and s.container_id and s.status in ("running", "done", "error")) else None,
         "created_by":       s.created_by,
         "created_at":       s.created_at.isoformat(),
         "started_at":       s.started_at.isoformat() if s.started_at else None,
@@ -65,6 +71,27 @@ def _tail_logs(container_id: str, lines: int = 20) -> str:
             parse_json=False,
         )
         return (logs or "").strip()[-500:]
+    except Exception:
+        return ""
+
+
+def _read_headless_log(container_id: str, lines: int = 200) -> str:
+    """Laatste regels van .claude-session.log voor interactive=false-sessies
+    (item 1134) - analoog aan _tmux_capture, maar dan `cat`/`tail` i.p.v.
+    tmux capture-pane (er is geen tmux-pane in een headless sessie)."""
+    try:
+        created = docker_api("POST", f"/containers/{container_id}/exec", json_body={
+            "Cmd": ["tail", "-n", str(lines), "/workspace/.claude-session.log"],
+            "AttachStdout": True,
+            "AttachStderr": True,
+            "Tty": True,
+        })
+        exec_id = created["Id"]
+        return docker_api(
+            "POST", f"/exec/{exec_id}/start",
+            json_body={"Detach": False, "Tty": True},
+            parse_json=False,
+        ) or ""
     except Exception:
         return ""
 
@@ -114,10 +141,18 @@ def _reconcile(s: DevSession, session: Session) -> DevSession:
     docker_status = (inspect or {}).get("State", {}).get("Status")
     changed = False
     if docker_status in ("exited", "dead") and s.status == "running":
-        s.status = "error"
-        s.error = _tail_logs(s.container_id) or f"Container onverwacht gestopt (Docker-status: {docker_status})"
+        exit_code = (inspect or {}).get("State", {}).get("ExitCode", 1)
+        if not s.interactive and exit_code == 0:
+            # Headless sessie die netjes klaar is (claude -p rondde af) - geen
+            # fout, gewoon klaar. Interactieve sessies horen niet vanzelf te
+            # stoppen (tail -f /dev/null blijft draaien), dus die blijven altijd
+            # "error" bij een onverwachte exit.
+            s.status = "done"
+        else:
+            s.status = "error"
+            s.error = _tail_logs(s.container_id) or f"Container onverwacht gestopt (Docker-status: {docker_status})"
         changed = True
-    if docker_status == "running":
+    if docker_status == "running" and s.interactive:
         url = _scan_remote_control_url(s.container_id)
         if url and url != s.remote_control_url:
             s.remote_control_url = url
@@ -133,6 +168,10 @@ class DevSessionIn(BaseModel):
     name:           Optional[str] = None
     branch:         str = "develop"
     initial_prompt: Optional[str] = None
+    use_case:       Optional[str] = None   # sleutel uit USE_CASE_PROFILES - vult git_enabled/interactive/env_name voor als niet expliciet gegeven
+    git_enabled:    Optional[bool] = None  # expliciete override; anders profiel-default (of True zonder use_case, huidig gedrag)
+    interactive:    Optional[bool] = None  # expliciete override; anders profiel-default (of True zonder use_case, huidig gedrag)
+    env_name:       str = "prod"
 
 
 @router.get("")
@@ -150,19 +189,35 @@ def create_dev_session(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_admin),
 ):
-    running_count = len(session.exec(
-        select(DevSession).where(DevSession.status == "running")
-    ).all())
-    if running_count >= settings.DEV_SESSION_MAX_CONCURRENT:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Max {settings.DEV_SESSION_MAX_CONCURRENT} gelijktijdige dev-sessies bereikt - stop er eerst een",
-        )
+    profile = USE_CASE_PROFILES.get(body.use_case, {}) if body.use_case else {}
+    if body.use_case and not profile:
+        raise HTTPException(status_code=400, detail=f"Onbekende use_case: {body.use_case}")
+    git_enabled = body.git_enabled if body.git_enabled is not None else profile.get("git_enabled", True)
+    interactive = body.interactive if body.interactive is not None else profile.get("interactive", True)
+
+    # Item 1134: concurrency-limiet geldt los per as - git-toegang (max 1,
+    # workspace/branch-conflicten) telt apart van de overige, lichte sessies.
+    existing_running = session.exec(select(DevSession).where(DevSession.status == "running")).all()
+    if git_enabled:
+        count = len([s for s in existing_running if s.git_enabled])
+        if count >= settings.DEV_SESSION_MAX_CONCURRENT_GIT:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Max {settings.DEV_SESSION_MAX_CONCURRENT_GIT} gelijktijdige git-sessie(s) bereikt - stop er eerst een",
+            )
+    else:
+        count = len([s for s in existing_running if not s.git_enabled])
+        if count >= settings.DEV_SESSION_MAX_CONCURRENT_OTHER:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Max {settings.DEV_SESSION_MAX_CONCURRENT_OTHER} gelijktijdige lichte sessies bereikt - stop er eerst een",
+            )
 
     s = DevSession(
         name=body.name, branch=body.branch or "develop", initial_prompt=body.initial_prompt,
         memory_limit_mb=settings.DEV_SESSION_MEMORY_MB, created_by=current_user.id,
-        created_at=_now(),
+        created_at=_now(), git_enabled=git_enabled, interactive=interactive,
+        use_case=body.use_case, env_name=body.env_name or "prod",
     )
     session.add(s)
     session.commit()
@@ -181,14 +236,32 @@ def create_dev_session(
     try:
         env = [
             f"CLAUDE_CODE_OAUTH_TOKEN={settings.CLAUDE_CODE_OAUTH_TOKEN}",
-            f"REPO_URL={settings.DEV_SESSION_REPO_URL}",
-            f"BRANCH={s.branch}",
-            f"GIT_USER_NAME={settings.DEV_SESSION_GIT_USER_NAME}",
-            "GIT_USER_EMAIL=bart.kamminga@nipv.nl",
+            f"GIT_ENABLED={'true' if s.git_enabled else 'false'}",
+            f"INTERACTIVE={'true' if s.interactive else 'false'}",
+            f"SESSION_ENV={s.env_name}",
             f"SESSION_NAME={s.name or f'devsession-{env_tag}-{s.id}'}",
         ]
+        if s.git_enabled:
+            env += [
+                f"REPO_URL={settings.DEV_SESSION_REPO_URL}",
+                f"BRANCH={s.branch}",
+                f"GIT_USER_NAME={settings.DEV_SESSION_GIT_USER_NAME}",
+                "GIT_USER_EMAIL=bart.kamminga@nipv.nl",
+            ]
+        if profile.get("onboarding_doc"):
+            env.append(f"ONBOARDING_DOC={profile['onboarding_doc']}")
         if s.initial_prompt:
             env.append(f"INITIAL_PROMPT={s.initial_prompt}")
+
+        binds = [
+            f"{s.workspace_volume}:/workspace",
+            f"{s.home_volume}:/root/.claude",
+            f"{settings.DEV_SESSION_CONFIG_HOST_PATH}/{s.env_name}:/root/.session-config:ro",
+        ]
+        if s.git_enabled:
+            binds.append(f"{settings.DEV_SESSION_DEPLOY_KEY_HOST_PATH}:/root/.ssh/id_ed25519:ro")
+        if profile.get("mindbox_files_mount"):
+            binds.append(f"{settings.DEV_SESSION_UPLOADS_HOST_PATH}/mindbox/{current_user.id}:/mnt/mindbox-files:ro")
 
         mem_bytes = s.memory_limit_mb * 1024 * 1024
         created = docker_api("POST", "/containers/create", params={"name": s.container_name}, json_body={
@@ -198,11 +271,7 @@ def create_dev_session(
             "Env": env,
             "Labels": {"homeplatform.dev_session_id": str(s.id)},
             "HostConfig": {
-                "Binds": [
-                    f"{settings.DEV_SESSION_DEPLOY_KEY_HOST_PATH}:/root/.ssh/id_ed25519:ro",
-                    f"{s.workspace_volume}:/workspace",
-                    f"{s.home_volume}:/root/.claude",
-                ],
+                "Binds": binds,
                 "Memory": mem_bytes,
                 "MemorySwap": mem_bytes,
                 "NanoCpus": 1_000_000_000,
