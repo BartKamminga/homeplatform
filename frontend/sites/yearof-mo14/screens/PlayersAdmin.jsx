@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getPlayers, createPlayer, deletePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
+import { getPlayers, createPlayer, updatePlayer, deletePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
@@ -79,10 +79,65 @@ function PlayerEditsModeration({ players }) {
   )
 }
 
+function EditPlayerRow({ player, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    name: player.name || '',
+    nickname: player.nickname || '',
+    shirt_number: player.shirt_number ?? '',
+    position: player.position || '',
+    bio: player.bio || '',
+    fun_facts: player.fun_facts || '',
+  })
+  const [error, setError] = useState('')
+
+  async function save() {
+    if (!form.name.trim()) return
+    try {
+      await onSave({
+        name: form.name,
+        nickname: form.nickname || null,
+        shirt_number: form.shirt_number !== '' ? Number(form.shirt_number) : null,
+        position: form.position || null,
+        bio: form.bio || null,
+        fun_facts: form.fun_facts || null,
+      })
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  return (
+    <tr>
+      <td colSpan={6} style={{ padding: 10, background: '#fafafa', border: '1px solid #ddd', borderRadius: 8 }}>
+        {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <input style={inputStyle} placeholder="Naam" value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })} />
+          <input style={inputStyle} placeholder="Bijnaam" value={form.nickname}
+            onChange={e => setForm({ ...form, nickname: e.target.value })} />
+          <input style={{ ...inputStyle, width: 60 }} placeholder="Nr" value={form.shirt_number}
+            onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
+          <input style={inputStyle} placeholder="Positie" value={form.position}
+            onChange={e => setForm({ ...form, position: e.target.value })} />
+        </div>
+        <textarea placeholder="Over mij (bio)" value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={2}
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8, borderRadius: 6, border: '1px solid #ccc' }} />
+        <textarea placeholder="Leuk weetje" value={form.fun_facts} onChange={e => setForm({ ...form, fun_facts: e.target.value })} rows={2}
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8, borderRadius: 6, border: '1px solid #ccc' }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={save} style={{ fontSize: 12, cursor: 'pointer' }}>Opslaan</button>
+          <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>Annuleren</button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 export default function PlayersAdmin() {
   const [players, setPlayers] = useState([])
   const [profileLinks, setProfileLinks] = useState([])
   const [form, setForm] = useState({ name: '', nickname: '', shirt_number: '', position: '' })
+  const [editingId, setEditingId] = useState('')
   const [error, setError] = useState('')
 
   function load() {
@@ -107,6 +162,12 @@ export default function PlayersAdmin() {
     } catch (e) {
       setError(e.message)
     }
+  }
+
+  async function saveEdit(id, body) {
+    await updatePlayer(id, body)
+    setEditingId('')
+    load()
   }
 
   async function remove(id) {
@@ -138,18 +199,23 @@ export default function PlayersAdmin() {
         </thead>
         <tbody>
           {players.map(p => (
-            <tr key={p.id} style={{ borderTop: '1px solid #eee' }}>
-              <td style={{ padding: 6 }}>{p.shirt_number ?? '-'}</td>
-              <td style={{ padding: 6 }}>{p.name}</td>
-              <td style={{ padding: 6 }}>{p.nickname ?? '-'}</td>
-              <td style={{ padding: 6 }}>{p.position ?? '-'}</td>
-              <td style={{ padding: 6 }}>
-                <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
-              </td>
-              <td style={{ padding: 6 }}>
-                <button onClick={() => remove(p.id)} style={{ fontSize: 12, cursor: 'pointer' }}>verwijder</button>
-              </td>
-            </tr>
+            editingId === p.id ? (
+              <EditPlayerRow key={p.id} player={p} onSave={body => saveEdit(p.id, body)} onCancel={() => setEditingId('')} />
+            ) : (
+              <tr key={p.id} style={{ borderTop: '1px solid #eee' }}>
+                <td style={{ padding: 6 }}>{p.shirt_number ?? '-'}</td>
+                <td style={{ padding: 6 }}>{p.name}</td>
+                <td style={{ padding: 6 }}>{p.nickname ?? '-'}</td>
+                <td style={{ padding: 6 }}>{p.position ?? '-'}</td>
+                <td style={{ padding: 6 }}>
+                  <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
+                </td>
+                <td style={{ padding: 6, display: 'flex', gap: 6 }}>
+                  <button onClick={() => setEditingId(p.id)} style={{ fontSize: 12, cursor: 'pointer' }}>bewerken</button>
+                  <button onClick={() => remove(p.id)} style={{ fontSize: 12, cursor: 'pointer' }}>verwijder</button>
+                </td>
+              </tr>
+            )
           ))}
         </tbody>
       </table>
