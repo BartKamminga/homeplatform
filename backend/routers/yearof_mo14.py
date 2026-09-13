@@ -41,6 +41,7 @@ import io
 import random
 import shutil
 import string
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -1020,6 +1021,55 @@ def get_profile_link_context(code: str, session: Session = Depends(get_session))
         raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
     player = get_or_404(session, YearOfPlayer, link.player_id, "Speler")
     return player
+
+
+PROFILE_PHOTO_ROOT = Path(settings.UPLOAD_ROOT).resolve() / "yearof-mo14" / "profile-photos"
+
+
+@router.post("/profile-links/{code}/photo")
+async def upload_profile_photo(
+    code: str,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
+    """Publiek — via het profiellinkje zelf (geen teamcode nodig). Slaat 1
+    redelijk formaat op (geen 3 varianten zoals wedstrijdfotos - dit is een
+    simpele profielfoto) en geeft de URL terug om mee te sturen in
+    PlayerEditSubmit.photo_url; wordt pas na goedkeuring de echte foto."""
+    link = session.get(YearOfProfileLink, code.strip().lower())
+    if not link:
+        raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
+
+    ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
+    if ext not in PHOTO_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
+    base_type = (file.content_type or "").split(";")[0].strip()
+    if base_type not in PHOTO_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}")
+
+    content = await file.read()
+    if len(content) > PHOTO_MAX_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {PHOTO_MAX_SIZE_MB}MB")
+
+    filename = f"{uuid.uuid4()}.jpg"
+    try:
+        image = Image.open(io.BytesIO(content)).convert("RGB")
+        image.thumbnail((800, 800))
+        PROFILE_PHOTO_ROOT.mkdir(parents=True, exist_ok=True)
+        image.save(PROFILE_PHOTO_ROOT / filename, "JPEG", quality=85)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Kon foto niet verwerken (ongeldig beeldbestand)")
+
+    return {"photo_url": f"/api/yearof-mo14/profile-photos/{filename}"}
+
+
+@router.get("/profile-photos/{filename}")
+def get_profile_photo(filename: str):
+    """Publiek, geen auth — zelfde principe als /api/uploads (img src stuurt geen Authorization-header)."""
+    candidate = (PROFILE_PHOTO_ROOT / filename).resolve()
+    if not str(candidate).startswith(str(PROFILE_PHOTO_ROOT)) or not candidate.exists():
+        raise HTTPException(status_code=404, detail="Bestand niet gevonden")
+    return FileResponse(str(candidate))
 
 
 @router.post("/player-edits", status_code=201)

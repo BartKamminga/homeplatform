@@ -89,6 +89,16 @@ export const untagReport         = (reportId, playerId) => api.delete(`/api/year
 export const createProfileLink  = (playerId) => api.post(`/api/yearof-mo14/profile-links?player_id=${encodeURIComponent(playerId)}`)
 export const listProfileLinks   = ()          => api.get('/api/yearof-mo14/profile-links')
 export const getProfileLinkContext = (code)   => api.get(`/api/yearof-mo14/profile-links/${encodeURIComponent(code)}`)
+export async function uploadProfilePhoto(code, file) {
+  const fd = new FormData()
+  fd.append('file', file, file.name || 'profiel.jpg')
+  const res = await fetch(`/api/yearof-mo14/profile-links/${encodeURIComponent(code)}/photo`, { method: 'POST', body: fd })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || 'Upload mislukt')
+  }
+  return res.json()
+}
 export const submitPlayerEdit   = (body)      => api.post('/api/yearof-mo14/player-edits', body)
 export const getPlayerEditsModeration = ()    => api.get('/api/yearof-mo14/player-edits/moderation')
 export const applyPlayerEdit    = (id)        => api.post(`/api/yearof-mo14/player-edits/${id}/apply`)
