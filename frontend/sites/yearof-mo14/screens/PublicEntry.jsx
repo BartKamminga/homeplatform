@@ -34,6 +34,17 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
       <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
       <div className="yof-card" style={{ marginBottom: 14 }}>
         <span className={`badge ${item.kind}`}>{item.kind}</span>
+        {(item.home_club_logo || item.away_club_logo) && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '10px 0 2px' }}>
+            {item.home_club_logo
+              ? <img src={item.home_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+              : <div style={{ width: 36, height: 36 }} />}
+            <span style={{ fontSize: 12, color: '#999' }}>vs</span>
+            {item.away_club_logo
+              ? <img src={item.away_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+              : <div style={{ width: 36, height: 36 }} />}
+          </div>
+        )}
         <h2 style={{ margin: '10px 0 4px', fontSize: 18 }}>{item.title}</h2>
         <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
           {new Date(item.date).toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}

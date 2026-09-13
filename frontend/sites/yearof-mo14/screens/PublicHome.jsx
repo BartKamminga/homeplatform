@@ -13,11 +13,16 @@ function MatchTeaser({ label, item, onOpen }) {
   if (!item) return null
   return (
     <a href="#" onClick={e => { e.preventDefault(); onOpen(item.match_ref) }} className="yof-card"
-      style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>
-      <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
-        {fmtDate(item.date)}{item.score_us != null ? ` · ${item.score_us}-${item.score_them}` : ''}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
+      {item.opponent_club_logo && (
+        <img src={item.opponent_club_logo} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+      )}
+      <div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>{label}</div>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>
+        <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
+          {fmtDate(item.date)}{item.score_us != null ? ` · ${item.score_us}-${item.score_them}` : ''}
+        </div>
       </div>
     </a>
   )
