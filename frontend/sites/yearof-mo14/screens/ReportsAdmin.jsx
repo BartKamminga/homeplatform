@@ -45,6 +45,10 @@ function ContributorLinks({ entries, players }) {
     }
   }
 
+  function openLink(link) {
+    window.open(`${window.location.origin}/yearof-mo14/?invul=${link.id}`, '_blank')
+  }
+
   function entryTitle(matchRef) {
     return entries.find(e => e.match_ref === matchRef)?.title || matchRef
   }
@@ -102,10 +106,11 @@ function ContributorLinks({ entries, players }) {
                   <input readOnly value={url} onFocus={e => e.target.select()}
                     style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
                 </td>
-                <td style={{ padding: 6 }}>
+                <td style={{ padding: 6, display: 'flex', gap: 4 }}>
                   <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
                     {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
                   </button>
+                  <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Bewerken</button>
                 </td>
               </tr>
             )

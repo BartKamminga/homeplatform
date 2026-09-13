@@ -25,8 +25,7 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
 
   async function make() {
     try {
-      const link = await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
-      window.open(`${window.location.origin}/yearof-mo14/?invul=${link.id}`, '_blank')
+      await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
       onCreated()
     } catch (e) {
       setError(e.message)
@@ -44,6 +43,10 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
     }
   }
 
+  function openLink(link) {
+    window.open(`${window.location.origin}/yearof-mo14/?invul=${link.id}`, '_blank')
+  }
+
   return (
     <div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
@@ -56,7 +59,7 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
           <option value="">Voor het hele team / mezelf</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
         </select>
-        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw bericht (opent invulpagina)</button>
+        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw bericht</button>
       </div>
 
       {links.length > 0 && (
@@ -83,10 +86,11 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
                     <input readOnly value={url} onFocus={e => e.target.select()}
                       style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
                   </td>
-                  <td style={{ padding: 6 }}>
+                  <td style={{ padding: 6, display: 'flex', gap: 4 }}>
                     <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
                       {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
                     </button>
+                    <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Bewerken</button>
                   </td>
                 </tr>
               )
