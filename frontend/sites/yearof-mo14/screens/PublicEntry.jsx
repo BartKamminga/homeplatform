@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
+import { PhotoLightbox } from './PhotoLightbox.jsx'
 
 export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
+  const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
 
   function loadReports() {
@@ -70,8 +72,8 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
         <div style={{ marginBottom: 14 }}>
           <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-            {photos.map(p => (
-              <a key={p.id} href={`/api/yearof-mo14/photos/${p.id}/full.jpg`} target="_blank" rel="noreferrer">
+            {photos.map((p, i) => (
+              <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(i) }}>
                 <img src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt=""
                   style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
               </a>
@@ -79,6 +81,7 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
           </div>
         </div>
       )}
+      <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
 
       {reports.length > 0 && (
         <div>

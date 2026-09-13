@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getActionSettings, getReports, getTimeline, getInterviewCandidates } from '../api.js'
+import { getActionSettings, getReports, getTimeline, getInterviewCandidates, getStandings } from '../api.js'
 import Thermometer from './Thermometer.jsx'
+import { PouleCard } from './PouleCard.jsx'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -34,10 +35,12 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
   const [pastMatch, setPastMatch] = useState(null)
   const [nextMatch, setNextMatch] = useState(null)
   const [candidates, setCandidates] = useState([])
+  const [standings, setStandings] = useState(null)
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
     getReports(null, 'interview').then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
+    getStandings().then(setStandings).catch(() => {})
     getTimeline().then(items => {
       const now = new Date()
       const past = items.filter(it => new Date(it.date) <= now)
@@ -66,6 +69,9 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
       {(pastMatch || nextMatch) && (
         <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
           <MatchTeaser label="Laatste wedstrijd" item={pastMatch} onOpen={onOpenMatch} />
+          {standings?.standings?.length > 0 && (
+            <PouleCard title={standings.pool_name || 'Poule'} rows={standings.standings} onOpen={() => onNavigate('timeline')} />
+          )}
           <MatchTeaser label="Volgende wedstrijd" item={nextMatch} onOpen={onOpenMatch} />
         </div>
       )}

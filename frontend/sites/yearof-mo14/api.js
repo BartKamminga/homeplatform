@@ -37,8 +37,8 @@ export async function uploadPlayerPhotoAdmin(id, file) {
   return res.json()
 }
 
-// Teamlinkje (viewer-toegang)
-export const validateTeamCode = (code) => api.get(`/api/yearof-mo14/team-links/validate?code=${encodeURIComponent(code)}`)
+// Teamlinkje (voorheen viewer-toegang - sinds 2026-09-13 niet meer verplicht
+// om de site te bekijken; blijft bestaan als deelbaar linkje/optionele attributie)
 export const createTeamLink   = (vangnetDays) => api.post(`/api/yearof-mo14/team-links${vangnetDays ? `?vangnet_days=${vangnetDays}` : ''}`)
 export const listTeamLinks    = ()      => api.get('/api/yearof-mo14/team-links')
 
@@ -51,6 +51,7 @@ export const deleteEntry   = (id)        => api.delete(`/api/yearof-mo14/entries
 // Samengevoegde tijdlijn (competitie + custom entries)
 export const getTimeline     = ()          => api.get(withCode('/api/yearof-mo14/timeline'))
 export const getTimelineItem = (matchRef)  => api.get(withCode(`/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`))
+export const getStandings    = ()          => api.get(withCode('/api/yearof-mo14/standings'))
 
 // Foto's - upload is een FormData-post (geen JSON), rechtstreeks via fetch
 // i.p.v. api.post, en zonder Authorization-header (publiek, teamcode i.p.v. login).

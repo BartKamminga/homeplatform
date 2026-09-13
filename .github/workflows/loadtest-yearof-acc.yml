@@ -1,0 +1,87 @@
+name: Loadtest YearOf MO14 (acc)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage_duration:
+        description: "Duur van elke ramp-fase (bv. 1m, 30s) — totale test = 3x deze duur"
+        default: "1m"
+      read_max_vus:
+        description: "Max gelijktijdige bezoekers (home/team/wedstrijden bekijken)"
+        default: "30"
+
+jobs:
+  loadtest-yearof-acc:
+    runs-on: [self-hosted, g4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker-stats vastleggen tijdens de test
+        run: |
+          rm -f /tmp/k6-docker-stats.log
+          ( while true; do
+              date -u +%FT%TZ >> /tmp/k6-docker-stats.log
+              docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' >> /tmp/k6-docker-stats.log
+              sleep 5
+            done ) &
+          echo $! > /tmp/k6-docker-stats.pid
+
+      - name: k6 draaien tegen acc (localhost:8081)
+        run: |
+          rm -rf /tmp/k6-out && mkdir -p /tmp/k6-out && chmod 777 /tmp/k6-out
+          echo "Live dashboard (grafieken tijdens de run): http://192.168.30.232:5665"
+          docker run --rm --name k6-loadtest-yearof-run --network host \
+            -e BASE_URL=http://localhost:8081 \
+            -e STAGE_DURATION="${{ inputs.stage_duration }}" \
+            -e READ_MAX_VUS="${{ inputs.read_max_vus }}" \
+            -e K6_WEB_DASHBOARD=true \
+            -e K6_WEB_DASHBOARD_EXPORT=/output/report.html \
+            -v "$PWD/loadtest:/scripts" \
+            -v /tmp/k6-out:/output \
+            grafana/k6 run /scripts/yearof-mo14.k6.js
+
+      # Vangnet: als je de run in de Actions-UI annuleert, wordt deze job
+      # afgebroken maar draait de container soms door op de self-hosted runner
+      # (geen gegarandeerde signal-forwarding). Expliciet opruimen dus.
+      - name: Container opruimen bij annuleren
+        if: cancelled()
+        run: docker kill k6-loadtest-yearof-run 2>/dev/null || true
+
+      - name: Resultaten in Job Summary zetten
+        if: always()
+        run: cat /tmp/k6-out/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "Geen summary.md (test waarschijnlijk niet gestart/afgerond)"
+
+      - name: HTML-rapport (grafieken) als artifact bewaren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-report-yearof
+          path: /tmp/k6-out/report.html
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Docker-stats stoppen en tonen
+        if: always()
+        run: |
+          kill "$(cat /tmp/k6-docker-stats.pid)" 2>/dev/null || true
+          {
+            echo "<details><summary>Docker stats tijdens de test</summary>"
+            echo ""
+            echo '```'
+            cat /tmp/k6-docker-stats.log 2>/dev/null || echo "geen stats gelogd"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: SQLite lock-fouten in backend-logs opzoeken
+        if: always()
+        run: |
+          {
+            echo "<details><summary>'database is locked' / OperationalError in backend_acc-logs (laatste 15 min)</summary>"
+            echo ""
+            echo '```'
+            docker logs --since 15m homeplatform_backend_acc 2>&1 \
+              | grep -i -E "database is locked|OperationalError" || echo "geen lock-fouten gevonden"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"

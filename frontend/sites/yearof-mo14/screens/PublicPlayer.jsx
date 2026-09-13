@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { getPlayer, getPlayerPhotos, getTimeline } from '../api.js'
 import { getStoredProfileCode } from '../profileGate.js'
+import { PhotoLightbox } from './PhotoLightbox.jsx'
 
 export default function PublicPlayer({ playerId, onBack }) {
   const [player, setPlayer] = useState(null)
   const [photos, setPhotos] = useState([])
   const [entries, setEntries] = useState([])
+  const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
   const profileCode = getStoredProfileCode(playerId)
 
@@ -33,6 +35,8 @@ export default function PublicPlayer({ playerId, onBack }) {
         return dateB.localeCompare(dateA)
       })
   })()
+
+  const flatPhotos = photoGroups.flatMap(g => g.items)
 
   if (error) return <p style={{ color: '#c23b3b' }}>{error}</p>
   if (!player) return <p>Laden...</p>
@@ -83,7 +87,7 @@ export default function PublicPlayer({ playerId, onBack }) {
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{g.entry?.title || g.matchRef}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
                 {g.items.map(p => (
-                  <a key={p.id} href={`/api/yearof-mo14/photos/${p.id}/full.jpg`} target="_blank" rel="noreferrer">
+                  <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(flatPhotos.indexOf(p)) }}>
                     <img src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt=""
                       style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
                   </a>
@@ -93,6 +97,7 @@ export default function PublicPlayer({ playerId, onBack }) {
           ))}
         </div>
       )}
+      <PhotoLightbox photos={flatPhotos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
     </div>
   )
 }

@@ -46,7 +46,11 @@ export default function AccessAdmin() {
 
   return (
     <div>
-      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Toegang (teamlinkje)</h3>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Teamlinkje</h3>
+      <p style={{ fontSize: 12, color: '#999', margin: '0 0 12px' }}>
+        De site is sinds kort open voor iedereen - dit linkje is niet meer nodig om te kunnen bekijken.
+        Handig om toch te delen als je wilt.
+      </p>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       {active ? (
