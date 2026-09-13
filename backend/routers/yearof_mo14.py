@@ -53,6 +53,8 @@ from models.yearof import (
     YearOfPhoto,
     YearOfPhotoPlayerTag,
     YearOfPlayer,
+    YearOfPlayerEdit,
+    YearOfProfileLink,
     YearOfReport,
     YearOfReportPlayerTag,
     YearOfTeamLink,
@@ -68,7 +70,7 @@ POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 archite
 @router.get("/status")
 def status():
     """Publiek, geen auth — bewijst dat de site/router leeft."""
-    return {"site": "yearof-mo14", "fase": 5, "status": "verslagen en interviews"}
+    return {"site": "yearof-mo14", "fase": 6, "status": "spelersprofiel zelf-bijwerken"}
 
 
 @router.get("/me")
@@ -815,4 +817,136 @@ def untag_report(
     if existing:
         session.delete(existing)
         session.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Profiellinkje (fase 6, item 1148) — permanent, per speler. Wijzigingen
+# gaan altijd via een concept-staging-rij (YearOfPlayerEdit), nooit direct
+# op de live YearOfPlayer-rij en nooit auto-publish.
+# ---------------------------------------------------------------------------
+
+class PlayerEditSubmit(BaseModel):
+    profile_link_code: str
+    nickname: Optional[str] = None
+    position: Optional[str] = None
+    photo_url: Optional[str] = None
+    bio: Optional[str] = None
+    fun_facts: Optional[str] = None
+
+
+@router.post("/profile-links")
+def create_profile_link(
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder-only — maakt (of hergebruikt) het permanente profiellinkje van een speler."""
+    get_or_404(session, YearOfPlayer, player_id, "Speler")
+    existing = session.exec(select(YearOfProfileLink).where(YearOfProfileLink.player_id == player_id)).first()
+    if existing:
+        return existing
+
+    code = None
+    for _ in range(20):
+        candidate = "".join(random.choices(TEAM_LINK_CHARS, k=6))
+        if not session.get(YearOfProfileLink, candidate):
+            code = candidate
+            break
+    if not code:
+        raise RuntimeError("Geen unieke code gevonden")
+
+    link = YearOfProfileLink(id=code, player_id=player_id)
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+@router.get("/profile-links")
+def list_profile_links(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    return session.exec(select(YearOfProfileLink)).all()
+
+
+@router.get("/profile-links/{code}")
+def get_profile_link_context(code: str, session: Session = Depends(get_session)):
+    """Publiek — het profiel-bewerkformulier haalt hiermee de huidige gegevens op."""
+    link = session.get(YearOfProfileLink, code.strip().lower())
+    if not link:
+        raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
+    player = get_or_404(session, YearOfPlayer, link.player_id, "Speler")
+    return player
+
+
+@router.post("/player-edits", status_code=201)
+def submit_player_edit(body: PlayerEditSubmit, session: Session = Depends(get_session)):
+    """Publiek — via het profiellinkje, geen homeplatform-login. Komt altijd
+    als concept binnen; de live YearOfPlayer-rij wijzigt hier nog niet door."""
+    code = body.profile_link_code.strip().lower()
+    link = session.get(YearOfProfileLink, code)
+    if not link:
+        raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
+
+    edit = YearOfPlayerEdit(
+        player_id=link.player_id,
+        nickname=body.nickname,
+        position=body.position,
+        photo_url=body.photo_url,
+        bio=body.bio,
+        fun_facts=body.fun_facts,
+        status="concept",
+    )
+    session.add(edit)
+    session.commit()
+    session.refresh(edit)
+    return edit
+
+
+@router.get("/player-edits/moderation")
+def list_player_edits_for_moderation(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    return session.exec(
+        select(YearOfPlayerEdit).where(YearOfPlayerEdit.status == "concept").order_by(YearOfPlayerEdit.created_at.desc())
+    ).all()
+
+
+@router.post("/player-edits/{edit_id}/apply")
+def apply_player_edit(
+    edit_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder-only — zet de voorgestelde velden op de echte spelersrij."""
+    edit = get_or_404(session, YearOfPlayerEdit, edit_id, "Wijziging")
+    player = get_or_404(session, YearOfPlayer, edit.player_id, "Speler")
+
+    for field in ("nickname", "position", "photo_url", "bio", "fun_facts"):
+        value = getattr(edit, field)
+        if value is not None:
+            setattr(player, field, value)
+    player.updated_at = datetime.utcnow()
+    edit.status = "applied"
+
+    session.add(player)
+    session.add(edit)
+    session.commit()
+    session.refresh(player)
+    return player
+
+
+@router.delete("/player-edits/{edit_id}")
+def reject_player_edit(
+    edit_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    edit = get_or_404(session, YearOfPlayerEdit, edit_id, "Wijziging")
+    edit.status = "rejected"
+    session.add(edit)
+    session.commit()
     return {"ok": True}

@@ -11,6 +11,7 @@ import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
 import ContributeReport from './screens/ContributeReport.jsx'
+import EditProfile from './screens/EditProfile.jsx'
 import { getStoredCode, storeCode } from './gate.js'
 import { validateTeamCode } from './api.js'
 
@@ -69,9 +70,10 @@ export default function App() {
   const [gateStatus, setGateStatus] = useState('checking') // checking | locked | unlocked
 
   const invulCode = new URLSearchParams(window.location.search).get('invul')
+  const profielCode = new URLSearchParams(window.location.search).get('profiel')
 
   useEffect(() => {
-    if (invulCode) return // los scherm, geen gate-check nodig - de invullink is zelf het bewijs
+    if (invulCode || profielCode) return // los scherm, geen gate-check nodig - de link zelf is het bewijs
     const params = new URLSearchParams(window.location.search)
     const urlCode = params.get('code')
     const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
@@ -98,6 +100,9 @@ export default function App() {
 
   if (invulCode) {
     return <ContributeReport code={invulCode} />
+  }
+  if (profielCode) {
+    return <EditProfile code={profielCode} />
   }
 
   if (showBeheer) {

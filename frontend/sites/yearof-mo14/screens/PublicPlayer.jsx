@@ -31,6 +31,9 @@ export default function PublicPlayer({ playerId, onBack }) {
           {player.position || '-'} {player.shirt_number ? `· #${player.shirt_number}` : ''}
         </p>
         {player.bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{player.bio}</p>}
+        {player.fun_facts && (
+          <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;{player.fun_facts}&rdquo;</p>
+        )}
       </div>
 
       {photos.length > 0 && (

@@ -68,6 +68,33 @@ class YearOfPhotoPlayerTag(SQLModel, table=True):
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
 
 
+class YearOfProfileLink(SQLModel, table=True):
+    """Profiellinkje (fase 6, item 1148): permanent, geen vervaldatum -
+    hoort bij 1 speler, hele seizoen geldig."""
+    __tablename__ = "yearof_profile_links"
+
+    id:         str      = Field(primary_key=True)  # 6-char code
+    player_id:  str       = Field(foreign_key="yearof_players.id", index=True)
+    created_at: datetime  = Field(default_factory=datetime.utcnow)
+
+
+class YearOfPlayerEdit(SQLModel, table=True):
+    """Concept-wijziging op een spelersprofiel (fase 6). Losse staging-rij
+    i.p.v. schaduwvelden op YearOfPlayer - altijd concept-review, nooit
+    auto-publish (expliciet besloten, zie item 1142)."""
+    __tablename__ = "yearof_player_edits"
+
+    id:           str            = Field(default_factory=new_uuid, primary_key=True)
+    player_id:    str             = Field(foreign_key="yearof_players.id", index=True)
+    nickname:     Optional[str]  = Field(default=None)
+    position:     Optional[str]  = Field(default=None)
+    photo_url:    Optional[str]  = Field(default=None)
+    bio:          Optional[str]  = Field(default=None)
+    fun_facts:    Optional[str]  = Field(default=None)
+    status:       str             = Field(default="concept")  # concept | applied | rejected
+    created_at:   datetime        = Field(default_factory=datetime.utcnow)
+
+
 class YearOfContributorLink(SQLModel, table=True):
     """Wedstrijd-invullink (fase 5, item 1147): eenmalig/tijdelijk, gekoppeld
     aan 1 wedstrijd/dag en evt. 1 speler. Code-als-PK, zelfde patroon als
