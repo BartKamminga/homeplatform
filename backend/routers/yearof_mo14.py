@@ -138,12 +138,14 @@ def require_team_access(
     current_user: Optional[User] = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ) -> None:
-    """Toegangscontrole zonder content-scoping (spelers/tijdlijn - geen
-    concept/published-cyclus, dus niets om op te filteren)."""
-    if current_user is not None:
-        return
-    if not _valid_team_link(code, session):
-        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
+    """De publieke site staat bewust open (besloten 2026-09-13) - geen
+    teamcode meer vereist om te bekijken. Alleen de beheerder-module blijft
+    achter een login (get_current_user elders). Deze dependency + het
+    teamlinkje-model blijven bestaan (AccessAdmin kan nog linkjes tonen/
+    delen) maar handhaven niets meer - simpelste, makkelijk terug te draaien
+    manier om de eerdere teamcode-eis los te laten zonder alle call sites
+    aan te passen."""
+    return
 
 
 def get_team_scope_cutoff(
@@ -151,15 +153,10 @@ def get_team_scope_cutoff(
     current_user: Optional[User] = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ) -> Optional[datetime]:
-    """Toegangscontrole MET content-scoping (fotos/verslagen): beheerder ->
-    None (onbeperkt), teamlinkje -> het moment waarop dat linkje is
-    uitgegeven als cutoff. Content gepubliceerd na dat moment blijft
-    verborgen, ook als het linkje zelf nog geldig is."""
-    if current_user is not None:
-        return None
-    link = _valid_team_link(code, session)
-    if not link:
-        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
+    """Zie require_team_access hierboven - geen teamcode-eis meer, dus ook
+    geen content-scoping meer nodig: alle gepubliceerde content is voor
+    iedereen zichtbaar."""
+    return None
     return link.created_at
 
 
@@ -543,13 +540,6 @@ def validate_team_link(code: str, session: Session = Depends(get_session)):
     return {"valid": _valid_team_link(code, session) is not None}
 
 
-def _require_valid_team_code(code: str, session: Session) -> YearOfTeamLink:
-    link = _valid_team_link(code, session)
-    if not link:
-        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
-    return link
-
-
 # ---------------------------------------------------------------------------
 # Foto-bijdragen — publieke upload (via teamlinkje, geen homeplatform-account),
 # server-side 3 beeldvarianten, concept/published + beheerder-moderatie.
@@ -592,11 +582,13 @@ async def upload_photo(
     file: UploadFile = File(...),
     match_ref: str = Form(...),
     photo_type: str = Form("actie"),
-    code: str = Form(...),
+    code: Optional[str] = Form(None),
     session: Session = Depends(get_session),
 ):
-    """Publiek — vereist een geldig teamlinkje (geen homeplatform-login)."""
-    link = _require_valid_team_code(code, session)
+    """Publiek, open sinds de teamcode-eis is losgelaten (2026-09-13). code is
+    optioneel en dient alleen nog voor attributie (uploader_code) als een
+    (geldig) linkje wordt meegestuurd."""
+    link = _valid_team_link(code, session) if code else None
 
     ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
     if ext not in PHOTO_ALLOWED_EXTENSIONS:
@@ -609,7 +601,7 @@ async def upload_photo(
     if len(content) > PHOTO_MAX_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {PHOTO_MAX_SIZE_MB}MB")
 
-    photo = YearOfPhoto(match_ref=match_ref, photo_type=photo_type, uploader_code=link.id)
+    photo = YearOfPhoto(match_ref=match_ref, photo_type=photo_type, uploader_code=link.id if link else None)
     session.add(photo)
     session.commit()
     session.refresh(photo)

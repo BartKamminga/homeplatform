@@ -9,12 +9,9 @@ import ActionAdmin from './screens/ActionAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
 import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import MatchAdminDetail from './screens/MatchAdminDetail.jsx'
-import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
 import ContributeReport from './screens/ContributeReport.jsx'
 import EditProfile from './screens/EditProfile.jsx'
-import { getStoredCode, storeCode } from './gate.js'
-import { validateTeamCode } from './api.js'
 
 function BeheerderPaneel() {
   const [me, setMe] = useState(null)
@@ -73,36 +70,9 @@ function BeheerderPaneel() {
 
 export default function App() {
   const [showBeheer, setShowBeheer] = useState(false)
-  const [gateStatus, setGateStatus] = useState('checking') // checking | locked | unlocked
 
   const invulCode = new URLSearchParams(window.location.search).get('invul')
   const profielCode = new URLSearchParams(window.location.search).get('profiel')
-
-  useEffect(() => {
-    if (invulCode || profielCode) return // los scherm, geen gate-check nodig - de link zelf is het bewijs
-    const params = new URLSearchParams(window.location.search)
-    const urlCode = params.get('code')
-    const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
-
-    if (!code) {
-      setGateStatus('locked')
-      return
-    }
-    validateTeamCode(code)
-      .then(res => {
-        if (res.valid) {
-          storeCode(code)
-          if (urlCode) {
-            // code niet zichtbaar in de URL laten staan (adresbalk/geschiedenis/screenshots)
-            const url = new URL(window.location.href)
-            url.searchParams.delete('code')
-            window.history.replaceState({}, '', url.toString())
-          }
-        }
-        setGateStatus(res.valid ? 'unlocked' : 'locked')
-      })
-      .catch(() => setGateStatus('locked'))
-  }, [])
 
   if (invulCode) {
     return <ContributeReport code={invulCode} />
@@ -119,17 +89,8 @@ export default function App() {
     )
   }
 
-  if (gateStatus === 'checking') return null
-
-  if (gateStatus === 'locked') {
-    return (
-      <>
-        <Gate onUnlock={() => setGateStatus('unlocked')} />
-        <BeheerderLink onClick={() => setShowBeheer(true)} />
-      </>
-    )
-  }
-
+  // Publieke site staat bewust open (besloten 2026-09-13) - geen teamcode-
+  // gate meer, alleen de beheerder-module hierboven blijft achter een login.
   return (
     <>
       <PublicSite />
