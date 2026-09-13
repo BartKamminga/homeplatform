@@ -4,6 +4,7 @@ import {
   createContributorLink, listContributorLinks,
   getReportsModeration, createReportDirect, updateReport, deleteReport, tagReport, untagReport,
 } from '../api.js'
+import { copyToClipboard } from '../clipboard.js'
 
 function ContributorLinks({ entries, players }) {
   const [links, setLinks] = useState([])
@@ -33,10 +34,12 @@ function ContributorLinks({ entries, players }) {
   async function copy(link) {
     const url = `${window.location.origin}/yearof-mo14/?invul=${link.id}`
     try {
-      await navigator.clipboard.writeText(url)
+      await copyToClipboard(url)
       setCopiedId(link.id)
       setTimeout(() => setCopiedId(''), 2000)
-    } catch { /* clipboard kan geblokkeerd zijn - link staat sowieso in de tabel */ }
+    } catch (e) {
+      setError(e.message)
+    }
   }
 
   function entryTitle(matchRef) {
@@ -68,22 +71,33 @@ function ContributorLinks({ entries, players }) {
             <th style={{ padding: 6 }}>Voor</th>
             <th style={{ padding: 6 }}>Speler</th>
             <th style={{ padding: 6 }}>Vervalt</th>
+            <th style={{ padding: 6 }}>Link</th>
             <th style={{ padding: 6 }}></th>
           </tr>
         </thead>
         <tbody>
-          {links.map(l => (
-            <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
-              <td style={{ padding: 6 }}>{entryTitle(l.match_ref)}</td>
-              <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
-              <td style={{ padding: 6 }}>{l.expires_at?.slice(0, 10)}</td>
-              <td style={{ padding: 6 }}>
-                <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
-                  {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer link'}
-                </button>
-              </td>
-            </tr>
-          ))}
+          {links.map(l => {
+            const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
+            const expired = new Date(l.expires_at) < new Date()
+            return (
+              <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
+                <td style={{ padding: 6 }}>{entryTitle(l.match_ref)}</td>
+                <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
+                <td style={{ padding: 6, color: (l.revoked_at || expired) ? '#c23b3b' : 'inherit' }}>
+                  {l.expires_at?.slice(0, 10)}{expired ? ' (verlopen)' : ''}
+                </td>
+                <td style={{ padding: 6, width: 220 }}>
+                  <input readOnly value={url} onFocus={e => e.target.select()}
+                    style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
+                </td>
+                <td style={{ padding: 6 }}>
+                  <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
+                    {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

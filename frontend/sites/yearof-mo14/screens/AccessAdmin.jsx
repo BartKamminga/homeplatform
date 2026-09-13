@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { listTeamLinks, createTeamLink } from '../api.js'
+import { copyToClipboard } from '../clipboard.js'
 
 export default function AccessAdmin() {
   const [links, setLinks] = useState([])
@@ -27,11 +28,11 @@ export default function AccessAdmin() {
 
   async function copyLink(url) {
     try {
-      await navigator.clipboard.writeText(url)
+      await copyToClipboard(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // clipboard-API kan geblokkeerd zijn (bv. geen https lokaal) - dan zelf selecteren/kopiëren
+    } catch (e) {
+      setError(e.message)
     }
   }
 
