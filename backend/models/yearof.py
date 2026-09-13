@@ -145,6 +145,7 @@ class YearOfReport(SQLModel, table=True):
     author_name:      Optional[str]  = Field(default=None)
     insta_url:        Optional[str]  = Field(default=None)
     youtube_url:      Optional[str]  = Field(default=None)
+    youtube_urls:     Optional[str]  = Field(default=None)  # JSON-array, voor report_type="wedstrijd_beelden" (tot 4 links)
     contributor_code: Optional[str]  = Field(default=None)
     created_at:       datetime        = Field(default_factory=datetime.utcnow)
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)

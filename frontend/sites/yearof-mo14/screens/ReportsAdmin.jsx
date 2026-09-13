@@ -121,6 +121,8 @@ function DirectReportForm({ entries, onCreated }) {
   const [role, setRole] = useState('speelster')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [instaUrl, setInstaUrl] = useState('')
+  const [youtubeUrls, setYoutubeUrls] = useState(['', '', '', ''])
   const [error, setError] = useState('')
 
   async function submit() {
@@ -131,8 +133,10 @@ function DirectReportForm({ entries, onCreated }) {
         report_type: reportType,
         interviewee_role: reportType === 'interview' ? role : null,
         title, body, status: 'published',
+        insta_url: reportType === 'wedstrijd_beelden' ? (instaUrl || null) : null,
+        youtube_urls: reportType === 'wedstrijd_beelden' ? youtubeUrls : null,
       })
-      setTitle(''); setBody('')
+      setTitle(''); setBody(''); setInstaUrl(''); setYoutubeUrls(['', '', '', ''])
       onCreated()
     } catch (e) {
       setError(e.message)
@@ -151,6 +155,7 @@ function DirectReportForm({ entries, onCreated }) {
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
           <option value="wedstrijdverslag">Wedstrijdverslag</option>
           <option value="interview">Interview</option>
+          <option value="wedstrijd_beelden">Wedstrijdbeelden</option>
           <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
         </select>
         {reportType === 'interview' && (
@@ -165,6 +170,17 @@ function DirectReportForm({ entries, onCreated }) {
         style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
       <textarea placeholder="Tekst" value={body} onChange={e => setBody(e.target.value)} rows={4}
         style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+      {reportType === 'wedstrijd_beelden' && (
+        <div style={{ marginBottom: 8 }}>
+          <input placeholder="Instagram-link (optioneel)" value={instaUrl} onChange={e => setInstaUrl(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+          {youtubeUrls.map((url, i) => (
+            <input key={i} placeholder={`YouTube-link ${i + 1} (optioneel)`} value={url}
+              onChange={e => setYoutubeUrls(urls => urls.map((u, idx) => idx === i ? e.target.value : u))}
+              style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+          ))}
+        </div>
+      )}
       <button onClick={submit} style={{ fontSize: 13, cursor: 'pointer' }}>Publiceren</button>
     </div>
   )
@@ -175,6 +191,7 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
   const [form, setForm] = useState(null)
 
   function startEdit() {
+    const urls = report.youtube_urls || []
     setForm({
       match_ref: report.match_ref || '',
       report_type: report.report_type,
@@ -184,6 +201,7 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
       author_name: report.author_name || '',
       insta_url: report.insta_url || '',
       youtube_url: report.youtube_url || '',
+      youtube_urls: [0, 1, 2, 3].map(i => urls[i] || ''),
     })
     setEditing(true)
   }
@@ -197,7 +215,8 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
       body: form.body,
       author_name: form.author_name || null,
       insta_url: form.insta_url || null,
-      youtube_url: form.youtube_url || null,
+      youtube_url: form.report_type === 'wedstrijd_beelden' ? null : (form.youtube_url || null),
+      youtube_urls: form.report_type === 'wedstrijd_beelden' ? form.youtube_urls : null,
     })
     setEditing(false)
   }
@@ -213,6 +232,7 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
           <select value={form.report_type} onChange={e => setForm({ ...form, report_type: e.target.value })} style={{ fontSize: 12 }}>
             <option value="wedstrijdverslag">Wedstrijdverslag</option>
             <option value="interview">Interview</option>
+            <option value="wedstrijd_beelden">Wedstrijdbeelden</option>
             <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
           </select>
           {form.report_type === 'interview' && (
@@ -231,8 +251,16 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
           style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
         <input value={form.insta_url} onChange={e => setForm({ ...form, insta_url: e.target.value })} placeholder="Instagram-link (optioneel)"
           style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-        <input value={form.youtube_url} onChange={e => setForm({ ...form, youtube_url: e.target.value })} placeholder="YouTube-link (optioneel)"
-          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        {form.report_type === 'wedstrijd_beelden' ? (
+          form.youtube_urls.map((url, i) => (
+            <input key={i} value={url} placeholder={`YouTube-link ${i + 1} (optioneel)`}
+              onChange={e => setForm({ ...form, youtube_urls: form.youtube_urls.map((u, idx) => idx === i ? e.target.value : u) })}
+              style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+          ))
+        ) : (
+          <input value={form.youtube_url} onChange={e => setForm({ ...form, youtube_url: e.target.value })} placeholder="YouTube-link (optioneel)"
+            style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        )}
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={save} style={{ fontSize: 12, cursor: 'pointer' }}>Opslaan</button>
           <button onClick={() => setEditing(false)} style={{ fontSize: 12, cursor: 'pointer' }}>Annuleren</button>

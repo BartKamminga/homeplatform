@@ -90,6 +90,11 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
               {r.insta_url && <div style={{ marginTop: 8 }}><InstaEmbed url={r.insta_url} /></div>}
               {r.youtube_url && <div style={{ marginTop: 8 }}><YoutubeEmbed url={r.youtube_url} /></div>}
+              {r.youtube_urls?.length > 0 && (
+                <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                  {r.youtube_urls.map((url, i) => <YoutubeEmbed key={i} url={url} />)}
+                </div>
+              )}
             </div>
           ))}
         </div>

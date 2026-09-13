@@ -38,6 +38,7 @@ Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
 """
 
 import io
+import json
 import random
 import shutil
 import string
@@ -855,6 +856,7 @@ class ReportCreate(BaseModel):
     author_name: Optional[str] = None
     insta_url: Optional[str] = None
     youtube_url: Optional[str] = None
+    youtube_urls: Optional[list[str]] = None  # report_type="wedstrijd_beelden": tot 4 links
     status: str = "published"
 
 
@@ -867,7 +869,26 @@ class ReportUpdate(BaseModel):
     author_name: Optional[str] = None
     insta_url: Optional[str] = None
     youtube_url: Optional[str] = None
+    youtube_urls: Optional[list[str]] = None
     status: Optional[str] = None
+
+
+def _encode_youtube_urls(urls: Optional[list[str]]) -> Optional[str]:
+    if not urls:
+        return None
+    cleaned = [u.strip() for u in urls if u and u.strip()][:4]
+    return json.dumps(cleaned) if cleaned else None
+
+
+def _report_out(report: YearOfReport, player_ids: Optional[list[str]] = None) -> dict:
+    data = report.model_dump()
+    try:
+        data["youtube_urls"] = json.loads(report.youtube_urls) if report.youtube_urls else []
+    except (ValueError, TypeError):
+        data["youtube_urls"] = []
+    if player_ids is not None:
+        data["player_ids"] = player_ids
+    return data
 
 
 @router.post("/reports", status_code=201)
@@ -902,7 +923,7 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
         session.add(existing)
         session.commit()
         session.refresh(existing)
-        return existing
+        return _report_out(existing)
 
     report = YearOfReport(
         match_ref=link.match_ref,
@@ -924,7 +945,7 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
         session.add(YearOfReportPlayerTag(report_id=report.id, player_id=link.player_id))
         session.commit()
 
-    return report
+    return _report_out(report)
 
 
 @router.post("/reports/direct", status_code=201)
@@ -935,11 +956,13 @@ def create_report_direct(
 ):
     """Beheerder-only — een verslag direct schrijven (bv. het officiele
     wedstrijdverslag), mag standaard meteen published zijn."""
-    report = YearOfReport(**body.model_dump())
+    data = body.model_dump()
+    data["youtube_urls"] = _encode_youtube_urls(data.pop("youtube_urls", None))
+    report = YearOfReport(**data)
     session.add(report)
     session.commit()
     session.refresh(report)
-    return report
+    return _report_out(report)
 
 
 @router.get("/reports")
@@ -969,7 +992,7 @@ def list_reports(
         for t in session.exec(select(YearOfReportPlayerTag).where(col(YearOfReportPlayerTag.report_id).in_(report_ids))).all():
             tags_by_report.setdefault(t.report_id, []).append(t.player_id)
 
-    return [{**r.model_dump(), "player_ids": tags_by_report.get(r.id, [])} for r in reports]
+    return [_report_out(r, tags_by_report.get(r.id, [])) for r in reports]
 
 
 @router.get("/reports/moderation")
@@ -982,10 +1005,7 @@ def list_reports_for_moderation(
     tags_by_report: dict[str, list[str]] = {}
     for t in all_tags:
         tags_by_report.setdefault(t.report_id, []).append(t.player_id)
-    return [
-        {**report.model_dump(), "player_ids": tags_by_report.get(report.id, [])}
-        for report in reports
-    ]
+    return [_report_out(report, tags_by_report.get(report.id, [])) for report in reports]
 
 
 @router.patch("/reports/{report_id}")
@@ -996,12 +1016,15 @@ def update_report(
     _: User = Depends(get_current_user),
 ):
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    if "youtube_urls" in updates:
+        updates["youtube_urls"] = _encode_youtube_urls(updates["youtube_urls"])
+    for key, value in updates.items():
         setattr(report, key, value)
     session.add(report)
     session.commit()
     session.refresh(report)
-    return report
+    return _report_out(report)
 
 
 @router.delete("/reports/{report_id}")
