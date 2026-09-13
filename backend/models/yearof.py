@@ -68,6 +68,48 @@ class YearOfPhotoPlayerTag(SQLModel, table=True):
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
 
 
+class YearOfContributorLink(SQLModel, table=True):
+    """Wedstrijd-invullink (fase 5, item 1147): eenmalig/tijdelijk, gekoppeld
+    aan 1 wedstrijd/dag en evt. 1 speler. Code-als-PK, zelfde patroon als
+    YearOfTeamLink/PoulebordBoard."""
+    __tablename__ = "yearof_contributor_links"
+
+    id:         str            = Field(primary_key=True)  # 6-char code
+    match_ref:  str
+    player_id:  Optional[str]   = Field(default=None, foreign_key="yearof_players.id")
+    expires_at: datetime
+    revoked_at: Optional[datetime] = Field(default=None)
+    created_at: datetime        = Field(default_factory=datetime.utcnow)
+
+
+class YearOfReport(SQLModel, table=True):
+    """Verslag/interview/nieuwsbericht (fase 5, item 1147). Altijd concept
+    bij binnenkomst via een contributor-link; door de beheerder direct
+    aangemaakte verslagen mogen meteen published zijn."""
+    __tablename__ = "yearof_reports"
+
+    id:               str            = Field(default_factory=new_uuid, primary_key=True)
+    match_ref:        str             = Field(index=True)
+    report_type:      str             = Field(default="interview")  # wedstrijdverslag | interview | nieuws
+    status:           str             = Field(default="concept")     # concept | published
+    title:            str
+    body:             str
+    author_name:      Optional[str]  = Field(default=None)
+    insta_url:        Optional[str]  = Field(default=None)
+    youtube_url:      Optional[str]  = Field(default=None)
+    contributor_code: Optional[str]  = Field(default=None)
+    created_at:       datetime        = Field(default_factory=datetime.utcnow)
+    updated_at:       datetime        = Field(default_factory=datetime.utcnow)
+
+
+class YearOfReportPlayerTag(SQLModel, table=True):
+    __tablename__ = "yearof_report_player_tags"
+
+    id:        str = Field(default_factory=new_uuid, primary_key=True)
+    report_id: str = Field(foreign_key="yearof_reports.id", index=True)
+    player_id: str = Field(foreign_key="yearof_players.id", index=True)
+
+
 class YearOfCustomEntry(SQLModel, table=True):
     """Handmatig ingevoerde tijdlijn-items naast de KNHB/Poulebord-sync.
 

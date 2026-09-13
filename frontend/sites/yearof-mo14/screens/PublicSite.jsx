@@ -6,7 +6,7 @@ import PublicTimeline from './PublicTimeline.jsx'
 import PublicEntry from './PublicEntry.jsx'
 import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 
-export default function PublicSite() {
+export default function PublicSite({ previewMode = false }) {
   const [view, setView] = useState({ name: 'home' })
 
   function nav(name) {
@@ -35,7 +35,7 @@ export default function PublicSite() {
         {view.name === 'team' && <PublicTeam onOpenPlayer={id => setView({ name: 'player', id })} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={ref => setView({ name: 'entry', ref })} />}
-        {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} />}
+        {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={previewMode} />}
         {view.name === 'upload' && <PublicUploadPhotos />}
       </div>
     </div>

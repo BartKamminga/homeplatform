@@ -14,6 +14,14 @@ homeplatform-account, want anonieme bezoekers hebben er geen — geauthenticeerd
 via het teamlinkje in plaats daarvan), server-side 3 beeldvarianten
 (thumb/medium/full) via Pillow, concept/published-status + beheerder-moderatie.
 
+Fase 5 (item 1147): verslagen & interviews. Wedstrijd-invullink (eenmalig/
+tijdelijk, publiek — geen teamcode nodig, de invullink zelf is het bewijs)
+voor het insturen van een verhaaltje, altijd als concept. Door de beheerder
+direct aangemaakte verslagen mogen wel meteen published zijn. Foto-bijdragen
+binnen het invulformulier zijn bewust NIET gebouwd (vereist het teamlinkje,
+niet de invullink) - fotos voegt men apart toe via de bestaande "Foto's
+toevoegen"-pagina (fase 4), getagd op dezelfde match_ref.
+
 Single-tenant, bewust hardcoded voor Victoria MO14-1 (poule_id 551, Topklasse
 Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
 Publieke content/tokens (teamlinkje, foto's, verslagen) komen in latere fases.
@@ -23,7 +31,7 @@ import io
 import random
 import shutil
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -39,7 +47,16 @@ from core.database import get_session
 from core.settings import settings
 from models.core import User
 from models.hockey_discovery import HockeyPoule
-from models.yearof import YearOfCustomEntry, YearOfPhoto, YearOfPhotoPlayerTag, YearOfPlayer, YearOfTeamLink
+from models.yearof import (
+    YearOfContributorLink,
+    YearOfCustomEntry,
+    YearOfPhoto,
+    YearOfPhotoPlayerTag,
+    YearOfPlayer,
+    YearOfReport,
+    YearOfReportPlayerTag,
+    YearOfTeamLink,
+)
 from routers.hockey_public import _serialize_poule_matches
 
 router = APIRouter(prefix="/api/yearof-mo14", tags=["yearof-mo14"])
@@ -51,7 +68,7 @@ POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 archite
 @router.get("/status")
 def status():
     """Publiek, geen auth — bewijst dat de site/router leeft."""
-    return {"site": "yearof-mo14", "fase": 4, "status": "foto-bijdragen"}
+    return {"site": "yearof-mo14", "fase": 5, "status": "verslagen en interviews"}
 
 
 @router.get("/me")
@@ -542,3 +559,248 @@ def untag_photo(
 @router.get("/photos/{photo_id}/tags")
 def get_photo_tags(photo_id: str, session: Session = Depends(get_session)):
     return session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo_id)).all()
+
+
+# ---------------------------------------------------------------------------
+# Wedstrijd-invullink (contributor) — eenmalig/tijdelijk, publiek zonder
+# teamcode (de invullink zelf is het bewijs van toegang).
+# ---------------------------------------------------------------------------
+
+CONTRIBUTOR_LINK_DEFAULT_DAYS = 14
+
+
+class ContributorLinkIn(BaseModel):
+    match_ref: str
+    player_id: Optional[str] = None
+    expires_days: int = CONTRIBUTOR_LINK_DEFAULT_DAYS
+
+
+@router.post("/contributor-links")
+def create_contributor_link(
+    body: ContributorLinkIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    code = None
+    for _ in range(20):
+        candidate = "".join(random.choices(TEAM_LINK_CHARS, k=6))
+        if not session.get(YearOfContributorLink, candidate):
+            code = candidate
+            break
+    if not code:
+        raise RuntimeError("Geen unieke code gevonden")
+
+    link = YearOfContributorLink(
+        id=code,
+        match_ref=body.match_ref,
+        player_id=body.player_id,
+        expires_at=datetime.utcnow() + timedelta(days=body.expires_days),
+    )
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+@router.get("/contributor-links")
+def list_contributor_links(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    return session.exec(select(YearOfContributorLink).order_by(YearOfContributorLink.created_at.desc())).all()
+
+
+@router.get("/contributor-links/{code}")
+def get_contributor_link_context(code: str, session: Session = Depends(get_session)):
+    """Publiek — het invulformulier haalt hiermee de context op (welke wedstrijd,
+    voor wie) en checkt meteen of de link nog geldig is."""
+    link = session.get(YearOfContributorLink, code.strip().lower())
+    if not link or link.revoked_at is not None or link.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=403, detail="Deze invullink is verlopen of ongeldig")
+
+    player = session.get(YearOfPlayer, link.player_id) if link.player_id else None
+    items = _competition_timeline_items(session) + _custom_timeline_items(session)
+    match = next((it for it in items if it["match_ref"] == link.match_ref), None)
+
+    return {
+        "match_ref": link.match_ref,
+        "match_title": match["title"] if match else link.match_ref,
+        "player_id": link.player_id,
+        "player_name": (player.nickname or player.name) if player else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Verslagen & interviews
+# ---------------------------------------------------------------------------
+
+class ReportSubmit(BaseModel):
+    contributor_code: str
+    title: str
+    body: str
+    author_name: Optional[str] = None
+    insta_url: Optional[str] = None
+    youtube_url: Optional[str] = None
+
+
+class ReportCreate(BaseModel):
+    match_ref: str
+    report_type: str = "wedstrijdverslag"
+    title: str
+    body: str
+    author_name: Optional[str] = None
+    insta_url: Optional[str] = None
+    youtube_url: Optional[str] = None
+    status: str = "published"
+
+
+class ReportUpdate(BaseModel):
+    report_type: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
+    author_name: Optional[str] = None
+    insta_url: Optional[str] = None
+    youtube_url: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.post("/reports", status_code=201)
+def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
+    """Publiek — via een wedstrijd-invullink, geen homeplatform-login. Komt
+    altijd als concept binnen, ongeacht wat er verder wordt meegestuurd."""
+    code = body.contributor_code.strip().lower()
+    link = session.get(YearOfContributorLink, code)
+    if not link or link.revoked_at is not None or link.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=403, detail="Deze invullink is verlopen of ongeldig")
+
+    report = YearOfReport(
+        match_ref=link.match_ref,
+        report_type="interview",
+        status="concept",
+        title=body.title,
+        body=body.body,
+        author_name=body.author_name,
+        insta_url=body.insta_url,
+        youtube_url=body.youtube_url,
+        contributor_code=code,
+    )
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+
+    if link.player_id:
+        session.add(YearOfReportPlayerTag(report_id=report.id, player_id=link.player_id))
+        session.commit()
+
+    return report
+
+
+@router.post("/reports/direct", status_code=201)
+def create_report_direct(
+    body: ReportCreate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder-only — een verslag direct schrijven (bv. het officiele
+    wedstrijdverslag), mag standaard meteen published zijn."""
+    report = YearOfReport(**body.model_dump())
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    return report
+
+
+@router.get("/reports")
+def list_reports(match_ref: Optional[str] = None, session: Session = Depends(get_session)):
+    """Publiek — toont alleen gepubliceerde verslagen."""
+    q = select(YearOfReport).where(YearOfReport.status == "published")
+    if match_ref:
+        q = q.where(YearOfReport.match_ref == match_ref)
+    return session.exec(q.order_by(YearOfReport.created_at.desc())).all()
+
+
+@router.get("/reports/moderation")
+def list_reports_for_moderation(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    reports = session.exec(select(YearOfReport).order_by(YearOfReport.created_at.desc())).all()
+    all_tags = session.exec(select(YearOfReportPlayerTag)).all()
+    tags_by_report: dict[str, list[str]] = {}
+    for t in all_tags:
+        tags_by_report.setdefault(t.report_id, []).append(t.player_id)
+    return [
+        {**report.model_dump(), "player_ids": tags_by_report.get(report.id, [])}
+        for report in reports
+    ]
+
+
+@router.patch("/reports/{report_id}")
+def update_report(
+    report_id: str,
+    body: ReportUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(report, key, value)
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    return report
+
+
+@router.delete("/reports/{report_id}")
+def delete_report(
+    report_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.report_id == report_id)).all():
+        session.delete(tag)
+    session.delete(report)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/reports/{report_id}/tags/{player_id}")
+def tag_report(
+    report_id: str,
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    get_or_404(session, YearOfReport, report_id, "Verslag")
+    get_or_404(session, YearOfPlayer, player_id, "Speler")
+    existing = session.exec(
+        select(YearOfReportPlayerTag)
+        .where(YearOfReportPlayerTag.report_id == report_id)
+        .where(YearOfReportPlayerTag.player_id == player_id)
+    ).first()
+    if existing:
+        return existing
+    tag = YearOfReportPlayerTag(report_id=report_id, player_id=player_id)
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    return tag
+
+
+@router.delete("/reports/{report_id}/tags/{player_id}")
+def untag_report(
+    report_id: str,
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    existing = session.exec(
+        select(YearOfReportPlayerTag)
+        .where(YearOfReportPlayerTag.report_id == report_id)
+        .where(YearOfReportPlayerTag.player_id == player_id)
+    ).first()
+    if existing:
+        session.delete(existing)
+        session.commit()
+    return {"ok": True}

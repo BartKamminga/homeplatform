@@ -7,8 +7,10 @@ import TimelineAdmin from './screens/TimelineAdmin.jsx'
 import AccessAdmin from './screens/AccessAdmin.jsx'
 import RoadmapAdmin from './screens/RoadmapAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
+import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
+import ContributeReport from './screens/ContributeReport.jsx'
 import { getStoredCode, storeCode } from './gate.js'
 import { validateTeamCode } from './api.js'
 
@@ -33,7 +35,9 @@ function BeheerderPaneel() {
           { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' },
           { key: 'toegang', label: 'Toegang' },
           { key: 'fotos', label: "Foto's" },
+          { key: 'verslagen', label: 'Verslagen' },
           { key: 'roadmap', label: 'Roadmap' },
+          { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
@@ -49,7 +53,13 @@ function BeheerderPaneel() {
       {tab === 'wedstrijden' && <TimelineAdmin />}
       {tab === 'toegang' && <AccessAdmin />}
       {tab === 'fotos' && <PhotosAdmin />}
+      {tab === 'verslagen' && <ReportsAdmin />}
       {tab === 'roadmap' && <RoadmapAdmin />}
+      {tab === 'preview' && (
+        <div style={{ margin: '0 -24px', border: '3px dashed #f4c81e' }}>
+          <PublicSite previewMode />
+        </div>
+      )}
     </div>
   )
 }
@@ -58,7 +68,10 @@ export default function App() {
   const [showBeheer, setShowBeheer] = useState(false)
   const [gateStatus, setGateStatus] = useState('checking') // checking | locked | unlocked
 
+  const invulCode = new URLSearchParams(window.location.search).get('invul')
+
   useEffect(() => {
+    if (invulCode) return // los scherm, geen gate-check nodig - de invullink is zelf het bewijs
     const params = new URLSearchParams(window.location.search)
     const urlCode = params.get('code')
     const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
@@ -82,6 +95,10 @@ export default function App() {
       })
       .catch(() => setGateStatus('locked'))
   }, [])
+
+  if (invulCode) {
+    return <ContributeReport code={invulCode} />
+  }
 
   if (showBeheer) {
     return (

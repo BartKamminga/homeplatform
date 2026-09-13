@@ -51,3 +51,18 @@ export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/pho
 export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)
 export const tagPhoto            = (photoId, playerId) => api.post(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
 export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
+
+// Wedstrijd-invullink (contributor)
+export const createContributorLink = (body) => api.post('/api/yearof-mo14/contributor-links', body)
+export const listContributorLinks  = ()     => api.get('/api/yearof-mo14/contributor-links')
+export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
+
+// Verslagen & interviews
+export const submitReport        = (body)      => api.post('/api/yearof-mo14/reports', body)
+export const createReportDirect  = (body)      => api.post('/api/yearof-mo14/reports/direct', body)
+export const getReports          = (matchRef)  => api.get(`/api/yearof-mo14/reports${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`)
+export const getReportsModeration = ()         => api.get('/api/yearof-mo14/reports/moderation')
+export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/reports/${id}`, body)
+export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)
+export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
+export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
