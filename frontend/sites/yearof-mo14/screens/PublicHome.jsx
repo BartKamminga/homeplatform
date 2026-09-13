@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getActionSettings, getReports, getTimeline, getInterviewCandidates, getStandings } from '../api.js'
 import Thermometer from './Thermometer.jsx'
+import { PouleCard } from './PouleCard.jsx'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -9,7 +10,7 @@ function fmtDate(iso) {
   return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
 }
 
-function MatchTeaser({ label, item, onOpen, standingLine }) {
+function MatchTeaser({ label, item, onOpen }) {
   if (!item) return null
   return (
     <a href="#" onClick={e => { e.preventDefault(); onOpen(item.match_ref) }} className="yof-card"
@@ -23,7 +24,6 @@ function MatchTeaser({ label, item, onOpen, standingLine }) {
         <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
           {fmtDate(item.date)}{item.score_us != null ? ` · ${item.score_us}-${item.score_them}` : ''}
         </div>
-        {standingLine && <div style={{ fontSize: 12, color: '#a3245c', fontWeight: 600, marginTop: 2 }}>{standingLine}</div>}
       </div>
     </a>
   )
@@ -35,16 +35,12 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
   const [pastMatch, setPastMatch] = useState(null)
   const [nextMatch, setNextMatch] = useState(null)
   const [candidates, setCandidates] = useState([])
-  const [standing, setStanding] = useState(null)
+  const [standings, setStandings] = useState(null)
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
     getReports(null, 'interview').then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
-    getStandings().then(data => {
-      const rows = data.standings || []
-      const us = rows.find(r => r.is_us)
-      if (us) setStanding({ position: rows.indexOf(us) + 1, ...us })
-    }).catch(() => {})
+    getStandings().then(setStandings).catch(() => {})
     getTimeline().then(items => {
       const now = new Date()
       const past = items.filter(it => new Date(it.date) <= now)
@@ -72,8 +68,10 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
 
       {(pastMatch || nextMatch) && (
         <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
-          <MatchTeaser label="Laatste wedstrijd" item={pastMatch} onOpen={onOpenMatch}
-            standingLine={standing ? `${standing.position}e in de poule · ${standing.pts} pt` : null} />
+          <MatchTeaser label="Laatste wedstrijd" item={pastMatch} onOpen={onOpenMatch} />
+          {standings?.standings?.length > 0 && (
+            <PouleCard title={standings.pool_name || 'Poule'} rows={standings.standings} onOpen={() => onNavigate('timeline')} />
+          )}
           <MatchTeaser label="Volgende wedstrijd" item={nextMatch} onOpen={onOpenMatch} />
         </div>
       )}
