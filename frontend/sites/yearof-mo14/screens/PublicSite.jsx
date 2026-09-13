@@ -5,6 +5,7 @@ import PublicPlayer from './PublicPlayer.jsx'
 import PublicTimeline from './PublicTimeline.jsx'
 import PublicEntry from './PublicEntry.jsx'
 import PublicUploadPhotos from './PublicUploadPhotos.jsx'
+import PublicSpotlight from './PublicSpotlight.jsx'
 
 export default function PublicSite({ previewMode = false }) {
   const [view, setView] = useState({ name: 'home' })
@@ -21,6 +22,7 @@ export default function PublicSite({ previewMode = false }) {
       <div className="yof-nav">
         {[
           { key: 'home', label: 'Home' },
+          { key: 'spotlight', label: 'In de kijker' },
           { key: 'team', label: 'Team' },
           { key: 'timeline', label: 'Wedstrijden' },
           { key: 'upload', label: "Foto's toevoegen" },
@@ -32,6 +34,7 @@ export default function PublicSite({ previewMode = false }) {
       </div>
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} />}
+        {view.name === 'spotlight' && <PublicSpotlight />}
         {view.name === 'team' && <PublicTeam onOpenPlayer={id => setView({ name: 'player', id })} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={ref => setView({ name: 'entry', ref })} />}

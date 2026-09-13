@@ -91,18 +91,22 @@ function ContributorLinks({ entries, players }) {
 }
 
 function DirectReportForm({ entries, onCreated }) {
-  const [matchRef, setMatchRef] = useState('')
+  const [matchRef, setMatchRef] = useState('') // '' = geen specifieke wedstrijd (algemeen)
   const [reportType, setReportType] = useState('wedstrijdverslag')
+  const [role, setRole] = useState('speelster')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [error, setError] = useState('')
 
-  useEffect(() => { if (entries.length && !matchRef) setMatchRef(entries[0].match_ref) }, [entries])
-
   async function submit() {
-    if (!matchRef || !title.trim() || !body.trim()) return
+    if (!title.trim() || !body.trim()) return
     try {
-      await createReportDirect({ match_ref: matchRef, report_type: reportType, title, body, status: 'published' })
+      await createReportDirect({
+        match_ref: matchRef || null,
+        report_type: reportType,
+        interviewee_role: reportType === 'interview' ? role : null,
+        title, body, status: 'published',
+      })
       setTitle(''); setBody('')
       onCreated()
     } catch (e) {
@@ -112,10 +116,11 @@ function DirectReportForm({ entries, onCreated }) {
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Verslag schrijven</h3>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Verslag / interview schrijven</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
         <select value={matchRef} onChange={e => setMatchRef(e.target.value)} style={{ fontSize: 12 }}>
+          <option value="">Geen specifieke wedstrijd (algemeen)</option>
           {entries.map(it => <option key={it.match_ref} value={it.match_ref}>{it.title}</option>)}
         </select>
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
@@ -123,6 +128,13 @@ function DirectReportForm({ entries, onCreated }) {
           <option value="interview">Interview</option>
           <option value="nieuws">Nieuws</option>
         </select>
+        {reportType === 'interview' && (
+          <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 12 }}>
+            <option value="speelster">Speelster</option>
+            <option value="coach">Coach</option>
+            <option value="ouder">Ouder</option>
+          </select>
+        )}
       </div>
       <input placeholder="Titel" value={title} onChange={e => setTitle(e.target.value)}
         style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
@@ -149,6 +161,7 @@ export default function ReportsAdmin() {
   }, [])
 
   function entryTitle(matchRef) {
+    if (!matchRef) return 'Algemeen'
     return entries.find(e => e.match_ref === matchRef)?.title || matchRef
   }
 

@@ -8,6 +8,8 @@ export default function PublicHome({ onNavigate }) {
       </div>
       <div style={{ display: 'grid', gap: 10 }}>
         <button className="yof-btn" style={{ background: 'white', color: '#12203c' }}
+          onClick={() => onNavigate('spotlight')}>In de kijker</button>
+        <button className="yof-btn" style={{ background: 'white', color: '#12203c' }}
           onClick={() => onNavigate('team')}>Het team bekijken</button>
         <button className="yof-btn" style={{ background: 'white', color: '#12203c' }}
           onClick={() => onNavigate('timeline')}>Wedstrijden &amp; bijzondere dagen</button>

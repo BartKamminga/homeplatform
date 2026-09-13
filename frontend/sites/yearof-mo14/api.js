@@ -60,7 +60,13 @@ export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contrib
 // Verslagen & interviews
 export const submitReport        = (body)      => api.post('/api/yearof-mo14/reports', body)
 export const createReportDirect  = (body)      => api.post('/api/yearof-mo14/reports/direct', body)
-export const getReports          = (matchRef)  => api.get(`/api/yearof-mo14/reports${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`)
+export const getReports          = (matchRef, reportType) => {
+  const params = new URLSearchParams()
+  if (matchRef) params.set('match_ref', matchRef)
+  if (reportType) params.set('report_type', reportType)
+  const qs = params.toString()
+  return api.get(`/api/yearof-mo14/reports${qs ? `?${qs}` : ''}`)
+}
 export const getReportsModeration = ()         => api.get('/api/yearof-mo14/reports/moderation')
 export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/reports/${id}`, body)
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)

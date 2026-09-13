@@ -89,8 +89,9 @@ class YearOfReport(SQLModel, table=True):
     __tablename__ = "yearof_reports"
 
     id:               str            = Field(default_factory=new_uuid, primary_key=True)
-    match_ref:        str             = Field(index=True)
+    match_ref:        Optional[str]  = Field(default=None, index=True)  # leeg = algemeen, niet aan 1 wedstrijd gekoppeld
     report_type:      str             = Field(default="interview")  # wedstrijdverslag | interview | nieuws
+    interviewee_role: Optional[str]  = Field(default=None)  # speelster | coach | ouder (alleen relevant bij interview)
     status:           str             = Field(default="concept")     # concept | published
     title:            str
     body:             str

@@ -644,8 +644,9 @@ class ReportSubmit(BaseModel):
 
 
 class ReportCreate(BaseModel):
-    match_ref: str
+    match_ref: Optional[str] = None  # leeg = algemeen interview (coach/ouder), niet aan 1 wedstrijd gekoppeld
     report_type: str = "wedstrijdverslag"
+    interviewee_role: Optional[str] = None  # speelster | coach | ouder
     title: str
     body: str
     author_name: Optional[str] = None
@@ -655,7 +656,9 @@ class ReportCreate(BaseModel):
 
 
 class ReportUpdate(BaseModel):
+    match_ref: Optional[str] = None
     report_type: Optional[str] = None
+    interviewee_role: Optional[str] = None
     title: Optional[str] = None
     body: Optional[str] = None
     author_name: Optional[str] = None
@@ -676,6 +679,7 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
     report = YearOfReport(
         match_ref=link.match_ref,
         report_type="interview",
+        interviewee_role="speelster",  # invullinkjes zijn altijd voor een speelster (zie contributor-link-context)
         status="concept",
         title=body.title,
         body=body.body,
@@ -711,11 +715,19 @@ def create_report_direct(
 
 
 @router.get("/reports")
-def list_reports(match_ref: Optional[str] = None, session: Session = Depends(get_session)):
-    """Publiek — toont alleen gepubliceerde verslagen."""
+def list_reports(
+    match_ref: Optional[str] = None,
+    report_type: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    """Publiek — toont alleen gepubliceerde verslagen. Zonder match_ref (en
+    report_type=interview) is dit de basis voor "In de kijker": alle
+    interviews, ook de algemene (coach/ouder) die niet aan 1 wedstrijd hangen."""
     q = select(YearOfReport).where(YearOfReport.status == "published")
     if match_ref:
         q = q.where(YearOfReport.match_ref == match_ref)
+    if report_type:
+        q = q.where(YearOfReport.report_type == report_type)
     return session.exec(q.order_by(YearOfReport.created_at.desc())).all()
 
 
