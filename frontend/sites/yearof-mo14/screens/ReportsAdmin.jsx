@@ -51,7 +51,7 @@ function ContributorLinks({ entries, players }) {
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Wedstrijd-invullinkjes</h3>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Wedstrijd verslagen-invullinkjes</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
