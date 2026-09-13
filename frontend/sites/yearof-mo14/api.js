@@ -51,6 +51,7 @@ export const deleteEntry   = (id)        => api.delete(`/api/yearof-mo14/entries
 // Samengevoegde tijdlijn (competitie + custom entries)
 export const getTimeline     = ()          => api.get(withCode('/api/yearof-mo14/timeline'))
 export const getTimelineItem = (matchRef)  => api.get(withCode(`/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`))
+export const getStandings    = ()          => api.get(withCode('/api/yearof-mo14/standings'))
 
 // Foto's - upload is een FormData-post (geen JSON), rechtstreeks via fetch
 // i.p.v. api.post, en zonder Authorization-header (publiek, teamcode i.p.v. login).

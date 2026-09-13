@@ -74,7 +74,7 @@ from models.yearof import (
     YearOfReportPlayerTag,
     YearOfTeamLink,
 )
-from routers.hockey_public import _serialize_poule_matches
+from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
 
 router = APIRouter(prefix="/api/yearof-mo14", tags=["yearof-mo14"])
 
@@ -429,6 +429,18 @@ def get_timeline_item(match_ref: str, session: Session = Depends(get_session), _
         if item["match_ref"] == match_ref:
             return item
     raise HTTPException(status_code=404, detail="Item niet gevonden")
+
+
+@router.get("/standings")
+def get_standings(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Pouletabel (item 1152) - hergebruikt de bestaande Poulebord/hockey-inside
+    standings-endpoint 1-op-1, alleen achter het teamlinkje i.p.v. volledig open.
+    Markeert onze eigen rij (is_us) zodat de frontend die niet zelf hoeft te
+    matchen op teamnaam."""
+    data = get_hockey_poule_standings(POULE_ID, session)
+    for row in data["standings"]:
+        row["is_us"] = row["team_name"] == TEAM_NAME
+    return data
 
 
 # ---------------------------------------------------------------------------
