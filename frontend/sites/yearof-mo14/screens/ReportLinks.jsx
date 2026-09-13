@@ -49,6 +49,41 @@ function InstagramEmbed({ url, note }) {
   )
 }
 
+function parseYoutubeId(url) {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '')
+    if (host === 'youtu.be') return u.pathname.slice(1) || null
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+      if (u.pathname === '/watch') return u.searchParams.get('v')
+      const match = u.pathname.match(/^\/(?:shorts|embed|live)\/([^/?]+)/)
+      if (match) return match[1]
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function YoutubeEmbed({ url, note }) {
+  const id = parseYoutubeId(url)
+  if (!id) return null
+  return (
+    <div>
+      <div style={{ position: 'relative', paddingTop: '56.25%', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${id}`}
+          title="YouTube video"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+      {note && <p style={{ fontSize: 12, color: '#666', margin: '4px 0 0', textAlign: 'center' }}>{note}</p>}
+    </div>
+  )
+}
+
 const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc', width: '100%', minWidth: 0 }
 const rowStyle = { display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto', gap: 6, marginBottom: 6, alignItems: 'center' }
 
@@ -172,18 +207,26 @@ export function ExistingLinksEditor({ reportId, links, onChanged }) {
 }
 
 // Publieke weergave: Instagram-links worden echt ingebed (embed.js-widget),
-// overige linktypes (bv. wedstrijdbeelden) blijven preview-tiles.
+// YouTube-links (link_type "video") krijgen een echte video-preview (iframe).
+// Alles wat niet herkend/ingebed kan worden blijft een preview-tegel.
 export function LinkTiles({ links }) {
   if (!links || links.length === 0) return null
   const instagramLinks = links.filter(l => l.link_type === 'instagram')
-  const otherLinks = links.filter(l => l.link_type !== 'instagram')
+  const videoLinks = links.filter(l => l.link_type === 'video')
+  const embeddableVideos = videoLinks.filter(l => parseYoutubeId(l.url))
+  const tileLinks = links.filter(l => l.link_type !== 'instagram' && !embeddableVideos.includes(l))
 
   return (
     <div style={{ marginTop: 8 }}>
       {instagramLinks.map(l => <InstagramEmbed key={l.id} url={l.url} note={l.note} />)}
-      {otherLinks.length > 0 && (
+      {embeddableVideos.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, marginBottom: 12 }}>
+          {embeddableVideos.map(l => <YoutubeEmbed key={l.id} url={l.url} note={l.note} />)}
+        </div>
+      )}
+      {tileLinks.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
-          {otherLinks.map(l => {
+          {tileLinks.map(l => {
             const info = typeInfo(l.link_type)
             return (
               <a key={l.id} href={l.url} target="_blank" rel="noreferrer" className="yof-card"
