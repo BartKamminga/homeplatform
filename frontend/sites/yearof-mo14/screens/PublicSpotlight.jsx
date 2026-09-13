@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getReports, getPlayers } from '../api.js'
+import { getReports, getPlayers, getTimeline } from '../api.js'
 
-const ROLE_LABEL = { speelster: 'Speelster', coach: 'Coach', ouder: 'Ouder' }
+const ROLE_LABEL = { speelster: 'speelster', coach: 'coach', ouder: 'ouder' }
 
 function InstaEmbed({ url }) {
   return <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>📸 Instagram-post bekijken</a>
@@ -35,16 +35,29 @@ function AuthorAvatars({ playerIds, players }) {
   )
 }
 
-export default function PublicSpotlight() {
+export default function PublicSpotlight({ onOpenMatch }) {
   const [reports, setReports] = useState([])
   const [players, setPlayers] = useState([])
+  const [entries, setEntries] = useState([])
   const [openId, setOpenId] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     getReports(null, 'interview').then(setReports).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
+    getTimeline().then(setEntries).catch(() => {})
   }, [])
+
+  function writerName(r) {
+    if (r.author_name) return r.author_name
+    const player = players.find(p => p.id === r.player_ids?.[0])
+    if (player) return player.nickname || player.name
+    return ROLE_LABEL[r.interviewee_role] || null
+  }
+
+  function matchTitle(matchRef) {
+    return entries.find(e => e.match_ref === matchRef)?.title
+  }
 
   return (
     <div>
@@ -57,28 +70,36 @@ export default function PublicSpotlight() {
       <div style={{ display: 'grid', gap: 10 }}>
         {reports.map(r => {
           const open = openId === r.id
+          const name = writerName(r)
+          const title = matchTitle(r.match_ref)
           return (
             <div key={r.id} className="yof-card" onClick={() => setOpenId(open ? null : r.id)} style={{ cursor: 'pointer' }}>
               <AuthorAvatars playerIds={r.player_ids} players={players} />
-              {r.interviewee_role && (
+              {name && (
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a3245c', fontWeight: 700, marginBottom: 4 }}>
-                  {ROLE_LABEL[r.interviewee_role] || r.interviewee_role}
+                  {name}{r.interviewee_role && r.author_name ? ` · ${ROLE_LABEL[r.interviewee_role]}` : ''}
                 </div>
               )}
               <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>&ldquo;{r.title}&rdquo;</h3>
               {!open && (
                 <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
                   {r.body.length > 120 ? r.body.slice(0, 120) + '...' : r.body}
-                  {r.author_name ? ` — ${r.author_name}` : ''}
                 </p>
               )}
               {open && (
                 <div onClick={e => e.stopPropagation()}>
                   <p style={{ margin: '0 0 8px', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
-                  {r.author_name && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#666' }}>— {r.author_name}</p>}
                   {r.insta_url && <div style={{ marginBottom: 6 }}><InstaEmbed url={r.insta_url} /></div>}
-                  {r.youtube_url && <div><YoutubeEmbed url={r.youtube_url} /></div>}
+                  {r.youtube_url && <div style={{ marginBottom: 6 }}><YoutubeEmbed url={r.youtube_url} /></div>}
                 </div>
+              )}
+              {title && (
+                <p style={{ margin: '8px 0 0', fontSize: 12 }}>
+                  Bij:{' '}
+                  <a href="#" onClick={e => { e.stopPropagation(); e.preventDefault(); onOpenMatch(r.match_ref) }} style={{ color: '#12203c' }}>
+                    {title} &rsaquo;
+                  </a>
+                </p>
               )}
             </div>
           )
