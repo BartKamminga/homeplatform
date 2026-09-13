@@ -5,7 +5,7 @@ const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #cc
 
 export default function PlayersAdmin() {
   const [players, setPlayers] = useState([])
-  const [form, setForm] = useState({ name: '', shirt_number: '', position: '' })
+  const [form, setForm] = useState({ name: '', nickname: '', shirt_number: '', position: '' })
   const [error, setError] = useState('')
 
   function load() {
@@ -18,10 +18,11 @@ export default function PlayersAdmin() {
     try {
       await createPlayer({
         name: form.name,
+        nickname: form.nickname || null,
         shirt_number: form.shirt_number ? Number(form.shirt_number) : null,
         position: form.position || null,
       })
-      setForm({ name: '', shirt_number: '', position: '' })
+      setForm({ name: '', nickname: '', shirt_number: '', position: '' })
       load()
     } catch (e) {
       setError(e.message)
@@ -47,6 +48,7 @@ export default function PlayersAdmin() {
           <tr style={{ textAlign: 'left', color: '#888' }}>
             <th style={{ padding: 6 }}>Nr</th>
             <th style={{ padding: 6 }}>Naam</th>
+            <th style={{ padding: 6 }}>Bijnaam</th>
             <th style={{ padding: 6 }}>Positie</th>
             <th style={{ padding: 6 }}></th>
           </tr>
@@ -56,6 +58,7 @@ export default function PlayersAdmin() {
             <tr key={p.id} style={{ borderTop: '1px solid #eee' }}>
               <td style={{ padding: 6 }}>{p.shirt_number ?? '-'}</td>
               <td style={{ padding: 6 }}>{p.name}</td>
+              <td style={{ padding: 6 }}>{p.nickname ?? '-'}</td>
               <td style={{ padding: 6 }}>{p.position ?? '-'}</td>
               <td style={{ padding: 6 }}>
                 <button onClick={() => remove(p.id)} style={{ fontSize: 12, cursor: 'pointer' }}>verwijder</button>
@@ -68,6 +71,8 @@ export default function PlayersAdmin() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input style={inputStyle} placeholder="Naam" value={form.name}
           onChange={e => setForm({ ...form, name: e.target.value })} />
+        <input style={inputStyle} placeholder="Bijnaam" value={form.nickname}
+          onChange={e => setForm({ ...form, nickname: e.target.value })} />
         <input style={{ ...inputStyle, width: 60 }} placeholder="Nr" value={form.shirt_number}
           onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
         <input style={inputStyle} placeholder="Positie" value={form.position}

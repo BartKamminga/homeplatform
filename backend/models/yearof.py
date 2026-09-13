@@ -20,6 +20,7 @@ class YearOfPlayer(SQLModel, table=True):
 
     id:           str            = Field(default_factory=new_uuid, primary_key=True)
     name:         str
+    nickname:     Optional[str]  = Field(default=None)
     shirt_number: Optional[int]  = Field(default=None)
     position:     Optional[str]  = Field(default=None)
     photo_url:    Optional[str]  = Field(default=None)

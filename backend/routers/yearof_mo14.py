@@ -48,6 +48,7 @@ def me(current_user: User = Depends(get_current_user)):
 
 class PlayerIn(BaseModel):
     name: str
+    nickname: Optional[str] = None
     shirt_number: Optional[int] = None
     position: Optional[str] = None
     photo_url: Optional[str] = None
@@ -57,6 +58,7 @@ class PlayerIn(BaseModel):
 
 class PlayerUpdate(BaseModel):
     name: Optional[str] = None
+    nickname: Optional[str] = None
     shirt_number: Optional[int] = None
     position: Optional[str] = None
     photo_url: Optional[str] = None
