@@ -7,7 +7,7 @@ import TimelineAdmin from './screens/TimelineAdmin.jsx'
 import AccessAdmin from './screens/AccessAdmin.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
-import { getStoredCode } from './gate.js'
+import { getStoredCode, storeCode } from './gate.js'
 import { validateTeamCode } from './api.js'
 
 function BeheerderPaneel() {
@@ -53,13 +53,27 @@ export default function App() {
   const [gateStatus, setGateStatus] = useState('checking') // checking | locked | unlocked
 
   useEffect(() => {
-    const code = getStoredCode()
+    const params = new URLSearchParams(window.location.search)
+    const urlCode = params.get('code')
+    const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
+
     if (!code) {
       setGateStatus('locked')
       return
     }
     validateTeamCode(code)
-      .then(res => setGateStatus(res.valid ? 'unlocked' : 'locked'))
+      .then(res => {
+        if (res.valid) {
+          storeCode(code)
+          if (urlCode) {
+            // code niet zichtbaar in de URL laten staan (adresbalk/geschiedenis/screenshots)
+            const url = new URL(window.location.href)
+            url.searchParams.delete('code')
+            window.history.replaceState({}, '', url.toString())
+          }
+        }
+        setGateStatus(res.valid ? 'unlocked' : 'locked')
+      })
       .catch(() => setGateStatus('locked'))
   }, [])
 

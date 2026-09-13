@@ -5,6 +5,7 @@ export default function AccessAdmin() {
   const [links, setLinks] = useState([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   function load() {
     listTeamLinks().then(setLinks).catch(e => setError(e.message))
@@ -15,6 +16,7 @@ export default function AccessAdmin() {
     setBusy(true)
     try {
       await createTeamLink()
+      setCopied(false)
       load()
     } catch (e) {
       setError(e.message)
@@ -23,8 +25,18 @@ export default function AccessAdmin() {
     }
   }
 
+  async function copyLink(url) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard-API kan geblokkeerd zijn (bv. geen https lokaal) - dan zelf selecteren/kopiëren
+    }
+  }
+
   const active = links.find(l => !l.revoked_at)
-  const publicBase = window.location.origin + '/yearof-mo14/'
+  const shareUrl = active ? `${window.location.origin}/yearof-mo14/?code=${active.id}` : ''
 
   return (
     <div>
@@ -33,8 +45,19 @@ export default function AccessAdmin() {
 
       {active ? (
         <div style={{ padding: 12, background: '#fdf8e8', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
-          Huidige code: <strong style={{ fontSize: 16, letterSpacing: '.1em' }}>{active.id}</strong>
-          <div style={{ color: '#666', marginTop: 4 }}>Deel dit met de teamcode-vraag: {publicBase} + code &ldquo;{active.id}&rdquo;</div>
+          <div style={{ marginBottom: 8 }}>
+            Code: <strong style={{ fontSize: 16, letterSpacing: '.1em' }}>{active.id}</strong>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input readOnly value={shareUrl} onFocus={e => e.target.select()}
+              style={{ flex: '1 1 260px', padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }} />
+            <button onClick={() => copyLink(shareUrl)} style={{ fontSize: 12, cursor: 'pointer' }}>
+              {copied ? 'Gekopieerd!' : 'Kopieer link'}
+            </button>
+          </div>
+          <div style={{ color: '#666', marginTop: 6 }}>
+            Plak deze link direct in de WhatsApp-groep — de code wordt automatisch ingevuld.
+          </div>
         </div>
       ) : (
         <p style={{ fontSize: 13, color: '#666' }}>Nog geen actief teamlinkje.</p>
