@@ -74,7 +74,9 @@ export default function ContributeReport({ code }) {
       <div className="yof-main">
         <div className="yof-hero">
           <h1 style={{ fontSize: 18 }}>
-            {context.player_name ? `Hoi ${context.player_name}!` : 'Vertel je verhaal'}
+            {context.player_name
+              ? `Hoi ${context.player_name}!`
+              : context.report_type === 'wedstrijdverslag' ? 'Schrijf een wedstrijdverslag' : 'Vertel je verhaal'}
           </h1>
           <p>{context.match_title}</p>
         </div>
@@ -95,9 +97,13 @@ export default function ContributeReport({ code }) {
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd"
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw verhaaltje</label>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
+          {context.report_type === 'wedstrijdverslag' ? 'Het verslag' : 'Jouw verhaaltje'}
+        </label>
         <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-          placeholder="Hoe was de wedstrijd voor jou? Wat was je mooiste moment?"
+          placeholder={context.report_type === 'wedstrijdverslag'
+            ? 'Bijv. een vooruitblik: wat verwachten jullie van deze wedstrijd, of een terugblik na afloop.'
+            : 'Hoe was de wedstrijd voor jou? Wat was je mooiste moment?'}
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw naam</label>

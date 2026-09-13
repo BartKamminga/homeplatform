@@ -11,6 +11,7 @@ function ContributorLinks({ entries, players }) {
   const [error, setError] = useState('')
   const [matchRef, setMatchRef] = useState('')
   const [playerId, setPlayerId] = useState('')
+  const [reportType, setReportType] = useState('interview')
   const [copiedId, setCopiedId] = useState('')
 
   function load() {
@@ -24,7 +25,7 @@ function ContributorLinks({ entries, players }) {
   async function make() {
     if (!matchRef) return
     try {
-      await createContributorLink({ match_ref: matchRef, player_id: playerId || null, expires_days: 14 })
+      await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
       load()
     } catch (e) {
       setError(e.message)
@@ -62,6 +63,10 @@ function ContributorLinks({ entries, players }) {
           <option value="">Voor het hele team</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
         </select>
+        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
+          <option value="interview">Interview</option>
+          <option value="wedstrijdverslag">Wedstrijdverslag (bv. vooraf-preview)</option>
+        </select>
         <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw invullinkje</button>
       </div>
 
@@ -70,6 +75,7 @@ function ContributorLinks({ entries, players }) {
           <tr style={{ textAlign: 'left', color: '#888' }}>
             <th style={{ padding: 6 }}>Voor</th>
             <th style={{ padding: 6 }}>Speler</th>
+            <th style={{ padding: 6 }}>Type</th>
             <th style={{ padding: 6 }}>Vervalt</th>
             <th style={{ padding: 6 }}>Link</th>
             <th style={{ padding: 6 }}></th>
@@ -83,6 +89,7 @@ function ContributorLinks({ entries, players }) {
               <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
                 <td style={{ padding: 6 }}>{entryTitle(l.match_ref)}</td>
                 <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
+                <td style={{ padding: 6 }}>{l.report_type}</td>
                 <td style={{ padding: 6, color: (l.revoked_at || expired) ? '#c23b3b' : 'inherit' }}>
                   {l.expires_at?.slice(0, 10)}{expired ? ' (verlopen)' : ''}
                 </td>

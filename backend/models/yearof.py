@@ -119,10 +119,11 @@ class YearOfContributorLink(SQLModel, table=True):
     YearOfTeamLink/PoulebordBoard."""
     __tablename__ = "yearof_contributor_links"
 
-    id:         str            = Field(primary_key=True)  # 6-char code
-    match_ref:  str
-    player_id:  Optional[str]   = Field(default=None, foreign_key="yearof_players.id")
-    expires_at: datetime
+    id:          str            = Field(primary_key=True)  # 6-char code
+    match_ref:   str
+    player_id:   Optional[str]  = Field(default=None, foreign_key="yearof_players.id")
+    report_type: str            = Field(default="interview")  # interview | wedstrijdverslag (bv. vooraf-preview)
+    expires_at:  datetime
     revoked_at: Optional[datetime] = Field(default=None)
     created_at: datetime        = Field(default_factory=datetime.utcnow)
 

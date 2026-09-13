@@ -678,6 +678,7 @@ CONTRIBUTOR_LINK_DEFAULT_DAYS = 14
 class ContributorLinkIn(BaseModel):
     match_ref: str
     player_id: Optional[str] = None
+    report_type: str = "interview"  # interview | wedstrijdverslag (bv. vooraf-preview)
     expires_days: int = CONTRIBUTOR_LINK_DEFAULT_DAYS
 
 
@@ -700,6 +701,7 @@ def create_contributor_link(
         id=code,
         match_ref=body.match_ref,
         player_id=body.player_id,
+        report_type=body.report_type,
         expires_at=datetime.utcnow() + timedelta(days=body.expires_days),
     )
     session.add(link)
@@ -741,6 +743,7 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
         "match_title": match["title"] if match else link.match_ref,
         "player_id": link.player_id,
         "player_name": (player.nickname or player.name) if player else None,
+        "report_type": link.report_type,
         "existing_report": existing,
     }
 
@@ -818,8 +821,8 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
 
     report = YearOfReport(
         match_ref=link.match_ref,
-        report_type="interview",
-        interviewee_role="speelster",  # invullinkjes zijn altijd voor een speelster (zie contributor-link-context)
+        report_type=link.report_type,
+        interviewee_role="speelster" if link.report_type == "interview" else None,
         status="concept",
         title=body.title,
         body=body.body,
