@@ -65,7 +65,7 @@ export default function PublicUploadPhotos() {
 
   return (
     <div>
-      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Foto&rsquo;s toevoegen</h2>
+      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Foto&rsquo;s &amp; filmpjes toevoegen</h2>
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Bij welke wedstrijd/dag?</label>
       <select value={matchRef} onChange={e => setMatchRef(e.target.value)}
@@ -83,20 +83,27 @@ export default function PublicUploadPhotos() {
         <option value="sfeer">Sfeer</option>
       </select>
 
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s kiezen</label>
-      <input type="file" accept="image/*" multiple
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s of filmpjes kiezen</label>
+      <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple
         onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = '' }}
         style={{ display: 'block', marginBottom: 8, fontSize: 14 }} />
       <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
-        Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V).
+        Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V). Filmpjes tot 200MB (mp4/mov/webm).
       </p>
 
       {files.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 10 }}>
           {files.map((f, i) => (
             <div key={i} style={{ position: 'relative' }}>
-              <img src={URL.createObjectURL(f)} alt=""
-                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              {f.type.startsWith('video/') ? (
+                <div style={{
+                  width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+                }}>▶️</div>
+              ) : (
+                <img src={URL.createObjectURL(f)} alt=""
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              )}
               <button onClick={() => removeFile(i)} style={{
                 position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
                 width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
@@ -106,17 +113,17 @@ export default function PublicUploadPhotos() {
           ))}
         </div>
       )}
-      {files.length > 0 && <p style={{ fontSize: 13, color: '#666' }}>{files.length} foto&rsquo;s geselecteerd</p>}
+      {files.length > 0 && <p style={{ fontSize: 13, color: '#666' }}>{files.length} bestand{files.length === 1 ? '' : 'en'} geselecteerd</p>}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       {progress && (
         <p style={{ fontSize: 13, color: '#666' }}>
-          {progress.done < progress.total ? `Versturen... ${progress.done}/${progress.total}` : `${progress.done} foto's verstuurd`}
+          {progress.done < progress.total ? `Versturen... ${progress.done}/${progress.total}` : `${progress.done} verstuurd`}
         </p>
       )}
       {done && (
         <p style={{ fontSize: 13, color: '#16a34a' }}>
-          Bedankt! Je foto&rsquo;s worden zichtbaar na goedkeuring door de teammanager.
+          Bedankt! Ze worden zichtbaar na goedkeuring door de teammanager.
         </p>
       )}
 

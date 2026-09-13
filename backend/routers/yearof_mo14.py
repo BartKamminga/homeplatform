@@ -551,9 +551,16 @@ PHOTO_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 PHOTO_MAX_SIZE_MB = 15
 PHOTO_VARIANT_MAX_DIM = {"thumb": 400, "medium": 1600}  # "full" = ongeschaald (client had al gecomprimeerd)
 
+# Filmpjes (item 1154): ruw bestand opslaan, geen transcode/thumbnail (geen
+# ffmpeg beschikbaar) - frontend toont een video-icoontje in de grid en speelt
+# het bestand direct af in de lightbox.
+VIDEO_ALLOWED_TYPES = {"video/mp4", "video/quicktime", "video/webm"}
+VIDEO_ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm"}
+VIDEO_MAX_SIZE_MB = 200
 
-def _photo_safe_path(photo_id: str, variant: str) -> Path:
-    candidate = (PHOTO_ROOT / photo_id / f"{variant}.jpg").resolve()
+
+def _photo_safe_path(photo_id: str, filename: str) -> Path:
+    candidate = (PHOTO_ROOT / photo_id / filename).resolve()
     if not str(candidate).startswith(str(PHOTO_ROOT)):
         raise HTTPException(status_code=400, detail="Ongeldig pad")
     return candidate
@@ -569,6 +576,12 @@ def _save_photo_variants(photo_id: str, content: bytes) -> None:
         resized = image.copy()
         resized.thumbnail((max_dim, max_dim))
         resized.save(folder / f"{variant}.jpg", "JPEG", quality=82)
+
+
+def _save_video(photo_id: str, content: bytes, ext: str) -> None:
+    folder = PHOTO_ROOT / photo_id
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"video{ext}").write_bytes(content)
 
 
 class PhotoUpdate(BaseModel):
@@ -587,31 +600,52 @@ async def upload_photo(
 ):
     """Publiek, open sinds de teamcode-eis is losgelaten (2026-09-13). code is
     optioneel en dient alleen nog voor attributie (uploader_code) als een
-    (geldig) linkje wordt meegestuurd."""
+    (geldig) linkje wordt meegestuurd. Accepteert zowel fotos als filmpjes -
+    media_type wordt afgeleid van het bestandstype/-extensie."""
     link = _valid_team_link(code, session) if code else None
 
-    ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
-    if ext not in PHOTO_ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
+    ext = Path(file.filename or "upload").suffix.lower()
     base_type = (file.content_type or "").split(";")[0].strip()
-    if base_type not in PHOTO_ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}")
+    is_video = base_type in VIDEO_ALLOWED_TYPES or ext in VIDEO_ALLOWED_EXTENSIONS
+
+    if is_video:
+        media_type = "video"
+        if ext not in VIDEO_ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
+        if base_type not in VIDEO_ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}")
+        max_size_mb = VIDEO_MAX_SIZE_MB
+    else:
+        media_type = "photo"
+        ext = ext or ".jpg"
+        if ext not in PHOTO_ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
+        if base_type not in PHOTO_ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}")
+        max_size_mb = PHOTO_MAX_SIZE_MB
 
     content = await file.read()
-    if len(content) > PHOTO_MAX_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {PHOTO_MAX_SIZE_MB}MB")
+    if len(content) > max_size_mb * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {max_size_mb}MB")
 
-    photo = YearOfPhoto(match_ref=match_ref, photo_type=photo_type, uploader_code=link.id if link else None)
+    photo = YearOfPhoto(
+        match_ref=match_ref, photo_type=photo_type, media_type=media_type,
+        file_ext=ext if is_video else None,
+        uploader_code=link.id if link else None,
+    )
     session.add(photo)
     session.commit()
     session.refresh(photo)
 
     try:
-        _save_photo_variants(photo.id, content)
+        if is_video:
+            _save_video(photo.id, content, ext)
+        else:
+            _save_photo_variants(photo.id, content)
     except Exception:
         session.delete(photo)
         session.commit()
-        raise HTTPException(status_code=400, detail="Kon foto niet verwerken (ongeldig beeldbestand)")
+        raise HTTPException(status_code=400, detail="Kon bestand niet verwerken (ongeldig bestand)")
 
     return photo
 
@@ -621,7 +655,19 @@ def get_photo_file(photo_id: str, variant: str):
     """Publiek, geen auth — zelfde principe als /api/uploads (img src stuurt geen Authorization-header)."""
     if variant not in {"thumb", "medium", "full"}:
         raise HTTPException(status_code=404, detail="Onbekende variant")
-    path = _photo_safe_path(photo_id, variant)
+    path = _photo_safe_path(photo_id, f"{variant}.jpg")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Bestand niet gevonden")
+    return FileResponse(str(path))
+
+
+@router.get("/photos/{photo_id}/video")
+def get_photo_video(photo_id: str, session: Session = Depends(get_session)):
+    """Publiek, geen auth — serveert het ruwe videobestand (geen varianten/transcode)."""
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Video")
+    if photo.media_type != "video" or not photo.file_ext:
+        raise HTTPException(status_code=404, detail="Geen video")
+    path = _photo_safe_path(photo_id, f"video{photo.file_ext}")
     if not path.exists():
         raise HTTPException(status_code=404, detail="Bestand niet gevonden")
     return FileResponse(str(path))
@@ -911,6 +957,7 @@ class ReportUpdate(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
     author_name: Optional[str] = None
+    featured: Optional[bool] = None
     status: Optional[str] = None
 
 
@@ -1016,11 +1063,10 @@ def list_reports(
     session: Session = Depends(get_session),
     scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
 ):
-    """Publiek — toont alleen gepubliceerde verslagen. Zonder match_ref (en
-    report_type=interview) is dit de basis voor "In de kijker": alle
-    interviews, ook de algemene (coach/ouder) die niet aan 1 wedstrijd hangen.
-    Via een teamlinkje bovendien nooit verslagen die na het uitgeven van dat
-    linkje zijn gepubliceerd (content-scoping, fase 7)."""
+    """Publiek — toont alleen gepubliceerde verslagen. Via een teamlinkje
+    bovendien nooit verslagen die na het uitgeven van dat linkje zijn
+    gepubliceerd (content-scoping, fase 7). Zie /reports/spotlight voor de
+    handmatig-curated "In de kijker"-selectie."""
     q = select(YearOfReport).where(YearOfReport.status == "published")
     if scope_cutoff is not None:
         q = q.where(YearOfReport.created_at <= scope_cutoff)
@@ -1029,6 +1075,40 @@ def list_reports(
     if report_type:
         q = q.where(YearOfReport.report_type == report_type)
     reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()
+
+    report_ids = [r.id for r in reports]
+    tags_by_report: dict[str, list[str]] = {}
+    if report_ids:
+        for t in session.exec(select(YearOfReportPlayerTag).where(col(YearOfReportPlayerTag.report_id).in_(report_ids))).all():
+            tags_by_report.setdefault(t.report_id, []).append(t.player_id)
+
+    return [_report_out(session, r, tags_by_report.get(r.id, [])) for r in reports]
+
+
+@router.get("/reports/spotlight")
+def get_spotlight_reports(
+    session: Session = Depends(get_session),
+    scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
+):
+    """"In de kijker" - beheerder selecteert handmatig welke berichten hier
+    verschijnen (featured=true). Zolang er nog niets geselecteerd is, valt dit
+    terug op het wedstrijdverslag van de meest recente wedstrijd, zodat de
+    pagina niet leeg is voor er iets gecureerd wordt."""
+    q = select(YearOfReport).where(YearOfReport.status == "published").where(YearOfReport.featured == True)  # noqa: E712
+    if scope_cutoff is not None:
+        q = q.where(YearOfReport.created_at <= scope_cutoff)
+    reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()
+
+    if not reports:
+        fallback_q = (
+            select(YearOfReport)
+            .where(YearOfReport.status == "published")
+            .where(YearOfReport.report_type == "wedstrijdverslag")
+        )
+        if scope_cutoff is not None:
+            fallback_q = fallback_q.where(YearOfReport.created_at <= scope_cutoff)
+        fallback = session.exec(fallback_q.order_by(YearOfReport.created_at.desc())).first()
+        reports = [fallback] if fallback else []
 
     report_ids = [r.id for r in reports]
     tags_by_report: dict[str, list[str]] = {}

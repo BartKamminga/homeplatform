@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getActionSettings, getReports, getTimeline, getInterviewCandidates, getStandings } from '../api.js'
+import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings } from '../api.js'
 import Thermometer from './Thermometer.jsx'
 import { PouleCard } from './PouleCard.jsx'
 
@@ -39,7 +39,7 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
-    getReports(null, 'interview').then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
+    getSpotlightReports().then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
     getStandings().then(setStandings).catch(() => {})
     getTimeline().then(items => {
       const now = new Date()

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPlayer, getPlayerPhotos, getTimeline } from '../api.js'
-import { getStoredProfileCode } from '../profileGate.js'
-import { PhotoLightbox } from './PhotoLightbox.jsx'
+import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
 export default function PublicPlayer({ playerId, onBack }) {
   const [player, setPlayer] = useState(null)
@@ -9,7 +8,6 @@ export default function PublicPlayer({ playerId, onBack }) {
   const [entries, setEntries] = useState([])
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
-  const profileCode = getStoredProfileCode(playerId)
 
   useEffect(() => {
     getPlayer(playerId).then(setPlayer).catch(e => setError(e.message))
@@ -71,11 +69,6 @@ export default function PublicPlayer({ playerId, onBack }) {
         {player.bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{player.bio}</p>}
         {player.fun_facts && (
           <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;{player.fun_facts}&rdquo;</p>
-        )}
-        {profileCode && (
-          <a href={`?profiel=${encodeURIComponent(profileCode)}`} className="yof-btn" style={{ display: 'inline-block', marginTop: 14, fontSize: 13 }}>
-            Pas je profiel aan
-          </a>
         )}
       </div>
 

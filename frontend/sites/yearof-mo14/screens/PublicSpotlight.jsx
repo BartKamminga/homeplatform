@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getReports, getPlayers, getTimeline } from '../api.js'
+import { getSpotlightReports, getPlayers, getTimeline } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 
 const ROLE_LABEL = { speelster: 'speelster', coach: 'coach', ouder: 'ouder' }
@@ -37,7 +37,7 @@ export default function PublicSpotlight({ onOpenMatch }) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    getReports(null, 'interview').then(setReports).catch(e => setError(e.message))
+    getSpotlightReports().then(setReports).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     getTimeline().then(setEntries).catch(() => {})
   }, [])
@@ -57,7 +57,7 @@ export default function PublicSpotlight({ onOpenMatch }) {
     <div>
       <h2 style={{ fontSize: 17, margin: '0 0 4px' }}>In de kijker</h2>
       <p style={{ fontSize: 13, color: '#666', margin: '0 0 12px' }}>
-        Interviews met speelsters, coaches en ouders.
+        Interviews, wedstrijdverslagen en ander nieuws, uitgelicht door de teammanager.
       </p>
       {error && <p style={{ color: '#c23b3b' }}>{error}</p>}
 
@@ -97,7 +97,7 @@ export default function PublicSpotlight({ onOpenMatch }) {
             </div>
           )
         })}
-        {reports.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog geen interviews geplaatst.</p>}
+        {reports.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog niets uitgelicht.</p>}
       </div>
     </div>
   )

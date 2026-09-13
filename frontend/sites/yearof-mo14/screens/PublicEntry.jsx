@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
-import { PhotoLightbox } from './PhotoLightbox.jsx'
+import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
 export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
   const [item, setItem] = useState(null)
@@ -74,8 +74,7 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
             {photos.map((p, i) => (
               <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(i) }}>
-                <img src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt=""
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                <PhotoThumb photo={p} />
               </a>
             ))}
           </div>
