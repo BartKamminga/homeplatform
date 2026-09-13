@@ -12,7 +12,17 @@ export default function ContributeReport({ code }) {
   const [sent, setSent] = useState(false)
 
   useEffect(() => {
-    getContributorContext(code).then(setContext).catch(e => setError(e.message))
+    getContributorContext(code).then(ctx => {
+      setContext(ctx)
+      const existing = ctx.existing_report
+      if (existing) {
+        setTitle(existing.title || '')
+        setBody(existing.body || '')
+        setAuthorName(existing.author_name || '')
+        setInstaUrl(existing.insta_url || '')
+        setYoutubeUrl(existing.youtube_url || '')
+      }
+    }).catch(e => setError(e.message))
   }, [code])
 
   async function submit() {
@@ -51,7 +61,7 @@ export default function ContributeReport({ code }) {
           <div style={{ fontSize: 32 }}>🎉</div>
           <h1 style={{ fontSize: 18 }}>Bedankt!</h1>
           <p style={{ fontSize: 14, color: '#666' }}>
-            Je verhaaltje is verstuurd en verschijnt op de site zodra de teammanager het heeft bekeken.
+            Je verhaaltje is verstuurd en verschijnt (weer) op de site zodra de teammanager het heeft goedgekeurd.
           </p>
         </div>
       </div>
@@ -68,6 +78,18 @@ export default function ContributeReport({ code }) {
           </h1>
           <p>{context.match_title}</p>
         </div>
+
+        {context.existing_report?.status === 'concept' && (
+          <p style={{ fontSize: 13, background: '#fdf8e8', padding: 10, borderRadius: 10, marginBottom: 14 }}>
+            Je hebt dit al ingestuurd en het wacht nog op goedkeuring. Je kunt de tekst hieronder aanpassen en opnieuw versturen.
+          </p>
+        )}
+        {context.existing_report?.status === 'published' && (
+          <p style={{ fontSize: 13, background: '#e8f8ee', padding: 10, borderRadius: 10, marginBottom: 14 }}>
+            Dit verhaaltje staat al op de site. Pas de tekst hieronder aan en verstuur opnieuw om een wijziging aan te vragen
+            &mdash; die verschijnt pas online na goedkeuring.
+          </p>
+        )}
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Titel</label>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd"

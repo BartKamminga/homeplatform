@@ -33,14 +33,18 @@ class YearOfPlayer(SQLModel, table=True):
 class YearOfTeamLink(SQLModel, table=True):
     """Teamlinkje (viewer-toegang), code-als-PK naar het PoulebordBoard-patroon.
 
-    Fase 3 (v1): simpel - handmatig aangemaakt/vervangen door de beheerder,
-    de meest recente niet-ingetrokken code is geldig. De per-wedstrijd
-    rotatie + vangnet-dagen + content-scoping volgen in fase 1149 (fase 7).
+    Fase 7 (item 1149): elk linkje heeft een vangnet-vervaldatum (expires_at,
+    instelbaar, default 10 dagen) en vervalt daarnaast direct zodra een
+    nieuwer linkje wordt uitgegeven (revoked_at). created_at fungeert als
+    issued_at - het cutoff-moment voor content-scoping (zie get_team_scope_cutoff
+    in routers/yearof_mo14.py): content die na dit moment gepubliceerd is,
+    blijft voor dit linkje verborgen, ook al is het linkje zelf nog geldig.
     """
     __tablename__ = "yearof_team_links"
 
     id:         str            = Field(primary_key=True)  # 6-char code
     created_at: datetime        = Field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = Field(default=None)  # vangnet; None = alleen bij nieuwer linkje vervallen
     revoked_at: Optional[datetime] = Field(default=None)
 
 

@@ -22,9 +22,19 @@ binnen het invulformulier zijn bewust NIET gebouwd (vereist het teamlinkje,
 niet de invullink) - fotos voegt men apart toe via de bestaande "Foto's
 toevoegen"-pagina (fase 4), getagd op dezelfde match_ref.
 
+Fase 7 (item 1149): teamlinkje-rotatie + content-scoping. Elk teamlinkje
+krijgt een instelbaar vangnet (default 10 dagen) naast de bestaande
+"vervalt bij een nieuwer linkje"-regel. De publieke GET-endpoints
+(spelers/tijdlijn/fotos/verslagen) vereisen nu ECHT een geldige teamcode
+OF een homeplatform-login (beheerder, onbeperkte toegang) - de eerdere
+fases lieten deze bewust nog open. Content-scoping voor fotos/verslagen:
+een teamlinkje toont nooit content die gepubliceerd is NA het moment dat
+het linkje werd uitgegeven (created_at van het linkje als cutoff), ook al
+is het linkje zelf nog geldig - dit maakt hard-cutoff-vs-overlap-toegang
+grotendeels irrelevant.
+
 Single-tenant, bewust hardcoded voor Victoria MO14-1 (poule_id 551, Topklasse
 Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
-Publieke content/tokens (teamlinkje, foto's, verslagen) komen in latere fases.
 """
 
 import io
@@ -37,15 +47,16 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordBearer
 from PIL import Image
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
-from core.auth import get_current_user
+from core.auth import decode_token, get_current_user, hash_api_key
 from core.crud import get_or_404
 from core.database import get_session
 from core.settings import settings
-from models.core import User
+from models.core import User, UserApiKey
 from models.hockey_discovery import HockeyPoule
 from models.yearof import (
     YearOfContributorLink,
@@ -67,10 +78,91 @@ TEAM_NAME = "Victoria MO14-1"
 POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 architectuurbeslissing)
 
 
+# ---------------------------------------------------------------------------
+# Toegang: beheerder (homeplatform-login) OF een geldig teamlinkje.
+# Fase 7 (item 1149) - hiervoor stonden deze GET-endpoints nog volledig open.
+# ---------------------------------------------------------------------------
+
+_optional_oauth2 = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+
+def get_optional_user(
+    token: Optional[str] = Depends(_optional_oauth2),
+    session: Session = Depends(get_session),
+) -> Optional[User]:
+    """Zelfde logica als core.auth.get_current_user, maar geeft None terug
+    i.p.v. een 401 te gooien zodra er geen (geldig) token is - nodig omdat
+    deze endpoints ZOWEL door de beheerder (login) als door publieke
+    bezoekers (teamcode) aangeroepen worden."""
+    if not token:
+        return None
+    try:
+        if token.startswith("hp_"):
+            api_key = session.exec(
+                select(UserApiKey)
+                .where(UserApiKey.key_hash == hash_api_key(token))
+                .where(UserApiKey.revoked_at.is_(None))
+            ).first()
+            if not api_key:
+                return None
+            user = session.get(User, api_key.user_id)
+            return user if (user and user.is_active) else None
+
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        user = session.get(User, user_id)
+        return user if (user and user.is_active) else None
+    except HTTPException:
+        return None
+
+
+def _valid_team_link(code: Optional[str], session: Session) -> Optional[YearOfTeamLink]:
+    if not code:
+        return None
+    link = session.get(YearOfTeamLink, code.strip().lower())
+    if not link or link.revoked_at is not None:
+        return None
+    if link.expires_at and link.expires_at < datetime.utcnow():
+        return None
+    return link
+
+
+def require_team_access(
+    code: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> None:
+    """Toegangscontrole zonder content-scoping (spelers/tijdlijn - geen
+    concept/published-cyclus, dus niets om op te filteren)."""
+    if current_user is not None:
+        return
+    if not _valid_team_link(code, session):
+        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
+
+
+def get_team_scope_cutoff(
+    code: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> Optional[datetime]:
+    """Toegangscontrole MET content-scoping (fotos/verslagen): beheerder ->
+    None (onbeperkt), teamlinkje -> het moment waarop dat linkje is
+    uitgegeven als cutoff. Content gepubliceerd na dat moment blijft
+    verborgen, ook als het linkje zelf nog geldig is."""
+    if current_user is not None:
+        return None
+    link = _valid_team_link(code, session)
+    if not link:
+        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
+    return link.created_at
+
+
 @router.get("/status")
 def status():
     """Publiek, geen auth — bewijst dat de site/router leeft."""
-    return {"site": "yearof-mo14", "fase": 6, "status": "spelersprofiel zelf-bijwerken"}
+    return {"site": "yearof-mo14", "fase": 7, "status": "teamlinkje-rotatie + content-scoping"}
 
 
 @router.get("/me")
@@ -104,13 +196,13 @@ class PlayerUpdate(BaseModel):
 
 
 @router.get("/players")
-def list_players(session: Session = Depends(get_session)):
+def list_players(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     rows = session.exec(select(YearOfPlayer).order_by(YearOfPlayer.shirt_number)).all()
     return rows
 
 
 @router.get("/players/{player_id}")
-def get_player(player_id: str, session: Session = Depends(get_session)):
+def get_player(player_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     return get_or_404(session, YearOfPlayer, player_id, "Speler")
 
 
@@ -184,7 +276,7 @@ class CustomEntryUpdate(BaseModel):
 
 
 @router.get("/entries")
-def list_entries(kind: Optional[str] = None, session: Session = Depends(get_session)):
+def list_entries(kind: Optional[str] = None, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     q = select(YearOfCustomEntry)
     if kind:
         q = q.where(YearOfCustomEntry.kind == kind)
@@ -285,7 +377,7 @@ def _custom_timeline_items(session: Session) -> list[dict]:
 
 
 @router.get("/timeline")
-def get_timeline(session: Session = Depends(get_session)):
+def get_timeline(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     """Competitiewedstrijden (read-only sync) + oefenwedstrijden/bijzondere dagen
     (handmatig ingevoerd), samengevoegd en op datum gesorteerd. match_ref is het
     genormaliseerde tag-doel voor latere content (fase 4/5)."""
@@ -295,7 +387,7 @@ def get_timeline(session: Session = Depends(get_session)):
 
 
 @router.get("/timeline/{match_ref}")
-def get_timeline_item(match_ref: str, session: Session = Depends(get_session)):
+def get_timeline_item(match_ref: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
     for item in items:
         if item["match_ref"] == match_ref:
@@ -319,12 +411,19 @@ def _new_team_link_code(session: Session) -> str:
     raise RuntimeError("Geen unieke code gevonden")
 
 
+TEAM_LINK_DEFAULT_VANGNET_DAYS = 10
+
+
 @router.post("/team-links")
 def create_team_link(
+    vangnet_days: int = TEAM_LINK_DEFAULT_VANGNET_DAYS,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    """Nieuw teamlinkje aanmaken; alle eerder actieve linkjes worden ingetrokken."""
+    """Nieuw teamlinkje aanmaken; alle eerder actieve linkjes worden direct
+    ingetrokken. Vangnet (instelbaar, default 10 dagen) is een extra
+    vervalmoment naast die directe intrekking, voor als er een langere
+    pauze tussen wedstrijden zit."""
     active = session.exec(
         select(YearOfTeamLink).where(YearOfTeamLink.revoked_at.is_(None))
     ).all()
@@ -334,7 +433,7 @@ def create_team_link(
         session.add(link)
 
     code = _new_team_link_code(session)
-    new_link = YearOfTeamLink(id=code)
+    new_link = YearOfTeamLink(id=code, expires_at=now + timedelta(days=vangnet_days))
     session.add(new_link)
     session.commit()
     session.refresh(new_link)
@@ -352,14 +451,12 @@ def list_team_links(
 @router.get("/team-links/validate")
 def validate_team_link(code: str, session: Session = Depends(get_session)):
     """Publiek — de Gate-pagina checkt hiermee of een ingevoerde code (nog) geldig is."""
-    link = session.get(YearOfTeamLink, code.strip().lower())
-    valid = bool(link and link.revoked_at is None)
-    return {"valid": valid}
+    return {"valid": _valid_team_link(code, session) is not None}
 
 
 def _require_valid_team_code(code: str, session: Session) -> YearOfTeamLink:
-    link = session.get(YearOfTeamLink, code.strip().lower())
-    if not link or link.revoked_at is not None:
+    link = _valid_team_link(code, session)
+    if not link:
         raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
     return link
 
@@ -454,9 +551,14 @@ def list_photos(
     match_ref: Optional[str] = None,
     player_id: Optional[str] = None,
     session: Session = Depends(get_session),
+    scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
 ):
-    """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only, zie /photos/moderation)."""
+    """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only,
+    zie /photos/moderation). Via een teamlinkje bovendien nooit fotos die na
+    het uitgeven van dat linkje zijn geupload (content-scoping, fase 7)."""
     q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
+    if scope_cutoff is not None:
+        q = q.where(YearOfPhoto.created_at <= scope_cutoff)
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
     if player_id:
@@ -624,11 +726,20 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
     match = next((it for it in items if it["match_ref"] == link.match_ref), None)
 
+    # bestaand verslag via dit linkje - laat het formulier vooraf invullen i.p.v.
+    # blanco te tonen, en voorkomt dubbele rijen bij opnieuw versturen.
+    existing = session.exec(
+        select(YearOfReport)
+        .where(YearOfReport.contributor_code == code.strip().lower())
+        .order_by(YearOfReport.created_at.desc())
+    ).first()
+
     return {
         "match_ref": link.match_ref,
         "match_title": match["title"] if match else link.match_ref,
         "player_id": link.player_id,
         "player_name": (player.nickname or player.name) if player else None,
+        "existing_report": existing,
     }
 
 
@@ -671,12 +782,37 @@ class ReportUpdate(BaseModel):
 
 @router.post("/reports", status_code=201)
 def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
-    """Publiek — via een wedstrijd-invullink, geen homeplatform-login. Komt
-    altijd als concept binnen, ongeacht wat er verder wordt meegestuurd."""
+    """Publiek — via een wedstrijd-invullink, geen homeplatform-login.
+
+    Eerste keer invullen -> nieuw verslag (concept). Opnieuw invullen via
+    hetzelfde linkje -> bestaand verslag bijwerken i.p.v. een dubbele rij
+    aan te maken; dit zet de status ALTIJD terug naar concept, ook als het
+    inmiddels published was - dat IS het "wijziging aanvragen"-mechanisme:
+    de vorige (goedgekeurde) tekst blijft dus tijdelijk van de site tot de
+    beheerder de nieuwe versie opnieuw goedkeurt."""
     code = body.contributor_code.strip().lower()
     link = session.get(YearOfContributorLink, code)
     if not link or link.revoked_at is not None or link.expires_at < datetime.utcnow():
         raise HTTPException(status_code=403, detail="Deze invullink is verlopen of ongeldig")
+
+    existing = session.exec(
+        select(YearOfReport)
+        .where(YearOfReport.contributor_code == code)
+        .order_by(YearOfReport.created_at.desc())
+    ).first()
+
+    if existing:
+        existing.title = body.title
+        existing.body = body.body
+        existing.author_name = body.author_name
+        existing.insta_url = body.insta_url
+        existing.youtube_url = body.youtube_url
+        existing.status = "concept"
+        existing.updated_at = datetime.utcnow()
+        session.add(existing)
+        session.commit()
+        session.refresh(existing)
+        return existing
 
     report = YearOfReport(
         match_ref=link.match_ref,
@@ -721,11 +857,16 @@ def list_reports(
     match_ref: Optional[str] = None,
     report_type: Optional[str] = None,
     session: Session = Depends(get_session),
+    scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
 ):
     """Publiek — toont alleen gepubliceerde verslagen. Zonder match_ref (en
     report_type=interview) is dit de basis voor "In de kijker": alle
-    interviews, ook de algemene (coach/ouder) die niet aan 1 wedstrijd hangen."""
+    interviews, ook de algemene (coach/ouder) die niet aan 1 wedstrijd hangen.
+    Via een teamlinkje bovendien nooit verslagen die na het uitgeven van dat
+    linkje zijn gepubliceerd (content-scoping, fase 7)."""
     q = select(YearOfReport).where(YearOfReport.status == "published")
+    if scope_cutoff is not None:
+        q = q.where(YearOfReport.created_at <= scope_cutoff)
     if match_ref:
         q = q.where(YearOfReport.match_ref == match_ref)
     if report_type:
