@@ -68,6 +68,7 @@ export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearo
 export const createContributorLink = (body) => api.post('/api/yearof-mo14/contributor-links', body)
 export const listContributorLinks  = ()     => api.get('/api/yearof-mo14/contributor-links')
 export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
+export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/interview-candidates`))
 
 // Verslagen & interviews
 export const submitReport        = (body)      => api.post('/api/yearof-mo14/reports', body)

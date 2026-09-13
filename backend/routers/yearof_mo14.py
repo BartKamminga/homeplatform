@@ -727,6 +727,34 @@ def list_contributor_links(
     ]
 
 
+@router.get("/matches/{match_ref}/interview-candidates")
+def list_interview_candidates(
+    match_ref: str,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_team_access),
+):
+    """Publiek (teamcode) — namen/fotos van spelers met een nog openstaand
+    interview-linkje voor deze wedstrijd, voor een leuke "wie komt er aan het
+    woord"-teaser op de homepage. Geeft bewust NOOIT de linkjes/codes zelf
+    terug - dat zou een manier zijn om ongevraagd bij iemands invulpagina te komen."""
+    now = datetime.utcnow()
+    links = session.exec(
+        select(YearOfContributorLink)
+        .where(YearOfContributorLink.match_ref == match_ref)
+        .where(YearOfContributorLink.report_type == "interview")
+        .where(YearOfContributorLink.revoked_at.is_(None))
+        .where(YearOfContributorLink.expires_at > now)
+    ).all()
+    reports = session.exec(select(YearOfReport).where(col(YearOfReport.contributor_code).is_not(None))).all()
+    filled_codes = {r.contributor_code for r in reports}
+
+    player_ids = [l.player_id for l in links if l.player_id and l.id not in filled_codes]
+    if not player_ids:
+        return []
+    players = session.exec(select(YearOfPlayer).where(col(YearOfPlayer.id).in_(player_ids))).all()
+    return [{"id": p.id, "name": p.nickname or p.name, "photo_url": p.photo_url} for p in players]
+
+
 @router.get("/contributor-links/{code}")
 def get_contributor_link_context(code: str, session: Session = Depends(get_session)):
     """Publiek — het invulformulier haalt hiermee de context op (welke wedstrijd,

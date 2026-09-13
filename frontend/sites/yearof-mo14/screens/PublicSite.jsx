@@ -37,7 +37,7 @@ export default function PublicSite({ previewMode = false }) {
         ))}
       </div>
       <div className="yof-main">
-        {view.name === 'home' && <PublicHome onNavigate={nav} />}
+        {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={ref => setView({ name: 'entry', ref })} />}
         {view.name === 'action' && <PublicAction />}
         {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={ref => setView({ name: 'entry', ref })} />}
         {view.name === 'team' && <PublicTeam onOpenPlayer={id => setView({ name: 'player', id })} />}
