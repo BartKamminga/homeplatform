@@ -5,6 +5,8 @@ import { getMe } from './api.js'
 import PlayersAdmin from './screens/PlayersAdmin.jsx'
 import TimelineAdmin from './screens/TimelineAdmin.jsx'
 import AccessAdmin from './screens/AccessAdmin.jsx'
+import RoadmapAdmin from './screens/RoadmapAdmin.jsx'
+import PhotosAdmin from './screens/PhotosAdmin.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
 import { getStoredCode, storeCode } from './gate.js'
@@ -30,6 +32,8 @@ function BeheerderPaneel() {
           { key: 'spelers', label: 'Spelers' },
           { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' },
           { key: 'toegang', label: 'Toegang' },
+          { key: 'fotos', label: "Foto's" },
+          { key: 'roadmap', label: 'Roadmap' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
@@ -44,6 +48,8 @@ function BeheerderPaneel() {
       {tab === 'spelers' && <PlayersAdmin />}
       {tab === 'wedstrijden' && <TimelineAdmin />}
       {tab === 'toegang' && <AccessAdmin />}
+      {tab === 'fotos' && <PhotosAdmin />}
+      {tab === 'roadmap' && <RoadmapAdmin />}
     </div>
   )
 }

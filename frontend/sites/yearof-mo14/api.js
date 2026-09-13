@@ -3,6 +3,9 @@ import { api } from '@core/api.js'
 export const getStatus = () => api.get('/api/yearof-mo14/status')
 export const getMe     = () => api.get('/api/yearof-mo14/me')
 
+// Roadmap (platform-brede roadmap, gefilterd op deze site)
+export const getRoadmapItems = () => api.get('/api/roadmap?site=yearof-mo14')
+
 // Spelers
 export const getPlayers    = ()          => api.get('/api/yearof-mo14/players')
 export const getPlayer     = (id)        => api.get(`/api/yearof-mo14/players/${id}`)
@@ -24,3 +27,24 @@ export const deleteEntry   = (id)        => api.delete(`/api/yearof-mo14/entries
 // Samengevoegde tijdlijn (competitie + custom entries)
 export const getTimeline     = ()          => api.get('/api/yearof-mo14/timeline')
 export const getTimelineItem = (matchRef)  => api.get(`/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`)
+
+// Foto's - upload is een FormData-post (geen JSON), rechtstreeks via fetch
+// i.p.v. api.post, en zonder Authorization-header (publiek, teamcode i.p.v. login).
+export async function uploadPhoto(file, { matchRef, photoType, code }) {
+  const fd = new FormData()
+  fd.append('file', file, file.name || 'foto.jpg')
+  fd.append('match_ref', matchRef)
+  fd.append('photo_type', photoType)
+  fd.append('code', code)
+  const res = await fetch('/api/yearof-mo14/photos', { method: 'POST', body: fd })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || 'Upload mislukt')
+  }
+  return res.json()
+}
+
+export const getPhotos           = (matchRef) => api.get(`/api/yearof-mo14/photos${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`)
+export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')
+export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/photos/${id}`, body)
+export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)

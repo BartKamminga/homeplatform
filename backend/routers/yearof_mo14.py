@@ -9,26 +9,37 @@ handmatig vervangen door de beheerder). Nog GEEN server-side afdwinging op
 de publieke GET-endpoints hieronder — dat volgt met content-scoping in fase
 1149/fase 7. Voor nu is het teamlinkje een client-side toegangsdeur.
 
+Fase 4 (item 1146): foto-bijdragen. Eigen publieke upload-route (geen
+homeplatform-account, want anonieme bezoekers hebben er geen — geauthenticeerd
+via het teamlinkje in plaats daarvan), server-side 3 beeldvarianten
+(thumb/medium/full) via Pillow, concept/published-status + beheerder-moderatie.
+
 Single-tenant, bewust hardcoded voor Victoria MO14-1 (poule_id 551, Topklasse
 Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
 Publieke content/tokens (teamlinkje, foto's, verslagen) komen in latere fases.
 """
 
+import io
 import random
+import shutil
 import string
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from PIL import Image
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from core.auth import get_current_user
 from core.crud import get_or_404
 from core.database import get_session
+from core.settings import settings
 from models.core import User
 from models.hockey_discovery import HockeyPoule
-from models.yearof import YearOfCustomEntry, YearOfPlayer, YearOfTeamLink
+from models.yearof import YearOfCustomEntry, YearOfPhoto, YearOfPhotoPlayerTag, YearOfPlayer, YearOfTeamLink
 from routers.hockey_public import _serialize_poule_matches
 
 router = APIRouter(prefix="/api/yearof-mo14", tags=["yearof-mo14"])
@@ -40,7 +51,7 @@ POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 archite
 @router.get("/status")
 def status():
     """Publiek, geen auth — bewijst dat de site/router leeft."""
-    return {"site": "yearof-mo14", "fase": 3, "status": "publieke basispaginas + teamlinkje v1"}
+    return {"site": "yearof-mo14", "fase": 4, "status": "foto-bijdragen"}
 
 
 @router.get("/me")
@@ -325,3 +336,189 @@ def validate_team_link(code: str, session: Session = Depends(get_session)):
     link = session.get(YearOfTeamLink, code.strip().lower())
     valid = bool(link and link.revoked_at is None)
     return {"valid": valid}
+
+
+def _require_valid_team_code(code: str, session: Session) -> YearOfTeamLink:
+    link = session.get(YearOfTeamLink, code.strip().lower())
+    if not link or link.revoked_at is not None:
+        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
+    return link
+
+
+# ---------------------------------------------------------------------------
+# Foto-bijdragen — publieke upload (via teamlinkje, geen homeplatform-account),
+# server-side 3 beeldvarianten, concept/published + beheerder-moderatie.
+# ---------------------------------------------------------------------------
+
+PHOTO_ROOT = Path(settings.UPLOAD_ROOT).resolve() / "yearof-mo14" / "photos"
+PHOTO_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+PHOTO_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+PHOTO_MAX_SIZE_MB = 15
+PHOTO_VARIANT_MAX_DIM = {"thumb": 400, "medium": 1600}  # "full" = ongeschaald (client had al gecomprimeerd)
+
+
+def _photo_safe_path(photo_id: str, variant: str) -> Path:
+    candidate = (PHOTO_ROOT / photo_id / f"{variant}.jpg").resolve()
+    if not str(candidate).startswith(str(PHOTO_ROOT)):
+        raise HTTPException(status_code=400, detail="Ongeldig pad")
+    return candidate
+
+
+def _save_photo_variants(photo_id: str, content: bytes) -> None:
+    image = Image.open(io.BytesIO(content))
+    image = image.convert("RGB")  # normaliseert naar jpg, ook bij png/webp-input
+    folder = PHOTO_ROOT / photo_id
+    folder.mkdir(parents=True, exist_ok=True)
+    image.save(folder / "full.jpg", "JPEG", quality=88)
+    for variant, max_dim in PHOTO_VARIANT_MAX_DIM.items():
+        resized = image.copy()
+        resized.thumbnail((max_dim, max_dim))
+        resized.save(folder / f"{variant}.jpg", "JPEG", quality=82)
+
+
+class PhotoUpdate(BaseModel):
+    status: Optional[str] = None
+    photo_type: Optional[str] = None
+    caption: Optional[str] = None
+
+
+@router.post("/photos", status_code=201)
+async def upload_photo(
+    file: UploadFile = File(...),
+    match_ref: str = Form(...),
+    photo_type: str = Form("actie"),
+    code: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    """Publiek — vereist een geldig teamlinkje (geen homeplatform-login)."""
+    link = _require_valid_team_code(code, session)
+
+    ext = Path(file.filename or "upload").suffix.lower() or ".jpg"
+    if ext not in PHOTO_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
+    base_type = (file.content_type or "").split(";")[0].strip()
+    if base_type not in PHOTO_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}")
+
+    content = await file.read()
+    if len(content) > PHOTO_MAX_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {PHOTO_MAX_SIZE_MB}MB")
+
+    photo = YearOfPhoto(match_ref=match_ref, photo_type=photo_type, uploader_code=link.id)
+    session.add(photo)
+    session.commit()
+    session.refresh(photo)
+
+    try:
+        _save_photo_variants(photo.id, content)
+    except Exception:
+        session.delete(photo)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Kon foto niet verwerken (ongeldig beeldbestand)")
+
+    return photo
+
+
+@router.get("/photos/{photo_id}/{variant}.jpg")
+def get_photo_file(photo_id: str, variant: str):
+    """Publiek, geen auth — zelfde principe als /api/uploads (img src stuurt geen Authorization-header)."""
+    if variant not in {"thumb", "medium", "full"}:
+        raise HTTPException(status_code=404, detail="Onbekende variant")
+    path = _photo_safe_path(photo_id, variant)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Bestand niet gevonden")
+    return FileResponse(str(path))
+
+
+@router.get("/photos")
+def list_photos(match_ref: Optional[str] = None, session: Session = Depends(get_session)):
+    """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only, zie /photos/moderation)."""
+    q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
+    if match_ref:
+        q = q.where(YearOfPhoto.match_ref == match_ref)
+    return session.exec(q.order_by(YearOfPhoto.created_at.desc())).all()
+
+
+@router.get("/photos/moderation")
+def list_photos_for_moderation(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    return session.exec(select(YearOfPhoto).order_by(YearOfPhoto.created_at.desc())).all()
+
+
+@router.patch("/photos/{photo_id}")
+def update_photo(
+    photo_id: str,
+    body: PhotoUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(photo, key, value)
+    session.add(photo)
+    session.commit()
+    session.refresh(photo)
+    return photo
+
+
+@router.delete("/photos/{photo_id}")
+def delete_photo(
+    photo_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo_id)).all():
+        session.delete(tag)
+    session.delete(photo)
+    session.commit()
+    shutil.rmtree(PHOTO_ROOT / photo_id, ignore_errors=True)
+    return {"ok": True}
+
+
+@router.post("/photos/{photo_id}/tags/{player_id}")
+def tag_photo(
+    photo_id: str,
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    get_or_404(session, YearOfPlayer, player_id, "Speler")
+    existing = session.exec(
+        select(YearOfPhotoPlayerTag)
+        .where(YearOfPhotoPlayerTag.photo_id == photo_id)
+        .where(YearOfPhotoPlayerTag.player_id == player_id)
+    ).first()
+    if existing:
+        return existing
+    tag = YearOfPhotoPlayerTag(photo_id=photo_id, player_id=player_id)
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    return tag
+
+
+@router.delete("/photos/{photo_id}/tags/{player_id}")
+def untag_photo(
+    photo_id: str,
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    existing = session.exec(
+        select(YearOfPhotoPlayerTag)
+        .where(YearOfPhotoPlayerTag.photo_id == photo_id)
+        .where(YearOfPhotoPlayerTag.player_id == player_id)
+    ).first()
+    if existing:
+        session.delete(existing)
+        session.commit()
+    return {"ok": True}
+
+
+@router.get("/photos/{photo_id}/tags")
+def get_photo_tags(photo_id: str, session: Session = Depends(get_session)):
+    return session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo_id)).all()

@@ -44,6 +44,30 @@ class YearOfTeamLink(SQLModel, table=True):
     revoked_at: Optional[datetime] = Field(default=None)
 
 
+class YearOfPhoto(SQLModel, table=True):
+    """Foto-bijdrage (fase 4, item 1146). uploader_code is het teamlinkje/
+    contributor-linkje waarmee geupload is - geen User.id, want anonieme
+    bezoekers hebben geen homeplatform-account."""
+    __tablename__ = "yearof_photos"
+
+    id:             str            = Field(default_factory=new_uuid, primary_key=True)
+    match_ref:      str             = Field(index=True)  # "knhb:{id}" | "custom:{id}"
+    photo_type:     str             = Field(default="actie")  # actie | team | sfeer
+    status:         str             = Field(default="concept")  # concept | published
+    uploader_code:  Optional[str]   = Field(default=None)
+    caption:        Optional[str]  = Field(default=None)
+    created_at:     datetime        = Field(default_factory=datetime.utcnow)
+    updated_at:     datetime        = Field(default_factory=datetime.utcnow)
+
+
+class YearOfPhotoPlayerTag(SQLModel, table=True):
+    __tablename__ = "yearof_photo_player_tags"
+
+    id:        str = Field(default_factory=new_uuid, primary_key=True)
+    photo_id:  str = Field(foreign_key="yearof_photos.id", index=True)
+    player_id: str = Field(foreign_key="yearof_players.id", index=True)
+
+
 class YearOfCustomEntry(SQLModel, table=True):
     """Handmatig ingevoerde tijdlijn-items naast de KNHB/Poulebord-sync.
 
