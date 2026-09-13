@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getTimeline, getTimelineItem, getPlayers,
-  getReportsModeration, updateReport, deleteReport, tagReport, untagReport,
+  getReportsModeration, updateReport, deleteReport, tagReport, untagReport, createReportDirect,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks,
   getMatchGoals, setMatchGoal,
@@ -93,6 +93,48 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
           </tbody>
         </table>
       )}
+    </div>
+  )
+}
+
+function NewMatchFootage({ matchRef, onCreated }) {
+  const [title, setTitle] = useState('Wedstrijdbeelden')
+  const [instaUrl, setInstaUrl] = useState('')
+  const [youtubeUrls, setYoutubeUrls] = useState(['', '', '', ''])
+  const [error, setError] = useState('')
+
+  async function submit() {
+    if (!title.trim()) return
+    try {
+      await createReportDirect({
+        match_ref: matchRef,
+        report_type: 'wedstrijd_beelden',
+        title,
+        body: '',
+        status: 'published',
+        insta_url: instaUrl || null,
+        youtube_urls: youtubeUrls,
+      })
+      setTitle('Wedstrijdbeelden'); setInstaUrl(''); setYoutubeUrls(['', '', '', ''])
+      onCreated()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  return (
+    <div>
+      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titel"
+        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+      <input value={instaUrl} onChange={e => setInstaUrl(e.target.value)} placeholder="Instagram-link (optioneel)"
+        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+      {youtubeUrls.map((url, i) => (
+        <input key={i} value={url} placeholder={`YouTube-link ${i + 1} (optioneel)`}
+          onChange={e => setYoutubeUrls(urls => urls.map((u, idx) => idx === i ? e.target.value : u))}
+          style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+      ))}
+      <button onClick={submit} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
     </div>
   )
 }
@@ -238,6 +280,11 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           onTogglePublish={togglePublishReport} onDelete={deleteReportRow} onToggleTag={toggleReportTag} onSave={saveReportEdit} />
       ))}
       {reports.length === 0 && <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>Nog geen verslagen voor deze wedstrijd.</p>}
+
+      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Wedstrijdbeelden toevoegen (Instagram/YouTube)</h4>
+      <div style={{ marginBottom: 20 }}>
+        <NewMatchFootage matchRef={matchRef} onCreated={loadReports} />
+      </div>
 
       <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Nieuw bericht / invullinkjes voor deze wedstrijd</h4>
       <NewMessageLinks matchRef={matchRef} players={players} links={links} onCreated={loadLinks} />
