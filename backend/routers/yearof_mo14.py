@@ -63,6 +63,7 @@ from models.yearof import (
     YearOfActionSettings,
     YearOfContributorLink,
     YearOfCustomEntry,
+    YearOfMatchGoal,
     YearOfPhoto,
     YearOfPhotoPlayerTag,
     YearOfPlayer,
@@ -395,6 +396,47 @@ def get_timeline_item(match_ref: str, session: Session = Depends(get_session), _
         if item["match_ref"] == match_ref:
             return item
     raise HTTPException(status_code=404, detail="Item niet gevonden")
+
+
+# ---------------------------------------------------------------------------
+# Doelpunten per speler per wedstrijd (beheerder houdt dit handmatig bij)
+# ---------------------------------------------------------------------------
+
+class MatchGoalIn(BaseModel):
+    goals: int
+
+
+@router.get("/matches/{match_ref}/goals")
+def list_match_goals(match_ref: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    rows = session.exec(select(YearOfMatchGoal).where(YearOfMatchGoal.match_ref == match_ref)).all()
+    return [{"player_id": r.player_id, "goals": r.goals} for r in rows if r.goals]
+
+
+@router.put("/matches/{match_ref}/goals/{player_id}")
+def set_match_goal(
+    match_ref: str,
+    player_id: str,
+    body: MatchGoalIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    row = session.exec(
+        select(YearOfMatchGoal)
+        .where(YearOfMatchGoal.match_ref == match_ref)
+        .where(YearOfMatchGoal.player_id == player_id)
+    ).first()
+    if body.goals <= 0:
+        if row:
+            session.delete(row)
+            session.commit()
+        return {"player_id": player_id, "goals": 0}
+    if not row:
+        row = YearOfMatchGoal(match_ref=match_ref, player_id=player_id, goals=body.goals)
+    else:
+        row.goals = body.goals
+    session.add(row)
+    session.commit()
+    return {"player_id": player_id, "goals": row.goals}
 
 
 # ---------------------------------------------------------------------------

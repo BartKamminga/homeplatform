@@ -16,9 +16,12 @@ export default function PublicTeam({ onOpenPlayer }) {
       <div className="yof-grid">
         {players.map(p => (
           <a key={p.id} className="yof-card yof-player-card" href="#" onClick={e => { e.preventDefault(); onOpenPlayer(p.id) }}>
-            {p.photo_url
-              ? <img src={p.photo_url} alt="" className="avatar" style={{ objectFit: 'cover' }} />
-              : <div className="avatar">{p.shirt_number ?? '?'}</div>}
+            <div className="avatar-wrap">
+              {p.photo_url
+                ? <img src={p.photo_url} alt="" className="avatar" style={{ objectFit: 'cover' }} />
+                : <div className="avatar">{p.shirt_number ?? '?'}</div>}
+              {p.photo_url && p.shirt_number != null && <span className="shirt-badge">{p.shirt_number}</span>}
+            </div>
             <h3>{p.nickname || p.name}</h3>
             <div className="pos">{p.position || '-'}</div>
           </a>

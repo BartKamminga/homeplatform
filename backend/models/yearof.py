@@ -158,6 +158,17 @@ class YearOfReportPlayerTag(SQLModel, table=True):
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
 
 
+class YearOfMatchGoal(SQLModel, table=True):
+    """Doelpuntenregistratie per speler per wedstrijd/dag - handmatig bijgehouden
+    door de beheerder op de wedstrijd-detailpagina (fase 5-uitbreiding)."""
+    __tablename__ = "yearof_match_goals"
+
+    id:         str = Field(default_factory=new_uuid, primary_key=True)
+    match_ref:  str  = Field(index=True)
+    player_id:  str  = Field(foreign_key="yearof_players.id", index=True)
+    goals:      int  = Field(default=0)
+
+
 class YearOfCustomEntry(SQLModel, table=True):
     """Handmatig ingevoerde tijdlijn-items naast de KNHB/Poulebord-sync.
 

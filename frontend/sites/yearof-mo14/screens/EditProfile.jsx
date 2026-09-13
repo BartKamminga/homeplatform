@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getProfileLinkContext, submitPlayerEdit, uploadProfilePhoto } from '../api.js'
+import { storeProfileCode } from '../profileGate.js'
 
 export default function EditProfile({ code }) {
   const [player, setPlayer] = useState(null)
@@ -20,6 +21,7 @@ export default function EditProfile({ code }) {
       setPosition(p.position || '')
       setBio(p.bio || '')
       setFunFacts(p.fun_facts || '')
+      storeProfileCode(p.id, code)
     }).catch(e => setError(e.message))
   }, [code])
 

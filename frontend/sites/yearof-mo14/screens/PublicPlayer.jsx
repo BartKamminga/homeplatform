@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { getPlayer, getPlayerPhotos } from '../api.js'
+import { getStoredProfileCode } from '../profileGate.js'
 
 export default function PublicPlayer({ playerId, onBack }) {
   const [player, setPlayer] = useState(null)
   const [photos, setPhotos] = useState([])
   const [error, setError] = useState('')
+  const profileCode = getStoredProfileCode(playerId)
 
   useEffect(() => {
     getPlayer(playerId).then(setPlayer).catch(e => setError(e.message))
@@ -18,19 +20,24 @@ export default function PublicPlayer({ playerId, onBack }) {
     <div>
       <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het team</a>
       <div className="yof-card" style={{ textAlign: 'center' }}>
-        {player.photo_url ? (
-          <img src={player.photo_url} alt="" style={{
-            width: 72, height: 72, margin: '0 auto 12px', borderRadius: '50%', objectFit: 'cover', display: 'block',
-          }} />
-        ) : (
-          <div className="avatar" style={{
-            width: 72, height: 72, margin: '0 auto 12px', borderRadius: '50%',
-            background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20,
-          }}>
-            {player.shirt_number ?? '?'}
-          </div>
-        )}
+        <div style={{ position: 'relative', width: 72, margin: '0 auto 12px' }}>
+          {player.photo_url ? (
+            <img src={player.photo_url} alt="" style={{
+              width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', display: 'block',
+            }} />
+          ) : (
+            <div className="avatar" style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20,
+            }}>
+              {player.shirt_number ?? '?'}
+            </div>
+          )}
+          {player.photo_url && player.shirt_number != null && (
+            <span className="shirt-badge" style={{ fontSize: 13, minWidth: 24, height: 24 }}>{player.shirt_number}</span>
+          )}
+        </div>
         <h2 style={{ margin: '0 0 2px', fontSize: 18 }}>{player.nickname || player.name}</h2>
         {player.nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>}
         <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
@@ -39,6 +46,11 @@ export default function PublicPlayer({ playerId, onBack }) {
         {player.bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{player.bio}</p>}
         {player.fun_facts && (
           <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;{player.fun_facts}&rdquo;</p>
+        )}
+        {profileCode && (
+          <a href={`?profiel=${encodeURIComponent(profileCode)}`} className="yof-btn" style={{ display: 'inline-block', marginTop: 14, fontSize: 13 }}>
+            Pas je profiel aan
+          </a>
         )}
       </div>
 
