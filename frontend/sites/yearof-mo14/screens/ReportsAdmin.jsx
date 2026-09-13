@@ -6,7 +6,7 @@ import {
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
-import { defaultNewLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
+import { defaultNewLinks, NewLinksEditor, ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
 
 function ContributorLinks({ entries, players }) {
   const [links, setLinks] = useState([])
@@ -126,14 +126,17 @@ function DirectReportForm({ entries, onCreated }) {
   const [error, setError] = useState('')
 
   async function submit() {
-    if (!title.trim() || !body.trim()) return
+    const isFootage = reportType === 'wedstrijd_beelden'
+    if (!isFootage && (!title.trim() || !body.trim())) return
     try {
       await createReportDirect({
         match_ref: matchRef || null,
         report_type: reportType,
         interviewee_role: reportType === 'interview' ? role : null,
-        title, body, status: 'published',
-        links: reportType === 'wedstrijd_beelden' ? links : null,
+        title: isFootage ? 'Wedstrijdbeelden' : title,
+        body: isFootage ? '' : body,
+        status: 'published',
+        links: isFootage ? links : null,
       })
       setTitle(''); setBody(''); setLinks(defaultNewLinks())
       onCreated()
@@ -165,12 +168,15 @@ function DirectReportForm({ entries, onCreated }) {
           </select>
         )}
       </div>
-      <input placeholder="Titel" value={title} onChange={e => setTitle(e.target.value)}
-        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-      <textarea placeholder="Tekst" value={body} onChange={e => setBody(e.target.value)} rows={4}
-        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
-      {reportType === 'wedstrijd_beelden' && (
+      {reportType === 'wedstrijd_beelden' ? (
         <NewLinksEditor links={links} onChange={setLinks} />
+      ) : (
+        <>
+          <input placeholder="Titel" value={title} onChange={e => setTitle(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+          <textarea placeholder="Tekst" value={body} onChange={e => setBody(e.target.value)} rows={4}
+            style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
+        </>
       )}
       <button onClick={submit} style={{ fontSize: 13, cursor: 'pointer' }}>Publiceren</button>
     </div>
@@ -256,7 +262,8 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
       </div>
       <h4 style={{ margin: '6px 0 4px', fontSize: 14 }}>{report.title}</h4>
       {report.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {report.author_name}</p>}
-      <p style={{ margin: '0 0 8px', fontSize: 13, whiteSpace: 'pre-wrap' }}>{report.body}</p>
+      {report.body && <p style={{ margin: '0 0 8px', fontSize: 13, whiteSpace: 'pre-wrap' }}>{report.body}</p>}
+      <LinkTiles links={report.links} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
         {players.map(pl => {

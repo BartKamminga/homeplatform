@@ -10,7 +10,8 @@ function typeInfo(type) {
   return LINK_TYPES.find(t => t.value === type) || { label: type, icon: '🔗' }
 }
 
-const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc' }
+const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc', width: '100%', minWidth: 0 }
+const rowStyle = { display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto', gap: 6, marginBottom: 6, alignItems: 'center' }
 
 // Nog geen report_id (nieuw verslag) - default 1 instagram + 4 video-rijen,
 // klaar om in te vullen (de meest gebruikte mix voor wedstrijdbeelden).
@@ -38,14 +39,12 @@ export function NewLinksEditor({ links, onChange }) {
   return (
     <div style={{ marginBottom: 8 }}>
       {links.map((l, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-          <select value={l.link_type} onChange={e => update(i, { link_type: e.target.value })} style={{ fontSize: 12 }}>
+        <div key={i} style={rowStyle}>
+          <select value={l.link_type} onChange={e => update(i, { link_type: e.target.value })} style={{ fontSize: 12, width: '100%' }}>
             {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
-          <input value={l.url} onChange={e => update(i, { url: e.target.value })} placeholder="Link (optioneel)"
-            style={{ ...fieldStyle, flex: 2 }} />
-          <input value={l.note} onChange={e => update(i, { note: e.target.value })} placeholder="Notitie (optioneel)"
-            style={{ ...fieldStyle, flex: 1 }} />
+          <input value={l.url} onChange={e => update(i, { url: e.target.value })} placeholder="Link (optioneel)" style={fieldStyle} />
+          <input value={l.note} onChange={e => update(i, { note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
           <button onClick={() => remove(i)} style={{ fontSize: 11, cursor: 'pointer' }}>x</button>
         </div>
       ))}
@@ -68,14 +67,12 @@ function ExistingLinkRow({ link, onSave, onDelete }) {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-      <select value={form.link_type} onChange={e => setForm({ ...form, link_type: e.target.value })} style={{ fontSize: 12 }}>
+    <div style={{ ...rowStyle, gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto auto' }}>
+      <select value={form.link_type} onChange={e => setForm({ ...form, link_type: e.target.value })} style={{ fontSize: 12, width: '100%' }}>
         {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
-      <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Link"
-        style={{ ...fieldStyle, flex: 2 }} />
-      <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Notitie (optioneel)"
-        style={{ ...fieldStyle, flex: 1 }} />
+      <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Link" style={fieldStyle} />
+      <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
       <button onClick={save} style={{ fontSize: 11, cursor: 'pointer' }}>{saving ? '...' : 'Opslaan'}</button>
       <button onClick={onDelete} style={{ fontSize: 11, cursor: 'pointer' }}>Verwijder</button>
     </div>
@@ -123,14 +120,12 @@ export function ExistingLinksEditor({ reportId, links, onChanged }) {
       {links.map(l => (
         <ExistingLinkRow key={l.id} link={l} onSave={body => saveRow(l, body)} onDelete={() => removeRow(l)} />
       ))}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <select value={newType} onChange={e => setNewType(e.target.value)} style={{ fontSize: 12 }}>
+      <div style={rowStyle}>
+        <select value={newType} onChange={e => setNewType(e.target.value)} style={{ fontSize: 12, width: '100%' }}>
           {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
-        <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Nieuwe link"
-          style={{ ...fieldStyle, flex: 2 }} />
-        <input value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Notitie (optioneel)"
-          style={{ ...fieldStyle, flex: 1 }} />
+        <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Nieuwe link" style={fieldStyle} />
+        <input value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Notitie (optioneel)" style={fieldStyle} />
         <button onClick={add} style={{ fontSize: 12, cursor: 'pointer' }}>+ toevoegen</button>
       </div>
     </div>

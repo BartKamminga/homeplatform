@@ -99,30 +99,28 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
 }
 
 function NewMatchFootage({ matchRef, existingReport, onCreated }) {
-  const [title, setTitle] = useState('Wedstrijdbeelden')
   const [links, setLinks] = useState(defaultNewLinks())
   const [error, setError] = useState('')
 
   if (existingReport) {
     return (
       <p style={{ color: '#666', fontSize: 13 }}>
-        Er staat al een Wedstrijdbeelden-bericht voor deze wedstrijd - bewerk de linkjes hierboven bij &ldquo;{existingReport.title}&rdquo;.
+        Er staat al een Wedstrijdbeelden-bericht voor deze wedstrijd - bewerk de linkjes hierboven.
       </p>
     )
   }
 
   async function submit() {
-    if (!title.trim()) return
     try {
       await createReportDirect({
         match_ref: matchRef,
         report_type: 'wedstrijd_beelden',
-        title,
+        title: 'Wedstrijdbeelden',
         body: '',
         status: 'published',
         links,
       })
-      setTitle('Wedstrijdbeelden'); setLinks(defaultNewLinks())
+      setLinks(defaultNewLinks())
       onCreated()
     } catch (e) {
       setError(e.message)
@@ -132,8 +130,6 @@ function NewMatchFootage({ matchRef, existingReport, onCreated }) {
   return (
     <div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titel"
-        style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
       <NewLinksEditor links={links} onChange={setLinks} />
       <button onClick={submit} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
     </div>
