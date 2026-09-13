@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from PIL import Image
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.crud import get_or_404
@@ -431,11 +431,21 @@ def get_photo_file(photo_id: str, variant: str):
 
 
 @router.get("/photos")
-def list_photos(match_ref: Optional[str] = None, session: Session = Depends(get_session)):
+def list_photos(
+    match_ref: Optional[str] = None,
+    player_id: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
     """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only, zie /photos/moderation)."""
     q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
+    if player_id:
+        tagged_ids = [
+            t.photo_id for t in
+            session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.player_id == player_id)).all()
+        ]
+        q = q.where(col(YearOfPhoto.id).in_(tagged_ids))
     return session.exec(q.order_by(YearOfPhoto.created_at.desc())).all()
 
 
@@ -444,7 +454,17 @@ def list_photos_for_moderation(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    return session.exec(select(YearOfPhoto).order_by(YearOfPhoto.created_at.desc())).all()
+    """Beheerder-only — inclusief de huidige speler-tags per foto (player_ids),
+    zodat de moderatie-UI niet apart per foto hoeft te pollen."""
+    photos = session.exec(select(YearOfPhoto).order_by(YearOfPhoto.created_at.desc())).all()
+    all_tags = session.exec(select(YearOfPhotoPlayerTag)).all()
+    tags_by_photo: dict[str, list[str]] = {}
+    for t in all_tags:
+        tags_by_photo.setdefault(t.photo_id, []).append(t.player_id)
+    return [
+        {**photo.model_dump(), "player_ids": tags_by_photo.get(photo.id, [])}
+        for photo in photos
+    ]
 
 
 @router.patch("/photos/{photo_id}")

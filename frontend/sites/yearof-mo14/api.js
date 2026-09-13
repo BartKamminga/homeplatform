@@ -45,6 +45,9 @@ export async function uploadPhoto(file, { matchRef, photoType, code }) {
 }
 
 export const getPhotos           = (matchRef) => api.get(`/api/yearof-mo14/photos${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`)
+export const getPlayerPhotos     = (playerId) => api.get(`/api/yearof-mo14/photos?player_id=${encodeURIComponent(playerId)}`)
 export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')
 export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/photos/${id}`, body)
 export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)
+export const tagPhoto            = (photoId, playerId) => api.post(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
+export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
