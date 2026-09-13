@@ -3,6 +3,19 @@ import { getContributorContext, submitReport, uploadPhoto } from '../api.js'
 import { compressImage } from '../compressImage.js'
 import { getStoredCode } from '../gate.js'
 
+const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', nieuws: 'Algemeen' }
+const TYPE_HEADING = {
+  wedstrijdverslag: 'Schrijf een wedstrijdverslag',
+  interview: 'Vertel je verhaal (interview)',
+  nieuws: 'Schrijf een algemeen bericht',
+}
+const TYPE_TEXT_LABEL = { wedstrijdverslag: 'Het verslag', interview: 'Jouw verhaaltje', nieuws: 'De tekst' }
+const TYPE_PLACEHOLDER = {
+  wedstrijdverslag: 'Bijv. een vooruitblik: wat verwachten jullie van deze wedstrijd, of een terugblik na afloop.',
+  interview: 'Hoe was de wedstrijd voor jou? Wat was je mooiste moment?',
+  nieuws: 'Waar gaat je bericht over?',
+}
+
 export default function ContributeReport({ code }) {
   const [context, setContext] = useState(null)
   const [error, setError] = useState('')
@@ -108,10 +121,14 @@ export default function ContributeReport({ code }) {
       <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
       <div className="yof-main">
         <div className="yof-hero">
+          <div style={{
+            display: 'inline-block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
+            background: 'rgba(244,200,30,.18)', color: '#f4c81e', padding: '3px 10px', borderRadius: 999, marginBottom: 8,
+          }}>
+            {TYPE_LABEL[context.report_type] || context.report_type}
+          </div>
           <h1 style={{ fontSize: 18 }}>
-            {context.player_name
-              ? `Hoi ${context.player_name}!`
-              : context.report_type === 'wedstrijdverslag' ? 'Schrijf een wedstrijdverslag' : 'Vertel je verhaal'}
+            {context.player_name ? `Hoi ${context.player_name}!` : (TYPE_HEADING[context.report_type] || 'Vertel je verhaal')}
           </h1>
           <p>{context.match_title}</p>
         </div>
@@ -133,12 +150,10 @@ export default function ContributeReport({ code }) {
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
-          {context.report_type === 'wedstrijdverslag' ? 'Het verslag' : 'Jouw verhaaltje'}
+          {TYPE_TEXT_LABEL[context.report_type] || 'Jouw verhaaltje'}
         </label>
         <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-          placeholder={context.report_type === 'wedstrijdverslag'
-            ? 'Bijv. een vooruitblik: wat verwachten jullie van deze wedstrijd, of een terugblik na afloop.'
-            : 'Hoe was de wedstrijd voor jou? Wat was je mooiste moment?'}
+          placeholder={TYPE_PLACEHOLDER[context.report_type] || ''}
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw naam</label>
