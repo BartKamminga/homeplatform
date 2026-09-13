@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react'
 import AuthGate from '@components/AuthGate.jsx'
+import './public.css'
 import { getMe } from './api.js'
 import PlayersAdmin from './screens/PlayersAdmin.jsx'
 import TimelineAdmin from './screens/TimelineAdmin.jsx'
+import AccessAdmin from './screens/AccessAdmin.jsx'
+import Gate from './screens/Gate.jsx'
+import PublicSite from './screens/PublicSite.jsx'
+import { getStoredCode } from './gate.js'
+import { validateTeamCode } from './api.js'
 
 function BeheerderPaneel() {
   const [me, setMe] = useState(null)
@@ -19,8 +25,12 @@ function BeheerderPaneel() {
       {error && <p style={{ color: '#c23b3b' }}>{error}</p>}
       {me && <p style={{ fontSize: 13, color: '#666' }}>Ingelogd als <strong>{me.username}</strong> ({me.email})</p>}
 
-      <div style={{ display: 'flex', gap: 4, margin: '16px 0', borderBottom: '1px solid #eee' }}>
-        {[{ key: 'spelers', label: 'Spelers' }, { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' }].map(t => (
+      <div style={{ display: 'flex', gap: 4, margin: '16px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap' }}>
+        {[
+          { key: 'spelers', label: 'Spelers' },
+          { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' },
+          { key: 'toegang', label: 'Toegang' },
+        ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
             background: 'transparent', border: 'none', cursor: 'pointer',
@@ -33,12 +43,25 @@ function BeheerderPaneel() {
 
       {tab === 'spelers' && <PlayersAdmin />}
       {tab === 'wedstrijden' && <TimelineAdmin />}
+      {tab === 'toegang' && <AccessAdmin />}
     </div>
   )
 }
 
 export default function App() {
   const [showBeheer, setShowBeheer] = useState(false)
+  const [gateStatus, setGateStatus] = useState('checking') // checking | locked | unlocked
+
+  useEffect(() => {
+    const code = getStoredCode()
+    if (!code) {
+      setGateStatus('locked')
+      return
+    }
+    validateTeamCode(code)
+      .then(res => setGateStatus(res.valid ? 'unlocked' : 'locked'))
+      .catch(() => setGateStatus('locked'))
+  }, [])
 
   if (showBeheer) {
     return (
@@ -48,27 +71,36 @@ export default function App() {
     )
   }
 
+  if (gateStatus === 'checking') return null
+
+  if (gateStatus === 'locked') {
+    return (
+      <>
+        <Gate onUnlock={() => setGateStatus('unlocked')} />
+        <BeheerderLink onClick={() => setShowBeheer(true)} />
+      </>
+    )
+  }
+
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 12,
-      background: '#12203c', color: 'white', textAlign: 'center', padding: 24,
-    }}>
-      <div style={{ fontSize: 40 }}>🏑</div>
-      <h1 style={{ margin: 0, fontSize: 28 }}>MO14 à Paris</h1>
-      <p style={{ color: '#c7cfe3', maxWidth: 380 }}>
-        Binnenkort hier: interviews, spelersprofielen en wedstrijden van MO14-1,
-        op weg naar Parijs.
-      </p>
-      <button
-        onClick={() => setShowBeheer(true)}
-        style={{
-          marginTop: 8, padding: '8px 18px', borderRadius: 999, border: 'none',
-          background: '#f4c81e', color: '#12100a', fontWeight: 700, cursor: 'pointer',
-        }}
-      >
-        Beheerder inloggen
-      </button>
-    </div>
+    <>
+      <PublicSite />
+      <BeheerderLink onClick={() => setShowBeheer(true)} />
+    </>
+  )
+}
+
+function BeheerderLink({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        position: 'fixed', bottom: 10, right: 10, fontSize: 11, color: '#999',
+        background: 'rgba(255,255,255,.8)', border: '1px solid #ddd', borderRadius: 8,
+        padding: '4px 8px', cursor: 'pointer', zIndex: 10,
+      }}
+    >
+      beheerder
+    </button>
   )
 }

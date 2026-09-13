@@ -30,6 +30,20 @@ class YearOfPlayer(SQLModel, table=True):
     updated_at:   datetime       = Field(default_factory=datetime.utcnow)
 
 
+class YearOfTeamLink(SQLModel, table=True):
+    """Teamlinkje (viewer-toegang), code-als-PK naar het PoulebordBoard-patroon.
+
+    Fase 3 (v1): simpel - handmatig aangemaakt/vervangen door de beheerder,
+    de meest recente niet-ingetrokken code is geldig. De per-wedstrijd
+    rotatie + vangnet-dagen + content-scoping volgen in fase 1149 (fase 7).
+    """
+    __tablename__ = "yearof_team_links"
+
+    id:         str            = Field(primary_key=True)  # 6-char code
+    created_at: datetime        = Field(default_factory=datetime.utcnow)
+    revoked_at: Optional[datetime] = Field(default=None)
+
+
 class YearOfCustomEntry(SQLModel, table=True):
     """Handmatig ingevoerde tijdlijn-items naast de KNHB/Poulebord-sync.
 

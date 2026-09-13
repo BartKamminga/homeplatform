@@ -4,15 +4,22 @@ Fase 1 (item 1143): fundament — status/me-endpoints.
 Fase 2 (item 1144): kerndata — spelers-CRUD, wedstrijden/bijzondere-dagen-CRUD,
 en een samengevoegde tijdlijn (competitie via hockey-inside/Poulebord + de
 handmatige YearOfCustomEntry-rijen).
+Fase 3 (item 1145): publieke basispagina's + teamlinkje v1 (simpele code,
+handmatig vervangen door de beheerder). Nog GEEN server-side afdwinging op
+de publieke GET-endpoints hieronder — dat volgt met content-scoping in fase
+1149/fase 7. Voor nu is het teamlinkje een client-side toegangsdeur.
 
 Single-tenant, bewust hardcoded voor Victoria MO14-1 (poule_id 551, Topklasse
 Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
 Publieke content/tokens (teamlinkje, foto's, verslagen) komen in latere fases.
 """
 
+import random
+import string
+from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -21,7 +28,7 @@ from core.crud import get_or_404
 from core.database import get_session
 from models.core import User
 from models.hockey_discovery import HockeyPoule
-from models.yearof import YearOfCustomEntry, YearOfPlayer
+from models.yearof import YearOfCustomEntry, YearOfPlayer, YearOfTeamLink
 from routers.hockey_public import _serialize_poule_matches
 
 router = APIRouter(prefix="/api/yearof-mo14", tags=["yearof-mo14"])
@@ -33,7 +40,7 @@ POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 archite
 @router.get("/status")
 def status():
     """Publiek, geen auth — bewijst dat de site/router leeft."""
-    return {"site": "yearof-mo14", "fase": 2, "status": "kerndata"}
+    return {"site": "yearof-mo14", "fase": 3, "status": "publieke basispaginas + teamlinkje v1"}
 
 
 @router.get("/me")
@@ -70,6 +77,11 @@ class PlayerUpdate(BaseModel):
 def list_players(session: Session = Depends(get_session)):
     rows = session.exec(select(YearOfPlayer).order_by(YearOfPlayer.shirt_number)).all()
     return rows
+
+
+@router.get("/players/{player_id}")
+def get_player(player_id: str, session: Session = Depends(get_session)):
+    return get_or_404(session, YearOfPlayer, player_id, "Speler")
 
 
 @router.post("/players")
@@ -250,3 +262,66 @@ def get_timeline(session: Session = Depends(get_session)):
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
     items.sort(key=lambda e: e["date"])
     return items
+
+
+@router.get("/timeline/{match_ref}")
+def get_timeline_item(match_ref: str, session: Session = Depends(get_session)):
+    items = _competition_timeline_items(session) + _custom_timeline_items(session)
+    for item in items:
+        if item["match_ref"] == match_ref:
+            return item
+    raise HTTPException(status_code=404, detail="Item niet gevonden")
+
+
+# ---------------------------------------------------------------------------
+# Teamlinkje (viewer-toegang) — v1: simpele code, handmatig vervangen.
+# Per-wedstrijd rotatie + vangnet + content-scoping volgen in fase 1149.
+# ---------------------------------------------------------------------------
+
+TEAM_LINK_CHARS = string.ascii_lowercase + string.digits
+
+
+def _new_team_link_code(session: Session) -> str:
+    for _ in range(20):
+        code = "".join(random.choices(TEAM_LINK_CHARS, k=6))
+        if not session.get(YearOfTeamLink, code):
+            return code
+    raise RuntimeError("Geen unieke code gevonden")
+
+
+@router.post("/team-links")
+def create_team_link(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Nieuw teamlinkje aanmaken; alle eerder actieve linkjes worden ingetrokken."""
+    active = session.exec(
+        select(YearOfTeamLink).where(YearOfTeamLink.revoked_at.is_(None))
+    ).all()
+    now = datetime.utcnow()
+    for link in active:
+        link.revoked_at = now
+        session.add(link)
+
+    code = _new_team_link_code(session)
+    new_link = YearOfTeamLink(id=code)
+    session.add(new_link)
+    session.commit()
+    session.refresh(new_link)
+    return new_link
+
+
+@router.get("/team-links")
+def list_team_links(
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    return session.exec(select(YearOfTeamLink).order_by(YearOfTeamLink.created_at.desc())).all()
+
+
+@router.get("/team-links/validate")
+def validate_team_link(code: str, session: Session = Depends(get_session)):
+    """Publiek — de Gate-pagina checkt hiermee of een ingevoerde code (nog) geldig is."""
+    link = session.get(YearOfTeamLink, code.strip().lower())
+    valid = bool(link and link.revoked_at is None)
+    return {"valid": valid}
