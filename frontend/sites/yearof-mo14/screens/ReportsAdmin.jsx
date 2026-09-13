@@ -307,6 +307,12 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
         </span>
         {' · '}
         <span style={{ fontSize: 11, color: '#888' }}>{report.report_type} · {entryTitle(report.match_ref)}</span>
+        {report.featured && (
+          <>
+            {' · '}
+            <span style={{ fontSize: 11, color: '#a3245c', fontWeight: 700 }}>&#9733; In de kijker</span>
+          </>
+        )}
       </div>
       <h4 style={{ margin: '6px 0 4px', fontSize: 14 }}>{report.title}</h4>
       {report.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {report.author_name}</p>}
@@ -332,6 +338,9 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
         <button onClick={startEdit} style={{ fontSize: 12, cursor: 'pointer' }}>Bewerken</button>
         <button onClick={() => onTogglePublish(report)} style={{ fontSize: 12, cursor: 'pointer' }}>
           {report.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
+        </button>
+        <button onClick={() => onSave(report.id, { featured: !report.featured })} style={{ fontSize: 12, cursor: 'pointer' }}>
+          {report.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
         </button>
         <button onClick={() => onDelete(report.id)} style={{ fontSize: 12, cursor: 'pointer' }}>Verwijderen</button>
       </div>

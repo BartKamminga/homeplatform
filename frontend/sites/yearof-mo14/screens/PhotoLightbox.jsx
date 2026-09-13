@@ -1,5 +1,23 @@
 import { useEffect } from 'react'
 
+// Grid-tegel voor een foto/filmpje - filmpjes hebben geen thumbnail (geen
+// ffmpeg beschikbaar om er een te genereren), dus een simpel afspeel-icoontje
+// i.p.v. een echte videopreview.
+export function PhotoThumb({ photo }) {
+  if (photo.media_type === 'video') {
+    return (
+      <div style={{
+        width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+      }}>▶️</div>
+    )
+  }
+  return (
+    <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt=""
+      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+  )
+}
+
 export function PhotoLightbox({ photos, index, onClose, onNavigate }) {
   const open = index != null && photos[index]
 
@@ -34,8 +52,13 @@ export function PhotoLightbox({ photos, index, onClose, onNavigate }) {
         }}>&lsaquo;</button>
       )}
 
-      <img src={`/api/yearof-mo14/photos/${photo.id}/full.jpg`} alt="" onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '92vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 8 }} />
+      {photo.media_type === 'video' ? (
+        <video src={`/api/yearof-mo14/photos/${photo.id}/video`} controls autoPlay onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '92vw', maxHeight: '86vh', borderRadius: 8 }} />
+      ) : (
+        <img src={`/api/yearof-mo14/photos/${photo.id}/full.jpg`} alt="" onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '92vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 8 }} />
+      )}
 
       {photos.length > 1 && (
         <button onClick={e => { e.stopPropagation(); onNavigate((index + 1) % photos.length) }} style={{

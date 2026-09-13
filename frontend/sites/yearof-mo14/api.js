@@ -100,6 +100,7 @@ export const getReports          = (matchRef, reportType) => {
   const qs = params.toString()
   return api.get(withCode(`/api/yearof-mo14/reports${qs ? `?${qs}` : ''}`))
 }
+export const getSpotlightReports  = ()         => api.get(withCode('/api/yearof-mo14/reports/spotlight'))
 export const getReportsModeration = ()         => api.get('/api/yearof-mo14/reports/moderation')
 export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/reports/${id}`, body)
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)

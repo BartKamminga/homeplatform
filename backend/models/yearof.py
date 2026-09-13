@@ -57,6 +57,8 @@ class YearOfPhoto(SQLModel, table=True):
     id:             str            = Field(default_factory=new_uuid, primary_key=True)
     match_ref:      str             = Field(index=True)  # "knhb:{id}" | "custom:{id}"
     photo_type:     str             = Field(default="actie")  # actie | team | sfeer
+    media_type:     str             = Field(default="photo")  # photo | video
+    file_ext:       Optional[str]  = Field(default=None)  # alleen bij video - welk bestand serveren (geen transcode)
     status:         str             = Field(default="concept")  # concept | published
     uploader_code:  Optional[str]   = Field(default=None)
     caption:        Optional[str]  = Field(default=None)
@@ -143,6 +145,7 @@ class YearOfReport(SQLModel, table=True):
     title:            str
     body:             str
     author_name:      Optional[str]  = Field(default=None)
+    featured:         bool            = Field(default=False)  # handmatig geselecteerd voor "In de kijker"
     contributor_code: Optional[str]  = Field(default=None)
     created_at:       datetime        = Field(default_factory=datetime.utcnow)
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)

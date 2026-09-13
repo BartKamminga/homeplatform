@@ -11,8 +11,13 @@ export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelet
 
   return (
     <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'hidden' }}>
-      <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt=""
-        style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', background: '#eee' }} />
+      {photo.media_type === 'video' ? (
+        <video src={`/api/yearof-mo14/photos/${photo.id}/video`} controls
+          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', background: '#000' }} />
+      ) : (
+        <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt=""
+          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', background: '#eee' }} />
+      )}
       <div style={{ padding: 8, fontSize: 11 }}>
         <div style={{ color: photo.status === 'published' ? '#16a34a' : '#d97706', fontWeight: 700, marginBottom: 4 }}>
           {photo.status === 'published' ? 'Gepubliceerd' : 'Concept'}
