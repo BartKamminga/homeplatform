@@ -114,6 +114,22 @@ export function ReportForm({
           <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{title || '(geen titel)'}</h4>
           {authorName && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {authorName}</p>}
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{body || '(geen tekst)'}</p>
+          {(existingPhotos.length > 0 || photoFiles.length > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
+              {existingPhotos.map(p => (
+                p.media_type === 'video' ? (
+                  <div key={p.id} style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶️</div>
+                ) : (
+                  <img key={p.id} src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt=""
+                    style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                )
+              ))}
+              {photoFiles.map((f, i) => (
+                <img key={`new-${i}`} src={URL.createObjectURL(f)} alt=""
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              ))}
+            </div>
+          )}
         </div>
         <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>Zo ziet dit bericht eruit op de site.</p>
         <button className="yof-btn" onClick={() => setShowPreview(false)}>&larr; Terug om verder te bewerken</button>

@@ -860,10 +860,15 @@ async def upload_photo(
     if len(content) > max_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {max_size_mb}MB")
 
+    # Een foto bij een al-gepubliceerd verslag volgt meteen die status -
+    # anders blijft hij als concept hangen totdat iemand 'm los publiceert,
+    # ook al staat het verslag zelf al live.
+    status = "published" if (report and report.status == "published") else "concept"
+
     photo = YearOfPhoto(
         match_ref=match_ref, report_id=report_id, photo_type=photo_type, media_type=media_type,
         file_ext=ext if is_video else None,
-        uploader_code=uploader_code,
+        uploader_code=uploader_code, status=status,
     )
     session.add(photo)
     session.commit()
@@ -1436,9 +1441,19 @@ def update_report(
 ):
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
     updates = body.model_dump(exclude_unset=True)
+    was_published = report.status == "published"
     for key, value in updates.items():
         setattr(report, key, value)
     session.add(report)
+
+    # Fotos bij dit verslag volgen de publicatiestatus van het verslag zelf -
+    # anders blijft een net gepubliceerd verslag toch onzichtbare (concept)
+    # fotos houden totdat je ze los publiceert in het fotobeheer.
+    if report.status == "published" and not was_published:
+        for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
+            photo.status = "published"
+            session.add(photo)
+
     session.commit()
     session.refresh(report)
     return _report_out(session, report)
