@@ -18,10 +18,27 @@ function BeheerderPaneel() {
   const [error, setError] = useState('')
   const [tab, setTab] = useState('spelers')
   const [matchDetailRef, setMatchDetailRef] = useState(null)
+  const [playerEditId, setPlayerEditId] = useState(null)
+  const [generalEditId, setGeneralEditId] = useState(null)
 
   useEffect(() => {
     getMe().then(setMe).catch(e => setError(e.message))
   }, [])
+
+  // Bridge vanuit de Bekijk site-preview (adminMode) naar het echte
+  // wysiwyg-bewerkscherm - 1 pad i.p.v. twee (item 1155/1156).
+  function openMatchFromPreview(matchRef) {
+    setTab('wedstrijden')
+    setMatchDetailRef(matchRef)
+  }
+  function openPlayerFromPreview(playerId) {
+    setTab('spelers')
+    setPlayerEditId(playerId)
+  }
+  function openGeneralFromPreview(reportId) {
+    setTab('verslagen')
+    setGeneralEditId(reportId || null)
+  }
 
   return (
     <div style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
@@ -39,7 +56,9 @@ function BeheerderPaneel() {
           { key: 'actie', label: 'Actie' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
-          <button key={t.key} onClick={() => { setTab(t.key); setMatchDetailRef(null) }} style={{
+          <button key={t.key} onClick={() => {
+            setTab(t.key); setMatchDetailRef(null); setPlayerEditId(null); setGeneralEditId(null)
+          }} style={{
             padding: '8px 14px', fontSize: 13, fontWeight: tab === t.key ? 600 : 400,
             background: 'transparent', border: 'none', cursor: 'pointer',
             borderBottom: tab === t.key ? '2px solid #f4c81e' : '2px solid transparent',
@@ -49,7 +68,7 @@ function BeheerderPaneel() {
         ))}
       </div>
 
-      {tab === 'spelers' && <PlayersAdmin />}
+      {tab === 'spelers' && <PlayersAdmin initialEditId={playerEditId} />}
       {tab === 'wedstrijden' && (
         matchDetailRef
           ? <MatchAdminDetail matchRef={matchDetailRef} onBack={() => setMatchDetailRef(null)} />
@@ -57,11 +76,15 @@ function BeheerderPaneel() {
       )}
       {tab === 'toegang' && <AccessAdmin />}
       {tab === 'fotos' && <PhotosAdmin />}
-      {tab === 'verslagen' && <ReportsAdmin />}
+      {tab === 'verslagen' && <ReportsAdmin initialEditId={generalEditId} />}
       {tab === 'actie' && <ActionAdmin />}
       {tab === 'preview' && (
         <div style={{ margin: '0 -24px', border: '3px dashed #f4c81e' }}>
-          <PublicSite previewMode />
+          <PublicSite previewMode adminMode
+            onEditMatch={openMatchFromPreview}
+            onEditPlayer={openPlayerFromPreview}
+            onEditGeneral={openGeneralFromPreview}
+          />
         </div>
       )}
     </div>

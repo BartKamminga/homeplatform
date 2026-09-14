@@ -29,7 +29,7 @@ function AuthorAvatars({ playerIds, players }) {
   )
 }
 
-export default function PublicSpotlight({ onOpenMatch }) {
+export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEditGeneral }) {
   const [reports, setReports] = useState([])
   const [players, setPlayers] = useState([])
   const [entries, setEntries] = useState([])
@@ -53,6 +53,18 @@ export default function PublicSpotlight({ onOpenMatch }) {
     return entries.find(e => e.match_ref === matchRef)?.title
   }
 
+  // adminMode: hele kaart bridget meteen naar het echte bewerkscherm i.p.v.
+  // in-/uitklappen - wedstrijd-gebonden naar de wedstrijdpagina, algemeen
+  // (nieuws) naar Algemene berichten (item 1156).
+  function handleCardClick(r) {
+    if (!adminMode) {
+      setOpenId(open => (open === r.id ? null : r.id))
+      return
+    }
+    if (r.match_ref) onOpenMatch(r.match_ref)
+    else onEditGeneral(r.id)
+  }
+
   return (
     <div>
       <h2 style={{ fontSize: 17, margin: '0 0 4px' }}>In de kijker</h2>
@@ -67,7 +79,10 @@ export default function PublicSpotlight({ onOpenMatch }) {
           const name = writerName(r)
           const title = matchTitle(r.match_ref)
           return (
-            <div key={r.id} className="yof-card" onClick={() => setOpenId(open ? null : r.id)} style={{ cursor: 'pointer' }}>
+            <div key={r.id} className="yof-card" onClick={() => handleCardClick(r)} style={{ cursor: 'pointer', position: 'relative' }}>
+              {adminMode && (
+                <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
+              )}
               <AuthorAvatars playerIds={r.player_ids} players={players} />
               {name && (
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a3245c', fontWeight: 700, marginBottom: 4 }}>

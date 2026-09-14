@@ -81,11 +81,11 @@ function PlayerEditsModeration({ players }) {
   )
 }
 
-export default function PlayersAdmin() {
+export default function PlayersAdmin({ initialEditId }) {
   const [players, setPlayers] = useState([])
   const [profileLinks, setProfileLinks] = useState([])
   const [form, setForm] = useState({ name: '', nickname: '', shirt_number: '', position: '' })
-  const [editingId, setEditingId] = useState('')
+  const [editingId, setEditingId] = useState(initialEditId || '')
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
 

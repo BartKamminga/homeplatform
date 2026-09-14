@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getPlayers, getReportsModeration, tagReport, untagReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { ReportForm } from './ReportForm.jsx'
@@ -31,16 +31,28 @@ function AlgemeenReportCard({ report, onEdit }) {
   )
 }
 
-export default function ReportsAdmin() {
+export default function ReportsAdmin({ initialEditId }) {
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
   const [view, setView] = useState('list') // list | write | edit
   const [editingReport, setEditingReport] = useState(null)
   const [error, setError] = useState('')
+  // Consumeert initialEditId precies 1x (bv. vanuit de Bekijk site-preview,
+  // item 1155/1156) - anders zou elke latere loadReports() na "terug naar
+  // lijst" opnieuw naar de edit-view springen.
+  const pendingInitialEditId = useRef(initialEditId || null)
 
   function loadReports() {
     getReportsModeration()
-      .then(rows => setReports(rows.filter(r => !r.match_ref)))
+      .then(rows => {
+        const general = rows.filter(r => !r.match_ref)
+        setReports(general)
+        if (pendingInitialEditId.current) {
+          const found = general.find(r => r.id === pendingInitialEditId.current)
+          pendingInitialEditId.current = null
+          if (found) { setEditingReport(found); setView('edit') }
+        }
+      })
       .catch(e => setError(e.message))
   }
   useEffect(() => {
