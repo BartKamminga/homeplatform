@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTimeline, createEntry, updateEntry, deleteEntry } from '../api.js'
+import { getTimelineModeration, createEntry, updateEntry, archiveEntry, restoreEntry } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
@@ -66,12 +66,16 @@ export default function TimelineAdmin({ onOpenMatch }) {
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
   const [form, setForm] = useState({ kind: 'oefen', title: '', date: '', opponent: '', location: '', isPinned: false, scoreUs: '', scoreThem: '' })
+  const [showArchived, setShowArchived] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
 
   function load() {
-    getTimeline().then(setItems).catch(e => setError(e.message))
+    getTimelineModeration().then(setItems).catch(e => setError(e.message))
   }
   useEffect(load, [])
+
+  const activeItems = items.filter(it => !it.is_archived)
+  const archivedItems = items.filter(it => it.is_archived)
 
   async function add() {
     if (!form.title.trim() || !form.date.trim()) return
@@ -111,11 +115,20 @@ export default function TimelineAdmin({ onOpenMatch }) {
     }
   }
 
-  async function remove(matchRef) {
+  async function archive(matchRef) {
     if (!matchRef.startsWith('custom:')) return // competitiewedstrijden zijn read-only sync
-    if (!(await confirm('Deze wedstrijd/dag verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    if (!(await confirm("Deze wedstrijd/dag archiveren? Hij verdwijnt dan van de publieke site, maar foto's/verslagen/linkjes eronder blijven bewaard - je kunt 'm hieronder bij Gearchiveerd altijd terugzetten."))) return
     try {
-      await deleteEntry(matchRef.replace('custom:', ''))
+      await archiveEntry(matchRef.replace('custom:', ''))
+      load()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function restore(matchRef) {
+    try {
+      await restoreEntry(matchRef.replace('custom:', ''))
       load()
     } catch (e) {
       setError(e.message)
@@ -132,7 +145,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       <div style={{ marginBottom: 16 }}>
-        {items.map(it => (
+        {activeItems.map(it => (
           <div key={it.match_ref} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {it.opponent_club_logo
               ? <img src={it.opponent_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
@@ -161,12 +174,33 @@ export default function TimelineAdmin({ onOpenMatch }) {
                 </button>
               )}
               {it.match_ref.startsWith('custom:') && (
-                <button onClick={() => remove(it.match_ref)} className="yof-btn-secondary">verwijder</button>
+                <button onClick={() => archive(it.match_ref)} className="yof-btn-secondary">archiveer</button>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {archivedItems.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <button onClick={() => setShowArchived(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 10 }}>
+            {showArchived ? 'Verberg' : 'Toon'} gearchiveerd ({archivedItems.length})
+          </button>
+          {showArchived && archivedItems.map(it => (
+            <div key={it.match_ref} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', opacity: 0.7 }}>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>{it.kind} &middot; gearchiveerd</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{it.title}</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{fmtDateTime(it.date)}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button onClick={() => onOpenMatch(it.match_ref)} className="yof-btn-secondary">bekijk</button>
+                <button onClick={() => restore(it.match_ref)} className="yof-btn-secondary">herstellen</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <select style={inputStyle} value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>

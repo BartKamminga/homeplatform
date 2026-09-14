@@ -216,5 +216,6 @@ class YearOfCustomEntry(SQLModel, table=True):
     location:    Optional[str]  = Field(default=None)
     description: Optional[str]  = Field(default=None)
     is_pinned:   bool            = Field(default=False)  # bv. de Pinksterweekend-pagina
+    archived_at: Optional[datetime] = Field(default=None)  # verborgen op de publieke site, foto's/verslagen eronder blijven bestaan
     created_at:  datetime        = Field(default_factory=datetime.utcnow)
     updated_at:  datetime        = Field(default_factory=datetime.utcnow)

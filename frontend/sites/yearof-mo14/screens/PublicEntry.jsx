@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateReport, getPhotoBlockPosition } from '../api.js'
+import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, updateReport, getPhotoBlockPosition } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
@@ -29,7 +29,8 @@ export default function PublicEntry({
   }
 
   useEffect(() => {
-    getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
+    const itemCall = adminMode ? getTimelineItemModeration(matchRef) : getTimelineItem(matchRef)
+    itemCall.then(setItem).catch(e => setError(e.message))
     loadReports()
     loadPhotoBlockPosition()
     getPhotos(matchRef).then(setPhotos).catch(() => {})

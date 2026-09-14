@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import {
-  getTimelineItem, getPlayers,
+  getTimelineItemModeration, getPlayers,
   getReportsModeration, tagReport, untagReport, createReportDirect, moveReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
-  createContributorLink, listContributorLinks,
+  createContributorLink, listContributorLinks, deleteContributorLink,
   getMatchGoals, setMatchGoal, movePhotoBlock,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { PhotoCard } from './PhotosAdmin.jsx'
 import { ReportForm } from './ReportForm.jsx'
 import { defaultInstagramLinks, defaultVideoLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
@@ -134,9 +135,10 @@ const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'In
 
 // Focust op 1 specifiek invullinkje (niet de hele lijst) - vanuit de
 // placeholder-kaart in de preview, zodat "editen" over dat ene linkje gaat.
-function InviteDetailScreen({ link, players, onBack }) {
+function InviteDetailScreen({ link, players, onBack, onDeleted }) {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
 
   if (!link) {
     return (
@@ -163,8 +165,19 @@ function InviteDetailScreen({ link, players, onBack }) {
     }
   }
 
+  async function remove() {
+    if (!(await confirm('Dit invullinkje verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    try {
+      await deleteContributorLink(link.id)
+      onDeleted()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div style={{ marginBottom: 24 }}>
+      {confirmDialog}
       <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
       <h3 style={{ fontSize: 15, margin: '0 0 4px' }}>{INVITE_TYPE_LABEL[link.report_type] || link.report_type} &middot; {forWhom}</h3>
       <p style={{ fontSize: 13, fontWeight: 600, color: status.color, margin: '0 0 14px' }}>{status.label}</p>
@@ -172,11 +185,12 @@ function InviteDetailScreen({ link, players, onBack }) {
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Invullinkje</label>
       <input readOnly value={url} onFocus={e => e.target.select()}
         style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', marginBottom: 10 }} />
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <button onClick={copy} className="yof-btn" style={{ flex: 1 }}>{copied ? 'Gekopieerd!' : 'Kopieer'}</button>
         <button onClick={() => window.open(url, '_blank')} className="yof-btn"
           style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>Openen</button>
       </div>
+      <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>
     </div>
   )
 }
@@ -280,7 +294,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   }
 
   useEffect(() => {
-    getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
+    getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadPhotos()
@@ -397,7 +411,10 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <InviteLinkScreen matchRef={matchRef} players={players} onBack={() => setView('choose')} />
       )}
       {view === 'invite' && (
-        <InviteDetailScreen link={activeInvite} players={players} onBack={() => { setActiveInviteId(null); setView('preview') }} />
+        <InviteDetailScreen link={activeInvite} players={players}
+          onBack={() => { setActiveInviteId(null); setView('preview') }}
+          onDeleted={() => { setActiveInviteId(null); setView('preview'); loadLinks() }}
+        />
       )}
       {view === 'links' && (
         <LinksScreen matchRef={matchRef} reportType={linksReportType} existingReport={linksExistingReport}

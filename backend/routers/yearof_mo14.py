@@ -315,15 +315,81 @@ def update_entry(
     return entry
 
 
+@router.post("/entries/{entry_id}/archive")
+def archive_entry(
+    entry_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Verbergt deze dag van de publieke site - foto's, verslagen en linkjes
+    eronder blijven gewoon bestaan en zijn nog te bekijken/bewerken door de
+    beheerder. Bewust geen verwijderen (zie item 1147): dat zou ook alles
+    eronder weggooien."""
+    entry = get_or_404(session, YearOfCustomEntry, entry_id, "Item")
+    entry.archived_at = datetime.utcnow()
+    session.add(entry)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/entries/{entry_id}/restore")
+def restore_entry(
+    entry_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    entry = get_or_404(session, YearOfCustomEntry, entry_id, "Item")
+    entry.archived_at = None
+    session.add(entry)
+    session.commit()
+    return {"ok": True}
+
+
 @router.delete("/entries/{entry_id}")
 def delete_entry(
     entry_id: str,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """Permanent verwijderen, inclusief alles wat eronder hangt (foto's/video's,
+    verslagen + hun tags/linkjes, invullinkjes, doelpunten, foto-blok-positie).
+    Alleen toegestaan als de dag al gearchiveerd is - eerst archiveren dwingt
+    een bewuste tussenstap af voor je iets echt onomkeerbaars doet."""
     entry = get_or_404(session, YearOfCustomEntry, entry_id, "Item")
+    if entry.archived_at is None:
+        raise HTTPException(status_code=400, detail="Archiveer deze dag eerst voor je 'm permanent verwijdert")
+    match_ref = f"custom:{entry_id}"
+
+    photos = session.exec(select(YearOfPhoto).where(YearOfPhoto.match_ref == match_ref)).all()
+    for photo in photos:
+        for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo.id)).all():
+            session.delete(tag)
+        session.delete(photo)
+
+    reports = session.exec(select(YearOfReport).where(YearOfReport.match_ref == match_ref)).all()
+    for report in reports:
+        for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.report_id == report.id)).all():
+            session.delete(tag)
+        for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report.id)).all():
+            session.delete(link)
+        session.delete(report)
+
+    for link in session.exec(select(YearOfContributorLink).where(YearOfContributorLink.match_ref == match_ref)).all():
+        session.delete(link)
+
+    for goal in session.exec(select(YearOfMatchGoal).where(YearOfMatchGoal.match_ref == match_ref)).all():
+        session.delete(goal)
+
+    photo_block = session.get(YearOfMatchPhotoBlock, match_ref)
+    if photo_block:
+        session.delete(photo_block)
+
     session.delete(entry)
     session.commit()
+
+    for photo in photos:
+        shutil.rmtree(PHOTO_ROOT / photo.id, ignore_errors=True)
+
     return {"ok": True}
 
 
@@ -358,12 +424,16 @@ def _competition_timeline_items(session: Session) -> list[dict]:
                 "description": None,
                 "is_pinned": False,
                 "status": status_key,
+                "is_archived": False,
             })
     return items
 
 
-def _custom_timeline_items(session: Session) -> list[dict]:
-    rows = session.exec(select(YearOfCustomEntry).order_by(YearOfCustomEntry.date)).all()
+def _custom_timeline_items(session: Session, include_archived: bool = False) -> list[dict]:
+    q = select(YearOfCustomEntry)
+    if not include_archived:
+        q = q.where(col(YearOfCustomEntry.archived_at).is_(None))
+    rows = session.exec(q.order_by(YearOfCustomEntry.date)).all()
     items = []
     for e in rows:
         has_score = e.score_us is not None or e.score_them is not None
@@ -380,6 +450,7 @@ def _custom_timeline_items(session: Session) -> list[dict]:
             "description": e.description,
             "is_pinned": e.is_pinned,
             "status": "finished" if has_score else "scheduled",
+            "is_archived": e.archived_at is not None,
         })
     return items
 
@@ -417,6 +488,25 @@ def get_timeline(session: Session = Depends(get_session), _: None = Depends(requ
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
     items.sort(key=lambda e: e["date"])
     return _annotate_content_flags(session, items)
+
+
+@router.get("/timeline/moderation")
+def get_timeline_moderation(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    """Beheerder-only — zelfde als /timeline, maar inclusief gearchiveerde
+    dagen (die op de publieke site verborgen zijn). Moet vóór /timeline/{match_ref}
+    gedeclareerd staan, anders vangt die route 'moderation' als match_ref weg."""
+    items = _competition_timeline_items(session) + _custom_timeline_items(session, include_archived=True)
+    items.sort(key=lambda e: e["date"])
+    return _annotate_content_flags(session, items)
+
+
+@router.get("/timeline/moderation/{match_ref}")
+def get_timeline_item_moderation(match_ref: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    items = _competition_timeline_items(session) + _custom_timeline_items(session, include_archived=True)
+    for item in items:
+        if item["match_ref"] == match_ref:
+            return item
+    raise HTTPException(status_code=404, detail="Item niet gevonden")
 
 
 @router.get("/timeline/{match_ref}")
@@ -904,6 +994,18 @@ def list_contributor_links(
         {**link.model_dump(), "report_status": report_by_code[link.id].status if link.id in report_by_code else None}
         for link in links
     ]
+
+
+@router.delete("/contributor-links/{code}")
+def delete_contributor_link(
+    code: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    link = get_or_404(session, YearOfContributorLink, code, "Invullinkje")
+    session.delete(link)
+    session.commit()
+    return {"ok": True}
 
 
 @router.get("/matches/{match_ref}/interview-candidates")

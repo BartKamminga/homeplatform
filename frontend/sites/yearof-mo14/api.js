@@ -47,11 +47,16 @@ export const getEntries    = (kind)      => api.get(withCode(`/api/yearof-mo14/e
 export const createEntry   = (body)      => api.post('/api/yearof-mo14/entries', body)
 export const updateEntry   = (id, body)  => api.patch(`/api/yearof-mo14/entries/${id}`, body)
 export const deleteEntry   = (id)        => api.delete(`/api/yearof-mo14/entries/${id}`)
+export const archiveEntry  = (id)        => api.post(`/api/yearof-mo14/entries/${id}/archive`)
+export const restoreEntry  = (id)        => api.post(`/api/yearof-mo14/entries/${id}/restore`)
 
 // Samengevoegde tijdlijn (competitie + custom entries)
 export const getTimeline     = ()          => api.get(withCode('/api/yearof-mo14/timeline'))
 export const getTimelineItem = (matchRef)  => api.get(withCode(`/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`))
 export const getStandings    = ()          => api.get(withCode('/api/yearof-mo14/standings'))
+// Beheerder-only - inclusief gearchiveerde dagen (verborgen op de publieke site)
+export const getTimelineModeration     = ()          => api.get('/api/yearof-mo14/timeline/moderation')
+export const getTimelineItemModeration = (matchRef)  => api.get(`/api/yearof-mo14/timeline/moderation/${encodeURIComponent(matchRef)}`)
 
 // Foto's - upload is een FormData-post (geen JSON), rechtstreeks via fetch
 // i.p.v. api.post, en zonder Authorization-header (publiek, teamcode i.p.v. login).
@@ -81,6 +86,7 @@ export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearo
 export const createContributorLink = (body) => api.post('/api/yearof-mo14/contributor-links', body)
 export const listContributorLinks  = ()     => api.get('/api/yearof-mo14/contributor-links')
 export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
+export const deleteContributorLink = (code) => api.delete(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
 export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/interview-candidates`))
 
 // Doelpunten per speler per wedstrijd

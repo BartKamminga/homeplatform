@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getPhotosModeration, updatePhoto, deletePhoto, getTimeline, getPlayers, tagPhoto, untagPhoto } from '../api.js'
+import { getPhotosModeration, updatePhoto, deletePhoto, getTimelineModeration, getPlayers, tagPhoto, untagPhoto } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption }) {
@@ -80,7 +80,7 @@ export default function PhotosAdmin() {
   }
   useEffect(() => {
     load()
-    getTimeline().then(setEntries).catch(() => {})
+    getTimelineModeration().then(setEntries).catch(() => {})
     getPlayers().then(setPlayers).catch(() => {})
   }, [])
 
