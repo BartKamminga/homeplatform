@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getTimelineItemModeration, getPlayers,
-  getReportsModeration, tagReport, untagReport, createReportDirect, moveReport,
+  getReportsModeration, tagReport, untagReport, createReportDirect, moveReport, deleteReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks, deleteContributorLink,
   getMatchGoals, setMatchGoal, movePhotoBlock,
@@ -200,6 +200,7 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
   const meta = LINKS_BLOCK_META[reportType]
   const [links, setLinks] = useState(meta.defaults())
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
 
   async function create() {
     try {
@@ -213,13 +214,27 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
     }
   }
 
+  async function removeBlock() {
+    if (!(await confirm(`Dit hele ${meta.title}-blok verwijderen (inclusief alle linkjes erin)? Dit kan niet ongedaan gemaakt worden.`))) return
+    try {
+      await deleteReport(existingReport.id)
+      onBack()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div style={{ marginBottom: 24 }}>
+      {confirmDialog}
       <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>{meta.title}</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {existingReport ? (
-        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
+        <>
+          <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
+          <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
+        </>
       ) : (
         <>
           <NewLinksEditor links={links} onChange={setLinks} />

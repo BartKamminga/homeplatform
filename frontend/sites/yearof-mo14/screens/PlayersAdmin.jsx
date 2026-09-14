@@ -94,6 +94,7 @@ function ProfileLinkCell({ playerId, links, onCreated }) {
 function PlayerEditsModeration({ players }) {
   const [edits, setEdits] = useState([])
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
 
   function load() {
     getPlayerEditsModeration().then(setEdits).catch(e => setError(e.message))
@@ -109,6 +110,7 @@ function PlayerEditsModeration({ players }) {
     try { await applyPlayerEdit(id); load() } catch (e) { setError(e.message) }
   }
   async function reject(id) {
+    if (!(await confirm('Deze ingestuurde wijziging afwijzen en weggooien? Dit kan niet ongedaan gemaakt worden.'))) return
     try { await rejectPlayerEdit(id); load() } catch (e) { setError(e.message) }
   }
 
@@ -116,6 +118,7 @@ function PlayerEditsModeration({ players }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
+      {confirmDialog}
       <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Openstaande profielwijzigingen</h4>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {edits.map(e => (
