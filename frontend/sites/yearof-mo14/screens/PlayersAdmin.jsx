@@ -4,7 +4,63 @@ import { copyToClipboard } from '../clipboard.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
 
-const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
+const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
+const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
+
+// Paginawissel-formulier i.p.v. losse inputvelden onderaan de lijst (item
+// 1157) - alleen de basisvelden, foto/bio/weetje vul je na het aanmaken
+// meteen in via EditProfile (onCreated stuurt daar direct naartoe).
+function NewPlayerForm({ onCreated, onCancel }) {
+  const [name, setName] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [shirtNumber, setShirtNumber] = useState('')
+  const [position, setPosition] = useState('')
+  const [error, setError] = useState('')
+
+  async function submit() {
+    if (!name.trim()) return
+    try {
+      const player = await createPlayer({
+        name,
+        nickname: nickname || null,
+        shirt_number: shirtNumber !== '' ? Number(shirtNumber) : null,
+        position: position || null,
+      })
+      onCreated(player.id)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <h3 style={{ fontSize: 15, margin: 0 }}>Nieuwe speler</h3>
+        <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>&larr; terug</button>
+      </div>
+      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+
+      <label style={labelStyle}>Naam</label>
+      <input value={name} onChange={e => setName(e.target.value)} style={fieldStyle} />
+
+      <label style={labelStyle}>Bijnaam</label>
+      <input value={nickname} onChange={e => setNickname(e.target.value)} style={fieldStyle} />
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ width: 100 }}>
+          <label style={labelStyle}>Rugnummer</label>
+          <input value={shirtNumber} onChange={e => setShirtNumber(e.target.value)} style={fieldStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Positie</label>
+          <input value={position} onChange={e => setPosition(e.target.value)} style={fieldStyle} />
+        </div>
+      </div>
+
+      <button className="yof-btn" onClick={submit}>Toevoegen &amp; profiel verder invullen</button>
+    </div>
+  )
+}
 
 function ProfileLinkCell({ playerId, links, onCreated }) {
   const [copied, setCopied] = useState(false)
@@ -84,7 +140,7 @@ function PlayerEditsModeration({ players }) {
 export default function PlayersAdmin({ initialEditId }) {
   const [players, setPlayers] = useState([])
   const [profileLinks, setProfileLinks] = useState([])
-  const [form, setForm] = useState({ name: '', nickname: '', shirt_number: '', position: '' })
+  const [view, setView] = useState('list') // list | new
   const [editingId, setEditingId] = useState(initialEditId || '')
   const [error, setError] = useState('')
   const [showArchived, setShowArchived] = useState(false)
@@ -100,22 +156,6 @@ export default function PlayersAdmin({ initialEditId }) {
 
   const activePlayers = players.filter(p => !p.archived_at)
   const archivedPlayers = players.filter(p => p.archived_at)
-
-  async function add() {
-    if (!form.name.trim()) return
-    try {
-      await createPlayer({
-        name: form.name,
-        nickname: form.nickname || null,
-        shirt_number: form.shirt_number ? Number(form.shirt_number) : null,
-        position: form.position || null,
-      })
-      setForm({ name: '', nickname: '', shirt_number: '', position: '' })
-      load()
-    } catch (e) {
-      setError(e.message)
-    }
-  }
 
   async function archive(id) {
     if (!(await confirm('Deze speler archiveren? Hij verdwijnt dan van de publieke site, maar profiel/foto-tags/doelpunten blijven bewaard - je kunt de speler hieronder bij Gearchiveerd altijd terugzetten.'))) return
@@ -141,6 +181,15 @@ export default function PlayersAdmin({ initialEditId }) {
       <EditProfile adminMode playerId={editingId}
         onSaved={() => { setEditingId(''); load() }}
         onCancel={() => setEditingId('')}
+      />
+    )
+  }
+
+  if (view === 'new') {
+    return (
+      <NewPlayerForm
+        onCreated={newId => { setView('list'); setEditingId(newId); load() }}
+        onCancel={() => setView('list')}
       />
     )
   }
@@ -195,17 +244,9 @@ export default function PlayersAdmin({ initialEditId }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input style={inputStyle} placeholder="Naam" value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })} />
-        <input style={inputStyle} placeholder="Bijnaam" value={form.nickname}
-          onChange={e => setForm({ ...form, nickname: e.target.value })} />
-        <input style={{ ...inputStyle, width: 60 }} placeholder="Nr" value={form.shirt_number}
-          onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
-        <input style={inputStyle} placeholder="Positie" value={form.position}
-          onChange={e => setForm({ ...form, position: e.target.value })} />
-        <button onClick={add} className="yof-btn-secondary">Toevoegen</button>
-      </div>
+      <button onClick={() => setView('new')} className="yof-btn" style={{ width: '100%' }}>
+        + Nieuwe speler
+      </button>
     </div>
   )
 }
