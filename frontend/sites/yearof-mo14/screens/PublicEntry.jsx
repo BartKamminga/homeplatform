@@ -98,7 +98,7 @@ export default function PublicEntry({
         <div>
           <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Verslagen &amp; interviews</h3>
           {pendingInvites.map(inv => (
-            <div key={inv.id} onClick={onOpenInvites} className="yof-card"
+            <div key={inv.id} onClick={() => onOpenInvites(inv.id)} className="yof-card"
               style={{
                 marginBottom: 10, cursor: 'pointer', border: '2px dashed #ddd',
                 boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
