@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
-import { getPlayers, createPlayer, updatePlayer, deletePlayer, uploadPlayerPhotoAdmin, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
+import { getPlayers, createPlayer, deletePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
+import EditProfile from './EditProfile.jsx'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
-const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
-const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
 
 function ProfileLinkCell({ playerId, links, onCreated }) {
   const [copied, setCopied] = useState(false)
@@ -82,101 +81,6 @@ function PlayerEditsModeration({ players }) {
   )
 }
 
-function EditPlayerRow({ player, onSave, onCancel }) {
-  const [form, setForm] = useState({
-    name: player.name || '',
-    nickname: player.nickname || '',
-    shirt_number: player.shirt_number ?? '',
-    position: player.position || '',
-    bio: player.bio || '',
-    fun_facts: player.fun_facts || '',
-  })
-  const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState('')
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [error, setError] = useState('')
-
-  function pickPhoto(file) {
-    if (!file) return
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
-  }
-
-  async function save() {
-    if (!form.name.trim()) return
-    try {
-      if (photoFile) {
-        setUploadingPhoto(true)
-        await uploadPlayerPhotoAdmin(player.id, photoFile)
-        setUploadingPhoto(false)
-      }
-      await onSave({
-        name: form.name,
-        nickname: form.nickname || null,
-        shirt_number: form.shirt_number !== '' ? Number(form.shirt_number) : null,
-        position: form.position || null,
-        bio: form.bio || null,
-        fun_facts: form.fun_facts || null,
-      })
-    } catch (e) {
-      setUploadingPhoto(false)
-      setError(e.message)
-    }
-  }
-
-  return (
-    <div className="yof-card" style={{ marginBottom: 10 }}>
-        {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-
-        <label style={labelStyle}>Profielfoto</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <div className="yof-photo-tile">
-            {(photoPreview || player.photo_url)
-              ? <img src={photoPreview || player.photo_url} alt="" />
-              : <div className="no-photo">{form.shirt_number || '?'}</div>}
-            {form.shirt_number !== '' && <span className="shirt-badge">{form.shirt_number}</span>}
-          </div>
-          <input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} style={{ fontSize: 13 }} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <label style={labelStyle}>Naam</label>
-            <input style={fieldStyle} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <label style={labelStyle}>Bijnaam</label>
-            <input style={fieldStyle} value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} />
-          </div>
-          <div style={{ width: 80 }}>
-            <label style={labelStyle}>Nr</label>
-            <input style={fieldStyle} value={form.shirt_number} onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
-          </div>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <label style={labelStyle}>Positie</label>
-            <input style={fieldStyle} value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} />
-          </div>
-        </div>
-
-        <label style={labelStyle}>Over mij</label>
-        <textarea style={{ ...fieldStyle, resize: 'vertical' }} rows={3} value={form.bio}
-          onChange={e => setForm({ ...form, bio: e.target.value })} />
-
-        <label style={labelStyle}>Leuk weetje</label>
-        <textarea style={{ ...fieldStyle, resize: 'vertical' }} rows={2} value={form.fun_facts}
-          placeholder="Bijv. je favoriete actie, hockeyheld, of waar je naar uitkijkt in Parijs"
-          onChange={e => setForm({ ...form, fun_facts: e.target.value })} />
-
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={save} disabled={uploadingPhoto} className="yof-btn-secondary">
-            {uploadingPhoto ? 'Foto uploaden...' : 'Opslaan'}
-          </button>
-          <button onClick={onCancel} className="yof-btn-secondary">Annuleren</button>
-        </div>
-    </div>
-  )
-}
-
 export default function PlayersAdmin() {
   const [players, setPlayers] = useState([])
   const [profileLinks, setProfileLinks] = useState([])
@@ -209,12 +113,6 @@ export default function PlayersAdmin() {
     }
   }
 
-  async function saveEdit(id, body) {
-    await updatePlayer(id, body)
-    setEditingId('')
-    load()
-  }
-
   async function remove(id) {
     if (!(await confirm('Deze speler verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     try {
@@ -223,6 +121,15 @@ export default function PlayersAdmin() {
     } catch (e) {
       setError(e.message)
     }
+  }
+
+  if (editingId) {
+    return (
+      <EditProfile adminMode playerId={editingId}
+        onSaved={() => { setEditingId(''); load() }}
+        onCancel={() => setEditingId('')}
+      />
+    )
   }
 
   return (
@@ -235,27 +142,23 @@ export default function PlayersAdmin() {
 
       <div style={{ marginBottom: 16 }}>
         {players.map(p => (
-          editingId === p.id ? (
-            <EditPlayerRow key={p.id} player={p} onSave={body => saveEdit(p.id, body)} onCancel={() => setEditingId('')} />
-          ) : (
-            <div key={p.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', color: '#12203c',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0,
-              }}>
-                {p.shirt_number ?? '?'}
-              </div>
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
-                <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{p.position ?? '-'}</div>
-              </div>
-              <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
-                <button onClick={() => remove(p.id)} className="yof-btn-secondary">verwijder</button>
-              </div>
+          <div key={p.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', color: '#12203c',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0,
+            }}>
+              {p.shirt_number ?? '?'}
             </div>
-          )
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{p.position ?? '-'}</div>
+            </div>
+            <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
+              <button onClick={() => remove(p.id)} className="yof-btn-secondary">verwijder</button>
+            </div>
+          </div>
         ))}
       </div>
 
