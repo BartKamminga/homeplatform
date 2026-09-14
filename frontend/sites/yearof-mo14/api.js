@@ -106,6 +106,7 @@ export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/re
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)
 export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
+export const moveReport          = (reportId, direction) => api.post(`/api/yearof-mo14/reports/${reportId}/move`, { direction })
 
 // Profiellinkje (spelersprofiel zelf-bijwerken)
 export const createProfileLink  = (playerId) => api.post(`/api/yearof-mo14/profile-links?player_id=${encodeURIComponent(playerId)}`)

@@ -15,7 +15,7 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // "algemeen"-optie) - voor de wedstrijd-adminpagina.
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
 export function ReportForm({
-  matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport,
+  matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId,
   players, onToggleTag, onSaved, onCancel, onDeleted,
 }) {
   const isEdit = !!existingReport
@@ -43,7 +43,7 @@ export function ReportForm({
       if (isEdit) {
         await updateReport(existingReport.id, data)
       } else {
-        await createReportDirect({ ...data, status: 'published' })
+        await createReportDirect({ ...data, status: 'published', insert_after_id: insertAfterId || null })
       }
       onSaved()
     } catch (e) {

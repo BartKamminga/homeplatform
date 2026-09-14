@@ -947,6 +947,11 @@ class ReportCreate(BaseModel):
     author_name: Optional[str] = None
     links: Optional[list[ReportLinkIn]] = None
     status: str = "published"
+    insert_after_id: Optional[str] = None  # WYSIWYG-editor: plaats dit item net na dit bestaande item op de wedstrijdpagina
+
+
+class MoveDirection(BaseModel):
+    direction: str  # "up" | "down"
 
 
 class ReportUpdate(BaseModel):
@@ -1037,6 +1042,30 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
     return _report_out(session, report)
 
 
+def _next_sort_order(session: Session, match_ref: Optional[str], insert_after_id: Optional[str]) -> int:
+    """WYSIWYG-editor: nieuwe items krijgen standaard een sort_order aan het
+    einde (+1000 t.o.v. de hoogste), of - als insert_after_id gegeven is -
+    precies tussen dat item en het volgende in, zodat bestaande items niet
+    herindexeerd hoeven te worden."""
+    if not match_ref:
+        return 0
+    siblings = session.exec(
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+    ).all()
+    if not siblings:
+        return 1000
+    if not insert_after_id:
+        return siblings[-1].sort_order + 1000
+    idx = next((i for i, r in enumerate(siblings) if r.id == insert_after_id), None)
+    if idx is None:
+        return siblings[-1].sort_order + 1000
+    if idx + 1 < len(siblings):
+        nxt = siblings[idx + 1]
+        gap = nxt.sort_order - siblings[idx].sort_order
+        return siblings[idx].sort_order + (gap // 2 if gap > 1 else 1)
+    return siblings[idx].sort_order + 1000
+
+
 @router.post("/reports/direct", status_code=201)
 def create_report_direct(
     body: ReportCreate,
@@ -1047,6 +1076,8 @@ def create_report_direct(
     wedstrijdverslag), mag standaard meteen published zijn."""
     data = body.model_dump()
     links = data.pop("links", None)
+    insert_after_id = data.pop("insert_after_id", None)
+    data["sort_order"] = _next_sort_order(session, data.get("match_ref"), insert_after_id)
     report = YearOfReport(**data)
     session.add(report)
     session.commit()
@@ -1166,6 +1197,35 @@ def delete_report(
     for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report_id)).all():
         session.delete(link)
     session.delete(report)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/reports/{report_id}/move")
+def move_report(
+    report_id: str,
+    body: MoveDirection,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """WYSIWYG-editor: verwissel sort_order met de vorige/volgende sibling
+    binnen dezelfde wedstrijdpagina."""
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    if not report.match_ref:
+        raise HTTPException(400, "Alleen wedstrijd-gebonden berichten kunnen verplaatst worden")
+    siblings = session.exec(
+        select(YearOfReport).where(YearOfReport.match_ref == report.match_ref).order_by(YearOfReport.sort_order)
+    ).all()
+    idx = next((i for i, r in enumerate(siblings) if r.id == report_id), None)
+    if idx is None:
+        raise HTTPException(404, "Verslag niet gevonden")
+    swap_idx = idx - 1 if body.direction == "up" else idx + 1
+    if swap_idx < 0 or swap_idx >= len(siblings):
+        return {"ok": True}
+    other = siblings[swap_idx]
+    report.sort_order, other.sort_order = other.sort_order, report.sort_order
+    session.add(report)
+    session.add(other)
     session.commit()
     return {"ok": True}
 

@@ -146,6 +146,7 @@ class YearOfReport(SQLModel, table=True):
     body:             str
     author_name:      Optional[str]  = Field(default=None)
     featured:         bool            = Field(default=False)  # handmatig geselecteerd voor "In de kijker"
+    sort_order:       int             = Field(default=0)  # volgorde binnen 1 wedstrijdpagina (WYSIWYG-editor)
     contributor_code: Optional[str]  = Field(default=None)
     created_at:       datetime        = Field(default_factory=datetime.utcnow)
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)

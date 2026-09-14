@@ -87,11 +87,14 @@ function YoutubeEmbed({ url, note }) {
 const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc', width: '100%', minWidth: 0 }
 const rowStyle = { display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto', gap: 6, marginBottom: 6, alignItems: 'center' }
 
-// Nog geen report_id (nieuw verslag) - default 1 instagram + 4 video-rijen,
-// klaar om in te vullen (de meest gebruikte mix voor wedstrijdbeelden).
-export function defaultNewLinks() {
+// Instagram en Wedstrijdbeelden zijn twee losse, los-positioneerbare
+// blokken op de wedstrijdpagina - elk met hun eigen standaard-rijen.
+export function defaultInstagramLinks() {
+  return [{ link_type: 'instagram', url: '', note: '' }]
+}
+
+export function defaultVideoLinks() {
   return [
-    { link_type: 'instagram', url: '', note: '' },
     { link_type: 'video', url: '', note: '' },
     { link_type: 'video', url: '', note: '' },
     { link_type: 'video', url: '', note: '' },

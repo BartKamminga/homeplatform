@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getTimelineItem, getPlayers,
-  getReportsModeration, tagReport, untagReport, createReportDirect,
+  getReportsModeration, tagReport, untagReport, createReportDirect, moveReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks,
   getMatchGoals, setMatchGoal,
@@ -10,13 +10,13 @@ import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
 import { PhotoCard } from './PhotosAdmin.jsx'
 import { ReportForm } from './ReportForm.jsx'
-import { defaultNewLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
+import { defaultInstagramLinks, defaultVideoLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
 import PublicEntry from './PublicEntry.jsx'
 
-// Kies-scherm tussen zelf schrijven en een invullinkje versturen - 1
-// herkenbare ingang vanuit de preview ("+ Verslag toevoegen"), die hierna
-// splitst in 2 losse paden.
-function ChooseReportKind({ onWriteMyself, onSendInvite, onBack }) {
+// Kies-scherm - 1 herkenbare ingang vanuit de preview ("+ item toevoegen"),
+// die hierna splitst in 4 losse paden. insertAfterId (kan null zijn) wordt
+// gewoon doorgegeven aan het gekozen vervolgpad.
+function ChooseReportKind({ onWriteMyself, onSendInvite, onAddInstagram, onAddFootage, onBack }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
@@ -29,6 +29,14 @@ function ChooseReportKind({ onWriteMyself, onSendInvite, onBack }) {
         <button onClick={onSendInvite} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Invullinkje versturen</div>
           <div style={{ fontSize: 13, color: '#666' }}>Stuur een linkje naar een speelster - zij typt het later zelf in.</div>
+        </button>
+        <button onClick={onAddInstagram} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Instagram-linkje toevoegen</div>
+          <div style={{ fontSize: 13, color: '#666' }}>1 Instagram-post, wordt echt ingebed op de pagina.</div>
+        </button>
+        <button onClick={onAddFootage} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Wedstrijdbeelden toevoegen</div>
+          <div style={{ fontSize: 13, color: '#666' }}>Een blokje met (minimaal 4) video-linkjes.</div>
         </button>
       </div>
     </div>
@@ -132,14 +140,21 @@ function InviteLinkScreen({ matchRef, players, onBack }) {
   )
 }
 
-function LinksScreen({ matchRef, footageReport, onBack, onRefresh }) {
-  const [links, setLinks] = useState(defaultNewLinks())
+const LINKS_BLOCK_META = {
+  instagram: { title: 'Instagram', reportTitle: 'Instagram', defaults: defaultInstagramLinks },
+  wedstrijd_beelden: { title: 'Wedstrijdbeelden', reportTitle: 'Wedstrijdbeelden', defaults: defaultVideoLinks },
+}
+
+function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBack, onRefresh }) {
+  const meta = LINKS_BLOCK_META[reportType]
+  const [links, setLinks] = useState(meta.defaults())
   const [error, setError] = useState('')
 
-  async function createFootage() {
+  async function create() {
     try {
       await createReportDirect({
-        match_ref: matchRef, report_type: 'wedstrijd_beelden', title: 'Wedstrijdbeelden', body: '', status: 'published', links,
+        match_ref: matchRef, report_type: reportType, title: meta.reportTitle, body: '', status: 'published',
+        links, insert_after_id: insertAfterId || null,
       })
       onBack()
     } catch (e) {
@@ -150,14 +165,14 @@ function LinksScreen({ matchRef, footageReport, onBack, onRefresh }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
-      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Instagram / wedstrijdbeelden</h3>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>{meta.title}</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      {footageReport ? (
-        <ExistingLinksEditor reportId={footageReport.id} links={footageReport.links || []} onChanged={onRefresh} />
+      {existingReport ? (
+        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
       ) : (
         <>
           <NewLinksEditor links={links} onChange={setLinks} />
-          <button onClick={createFootage} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
+          <button onClick={create} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
         </>
       )}
     </div>
@@ -214,6 +229,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [error, setError] = useState('')
   const [view, setView] = useState('preview') // preview | choose | write | edit | invul | links
   const [editingReport, setEditingReport] = useState(null)
+  const [insertAfterId, setInsertAfterId] = useState(null)
+  const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -257,18 +274,29 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   function backToPreview() {
     setEditingReport(null)
+    setInsertAfterId(null)
     setView('preview')
     loadReports()
     loadLinks()
   }
 
   function handleEditReport(report) {
-    if (report.report_type === 'wedstrijd_beelden') {
+    if (report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden') {
+      setLinksReportType(report.report_type)
       setView('links')
       return
     }
     setEditingReport(report)
     setView('edit')
+  }
+
+  function addItemAt(afterId) {
+    setInsertAfterId(afterId)
+    setView('choose')
+  }
+
+  async function handleMoveReport(reportId, direction) {
+    await moveReport(reportId, direction)
   }
 
   async function toggleEditingReportTag(playerId) {
@@ -282,7 +310,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     setReports(fresh.filter(r => r.match_ref === matchRef))
   }
 
-  const footageReport = reports.find(r => r.report_type === 'wedstrijd_beelden')
+  const linksExistingReport = reports.find(r => r.report_type === linksReportType)
 
   const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
   function playerName(id) {
@@ -307,11 +335,14 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <ChooseReportKind
           onWriteMyself={() => setView('write')}
           onSendInvite={() => setView('invul')}
-          onBack={() => setView('preview')}
+          onAddInstagram={() => { setLinksReportType('instagram'); setView('links') }}
+          onAddFootage={() => { setLinksReportType('wedstrijd_beelden'); setView('links') }}
+          onBack={() => { setInsertAfterId(null); setView('preview') }}
         />
       )}
       {view === 'write' && (
-        <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} onSaved={backToPreview} onCancel={() => setView('choose')} />
+        <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} insertAfterId={insertAfterId}
+          onSaved={backToPreview} onCancel={() => setView('choose')} />
       )}
       {view === 'edit' && editingReport && (
         <ReportForm
@@ -324,7 +355,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <InviteLinkScreen matchRef={matchRef} players={players} onBack={() => setView('choose')} />
       )}
       {view === 'links' && (
-        <LinksScreen matchRef={matchRef} footageReport={footageReport} onBack={backToPreview} onRefresh={loadReports} />
+        <LinksScreen matchRef={matchRef} reportType={linksReportType} existingReport={linksExistingReport}
+          insertAfterId={insertAfterId} onBack={backToPreview} onRefresh={loadReports} />
       )}
 
       {view === 'preview' && (
@@ -332,8 +364,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           <PublicEntry
             matchRef={matchRef} onBack={() => {}} previewMode adminMode
             onEditReport={handleEditReport}
-            onNewReport={() => setView('choose')}
-            onEditLinks={() => setView('links')}
+            onAddItem={addItemAt}
+            onMoveReport={handleMoveReport}
             pendingInvites={pendingInvites}
             onOpenInvites={() => setView('invul')}
           />
