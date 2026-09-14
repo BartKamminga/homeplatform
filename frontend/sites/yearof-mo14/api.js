@@ -87,6 +87,10 @@ export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearo
 export const getMatchGoals = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/goals`))
 export const setMatchGoal  = (matchRef, playerId, goals) => api.put(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/goals/${encodeURIComponent(playerId)}`, { goals })
 
+// Positie van het foto-blok op de wedstrijdpagina (WYSIWYG-editor)
+export const getPhotoBlockPosition = (matchRef) => api.get(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block`)
+export const movePhotoBlock        = (matchRef, direction) => api.post(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block/move`, { direction })
+
 // Verslagen & interviews
 export const submitReport        = (body)      => api.post('/api/yearof-mo14/reports', body)
 export const createReportDirect  = (body)      => api.post('/api/yearof-mo14/reports/direct', body)

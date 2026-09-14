@@ -4,7 +4,7 @@ import {
   getReportsModeration, tagReport, untagReport, createReportDirect, moveReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks,
-  getMatchGoals, setMatchGoal,
+  getMatchGoals, setMatchGoal, movePhotoBlock,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
@@ -351,6 +351,10 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     await moveReport(reportId, direction)
   }
 
+  async function handleMovePhotoBlock(direction) {
+    await movePhotoBlock(matchRef, direction)
+  }
+
   async function toggleEditingReportTag(playerId) {
     if (!editingReport) return
     const tagged = (editingReport.player_ids || []).includes(playerId)
@@ -422,6 +426,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             onEditReport={handleEditReport}
             onAddItem={addItemAt}
             onMoveReport={handleMoveReport}
+            onMovePhotoBlock={handleMovePhotoBlock}
             pendingInvites={pendingInvites}
             onOpenInvites={id => { setActiveInviteId(id); setView('invite') }}
           />

@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateReport } from '../api.js'
+import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateReport, getPhotoBlockPosition } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false,
-  onEditReport, onAddItem, onMoveReport, pendingInvites = [], onOpenInvites,
+  onEditReport, onAddItem, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
+  const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
 
@@ -23,9 +24,14 @@ export default function PublicEntry({
       .catch(e => setError(e.message))
   }
 
+  function loadPhotoBlockPosition() {
+    getPhotoBlockPosition(matchRef).then(d => setPhotoBlockSortOrder(d.sort_order)).catch(() => {})
+  }
+
   useEffect(() => {
     getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
     loadReports()
+    loadPhotoBlockPosition()
     getPhotos(matchRef).then(setPhotos).catch(() => {})
   }, [matchRef])
 
@@ -37,6 +43,12 @@ export default function PublicEntry({
   async function move(reportId, direction, e) {
     e.stopPropagation()
     await onMoveReport(reportId, direction)
+    loadReports()
+  }
+
+  async function movePhotos(direction) {
+    await onMovePhotoBlock(direction)
+    loadPhotoBlockPosition()
     loadReports()
   }
 
@@ -80,23 +92,20 @@ export default function PublicEntry({
         {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{item.description}</p>}
       </div>
 
-      {photos.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-            {photos.map((p, i) => (
-              <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(i) }}>
-                <PhotoThumb photo={p} />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
 
-      {(reports.length > 0 || pendingInvites.length > 0 || adminMode) && (
-        <div>
-          <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Verslagen &amp; interviews</h3>
+      {(() => {
+        const showPhotoBlock = photos.length > 0 || adminMode
+        const blocks = []
+        if (showPhotoBlock) blocks.push({ kind: 'photos', sort_order: photoBlockSortOrder })
+        reports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
+        blocks.sort((a, b) => a.sort_order - b.sort_order)
+
+        if (blocks.length === 0 && pendingInvites.length === 0) return null
+
+        return (
+      <div>
+          <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s, verslagen &amp; interviews</h3>
           {pendingInvites.map(inv => (
             <div key={inv.id} onClick={() => onOpenInvites(inv.id)} className="yof-card"
               style={{
@@ -115,54 +124,88 @@ export default function PublicEntry({
               </span>
             </div>
           ))}
-          {reports.map((r, i) => (
-            <div key={r.id}>
-              <div className="yof-card"
-                onClick={adminMode ? () => onEditReport(r) : undefined}
-                style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default' }}>
-                {r.status === 'concept' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
-                      CONCEPT
-                    </span>
-                    {!adminMode && (
-                      <button onClick={() => publish(r)} style={{ fontSize: 11, cursor: 'pointer' }}>Publiceren</button>
-                    )}
-                  </div>
-                )}
-                {adminMode && (
-                  <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 2 }}>
-                    <button onClick={e => move(r.id, 'up', e)} disabled={i === 0}
-                      style={{ fontSize: 12, cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
-                    <button onClick={e => move(r.id, 'down', e)} disabled={i === reports.length - 1}
-                      style={{ fontSize: 12, cursor: i === reports.length - 1 ? 'default' : 'pointer', opacity: i === reports.length - 1 ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
-                  </div>
-                )}
-                {adminMode && (
-                  <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
-                )}
-                <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
-                {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
-                <LinkTiles links={r.links} />
-              </div>
-              {adminMode && (
-                <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>
-                  <button onClick={() => onAddItem(r.id)}
-                    style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    + hier iets invoegen
-                  </button>
+          {blocks.map((b, i) => {
+            const atTop = i === 0
+            const atBottom = i === blocks.length - 1
+
+            if (b.kind === 'photos') {
+              return (
+                <div key="photos" style={{ marginBottom: 14, position: 'relative' }}>
+                  {adminMode && (
+                    <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: 2 }}>
+                      <button onClick={() => movePhotos('up')} disabled={atTop}
+                        style={{ fontSize: 12, cursor: atTop ? 'default' : 'pointer', opacity: atTop ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
+                      <button onClick={() => movePhotos('down')} disabled={atBottom}
+                        style={{ fontSize: 12, cursor: atBottom ? 'default' : 'pointer', opacity: atBottom ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
+                    </div>
+                  )}
+                  <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
+                  {photos.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
+                      {photos.map((p, pi) => (
+                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(pi) }}>
+                          <PhotoThumb photo={p} />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              )
+            }
+
+            const r = b.report
+            return (
+              <div key={r.id}>
+                <div className="yof-card"
+                  onClick={adminMode ? () => onEditReport(r) : undefined}
+                  style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default' }}>
+                  {r.status === 'concept' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
+                        CONCEPT
+                      </span>
+                      {!adminMode && (
+                        <button onClick={() => publish(r)} style={{ fontSize: 11, cursor: 'pointer' }}>Publiceren</button>
+                      )}
+                    </div>
+                  )}
+                  {adminMode && (
+                    <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 2 }}>
+                      <button onClick={e => move(r.id, 'up', e)} disabled={atTop}
+                        style={{ fontSize: 12, cursor: atTop ? 'default' : 'pointer', opacity: atTop ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
+                      <button onClick={e => move(r.id, 'down', e)} disabled={atBottom}
+                        style={{ fontSize: 12, cursor: atBottom ? 'default' : 'pointer', opacity: atBottom ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
+                    </div>
+                  )}
+                  {adminMode && (
+                    <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
+                  )}
+                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
+                  {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
+                  <LinkTiles links={r.links} />
+                </div>
+                {adminMode && (
+                  <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>
+                    <button onClick={() => onAddItem(r.id)}
+                      style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      + hier iets invoegen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {adminMode && (
             <button onClick={() => onAddItem(null)} className="yof-btn" style={{ width: '100%', marginTop: 4 }}>
               + Verslag, interview, Instagram of wedstrijdbeelden toevoegen
             </button>
           )}
-        </div>
-      )}
+      </div>
+        )
+      })()}
     </div>
   )
 }

@@ -175,6 +175,17 @@ class YearOfReportPlayerTag(SQLModel, table=True):
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
 
 
+class YearOfMatchPhotoBlock(SQLModel, table=True):
+    """Positie van het foto-blok t.o.v. de verslagen/linkjes-items op de
+    wedstrijdpagina (WYSIWYG-editor). Alleen aangemaakt zodra de beheerder het
+    foto-blok daadwerkelijk verschuift - zonder rij staat het foto-blok voor
+    alle verslagen (zie _photo_block_sort_order in routers/yearof_mo14.py)."""
+    __tablename__ = "yearof_match_photo_blocks"
+
+    match_ref:  str = Field(primary_key=True)
+    sort_order: int = Field(default=0)
+
+
 class YearOfMatchGoal(SQLModel, table=True):
     """Doelpuntenregistratie per speler per wedstrijd/dag - handmatig bijgehouden
     door de beheerder op de wedstrijd-detailpagina (fase 5-uitbreiding)."""
