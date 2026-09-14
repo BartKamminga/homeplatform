@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { createReportDirect, updateReport, deleteReport } from '../api.js'
+import { useState, useEffect } from 'react'
+import { createReportDirect, updateReport, deleteReport, uploadPhoto, deletePhoto, getPhotosModeration } from '../api.js'
+import { compressImage } from '../compressImage.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
@@ -30,6 +31,38 @@ export function ReportForm({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
+  const [photoFiles, setPhotoFiles] = useState([])
+  const [existingPhotos, setExistingPhotos] = useState([])
+
+  function loadExistingPhotos() {
+    if (!isEdit) return
+    getPhotosModeration().then(rows => setExistingPhotos(rows.filter(p => p.report_id === existingReport.id))).catch(() => {})
+  }
+  useEffect(loadExistingPhotos, [existingReport?.id])
+
+  function addPhotoFiles(newFiles) {
+    setPhotoFiles(prev => [...prev, ...newFiles])
+  }
+  function removePhotoFile(index) {
+    setPhotoFiles(prev => prev.filter((_, i) => i !== index))
+  }
+  async function removeExistingPhoto(id) {
+    if (!(await confirm('Deze foto/video verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    await deletePhoto(id)
+    loadExistingPhotos()
+  }
+
+  async function uploadStagedPhotos(reportId, reportMatchRef) {
+    for (const file of photoFiles) {
+      try {
+        const compressed = await compressImage(file)
+        await uploadPhoto(compressed, { matchRef: reportMatchRef || null, reportId, photoType: 'actie' })
+      } catch {
+        // 1 mislukte foto mag het opslaan van het verslag niet blokkeren
+      }
+    }
+    setPhotoFiles([])
+  }
 
   async function submit() {
     if (!title.trim() || !body.trim()) return
@@ -44,8 +77,10 @@ export function ReportForm({
       }
       if (isEdit) {
         await updateReport(existingReport.id, data)
+        await uploadStagedPhotos(existingReport.id, matchRef)
       } else {
-        await createReportDirect({ ...data, status: 'published', insert_after_id: insertAfterId || null })
+        const report = await createReportDirect({ ...data, status: 'published', insert_after_id: insertAfterId || null })
+        await uploadStagedPhotos(report.id, report.match_ref)
       }
       onSaved()
     } catch (e) {
@@ -126,6 +161,49 @@ export function ReportForm({
 
       <label style={labelStyle}>Door (naam, optioneel)</label>
       <input value={authorName} onChange={e => setAuthorName(e.target.value)} style={wideFieldStyle} />
+
+      <label style={labelStyle}>Foto&rsquo;s (optioneel)</label>
+      {existingPhotos.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
+          {existingPhotos.map(p => (
+            <div key={p.id} style={{ position: 'relative' }}>
+              {p.media_type === 'video' ? (
+                <div style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶️</div>
+              ) : (
+                <img src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt=""
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              )}
+              {p.status === 'concept' && (
+                <span style={{ position: 'absolute', top: 2, left: 2, background: '#fde68a', color: '#92400e', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 999 }}>concept</span>
+              )}
+              <button onClick={() => removeExistingPhoto(p.id)} style={{
+                position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
+                width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
+                background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
+              }}>&times;</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input type="file" accept="image/*" multiple
+        onChange={e => { addPhotoFiles(Array.from(e.target.files || [])); e.target.value = '' }}
+        style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
+      {photoFiles.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
+          {photoFiles.map((f, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <img src={URL.createObjectURL(f)} alt=""
+                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              <button onClick={() => removePhotoFile(i)} style={{
+                position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
+                width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
+                background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
+              }}>&times;</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>Toegevoegde fotos worden opgeslagen zodra je op Opslaan/Publiceren klikt.</p>
 
       {isEdit && players?.length > 0 && (
         <>

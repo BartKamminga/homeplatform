@@ -65,12 +65,13 @@ export const getTimelineItemModeration = (matchRef)  => api.get(`/api/yearof-mo1
 
 // Foto's - upload is een FormData-post (geen JSON), rechtstreeks via fetch
 // i.p.v. api.post, en zonder Authorization-header (publiek, teamcode i.p.v. login).
-export async function uploadPhoto(file, { matchRef, photoType, code }) {
+export async function uploadPhoto(file, { matchRef, reportId, photoType, code }) {
   const fd = new FormData()
   fd.append('file', file, file.name || 'foto.jpg')
-  fd.append('match_ref', matchRef)
+  if (matchRef) fd.append('match_ref', matchRef)
+  if (reportId) fd.append('report_id', reportId)
   fd.append('photo_type', photoType)
-  fd.append('code', code)
+  if (code) fd.append('code', code)
   const res = await fetch('/api/yearof-mo14/photos', { method: 'POST', body: fd })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -80,6 +81,7 @@ export async function uploadPhoto(file, { matchRef, photoType, code }) {
 }
 
 export const getPhotos           = (matchRef) => api.get(withCode(`/api/yearof-mo14/photos${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`))
+export const getPhotosByReport   = (reportId) => api.get(withCode(`/api/yearof-mo14/photos?report_id=${encodeURIComponent(reportId)}`))
 export const getPlayerPhotos     = (playerId) => api.get(withCode(`/api/yearof-mo14/photos?player_id=${encodeURIComponent(playerId)}`))
 export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')
 export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/photos/${id}`, body)

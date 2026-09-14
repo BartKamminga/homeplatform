@@ -298,6 +298,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [insertAfterId, setInsertAfterId] = useState(null)
   const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
   const [activeInviteId, setActiveInviteId] = useState(null)
+  const [showGoals, setShowGoals] = useState(false)
+  const [showPhotos, setShowPhotos] = useState(false)
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -456,19 +458,27 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             onOpenInvites={id => { setActiveInviteId(id); setView('invite') }}
           />
 
-          <h4 style={{ fontSize: 14, margin: '20px 0 8px' }}>Doelpunten</h4>
-          <div style={{ marginBottom: 20 }}>
-            <GoalsPanel matchRef={matchRef} players={players} />
-          </div>
+          <button onClick={() => setShowGoals(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
+            {showGoals ? 'Verberg' : 'Toon'} doelpunten
+          </button>
+          {showGoals && (
+            <div style={{ marginBottom: 20 }}>
+              <GoalsPanel matchRef={matchRef} players={players} />
+            </div>
+          )}
 
-          <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
-            {photos.map(p => (
-              <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
-                onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
-            ))}
-            {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
-          </div>
+          <button onClick={() => setShowPhotos(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
+            {showPhotos ? 'Verberg' : 'Toon'} fotobeheer ({photos.length})
+          </button>
+          {showPhotos && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
+              {photos.map(p => (
+                <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
+                  onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
+              ))}
+              {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
+            </div>
+          )}
         </>
       )}
     </div>

@@ -806,16 +806,35 @@ class PhotoUpdate(BaseModel):
 @router.post("/photos", status_code=201)
 async def upload_photo(
     file: UploadFile = File(...),
-    match_ref: str = Form(...),
+    match_ref: Optional[str] = Form(None),
+    report_id: Optional[str] = Form(None),
     photo_type: str = Form("actie"),
     code: Optional[str] = Form(None),
     session: Session = Depends(get_session),
 ):
     """Publiek, open sinds de teamcode-eis is losgelaten (2026-09-13). code is
-    optioneel en dient alleen nog voor attributie (uploader_code) als een
-    (geldig) linkje wordt meegestuurd. Accepteert zowel fotos als filmpjes -
-    media_type wordt afgeleid van het bestandstype/-extensie."""
-    link = _valid_team_link(code, session) if code else None
+    optioneel en dient alleen nog voor attributie (uploader_code) - kan een
+    teamlinkje OF een invullinkje (contributor-code) zijn, niet opnieuw
+    gevalideerd op geldigheid want het invulformulier heeft dat al gedaan bij
+    het aanmaken van het verslag. Accepteert zowel fotos als filmpjes -
+    media_type wordt afgeleid van het bestandstype/-extensie.
+
+    report_id (optioneel): koppelt de foto aan een specifiek verslag/
+    interview/algemeen bericht i.p.v. alleen los aan een wedstrijd - match_ref
+    wordt dan overschreven met het match_ref van dat verslag (kan None zijn
+    bij een algemeen bericht) zodat beide altijd in sync blijven."""
+    uploader_code = None
+    if code:
+        normalized = code.strip().lower()
+        team_link = _valid_team_link(normalized, session)
+        if team_link:
+            uploader_code = team_link.id
+        elif session.get(YearOfContributorLink, normalized):
+            uploader_code = normalized
+
+    report = get_or_404(session, YearOfReport, report_id, "Verslag") if report_id else None
+    if report:
+        match_ref = report.match_ref
 
     ext = Path(file.filename or "upload").suffix.lower()
     base_type = (file.content_type or "").split(";")[0].strip()
@@ -842,9 +861,9 @@ async def upload_photo(
         raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {max_size_mb}MB")
 
     photo = YearOfPhoto(
-        match_ref=match_ref, photo_type=photo_type, media_type=media_type,
+        match_ref=match_ref, report_id=report_id, photo_type=photo_type, media_type=media_type,
         file_ext=ext if is_video else None,
-        uploader_code=link.id if link else None,
+        uploader_code=uploader_code,
     )
     session.add(photo)
     session.commit()
@@ -889,6 +908,7 @@ def get_photo_video(photo_id: str, session: Session = Depends(get_session)):
 @router.get("/photos")
 def list_photos(
     match_ref: Optional[str] = None,
+    report_id: Optional[str] = None,
     player_id: Optional[str] = None,
     session: Session = Depends(get_session),
     scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
@@ -901,6 +921,8 @@ def list_photos(
         q = q.where(YearOfPhoto.created_at <= scope_cutoff)
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
+    if report_id:
+        q = q.where(YearOfPhoto.report_id == report_id)
     if player_id:
         tagged_ids = [
             t.photo_id for t in
@@ -1131,6 +1153,16 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
         .order_by(YearOfReport.created_at.desc())
     ).first()
 
+    # Ook nog-concept fotos tonen bij dit verslag (anders lijken ze
+    # "verdwenen" bij opnieuw invullen, terwijl ze gewoon wachten op
+    # goedkeuring) - mag hier zonder login, want de contributor-code zelf is
+    # al het bewijs dat dit hun eigen invullink/verslag is.
+    existing_photos = []
+    if existing:
+        existing_photos = session.exec(
+            select(YearOfPhoto).where(YearOfPhoto.report_id == existing.id).order_by(YearOfPhoto.created_at)
+        ).all()
+
     return {
         "match_ref": link.match_ref,
         "match_title": match["title"] if match else link.match_ref,
@@ -1138,6 +1170,7 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
         "player_name": (player.nickname or player.name) if player else None,
         "report_type": link.report_type,
         "existing_report": existing,
+        "existing_photos": existing_photos,
     }
 
 
@@ -1422,6 +1455,9 @@ def delete_report(
         session.delete(tag)
     for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report_id)).all():
         session.delete(link)
+    for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
+        photo.report_id = None
+        session.add(photo)
     session.delete(report)
     session.commit()
     return {"ok": True}

@@ -52,11 +52,19 @@ class YearOfTeamLink(SQLModel, table=True):
 class YearOfPhoto(SQLModel, table=True):
     """Foto-bijdrage (fase 4, item 1146). uploader_code is het teamlinkje/
     contributor-linkje waarmee geupload is - geen User.id, want anonieme
-    bezoekers hebben geen homeplatform-account."""
+    bezoekers hebben geen homeplatform-account.
+
+    report_id (toegevoegd 2026-09-14): een foto hoort optioneel bij een
+    specifiek verslag/interview/algemeen bericht i.p.v. alleen los bij een
+    wedstrijd te hangen - zo blijft een bijgevoegde foto bij het artikel
+    staan i.p.v. in 1 gedeelde fotogalerij per wedstrijd te verdwijnen.
+    match_ref is optioneel geworden omdat algemene berichten (geen
+    match_ref) ook fotos moeten kunnen hebben."""
     __tablename__ = "yearof_photos"
 
     id:             str            = Field(default_factory=new_uuid, primary_key=True)
-    match_ref:      str             = Field(index=True)  # "knhb:{id}" | "custom:{id}"
+    match_ref:      Optional[str]  = Field(default=None, index=True)  # "knhb:{id}" | "custom:{id}"
+    report_id:      Optional[str]  = Field(default=None, foreign_key="yearof_reports.id", index=True)
     photo_type:     str             = Field(default="actie")  # actie | team | sfeer
     media_type:     str             = Field(default="photo")  # photo | video
     file_ext:       Optional[str]  = Field(default=None)  # alleen bij video - welk bestand serveren (geen transcode)

@@ -108,7 +108,14 @@ export default function PublicEntry({
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
 
       {(() => {
-        const showPhotoBlock = photos.length > 0 || adminMode
+        // Het generieke Foto's-blok toont bewust alleen gepubliceerde, niet
+        // aan een verslag gekoppelde fotos - concepten (ook niet-toegewezen)
+        // beheer je via het moderatie-overzicht verderop, anders overspoelt
+        // een grote batch-upload deze preview volledig. Fotos die WEL bij
+        // een verslag horen (report_id) tonen inline op dat verslag, incl.
+        // concept-badge - daar wil je juist meteen zien of het gelukt is.
+        const unassignedPublished = photos.filter(p => !p.report_id && p.status === 'published')
+        const showPhotoBlock = unassignedPublished.length > 0 || adminMode
         const blocks = []
         if (showPhotoBlock) blocks.push({ kind: 'photos', sort_order: photoBlockSortOrder })
         reports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
@@ -153,18 +160,11 @@ export default function PublicEntry({
                     </div>
                   )}
                   <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
-                  {photos.length > 0 ? (
+                  {unassignedPublished.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-                      {photos.map((p, pi) => (
-                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(pi) }}
-                          style={{ position: 'relative', display: 'block' }}>
+                      {unassignedPublished.map(p => (
+                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(photos.findIndex(x => x.id === p.id)) }}>
                           <PhotoThumb photo={p} />
-                          {p.status === 'concept' && (
-                            <span style={{
-                              position: 'absolute', top: 3, left: 3, background: '#fde68a', color: '#92400e',
-                              fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 999,
-                            }}>concept</span>
-                          )}
                         </a>
                       ))}
                     </div>
@@ -205,6 +205,27 @@ export default function PublicEntry({
                   <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
                   {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
                   <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
+                  {(() => {
+                    const reportPhotos = photos.filter(p => p.report_id === r.id)
+                    if (reportPhotos.length === 0) return null
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
+                        {reportPhotos.map(p => (
+                          <a key={p.id} href="#"
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); setLightboxIndex(photos.findIndex(x => x.id === p.id)) }}
+                            style={{ position: 'relative', display: 'block' }}>
+                            <PhotoThumb photo={p} />
+                            {p.status === 'concept' && (
+                              <span style={{
+                                position: 'absolute', top: 3, left: 3, background: '#fde68a', color: '#92400e',
+                                fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 999,
+                              }}>concept</span>
+                            )}
+                          </a>
+                        ))}
+                      </div>
+                    )
+                  })()}
                   <LinkTiles links={r.links} />
                 </div>
                 {adminMode && (
