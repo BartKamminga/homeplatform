@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createReportDirect, updateReport, deleteReport } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -28,6 +29,7 @@ export function ReportForm({
   const [showPreview, setShowPreview] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
 
   async function submit() {
     if (!title.trim() || !body.trim()) return
@@ -64,6 +66,7 @@ export function ReportForm({
   }
 
   async function remove() {
+    if (!(await confirm('Dit bericht verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     await deleteReport(existingReport.id)
     onDeleted()
   }
@@ -85,6 +88,7 @@ export function ReportForm({
 
   return (
     <div style={{ marginBottom: 24 }}>
+      {confirmDialog}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <h3 style={{ fontSize: 15, margin: 0 }}>{isEdit ? 'Verslag bewerken' : 'Nieuw verslag / interview'}</h3>
         <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>&larr; terug</button>

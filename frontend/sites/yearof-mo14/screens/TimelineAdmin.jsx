@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTimeline, createEntry, updateEntry, deleteEntry } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
 
@@ -65,6 +66,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
   const [form, setForm] = useState({ kind: 'oefen', title: '', date: '', opponent: '', location: '', isPinned: false, scoreUs: '', scoreThem: '' })
+  const [confirm, confirmDialog] = useConfirm()
 
   function load() {
     getTimeline().then(setItems).catch(e => setError(e.message))
@@ -111,6 +113,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
 
   async function remove(matchRef) {
     if (!matchRef.startsWith('custom:')) return // competitiewedstrijden zijn read-only sync
+    if (!(await confirm('Deze wedstrijd/dag verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     try {
       await deleteEntry(matchRef.replace('custom:', ''))
       load()
@@ -121,6 +124,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
 
   return (
     <div>
+      {confirmDialog}
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Wedstrijden &amp; bijzondere dagen</h3>
       <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
         Uitslagen van competitiewedstrijden komen automatisch uit Poulebord/hockey-inside. Voor oefenwedstrijden vul je de uitslag hieronder zelf in.

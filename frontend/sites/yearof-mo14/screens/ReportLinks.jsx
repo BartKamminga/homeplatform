@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { addReportLink, updateReportLink, deleteReportLink } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export const LINK_TYPES = [
   { value: 'instagram', label: 'Instagram', icon: '📸' },
@@ -133,6 +134,7 @@ export function NewLinksEditor({ links, onChange }) {
 function ExistingLinkRow({ link, onSave, onDelete }) {
   const [form, setForm] = useState({ link_type: link.link_type, url: link.url, note: link.note || '' })
   const [saving, setSaving] = useState(false)
+  const [confirm, confirmDialog] = useConfirm()
 
   async function save() {
     setSaving(true)
@@ -143,15 +145,21 @@ function ExistingLinkRow({ link, onSave, onDelete }) {
     }
   }
 
+  async function handleDelete() {
+    if (!(await confirm('Dit linkje verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    onDelete()
+  }
+
   return (
     <div style={{ ...rowStyle, gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto auto' }}>
+      {confirmDialog}
       <select value={form.link_type} onChange={e => setForm({ ...form, link_type: e.target.value })} style={{ fontSize: 12, width: '100%' }}>
         {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
       <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Link" style={fieldStyle} />
       <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
       <button onClick={save} className="yof-btn-secondary">{saving ? '...' : 'Opslaan'}</button>
-      <button onClick={onDelete} className="yof-btn-secondary">Verwijder</button>
+      <button onClick={handleDelete} className="yof-btn-secondary">Verwijder</button>
     </div>
   )
 }

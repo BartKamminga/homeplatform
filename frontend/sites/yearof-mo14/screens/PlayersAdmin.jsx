@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getPlayers, createPlayer, updatePlayer, deletePlayer, uploadPlayerPhotoAdmin, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 const inputStyle = { padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
@@ -182,6 +183,7 @@ export default function PlayersAdmin() {
   const [form, setForm] = useState({ name: '', nickname: '', shirt_number: '', position: '' })
   const [editingId, setEditingId] = useState('')
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
 
   function load() {
     getPlayers().then(setPlayers).catch(e => setError(e.message))
@@ -214,6 +216,7 @@ export default function PlayersAdmin() {
   }
 
   async function remove(id) {
+    if (!(await confirm('Deze speler verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     try {
       await deletePlayer(id)
       load()
@@ -224,6 +227,7 @@ export default function PlayersAdmin() {
 
   return (
     <div>
+      {confirmDialog}
       <PlayerEditsModeration players={players} />
 
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Spelers</h3>
