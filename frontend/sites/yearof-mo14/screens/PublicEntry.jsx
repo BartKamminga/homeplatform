@@ -3,7 +3,10 @@ import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateRep
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
-export default function PublicEntry({ matchRef, onBack, previewMode = false, adminMode = false, onEditReport, onNewReport, onEditLinks }) {
+export default function PublicEntry({
+  matchRef, onBack, previewMode = false, adminMode = false,
+  onEditReport, onNewReport, onEditLinks, pendingInvites = [], onOpenInvites,
+}) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
@@ -82,9 +85,27 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false, adm
       )}
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
 
-      {(reports.length > 0 || adminMode) && (
+      {(reports.length > 0 || pendingInvites.length > 0 || adminMode) && (
         <div>
           <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Verslagen &amp; interviews</h3>
+          {pendingInvites.map(inv => (
+            <div key={inv.id} onClick={onOpenInvites} className="yof-card"
+              style={{
+                marginBottom: 10, cursor: 'pointer', border: '2px dashed #ddd',
+                boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#999' }}>{inv.title}</div>
+                <div style={{ fontSize: 12, color: '#999' }}>Nog niet ingevuld</div>
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: inv.statusColor, border: `1px solid ${inv.statusColor}`,
+                borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap',
+              }}>
+                {inv.statusLabel}
+              </span>
+            </div>
+          ))}
           {reports.map(r => (
             <div key={r.id} className="yof-card"
               onClick={adminMode ? () => onEditReport(r) : undefined}

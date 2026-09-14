@@ -210,6 +210,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
+  const [links, setLinks] = useState([])
   const [error, setError] = useState('')
   const [view, setView] = useState('preview') // preview | choose | write | edit | invul | links
   const [editingReport, setEditingReport] = useState(null)
@@ -220,12 +221,16 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   function loadPhotos() {
     getPhotosModeration().then(rows => setPhotos(rows.filter(p => p.match_ref === matchRef))).catch(e => setError(e.message))
   }
+  function loadLinks() {
+    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(() => {})
+  }
 
   useEffect(() => {
     getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadPhotos()
+    loadLinks()
   }, [matchRef])
 
   function entryTitle() {
@@ -254,6 +259,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     setEditingReport(null)
     setView('preview')
     loadReports()
+    loadLinks()
   }
 
   function handleEditReport(report) {
@@ -277,6 +283,18 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   }
 
   const footageReport = reports.find(r => r.report_type === 'wedstrijd_beelden')
+
+  const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+  function playerName(id) {
+    return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name
+  }
+  const pendingInvites = links
+    .filter(l => !l.report_status)
+    .map(l => {
+      const status = contributorLinkStatus(l)
+      const forWhom = l.player_id ? playerName(l.player_id) || 'speelster' : 'het team'
+      return { id: l.id, title: `${TYPE_LABEL[l.report_type] || l.report_type} · ${forWhom}`, statusLabel: status.label, statusColor: status.color }
+    })
 
   return (
     <div>
@@ -316,6 +334,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             onEditReport={handleEditReport}
             onNewReport={() => setView('choose')}
             onEditLinks={() => setView('links')}
+            pendingInvites={pendingInvites}
+            onOpenInvites={() => setView('invul')}
           />
 
           <h4 style={{ fontSize: 14, margin: '20px 0 8px' }}>Doelpunten</h4>
