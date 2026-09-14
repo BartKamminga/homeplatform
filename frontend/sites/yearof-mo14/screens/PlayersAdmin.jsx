@@ -23,14 +23,14 @@ function ProfileLinkCell({ playerId, links, onCreated }) {
     } catch { /* fallback: het veldje hieronder blijft handmatig selecteerbaar */ }
   }
 
-  if (!link) return <button onClick={make} style={{ fontSize: 11, cursor: 'pointer' }}>Maak profiellink</button>
+  if (!link) return <button onClick={make} className="yof-btn-secondary">Maak profiellink</button>
 
   const url = `${window.location.origin}/yearof-mo14/?profiel=${link.id}`
   return (
     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
       <input readOnly value={url} onFocus={e => e.target.select()}
         style={{ fontSize: 11, padding: '3px 5px', borderRadius: 6, border: '1px solid #ddd', width: 150 }} />
-      <button onClick={copy} style={{ fontSize: 11, cursor: 'pointer' }}>{copied ? 'OK!' : 'Kopieer'}</button>
+      <button onClick={copy} className="yof-btn-secondary">{copied ? 'OK!' : 'Kopieer'}</button>
     </div>
   )
 }
@@ -72,8 +72,8 @@ function PlayerEditsModeration({ players }) {
             {e.fun_facts && <li>Leuk weetje: {e.fun_facts}</li>}
           </ul>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => approve(e.id)} style={{ fontSize: 11, cursor: 'pointer' }}>Goedkeuren</button>
-            <button onClick={() => reject(e.id)} style={{ fontSize: 11, cursor: 'pointer' }}>Afwijzen</button>
+            <button onClick={() => approve(e.id)} className="yof-btn-secondary">Goedkeuren</button>
+            <button onClick={() => reject(e.id)} className="yof-btn-secondary">Afwijzen</button>
           </div>
         </div>
       ))}
@@ -168,10 +168,10 @@ function EditPlayerRow({ player, onSave, onCancel }) {
           onChange={e => setForm({ ...form, fun_facts: e.target.value })} />
 
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={save} disabled={uploadingPhoto} style={{ fontSize: 12, cursor: 'pointer' }}>
+          <button onClick={save} disabled={uploadingPhoto} className="yof-btn-secondary">
             {uploadingPhoto ? 'Foto uploaden...' : 'Opslaan'}
           </button>
-          <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>Annuleren</button>
+          <button onClick={onCancel} className="yof-btn-secondary">Annuleren</button>
         </div>
       </td>
     </tr>
@@ -256,8 +256,8 @@ export default function PlayersAdmin() {
                   <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
                 </td>
                 <td style={{ padding: 6, display: 'flex', gap: 6 }}>
-                  <button onClick={() => setEditingId(p.id)} style={{ fontSize: 12, cursor: 'pointer' }}>bewerken</button>
-                  <button onClick={() => remove(p.id)} style={{ fontSize: 12, cursor: 'pointer' }}>verwijder</button>
+                  <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
+                  <button onClick={() => remove(p.id)} className="yof-btn-secondary">verwijder</button>
                 </td>
               </tr>
             )
@@ -274,7 +274,7 @@ export default function PlayersAdmin() {
           onChange={e => setForm({ ...form, shirt_number: e.target.value })} />
         <input style={inputStyle} placeholder="Positie" value={form.position}
           onChange={e => setForm({ ...form, position: e.target.value })} />
-        <button onClick={add} style={{ fontSize: 13, cursor: 'pointer' }}>Toevoegen</button>
+        <button onClick={add} className="yof-btn-secondary">Toevoegen</button>
       </div>
     </div>
   )

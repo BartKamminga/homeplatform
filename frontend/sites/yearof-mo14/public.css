@@ -106,6 +106,15 @@
 }
 .yof-back { display: inline-block; margin-bottom: 12px; color: var(--navy); font-size: 14px; text-decoration: none; }
 
+/* Kleine actieknoppen (bewerken/verwijderen/opslaan/kopieer/...) - overal
+   dezelfde vorm i.p.v. losse ad-hoc fontSize/cursor-stijlen per plek. */
+.yof-btn-secondary {
+  display: inline-block; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid #ddd; background: transparent; color: inherit;
+  font-weight: 600; font-size: 12px; cursor: pointer; text-align: center;
+}
+.yof-btn-secondary:disabled { opacity: 0.4; cursor: default; }
+
 .yof-gate {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   padding: 20px; background: radial-gradient(circle at 30% 20%, #2a2a2a, var(--navy) 60%);

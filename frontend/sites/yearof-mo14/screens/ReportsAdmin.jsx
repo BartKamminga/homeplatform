@@ -74,7 +74,7 @@ function ContributorLinks({ entries, players }) {
           <option value="interview">Interview</option>
           <option value="wedstrijdverslag">Wedstrijdverslag (bv. vooraf-preview)</option>
         </select>
-        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw invullinkje</button>
+        <button onClick={make} className="yof-btn-secondary">Nieuw invullinkje</button>
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -108,10 +108,10 @@ function ContributorLinks({ entries, players }) {
                     style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
                 </td>
                 <td style={{ padding: 6, display: 'flex', gap: 4 }}>
-                  <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
+                  <button onClick={() => copy(l)} className="yof-btn-secondary">
                     {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
                   </button>
-                  <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Bewerken</button>
+                  <button onClick={() => openLink(l)} className="yof-btn-secondary">Bewerken</button>
                 </td>
               </tr>
             )
@@ -154,7 +154,7 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
     return (
       <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 10, background: '#fafafa' }}>
         <ExistingLinksEditor reportId={report.id} links={report.links || []} onChanged={onLinksChanged} />
-        <button onClick={() => setEditing(false)} style={{ fontSize: 12, cursor: 'pointer' }}>Klaar</button>
+        <button onClick={() => setEditing(false)} className="yof-btn-secondary">Klaar</button>
       </div>
     )
   }
@@ -188,8 +188,8 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
           style={{ width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, marginBottom: 8 }} />
 
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={save} style={{ fontSize: 12, cursor: 'pointer' }}>Opslaan</button>
-          <button onClick={() => setEditing(false)} style={{ fontSize: 12, cursor: 'pointer' }}>Annuleren</button>
+          <button onClick={save} className="yof-btn-secondary">Opslaan</button>
+          <button onClick={() => setEditing(false)} className="yof-btn-secondary">Annuleren</button>
         </div>
       </div>
     )
@@ -230,17 +230,17 @@ export function ReportCard({ report, entries, players, entryTitle, onTogglePubli
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={startEdit} style={{ fontSize: 12, cursor: 'pointer' }}>Bewerken</button>
-        <button onClick={() => onTogglePublish(report)} style={{ fontSize: 12, cursor: 'pointer' }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button onClick={startEdit} className="yof-btn-secondary">Bewerken</button>
+        <button onClick={() => onTogglePublish(report)} className="yof-btn-secondary">
           {report.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
         </button>
         {report.report_type !== 'nieuws' && (
-          <button onClick={() => onSave(report.id, { featured: !report.featured })} style={{ fontSize: 12, cursor: 'pointer' }}>
+          <button onClick={() => onSave(report.id, { featured: !report.featured })} className="yof-btn-secondary">
             {report.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
           </button>
         )}
-        <button onClick={() => onDelete(report.id)} style={{ fontSize: 12, cursor: 'pointer' }}>Verwijderen</button>
+        <button onClick={() => onDelete(report.id)} className="yof-btn-secondary">Verwijderen</button>
       </div>
     </div>
   )
@@ -311,7 +311,7 @@ export default function ReportsAdmin() {
       {creating ? (
         <ReportForm matchOptions={entries} onSaved={() => { setCreating(false); loadReports() }} onCancel={() => setCreating(false)} />
       ) : (
-        <button onClick={() => setCreating(true)} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 20 }}>
+        <button onClick={() => setCreating(true)} className="yof-btn" style={{ marginBottom: 20 }}>
           + Nieuw verslag / interview schrijven
         </button>
       )}

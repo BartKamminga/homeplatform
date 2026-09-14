@@ -122,10 +122,10 @@ export function NewLinksEditor({ links, onChange }) {
           </select>
           <input value={l.url} onChange={e => update(i, { url: e.target.value })} placeholder="Link (optioneel)" style={fieldStyle} />
           <input value={l.note} onChange={e => update(i, { note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
-          <button onClick={() => remove(i)} style={{ fontSize: 11, cursor: 'pointer' }}>x</button>
+          <button onClick={() => remove(i)} className="yof-btn-secondary">x</button>
         </div>
       ))}
-      <button onClick={add} style={{ fontSize: 12, cursor: 'pointer' }}>+ nog een linkje</button>
+      <button onClick={add} className="yof-btn-secondary">+ nog een linkje</button>
     </div>
   )
 }
@@ -150,8 +150,8 @@ function ExistingLinkRow({ link, onSave, onDelete }) {
       </select>
       <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Link" style={fieldStyle} />
       <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
-      <button onClick={save} style={{ fontSize: 11, cursor: 'pointer' }}>{saving ? '...' : 'Opslaan'}</button>
-      <button onClick={onDelete} style={{ fontSize: 11, cursor: 'pointer' }}>Verwijder</button>
+      <button onClick={save} className="yof-btn-secondary">{saving ? '...' : 'Opslaan'}</button>
+      <button onClick={onDelete} className="yof-btn-secondary">Verwijder</button>
     </div>
   )
 }
@@ -203,7 +203,7 @@ export function ExistingLinksEditor({ reportId, links, onChanged }) {
         </select>
         <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Nieuwe link" style={fieldStyle} />
         <input value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Notitie (optioneel)" style={fieldStyle} />
-        <button onClick={add} style={{ fontSize: 12, cursor: 'pointer' }}>+ toevoegen</button>
+        <button onClick={add} className="yof-btn-secondary">+ toevoegen</button>
       </div>
     </div>
   )

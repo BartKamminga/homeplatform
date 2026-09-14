@@ -168,12 +168,12 @@ export default function TimelineAdmin({ onOpenMatch }) {
               </td>
               <td style={{ padding: 6, display: 'flex', gap: 6 }}>
                 {it.match_ref.startsWith('custom:') && it.kind === 'bijzonder' && (
-                  <button onClick={() => togglePin(it)} style={{ fontSize: 12, cursor: 'pointer' }}>
+                  <button onClick={() => togglePin(it)} className="yof-btn-secondary">
                     {it.is_pinned ? 'losmaken' : 'vastpinnen'}
                   </button>
                 )}
                 {it.match_ref.startsWith('custom:') && (
-                  <button onClick={() => remove(it.match_ref)} style={{ fontSize: 12, cursor: 'pointer' }}>verwijder</button>
+                  <button onClick={() => remove(it.match_ref)} className="yof-btn-secondary">verwijder</button>
                 )}
               </td>
             </tr>
@@ -209,7 +209,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
             vastpinnen (bv. Pinksterweekend)
           </label>
         )}
-        <button onClick={add} style={{ fontSize: 13, cursor: 'pointer' }}>Toevoegen</button>
+        <button onClick={add} className="yof-btn-secondary">Toevoegen</button>
       </div>
     </div>
   )

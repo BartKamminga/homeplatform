@@ -48,7 +48,7 @@ export default function ActionAdmin() {
         style={{ padding: 6, fontSize: 13, marginBottom: 10, width: 300, maxWidth: '100%' }} />
 
       <div>
-        <button onClick={save} style={{ fontSize: 13, cursor: 'pointer' }}>Opslaan</button>
+        <button onClick={save} className="yof-btn-secondary">Opslaan</button>
         {saved && <span style={{ marginLeft: 8, fontSize: 12, color: '#16a34a' }}>Opgeslagen!</span>}
       </div>
       <p style={{ fontSize: 11, color: '#999', marginTop: 10 }}>

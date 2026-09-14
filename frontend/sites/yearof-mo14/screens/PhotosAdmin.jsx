@@ -51,10 +51,10 @@ export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelet
         />
 
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => onTogglePublish(photo)} style={{ fontSize: 11, cursor: 'pointer', flex: 1 }}>
+          <button onClick={() => onTogglePublish(photo)} className="yof-btn-secondary" style={{ flex: 1 }}>
             {photo.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
           </button>
-          <button onClick={() => onDelete(photo.id)} style={{ fontSize: 11, cursor: 'pointer' }}>&times;</button>
+          <button onClick={() => onDelete(photo.id)} className="yof-btn-secondary">&times;</button>
         </div>
       </div>
     </div>

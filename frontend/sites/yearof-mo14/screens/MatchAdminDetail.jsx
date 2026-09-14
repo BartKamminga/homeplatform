@@ -97,7 +97,7 @@ function InviteLinkScreen({ matchRef, players, onBack }) {
           <option value="">Voor het hele team / mezelf</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
         </select>
-        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw invullinkje</button>
+        <button onClick={make} className="yof-btn-secondary">Nieuw invullinkje</button>
       </div>
 
       {links.length > 0 && (
@@ -125,10 +125,10 @@ function InviteLinkScreen({ matchRef, players, onBack }) {
                       style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
                   </td>
                   <td style={{ padding: 6, display: 'flex', gap: 4 }}>
-                    <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
+                    <button onClick={() => copy(l)} className="yof-btn-secondary">
                       {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
                     </button>
-                    <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Openen</button>
+                    <button onClick={() => openLink(l)} className="yof-btn-secondary">Openen</button>
                   </td>
                 </tr>
               )
@@ -223,7 +223,7 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
       ) : (
         <>
           <NewLinksEditor links={links} onChange={setLinks} />
-          <button onClick={create} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
+          <button onClick={create} className="yof-btn">Toevoegen</button>
         </>
       )}
     </div>

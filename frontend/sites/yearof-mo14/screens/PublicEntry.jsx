@@ -167,7 +167,7 @@ export default function PublicEntry({
                         CONCEPT
                       </span>
                       {!adminMode && (
-                        <button onClick={() => publish(r)} style={{ fontSize: 11, cursor: 'pointer' }}>Publiceren</button>
+                        <button onClick={() => publish(r)} className="yof-btn-secondary">Publiceren</button>
                       )}
                     </div>
                   )}

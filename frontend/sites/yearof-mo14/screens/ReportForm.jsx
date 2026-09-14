@@ -155,15 +155,15 @@ export function ReportForm({
 
       {isEdit && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button onClick={togglePublish} style={{ fontSize: 12, cursor: 'pointer' }}>
+          <button onClick={togglePublish} className="yof-btn-secondary">
             {existingReport.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
           </button>
           {reportType !== 'nieuws' && (
-            <button onClick={toggleFeatured} style={{ fontSize: 12, cursor: 'pointer' }}>
+            <button onClick={toggleFeatured} className="yof-btn-secondary">
               {existingReport.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
             </button>
           )}
-          <button onClick={remove} style={{ fontSize: 12, cursor: 'pointer' }}>Verwijderen</button>
+          <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>
         </div>
       )}
     </div>
