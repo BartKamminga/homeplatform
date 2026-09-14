@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import {
   getTimeline, getPlayers,
   createContributorLink, listContributorLinks,
-  getReportsModeration, createReportDirect, updateReport, deleteReport, tagReport, untagReport,
+  getReportsModeration, updateReport, deleteReport, tagReport, untagReport,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
 import { ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
+import { ReportForm } from './ReportForm.jsx'
 
 function ContributorLinks({ entries, players }) {
   const [links, setLinks] = useState([])
@@ -117,111 +118,6 @@ function ContributorLinks({ entries, players }) {
           })}
         </tbody>
       </table>
-    </div>
-  )
-}
-
-const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
-const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
-
-// Los invulformulier voor een DOOR DE BEHEERDER direct geschreven verslag/
-// interview - bewust gescheiden van de linkjes-invoer (Instagram/wedstrijd-
-// beelden gaat via de wedstrijd-adminpagina, niet hier). Zelfde stijl en
-// voorbeeld-modus als de publieke invulpagina (ContributeReport.jsx) en het
-// spelersprofiel (EditProfile.jsx), zodat je precies ziet hoe het wordt.
-function NewReportForm({ entries, onCreated, onCancel }) {
-  const [matchRef, setMatchRef] = useState('')
-  const [reportType, setReportType] = useState('wedstrijdverslag')
-  const [role, setRole] = useState('speelster')
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [authorName, setAuthorName] = useState('')
-  const [showPreview, setShowPreview] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
-
-  async function submit() {
-    if (!title.trim() || !body.trim()) return
-    setSending(true)
-    try {
-      await createReportDirect({
-        match_ref: matchRef || null,
-        report_type: reportType,
-        interviewee_role: reportType === 'interview' ? role : null,
-        title, body,
-        author_name: authorName || null,
-        status: 'published',
-      })
-      onCreated()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSending(false)
-    }
-  }
-
-  if (showPreview) {
-    return (
-      <div style={{ marginBottom: 24 }}>
-        <a className="yof-back" href="#" onClick={e => { e.preventDefault(); setShowPreview(false) }}>&larr; terug naar bewerken</a>
-        <div className="yof-card" style={{ marginBottom: 10 }}>
-          <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{title || '(geen titel)'}</h4>
-          {authorName && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {authorName}</p>}
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{body || '(geen tekst)'}</p>
-        </div>
-        <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
-          Zo ziet dit bericht eruit op de site. Nog niet gepubliceerd.
-        </p>
-        <button className="yof-btn" onClick={() => setShowPreview(false)}>&larr; Terug om verder te bewerken</button>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <h3 style={{ fontSize: 15, margin: 0 }}>Nieuw verslag / interview</h3>
-        <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>annuleren</button>
-      </div>
-      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        <select value={matchRef} onChange={e => setMatchRef(e.target.value)} style={{ fontSize: 13 }}>
-          <option value="">Geen specifieke wedstrijd (algemeen)</option>
-          {entries.map(it => <option key={it.match_ref} value={it.match_ref}>{it.title}</option>)}
-        </select>
-        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 13 }}>
-          <option value="wedstrijdverslag">Wedstrijdverslag</option>
-          <option value="interview">Interview</option>
-          <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>
-        </select>
-        {reportType === 'interview' && (
-          <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 13 }}>
-            <option value="speelster">Speelster</option>
-            <option value="coach">Coach</option>
-            <option value="ouder">Ouder</option>
-          </select>
-        )}
-      </div>
-
-      <label style={labelStyle}>Titel</label>
-      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd" style={wideFieldStyle} />
-
-      <label style={labelStyle}>Tekst</label>
-      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} style={wideFieldStyle} />
-
-      <label style={labelStyle}>Door (naam, optioneel)</label>
-      <input value={authorName} onChange={e => setAuthorName(e.target.value)} style={wideFieldStyle} />
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="yof-btn" onClick={() => setShowPreview(true)}
-          style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
-          Voorbeeld bekijken
-        </button>
-        <button className="yof-btn" onClick={submit} disabled={sending} style={{ flex: 1 }}>
-          {sending ? 'Publiceren...' : 'Publiceren'}
-        </button>
-      </div>
     </div>
   )
 }
@@ -413,7 +309,7 @@ export default function ReportsAdmin() {
       <ContributorLinks entries={entries} players={players} />
 
       {creating ? (
-        <NewReportForm entries={entries} onCreated={() => { setCreating(false); loadReports() }} onCancel={() => setCreating(false)} />
+        <ReportForm matchOptions={entries} onSaved={() => { setCreating(false); loadReports() }} onCancel={() => setCreating(false)} />
       ) : (
         <button onClick={() => setCreating(true)} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 20 }}>
           + Nieuw verslag / interview schrijven

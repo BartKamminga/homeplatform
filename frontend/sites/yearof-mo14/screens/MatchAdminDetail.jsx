@@ -1,23 +1,51 @@
 import { useState, useEffect } from 'react'
 import {
-  getTimeline, getTimelineItem, getPlayers,
-  getReportsModeration, updateReport, deleteReport, tagReport, untagReport, createReportDirect,
+  getTimelineItem, getPlayers,
+  getReportsModeration, tagReport, untagReport, createReportDirect,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks,
   getMatchGoals, setMatchGoal,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
-import { ReportCard } from './ReportsAdmin.jsx'
 import { PhotoCard } from './PhotosAdmin.jsx'
-import { defaultNewLinks, NewLinksEditor } from './ReportLinks.jsx'
+import { ReportForm } from './ReportForm.jsx'
+import { defaultNewLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
 import PublicEntry from './PublicEntry.jsx'
 
-function NewMessageLinks({ matchRef, players, links, onCreated }) {
+// Kies-scherm tussen zelf schrijven en een invullinkje versturen - 1
+// herkenbare ingang vanuit de preview ("+ Verslag toevoegen"), die hierna
+// splitst in 2 losse paden.
+function ChooseReportKind({ onWriteMyself, onSendInvite, onBack }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 14px' }}>Hoe wil je dit toevoegen?</h3>
+      <div style={{ display: 'grid', gap: 10 }}>
+        <button onClick={onWriteMyself} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Zelf schrijven</div>
+          <div style={{ fontSize: 13, color: '#666' }}>Jij typt en publiceert het verslag of interview direct.</div>
+        </button>
+        <button onClick={onSendInvite} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Invullinkje versturen</div>
+          <div style={{ fontSize: 13, color: '#666' }}>Stuur een linkje naar een speelster - zij typt het later zelf in.</div>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InviteLinkScreen({ matchRef, players, onBack }) {
+  const [links, setLinks] = useState([])
   const [playerId, setPlayerId] = useState('')
   const [reportType, setReportType] = useState('wedstrijdverslag')
   const [error, setError] = useState('')
   const [copiedId, setCopiedId] = useState('')
+
+  function load() {
+    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(e => setError(e.message))
+  }
+  useEffect(load, [matchRef])
 
   function playerName(id) {
     return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name || '-'
@@ -26,7 +54,7 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
   async function make() {
     try {
       await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
-      onCreated()
+      load()
     } catch (e) {
       setError(e.message)
     }
@@ -48,7 +76,9 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
   }
 
   return (
-    <div>
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Invullinkje versturen</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
@@ -59,7 +89,7 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
           <option value="">Voor het hele team / mezelf</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
         </select>
-        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw bericht</button>
+        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw invullinkje</button>
       </div>
 
       {links.length > 0 && (
@@ -90,7 +120,7 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
                     <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
                       {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
                     </button>
-                    <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Bewerken</button>
+                    <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Openen</button>
                   </td>
                 </tr>
               )
@@ -102,40 +132,34 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
   )
 }
 
-function NewMatchFootage({ matchRef, existingReport, onCreated }) {
+function LinksScreen({ matchRef, footageReport, onBack, onRefresh }) {
   const [links, setLinks] = useState(defaultNewLinks())
   const [error, setError] = useState('')
 
-  if (existingReport) {
-    return (
-      <p style={{ color: '#666', fontSize: 13 }}>
-        Er staat al een Wedstrijdbeelden-bericht voor deze wedstrijd - bewerk de linkjes hierboven.
-      </p>
-    )
-  }
-
-  async function submit() {
+  async function createFootage() {
     try {
       await createReportDirect({
-        match_ref: matchRef,
-        report_type: 'wedstrijd_beelden',
-        title: 'Wedstrijdbeelden',
-        body: '',
-        status: 'published',
-        links,
+        match_ref: matchRef, report_type: 'wedstrijd_beelden', title: 'Wedstrijdbeelden', body: '', status: 'published', links,
       })
-      setLinks(defaultNewLinks())
-      onCreated()
+      onBack()
     } catch (e) {
       setError(e.message)
     }
   }
 
   return (
-    <div>
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Instagram / wedstrijdbeelden</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <NewLinksEditor links={links} onChange={setLinks} />
-      <button onClick={submit} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
+      {footageReport ? (
+        <ExistingLinksEditor reportId={footageReport.id} links={footageReport.links || []} onChanged={onRefresh} />
+      ) : (
+        <>
+          <NewLinksEditor links={links} onChange={setLinks} />
+          <button onClick={createFootage} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
+        </>
+      )}
     </div>
   )
 }
@@ -183,12 +207,12 @@ function GoalsPanel({ matchRef, players }) {
 
 export default function MatchAdminDetail({ matchRef, onBack }) {
   const [item, setItem] = useState(null)
-  const [entries, setEntries] = useState([])
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
-  const [links, setLinks] = useState([])
   const [error, setError] = useState('')
+  const [view, setView] = useState('preview') // preview | choose | write | edit | invul | links
+  const [editingReport, setEditingReport] = useState(null)
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -196,41 +220,23 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   function loadPhotos() {
     getPhotosModeration().then(rows => setPhotos(rows.filter(p => p.match_ref === matchRef))).catch(e => setError(e.message))
   }
-  function loadLinks() {
-    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(e => setError(e.message))
-  }
 
   useEffect(() => {
     getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
-    getTimeline().then(setEntries).catch(() => {})
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadPhotos()
-    loadLinks()
   }, [matchRef])
 
-  function entryTitle(ref) {
-    return entries.find(e => e.match_ref === ref)?.title || ref
+  function entryTitle() {
+    return item?.title || matchRef
   }
 
-  async function togglePublishReport(r) {
-    await updateReport(r.id, { status: r.status === 'published' ? 'concept' : 'published' })
-    loadReports()
+  async function togglePhotoTag(p, playerId) {
+    if (p.player_ids.includes(playerId)) await untagPhoto(p.id, playerId)
+    else await tagPhoto(p.id, playerId)
+    loadPhotos()
   }
-  async function deleteReportRow(id) {
-    await deleteReport(id)
-    loadReports()
-  }
-  async function toggleReportTag(r, playerId) {
-    if (r.player_ids.includes(playerId)) await untagReport(r.id, playerId)
-    else await tagReport(r.id, playerId)
-    loadReports()
-  }
-  async function saveReportEdit(id, body) {
-    await updateReport(id, body)
-    loadReports()
-  }
-
   async function togglePublishPhoto(p) {
     await updatePhoto(p.id, { status: p.status === 'published' ? 'concept' : 'published' })
     loadPhotos()
@@ -239,15 +245,38 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     await deletePhoto(id)
     loadPhotos()
   }
-  async function togglePhotoTag(p, playerId) {
-    if (p.player_ids.includes(playerId)) await untagPhoto(p.id, playerId)
-    else await tagPhoto(p.id, playerId)
-    loadPhotos()
-  }
   async function savePhotoCaption(p, value) {
     await updatePhoto(p.id, { caption: value })
     loadPhotos()
   }
+
+  function backToPreview() {
+    setEditingReport(null)
+    setView('preview')
+    loadReports()
+  }
+
+  function handleEditReport(report) {
+    if (report.report_type === 'wedstrijd_beelden') {
+      setView('links')
+      return
+    }
+    setEditingReport(report)
+    setView('edit')
+  }
+
+  async function toggleEditingReportTag(playerId) {
+    if (!editingReport) return
+    const tagged = (editingReport.player_ids || []).includes(playerId)
+    if (tagged) await untagReport(editingReport.id, playerId)
+    else await tagReport(editingReport.id, playerId)
+    const fresh = await getReportsModeration()
+    const updated = fresh.find(r => r.id === editingReport.id)
+    if (updated) setEditingReport(updated)
+    setReports(fresh.filter(r => r.match_ref === matchRef))
+  }
+
+  const footageReport = reports.find(r => r.report_type === 'wedstrijd_beelden')
 
   return (
     <div>
@@ -256,40 +285,54 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Voorbeeld van de publieke pagina</h4>
-      <div style={{ border: '3px dashed #f4c81e', borderRadius: 12, padding: 12, marginBottom: 20 }}>
-        <PublicEntry matchRef={matchRef} onBack={() => {}} previewMode />
-      </div>
+      {view === 'choose' && (
+        <ChooseReportKind
+          onWriteMyself={() => setView('write')}
+          onSendInvite={() => setView('invul')}
+          onBack={() => setView('preview')}
+        />
+      )}
+      {view === 'write' && (
+        <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} onSaved={backToPreview} onCancel={() => setView('choose')} />
+      )}
+      {view === 'edit' && editingReport && (
+        <ReportForm
+          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
+          players={players} onToggleTag={toggleEditingReportTag}
+          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview}
+        />
+      )}
+      {view === 'invul' && (
+        <InviteLinkScreen matchRef={matchRef} players={players} onBack={() => setView('choose')} />
+      )}
+      {view === 'links' && (
+        <LinksScreen matchRef={matchRef} footageReport={footageReport} onBack={backToPreview} onRefresh={loadReports} />
+      )}
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Doelpunten</h4>
-      <div style={{ marginBottom: 20 }}>
-        <GoalsPanel matchRef={matchRef} players={players} />
-      </div>
+      {view === 'preview' && (
+        <>
+          <PublicEntry
+            matchRef={matchRef} onBack={() => {}} previewMode adminMode
+            onEditReport={handleEditReport}
+            onNewReport={() => setView('choose')}
+            onEditLinks={() => setView('links')}
+          />
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
-        {photos.map(p => (
-          <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
-            onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
-        ))}
-        {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
-      </div>
+          <h4 style={{ fontSize: 14, margin: '20px 0 8px' }}>Doelpunten</h4>
+          <div style={{ marginBottom: 20 }}>
+            <GoalsPanel matchRef={matchRef} players={players} />
+          </div>
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Verslagen &amp; interviews</h4>
-      {reports.map(r => (
-        <ReportCard key={r.id} report={r} entries={entries} players={players} entryTitle={entryTitle}
-          onTogglePublish={togglePublishReport} onDelete={deleteReportRow} onToggleTag={toggleReportTag} onSave={saveReportEdit}
-          onLinksChanged={loadReports} />
-      ))}
-      {reports.length === 0 && <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>Nog geen verslagen voor deze wedstrijd.</p>}
-
-      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Wedstrijdbeelden toevoegen (Instagram/YouTube)</h4>
-      <div style={{ marginBottom: 20 }}>
-        <NewMatchFootage matchRef={matchRef} existingReport={reports.find(r => r.report_type === 'wedstrijd_beelden')} onCreated={loadReports} />
-      </div>
-
-      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Nieuw bericht / invullinkjes voor deze wedstrijd</h4>
-      <NewMessageLinks matchRef={matchRef} players={players} links={links} onCreated={loadLinks} />
+          <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
+            {photos.map(p => (
+              <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
+                onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
+            ))}
+            {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
+          </div>
+        </>
+      )}
     </div>
   )
 }

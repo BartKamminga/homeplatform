@@ -3,7 +3,7 @@ import { getTimelineItem, getReports, getReportsModeration, getPhotos, updateRep
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
-export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
+export default function PublicEntry({ matchRef, onBack, previewMode = false, adminMode = false, onEditReport, onNewReport, onEditLinks }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
@@ -82,18 +82,25 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
       )}
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
 
-      {reports.length > 0 && (
+      {(reports.length > 0 || adminMode) && (
         <div>
           <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Verslagen &amp; interviews</h3>
           {reports.map(r => (
-            <div key={r.id} className="yof-card" style={{ marginBottom: 10, position: 'relative' }}>
+            <div key={r.id} className="yof-card"
+              onClick={adminMode ? () => onEditReport(r) : undefined}
+              style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default' }}>
               {r.status === 'concept' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <span style={{ background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
                     CONCEPT
                   </span>
-                  <button onClick={() => publish(r)} style={{ fontSize: 11, cursor: 'pointer' }}>Publiceren</button>
+                  {!adminMode && (
+                    <button onClick={() => publish(r)} style={{ fontSize: 11, cursor: 'pointer' }}>Publiceren</button>
+                  )}
                 </div>
+              )}
+              {adminMode && (
+                <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
               )}
               <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
               {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
@@ -101,6 +108,17 @@ export default function PublicEntry({ matchRef, onBack, previewMode = false }) {
               <LinkTiles links={r.links} />
             </div>
           ))}
+          {adminMode && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <button onClick={onNewReport} className="yof-btn" style={{ flex: 1, minWidth: 180 }}>
+                + Verslag / interview toevoegen
+              </button>
+              <button onClick={onEditLinks} className="yof-btn"
+                style={{ flex: 1, minWidth: 180, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
+                + Instagram / wedstrijdbeelden
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
