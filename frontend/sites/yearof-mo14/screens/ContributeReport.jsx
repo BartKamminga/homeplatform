@@ -16,7 +16,12 @@ const TYPE_PLACEHOLDER = {
   nieuws: 'Waar gaat je bericht over?',
 }
 
-export default function ContributeReport({ code }) {
+// adminMode: hetzelfde invulformulier als de publieke invullink, maar
+// ingebed in de beheerder-module i.p.v. in een los tabblad geopend - zodat
+// de beheerder een interview/verslag namens iemand kan intypen zonder de
+// wysiwyg-flow te verlaten. Verstuurt nog steeds als concept (submitReport),
+// net als de publieke route - alleen de omlijsting/navigatie is anders.
+export default function ContributeReport({ code, adminMode = false, onBack, onSaved }) {
   const [context, setContext] = useState(null)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
@@ -82,6 +87,10 @@ export default function ContributeReport({ code }) {
         }
       }
 
+      if (adminMode) {
+        onSaved()
+        return
+      }
       setSent(true)
     } catch (e) {
       setError(e.message)
@@ -91,6 +100,7 @@ export default function ContributeReport({ code }) {
   }
 
   if (error) {
+    if (adminMode) return <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>
     return (
       <div className="yof yof-gate">
         <div className="yof-gate-card">
@@ -116,10 +126,15 @@ export default function ContributeReport({ code }) {
     )
   }
 
-  return (
-    <div className="yof">
-      <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
-      <div className="yof-main">
+  const formContent = (
+    <>
+      {adminMode && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h3 style={{ fontSize: 15, margin: 0 }}>{TYPE_LABEL[context.report_type] || context.report_type} invullen</h3>
+          <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer' }}>&larr; terug</button>
+        </div>
+      )}
+      {!adminMode && (
         <div className="yof-hero">
           <div style={{
             display: 'inline-block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
@@ -132,62 +147,73 @@ export default function ContributeReport({ code }) {
           </h1>
           <p>{context.match_title}</p>
         </div>
+      )}
 
-        {context.existing_report?.status === 'concept' && (
-          <p style={{ fontSize: 13, background: '#fdf8e8', padding: 10, borderRadius: 10, marginBottom: 14 }}>
-            Je hebt dit al ingestuurd en het wacht nog op goedkeuring. Je kunt de tekst hieronder aanpassen en opnieuw versturen.
-          </p>
-        )}
-        {context.existing_report?.status === 'published' && (
-          <p style={{ fontSize: 13, background: '#e8f8ee', padding: 10, borderRadius: 10, marginBottom: 14 }}>
-            Dit verhaaltje staat al op de site. Pas de tekst hieronder aan en verstuur opnieuw om een wijziging aan te vragen
-            &mdash; die verschijnt pas online na goedkeuring.
-          </p>
-        )}
-
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Titel</label>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd"
-          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
-
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
-          {TYPE_TEXT_LABEL[context.report_type] || 'Jouw verhaaltje'}
-        </label>
-        <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-          placeholder={TYPE_PLACEHOLDER[context.report_type] || ''}
-          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
-
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw naam</label>
-        <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Optioneel"
-          style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
-
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s (optioneel)</label>
-        <input type="file" accept="image/*" multiple
-          onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = '' }}
-          style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
-        <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
-          Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V).
+      {context.existing_report?.status === 'concept' && (
+        <p style={{ fontSize: 13, background: '#fdf8e8', padding: 10, borderRadius: 10, marginBottom: 14 }}>
+          Je hebt dit al ingestuurd en het wacht nog op goedkeuring. Je kunt de tekst hieronder aanpassen en opnieuw versturen.
         </p>
-        {files.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 14 }}>
-            {files.map((f, i) => (
-              <div key={i} style={{ position: 'relative' }}>
-                <img src={URL.createObjectURL(f)} alt=""
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
-                <button onClick={() => removeFile(i)} style={{
-                  position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
-                  width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
-                  background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
-                }}>&times;</button>
-              </div>
-            ))}
-          </div>
-        )}
+      )}
+      {context.existing_report?.status === 'published' && (
+        <p style={{ fontSize: 13, background: '#e8f8ee', padding: 10, borderRadius: 10, marginBottom: 14 }}>
+          Dit verhaaltje staat al op de site. Pas de tekst hieronder aan en verstuur opnieuw om een wijziging aan te vragen
+          &mdash; die verschijnt pas online na goedkeuring.
+        </p>
+      )}
 
-        {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-        <button className="yof-btn" onClick={submit} disabled={sending}>
-          {sending ? 'Versturen...' : 'Versturen ter controle'}
-        </button>
-      </div>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Titel</label>
+      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd"
+        style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
+        {TYPE_TEXT_LABEL[context.report_type] || 'Jouw verhaaltje'}
+      </label>
+      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
+        placeholder={TYPE_PLACEHOLDER[context.report_type] || ''}
+        style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw naam</label>
+      <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Optioneel"
+        style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s (optioneel)</label>
+      <input type="file" accept="image/*" multiple
+        onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = '' }}
+        style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
+      <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
+        Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V).
+      </p>
+      {files.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 14 }}>
+          {files.map((f, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <img src={URL.createObjectURL(f)} alt=""
+                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              <button onClick={() => removeFile(i)} style={{
+                position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
+                width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
+                background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
+              }}>&times;</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+      <button className="yof-btn" onClick={submit} disabled={sending}>
+        {sending ? 'Versturen...' : 'Versturen ter controle'}
+      </button>
+    </>
+  )
+
+  if (adminMode) {
+    return <div style={{ marginBottom: 24 }}>{formContent}</div>
+  }
+
+  return (
+    <div className="yof">
+      <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
+      <div className="yof-main">{formContent}</div>
     </div>
   )
 }

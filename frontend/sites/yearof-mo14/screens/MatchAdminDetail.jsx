@@ -12,6 +12,7 @@ import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { PhotoCard } from './PhotosAdmin.jsx'
 import { ReportForm } from './ReportForm.jsx'
 import { defaultInstagramLinks, defaultVideoLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
+import ContributeReport from './ContributeReport.jsx'
 import PublicEntry from './PublicEntry.jsx'
 
 // Kies-scherm - 1 herkenbare ingang vanuit de preview ("+ item toevoegen"),
@@ -135,7 +136,7 @@ const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'In
 
 // Focust op 1 specifiek invullinkje (niet de hele lijst) - vanuit de
 // placeholder-kaart in de preview, zodat "editen" over dat ene linkje gaat.
-function InviteDetailScreen({ link, players, onBack, onDeleted }) {
+function InviteDetailScreen({ link, players, onBack, onDeleted, onFill }) {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
@@ -187,8 +188,8 @@ function InviteDetailScreen({ link, players, onBack, onDeleted }) {
         style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', marginBottom: 10 }} />
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <button onClick={copy} className="yof-btn" style={{ flex: 1 }}>{copied ? 'Gekopieerd!' : 'Kopieer'}</button>
-        <button onClick={() => window.open(url, '_blank')} className="yof-btn"
-          style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>Openen</button>
+        <button onClick={onFill} className="yof-btn"
+          style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>Zelf invullen</button>
       </div>
       <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>
     </div>
@@ -277,7 +278,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [photos, setPhotos] = useState([])
   const [links, setLinks] = useState([])
   const [error, setError] = useState('')
-  const [view, setView] = useState('preview') // preview | choose | write | edit | invul | invite | links
+  const [view, setView] = useState('preview') // preview | choose | write | edit | invul | invite | fill-invite | links
   const [editingReport, setEditingReport] = useState(null)
   const [insertAfterId, setInsertAfterId] = useState(null)
   const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
@@ -414,6 +415,13 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <InviteDetailScreen link={activeInvite} players={players}
           onBack={() => { setActiveInviteId(null); setView('preview') }}
           onDeleted={() => { setActiveInviteId(null); setView('preview'); loadLinks() }}
+          onFill={() => setView('fill-invite')}
+        />
+      )}
+      {view === 'fill-invite' && activeInvite && (
+        <ContributeReport code={activeInvite.id} adminMode
+          onBack={() => setView('invite')}
+          onSaved={() => { setActiveInviteId(null); setView('preview'); loadReports(); loadLinks() }}
         />
       )}
       {view === 'links' && (
