@@ -198,13 +198,32 @@ class PlayerUpdate(BaseModel):
 
 @router.get("/players")
 def list_players(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Publiek - toont geen gearchiveerde spelers (zie /players/moderation voor de beheerder-lijst)."""
+    rows = session.exec(
+        select(YearOfPlayer).where(col(YearOfPlayer.archived_at).is_(None)).order_by(YearOfPlayer.shirt_number)
+    ).all()
+    return rows
+
+
+@router.get("/players/moderation")
+def list_players_moderation(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    """Beheerder-only - inclusief gearchiveerde spelers. Moet vóór /players/{player_id}
+    gedeclareerd staan, anders vangt die route 'moderation' als player_id weg."""
     rows = session.exec(select(YearOfPlayer).order_by(YearOfPlayer.shirt_number)).all()
     return rows
 
 
+@router.get("/players/moderation/{player_id}")
+def get_player_moderation(player_id: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    return get_or_404(session, YearOfPlayer, player_id, "Speler")
+
+
 @router.get("/players/{player_id}")
 def get_player(player_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
-    return get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    if player.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Speler niet gevonden")
+    return player
 
 
 @router.post("/players")
@@ -236,13 +255,63 @@ def update_player(
     return player
 
 
+@router.post("/players/{player_id}/archive")
+def archive_player(
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Verbergt deze speler van de publieke site - foto-tags, verslag-tags,
+    doelpunten en linkjes die naar de speler verwijzen blijven gewoon bestaan
+    en de beheerder kan de speler altijd terugzetten. Bewust geen verwijderen
+    (zelfde reden als bij wedstrijddagen, item 1147/1158)."""
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player.archived_at = datetime.utcnow()
+    session.add(player)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/players/{player_id}/restore")
+def restore_player(
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player.archived_at = None
+    session.add(player)
+    session.commit()
+    return {"ok": True}
+
+
 @router.delete("/players/{player_id}")
 def delete_player(
     player_id: str,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """Permanent verwijderen, inclusief alles wat naar de speler verwijst
+    (foto-tags, verslag-tags, doelpunten, invullinkjes, profiellinkje,
+    openstaande profielwijzigingen). Alleen toegestaan als de speler al
+    gearchiveerd is - zelfde noodgreep-patroon als bij wedstrijddagen."""
     player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    if player.archived_at is None:
+        raise HTTPException(status_code=400, detail="Archiveer deze speler eerst voor je 'm permanent verwijdert")
+
+    for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.player_id == player_id)).all():
+        session.delete(tag)
+    for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.player_id == player_id)).all():
+        session.delete(tag)
+    for goal in session.exec(select(YearOfMatchGoal).where(YearOfMatchGoal.player_id == player_id)).all():
+        session.delete(goal)
+    for link in session.exec(select(YearOfContributorLink).where(YearOfContributorLink.player_id == player_id)).all():
+        session.delete(link)
+    for link in session.exec(select(YearOfProfileLink).where(YearOfProfileLink.player_id == player_id)).all():
+        session.delete(link)
+    for edit in session.exec(select(YearOfPlayerEdit).where(YearOfPlayerEdit.player_id == player_id)).all():
+        session.delete(edit)
+
     session.delete(player)
     session.commit()
     return {"ok": True}

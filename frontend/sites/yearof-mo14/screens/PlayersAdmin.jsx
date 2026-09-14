@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getPlayers, createPlayer, deletePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
+import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
@@ -87,15 +87,19 @@ export default function PlayersAdmin({ initialEditId }) {
   const [form, setForm] = useState({ name: '', nickname: '', shirt_number: '', position: '' })
   const [editingId, setEditingId] = useState(initialEditId || '')
   const [error, setError] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
 
   function load() {
-    getPlayers().then(setPlayers).catch(e => setError(e.message))
+    getPlayersModeration().then(setPlayers).catch(e => setError(e.message))
   }
   function loadLinks() {
     listProfileLinks().then(setProfileLinks).catch(() => {})
   }
   useEffect(() => { load(); loadLinks() }, [])
+
+  const activePlayers = players.filter(p => !p.archived_at)
+  const archivedPlayers = players.filter(p => p.archived_at)
 
   async function add() {
     if (!form.name.trim()) return
@@ -113,10 +117,19 @@ export default function PlayersAdmin({ initialEditId }) {
     }
   }
 
-  async function remove(id) {
-    if (!(await confirm('Deze speler verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+  async function archive(id) {
+    if (!(await confirm('Deze speler archiveren? Hij verdwijnt dan van de publieke site, maar profiel/foto-tags/doelpunten blijven bewaard - je kunt de speler hieronder bij Gearchiveerd altijd terugzetten.'))) return
     try {
-      await deletePlayer(id)
+      await archivePlayer(id)
+      load()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function restore(id) {
+    try {
+      await restorePlayer(id)
       load()
     } catch (e) {
       setError(e.message)
@@ -141,7 +154,7 @@ export default function PlayersAdmin({ initialEditId }) {
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       <div style={{ marginBottom: 16 }}>
-        {players.map(p => (
+        {activePlayers.map(p => (
           <div key={p.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{
               width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', color: '#12203c',
@@ -156,11 +169,31 @@ export default function PlayersAdmin({ initialEditId }) {
             <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
-              <button onClick={() => remove(p.id)} className="yof-btn-secondary">verwijder</button>
+              <button onClick={() => archive(p.id)} className="yof-btn-secondary">archiveer</button>
             </div>
           </div>
         ))}
       </div>
+
+      {archivedPlayers.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <button onClick={() => setShowArchived(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 10 }}>
+            {showArchived ? 'Verberg' : 'Toon'} gearchiveerd ({archivedPlayers.length})
+          </button>
+          {showArchived && archivedPlayers.map(p => (
+            <div key={p.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', opacity: 0.7 }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>gearchiveerd</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bekijk</button>
+                <button onClick={() => restore(p.id)} className="yof-btn-secondary">herstellen</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input style={inputStyle} placeholder="Naam" value={form.name}

@@ -26,6 +26,7 @@ class YearOfPlayer(SQLModel, table=True):
     photo_url:    Optional[str]  = Field(default=None)
     bio:          Optional[str]  = Field(default=None)
     fun_facts:    Optional[str]  = Field(default=None)  # JSON: [{"label": ..., "value": ...}]
+    archived_at:  Optional[datetime] = Field(default=None)  # verborgen op de publieke site, content eronder blijft bestaan
     created_at:   datetime       = Field(default_factory=datetime.utcnow)
     updated_at:   datetime       = Field(default_factory=datetime.utcnow)
 

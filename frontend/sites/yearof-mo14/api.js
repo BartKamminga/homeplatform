@@ -24,6 +24,11 @@ export const getPlayer     = (id)        => api.get(withCode(`/api/yearof-mo14/p
 export const createPlayer  = (body)      => api.post('/api/yearof-mo14/players', body)
 export const updatePlayer  = (id, body)  => api.patch(`/api/yearof-mo14/players/${id}`, body)
 export const deletePlayer  = (id)        => api.delete(`/api/yearof-mo14/players/${id}`)
+export const archivePlayer = (id)        => api.post(`/api/yearof-mo14/players/${id}/archive`)
+export const restorePlayer = (id)        => api.post(`/api/yearof-mo14/players/${id}/restore`)
+// Beheerder-only - inclusief gearchiveerde spelers (verborgen op de publieke site)
+export const getPlayersModeration = ()   => api.get('/api/yearof-mo14/players/moderation')
+export const getPlayerModeration  = (id) => api.get(`/api/yearof-mo14/players/moderation/${id}`)
 export async function uploadPlayerPhotoAdmin(id, file) {
   const fd = new FormData()
   fd.append('file', file, file.name || 'profiel.jpg')

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getProfileLinkContext, getPlayer, submitPlayerEdit, updatePlayer, uploadProfilePhoto, uploadPlayerPhotoAdmin } from '../api.js'
+import { getProfileLinkContext, getPlayerModeration, submitPlayerEdit, updatePlayer, uploadProfilePhoto, uploadPlayerPhotoAdmin } from '../api.js'
 
 // Gedeeld met de beheerder-kant (PlayersAdmin, adminMode): zelfde
 // invulscherm als de publieke profiellink, zodat spelersprofiel-editen
@@ -22,7 +22,7 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
   const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
-    const load = adminMode ? getPlayer(playerId) : getProfileLinkContext(code)
+    const load = adminMode ? getPlayerModeration(playerId) : getProfileLinkContext(code)
     load.then(p => {
       setPlayer(p)
       setName(p.name || '')
