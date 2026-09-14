@@ -57,7 +57,9 @@ export default function PublicEntry({
 
   return (
     <div>
-      <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
+      {!adminMode && (
+        <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
+      )}
       <div className="yof-card" style={{ marginBottom: 14 }}>
         <span className={`badge ${item.kind}`}>{item.kind}</span>
         {(item.home_club_logo || item.away_club_logo) && (
