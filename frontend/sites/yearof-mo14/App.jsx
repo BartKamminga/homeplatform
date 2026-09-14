@@ -35,7 +35,7 @@ function BeheerderPaneel() {
           { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' },
           { key: 'toegang', label: 'Toegang' },
           { key: 'fotos', label: "Foto's" },
-          { key: 'verslagen', label: 'Verslagen' },
+          { key: 'verslagen', label: 'Algemene berichten' },
           { key: 'actie', label: 'Actie' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (

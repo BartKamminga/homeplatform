@@ -127,59 +127,42 @@ export default function TimelineAdmin({ onOpenMatch }) {
       </p>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
-        <thead>
-          <tr style={{ textAlign: 'left', color: '#888' }}>
-            <th style={{ padding: 6 }}>Datum</th>
-            <th style={{ padding: 6 }}>Soort</th>
-            <th style={{ padding: 6 }}>Titel</th>
-            <th style={{ padding: 6 }}>Locatie</th>
-            <th style={{ padding: 6 }}>Uitslag</th>
-            <th style={{ padding: 6 }}>Inhoud</th>
-            <th style={{ padding: 6 }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(it => (
-            <tr key={it.match_ref} style={{ borderTop: '1px solid #eee' }}>
-              <td style={{ padding: 6 }}>{fmtDateTime(it.date)}</td>
-              <td style={{ padding: 6 }}>{it.kind}</td>
-              <td style={{ padding: 6 }}>
-                <button onClick={() => onOpenMatch(it.match_ref)} style={{
-                  fontSize: 13, cursor: 'pointer', border: 'none', background: 'none', padding: 0,
-                  color: '#12203c', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}>
-                  {it.opponent_club_logo && (
-                    <img src={it.opponent_club_logo} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
-                  )}
-                  {it.is_pinned ? '📌 ' : ''}{it.title}
-                </button>
-              </td>
-              <td style={{ padding: 6 }}>
+      <div style={{ marginBottom: 16 }}>
+        {items.map(it => (
+          <div key={it.match_ref} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {it.opponent_club_logo
+              ? <img src={it.opponent_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              : <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', flexShrink: 0 }} />}
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>
+                {it.kind}{it.is_pinned ? ' · 📌' : ''}
+              </div>
+              <button onClick={() => onOpenMatch(it.match_ref)}
+                style={{ fontWeight: 700, fontSize: 14, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#12203c', textAlign: 'left' }}>
+                {it.title}
+              </button>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>{fmtDateTime(it.date)}</span>
                 <LocationCell item={it} onSave={saveScore} />
-              </td>
-              <td style={{ padding: 6 }}>
                 <ScoreCell item={it} onSave={saveScore} />
-              </td>
-              <td style={{ padding: 6 }}>
                 {it.has_photos && <span title="Foto's beschikbaar">📷</span>}
                 {it.has_report && <span title="Verslag/interview beschikbaar">📝</span>}
                 {it.has_footage && <span title="Wedstrijdbeelden beschikbaar">▶️</span>}
-              </td>
-              <td style={{ padding: 6, display: 'flex', gap: 6 }}>
-                {it.match_ref.startsWith('custom:') && it.kind === 'bijzonder' && (
-                  <button onClick={() => togglePin(it)} className="yof-btn-secondary">
-                    {it.is_pinned ? 'losmaken' : 'vastpinnen'}
-                  </button>
-                )}
-                {it.match_ref.startsWith('custom:') && (
-                  <button onClick={() => remove(it.match_ref)} className="yof-btn-secondary">verwijder</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              {it.match_ref.startsWith('custom:') && it.kind === 'bijzonder' && (
+                <button onClick={() => togglePin(it)} className="yof-btn-secondary">
+                  {it.is_pinned ? 'losmaken' : 'vastpinnen'}
+                </button>
+              )}
+              {it.match_ref.startsWith('custom:') && (
+                <button onClick={() => remove(it.match_ref)} className="yof-btn-secondary">verwijder</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <select style={inputStyle} value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>

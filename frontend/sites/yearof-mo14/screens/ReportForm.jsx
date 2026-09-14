@@ -15,12 +15,12 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // "algemeen"-optie) - voor de wedstrijd-adminpagina.
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
 export function ReportForm({
-  matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId,
+  matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId, defaultReportType,
   players, onToggleTag, onSaved, onCancel, onDeleted,
 }) {
   const isEdit = !!existingReport
   const [matchRef, setMatchRef] = useState(existingReport?.match_ref || fixedMatchRef || '')
-  const [reportType, setReportType] = useState(existingReport?.report_type || 'wedstrijdverslag')
+  const [reportType, setReportType] = useState(existingReport?.report_type || defaultReportType || 'wedstrijdverslag')
   const [role, setRole] = useState(existingReport?.interviewee_role || 'speelster')
   const [title, setTitle] = useState(existingReport?.title || '')
   const [body, setBody] = useState(existingReport?.body || '')

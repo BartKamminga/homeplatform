@@ -100,42 +100,27 @@ function InviteLinkScreen({ matchRef, players, onBack }) {
         <button onClick={make} className="yof-btn-secondary">Nieuw invullinkje</button>
       </div>
 
-      {links.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: '#888' }}>
-              <th style={{ padding: 6 }}>Speler</th>
-              <th style={{ padding: 6 }}>Type</th>
-              <th style={{ padding: 6 }}>Status</th>
-              <th style={{ padding: 6 }}>Link</th>
-              <th style={{ padding: 6 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {links.map(l => {
-              const status = contributorLinkStatus(l)
-              const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
-              return (
-                <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
-                  <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
-                  <td style={{ padding: 6 }}>{l.report_type}</td>
-                  <td style={{ padding: 6, color: status.color, fontWeight: 600 }}>{status.label}</td>
-                  <td style={{ padding: 6, width: 200 }}>
-                    <input readOnly value={url} onFocus={e => e.target.select()}
-                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
-                  </td>
-                  <td style={{ padding: 6, display: 'flex', gap: 4 }}>
-                    <button onClick={() => copy(l)} className="yof-btn-secondary">
-                      {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
-                    </button>
-                    <button onClick={() => openLink(l)} className="yof-btn-secondary">Openen</button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+      {links.map(l => {
+        const status = contributorLinkStatus(l)
+        const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
+        return (
+          <div key={l.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>{l.report_type}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{l.player_id ? playerName(l.player_id) : 'team'}</div>
+              <div style={{ fontSize: 12, marginTop: 4, color: status.color, fontWeight: 600 }}>{status.label}</div>
+              <input readOnly value={url} onFocus={e => e.target.select()}
+                style={{ marginTop: 6, width: '100%', maxWidth: 320, boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              <button onClick={() => copy(l)} className="yof-btn-secondary">
+                {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
+              </button>
+              <button onClick={() => openLink(l)} className="yof-btn-secondary">Openen</button>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

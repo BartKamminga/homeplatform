@@ -63,7 +63,7 @@ function PlayerEditsModeration({ players }) {
       <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Openstaande profielwijzigingen</h4>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {edits.map(e => (
-        <div key={e.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 12 }}>
+        <div key={e.id} className="yof-card" style={{ marginBottom: 8, fontSize: 12 }}>
           <strong>{playerName(e.player_id)}</strong>
           <ul style={{ margin: '6px 0', paddingLeft: 18 }}>
             {e.nickname && <li>Bijnaam: {e.nickname}</li>}
@@ -124,8 +124,7 @@ function EditPlayerRow({ player, onSave, onCancel }) {
   }
 
   return (
-    <tr>
-      <td colSpan={6} style={{ padding: 16, background: '#fafafa', border: '1px solid #ddd', borderRadius: 8 }}>
+    <div className="yof-card" style={{ marginBottom: 10 }}>
         {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
         <label style={labelStyle}>Profielfoto</label>
@@ -173,8 +172,7 @@ function EditPlayerRow({ player, onSave, onCancel }) {
           </button>
           <button onClick={onCancel} className="yof-btn-secondary">Annuleren</button>
         </div>
-      </td>
-    </tr>
+    </div>
   )
 }
 
@@ -231,39 +229,31 @@ export default function PlayersAdmin() {
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Spelers</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
-        <thead>
-          <tr style={{ textAlign: 'left', color: '#888' }}>
-            <th style={{ padding: 6 }}>Nr</th>
-            <th style={{ padding: 6 }}>Naam</th>
-            <th style={{ padding: 6 }}>Bijnaam</th>
-            <th style={{ padding: 6 }}>Positie</th>
-            <th style={{ padding: 6 }}>Profiellink</th>
-            <th style={{ padding: 6 }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map(p => (
-            editingId === p.id ? (
-              <EditPlayerRow key={p.id} player={p} onSave={body => saveEdit(p.id, body)} onCancel={() => setEditingId('')} />
-            ) : (
-              <tr key={p.id} style={{ borderTop: '1px solid #eee' }}>
-                <td style={{ padding: 6 }}>{p.shirt_number ?? '-'}</td>
-                <td style={{ padding: 6 }}>{p.name}</td>
-                <td style={{ padding: 6 }}>{p.nickname ?? '-'}</td>
-                <td style={{ padding: 6 }}>{p.position ?? '-'}</td>
-                <td style={{ padding: 6 }}>
-                  <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
-                </td>
-                <td style={{ padding: 6, display: 'flex', gap: 6 }}>
-                  <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
-                  <button onClick={() => remove(p.id)} className="yof-btn-secondary">verwijder</button>
-                </td>
-              </tr>
-            )
-          ))}
-        </tbody>
-      </table>
+      <div style={{ marginBottom: 16 }}>
+        {players.map(p => (
+          editingId === p.id ? (
+            <EditPlayerRow key={p.id} player={p} onSave={body => saveEdit(p.id, body)} onCancel={() => setEditingId('')} />
+          ) : (
+            <div key={p.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', color: '#12203c',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0,
+              }}>
+                {p.shirt_number ?? '?'}
+              </div>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{p.position ?? '-'}</div>
+              </div>
+              <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
+                <button onClick={() => remove(p.id)} className="yof-btn-secondary">verwijder</button>
+              </div>
+            </div>
+          )
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input style={inputStyle} placeholder="Naam" value={form.name}
