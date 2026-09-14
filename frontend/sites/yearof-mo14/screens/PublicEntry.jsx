@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, updateReport, getPhotoBlockPosition } from '../api.js'
+import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, getPhotoBlockPosition } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
@@ -28,12 +28,22 @@ export default function PublicEntry({
     getPhotoBlockPosition(matchRef).then(d => setPhotoBlockSortOrder(d.sort_order)).catch(() => {})
   }
 
+  function loadPhotos() {
+    // previewMode/adminMode: ook concept-fotos/video's tonen (bv. net
+    // geupload via een invullinkje) - anders lijken ze "verdwenen" totdat
+    // een beheerder ze los publiceert.
+    const call = previewMode ? getPhotosModeration() : getPhotos(matchRef)
+    call
+      .then(rows => setPhotos(previewMode ? rows.filter(p => p.match_ref === matchRef) : rows))
+      .catch(() => {})
+  }
+
   useEffect(() => {
     const itemCall = adminMode ? getTimelineItemModeration(matchRef) : getTimelineItem(matchRef)
     itemCall.then(setItem).catch(e => setError(e.message))
     loadReports()
     loadPhotoBlockPosition()
-    getPhotos(matchRef).then(setPhotos).catch(() => {})
+    loadPhotos()
   }, [matchRef])
 
   async function publish(report) {
@@ -146,8 +156,15 @@ export default function PublicEntry({
                   {photos.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
                       {photos.map((p, pi) => (
-                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(pi) }}>
+                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(pi) }}
+                          style={{ position: 'relative', display: 'block' }}>
                           <PhotoThumb photo={p} />
+                          {p.status === 'concept' && (
+                            <span style={{
+                              position: 'absolute', top: 3, left: 3, background: '#fde68a', color: '#92400e',
+                              fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 999,
+                            }}>concept</span>
+                          )}
                         </a>
                       ))}
                     </div>
