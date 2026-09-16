@@ -801,6 +801,7 @@ class PhotoUpdate(BaseModel):
     status: Optional[str] = None
     photo_type: Optional[str] = None
     caption: Optional[str] = None
+    report_id: Optional[str] = None
 
 
 @router.post("/photos", status_code=201)
@@ -1302,6 +1303,7 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
     if link.player_id:
         session.add(YearOfReportPlayerTag(report_id=report.id, player_id=link.player_id))
         session.commit()
+        session.refresh(report)  # commit hierboven expired report, anders geeft model_dump() straks leeg terug
 
     return _report_out(session, report)
 
@@ -1347,6 +1349,7 @@ def create_report_direct(
     session.commit()
     session.refresh(report)
     _add_report_links(session, report.id, [ReportLinkIn(**l) for l in (links or [])])
+    session.refresh(report)  # _add_report_links commit hierboven expired report, anders geeft model_dump() straks leeg terug
     return _report_out(session, report)
 
 
