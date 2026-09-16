@@ -9,17 +9,34 @@ import PublicSpotlight from './PublicSpotlight.jsx'
 import PublicAction from './PublicAction.jsx'
 import PinksterWeekend from './PinksterWeekend.jsx'
 
+// Deeplinks (?entry=<matchRef>) alleen op de echte publieke site syncen -
+// niet in de admin "Bekijk site"-preview, die leeft in de admin-URL.
+const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
+
 export default function PublicSite({ previewMode = false, adminMode = false, onEditMatch, onEditPlayer, onEditGeneral }) {
-  const [view, setView] = useState({ name: 'home' })
+  const [view, setView] = useState(() => {
+    if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
+    const entry = new URLSearchParams(window.location.search).get('entry')
+    return entry ? { name: 'entry', ref: entry } : { name: 'home' }
+  })
+
+  function setUrlEntry(ref) {
+    if (!syncsUrl(previewMode, adminMode)) return
+    const url = new URL(window.location.href)
+    if (ref) url.searchParams.set('entry', ref)
+    else url.searchParams.delete('entry')
+    window.history.replaceState({}, '', url.toString())
+  }
 
   function nav(name) {
     setView({ name })
+    setUrlEntry(null)
   }
 
   // adminMode: klikken op een wedstrijd/speler stapt niet naar een lokale
   // preview-view, maar bridget meteen naar het echte wysiwyg-bewerkscherm
   // (Wedstrijden/Spelers-tabblad) - 1 pad i.p.v. twee (item 1155).
-  const openMatch = adminMode ? (ref => onEditMatch(ref)) : (ref => setView({ name: 'entry', ref }))
+  const openMatch = adminMode ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
   const openPlayer = adminMode ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
 
   return (
