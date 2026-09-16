@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getSpotlightReports, getPlayers, getTimeline } from '../api.js'
+import { getSpotlightReports, getPlayers, getTimeline, getPhotosByReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
+import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
 const ROLE_LABEL = { speelster: 'speelster', coach: 'coach', ouder: 'ouder' }
 
@@ -35,9 +36,15 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
   const [entries, setEntries] = useState([])
   const [openId, setOpenId] = useState(null)
   const [error, setError] = useState('')
+  const [photosByReport, setPhotosByReport] = useState({})
+  const [lightbox, setLightbox] = useState(null) // { reportId, index }
 
   useEffect(() => {
-    getSpotlightReports().then(setReports).catch(e => setError(e.message))
+    getSpotlightReports().then(rows => {
+      setReports(rows)
+      Promise.all(rows.map(r => getPhotosByReport(r.id).then(photos => [r.id, photos]).catch(() => [r.id, []])))
+        .then(pairs => setPhotosByReport(Object.fromEntries(pairs)))
+    }).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     getTimeline().then(setEntries).catch(() => {})
   }, [])
@@ -101,6 +108,16 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
                   <LinkTiles links={r.links} />
                 </div>
               )}
+              {photosByReport[r.id]?.length > 0 && (
+                <div onClick={e => e.stopPropagation()}
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
+                  {photosByReport[r.id].map((p, i) => (
+                    <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightbox({ reportId: r.id, index: i }) }}>
+                      <PhotoThumb photo={p} />
+                    </a>
+                  ))}
+                </div>
+              )}
               {title && (
                 <p style={{ margin: '8px 0 0', fontSize: 12 }}>
                   Bij:{' '}
@@ -114,6 +131,12 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
         })}
         {reports.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog niets uitgelicht.</p>}
       </div>
+      <PhotoLightbox
+        photos={lightbox ? photosByReport[lightbox.reportId] || [] : []}
+        index={lightbox?.index ?? null}
+        onClose={() => setLightbox(null)}
+        onNavigate={i => setLightbox(l => ({ ...l, index: i }))}
+      />
     </div>
   )
 }
