@@ -42,8 +42,8 @@ export async function uploadPlayerPhotoAdmin(id, file) {
   return res.json()
 }
 
-// Teamlinkje (voorheen viewer-toegang - sinds 2026-09-13 niet meer verplicht
-// om de site te bekijken; blijft bestaan als deelbaar linkje/optionele attributie)
+// Teamlinkje (viewer-toegang)
+export const validateTeamCode = (code) => api.get(`/api/yearof-mo14/team-links/validate?code=${encodeURIComponent(code)}`)
 export const createTeamLink   = (vangnetDays) => api.post(`/api/yearof-mo14/team-links${vangnetDays ? `?vangnet_days=${vangnetDays}` : ''}`)
 export const listTeamLinks    = ()      => api.get('/api/yearof-mo14/team-links')
 
