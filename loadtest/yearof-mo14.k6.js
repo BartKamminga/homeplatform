@@ -1,13 +1,16 @@
 // yearof-mo14 loadtest — draait via GitHub Actions (workflow_dispatch) tegen acc.
 // Doel: het bezoekerspad simuleren zoals PublicSite.jsx het echt aanroept
-// (home -> team/speler, wedstrijden/pouletabel, in de kijker) - de site staat
-// sinds 2026-09-13 open (geen teamcode meer), dus dit is puur lezen, geen writes.
+// (home -> team/speler, wedstrijden/pouletabel, in de kijker). De site zit
+// sinds 2026-09-16 weer achter de teamcode-gate (heropend na a92e076), dus
+// elke request moet een geldig teamlinkje meesturen - net als een echte
+// bezoeker met een gate-cookie/localStorage-code. Puur lezen, geen writes.
 //
 // Lokaal draaien:
-//   k6 run -e BASE_URL=http://localhost:8081 loadtest/yearof-mo14.k6.js
+//   k6 run -e BASE_URL=http://localhost:8081 -e TEAM_CODE=xxxxxx loadtest/yearof-mo14.k6.js
 //
-// Env vars (optioneel, hebben defaults):
+// Env vars:
 //   BASE_URL        basis-URL van de backend (default http://localhost:8081)
+//   TEAM_CODE       geldig teamlinkje (verplicht sinds de gate weer aan staat, zie AccessAdmin)
 //   READ_MAX_VUS    max gelijktijdige bezoekers (default 30)
 //   STAGE_DURATION  duur van elke ramp-fase (default 1m)
 
@@ -16,8 +19,16 @@ import { check, sleep } from 'k6'
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.4/index.js'
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8081'
+const TEAM_CODE = __ENV.TEAM_CODE || ''
 const READ_MAX_VUS = Number(__ENV.READ_MAX_VUS || 30)
 const STAGE_DURATION = __ENV.STAGE_DURATION || '1m'
+
+// Elke request krijgt hetzelfde ?code=... als de echte withCode()-helper in
+// de frontend - zonder geldige code geeft alles nu 403 (teamcode-gate).
+function withCode(path) {
+  const sep = path.includes('?') ? '&' : '?'
+  return `${BASE_URL}${path}${TEAM_CODE ? `${sep}code=${TEAM_CODE}` : ''}`
+}
 
 export const options = {
   scenarios: {
@@ -42,14 +53,18 @@ export const options = {
 // setup() draait één keer, ontdekt een echte speler + wedstrijd/dag op acc
 // zodat het script niet met verzonnen IDs werkt.
 export function setup() {
-  const playersRes = http.get(`${BASE_URL}/api/yearof-mo14/players`)
+  if (!TEAM_CODE) {
+    throw new Error('TEAM_CODE ontbreekt - de site zit achter de teamcode-gate, zonder geldig linkje geeft alles 403 (zie AccessAdmin op acc voor een actief linkje)')
+  }
+
+  const playersRes = http.get(withCode('/api/yearof-mo14/players'))
   check(playersRes, { 'players 200': (r) => r.status === 200 })
   const players = playersRes.json() || []
   if (players.length === 0) {
     throw new Error('Geen spelers gevonden op ' + BASE_URL)
   }
 
-  const timelineRes = http.get(`${BASE_URL}/api/yearof-mo14/timeline`)
+  const timelineRes = http.get(withCode('/api/yearof-mo14/timeline'))
   check(timelineRes, { 'timeline 200': (r) => r.status === 200 })
   const items = timelineRes.json() || []
   if (items.length === 0) {
@@ -69,10 +84,10 @@ export function browseSite(data) {
   const { playerId, matchRef } = data
 
   const home = [
-    () => http.get(`${BASE_URL}/api/yearof-mo14/action`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/reports?report_type=interview`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/standings`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/timeline`),
+    () => http.get(withCode('/api/yearof-mo14/action')),
+    () => http.get(withCode('/api/yearof-mo14/reports?report_type=interview')),
+    () => http.get(withCode('/api/yearof-mo14/standings')),
+    () => http.get(withCode('/api/yearof-mo14/timeline')),
   ]
   for (const step of home) {
     check(step(), { 'home read 200': (r) => r.status === 200 })
@@ -80,9 +95,9 @@ export function browseSite(data) {
   sleep(Math.random() * 2 + 1)
 
   const team = [
-    () => http.get(`${BASE_URL}/api/yearof-mo14/players`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/players/${playerId}`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/photos?player_id=${playerId}`),
+    () => http.get(withCode('/api/yearof-mo14/players')),
+    () => http.get(withCode(`/api/yearof-mo14/players/${playerId}`)),
+    () => http.get(withCode(`/api/yearof-mo14/photos?player_id=${playerId}`)),
   ]
   for (const step of team) {
     check(step(), { 'team read 200': (r) => r.status === 200 })
@@ -90,16 +105,16 @@ export function browseSite(data) {
   sleep(Math.random() * 2 + 1)
 
   const match = [
-    () => http.get(`${BASE_URL}/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/reports?match_ref=${encodeURIComponent(matchRef)}`),
-    () => http.get(`${BASE_URL}/api/yearof-mo14/photos?match_ref=${encodeURIComponent(matchRef)}`),
+    () => http.get(withCode(`/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`)),
+    () => http.get(withCode(`/api/yearof-mo14/reports?match_ref=${encodeURIComponent(matchRef)}`)),
+    () => http.get(withCode(`/api/yearof-mo14/photos?match_ref=${encodeURIComponent(matchRef)}`)),
   ]
   for (const step of match) {
     check(step(), { 'match read 200': (r) => r.status === 200 })
   }
   sleep(Math.random() * 2 + 1)
 
-  check(http.get(`${BASE_URL}/api/yearof-mo14/reports?report_type=interview`), {
+  check(http.get(withCode('/api/yearof-mo14/reports?report_type=interview')), {
     'spotlight read 200': (r) => r.status === 200,
   })
   sleep(Math.random() * 2 + 1)
@@ -123,7 +138,7 @@ export function handleSummary(data) {
 | Checks geslaagd | ${pct('checks', 'rate')}% |
 | http_req_duration avg / p95 / max (ms) | ${ms('http_req_duration', 'avg')} / ${ms('http_req_duration', 'p(95)')} / ${ms('http_req_duration', 'max')} |
 
-Parameters: BASE_URL=${BASE_URL}, STAGE_DURATION=${STAGE_DURATION}, READ_MAX_VUS=${READ_MAX_VUS}
+Parameters: BASE_URL=${BASE_URL}, STAGE_DURATION=${STAGE_DURATION}, READ_MAX_VUS=${READ_MAX_VUS}, TEAM_CODE=${TEAM_CODE ? 'gezet' : 'ONTBREEKT'}
 `
   return {
     stdout: textSummary(data, { indent: ' ', enableColors: true }),

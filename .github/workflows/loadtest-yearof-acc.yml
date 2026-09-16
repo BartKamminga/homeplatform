@@ -9,6 +9,9 @@ on:
       read_max_vus:
         description: "Max gelijktijdige bezoekers (home/team/wedstrijden bekijken)"
         default: "30"
+      team_code:
+        description: "Geldig teamlinkje op acc (site zit achter de teamcode-gate, zie AccessAdmin)"
+        required: true
 
 jobs:
   loadtest-yearof-acc:
@@ -34,6 +37,7 @@ jobs:
             -e BASE_URL=http://localhost:8081 \
             -e STAGE_DURATION="${{ inputs.stage_duration }}" \
             -e READ_MAX_VUS="${{ inputs.read_max_vus }}" \
+            -e TEAM_CODE="${{ inputs.team_code }}" \
             -e K6_WEB_DASHBOARD=true \
             -e K6_WEB_DASHBOARD_EXPORT=/output/report.html \
             -v "$PWD/loadtest:/scripts" \
