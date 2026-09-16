@@ -139,14 +139,17 @@ def require_team_access(
     current_user: Optional[User] = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ) -> None:
-    """De publieke site staat bewust open (besloten 2026-09-13) - geen
-    teamcode meer vereist om te bekijken. Alleen de beheerder-module blijft
-    achter een login (get_current_user elders). Deze dependency + het
-    teamlinkje-model blijven bestaan (AccessAdmin kan nog linkjes tonen/
-    delen) maar handhaven niets meer - simpelste, makkelijk terug te draaien
-    manier om de eerdere teamcode-eis los te laten zonder alle call sites
-    aan te passen."""
-    return
+    """Toegangscontrole zonder content-scoping (spelers/tijdlijn - geen
+    concept/published-cyclus, dus niets om op te filteren). Heropend
+    2026-09-16: de publieke site was kort volledig open (2026-09-13 t/m
+    2026-09-16, zie git a92e076) maar dat bleek toch niet de bedoeling -
+    een geldig teamlinkje (of beheerder-login) is weer verplicht om de site
+    te bekijken. Invullinkjes/profiellinkjes blijven hier los van staan
+    (eigen toegangstoken, geen team_access-dependency op die routes)."""
+    if current_user is not None:
+        return
+    if not _valid_team_link(code, session):
+        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
 
 
 def get_team_scope_cutoff(
@@ -154,10 +157,17 @@ def get_team_scope_cutoff(
     current_user: Optional[User] = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ) -> Optional[datetime]:
-    """Zie require_team_access hierboven - geen teamcode-eis meer, dus ook
-    geen content-scoping meer nodig: alle gepubliceerde content is voor
-    iedereen zichtbaar."""
-    return None
+    """Toegangscontrole MET content-scoping (fotos/verslagen): beheerder ->
+    None (onbeperkt), teamlinkje -> het moment waarop dat linkje is
+    uitgegeven als cutoff. Content gepubliceerd na dat moment blijft
+    verborgen, ook als het linkje zelf nog geldig is. Zie require_team_access
+    hierboven voor de heropening van 2026-09-16."""
+    if current_user is not None:
+        return None
+    link = _valid_team_link(code, session)
+    if not link:
+        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
+    return link.created_at
 
 
 @router.get("/status")
