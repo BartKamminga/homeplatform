@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { addReportLink, updateReportLink, deleteReportLink } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export const LINK_TYPES = [
   { value: 'instagram', label: 'Instagram', icon: '📸' },
@@ -87,11 +88,14 @@ function YoutubeEmbed({ url, note }) {
 const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc', width: '100%', minWidth: 0 }
 const rowStyle = { display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto', gap: 6, marginBottom: 6, alignItems: 'center' }
 
-// Nog geen report_id (nieuw verslag) - default 1 instagram + 4 video-rijen,
-// klaar om in te vullen (de meest gebruikte mix voor wedstrijdbeelden).
-export function defaultNewLinks() {
+// Instagram en Wedstrijdbeelden zijn twee losse, los-positioneerbare
+// blokken op de wedstrijdpagina - elk met hun eigen standaard-rijen.
+export function defaultInstagramLinks() {
+  return [{ link_type: 'instagram', url: '', note: '' }]
+}
+
+export function defaultVideoLinks() {
   return [
-    { link_type: 'instagram', url: '', note: '' },
     { link_type: 'video', url: '', note: '' },
     { link_type: 'video', url: '', note: '' },
     { link_type: 'video', url: '', note: '' },
@@ -119,10 +123,10 @@ export function NewLinksEditor({ links, onChange }) {
           </select>
           <input value={l.url} onChange={e => update(i, { url: e.target.value })} placeholder="Link (optioneel)" style={fieldStyle} />
           <input value={l.note} onChange={e => update(i, { note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
-          <button onClick={() => remove(i)} style={{ fontSize: 11, cursor: 'pointer' }}>x</button>
+          <button onClick={() => remove(i)} className="yof-btn-secondary">x</button>
         </div>
       ))}
-      <button onClick={add} style={{ fontSize: 12, cursor: 'pointer' }}>+ nog een linkje</button>
+      <button onClick={add} className="yof-btn-secondary">+ nog een linkje</button>
     </div>
   )
 }
@@ -130,6 +134,7 @@ export function NewLinksEditor({ links, onChange }) {
 function ExistingLinkRow({ link, onSave, onDelete }) {
   const [form, setForm] = useState({ link_type: link.link_type, url: link.url, note: link.note || '' })
   const [saving, setSaving] = useState(false)
+  const [confirm, confirmDialog] = useConfirm()
 
   async function save() {
     setSaving(true)
@@ -140,15 +145,21 @@ function ExistingLinkRow({ link, onSave, onDelete }) {
     }
   }
 
+  async function handleDelete() {
+    if (!(await confirm('Dit linkje verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    onDelete()
+  }
+
   return (
     <div style={{ ...rowStyle, gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto auto' }}>
+      {confirmDialog}
       <select value={form.link_type} onChange={e => setForm({ ...form, link_type: e.target.value })} style={{ fontSize: 12, width: '100%' }}>
         {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
       <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Link" style={fieldStyle} />
       <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
-      <button onClick={save} style={{ fontSize: 11, cursor: 'pointer' }}>{saving ? '...' : 'Opslaan'}</button>
-      <button onClick={onDelete} style={{ fontSize: 11, cursor: 'pointer' }}>Verwijder</button>
+      <button onClick={save} className="yof-btn-secondary">{saving ? '...' : 'Opslaan'}</button>
+      <button onClick={handleDelete} className="yof-btn-secondary">Verwijder</button>
     </div>
   )
 }
@@ -200,7 +211,7 @@ export function ExistingLinksEditor({ reportId, links, onChanged }) {
         </select>
         <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Nieuwe link" style={fieldStyle} />
         <input value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Notitie (optioneel)" style={fieldStyle} />
-        <button onClick={add} style={{ fontSize: 12, cursor: 'pointer' }}>+ toevoegen</button>
+        <button onClick={add} className="yof-btn-secondary">+ toevoegen</button>
       </div>
     </div>
   )

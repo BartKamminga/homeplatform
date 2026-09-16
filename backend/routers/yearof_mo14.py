@@ -64,6 +64,7 @@ from models.yearof import (
     YearOfContributorLink,
     YearOfCustomEntry,
     YearOfMatchGoal,
+    YearOfMatchPhotoBlock,
     YearOfPhoto,
     YearOfPhotoPlayerTag,
     YearOfPlayer,
@@ -197,13 +198,32 @@ class PlayerUpdate(BaseModel):
 
 @router.get("/players")
 def list_players(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Publiek - toont geen gearchiveerde spelers (zie /players/moderation voor de beheerder-lijst)."""
+    rows = session.exec(
+        select(YearOfPlayer).where(col(YearOfPlayer.archived_at).is_(None)).order_by(YearOfPlayer.shirt_number)
+    ).all()
+    return rows
+
+
+@router.get("/players/moderation")
+def list_players_moderation(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    """Beheerder-only - inclusief gearchiveerde spelers. Moet vóór /players/{player_id}
+    gedeclareerd staan, anders vangt die route 'moderation' als player_id weg."""
     rows = session.exec(select(YearOfPlayer).order_by(YearOfPlayer.shirt_number)).all()
     return rows
 
 
+@router.get("/players/moderation/{player_id}")
+def get_player_moderation(player_id: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    return get_or_404(session, YearOfPlayer, player_id, "Speler")
+
+
 @router.get("/players/{player_id}")
 def get_player(player_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
-    return get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    if player.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Speler niet gevonden")
+    return player
 
 
 @router.post("/players")
@@ -235,13 +255,63 @@ def update_player(
     return player
 
 
+@router.post("/players/{player_id}/archive")
+def archive_player(
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Verbergt deze speler van de publieke site - foto-tags, verslag-tags,
+    doelpunten en linkjes die naar de speler verwijzen blijven gewoon bestaan
+    en de beheerder kan de speler altijd terugzetten. Bewust geen verwijderen
+    (zelfde reden als bij wedstrijddagen, item 1147/1158)."""
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player.archived_at = datetime.utcnow()
+    session.add(player)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/players/{player_id}/restore")
+def restore_player(
+    player_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    player.archived_at = None
+    session.add(player)
+    session.commit()
+    return {"ok": True}
+
+
 @router.delete("/players/{player_id}")
 def delete_player(
     player_id: str,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """Permanent verwijderen, inclusief alles wat naar de speler verwijst
+    (foto-tags, verslag-tags, doelpunten, invullinkjes, profiellinkje,
+    openstaande profielwijzigingen). Alleen toegestaan als de speler al
+    gearchiveerd is - zelfde noodgreep-patroon als bij wedstrijddagen."""
     player = get_or_404(session, YearOfPlayer, player_id, "Speler")
+    if player.archived_at is None:
+        raise HTTPException(status_code=400, detail="Archiveer deze speler eerst voor je 'm permanent verwijdert")
+
+    for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.player_id == player_id)).all():
+        session.delete(tag)
+    for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.player_id == player_id)).all():
+        session.delete(tag)
+    for goal in session.exec(select(YearOfMatchGoal).where(YearOfMatchGoal.player_id == player_id)).all():
+        session.delete(goal)
+    for link in session.exec(select(YearOfContributorLink).where(YearOfContributorLink.player_id == player_id)).all():
+        session.delete(link)
+    for link in session.exec(select(YearOfProfileLink).where(YearOfProfileLink.player_id == player_id)).all():
+        session.delete(link)
+    for edit in session.exec(select(YearOfPlayerEdit).where(YearOfPlayerEdit.player_id == player_id)).all():
+        session.delete(edit)
+
     session.delete(player)
     session.commit()
     return {"ok": True}
@@ -314,15 +384,81 @@ def update_entry(
     return entry
 
 
+@router.post("/entries/{entry_id}/archive")
+def archive_entry(
+    entry_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Verbergt deze dag van de publieke site - foto's, verslagen en linkjes
+    eronder blijven gewoon bestaan en zijn nog te bekijken/bewerken door de
+    beheerder. Bewust geen verwijderen (zie item 1147): dat zou ook alles
+    eronder weggooien."""
+    entry = get_or_404(session, YearOfCustomEntry, entry_id, "Item")
+    entry.archived_at = datetime.utcnow()
+    session.add(entry)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/entries/{entry_id}/restore")
+def restore_entry(
+    entry_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    entry = get_or_404(session, YearOfCustomEntry, entry_id, "Item")
+    entry.archived_at = None
+    session.add(entry)
+    session.commit()
+    return {"ok": True}
+
+
 @router.delete("/entries/{entry_id}")
 def delete_entry(
     entry_id: str,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """Permanent verwijderen, inclusief alles wat eronder hangt (foto's/video's,
+    verslagen + hun tags/linkjes, invullinkjes, doelpunten, foto-blok-positie).
+    Alleen toegestaan als de dag al gearchiveerd is - eerst archiveren dwingt
+    een bewuste tussenstap af voor je iets echt onomkeerbaars doet."""
     entry = get_or_404(session, YearOfCustomEntry, entry_id, "Item")
+    if entry.archived_at is None:
+        raise HTTPException(status_code=400, detail="Archiveer deze dag eerst voor je 'm permanent verwijdert")
+    match_ref = f"custom:{entry_id}"
+
+    photos = session.exec(select(YearOfPhoto).where(YearOfPhoto.match_ref == match_ref)).all()
+    for photo in photos:
+        for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo.id)).all():
+            session.delete(tag)
+        session.delete(photo)
+
+    reports = session.exec(select(YearOfReport).where(YearOfReport.match_ref == match_ref)).all()
+    for report in reports:
+        for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.report_id == report.id)).all():
+            session.delete(tag)
+        for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report.id)).all():
+            session.delete(link)
+        session.delete(report)
+
+    for link in session.exec(select(YearOfContributorLink).where(YearOfContributorLink.match_ref == match_ref)).all():
+        session.delete(link)
+
+    for goal in session.exec(select(YearOfMatchGoal).where(YearOfMatchGoal.match_ref == match_ref)).all():
+        session.delete(goal)
+
+    photo_block = session.get(YearOfMatchPhotoBlock, match_ref)
+    if photo_block:
+        session.delete(photo_block)
+
     session.delete(entry)
     session.commit()
+
+    for photo in photos:
+        shutil.rmtree(PHOTO_ROOT / photo.id, ignore_errors=True)
+
     return {"ok": True}
 
 
@@ -357,12 +493,16 @@ def _competition_timeline_items(session: Session) -> list[dict]:
                 "description": None,
                 "is_pinned": False,
                 "status": status_key,
+                "is_archived": False,
             })
     return items
 
 
-def _custom_timeline_items(session: Session) -> list[dict]:
-    rows = session.exec(select(YearOfCustomEntry).order_by(YearOfCustomEntry.date)).all()
+def _custom_timeline_items(session: Session, include_archived: bool = False) -> list[dict]:
+    q = select(YearOfCustomEntry)
+    if not include_archived:
+        q = q.where(col(YearOfCustomEntry.archived_at).is_(None))
+    rows = session.exec(q.order_by(YearOfCustomEntry.date)).all()
     items = []
     for e in rows:
         has_score = e.score_us is not None or e.score_them is not None
@@ -379,6 +519,7 @@ def _custom_timeline_items(session: Session) -> list[dict]:
             "description": e.description,
             "is_pinned": e.is_pinned,
             "status": "finished" if has_score else "scheduled",
+            "is_archived": e.archived_at is not None,
         })
     return items
 
@@ -418,6 +559,25 @@ def get_timeline(session: Session = Depends(get_session), _: None = Depends(requ
     return _annotate_content_flags(session, items)
 
 
+@router.get("/timeline/moderation")
+def get_timeline_moderation(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    """Beheerder-only — zelfde als /timeline, maar inclusief gearchiveerde
+    dagen (die op de publieke site verborgen zijn). Moet vóór /timeline/{match_ref}
+    gedeclareerd staan, anders vangt die route 'moderation' als match_ref weg."""
+    items = _competition_timeline_items(session) + _custom_timeline_items(session, include_archived=True)
+    items.sort(key=lambda e: e["date"])
+    return _annotate_content_flags(session, items)
+
+
+@router.get("/timeline/moderation/{match_ref}")
+def get_timeline_item_moderation(match_ref: str, session: Session = Depends(get_session), _: User = Depends(get_current_user)):
+    items = _competition_timeline_items(session) + _custom_timeline_items(session, include_archived=True)
+    for item in items:
+        if item["match_ref"] == match_ref:
+            return item
+    raise HTTPException(status_code=404, detail="Item niet gevonden")
+
+
 @router.get("/timeline/{match_ref}")
 def get_timeline_item(match_ref: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
@@ -445,6 +605,60 @@ def get_standings(session: Session = Depends(get_session), _: None = Depends(req
 
 class MatchGoalIn(BaseModel):
     goals: int
+
+
+# ---------------------------------------------------------------------------
+# Positie van het foto-blok op de wedstrijdpagina (WYSIWYG-editor) - zelfde
+# spaced-sort_order-schema/swap-met-sibling-aanpak als YearOfReport.sort_order.
+# ---------------------------------------------------------------------------
+
+class PhotoBlockMove(BaseModel):
+    direction: str  # "up" | "down"
+
+
+def _photo_block_sort_order(session: Session, match_ref: str) -> int:
+    block = session.get(YearOfMatchPhotoBlock, match_ref)
+    if block:
+        return block.sort_order
+    lowest_report = session.exec(
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+    ).first()
+    return (lowest_report.sort_order - 500) if lowest_report else -500
+
+
+@router.get("/matches/{match_ref}/photo-block")
+def get_photo_block_position(match_ref: str, session: Session = Depends(get_session)):
+    return {"sort_order": _photo_block_sort_order(session, match_ref)}
+
+
+@router.post("/matches/{match_ref}/photo-block/move")
+def move_photo_block(
+    match_ref: str,
+    body: PhotoBlockMove,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    photo_sort = _photo_block_sort_order(session, match_ref)
+    reports = session.exec(
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+    ).all()
+    merged = sorted([("photos", None, photo_sort)] + [("report", r.id, r.sort_order) for r in reports], key=lambda t: t[2])
+    idx = next(i for i, m in enumerate(merged) if m[0] == "photos")
+    swap_idx = idx - 1 if body.direction == "up" else idx + 1
+    if swap_idx < 0 or swap_idx >= len(merged):
+        return {"ok": True}
+    _, other_id, other_sort = merged[swap_idx]
+    other_report = get_or_404(session, YearOfReport, other_id, "Verslag")
+
+    block = session.get(YearOfMatchPhotoBlock, match_ref)
+    if not block:
+        block = YearOfMatchPhotoBlock(match_ref=match_ref, sort_order=photo_sort)
+    block.sort_order = other_sort
+    other_report.sort_order = photo_sort
+    session.add(block)
+    session.add(other_report)
+    session.commit()
+    return {"ok": True}
 
 
 @router.get("/matches/{match_ref}/goals")
@@ -592,16 +806,35 @@ class PhotoUpdate(BaseModel):
 @router.post("/photos", status_code=201)
 async def upload_photo(
     file: UploadFile = File(...),
-    match_ref: str = Form(...),
+    match_ref: Optional[str] = Form(None),
+    report_id: Optional[str] = Form(None),
     photo_type: str = Form("actie"),
     code: Optional[str] = Form(None),
     session: Session = Depends(get_session),
 ):
     """Publiek, open sinds de teamcode-eis is losgelaten (2026-09-13). code is
-    optioneel en dient alleen nog voor attributie (uploader_code) als een
-    (geldig) linkje wordt meegestuurd. Accepteert zowel fotos als filmpjes -
-    media_type wordt afgeleid van het bestandstype/-extensie."""
-    link = _valid_team_link(code, session) if code else None
+    optioneel en dient alleen nog voor attributie (uploader_code) - kan een
+    teamlinkje OF een invullinkje (contributor-code) zijn, niet opnieuw
+    gevalideerd op geldigheid want het invulformulier heeft dat al gedaan bij
+    het aanmaken van het verslag. Accepteert zowel fotos als filmpjes -
+    media_type wordt afgeleid van het bestandstype/-extensie.
+
+    report_id (optioneel): koppelt de foto aan een specifiek verslag/
+    interview/algemeen bericht i.p.v. alleen los aan een wedstrijd - match_ref
+    wordt dan overschreven met het match_ref van dat verslag (kan None zijn
+    bij een algemeen bericht) zodat beide altijd in sync blijven."""
+    uploader_code = None
+    if code:
+        normalized = code.strip().lower()
+        team_link = _valid_team_link(normalized, session)
+        if team_link:
+            uploader_code = team_link.id
+        elif session.get(YearOfContributorLink, normalized):
+            uploader_code = normalized
+
+    report = get_or_404(session, YearOfReport, report_id, "Verslag") if report_id else None
+    if report:
+        match_ref = report.match_ref
 
     ext = Path(file.filename or "upload").suffix.lower()
     base_type = (file.content_type or "").split(";")[0].strip()
@@ -627,10 +860,15 @@ async def upload_photo(
     if len(content) > max_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {max_size_mb}MB")
 
+    # Een foto bij een al-gepubliceerd verslag volgt meteen die status -
+    # anders blijft hij als concept hangen totdat iemand 'm los publiceert,
+    # ook al staat het verslag zelf al live.
+    status = "published" if (report and report.status == "published") else "concept"
+
     photo = YearOfPhoto(
-        match_ref=match_ref, photo_type=photo_type, media_type=media_type,
+        match_ref=match_ref, report_id=report_id, photo_type=photo_type, media_type=media_type,
         file_ext=ext if is_video else None,
-        uploader_code=link.id if link else None,
+        uploader_code=uploader_code, status=status,
     )
     session.add(photo)
     session.commit()
@@ -675,6 +913,7 @@ def get_photo_video(photo_id: str, session: Session = Depends(get_session)):
 @router.get("/photos")
 def list_photos(
     match_ref: Optional[str] = None,
+    report_id: Optional[str] = None,
     player_id: Optional[str] = None,
     session: Session = Depends(get_session),
     scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
@@ -687,6 +926,8 @@ def list_photos(
         q = q.where(YearOfPhoto.created_at <= scope_cutoff)
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
+    if report_id:
+        q = q.where(YearOfPhoto.report_id == report_id)
     if player_id:
         tagged_ids = [
             t.photo_id for t in
@@ -851,6 +1092,18 @@ def list_contributor_links(
     ]
 
 
+@router.delete("/contributor-links/{code}")
+def delete_contributor_link(
+    code: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    link = get_or_404(session, YearOfContributorLink, code, "Invullinkje")
+    session.delete(link)
+    session.commit()
+    return {"ok": True}
+
+
 @router.get("/matches/{match_ref}/interview-candidates")
 def list_interview_candidates(
     match_ref: str,
@@ -905,6 +1158,16 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
         .order_by(YearOfReport.created_at.desc())
     ).first()
 
+    # Ook nog-concept fotos tonen bij dit verslag (anders lijken ze
+    # "verdwenen" bij opnieuw invullen, terwijl ze gewoon wachten op
+    # goedkeuring) - mag hier zonder login, want de contributor-code zelf is
+    # al het bewijs dat dit hun eigen invullink/verslag is.
+    existing_photos = []
+    if existing:
+        existing_photos = session.exec(
+            select(YearOfPhoto).where(YearOfPhoto.report_id == existing.id).order_by(YearOfPhoto.created_at)
+        ).all()
+
     return {
         "match_ref": link.match_ref,
         "match_title": match["title"] if match else link.match_ref,
@@ -912,6 +1175,7 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
         "player_name": (player.nickname or player.name) if player else None,
         "report_type": link.report_type,
         "existing_report": existing,
+        "existing_photos": existing_photos,
     }
 
 
@@ -947,6 +1211,11 @@ class ReportCreate(BaseModel):
     author_name: Optional[str] = None
     links: Optional[list[ReportLinkIn]] = None
     status: str = "published"
+    insert_after_id: Optional[str] = None  # WYSIWYG-editor: plaats dit item net na dit bestaande item op de wedstrijdpagina
+
+
+class MoveDirection(BaseModel):
+    direction: str  # "up" | "down"
 
 
 class ReportUpdate(BaseModel):
@@ -1037,6 +1306,30 @@ def submit_report(body: ReportSubmit, session: Session = Depends(get_session)):
     return _report_out(session, report)
 
 
+def _next_sort_order(session: Session, match_ref: Optional[str], insert_after_id: Optional[str]) -> int:
+    """WYSIWYG-editor: nieuwe items krijgen standaard een sort_order aan het
+    einde (+1000 t.o.v. de hoogste), of - als insert_after_id gegeven is -
+    precies tussen dat item en het volgende in, zodat bestaande items niet
+    herindexeerd hoeven te worden."""
+    if not match_ref:
+        return 0
+    siblings = session.exec(
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+    ).all()
+    if not siblings:
+        return 1000
+    if not insert_after_id:
+        return siblings[-1].sort_order + 1000
+    idx = next((i for i, r in enumerate(siblings) if r.id == insert_after_id), None)
+    if idx is None:
+        return siblings[-1].sort_order + 1000
+    if idx + 1 < len(siblings):
+        nxt = siblings[idx + 1]
+        gap = nxt.sort_order - siblings[idx].sort_order
+        return siblings[idx].sort_order + (gap // 2 if gap > 1 else 1)
+    return siblings[idx].sort_order + 1000
+
+
 @router.post("/reports/direct", status_code=201)
 def create_report_direct(
     body: ReportCreate,
@@ -1047,6 +1340,8 @@ def create_report_direct(
     wedstrijdverslag), mag standaard meteen published zijn."""
     data = body.model_dump()
     links = data.pop("links", None)
+    insert_after_id = data.pop("insert_after_id", None)
+    data["sort_order"] = _next_sort_order(session, data.get("match_ref"), insert_after_id)
     report = YearOfReport(**data)
     session.add(report)
     session.commit()
@@ -1146,9 +1441,19 @@ def update_report(
 ):
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
     updates = body.model_dump(exclude_unset=True)
+    was_published = report.status == "published"
     for key, value in updates.items():
         setattr(report, key, value)
     session.add(report)
+
+    # Fotos bij dit verslag volgen de publicatiestatus van het verslag zelf -
+    # anders blijft een net gepubliceerd verslag toch onzichtbare (concept)
+    # fotos houden totdat je ze los publiceert in het fotobeheer.
+    if report.status == "published" and not was_published:
+        for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
+            photo.status = "published"
+            session.add(photo)
+
     session.commit()
     session.refresh(report)
     return _report_out(session, report)
@@ -1165,7 +1470,39 @@ def delete_report(
         session.delete(tag)
     for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report_id)).all():
         session.delete(link)
+    for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
+        photo.report_id = None
+        session.add(photo)
     session.delete(report)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/reports/{report_id}/move")
+def move_report(
+    report_id: str,
+    body: MoveDirection,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """WYSIWYG-editor: verwissel sort_order met de vorige/volgende sibling
+    binnen dezelfde wedstrijdpagina."""
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    if not report.match_ref:
+        raise HTTPException(400, "Alleen wedstrijd-gebonden berichten kunnen verplaatst worden")
+    siblings = session.exec(
+        select(YearOfReport).where(YearOfReport.match_ref == report.match_ref).order_by(YearOfReport.sort_order)
+    ).all()
+    idx = next((i for i, r in enumerate(siblings) if r.id == report_id), None)
+    if idx is None:
+        raise HTTPException(404, "Verslag niet gevonden")
+    swap_idx = idx - 1 if body.direction == "up" else idx + 1
+    if swap_idx < 0 or swap_idx >= len(siblings):
+        return {"ok": True}
+    other = siblings[swap_idx]
+    report.sort_order, other.sort_order = other.sort_order, report.sort_order
+    session.add(report)
+    session.add(other)
     session.commit()
     return {"ok": True}
 

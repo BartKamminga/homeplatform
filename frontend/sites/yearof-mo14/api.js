@@ -24,6 +24,11 @@ export const getPlayer     = (id)        => api.get(withCode(`/api/yearof-mo14/p
 export const createPlayer  = (body)      => api.post('/api/yearof-mo14/players', body)
 export const updatePlayer  = (id, body)  => api.patch(`/api/yearof-mo14/players/${id}`, body)
 export const deletePlayer  = (id)        => api.delete(`/api/yearof-mo14/players/${id}`)
+export const archivePlayer = (id)        => api.post(`/api/yearof-mo14/players/${id}/archive`)
+export const restorePlayer = (id)        => api.post(`/api/yearof-mo14/players/${id}/restore`)
+// Beheerder-only - inclusief gearchiveerde spelers (verborgen op de publieke site)
+export const getPlayersModeration = ()   => api.get('/api/yearof-mo14/players/moderation')
+export const getPlayerModeration  = (id) => api.get(`/api/yearof-mo14/players/moderation/${id}`)
 export async function uploadPlayerPhotoAdmin(id, file) {
   const fd = new FormData()
   fd.append('file', file, file.name || 'profiel.jpg')
@@ -47,20 +52,26 @@ export const getEntries    = (kind)      => api.get(withCode(`/api/yearof-mo14/e
 export const createEntry   = (body)      => api.post('/api/yearof-mo14/entries', body)
 export const updateEntry   = (id, body)  => api.patch(`/api/yearof-mo14/entries/${id}`, body)
 export const deleteEntry   = (id)        => api.delete(`/api/yearof-mo14/entries/${id}`)
+export const archiveEntry  = (id)        => api.post(`/api/yearof-mo14/entries/${id}/archive`)
+export const restoreEntry  = (id)        => api.post(`/api/yearof-mo14/entries/${id}/restore`)
 
 // Samengevoegde tijdlijn (competitie + custom entries)
 export const getTimeline     = ()          => api.get(withCode('/api/yearof-mo14/timeline'))
 export const getTimelineItem = (matchRef)  => api.get(withCode(`/api/yearof-mo14/timeline/${encodeURIComponent(matchRef)}`))
 export const getStandings    = ()          => api.get(withCode('/api/yearof-mo14/standings'))
+// Beheerder-only - inclusief gearchiveerde dagen (verborgen op de publieke site)
+export const getTimelineModeration     = ()          => api.get('/api/yearof-mo14/timeline/moderation')
+export const getTimelineItemModeration = (matchRef)  => api.get(`/api/yearof-mo14/timeline/moderation/${encodeURIComponent(matchRef)}`)
 
 // Foto's - upload is een FormData-post (geen JSON), rechtstreeks via fetch
 // i.p.v. api.post, en zonder Authorization-header (publiek, teamcode i.p.v. login).
-export async function uploadPhoto(file, { matchRef, photoType, code }) {
+export async function uploadPhoto(file, { matchRef, reportId, photoType, code }) {
   const fd = new FormData()
   fd.append('file', file, file.name || 'foto.jpg')
-  fd.append('match_ref', matchRef)
+  if (matchRef) fd.append('match_ref', matchRef)
+  if (reportId) fd.append('report_id', reportId)
   fd.append('photo_type', photoType)
-  fd.append('code', code)
+  if (code) fd.append('code', code)
   const res = await fetch('/api/yearof-mo14/photos', { method: 'POST', body: fd })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -70,6 +81,7 @@ export async function uploadPhoto(file, { matchRef, photoType, code }) {
 }
 
 export const getPhotos           = (matchRef) => api.get(withCode(`/api/yearof-mo14/photos${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`))
+export const getPhotosByReport   = (reportId) => api.get(withCode(`/api/yearof-mo14/photos?report_id=${encodeURIComponent(reportId)}`))
 export const getPlayerPhotos     = (playerId) => api.get(withCode(`/api/yearof-mo14/photos?player_id=${encodeURIComponent(playerId)}`))
 export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')
 export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/photos/${id}`, body)
@@ -81,11 +93,16 @@ export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearo
 export const createContributorLink = (body) => api.post('/api/yearof-mo14/contributor-links', body)
 export const listContributorLinks  = ()     => api.get('/api/yearof-mo14/contributor-links')
 export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
+export const deleteContributorLink = (code) => api.delete(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
 export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/interview-candidates`))
 
 // Doelpunten per speler per wedstrijd
 export const getMatchGoals = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/goals`))
 export const setMatchGoal  = (matchRef, playerId, goals) => api.put(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/goals/${encodeURIComponent(playerId)}`, { goals })
+
+// Positie van het foto-blok op de wedstrijdpagina (WYSIWYG-editor)
+export const getPhotoBlockPosition = (matchRef) => api.get(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block`)
+export const movePhotoBlock        = (matchRef, direction) => api.post(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block/move`, { direction })
 
 // Verslagen & interviews
 export const submitReport        = (body)      => api.post('/api/yearof-mo14/reports', body)
@@ -106,6 +123,7 @@ export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/re
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)
 export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
+export const moveReport          = (reportId, direction) => api.post(`/api/yearof-mo14/reports/${reportId}/move`, { direction })
 
 // Profiellinkje (spelersprofiel zelf-bijwerken)
 export const createProfileLink  = (playerId) => api.post(`/api/yearof-mo14/profile-links?player_id=${encodeURIComponent(playerId)}`)

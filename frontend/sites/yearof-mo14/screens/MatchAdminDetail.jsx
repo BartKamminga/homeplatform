@@ -1,23 +1,61 @@
 import { useState, useEffect } from 'react'
 import {
-  getTimeline, getTimelineItem, getPlayers,
-  getReportsModeration, updateReport, deleteReport, tagReport, untagReport, createReportDirect,
+  getTimelineItemModeration, getPlayers,
+  getReportsModeration, tagReport, untagReport, createReportDirect, moveReport, deleteReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
-  createContributorLink, listContributorLinks,
-  getMatchGoals, setMatchGoal,
+  createContributorLink, listContributorLinks, deleteContributorLink,
+  getMatchGoals, setMatchGoal, movePhotoBlock,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
-import { ReportCard } from './ReportsAdmin.jsx'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { PhotoCard } from './PhotosAdmin.jsx'
-import { defaultNewLinks, NewLinksEditor } from './ReportLinks.jsx'
+import { ReportForm } from './ReportForm.jsx'
+import { defaultInstagramLinks, defaultVideoLinks, NewLinksEditor, ExistingLinksEditor } from './ReportLinks.jsx'
+import ContributeReport from './ContributeReport.jsx'
 import PublicEntry from './PublicEntry.jsx'
 
-function NewMessageLinks({ matchRef, players, links, onCreated }) {
+// Kies-scherm - 1 herkenbare ingang vanuit de preview ("+ item toevoegen"),
+// die hierna splitst in 4 losse paden. insertAfterId (kan null zijn) wordt
+// gewoon doorgegeven aan het gekozen vervolgpad.
+function ChooseReportKind({ onWriteMyself, onSendInvite, onAddInstagram, onAddFootage, onBack }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 14px' }}>Hoe wil je dit toevoegen?</h3>
+      <div style={{ display: 'grid', gap: 10 }}>
+        <button onClick={onWriteMyself} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Zelf schrijven</div>
+          <div style={{ fontSize: 13, color: '#666' }}>Jij typt en publiceert het verslag of interview direct.</div>
+        </button>
+        <button onClick={onSendInvite} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Invullinkje versturen</div>
+          <div style={{ fontSize: 13, color: '#666' }}>Stuur een linkje naar een speelster - zij typt het later zelf in.</div>
+        </button>
+        <button onClick={onAddInstagram} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Instagram-linkje toevoegen</div>
+          <div style={{ fontSize: 13, color: '#666' }}>1 Instagram-post, wordt echt ingebed op de pagina.</div>
+        </button>
+        <button onClick={onAddFootage} className="yof-card" style={{ textAlign: 'left', cursor: 'pointer', border: 'none' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Wedstrijdbeelden toevoegen</div>
+          <div style={{ fontSize: 13, color: '#666' }}>Een blokje met (minimaal 4) video-linkjes.</div>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InviteLinkScreen({ matchRef, players, onBack }) {
+  const [links, setLinks] = useState([])
   const [playerId, setPlayerId] = useState('')
   const [reportType, setReportType] = useState('wedstrijdverslag')
   const [error, setError] = useState('')
   const [copiedId, setCopiedId] = useState('')
+
+  function load() {
+    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(e => setError(e.message))
+  }
+  useEffect(load, [matchRef])
 
   function playerName(id) {
     return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name || '-'
@@ -26,7 +64,7 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
   async function make() {
     try {
       await createContributorLink({ match_ref: matchRef, player_id: playerId || null, report_type: reportType, expires_days: 14 })
-      onCreated()
+      load()
     } catch (e) {
       setError(e.message)
     }
@@ -48,7 +86,9 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
   }
 
   return (
-    <div>
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Invullinkje versturen</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
@@ -59,83 +99,148 @@ function NewMessageLinks({ matchRef, players, links, onCreated }) {
           <option value="">Voor het hele team / mezelf</option>
           {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
         </select>
-        <button onClick={make} style={{ fontSize: 12, cursor: 'pointer' }}>Nieuw bericht</button>
+        <button onClick={make} className="yof-btn-secondary">Nieuw invullinkje</button>
       </div>
 
-      {links.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: '#888' }}>
-              <th style={{ padding: 6 }}>Speler</th>
-              <th style={{ padding: 6 }}>Type</th>
-              <th style={{ padding: 6 }}>Status</th>
-              <th style={{ padding: 6 }}>Link</th>
-              <th style={{ padding: 6 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {links.map(l => {
-              const status = contributorLinkStatus(l)
-              const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
-              return (
-                <tr key={l.id} style={{ borderTop: '1px solid #eee' }}>
-                  <td style={{ padding: 6 }}>{l.player_id ? playerName(l.player_id) : 'team'}</td>
-                  <td style={{ padding: 6 }}>{l.report_type}</td>
-                  <td style={{ padding: 6, color: status.color, fontWeight: 600 }}>{status.label}</td>
-                  <td style={{ padding: 6, width: 200 }}>
-                    <input readOnly value={url} onFocus={e => e.target.select()}
-                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
-                  </td>
-                  <td style={{ padding: 6, display: 'flex', gap: 4 }}>
-                    <button onClick={() => copy(l)} style={{ fontSize: 11, cursor: 'pointer' }}>
-                      {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
-                    </button>
-                    <button onClick={() => openLink(l)} style={{ fontSize: 11, cursor: 'pointer' }}>Bewerken</button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+      {links.map(l => {
+        const status = contributorLinkStatus(l)
+        const url = `${window.location.origin}/yearof-mo14/?invul=${l.id}`
+        return (
+          <div key={l.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>{l.report_type}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{l.player_id ? playerName(l.player_id) : 'team'}</div>
+              <div style={{ fontSize: 12, marginTop: 4, color: status.color, fontWeight: 600 }}>{status.label}</div>
+              <input readOnly value={url} onFocus={e => e.target.select()}
+                style={{ marginTop: 6, width: '100%', maxWidth: 320, boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              <button onClick={() => copy(l)} className="yof-btn-secondary">
+                {copiedId === l.id ? 'Gekopieerd!' : 'Kopieer'}
+              </button>
+              <button onClick={() => openLink(l)} className="yof-btn-secondary">Openen</button>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-function NewMatchFootage({ matchRef, existingReport, onCreated }) {
-  const [links, setLinks] = useState(defaultNewLinks())
-  const [error, setError] = useState('')
+const LINKS_BLOCK_META = {
+  instagram: { title: 'Instagram', reportTitle: 'Instagram', defaults: defaultInstagramLinks },
+  wedstrijd_beelden: { title: 'Wedstrijdbeelden', reportTitle: 'Wedstrijdbeelden', defaults: defaultVideoLinks },
+}
 
-  if (existingReport) {
+const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+
+// Focust op 1 specifiek invullinkje (niet de hele lijst) - vanuit de
+// placeholder-kaart in de preview, zodat "editen" over dat ene linkje gaat.
+function InviteDetailScreen({ link, players, onBack, onDeleted, onFill }) {
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
+
+  if (!link) {
     return (
-      <p style={{ color: '#666', fontSize: 13 }}>
-        Er staat al een Wedstrijdbeelden-bericht voor deze wedstrijd - bewerk de linkjes hierboven.
-      </p>
+      <div style={{ marginBottom: 24 }}>
+        <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+        <p style={{ fontSize: 13, color: '#666' }}>Dit invullinkje bestaat niet meer.</p>
+      </div>
     )
   }
 
-  async function submit() {
+  const status = contributorLinkStatus(link)
+  const url = `${window.location.origin}/yearof-mo14/?invul=${link.id}`
+  const forWhom = link.player_id
+    ? (players.find(p => p.id === link.player_id)?.nickname || players.find(p => p.id === link.player_id)?.name || 'speelster')
+    : 'het team'
+
+  async function copy() {
     try {
-      await createReportDirect({
-        match_ref: matchRef,
-        report_type: 'wedstrijd_beelden',
-        title: 'Wedstrijdbeelden',
-        body: '',
-        status: 'published',
-        links,
-      })
-      setLinks(defaultNewLinks())
-      onCreated()
+      await copyToClipboard(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function remove() {
+    if (!(await confirm('Dit invullinkje verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    try {
+      await deleteContributorLink(link.id)
+      onDeleted()
     } catch (e) {
       setError(e.message)
     }
   }
 
   return (
-    <div>
+    <div style={{ marginBottom: 24 }}>
+      {confirmDialog}
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 4px' }}>{INVITE_TYPE_LABEL[link.report_type] || link.report_type} &middot; {forWhom}</h3>
+      <p style={{ fontSize: 13, fontWeight: 600, color: status.color, margin: '0 0 14px' }}>{status.label}</p>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <NewLinksEditor links={links} onChange={setLinks} />
-      <button onClick={submit} style={{ fontSize: 12, cursor: 'pointer' }}>Toevoegen</button>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Invullinkje</label>
+      <input readOnly value={url} onFocus={e => e.target.select()}
+        style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', marginBottom: 10 }} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <button onClick={copy} className="yof-btn" style={{ flex: 1 }}>{copied ? 'Gekopieerd!' : 'Kopieer'}</button>
+        <button onClick={onFill} className="yof-btn"
+          style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>Zelf invullen</button>
+      </div>
+      <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>
+    </div>
+  )
+}
+
+function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBack, onRefresh }) {
+  const meta = LINKS_BLOCK_META[reportType]
+  const [links, setLinks] = useState(meta.defaults())
+  const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
+
+  async function create() {
+    try {
+      await createReportDirect({
+        match_ref: matchRef, report_type: reportType, title: meta.reportTitle, body: '', status: 'published',
+        links, insert_after_id: insertAfterId || null,
+      })
+      onBack()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function removeBlock() {
+    if (!(await confirm(`Dit hele ${meta.title}-blok verwijderen (inclusief alle linkjes erin)? Dit kan niet ongedaan gemaakt worden.`))) return
+    try {
+      await deleteReport(existingReport.id)
+      onBack()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      {confirmDialog}
+      <button onClick={onBack} style={{ fontSize: 12, cursor: 'pointer', marginBottom: 12 }}>&larr; terug</button>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>{meta.title}</h3>
+      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+      {existingReport ? (
+        <>
+          <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
+          <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
+        </>
+      ) : (
+        <>
+          <NewLinksEditor links={links} onChange={setLinks} />
+          <button onClick={create} className="yof-btn">Toevoegen</button>
+        </>
+      )}
     </div>
   )
 }
@@ -183,12 +288,18 @@ function GoalsPanel({ matchRef, players }) {
 
 export default function MatchAdminDetail({ matchRef, onBack }) {
   const [item, setItem] = useState(null)
-  const [entries, setEntries] = useState([])
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
   const [links, setLinks] = useState([])
   const [error, setError] = useState('')
+  const [view, setView] = useState('preview') // preview | choose | write | edit | invul | invite | fill-invite | links
+  const [editingReport, setEditingReport] = useState(null)
+  const [insertAfterId, setInsertAfterId] = useState(null)
+  const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
+  const [activeInviteId, setActiveInviteId] = useState(null)
+  const [showGoals, setShowGoals] = useState(false)
+  const [showPhotos, setShowPhotos] = useState(false)
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -197,40 +308,26 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     getPhotosModeration().then(rows => setPhotos(rows.filter(p => p.match_ref === matchRef))).catch(e => setError(e.message))
   }
   function loadLinks() {
-    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(e => setError(e.message))
+    listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(() => {})
   }
 
   useEffect(() => {
-    getTimelineItem(matchRef).then(setItem).catch(e => setError(e.message))
-    getTimeline().then(setEntries).catch(() => {})
+    getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadPhotos()
     loadLinks()
   }, [matchRef])
 
-  function entryTitle(ref) {
-    return entries.find(e => e.match_ref === ref)?.title || ref
+  function entryTitle() {
+    return item?.title || matchRef
   }
 
-  async function togglePublishReport(r) {
-    await updateReport(r.id, { status: r.status === 'published' ? 'concept' : 'published' })
-    loadReports()
+  async function togglePhotoTag(p, playerId) {
+    if (p.player_ids.includes(playerId)) await untagPhoto(p.id, playerId)
+    else await tagPhoto(p.id, playerId)
+    loadPhotos()
   }
-  async function deleteReportRow(id) {
-    await deleteReport(id)
-    loadReports()
-  }
-  async function toggleReportTag(r, playerId) {
-    if (r.player_ids.includes(playerId)) await untagReport(r.id, playerId)
-    else await tagReport(r.id, playerId)
-    loadReports()
-  }
-  async function saveReportEdit(id, body) {
-    await updateReport(id, body)
-    loadReports()
-  }
-
   async function togglePublishPhoto(p) {
     await updatePhoto(p.id, { status: p.status === 'published' ? 'concept' : 'published' })
     loadPhotos()
@@ -239,15 +336,67 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     await deletePhoto(id)
     loadPhotos()
   }
-  async function togglePhotoTag(p, playerId) {
-    if (p.player_ids.includes(playerId)) await untagPhoto(p.id, playerId)
-    else await tagPhoto(p.id, playerId)
-    loadPhotos()
-  }
   async function savePhotoCaption(p, value) {
     await updatePhoto(p.id, { caption: value })
     loadPhotos()
   }
+
+  function backToPreview() {
+    setEditingReport(null)
+    setInsertAfterId(null)
+    setView('preview')
+    loadReports()
+    loadLinks()
+  }
+
+  function handleEditReport(report) {
+    if (report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden') {
+      setLinksReportType(report.report_type)
+      setView('links')
+      return
+    }
+    setEditingReport(report)
+    setView('edit')
+  }
+
+  function addItemAt(afterId) {
+    setInsertAfterId(afterId)
+    setView('choose')
+  }
+
+  async function handleMoveReport(reportId, direction) {
+    await moveReport(reportId, direction)
+  }
+
+  async function handleMovePhotoBlock(direction) {
+    await movePhotoBlock(matchRef, direction)
+  }
+
+  async function toggleEditingReportTag(playerId) {
+    if (!editingReport) return
+    const tagged = (editingReport.player_ids || []).includes(playerId)
+    if (tagged) await untagReport(editingReport.id, playerId)
+    else await tagReport(editingReport.id, playerId)
+    const fresh = await getReportsModeration()
+    const updated = fresh.find(r => r.id === editingReport.id)
+    if (updated) setEditingReport(updated)
+    setReports(fresh.filter(r => r.match_ref === matchRef))
+  }
+
+  const linksExistingReport = reports.find(r => r.report_type === linksReportType)
+  const activeInvite = links.find(l => l.id === activeInviteId)
+
+  const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+  function playerName(id) {
+    return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name
+  }
+  const pendingInvites = links
+    .filter(l => !l.report_status)
+    .map(l => {
+      const status = contributorLinkStatus(l)
+      const forWhom = l.player_id ? playerName(l.player_id) || 'speelster' : 'het team'
+      return { id: l.id, title: `${TYPE_LABEL[l.report_type] || l.report_type} · ${forWhom}`, statusLabel: status.label, statusColor: status.color }
+    })
 
   return (
     <div>
@@ -256,40 +405,82 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Voorbeeld van de publieke pagina</h4>
-      <div style={{ border: '3px dashed #f4c81e', borderRadius: 12, padding: 12, marginBottom: 20 }}>
-        <PublicEntry matchRef={matchRef} onBack={() => {}} previewMode />
-      </div>
+      {view === 'choose' && (
+        <ChooseReportKind
+          onWriteMyself={() => setView('write')}
+          onSendInvite={() => setView('invul')}
+          onAddInstagram={() => { setLinksReportType('instagram'); setView('links') }}
+          onAddFootage={() => { setLinksReportType('wedstrijd_beelden'); setView('links') }}
+          onBack={() => { setInsertAfterId(null); setView('preview') }}
+        />
+      )}
+      {view === 'write' && (
+        <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} insertAfterId={insertAfterId}
+          onSaved={backToPreview} onCancel={() => setView('choose')} />
+      )}
+      {view === 'edit' && editingReport && (
+        <ReportForm
+          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
+          players={players} onToggleTag={toggleEditingReportTag}
+          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview}
+        />
+      )}
+      {view === 'invul' && (
+        <InviteLinkScreen matchRef={matchRef} players={players} onBack={() => setView('choose')} />
+      )}
+      {view === 'invite' && (
+        <InviteDetailScreen link={activeInvite} players={players}
+          onBack={() => { setActiveInviteId(null); setView('preview') }}
+          onDeleted={() => { setActiveInviteId(null); setView('preview'); loadLinks() }}
+          onFill={() => setView('fill-invite')}
+        />
+      )}
+      {view === 'fill-invite' && activeInvite && (
+        <ContributeReport code={activeInvite.id} adminMode
+          onBack={() => setView('invite')}
+          onSaved={() => { setActiveInviteId(null); setView('preview'); loadReports(); loadLinks() }}
+        />
+      )}
+      {view === 'links' && (
+        <LinksScreen matchRef={matchRef} reportType={linksReportType} existingReport={linksExistingReport}
+          insertAfterId={insertAfterId} onBack={backToPreview} onRefresh={loadReports} />
+      )}
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Doelpunten</h4>
-      <div style={{ marginBottom: 20 }}>
-        <GoalsPanel matchRef={matchRef} players={players} />
-      </div>
+      {view === 'preview' && (
+        <>
+          <PublicEntry
+            matchRef={matchRef} onBack={() => {}} previewMode adminMode
+            onEditReport={handleEditReport}
+            onAddItem={addItemAt}
+            onMoveReport={handleMoveReport}
+            onMovePhotoBlock={handleMovePhotoBlock}
+            pendingInvites={pendingInvites}
+            onOpenInvites={id => { setActiveInviteId(id); setView('invite') }}
+          />
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
-        {photos.map(p => (
-          <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
-            onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
-        ))}
-        {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
-      </div>
+          <button onClick={() => setShowGoals(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
+            {showGoals ? 'Verberg' : 'Toon'} doelpunten
+          </button>
+          {showGoals && (
+            <div style={{ marginBottom: 20 }}>
+              <GoalsPanel matchRef={matchRef} players={players} />
+            </div>
+          )}
 
-      <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Verslagen &amp; interviews</h4>
-      {reports.map(r => (
-        <ReportCard key={r.id} report={r} entries={entries} players={players} entryTitle={entryTitle}
-          onTogglePublish={togglePublishReport} onDelete={deleteReportRow} onToggleTag={toggleReportTag} onSave={saveReportEdit}
-          onLinksChanged={loadReports} />
-      ))}
-      {reports.length === 0 && <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>Nog geen verslagen voor deze wedstrijd.</p>}
-
-      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Wedstrijdbeelden toevoegen (Instagram/YouTube)</h4>
-      <div style={{ marginBottom: 20 }}>
-        <NewMatchFootage matchRef={matchRef} existingReport={reports.find(r => r.report_type === 'wedstrijd_beelden')} onCreated={loadReports} />
-      </div>
-
-      <h4 style={{ fontSize: 14, margin: '16px 0 8px' }}>Nieuw bericht / invullinkjes voor deze wedstrijd</h4>
-      <NewMessageLinks matchRef={matchRef} players={players} links={links} onCreated={loadLinks} />
+          <button onClick={() => setShowPhotos(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
+            {showPhotos ? 'Verberg' : 'Toon'} fotobeheer ({photos.length})
+          </button>
+          {showPhotos && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
+              {photos.map(p => (
+                <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
+                  onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
+              ))}
+              {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

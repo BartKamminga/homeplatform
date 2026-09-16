@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getTimeline } from '../api.js'
 import PublicEntry from './PublicEntry.jsx'
 
-export default function PinksterWeekend({ onBack, previewMode = false }) {
+export default function PinksterWeekend({ onBack, previewMode = false, adminMode = false, onEditMatch }) {
   const [pinnedRef, setPinnedRef] = useState(null)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState('')
@@ -38,6 +38,11 @@ export default function PinksterWeekend({ onBack, previewMode = false }) {
         <h1 style={{ fontSize: 18 }}>Het grote Parijs-weekend</h1>
         <p>15-17 mei 2027 — het hoogtepunt van de hele actie.</p>
       </div>
+      {adminMode && (
+        <button onClick={() => onEditMatch(pinnedRef)} className="yof-btn" style={{ marginBottom: 14 }}>
+          &#9998; Bewerk deze pagina
+        </button>
+      )}
       <PublicEntry matchRef={pinnedRef} onBack={onBack} previewMode={previewMode} />
     </div>
   )

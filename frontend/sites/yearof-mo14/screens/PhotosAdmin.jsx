@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react'
-import { getPhotosModeration, updatePhoto, deletePhoto, getTimeline, getPlayers, tagPhoto, untagPhoto } from '../api.js'
+import { getPhotosModeration, updatePhoto, deletePhoto, getTimelineModeration, getPlayers, tagPhoto, untagPhoto } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption }) {
   const [captionDraft, setCaptionDraft] = useState(undefined)
+  const [confirm, confirmDialog] = useConfirm()
 
   async function saveCaption() {
     if (captionDraft === undefined || captionDraft === (photo.caption || '')) return
     await onSaveCaption(photo, captionDraft)
+  }
+
+  async function handleDelete() {
+    if (!(await confirm(`${photo.media_type === 'video' ? 'Deze video' : 'Deze foto'} verwijderen? Dit kan niet ongedaan gemaakt worden.`))) return
+    onDelete(photo.id)
   }
 
   return (
@@ -51,12 +58,13 @@ export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelet
         />
 
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => onTogglePublish(photo)} style={{ fontSize: 11, cursor: 'pointer', flex: 1 }}>
+          <button onClick={() => onTogglePublish(photo)} className="yof-btn-secondary" style={{ flex: 1 }}>
             {photo.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
           </button>
-          <button onClick={() => onDelete(photo.id)} style={{ fontSize: 11, cursor: 'pointer' }}>&times;</button>
+          <button onClick={handleDelete} className="yof-btn-secondary">&times;</button>
         </div>
       </div>
+      {confirmDialog}
     </div>
   )
 }
@@ -72,7 +80,7 @@ export default function PhotosAdmin() {
   }
   useEffect(() => {
     load()
-    getTimeline().then(setEntries).catch(() => {})
+    getTimelineModeration().then(setEntries).catch(() => {})
     getPlayers().then(setPlayers).catch(() => {})
   }, [])
 

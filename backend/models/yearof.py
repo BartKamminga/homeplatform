@@ -26,6 +26,7 @@ class YearOfPlayer(SQLModel, table=True):
     photo_url:    Optional[str]  = Field(default=None)
     bio:          Optional[str]  = Field(default=None)
     fun_facts:    Optional[str]  = Field(default=None)  # JSON: [{"label": ..., "value": ...}]
+    archived_at:  Optional[datetime] = Field(default=None)  # verborgen op de publieke site, content eronder blijft bestaan
     created_at:   datetime       = Field(default_factory=datetime.utcnow)
     updated_at:   datetime       = Field(default_factory=datetime.utcnow)
 
@@ -51,11 +52,19 @@ class YearOfTeamLink(SQLModel, table=True):
 class YearOfPhoto(SQLModel, table=True):
     """Foto-bijdrage (fase 4, item 1146). uploader_code is het teamlinkje/
     contributor-linkje waarmee geupload is - geen User.id, want anonieme
-    bezoekers hebben geen homeplatform-account."""
+    bezoekers hebben geen homeplatform-account.
+
+    report_id (toegevoegd 2026-09-14): een foto hoort optioneel bij een
+    specifiek verslag/interview/algemeen bericht i.p.v. alleen los bij een
+    wedstrijd te hangen - zo blijft een bijgevoegde foto bij het artikel
+    staan i.p.v. in 1 gedeelde fotogalerij per wedstrijd te verdwijnen.
+    match_ref is optioneel geworden omdat algemene berichten (geen
+    match_ref) ook fotos moeten kunnen hebben."""
     __tablename__ = "yearof_photos"
 
     id:             str            = Field(default_factory=new_uuid, primary_key=True)
-    match_ref:      str             = Field(index=True)  # "knhb:{id}" | "custom:{id}"
+    match_ref:      Optional[str]  = Field(default=None, index=True)  # "knhb:{id}" | "custom:{id}"
+    report_id:      Optional[str]  = Field(default=None, foreign_key="yearof_reports.id", index=True)
     photo_type:     str             = Field(default="actie")  # actie | team | sfeer
     media_type:     str             = Field(default="photo")  # photo | video
     file_ext:       Optional[str]  = Field(default=None)  # alleen bij video - welk bestand serveren (geen transcode)
@@ -146,6 +155,7 @@ class YearOfReport(SQLModel, table=True):
     body:             str
     author_name:      Optional[str]  = Field(default=None)
     featured:         bool            = Field(default=False)  # handmatig geselecteerd voor "In de kijker"
+    sort_order:       int             = Field(default=0)  # volgorde binnen 1 wedstrijdpagina (WYSIWYG-editor)
     contributor_code: Optional[str]  = Field(default=None)
     created_at:       datetime        = Field(default_factory=datetime.utcnow)
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)
@@ -172,6 +182,17 @@ class YearOfReportPlayerTag(SQLModel, table=True):
     id:        str = Field(default_factory=new_uuid, primary_key=True)
     report_id: str = Field(foreign_key="yearof_reports.id", index=True)
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
+
+
+class YearOfMatchPhotoBlock(SQLModel, table=True):
+    """Positie van het foto-blok t.o.v. de verslagen/linkjes-items op de
+    wedstrijdpagina (WYSIWYG-editor). Alleen aangemaakt zodra de beheerder het
+    foto-blok daadwerkelijk verschuift - zonder rij staat het foto-blok voor
+    alle verslagen (zie _photo_block_sort_order in routers/yearof_mo14.py)."""
+    __tablename__ = "yearof_match_photo_blocks"
+
+    match_ref:  str = Field(primary_key=True)
+    sort_order: int = Field(default=0)
 
 
 class YearOfMatchGoal(SQLModel, table=True):
@@ -204,5 +225,6 @@ class YearOfCustomEntry(SQLModel, table=True):
     location:    Optional[str]  = Field(default=None)
     description: Optional[str]  = Field(default=None)
     is_pinned:   bool            = Field(default=False)  # bv. de Pinksterweekend-pagina
+    archived_at: Optional[datetime] = Field(default=None)  # verborgen op de publieke site, foto's/verslagen eronder blijven bestaan
     created_at:  datetime        = Field(default_factory=datetime.utcnow)
     updated_at:  datetime        = Field(default_factory=datetime.utcnow)

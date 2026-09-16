@@ -62,7 +62,7 @@ export default function AccessAdmin() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input readOnly value={shareUrl} onFocus={e => e.target.select()}
               style={{ flex: '1 1 260px', padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }} />
-            <button onClick={() => copyLink(shareUrl)} style={{ fontSize: 12, cursor: 'pointer' }}>
+            <button onClick={() => copyLink(shareUrl)} className="yof-btn-secondary">
               {copied ? 'Gekopieerd!' : 'Kopieer link'}
             </button>
           </div>
@@ -80,7 +80,7 @@ export default function AccessAdmin() {
           <input type="number" min={1} value={vangnetDays} onChange={e => setVangnetDays(Number(e.target.value) || 10)}
             style={{ width: 50, marginLeft: 6, fontSize: 12, padding: '3px 5px' }} />
         </label>
-        <button onClick={makeNew} disabled={busy} style={{ fontSize: 13, cursor: 'pointer' }}>
+        <button onClick={makeNew} disabled={busy} className="yof-btn-secondary">
           {busy ? 'Bezig...' : 'Vernieuw teamlinkje'}
         </button>
       </div>
