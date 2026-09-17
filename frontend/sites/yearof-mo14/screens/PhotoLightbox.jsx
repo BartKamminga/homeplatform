@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 // Grid-tegel voor een foto/filmpje. Filmpjes hebben geen server-side
 // gegenereerde thumbnail (geen ffmpeg op de server) - i.p.v. daarvan
 // grijpt de browser zelf 1 frame uit de video (via een verborgen <video>
-// + <canvas>, met een Range-request voor alleen het begin van het
-// bestand) en toont dat als preview, met een afspeel-icoontje erover.
+// + <canvas>) en toont dat als preview, met een afspeel-icoontje erover.
+// De video-route ondersteunt geen Range-requests, dus dit downloadt het
+// hele bestand progressief - acceptabel voor de korte clips hier, maar
+// geen streaming-achtige lichte fetch.
 function VideoThumb({ photo }) {
   const canvasRef = useRef(null)
   const [ready, setReady] = useState(false)
