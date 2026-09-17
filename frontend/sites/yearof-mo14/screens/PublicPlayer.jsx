@@ -54,17 +54,17 @@ export default function PublicPlayer({ playerId, onBack }) {
               background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20,
             }}>
-              {player.shirt_number ?? '?'}
+              {player.role_title || player.shirt_number || '?'}
             </div>
           )}
-          {player.photo_url && player.shirt_number != null && (
-            <span className="shirt-badge" style={{ fontSize: 13, minWidth: 24, height: 24 }}>{player.shirt_number}</span>
+          {player.photo_url && (player.role_title || player.shirt_number != null) && (
+            <span className="shirt-badge" style={{ fontSize: 13, minWidth: 24, height: 24 }}>{player.role_title || player.shirt_number}</span>
           )}
         </div>
         <h2 style={{ margin: '0 0 2px', fontSize: 18 }}>{player.nickname || player.name}</h2>
         {player.nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>}
         <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
-          {player.position || '-'} {player.shirt_number ? `· #${player.shirt_number}` : ''}
+          {player.role_title || player.position || '-'} {!player.role_title && player.shirt_number ? `· #${player.shirt_number}` : ''}
         </p>
         {player.bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{player.bio}</p>}
         {player.fun_facts && (

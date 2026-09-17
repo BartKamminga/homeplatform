@@ -19,12 +19,12 @@ export default function PublicTeam({ onOpenPlayer }) {
             <div className="photo-wrap">
               {p.photo_url
                 ? <img src={p.photo_url} alt="" />
-                : <div className="no-photo">{p.shirt_number ?? '?'}</div>}
-              {p.shirt_number != null && <span className="shirt-badge">{p.shirt_number}</span>}
+                : <div className="no-photo" style={p.role_title ? { fontSize: 14 } : undefined}>{p.role_title || p.shirt_number || '?'}</div>}
+              {(p.role_title || p.shirt_number != null) && <span className="shirt-badge">{p.role_title || p.shirt_number}</span>}
             </div>
             <div className="info">
               <h3>{p.nickname || p.name}</h3>
-              <div className="pos">{p.position || '-'}</div>
+              <div className="pos">{p.role_title || p.position || '-'}</div>
             </div>
           </a>
         ))}

@@ -209,10 +209,11 @@ export default function PlayersAdmin({ initialEditId }) {
         {activePlayers.map(p => (
           <div key={p.id} className="yof-card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{
-              width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', color: '#12203c',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0,
+              width: 36, height: 36, borderRadius: p.role_title ? 10 : '50%', background: '#eef1f8', color: '#12203c',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+              fontSize: p.role_title ? 9 : 13, flexShrink: 0, textAlign: 'center', lineHeight: 1.1, padding: 2,
             }}>
-              {p.shirt_number ?? '?'}
+              {p.role_title || p.shirt_number || '?'}
             </div>
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
