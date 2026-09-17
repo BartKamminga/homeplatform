@@ -1,16 +1,47 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-// Grid-tegel voor een foto/filmpje - filmpjes hebben geen thumbnail (geen
-// ffmpeg beschikbaar om er een te genereren), dus een simpel afspeel-icoontje
-// i.p.v. een echte videopreview.
+// Grid-tegel voor een foto/filmpje. Filmpjes hebben geen server-side
+// gegenereerde thumbnail (geen ffmpeg op de server) - i.p.v. daarvan
+// grijpt de browser zelf 1 frame uit de video (via een verborgen <video>
+// + <canvas>) en toont dat als preview, met een afspeel-icoontje erover.
+// De video-route ondersteunt geen Range-requests, dus dit downloadt het
+// hele bestand progressief - acceptabel voor de korte clips hier, maar
+// geen streaming-achtige lichte fetch.
+function VideoThumb({ photo }) {
+  const canvasRef = useRef(null)
+  const [ready, setReady] = useState(false)
+
+  function captureFrame(e) {
+    const video = e.target
+    const canvas = canvasRef.current
+    if (!canvas || !video.videoWidth) return
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+    setReady(true)
+  }
+
+  return (
+    <div style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', position: 'relative', overflow: 'hidden' }}>
+      <video src={`/api/yearof-mo14/photos/${photo.id}/video`} preload="metadata" muted playsInline
+        style={{ display: 'none' }}
+        onLoadedMetadata={e => { e.target.currentTime = Math.min(0.5, (e.target.duration || 0) / 2) }}
+        onSeeked={captureFrame}
+      />
+      <canvas ref={canvasRef} style={{
+        width: '100%', height: '100%', objectFit: 'cover', display: ready ? 'block' : 'none',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 22, color: 'white', textShadow: '0 1px 4px rgba(0,0,0,.6)',
+      }}>▶️</div>
+    </div>
+  )
+}
+
 export function PhotoThumb({ photo }) {
   if (photo.media_type === 'video') {
-    return (
-      <div style={{
-        width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-      }}>▶️</div>
-    )
+    return <VideoThumb photo={photo} />
   }
   return (
     <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt=""
