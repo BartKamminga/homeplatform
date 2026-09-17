@@ -190,6 +190,7 @@ class PlayerIn(BaseModel):
     name: str
     nickname: Optional[str] = None
     shirt_number: Optional[int] = None
+    role_title: Optional[str] = None
     position: Optional[str] = None
     photo_url: Optional[str] = None
     bio: Optional[str] = None
@@ -200,6 +201,7 @@ class PlayerUpdate(BaseModel):
     name: Optional[str] = None
     nickname: Optional[str] = None
     shirt_number: Optional[int] = None
+    role_title: Optional[str] = None
     position: Optional[str] = None
     photo_url: Optional[str] = None
     bio: Optional[str] = None
@@ -210,7 +212,8 @@ class PlayerUpdate(BaseModel):
 def list_players(session: Session = Depends(get_session), _: None = Depends(require_team_access)):
     """Publiek - toont geen gearchiveerde spelers (zie /players/moderation voor de beheerder-lijst)."""
     rows = session.exec(
-        select(YearOfPlayer).where(col(YearOfPlayer.archived_at).is_(None)).order_by(YearOfPlayer.shirt_number)
+        select(YearOfPlayer).where(col(YearOfPlayer.archived_at).is_(None))
+        .order_by(col(YearOfPlayer.shirt_number).is_(None), YearOfPlayer.shirt_number)
     ).all()
     return rows
 
@@ -219,7 +222,9 @@ def list_players(session: Session = Depends(get_session), _: None = Depends(requ
 def list_players_moderation(session: Session = Depends(get_session), _: User = Depends(get_current_user)):
     """Beheerder-only - inclusief gearchiveerde spelers. Moet vóór /players/{player_id}
     gedeclareerd staan, anders vangt die route 'moderation' als player_id weg."""
-    rows = session.exec(select(YearOfPlayer).order_by(YearOfPlayer.shirt_number)).all()
+    rows = session.exec(
+        select(YearOfPlayer).order_by(col(YearOfPlayer.shirt_number).is_(None), YearOfPlayer.shirt_number)
+    ).all()
     return rows
 
 

@@ -12,6 +12,7 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
   const [sent, setSent] = useState(false)
   const [name, setName] = useState('')
   const [shirtNumber, setShirtNumber] = useState('')
+  const [roleTitle, setRoleTitle] = useState('')
   const [nickname, setNickname] = useState('')
   const [position, setPosition] = useState('')
   const [bio, setBio] = useState('')
@@ -27,6 +28,7 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
       setPlayer(p)
       setName(p.name || '')
       setShirtNumber(p.shirt_number ?? '')
+      setRoleTitle(p.role_title || '')
       setNickname(p.nickname || '')
       setPosition(p.position || '')
       setBio(p.bio || '')
@@ -51,6 +53,7 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
         await updatePlayer(playerId, {
           name: name.trim() || player.name,
           shirt_number: shirtNumber !== '' ? Number(shirtNumber) : null,
+          role_title: roleTitle || null,
           nickname: nickname || null,
           position: position || null,
           bio: bio || null,
@@ -106,13 +109,13 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
           background: 'linear-gradient(160deg, #2a2a2a, #0b0b0b)', color: '#f4c81e',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20,
         }}>
-          {shirtNumber !== '' ? shirtNumber : '?'}
+          {roleTitle || (shirtNumber !== '' ? shirtNumber : '?')}
         </div>
       )}
       <h2 style={{ margin: '0 0 2px', fontSize: 18 }}>{nickname || name || player.name}</h2>
       {nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{name || player.name}</p>}
       <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
-        {position || '-'} {shirtNumber !== '' ? `· #${shirtNumber}` : ''}
+        {roleTitle || position || '-'} {!roleTitle && shirtNumber !== '' ? `· #${shirtNumber}` : ''}
       </p>
       {bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{bio}</p>}
       {funFacts && (
@@ -181,6 +184,11 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
             <input value={shirtNumber} onChange={e => setShirtNumber(e.target.value)}
               style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
           </div>
+          <div style={{ width: 120 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Titel</label>
+            <input value={roleTitle} onChange={e => setRoleTitle(e.target.value)} placeholder="bv. Coach"
+              style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+          </div>
         </div>
       )}
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Profielfoto</label>
@@ -188,8 +196,8 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
         <div className="yof-photo-tile">
           {(photoPreview || player.photo_url)
             ? <img src={photoPreview || player.photo_url} alt="" />
-            : <div className="no-photo">{shirtNumber !== '' ? shirtNumber : '?'}</div>}
-          {shirtNumber !== '' && <span className="shirt-badge">{shirtNumber}</span>}
+            : <div className="no-photo">{roleTitle || (shirtNumber !== '' ? shirtNumber : '?')}</div>}
+          {(roleTitle || shirtNumber !== '') && <span className="shirt-badge">{roleTitle || shirtNumber}</span>}
         </div>
         <input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} style={{ fontSize: 13 }} />
       </div>

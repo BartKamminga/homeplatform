@@ -22,6 +22,7 @@ class YearOfPlayer(SQLModel, table=True):
     name:         str
     nickname:     Optional[str]  = Field(default=None)
     shirt_number: Optional[int]  = Field(default=None)
+    role_title:   Optional[str]  = Field(default=None)  # bv. "Coach"/"Trainer" - toont i.p.v. het rugnummer op begeleiding
     position:     Optional[str]  = Field(default=None)
     photo_url:    Optional[str]  = Field(default=None)
     bio:          Optional[str]  = Field(default=None)
