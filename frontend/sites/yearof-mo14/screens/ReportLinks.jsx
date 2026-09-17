@@ -5,6 +5,7 @@ import { useConfirm } from '@components/ConfirmDialog.jsx'
 export const LINK_TYPES = [
   { value: 'instagram', label: 'Instagram', icon: '📸' },
   { value: 'video', label: 'Wedstrijdbeelden', icon: '▶️' },
+  { value: 'artikel', label: 'Artikel', icon: '📰' },
 ]
 
 function typeInfo(type) {

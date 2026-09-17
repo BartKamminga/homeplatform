@@ -71,6 +71,11 @@ export default function ReportsAdmin({ initialEditId }) {
     const tagged = (editingReport.player_ids || []).includes(playerId)
     if (tagged) await untagReport(editingReport.id, playerId)
     else await tagReport(editingReport.id, playerId)
+    await refreshEditingReport()
+  }
+
+  async function refreshEditingReport() {
+    if (!editingReport) return
     const fresh = await getReportsModeration()
     const updated = fresh.find(r => r.id === editingReport.id)
     if (updated) setEditingReport(updated)
@@ -85,7 +90,7 @@ export default function ReportsAdmin({ initialEditId }) {
       {view === 'edit' && editingReport && (
         <ReportForm
           existingReport={editingReport} players={players} onToggleTag={toggleEditingReportTag}
-          onSaved={backToList} onCancel={backToList} onDeleted={backToList}
+          onSaved={backToList} onCancel={backToList} onDeleted={backToList} onLinksChanged={refreshEditingReport}
         />
       )}
       {view === 'list' && (

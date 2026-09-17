@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { createReportDirect, updateReport, deleteReport, uploadPhoto, deletePhoto, getPhotosModeration } from '../api.js'
 import { compressImage } from '../compressImage.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
+import { NewLinksEditor, ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -18,7 +19,7 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
 export function ReportForm({
   matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId, defaultReportType,
-  players, onToggleTag, onSaved, onCancel, onDeleted,
+  players, onToggleTag, onSaved, onCancel, onDeleted, onLinksChanged,
 }) {
   const isEdit = !!existingReport
   const [matchRef, setMatchRef] = useState(existingReport?.match_ref || fixedMatchRef || '')
@@ -33,6 +34,7 @@ export function ReportForm({
   const [confirm, confirmDialog] = useConfirm()
   const [photoFiles, setPhotoFiles] = useState([])
   const [existingPhotos, setExistingPhotos] = useState([])
+  const [newLinks, setNewLinks] = useState([])
 
   function loadExistingPhotos() {
     if (!isEdit) return
@@ -79,7 +81,11 @@ export function ReportForm({
         await updateReport(existingReport.id, data)
         await uploadStagedPhotos(existingReport.id, matchRef)
       } else {
-        const report = await createReportDirect({ ...data, status: 'published', insert_after_id: insertAfterId || null })
+        const links = newLinks.filter(l => l.url && l.url.trim())
+        const report = await createReportDirect({
+          ...data, status: 'published', insert_after_id: insertAfterId || null,
+          links: links.length > 0 ? links : null,
+        })
         await uploadStagedPhotos(report.id, report.match_ref)
       }
       onSaved()
@@ -125,11 +131,16 @@ export function ReportForm({
                 )
               ))}
               {photoFiles.map((f, i) => (
-                <img key={`new-${i}`} src={URL.createObjectURL(f)} alt=""
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                f.type.startsWith('video/') ? (
+                  <div key={`new-${i}`} style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶️</div>
+                ) : (
+                  <img key={`new-${i}`} src={URL.createObjectURL(f)} alt=""
+                    style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                )
               ))}
             </div>
           )}
+          {isEdit && <LinkTiles links={existingReport.links} />}
         </div>
         <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>Zo ziet dit bericht eruit op de site.</p>
         <button className="yof-btn" onClick={() => setShowPreview(false)}>&larr; Terug om verder te bewerken</button>
@@ -178,7 +189,7 @@ export function ReportForm({
       <label style={labelStyle}>Door (naam, optioneel)</label>
       <input value={authorName} onChange={e => setAuthorName(e.target.value)} style={wideFieldStyle} />
 
-      <label style={labelStyle}>Foto&rsquo;s (optioneel)</label>
+      <label style={labelStyle}>Foto&rsquo;s &amp; filmpjes (optioneel)</label>
       {existingPhotos.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
           {existingPhotos.map(p => (
@@ -201,15 +212,19 @@ export function ReportForm({
           ))}
         </div>
       )}
-      <input type="file" accept="image/*" multiple
+      <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple
         onChange={e => { addPhotoFiles(Array.from(e.target.files || [])); e.target.value = '' }}
         style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
       {photoFiles.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
           {photoFiles.map((f, i) => (
             <div key={i} style={{ position: 'relative' }}>
-              <img src={URL.createObjectURL(f)} alt=""
-                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              {f.type.startsWith('video/') ? (
+                <div style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>▶️</div>
+              ) : (
+                <img src={URL.createObjectURL(f)} alt=""
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              )}
               <button onClick={() => removePhotoFile(i)} style={{
                 position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
                 width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
@@ -219,7 +234,16 @@ export function ReportForm({
           ))}
         </div>
       )}
-      <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>Toegevoegde fotos worden opgeslagen zodra je op Opslaan/Publiceren klikt.</p>
+      <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
+        Toegevoegde fotos/filmpjes worden opgeslagen zodra je op Opslaan/Publiceren klikt. Filmpjes tot 200MB (mp4/mov/webm).
+      </p>
+
+      <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
+      {isEdit ? (
+        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onLinksChanged} />
+      ) : (
+        <NewLinksEditor links={newLinks} onChange={setNewLinks} />
+      )}
 
       {isEdit && players?.length > 0 && (
         <>

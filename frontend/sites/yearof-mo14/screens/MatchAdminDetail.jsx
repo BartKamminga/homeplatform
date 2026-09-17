@@ -377,6 +377,11 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     const tagged = (editingReport.player_ids || []).includes(playerId)
     if (tagged) await untagReport(editingReport.id, playerId)
     else await tagReport(editingReport.id, playerId)
+    await refreshEditingReport()
+  }
+
+  async function refreshEditingReport() {
+    if (!editingReport) return
     const fresh = await getReportsModeration()
     const updated = fresh.find(r => r.id === editingReport.id)
     if (updated) setEditingReport(updated)
@@ -422,7 +427,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <ReportForm
           fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
           players={players} onToggleTag={toggleEditingReportTag}
-          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview}
+          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onLinksChanged={refreshEditingReport}
         />
       )}
       {view === 'invul' && (
