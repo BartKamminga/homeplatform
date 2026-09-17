@@ -300,6 +300,19 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  async function copyEntryLink() {
+    const url = new URL(window.location.origin + '/yearof-mo14/')
+    url.searchParams.set('entry', matchRef)
+    try {
+      await copyToClipboard(url.toString())
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -377,6 +390,11 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     const tagged = (editingReport.player_ids || []).includes(playerId)
     if (tagged) await untagReport(editingReport.id, playerId)
     else await tagReport(editingReport.id, playerId)
+    await refreshEditingReport()
+  }
+
+  async function refreshEditingReport() {
+    if (!editingReport) return
     const fresh = await getReportsModeration()
     const updated = fresh.find(r => r.id === editingReport.id)
     if (updated) setEditingReport(updated)
@@ -400,7 +418,12 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   return (
     <div>
-      <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
+        <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
+          {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer link naar deze pagina'}
+        </button>
+      </div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
@@ -422,7 +445,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <ReportForm
           fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
           players={players} onToggleTag={toggleEditingReportTag}
-          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview}
+          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onLinksChanged={refreshEditingReport}
         />
       )}
       {view === 'invul' && (

@@ -174,7 +174,7 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
       <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Optioneel"
         style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
 
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s (optioneel)</label>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s &amp; filmpjes (optioneel)</label>
       {context.existing_photos?.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
           {context.existing_photos.map(p => (
@@ -200,18 +200,22 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
           Dit heb je al toegevoegd. Hieronder kun je er nog meer toevoegen.
         </p>
       )}
-      <input type="file" accept="image/*" multiple
+      <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple
         onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = '' }}
         style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
       <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
-        Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V).
+        Je kunt hier ook een gekopieerde foto plakken (Ctrl+V / Cmd+V). Filmpjes tot 200MB (mp4/mov/webm).
       </p>
       {files.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 14 }}>
           {files.map((f, i) => (
             <div key={i} style={{ position: 'relative' }}>
-              <img src={URL.createObjectURL(f)} alt=""
-                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              {f.type.startsWith('video/') ? (
+                <div style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>▶️</div>
+              ) : (
+                <img src={URL.createObjectURL(f)} alt=""
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+              )}
               <button onClick={() => removeFile(i)} style={{
                 position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
                 width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
