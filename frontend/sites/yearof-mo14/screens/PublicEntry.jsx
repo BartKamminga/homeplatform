@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, getPhotoBlockPosition } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
-import { copyToClipboard } from '../clipboard.js'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false,
@@ -14,19 +13,6 @@ export default function PublicEntry({
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
-  const [linkCopied, setLinkCopied] = useState(false)
-
-  async function copyEntryLink() {
-    const url = new URL(window.location.href)
-    url.searchParams.set('entry', matchRef)
-    try {
-      await copyToClipboard(url.toString())
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch (e) {
-      setError(e.message)
-    }
-  }
 
   function loadReports() {
     const call = previewMode ? getReportsModeration() : getReports(matchRef)
@@ -83,12 +69,7 @@ export default function PublicEntry({
   return (
     <div>
       {!adminMode && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-          <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
-          <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-            {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer link'}
-          </button>
-        </div>
+        <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
       )}
       <div className="yof-card" style={{ marginBottom: 14 }}>
         <span className={`badge ${item.kind}`}>{item.kind}</span>
