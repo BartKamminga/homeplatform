@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getTimelineItemModeration, getPlayers,
-  getReportsModeration, tagReport, untagReport, createReportDirect, moveReport, deleteReport,
+  getReportsModeration, tagReport, untagReport, createReportDirect, updateReport, moveReport, deleteReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks, deleteContributorLink,
   getMatchGoals, setMatchGoal, movePhotoBlock, listTeamLinks, createShortLink,
@@ -224,6 +224,15 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
     }
   }
 
+  async function toggleBlockPublish() {
+    try {
+      await updateReport(existingReport.id, { status: existingReport.status === 'published' ? 'concept' : 'published' })
+      onRefresh()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div style={{ marginBottom: 24 }}>
       {confirmDialog}
@@ -232,8 +241,18 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {existingReport ? (
         <>
+          {existingReport.status === 'concept' && (
+            <span style={{ display: 'inline-block', background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, marginBottom: 10 }}>
+              CONCEPT
+            </span>
+          )}
           <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
-          <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={toggleBlockPublish} className="yof-btn-secondary">
+              {existingReport.status === 'published' ? `Hele ${meta.title}-blok naar concept` : `Hele ${meta.title}-blok publiceren`}
+            </button>
+            <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
+          </div>
         </>
       ) : (
         <>
