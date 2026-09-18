@@ -4,7 +4,7 @@ import {
   getReportsModeration, tagReport, untagReport, createReportDirect, moveReport, deleteReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks, deleteContributorLink,
-  getMatchGoals, setMatchGoal, movePhotoBlock,
+  getMatchGoals, setMatchGoal, movePhotoBlock, listTeamLinks,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
@@ -306,9 +306,16 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [linkCopied, setLinkCopied] = useState(false)
 
   async function copyEntryLink() {
-    const url = new URL(window.location.origin + '/yearof-mo14/')
-    url.searchParams.set('entry', matchRef)
     try {
+      const links = await listTeamLinks()
+      const active = links.find(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()))
+      if (!active) {
+        setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
+        return
+      }
+      const url = new URL(window.location.origin + '/yearof-mo14/')
+      url.searchParams.set('entry', matchRef)
+      url.searchParams.set('code', active.id)
       await copyToClipboard(url.toString())
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 2000)
@@ -424,7 +431,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
         <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-          {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer link naar deze pagina'}
+          {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
         </button>
       </div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}

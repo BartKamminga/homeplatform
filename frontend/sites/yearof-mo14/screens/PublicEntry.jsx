@@ -4,7 +4,7 @@ import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 
 export default function PublicEntry({
-  matchRef, onBack, previewMode = false, adminMode = false,
+  matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
   onEditReport, onAddItem, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
@@ -68,7 +68,7 @@ export default function PublicEntry({
 
   return (
     <div>
-      {!adminMode && (
+      {!adminMode && !standalone && (
         <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
       )}
       <div className="yof-card" style={{ marginBottom: 14 }}>

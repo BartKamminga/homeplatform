@@ -12,8 +12,49 @@ import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import MatchAdminDetail from './screens/MatchAdminDetail.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
+import PublicEntry from './screens/PublicEntry.jsx'
 import ContributeReport from './screens/ContributeReport.jsx'
 import EditProfile from './screens/EditProfile.jsx'
+
+// "Wedstrijdlink" (?entry=<matchRef>, evt. met &code=): deelt dezelfde
+// teamcode-levensduur als de rest van de site (zelfde gate-check als
+// hieronder in App()), maar toont bewust GEEN navigatiebalk - alleen die
+// ene wedstrijdpagina. Zo kan een wedstrijd breed gedeeld worden zonder
+// de rest van de site (spelersprofielen, andere wedstrijden) te ontsluiten.
+function StandaloneMatchView({ matchRef }) {
+  const [status, setStatus] = useState('checking') // checking | locked | unlocked
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlCode = params.get('code')
+    const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
+    if (!code) { setStatus('locked'); return }
+    validateTeamCode(code)
+      .then(res => {
+        if (res.valid) {
+          storeCode(code)
+          if (urlCode) {
+            const url = new URL(window.location.href)
+            url.searchParams.delete('code')
+            window.history.replaceState({}, '', url.toString())
+          }
+        }
+        setStatus(res.valid ? 'unlocked' : 'locked')
+      })
+      .catch(() => setStatus('locked'))
+  }, [])
+
+  if (status === 'checking') return null
+  if (status === 'locked') return <Gate onUnlock={() => setStatus('unlocked')} />
+  return (
+    <div className="yof">
+      <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
+      <div className="yof-main">
+        <PublicEntry matchRef={matchRef} standalone />
+      </div>
+    </div>
+  )
+}
 
 function BeheerderPaneel() {
   const [me, setMe] = useState(null)
@@ -99,9 +140,10 @@ export default function App() {
 
   const invulCode = new URLSearchParams(window.location.search).get('invul')
   const profielCode = new URLSearchParams(window.location.search).get('profiel')
+  const entryMatchRef = new URLSearchParams(window.location.search).get('entry')
 
   useEffect(() => {
-    if (invulCode || profielCode) return // los scherm, geen gate-check nodig - de link zelf is het bewijs
+    if (invulCode || profielCode || entryMatchRef) return // los scherm, doet zelf een (eventueel) gate-check
     const params = new URLSearchParams(window.location.search)
     const urlCode = params.get('code')
     const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
@@ -138,6 +180,15 @@ export default function App() {
       <AuthGate site="yearof-mo14" siteName="MO14 à Paris">
         <BeheerderPaneel />
       </AuthGate>
+    )
+  }
+
+  if (entryMatchRef) {
+    return (
+      <>
+        <StandaloneMatchView matchRef={entryMatchRef} />
+        <BeheerderLink onClick={() => setShowBeheer(true)} />
+      </>
     )
   }
 
