@@ -37,17 +37,31 @@ class YearOfTeamLink(SQLModel, table=True):
 
     Fase 7 (item 1149): elk linkje heeft een vangnet-vervaldatum (expires_at,
     instelbaar, default 10 dagen) en vervalt daarnaast direct zodra een
-    nieuwer linkje wordt uitgegeven (revoked_at). created_at fungeert als
-    issued_at - het cutoff-moment voor content-scoping (zie get_team_scope_cutoff
-    in routers/yearof_mo14.py): content die na dit moment gepubliceerd is,
-    blijft voor dit linkje verborgen, ook al is het linkje zelf nog geldig.
-    """
+    nieuwer linkje wordt uitgegeven (revoked_at)."""
     __tablename__ = "yearof_team_links"
 
     id:         str            = Field(primary_key=True)  # 6-char code
     created_at: datetime        = Field(default_factory=datetime.utcnow)
     expires_at: Optional[datetime] = Field(default=None)  # vangnet; None = alleen bij nieuwer linkje vervallen
     revoked_at: Optional[datetime] = Field(default=None)
+
+
+class YearOfShortLink(SQLModel, table=True):
+    """Korte deel-link (bv. https://webheaven.nl/l/we9mv0) die server-side
+    doorstuurt naar een bevroren (team_code, match_ref)-combinatie - ofwel de
+    hele site (match_ref leeg) ofwel 1 nav-loze wedstrijdpagina (wedstrijdlink).
+    Bewust bevroren i.p.v. dynamisch naar "de huidige actieve teamcode"
+    verwijzen: anders zou een korte link voor altijd blijven werken, ook na
+    het wekelijks verversen van de teamcode - dat ondermijnt de
+    toegangsbeperking die die rotatie juist moet bieden. De korte link stopt
+    dus vanzelf met werken zodra team_code wordt ingetrokken/vervangen,
+    precies zoals de niet-verkorte vorm dat al deed."""
+    __tablename__ = "yearof_short_links"
+
+    id:         str            = Field(primary_key=True)  # 6-char code
+    team_code:  str
+    match_ref:  Optional[str]  = Field(default=None)  # None = hele site, anders wedstrijdlink
+    created_at: datetime        = Field(default_factory=datetime.utcnow)
 
 
 class YearOfPhoto(SQLModel, table=True):

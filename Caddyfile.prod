@@ -10,6 +10,10 @@
         reverse_proxy backend:8000
     }
 
+    handle /l/* {
+        reverse_proxy backend:8000
+    }
+
     @sw path_regexp ^/[^/]+/sw\.js$
     handle @sw {
         root * /srv/www

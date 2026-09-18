@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from PIL import Image
 from pydantic import BaseModel
@@ -76,6 +76,7 @@ from models.yearof import (
     YearOfReport,
     YearOfReportLink,
     YearOfReportPlayerTag,
+    YearOfShortLink,
     YearOfTeamLink,
 )
 from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
@@ -754,6 +755,63 @@ def validate_team_link(code: str, session: Session = Depends(get_session)):
 
 
 # ---------------------------------------------------------------------------
+# Korte deel-links (https://webheaven.nl/l/<code>) — server-side redirect naar
+# een bevroren (team_code, match_ref)-combinatie. Bewust bevroren i.p.v.
+# dynamisch naar de huidige actieve teamcode verwijzen, zie YearOfShortLink.
+# ---------------------------------------------------------------------------
+
+
+def _new_short_link_code(session: Session) -> str:
+    for _ in range(20):
+        code = "".join(random.choices(TEAM_LINK_CHARS, k=6))
+        if not session.get(YearOfShortLink, code):
+            return code
+    raise RuntimeError("Geen unieke code gevonden")
+
+
+class ShortLinkIn(BaseModel):
+    team_code: str
+    match_ref: Optional[str] = None
+
+
+@router.post("/short-links")
+def create_short_link(
+    body: ShortLinkIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder-only. Hergebruikt een bestaande korte link voor exact dezelfde
+    (team_code, match_ref)-combinatie i.p.v. bij elke klik een nieuwe rij aan
+    te maken."""
+    q = select(YearOfShortLink).where(YearOfShortLink.team_code == body.team_code)
+    q = q.where(YearOfShortLink.match_ref == body.match_ref) if body.match_ref else q.where(col(YearOfShortLink.match_ref).is_(None))
+    existing = session.exec(q).first()
+    if existing:
+        return existing
+
+    link = YearOfShortLink(id=_new_short_link_code(session), team_code=body.team_code, match_ref=body.match_ref)
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+# Kaal, niet onder /api/yearof-mo14 - zie shortlink_router hieronder, apart
+# geregistreerd in main.py, want dit pad moet zo kort mogelijk blijven.
+shortlink_router = APIRouter(tags=["yearof-mo14-shortlinks"])
+
+
+@shortlink_router.get("/l/{code}")
+def resolve_short_link(code: str, session: Session = Depends(get_session)):
+    link = session.get(YearOfShortLink, code.strip().lower())
+    if not link:
+        return RedirectResponse("/yearof-mo14/")
+    target = f"/yearof-mo14/?entry={link.match_ref}&code={link.team_code}" if link.match_ref \
+        else f"/yearof-mo14/?code={link.team_code}"
+    return RedirectResponse(target)
+
+
+# ---------------------------------------------------------------------------
 # Foto-bijdragen — publieke upload (via teamlinkje, geen homeplatform-account),
 # server-side 3 beeldvarianten, concept/published + beheerder-moderatie.
 # ---------------------------------------------------------------------------
@@ -1041,7 +1099,7 @@ CONTRIBUTOR_LINK_DEFAULT_DAYS = 14
 class ContributorLinkIn(BaseModel):
     match_ref: str
     player_id: Optional[str] = None
-    report_type: str = "interview"  # interview | wedstrijdverslag (bv. vooraf-preview)
+    report_type: str = "interview"  # interview | wedstrijdverslag | foto (alleen fotos/filmpjes, geen tekst)
     expires_days: int = CONTRIBUTOR_LINK_DEFAULT_DAYS
 
 
@@ -1080,12 +1138,25 @@ def list_contributor_links(
 ):
     """Beheerder-only — inclusief status (opened_at + het lot van het bijbehorende
     verslag, indien al ingevuld) zodat de UI geopend/ingevuld/concept/gepubliceerd
-    kan tonen zonder aparte round-trips."""
+    kan tonen zonder aparte round-trips. Voor report_type "foto" bestaat er geen
+    verslag - daar telt het aantal geuploade fotos/filmpjes als "ingevuld"."""
     links = session.exec(select(YearOfContributorLink).order_by(YearOfContributorLink.created_at.desc())).all()
     reports = session.exec(select(YearOfReport).where(col(YearOfReport.contributor_code).is_not(None))).all()
     report_by_code = {r.contributor_code: r for r in reports}
+
+    foto_codes = [link.id for link in links if link.report_type == "foto"]
+    photo_count_by_code: dict[str, int] = {}
+    if foto_codes:
+        photos = session.exec(select(YearOfPhoto).where(col(YearOfPhoto.uploader_code).in_(foto_codes))).all()
+        for photo in photos:
+            photo_count_by_code[photo.uploader_code] = photo_count_by_code.get(photo.uploader_code, 0) + 1
+
     return [
-        {**link.model_dump(), "report_status": report_by_code[link.id].status if link.id in report_by_code else None}
+        {
+            **link.model_dump(),
+            "report_status": report_by_code[link.id].status if link.id in report_by_code else None,
+            "photo_count": photo_count_by_code.get(link.id, 0),
+        }
         for link in links
     ]
 
@@ -1149,22 +1220,30 @@ def get_contributor_link_context(code: str, session: Session = Depends(get_sessi
     match = next((it for it in items if it["match_ref"] == link.match_ref), None)
 
     # bestaand verslag via dit linkje - laat het formulier vooraf invullen i.p.v.
-    # blanco te tonen, en voorkomt dubbele rijen bij opnieuw versturen.
-    existing = session.exec(
-        select(YearOfReport)
-        .where(YearOfReport.contributor_code == code.strip().lower())
-        .order_by(YearOfReport.created_at.desc())
-    ).first()
-
-    # Ook nog-concept fotos tonen bij dit verslag (anders lijken ze
-    # "verdwenen" bij opnieuw invullen, terwijl ze gewoon wachten op
-    # goedkeuring) - mag hier zonder login, want de contributor-code zelf is
-    # al het bewijs dat dit hun eigen invullink/verslag is.
+    # blanco te tonen, en voorkomt dubbele rijen bij opnieuw versturen. Bij
+    # report_type "foto" wordt bewust geen verslag aangemaakt (puur fotos/
+    # filmpjes, geen tekst) - eerder geuploade fotos worden dan gevonden via
+    # uploader_code i.p.v. report_id.
+    existing = None
     existing_photos = []
-    if existing:
+    if link.report_type == "foto":
         existing_photos = session.exec(
-            select(YearOfPhoto).where(YearOfPhoto.report_id == existing.id).order_by(YearOfPhoto.created_at)
+            select(YearOfPhoto).where(YearOfPhoto.uploader_code == code.strip().lower()).order_by(YearOfPhoto.created_at)
         ).all()
+    else:
+        existing = session.exec(
+            select(YearOfReport)
+            .where(YearOfReport.contributor_code == code.strip().lower())
+            .order_by(YearOfReport.created_at.desc())
+        ).first()
+        # Ook nog-concept fotos tonen bij dit verslag (anders lijken ze
+        # "verdwenen" bij opnieuw invullen, terwijl ze gewoon wachten op
+        # goedkeuring) - mag hier zonder login, want de contributor-code zelf
+        # is al het bewijs dat dit hun eigen invullink/verslag is.
+        if existing:
+            existing_photos = session.exec(
+                select(YearOfPhoto).where(YearOfPhoto.report_id == existing.id).order_by(YearOfPhoto.created_at)
+            ).all()
 
     return {
         "match_ref": link.match_ref,

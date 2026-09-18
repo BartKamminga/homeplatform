@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { getContributorContext, submitReport, uploadPhoto } from '../api.js'
 import { compressImage } from '../compressImage.js'
 
-const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', nieuws: 'Algemeen' }
+const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', nieuws: 'Algemeen', foto: "Foto's" }
 const TYPE_HEADING = {
   wedstrijdverslag: 'Schrijf een wedstrijdverslag',
   interview: 'Vertel je verhaal (interview)',
   nieuws: 'Schrijf een algemeen bericht',
+  foto: "Voeg foto's & filmpjes toe",
 }
 const TYPE_TEXT_LABEL = { wedstrijdverslag: 'Het verslag', interview: 'Jouw verhaaltje', nieuws: 'De tekst' }
 const TYPE_PLACEHOLDER = {
@@ -64,23 +65,39 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
   }
 
   async function submit() {
-    if (!title.trim() || !body.trim()) return
+    const isFotoOnly = context.report_type === 'foto'
+    if (isFotoOnly) {
+      if (files.length === 0) return
+    } else if (!title.trim() || !body.trim()) {
+      return
+    }
     setSending(true)
     try {
-      const report = await submitReport({
-        contributor_code: code,
-        title,
-        body,
-        author_name: authorName || null,
-      })
-
-      if (files.length) {
+      if (isFotoOnly) {
         for (const file of files) {
           try {
             const compressed = await compressImage(file)
-            await uploadPhoto(compressed, { matchRef: report.match_ref, reportId: report.id, photoType: 'actie', code })
+            await uploadPhoto(compressed, { matchRef: context.match_ref, photoType: 'actie', code })
           } catch {
-            // 1 mislukte foto mag het insturen van het verhaaltje niet blokkeren
+            // 1 mislukte foto mag de rest niet blokkeren
+          }
+        }
+      } else {
+        const report = await submitReport({
+          contributor_code: code,
+          title,
+          body,
+          author_name: authorName || null,
+        })
+
+        if (files.length) {
+          for (const file of files) {
+            try {
+              const compressed = await compressImage(file)
+              await uploadPhoto(compressed, { matchRef: report.match_ref, reportId: report.id, photoType: 'actie', code })
+            } catch {
+              // 1 mislukte foto mag het insturen van het verhaaltje niet blokkeren
+            }
           }
         }
       }
@@ -117,7 +134,9 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
           <div style={{ fontSize: 32 }}>🎉</div>
           <h1 style={{ fontSize: 18 }}>Bedankt!</h1>
           <p style={{ fontSize: 14, color: '#666' }}>
-            Je verhaaltje is verstuurd en verschijnt (weer) op de site zodra de teammanager het heeft goedgekeurd.
+            {context?.report_type === 'foto'
+              ? "Je foto's/filmpjes zijn verstuurd en verschijnen op de site zodra de teammanager ze heeft goedgekeurd."
+              : 'Je verhaaltje is verstuurd en verschijnt (weer) op de site zodra de teammanager het heeft goedgekeurd.'}
           </p>
         </div>
       </div>
@@ -147,34 +166,40 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
         </div>
       )}
 
-      {context.existing_report?.status === 'concept' && (
+      {context.report_type !== 'foto' && context.existing_report?.status === 'concept' && (
         <p style={{ fontSize: 13, background: '#fdf8e8', padding: 10, borderRadius: 10, marginBottom: 14 }}>
           Je hebt dit al ingestuurd en het wacht nog op goedkeuring. Je kunt de tekst hieronder aanpassen en opnieuw versturen.
         </p>
       )}
-      {context.existing_report?.status === 'published' && (
+      {context.report_type !== 'foto' && context.existing_report?.status === 'published' && (
         <p style={{ fontSize: 13, background: '#e8f8ee', padding: 10, borderRadius: 10, marginBottom: 14 }}>
           Dit verhaaltje staat al op de site. Pas de tekst hieronder aan en verstuur opnieuw om een wijziging aan te vragen
           &mdash; die verschijnt pas online na goedkeuring.
         </p>
       )}
 
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Titel</label>
-      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd"
-        style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+      {context.report_type !== 'foto' && (
+        <>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Titel</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd"
+            style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
+            {TYPE_TEXT_LABEL[context.report_type] || 'Jouw verhaaltje'}
+          </label>
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
+            placeholder={TYPE_PLACEHOLDER[context.report_type] || ''}
+            style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw naam</label>
+          <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Optioneel"
+            style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+        </>
+      )}
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
-        {TYPE_TEXT_LABEL[context.report_type] || 'Jouw verhaaltje'}
+        Foto&rsquo;s &amp; filmpjes{context.report_type === 'foto' ? '' : ' (optioneel)'}
       </label>
-      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-        placeholder={TYPE_PLACEHOLDER[context.report_type] || ''}
-        style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
-
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Jouw naam</label>
-      <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Optioneel"
-        style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
-
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Foto&rsquo;s &amp; filmpjes (optioneel)</label>
       {context.existing_photos?.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
           {context.existing_photos.map(p => (
@@ -227,7 +252,7 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
       )}
 
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      <button className="yof-btn" onClick={submit} disabled={sending}>
+      <button className="yof-btn" onClick={submit} disabled={sending || (context.report_type === 'foto' && files.length === 0)}>
         {sending ? 'Versturen...' : 'Versturen ter controle'}
       </button>
     </>

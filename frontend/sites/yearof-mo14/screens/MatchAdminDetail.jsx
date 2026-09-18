@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   getTimelineItemModeration, getPlayers,
-  getReportsModeration, tagReport, untagReport, createReportDirect, moveReport, deleteReport,
+  getReportsModeration, tagReport, untagReport, createReportDirect, updateReport, moveReport, deleteReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks, deleteContributorLink,
-  getMatchGoals, setMatchGoal, movePhotoBlock,
+  getMatchGoals, setMatchGoal, movePhotoBlock, listTeamLinks, createShortLink,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
@@ -94,6 +94,7 @@ function InviteLinkScreen({ matchRef, players, onBack }) {
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
           <option value="wedstrijdverslag">Wedstrijdverslag</option>
           <option value="interview">Interview</option>
+          <option value="foto">Foto&rsquo;s &amp; filmpjes (geen tekst)</option>
         </select>
         <select value={playerId} onChange={e => setPlayerId(e.target.value)} style={{ fontSize: 12 }}>
           <option value="">Voor het hele team / mezelf</option>
@@ -132,7 +133,7 @@ const LINKS_BLOCK_META = {
   wedstrijd_beelden: { title: 'Wedstrijdbeelden', reportTitle: 'Wedstrijdbeelden', defaults: defaultVideoLinks },
 }
 
-const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', foto: "Foto's" }
 
 // Focust op 1 specifiek invullinkje (niet de hele lijst) - vanuit de
 // placeholder-kaart in de preview, zodat "editen" over dat ene linkje gaat.
@@ -224,6 +225,15 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
     }
   }
 
+  async function toggleBlockPublish() {
+    try {
+      await updateReport(existingReport.id, { status: existingReport.status === 'published' ? 'concept' : 'published' })
+      onRefresh()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div style={{ marginBottom: 24 }}>
       {confirmDialog}
@@ -232,8 +242,18 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {existingReport ? (
         <>
+          {existingReport.status === 'concept' && (
+            <span style={{ display: 'inline-block', background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, marginBottom: 10 }}>
+              CONCEPT
+            </span>
+          )}
           <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
-          <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={toggleBlockPublish} className="yof-btn-secondary">
+              {existingReport.status === 'published' ? `Hele ${meta.title}-blok naar concept` : `Hele ${meta.title}-blok publiceren`}
+            </button>
+            <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
+          </div>
         </>
       ) : (
         <>
@@ -306,10 +326,15 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [linkCopied, setLinkCopied] = useState(false)
 
   async function copyEntryLink() {
-    const url = new URL(window.location.origin + '/yearof-mo14/')
-    url.searchParams.set('entry', matchRef)
     try {
-      await copyToClipboard(url.toString())
+      const links = await listTeamLinks()
+      const active = links.find(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()))
+      if (!active) {
+        setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
+        return
+      }
+      const link = await createShortLink({ team_code: active.id, match_ref: matchRef })
+      await copyToClipboard(`${window.location.origin}/l/${link.id}`)
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 2000)
     } catch (e) {
@@ -407,12 +432,12 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const linksExistingReport = reports.find(r => r.report_type === linksReportType)
   const activeInvite = links.find(l => l.id === activeInviteId)
 
-  const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+  const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', foto: "Foto's" }
   function playerName(id) {
     return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name
   }
   const pendingInvites = links
-    .filter(l => !l.report_status)
+    .filter(l => l.report_type === 'foto' ? !l.photo_count : !l.report_status)
     .map(l => {
       const status = contributorLinkStatus(l)
       const forWhom = l.player_id ? playerName(l.player_id) || 'speelster' : 'het team'
@@ -424,7 +449,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
         <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-          {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer link naar deze pagina'}
+          {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
         </button>
       </div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
