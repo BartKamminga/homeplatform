@@ -220,6 +220,7 @@ app.include_router(infra.router)
 app.include_router(agent_control.router)
 app.include_router(dev_sessions.router)
 app.include_router(yearof_mo14.router)
+app.include_router(yearof_mo14.shortlink_router)
 
 
 @app.get("/")

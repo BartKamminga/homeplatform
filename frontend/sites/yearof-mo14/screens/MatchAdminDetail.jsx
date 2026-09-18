@@ -4,7 +4,7 @@ import {
   getReportsModeration, tagReport, untagReport, createReportDirect, moveReport, deleteReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   createContributorLink, listContributorLinks, deleteContributorLink,
-  getMatchGoals, setMatchGoal, movePhotoBlock, listTeamLinks,
+  getMatchGoals, setMatchGoal, movePhotoBlock, listTeamLinks, createShortLink,
 } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 import { contributorLinkStatus } from '../linkStatus.js'
@@ -313,10 +313,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
         return
       }
-      const url = new URL(window.location.origin + '/yearof-mo14/')
-      url.searchParams.set('entry', matchRef)
-      url.searchParams.set('code', active.id)
-      await copyToClipboard(url.toString())
+      const link = await createShortLink({ team_code: active.id, match_ref: matchRef })
+      await copyToClipboard(`${window.location.origin}/l/${link.id}`)
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 2000)
     } catch (e) {

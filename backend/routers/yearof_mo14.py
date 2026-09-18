@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from PIL import Image
 from pydantic import BaseModel
@@ -76,6 +76,7 @@ from models.yearof import (
     YearOfReport,
     YearOfReportLink,
     YearOfReportPlayerTag,
+    YearOfShortLink,
     YearOfTeamLink,
 )
 from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
@@ -751,6 +752,63 @@ def list_team_links(
 def validate_team_link(code: str, session: Session = Depends(get_session)):
     """Publiek — de Gate-pagina checkt hiermee of een ingevoerde code (nog) geldig is."""
     return {"valid": _valid_team_link(code, session) is not None}
+
+
+# ---------------------------------------------------------------------------
+# Korte deel-links (https://webheaven.nl/l/<code>) — server-side redirect naar
+# een bevroren (team_code, match_ref)-combinatie. Bewust bevroren i.p.v.
+# dynamisch naar de huidige actieve teamcode verwijzen, zie YearOfShortLink.
+# ---------------------------------------------------------------------------
+
+
+def _new_short_link_code(session: Session) -> str:
+    for _ in range(20):
+        code = "".join(random.choices(TEAM_LINK_CHARS, k=6))
+        if not session.get(YearOfShortLink, code):
+            return code
+    raise RuntimeError("Geen unieke code gevonden")
+
+
+class ShortLinkIn(BaseModel):
+    team_code: str
+    match_ref: Optional[str] = None
+
+
+@router.post("/short-links")
+def create_short_link(
+    body: ShortLinkIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder-only. Hergebruikt een bestaande korte link voor exact dezelfde
+    (team_code, match_ref)-combinatie i.p.v. bij elke klik een nieuwe rij aan
+    te maken."""
+    q = select(YearOfShortLink).where(YearOfShortLink.team_code == body.team_code)
+    q = q.where(YearOfShortLink.match_ref == body.match_ref) if body.match_ref else q.where(col(YearOfShortLink.match_ref).is_(None))
+    existing = session.exec(q).first()
+    if existing:
+        return existing
+
+    link = YearOfShortLink(id=_new_short_link_code(session), team_code=body.team_code, match_ref=body.match_ref)
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+# Kaal, niet onder /api/yearof-mo14 - zie shortlink_router hieronder, apart
+# geregistreerd in main.py, want dit pad moet zo kort mogelijk blijven.
+shortlink_router = APIRouter(tags=["yearof-mo14-shortlinks"])
+
+
+@shortlink_router.get("/l/{code}")
+def resolve_short_link(code: str, session: Session = Depends(get_session)):
+    link = session.get(YearOfShortLink, code.strip().lower())
+    if not link:
+        return RedirectResponse("/yearof-mo14/")
+    target = f"/yearof-mo14/?entry={link.match_ref}&code={link.team_code}" if link.match_ref \
+        else f"/yearof-mo14/?code={link.team_code}"
+    return RedirectResponse(target)
 
 
 # ---------------------------------------------------------------------------

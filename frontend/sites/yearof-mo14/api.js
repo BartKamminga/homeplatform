@@ -46,6 +46,7 @@ export async function uploadPlayerPhotoAdmin(id, file) {
 export const validateTeamCode = (code) => api.get(`/api/yearof-mo14/team-links/validate?code=${encodeURIComponent(code)}`)
 export const createTeamLink   = (vangnetDays) => api.post(`/api/yearof-mo14/team-links${vangnetDays ? `?vangnet_days=${vangnetDays}` : ''}`)
 export const listTeamLinks    = ()      => api.get('/api/yearof-mo14/team-links')
+export const createShortLink  = (body)  => api.post('/api/yearof-mo14/short-links', body)
 
 // Oefenwedstrijden & bijzondere dagen
 export const getEntries    = (kind)      => api.get(withCode(`/api/yearof-mo14/entries${kind ? `?kind=${kind}` : ''}`))

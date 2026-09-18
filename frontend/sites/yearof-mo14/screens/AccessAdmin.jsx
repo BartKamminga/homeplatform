@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { listTeamLinks, createTeamLink } from '../api.js'
+import { listTeamLinks, createTeamLink, createShortLink } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
 
 export default function AccessAdmin() {
@@ -8,6 +8,7 @@ export default function AccessAdmin() {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const [vangnetDays, setVangnetDays] = useState(10)
+  const [shortUrl, setShortUrl] = useState('')
 
   function load() {
     listTeamLinks().then(setLinks).catch(e => setError(e.message))
@@ -42,7 +43,14 @@ export default function AccessAdmin() {
   }
 
   const active = links.find(l => !l.revoked_at && !isExpired(l))
-  const shareUrl = active ? `${window.location.origin}/yearof-mo14/?code=${active.id}` : ''
+
+  useEffect(() => {
+    if (!active) { setShortUrl(''); return }
+    setShortUrl('')
+    createShortLink({ team_code: active.id })
+      .then(link => setShortUrl(`${window.location.origin}/l/${link.id}`))
+      .catch(() => setShortUrl(`${window.location.origin}/yearof-mo14/?code=${active.id}`))
+  }, [active?.id])
 
   return (
     <div>
@@ -56,9 +64,9 @@ export default function AccessAdmin() {
             {active.expires_at && <span style={{ color: '#666' }}> &middot; vangnet tot {active.expires_at.slice(0, 10)}</span>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input readOnly value={shareUrl} onFocus={e => e.target.select()}
+            <input readOnly value={shortUrl || 'Link maken...'} onFocus={e => e.target.select()}
               style={{ flex: '1 1 260px', padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }} />
-            <button onClick={() => copyLink(shareUrl)} className="yof-btn-secondary">
+            <button onClick={() => copyLink(shortUrl)} disabled={!shortUrl} className="yof-btn-secondary">
               {copied ? 'Gekopieerd!' : 'Kopieer link'}
             </button>
           </div>
