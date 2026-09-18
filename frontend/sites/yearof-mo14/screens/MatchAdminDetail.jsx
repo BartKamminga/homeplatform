@@ -94,6 +94,7 @@ function InviteLinkScreen({ matchRef, players, onBack }) {
         <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 12 }}>
           <option value="wedstrijdverslag">Wedstrijdverslag</option>
           <option value="interview">Interview</option>
+          <option value="foto">Foto&rsquo;s &amp; filmpjes (geen tekst)</option>
         </select>
         <select value={playerId} onChange={e => setPlayerId(e.target.value)} style={{ fontSize: 12 }}>
           <option value="">Voor het hele team / mezelf</option>
@@ -132,7 +133,7 @@ const LINKS_BLOCK_META = {
   wedstrijd_beelden: { title: 'Wedstrijdbeelden', reportTitle: 'Wedstrijdbeelden', defaults: defaultVideoLinks },
 }
 
-const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', foto: "Foto's" }
 
 // Focust op 1 specifiek invullinkje (niet de hele lijst) - vanuit de
 // placeholder-kaart in de preview, zodat "editen" over dat ene linkje gaat.
@@ -431,12 +432,12 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const linksExistingReport = reports.find(r => r.report_type === linksReportType)
   const activeInvite = links.find(l => l.id === activeInviteId)
 
-  const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview' }
+  const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', foto: "Foto's" }
   function playerName(id) {
     return players.find(p => p.id === id)?.nickname || players.find(p => p.id === id)?.name
   }
   const pendingInvites = links
-    .filter(l => !l.report_status)
+    .filter(l => l.report_type === 'foto' ? !l.photo_count : !l.report_status)
     .map(l => {
       const status = contributorLinkStatus(l)
       const forWhom = l.player_id ? playerName(l.player_id) || 'speelster' : 'het team'

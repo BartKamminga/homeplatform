@@ -91,12 +91,12 @@ function BeheerderPaneel() {
 
       <div style={{ display: 'flex', gap: 4, margin: '16px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap' }}>
         {[
-          { key: 'spelers', label: 'Spelers' },
           { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' },
-          { key: 'toegang', label: 'Toegang' },
+          { key: 'spelers', label: 'Spelers' },
           { key: 'fotos', label: "Foto's" },
           { key: 'verslagen', label: 'Algemene berichten' },
           { key: 'actie', label: 'Actie' },
+          { key: 'toegang', label: 'Toegang' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
           <button key={t.key} onClick={() => {
