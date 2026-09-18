@@ -22,16 +22,19 @@ binnen het invulformulier zijn bewust NIET gebouwd (vereist het teamlinkje,
 niet de invullink) - fotos voegt men apart toe via de bestaande "Foto's
 toevoegen"-pagina (fase 4), getagd op dezelfde match_ref.
 
-Fase 7 (item 1149): teamlinkje-rotatie + content-scoping. Elk teamlinkje
-krijgt een instelbaar vangnet (default 10 dagen) naast de bestaande
-"vervalt bij een nieuwer linkje"-regel. De publieke GET-endpoints
-(spelers/tijdlijn/fotos/verslagen) vereisen nu ECHT een geldige teamcode
-OF een homeplatform-login (beheerder, onbeperkte toegang) - de eerdere
-fases lieten deze bewust nog open. Content-scoping voor fotos/verslagen:
-een teamlinkje toont nooit content die gepubliceerd is NA het moment dat
-het linkje werd uitgegeven (created_at van het linkje als cutoff), ook al
-is het linkje zelf nog geldig - dit maakt hard-cutoff-vs-overlap-toegang
-grotendeels irrelevant.
+Fase 7 (item 1149): teamlinkje-rotatie. Elk teamlinkje krijgt een instelbaar
+vangnet (default 10 dagen) naast de bestaande "vervalt bij een nieuwer
+linkje"-regel. De publieke GET-endpoints (spelers/tijdlijn/fotos/verslagen)
+vereisen een geldige teamcode OF een homeplatform-login (beheerder,
+onbeperkte toegang).
+
+Content-scoping (fotos/verslagen nooit tonen als ze gepubliceerd zijn NA het
+uitgeven van het huidige linkje) is 2026-09-18 losgelaten - het maakte de site
+onbetrouwbaar zodra er na het delen van een linkje weer iets nieuws
+gepubliceerd werd (het linkje moest dan telkens opnieuw uitgegeven worden).
+De teamcode-gate zelf (wie mag er sowieso op de site) blijft de enige
+toegangsbeperking; wekelijks een nieuw linkje delen blijft het advies om
+toegang tot de huidige groep te beperken.
 
 Single-tenant, bewust hardcoded voor Victoria MO14-1 (poule_id 551, Topklasse
 Zuid-Holland poule B, seizoen 2026-2027) - zie roadmap item 1142/1143.
@@ -150,24 +153,6 @@ def require_team_access(
         return
     if not _valid_team_link(code, session):
         raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
-
-
-def get_team_scope_cutoff(
-    code: Optional[str] = None,
-    current_user: Optional[User] = Depends(get_optional_user),
-    session: Session = Depends(get_session),
-) -> Optional[datetime]:
-    """Toegangscontrole MET content-scoping (fotos/verslagen): beheerder ->
-    None (onbeperkt), teamlinkje -> het moment waarop dat linkje is
-    uitgegeven als cutoff. Content gepubliceerd na dat moment blijft
-    verborgen, ook als het linkje zelf nog geldig is. Zie require_team_access
-    hierboven voor de heropening van 2026-09-16."""
-    if current_user is not None:
-        return None
-    link = _valid_team_link(code, session)
-    if not link:
-        raise HTTPException(status_code=403, detail="Ongeldige of verlopen teamcode")
-    return link.created_at
 
 
 @router.get("/status")
@@ -932,14 +917,11 @@ def list_photos(
     report_id: Optional[str] = None,
     player_id: Optional[str] = None,
     session: Session = Depends(get_session),
-    scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
+    _: None = Depends(require_team_access),
 ):
     """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only,
-    zie /photos/moderation). Via een teamlinkje bovendien nooit fotos die na
-    het uitgeven van dat linkje zijn geupload (content-scoping, fase 7)."""
+    zie /photos/moderation)."""
     q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
-    if scope_cutoff is not None:
-        q = q.where(YearOfPhoto.created_at <= scope_cutoff)
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
     if report_id:
@@ -1373,15 +1355,11 @@ def list_reports(
     match_ref: Optional[str] = None,
     report_type: Optional[str] = None,
     session: Session = Depends(get_session),
-    scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
+    _: None = Depends(require_team_access),
 ):
-    """Publiek — toont alleen gepubliceerde verslagen. Via een teamlinkje
-    bovendien nooit verslagen die na het uitgeven van dat linkje zijn
-    gepubliceerd (content-scoping, fase 7). Zie /reports/spotlight voor de
-    handmatig-curated "In de kijker"-selectie."""
+    """Publiek — toont alleen gepubliceerde verslagen. Zie /reports/spotlight
+    voor de handmatig-curated "In de kijker"-selectie."""
     q = select(YearOfReport).where(YearOfReport.status == "published")
-    if scope_cutoff is not None:
-        q = q.where(YearOfReport.created_at <= scope_cutoff)
     if match_ref:
         q = q.where(YearOfReport.match_ref == match_ref)
     if report_type:
@@ -1400,7 +1378,7 @@ def list_reports(
 @router.get("/reports/spotlight")
 def get_spotlight_reports(
     session: Session = Depends(get_session),
-    scope_cutoff: Optional[datetime] = Depends(get_team_scope_cutoff),
+    _: None = Depends(require_team_access),
 ):
     """"In de kijker" - beheerder selecteert handmatig welke berichten hier
     verschijnen (featured=true). Algemene berichten (report_type="nieuws")
@@ -1413,8 +1391,6 @@ def get_spotlight_reports(
         .where(YearOfReport.status == "published")
         .where(or_(YearOfReport.featured == True, YearOfReport.report_type == "nieuws"))  # noqa: E712
     )
-    if scope_cutoff is not None:
-        q = q.where(YearOfReport.created_at <= scope_cutoff)
     reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()
 
     if not reports:
@@ -1423,8 +1399,6 @@ def get_spotlight_reports(
             .where(YearOfReport.status == "published")
             .where(YearOfReport.report_type == "wedstrijdverslag")
         )
-        if scope_cutoff is not None:
-            fallback_q = fallback_q.where(YearOfReport.created_at <= scope_cutoff)
         fallback = session.exec(fallback_q.order_by(YearOfReport.created_at.desc())).first()
         reports = [fallback] if fallback else []
 
