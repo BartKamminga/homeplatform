@@ -248,6 +248,9 @@ function LinksScreen({ matchRef, reportType, existingReport, insertAfterId, onBa
 function GoalsPanel({ matchRef, players }) {
   const [goals, setGoals] = useState({})
   const [saving, setSaving] = useState('')
+  // Alleen speelsters (rugnummer) kunnen doelpunten maken - begeleiding
+  // (role_title, geen rugnummer) hoort hier niet tussen te staan.
+  const scoringPlayers = players.filter(p => p.shirt_number != null)
 
   useEffect(() => {
     getMatchGoals(matchRef).then(rows => {
@@ -271,7 +274,7 @@ function GoalsPanel({ matchRef, players }) {
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-        {players.map(p => (
+        {scoringPlayers.map(p => (
           <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, padding: '4px 8px', border: '1px solid #eee', borderRadius: 8 }}>
             <span>{p.nickname || p.name}</span>
             <input type="number" min="0" value={goals[p.id] ?? 0}
@@ -280,7 +283,7 @@ function GoalsPanel({ matchRef, players }) {
           </div>
         ))}
       </div>
-      {players.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen spelers toegevoegd.</p>}
+      {scoringPlayers.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen spelers toegevoegd.</p>}
       {saving && <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>Opslaan...</p>}
     </div>
   )
