@@ -25,6 +25,12 @@ function AlgemeenReportCard({ report, onEdit }) {
       <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
       <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{report.title}</h4>
       {report.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {report.author_name}</p>}
+      <p style={{ margin: '0 0 4px', fontSize: 11, color: '#999' }}>
+        Aangemaakt: {new Date(report.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+        {report.published_at && (
+          <> &middot; Gepubliceerd: {new Date(report.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}</>
+        )}
+      </p>
       <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{report.body}</p>
       <LinkTiles links={report.links} />
     </div>

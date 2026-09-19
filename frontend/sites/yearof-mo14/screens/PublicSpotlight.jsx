@@ -97,6 +97,11 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
                 </div>
               )}
               <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>&ldquo;{r.title}&rdquo;</h3>
+              {r.published_at && (
+                <p style={{ margin: '0 0 6px', fontSize: 11, color: '#999' }}>
+                  {new Date(r.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              )}
               {!open && (
                 <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
                   {r.body.length > 120 ? r.body.slice(0, 120) + '...' : r.body}

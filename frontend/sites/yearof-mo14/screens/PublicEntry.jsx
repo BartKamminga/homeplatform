@@ -203,7 +203,13 @@ export default function PublicEntry({
                     <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
                   )}
                   <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
-                  {r.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {r.author_name}</p>}
+                  {(r.author_name || r.published_at) && (
+                    <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>
+                      {r.author_name && `door ${r.author_name}`}
+                      {r.author_name && r.published_at && ' · '}
+                      {r.published_at && new Date(r.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
                   <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
                   {(() => {
                     const reportPhotos = photos.filter(p => p.report_id === r.id)

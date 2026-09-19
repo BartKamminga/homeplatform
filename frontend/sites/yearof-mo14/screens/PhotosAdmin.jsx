@@ -32,6 +32,12 @@ export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelet
         <div style={{ color: '#888', marginBottom: 6 }}>
           {photo.photo_type} &middot; <strong>{entryTitle(photo.match_ref)}</strong>
         </div>
+        <div style={{ color: '#999', marginBottom: 6 }}>
+          Geupload: {new Date(photo.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+          {photo.published_at && (
+            <> &middot; Gepubliceerd: {new Date(photo.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}</>
+          )}
+        </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
           {players.map(pl => {

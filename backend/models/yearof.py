@@ -86,7 +86,8 @@ class YearOfPhoto(SQLModel, table=True):
     status:         str             = Field(default="concept")  # concept | published
     uploader_code:  Optional[str]   = Field(default=None)
     caption:        Optional[str]  = Field(default=None)
-    created_at:     datetime        = Field(default_factory=datetime.utcnow)
+    created_at:     datetime        = Field(default_factory=datetime.utcnow)  # uploaddatum
+    published_at:   Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
     updated_at:     datetime        = Field(default_factory=datetime.utcnow)
 
 
@@ -172,8 +173,9 @@ class YearOfReport(SQLModel, table=True):
     featured:         bool            = Field(default=False)  # handmatig geselecteerd voor "In de kijker"
     sort_order:       int             = Field(default=0)  # volgorde binnen 1 wedstrijdpagina (WYSIWYG-editor)
     contributor_code: Optional[str]  = Field(default=None)
-    created_at:       datetime        = Field(default_factory=datetime.utcnow)
+    created_at:       datetime        = Field(default_factory=datetime.utcnow)  # aanmaak-/uploaddatum
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)
+    published_at:     Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
 
 
 class YearOfReportLink(SQLModel, table=True):

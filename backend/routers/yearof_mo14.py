@@ -928,6 +928,7 @@ async def upload_photo(
         match_ref=match_ref, report_id=report_id, photo_type=photo_type, media_type=media_type,
         file_ext=ext if is_video else None,
         uploader_code=uploader_code, status=status,
+        published_at=datetime.utcnow() if status == "published" else None,
     )
     session.add(photo)
     session.commit()
@@ -1021,6 +1022,8 @@ def update_photo(
     photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(photo, key, value)
+    if photo.status == "published" and photo.published_at is None:
+        photo.published_at = datetime.utcnow()
     session.add(photo)
     session.commit()
     session.refresh(photo)
@@ -1420,6 +1423,8 @@ def create_report_direct(
     links = data.pop("links", None)
     insert_after_id = data.pop("insert_after_id", None)
     data["sort_order"] = _next_sort_order(session, data.get("match_ref"), insert_after_id)
+    if data.get("status") == "published":
+        data["published_at"] = datetime.utcnow()
     report = YearOfReport(**data)
     session.add(report)
     session.commit()
@@ -1517,12 +1522,17 @@ def update_report(
         setattr(report, key, value)
     session.add(report)
 
+    if report.status == "published" and report.published_at is None:
+        report.published_at = datetime.utcnow()
+
     # Fotos bij dit verslag volgen de publicatiestatus van het verslag zelf -
     # anders blijft een net gepubliceerd verslag toch onzichtbare (concept)
     # fotos houden totdat je ze los publiceert in het fotobeheer.
     if report.status == "published" and not was_published:
         for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
             photo.status = "published"
+            if photo.published_at is None:
+                photo.published_at = datetime.utcnow()
             session.add(photo)
 
     session.commit()

@@ -103,6 +103,12 @@ export function PhotoLightbox({ photos, index, onClose, onNavigate }) {
           {index + 1} / {photos.length}
         </div>
       )}
+
+      {(photo.published_at || photo.created_at) && (
+        <div style={{ position: 'absolute', bottom: 14, left: 16, color: 'rgba(255,255,255,.7)', fontSize: 12 }}>
+          {new Date(photo.published_at || photo.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
+        </div>
+      )}
     </div>
   )
 }
