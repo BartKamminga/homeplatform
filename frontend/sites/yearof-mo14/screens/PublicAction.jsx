@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
-import { getActionSettings } from '../api.js'
+import { getActionSettings, getSponsors } from '../api.js'
 import Thermometer from './Thermometer.jsx'
 
 export default function PublicAction() {
   const [settings, setSettings] = useState(null)
+  const [sponsors, setSponsors] = useState([])
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
+    getSponsors().then(setSponsors).catch(() => {})
   }, [])
 
   return (
@@ -34,6 +36,34 @@ export default function PublicAction() {
         <p style={{ fontSize: 13, color: '#999', textAlign: 'center' }}>
           De donatielink volgt binnenkort.
         </p>
+      )}
+
+      {sponsors.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Onze sponsors</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {sponsors.map(s => {
+              const card = (
+                <div className="yof-card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  {s.logo_url && (
+                    <img src={s.logo_url} alt={s.name} style={{ width: 56, height: 56, objectFit: 'contain', flexShrink: 0 }} />
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name}</div>
+                    {s.description && <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>{s.description}</div>}
+                  </div>
+                </div>
+              )
+              return s.website_url ? (
+                <a key={s.id} href={s.website_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  {card}
+                </a>
+              ) : (
+                <div key={s.id}>{card}</div>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )

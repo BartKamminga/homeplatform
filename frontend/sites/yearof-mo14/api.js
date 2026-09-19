@@ -152,3 +152,22 @@ export const rejectPlayerEdit   = (id)        => api.delete(`/api/yearof-mo14/pl
 // Actie-instellingen (doelbedrag/voortgang/betaallink)
 export const getActionSettings    = ()     => api.get('/api/yearof-mo14/action')
 export const updateActionSettings = (body) => api.patch('/api/yearof-mo14/action', body)
+
+// Sponsors (op de actiepagina) - publiek net als /action, geen teamcode nodig
+export const getSponsors    = ()          => api.get('/api/yearof-mo14/sponsors')
+export const createSponsor  = (body)      => api.post('/api/yearof-mo14/sponsors', body)
+export const updateSponsor  = (id, body)  => api.patch(`/api/yearof-mo14/sponsors/${id}`, body)
+export const deleteSponsor  = (id)        => api.delete(`/api/yearof-mo14/sponsors/${id}`)
+export const moveSponsor    = (id, direction) => api.post(`/api/yearof-mo14/sponsors/${id}/move`, { direction })
+export async function uploadSponsorLogo(id, file) {
+  const fd = new FormData()
+  fd.append('file', file, file.name || 'logo.png')
+  const res = await fetch(`/api/yearof-mo14/sponsors/${id}/logo`, {
+    method: 'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('hp_token') || ''}` },
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody.detail || 'Upload mislukt')
+  }
+  return res.json()
+}
