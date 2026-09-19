@@ -7,6 +7,7 @@ import PlayersAdmin from './screens/PlayersAdmin.jsx'
 import TimelineAdmin from './screens/TimelineAdmin.jsx'
 import AccessAdmin from './screens/AccessAdmin.jsx'
 import ActionAdmin from './screens/ActionAdmin.jsx'
+import SponsorsAdmin from './screens/SponsorsAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
 import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import MatchAdminDetail from './screens/MatchAdminDetail.jsx'
@@ -59,7 +60,7 @@ function StandaloneMatchView({ matchRef }) {
 function BeheerderPaneel() {
   const [me, setMe] = useState(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('spelers')
+  const [tab, setTab] = useState('wedstrijden')
   const [matchDetailRef, setMatchDetailRef] = useState(null)
   const [playerEditId, setPlayerEditId] = useState(null)
   const [generalEditId, setGeneralEditId] = useState(null)
@@ -96,6 +97,7 @@ function BeheerderPaneel() {
           { key: 'fotos', label: "Foto's" },
           { key: 'verslagen', label: 'Algemene berichten' },
           { key: 'actie', label: 'Actie' },
+          { key: 'sponsors', label: 'Sponsors' },
           { key: 'toegang', label: 'Toegang' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
@@ -121,6 +123,7 @@ function BeheerderPaneel() {
       {tab === 'fotos' && <PhotosAdmin />}
       {tab === 'verslagen' && <ReportsAdmin initialEditId={generalEditId} />}
       {tab === 'actie' && <ActionAdmin />}
+      {tab === 'sponsors' && <SponsorsAdmin />}
       {tab === 'preview' && (
         <div style={{ margin: '0 -24px', border: '3px dashed #f4c81e' }}>
           <PublicSite previewMode adminMode

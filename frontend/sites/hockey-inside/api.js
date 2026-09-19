@@ -79,6 +79,9 @@ export const getStatsSummary     = (days = 30)  => api.get(`/api/hockey/vanger/s
 export const getPouleRanking     = (days = 7, limit = 20) => api.get(`/api/hockey/vanger/stats/poule-ranking?days=${days}&limit=${limit}`)
 export const getCompetitionStats = (competitionId, days = 30) => api.get(`/api/hockey/vanger/stats/competition/${competitionId}?days=${days}`)
 
+// item 1167: signalering van scandata-vorm-afwijkingen (vervolg op 1166)
+export const getDataShapeFlags   = (days = 14, limit = 100) => api.get(`/api/hockey/vanger/data-shape-flags?days=${days}&limit=${limit}`)
+
 // item 1084: scan-plan preview (snel, illustratief, gefabriceerd object) en
 // shadow-run (traag, echte build_schedule_events-aanroep) - beide met
 // candidate settings die de backend nooit commit (candidate_settings_scope).

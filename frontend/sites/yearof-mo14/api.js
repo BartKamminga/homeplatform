@@ -89,6 +89,8 @@ export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/pho
 export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)
 export const tagPhoto            = (photoId, playerId) => api.post(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
 export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
+export const likePhoto           = (photoId) => api.post(withCode(`/api/yearof-mo14/photos/${photoId}/like`))
+export const unlikePhoto         = (photoId) => api.delete(withCode(`/api/yearof-mo14/photos/${photoId}/like`))
 
 // Wedstrijd-invullink (contributor)
 export const createContributorLink = (body) => api.post('/api/yearof-mo14/contributor-links', body)
@@ -125,6 +127,8 @@ export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/r
 export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const moveReport          = (reportId, direction) => api.post(`/api/yearof-mo14/reports/${reportId}/move`, { direction })
+export const likeReport          = (reportId) => api.post(withCode(`/api/yearof-mo14/reports/${reportId}/like`))
+export const unlikeReport        = (reportId) => api.delete(withCode(`/api/yearof-mo14/reports/${reportId}/like`))
 
 // Profiellinkje (spelersprofiel zelf-bijwerken)
 export const createProfileLink  = (playerId) => api.post(`/api/yearof-mo14/profile-links?player_id=${encodeURIComponent(playerId)}`)
@@ -148,3 +152,22 @@ export const rejectPlayerEdit   = (id)        => api.delete(`/api/yearof-mo14/pl
 // Actie-instellingen (doelbedrag/voortgang/betaallink)
 export const getActionSettings    = ()     => api.get('/api/yearof-mo14/action')
 export const updateActionSettings = (body) => api.patch('/api/yearof-mo14/action', body)
+
+// Sponsors (op de actiepagina) - publiek net als /action, geen teamcode nodig
+export const getSponsors    = ()          => api.get('/api/yearof-mo14/sponsors')
+export const createSponsor  = (body)      => api.post('/api/yearof-mo14/sponsors', body)
+export const updateSponsor  = (id, body)  => api.patch(`/api/yearof-mo14/sponsors/${id}`, body)
+export const deleteSponsor  = (id)        => api.delete(`/api/yearof-mo14/sponsors/${id}`)
+export const moveSponsor    = (id, direction) => api.post(`/api/yearof-mo14/sponsors/${id}/move`, { direction })
+export async function uploadSponsorLogo(id, file) {
+  const fd = new FormData()
+  fd.append('file', file, file.name || 'logo.png')
+  const res = await fetch(`/api/yearof-mo14/sponsors/${id}/logo`, {
+    method: 'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('hp_token') || ''}` },
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody.detail || 'Upload mislukt')
+  }
+  return res.json()
+}

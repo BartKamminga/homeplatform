@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { likePhoto, unlikePhoto } from '../api.js'
+import { LikeButton } from './LikeButton.jsx'
 
 // Grid-tegel voor een foto/filmpje. Filmpjes hebben geen server-side
 // gegenereerde thumbnail (geen ffmpeg op de server) - i.p.v. daarvan
@@ -103,6 +105,15 @@ export function PhotoLightbox({ photos, index, onClose, onNavigate }) {
           {index + 1} / {photos.length}
         </div>
       )}
+
+      <div style={{ position: 'absolute', bottom: 14, left: 16, display: 'flex', alignItems: 'center', gap: 10 }} onClick={e => e.stopPropagation()}>
+        {(photo.published_at || photo.created_at) && (
+          <span style={{ color: 'rgba(255,255,255,.7)', fontSize: 12 }}>
+            {new Date(photo.published_at || photo.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </span>
+        )}
+        <LikeButton key={photo.id} kind="photo" id={photo.id} initialCount={photo.like_count} likeFn={likePhoto} unlikeFn={unlikePhoto} dark />
+      </div>
     </div>
   )
 }

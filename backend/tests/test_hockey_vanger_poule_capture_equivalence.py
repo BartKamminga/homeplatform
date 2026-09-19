@@ -6,14 +6,15 @@ ZA-dead-code-divergentie die upsert_poule_capture voorheen had (hockey_type
 samenvoeging structureel opgelost - beide paden geven nu dezelfde,
 correcte ZA-fallback."""
 
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from sqlmodel import select
 
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyTeam
+from models.hockey_discovery import DataShapeFlag, HockeyCompetition, HockeyPoule, HockeyTeam
 from models.settings import AppSetting
 from routers.hockey_capture import MatchIn, PouleCaptureIn, StandingIn, TeamInPoule, upsert_poule_capture
-from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
+from services.hockey_poule_capture_core import apply_poule_capture, notify_data_shape_flags, notify_finished_matches
 from services.hockey_vanger_ingest import _call_poule_capture
 from services.hockey_vanger_settings import get_target_season
 
@@ -203,7 +204,93 @@ def test_apply_poule_capture_keeps_a_landelijke_poule_on_its_hl_comp_id_competit
     apply_poule_capture(session, body, target_season)
     session.commit()
 
-    comps = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Landelijk Jongens O18")).all()
-    assert len(comps) == 1
-    session.refresh(poule)
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 700)).first()
     assert poule.competition_id == canonical.id
+    assert session.exec(
+        select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == 19)
+    ).all() == [canonical]
+
+
+def test_apply_poule_capture_keeps_a_districted_poule_when_a_recapture_loses_the_district(session):
+    # Item 1166: hockey.nl leverde vanaf 17-09-2026 voor sommige competities
+    # een gesponsorde competition-vorm (bv. "HelloFresh Meisjes O14
+    # Topklasse") zonder district_name meer aan. Een al gekoppelde poule met
+    # een bekend district mag daardoor niet naar een nieuwe district=NULL-rij
+    # verhuizen - dat gebeurde bij ~350 poules tegelijk op productie.
+    target_season = get_target_season(session)
+    canonical = HockeyCompetition(
+        external_id="Meisjes O14 Herfst|Topklasse|Zuid-Holland|2026-2027",
+        name="Meisjes O14 Herfst", class_name="Topklasse", district="Zuid-Holland",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(canonical)
+    session.commit()
+    session.refresh(canonical)
+    poule = HockeyPoule(poule_id=701, name="Poule B", competition_id=canonical.id, season="2026-2027")
+    session.add(poule)
+    session.commit()
+
+    # Recapture in de nieuwe (sponsor-)vorm zonder district - zou zonder de
+    # fix een nieuwe HockeyCompetition-rij (district=None) aanmaken en de
+    # poule daarnaartoe verhuizen.
+    body = _body(
+        poule_id=701, team_id=701, team_name="Team B",
+        poule_name="Poule B", competition_name="HelloFresh Meisjes O14 Topklasse",
+        class_name="Topklasse", district="",
+    )
+    apply_poule_capture(session, body, target_season)
+    session.commit()
+
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 701)).first()
+    assert poule.competition_id == canonical.id
+    assert session.exec(
+        select(HockeyCompetition).where(HockeyCompetition.district == "Zuid-Holland")
+    ).all() == [canonical]
+
+    # Item 1167: dit scenario moet ook gesignaleerd worden.
+    flag = session.exec(select(DataShapeFlag).where(DataShapeFlag.poule_id == 701)).first()
+    assert flag is not None
+    assert flag.missing_field == "district"
+    assert flag.competition_id == canonical.id
+    assert flag.detail == "HelloFresh Meisjes O14 Topklasse"
+
+
+def test_notify_data_shape_flags_sends_a_push_when_new_flags_exist(session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(DataShapeFlag(
+        poule_id=701, competition_id=1, missing_field="district",
+        detail="HelloFresh Meisjes O14 Topklasse", created_at=now,
+    ))
+    session.commit()
+
+    with patch("services.hockey_poule_capture_core.send_push", return_value=1) as mock_send_push:
+        sent = notify_data_shape_flags(session, now)
+
+    assert sent == 1
+    mock_send_push.assert_called_once()
+    assert "1 poule" in mock_send_push.call_args.kwargs["body"]
+
+
+def test_notify_data_shape_flags_is_throttled_within_the_hour(session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(DataShapeFlag(
+        poule_id=701, competition_id=1, missing_field="district", created_at=now,
+    ))
+    session.commit()
+
+    with patch("services.hockey_poule_capture_core.send_push", return_value=1) as mock_send_push:
+        notify_data_shape_flags(session, now)
+        sent_again = notify_data_shape_flags(session, now)
+
+    assert sent_again == 0
+    mock_send_push.assert_called_once()
+
+
+def test_notify_data_shape_flags_does_nothing_when_there_are_no_flags(session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    with patch("services.hockey_poule_capture_core.send_push") as mock_send_push:
+        sent = notify_data_shape_flags(session, now)
+
+    assert sent == 0
+    mock_send_push.assert_not_called()

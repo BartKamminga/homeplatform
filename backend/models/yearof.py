@@ -86,8 +86,10 @@ class YearOfPhoto(SQLModel, table=True):
     status:         str             = Field(default="concept")  # concept | published
     uploader_code:  Optional[str]   = Field(default=None)
     caption:        Optional[str]  = Field(default=None)
-    created_at:     datetime        = Field(default_factory=datetime.utcnow)
+    created_at:     datetime        = Field(default_factory=datetime.utcnow)  # uploaddatum
+    published_at:   Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
     updated_at:     datetime        = Field(default_factory=datetime.utcnow)
+    like_count:     int             = Field(default=0)
 
 
 class YearOfPhotoPlayerTag(SQLModel, table=True):
@@ -139,6 +141,20 @@ class YearOfActionSettings(SQLModel, table=True):
     updated_at:    datetime        = Field(default_factory=datetime.utcnow)
 
 
+class YearOfSponsor(SQLModel, table=True):
+    """Sponsorvermelding op de actiepagina - logo + naam + optionele tekst/
+    link. Publiek zichtbaar net als de actiepagina zelf, ook zonder teamcode."""
+    __tablename__ = "yearof_sponsors"
+
+    id:          str            = Field(default_factory=new_uuid, primary_key=True)
+    name:        str
+    logo_url:    Optional[str]  = Field(default=None)
+    description: Optional[str]  = Field(default=None)
+    website_url: Optional[str]  = Field(default=None)
+    sort_order:  int             = Field(default=0)
+    created_at:  datetime        = Field(default_factory=datetime.utcnow)
+
+
 class YearOfContributorLink(SQLModel, table=True):
     """Wedstrijd-invullink (fase 5, item 1147): eenmalig/tijdelijk, gekoppeld
     aan 1 wedstrijd/dag en evt. 1 speler. Code-als-PK, zelfde patroon als
@@ -172,8 +188,10 @@ class YearOfReport(SQLModel, table=True):
     featured:         bool            = Field(default=False)  # handmatig geselecteerd voor "In de kijker"
     sort_order:       int             = Field(default=0)  # volgorde binnen 1 wedstrijdpagina (WYSIWYG-editor)
     contributor_code: Optional[str]  = Field(default=None)
-    created_at:       datetime        = Field(default_factory=datetime.utcnow)
+    created_at:       datetime        = Field(default_factory=datetime.utcnow)  # aanmaak-/uploaddatum
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)
+    published_at:     Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
+    like_count:       int             = Field(default=0)
 
 
 class YearOfReportLink(SQLModel, table=True):

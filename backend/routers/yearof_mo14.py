@@ -77,6 +77,7 @@ from models.yearof import (
     YearOfReportLink,
     YearOfReportPlayerTag,
     YearOfShortLink,
+    YearOfSponsor,
     YearOfTeamLink,
 )
 from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
@@ -928,6 +929,7 @@ async def upload_photo(
         match_ref=match_ref, report_id=report_id, photo_type=photo_type, media_type=media_type,
         file_ext=ext if is_video else None,
         uploader_code=uploader_code, status=status,
+        published_at=datetime.utcnow() if status == "published" else None,
     )
     session.add(photo)
     session.commit()
@@ -1021,6 +1023,8 @@ def update_photo(
     photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(photo, key, value)
+    if photo.status == "published" and photo.published_at is None:
+        photo.published_at = datetime.utcnow()
     session.add(photo)
     session.commit()
     session.refresh(photo)
@@ -1040,6 +1044,27 @@ def delete_photo(
     session.commit()
     shutil.rmtree(PHOTO_ROOT / photo_id, ignore_errors=True)
     return {"ok": True}
+
+
+@router.post("/photos/{photo_id}/like")
+def like_photo(photo_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Publiek - alleen positieve reactie (hartje), geen aparte like-rijen per
+    bezoeker. Dedupe (niet meerdere keren liken) gebeurt client-side via
+    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site."""
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    photo.like_count += 1
+    session.add(photo)
+    session.commit()
+    return {"like_count": photo.like_count}
+
+
+@router.delete("/photos/{photo_id}/like")
+def unlike_photo(photo_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    photo.like_count = max(0, photo.like_count - 1)
+    session.add(photo)
+    session.commit()
+    return {"like_count": photo.like_count}
 
 
 @router.post("/photos/{photo_id}/tags/{player_id}")
@@ -1420,6 +1445,8 @@ def create_report_direct(
     links = data.pop("links", None)
     insert_after_id = data.pop("insert_after_id", None)
     data["sort_order"] = _next_sort_order(session, data.get("match_ref"), insert_after_id)
+    if data.get("status") == "published":
+        data["published_at"] = datetime.utcnow()
     report = YearOfReport(**data)
     session.add(report)
     session.commit()
@@ -1517,12 +1544,17 @@ def update_report(
         setattr(report, key, value)
     session.add(report)
 
+    if report.status == "published" and report.published_at is None:
+        report.published_at = datetime.utcnow()
+
     # Fotos bij dit verslag volgen de publicatiestatus van het verslag zelf -
     # anders blijft een net gepubliceerd verslag toch onzichtbare (concept)
     # fotos houden totdat je ze los publiceert in het fotobeheer.
     if report.status == "published" and not was_published:
         for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
             photo.status = "published"
+            if photo.published_at is None:
+                photo.published_at = datetime.utcnow()
             session.add(photo)
 
     session.commit()
@@ -1547,6 +1579,27 @@ def delete_report(
     session.delete(report)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/reports/{report_id}/like")
+def like_report(report_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Publiek - alleen positieve reactie (hartje), geen aparte like-rijen per
+    bezoeker. Dedupe (niet meerdere keren liken) gebeurt client-side via
+    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site."""
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    report.like_count += 1
+    session.add(report)
+    session.commit()
+    return {"like_count": report.like_count}
+
+
+@router.delete("/reports/{report_id}/like")
+def unlike_report(report_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    report.like_count = max(0, report.like_count - 1)
+    session.add(report)
+    session.commit()
+    return {"like_count": report.like_count}
 
 
 @router.post("/reports/{report_id}/move")
@@ -1908,3 +1961,145 @@ def update_action_settings(
     session.commit()
     session.refresh(settings_row)
     return settings_row
+
+
+# ---------------------------------------------------------------------------
+# Sponsors — vermelding op de actiepagina (logo + naam + optionele tekst/link).
+# Publiek net als /action zelf: de actiepagina/thermometer is bewust altijd
+# zichtbaar, ook zonder teamcode, dus de sponsors die erop staan ook.
+# ---------------------------------------------------------------------------
+
+SPONSOR_LOGO_ROOT = Path(settings.UPLOAD_ROOT).resolve() / "yearof-mo14" / "sponsor-logos"
+
+
+async def _save_sponsor_logo(file: UploadFile) -> str:
+    ext = Path(file.filename or "upload").suffix.lower() or ".png"
+    if ext not in PHOTO_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Bestandsextensie niet toegestaan: {ext}")
+    base_type = (file.content_type or "").split(";")[0].strip()
+    if base_type not in PHOTO_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"Bestandstype niet toegestaan: {file.content_type}")
+
+    content = await file.read()
+    if len(content) > PHOTO_MAX_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {PHOTO_MAX_SIZE_MB}MB")
+
+    filename = f"{uuid.uuid4()}.png"
+    try:
+        image = Image.open(io.BytesIO(content))
+        if image.mode not in ("RGB", "RGBA"):
+            image = image.convert("RGBA")
+        image.thumbnail((600, 600))
+        SPONSOR_LOGO_ROOT.mkdir(parents=True, exist_ok=True)
+        image.save(SPONSOR_LOGO_ROOT / filename, "PNG")  # PNG, niet JPEG - logo's hebben vaak een transparante achtergrond
+    except Exception:
+        raise HTTPException(status_code=400, detail="Kon logo niet verwerken (ongeldig beeldbestand)")
+
+    return f"/api/yearof-mo14/sponsor-logos/{filename}"
+
+
+@router.get("/sponsor-logos/{filename}")
+def get_sponsor_logo(filename: str):
+    """Publiek, geen auth — zelfde principe als /api/uploads (img src stuurt geen Authorization-header)."""
+    candidate = (SPONSOR_LOGO_ROOT / filename).resolve()
+    if not str(candidate).startswith(str(SPONSOR_LOGO_ROOT)) or not candidate.exists():
+        raise HTTPException(status_code=404, detail="Bestand niet gevonden")
+    return FileResponse(str(candidate))
+
+
+class SponsorIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    website_url: Optional[str] = None
+
+
+class SponsorUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    website_url: Optional[str] = None
+
+
+@router.get("/sponsors")
+def list_sponsors(session: Session = Depends(get_session)):
+    """Publiek, geen teamcode nodig — zelfde reden als /action."""
+    return session.exec(select(YearOfSponsor).order_by(YearOfSponsor.sort_order)).all()
+
+
+@router.post("/sponsors", status_code=201)
+def create_sponsor(
+    body: SponsorIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    max_sort = session.exec(select(YearOfSponsor).order_by(YearOfSponsor.sort_order.desc())).first()
+    sponsor = YearOfSponsor(**body.model_dump(), sort_order=(max_sort.sort_order + 1) if max_sort else 0)
+    session.add(sponsor)
+    session.commit()
+    session.refresh(sponsor)
+    return sponsor
+
+
+@router.patch("/sponsors/{sponsor_id}")
+def update_sponsor(
+    sponsor_id: str,
+    body: SponsorUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    sponsor = get_or_404(session, YearOfSponsor, sponsor_id, "Sponsor")
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(sponsor, key, value)
+    session.add(sponsor)
+    session.commit()
+    session.refresh(sponsor)
+    return sponsor
+
+
+@router.post("/sponsors/{sponsor_id}/logo")
+async def upload_sponsor_logo(
+    sponsor_id: str,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    sponsor = get_or_404(session, YearOfSponsor, sponsor_id, "Sponsor")
+    sponsor.logo_url = await _save_sponsor_logo(file)
+    session.add(sponsor)
+    session.commit()
+    session.refresh(sponsor)
+    return sponsor
+
+
+@router.post("/sponsors/{sponsor_id}/move")
+def move_sponsor(
+    sponsor_id: str,
+    body: MoveDirection,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    sponsors = session.exec(select(YearOfSponsor).order_by(YearOfSponsor.sort_order)).all()
+    idx = next((i for i, s in enumerate(sponsors) if s.id == sponsor_id), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="Sponsor niet gevonden")
+    swap_idx = idx - 1 if body.direction == "up" else idx + 1
+    if 0 <= swap_idx < len(sponsors):
+        sponsors[idx].sort_order, sponsors[swap_idx].sort_order = sponsors[swap_idx].sort_order, sponsors[idx].sort_order
+        session.add(sponsors[idx])
+        session.add(sponsors[swap_idx])
+        session.commit()
+    return {"ok": True}
+
+
+@router.delete("/sponsors/{sponsor_id}")
+def delete_sponsor(
+    sponsor_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    sponsor = get_or_404(session, YearOfSponsor, sponsor_id, "Sponsor")
+    if sponsor.logo_url:
+        filename = sponsor.logo_url.rsplit("/", 1)[-1]
+        (SPONSOR_LOGO_ROOT / filename).unlink(missing_ok=True)
+    session.delete(sponsor)
+    session.commit()
+    return {"ok": True}

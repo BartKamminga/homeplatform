@@ -110,6 +110,23 @@ class HockeyPoule(SQLModel, table=True):
     ai_note:         Optional[str]  = Field(default=None)  # korte analyse-tekst van de poulebord-agent (item 957)
 
 
+class DataShapeFlag(SQLModel, table=True):
+    """Item 1167: signaal dat de scraper (Scout/Ghost) voor een poule een veld
+    miste dat er eerder wel was (bv. district/period_name), zoals bij de
+    HelloFresh-sponsorvorm van item 1166. apply_poule_capture schrijft hier een
+    rij bij elke keer dat de guard 'bestaande competitie-koppeling behouden
+    i.p.v. verhuizen' afgaat, zodat een bronwijziging zichtbaar wordt zonder
+    dat poules eerst daadwerkelijk kwijtraken."""
+    __tablename__ = "data_shape_flags"
+
+    id:              int           = Field(default=None, primary_key=True)
+    poule_id:        int           = Field(index=True)   # hockey.nl poule id
+    competition_id:  int           = Field(index=True, foreign_key="hockey_competitions.id")
+    missing_field:   str                                 # bv. "district"
+    detail:          Optional[str] = None                # bv. de afwijkende gescrapete competition_name
+    created_at:      datetime      = Field(default_factory=datetime.utcnow, index=True)
+
+
 class HockeyPouleStanding(SQLModel, table=True):
     __tablename__ = "hockey_poule_standings"
     __table_args__ = (
