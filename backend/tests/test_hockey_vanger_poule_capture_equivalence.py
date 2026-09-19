@@ -203,7 +203,45 @@ def test_apply_poule_capture_keeps_a_landelijke_poule_on_its_hl_comp_id_competit
     apply_poule_capture(session, body, target_season)
     session.commit()
 
-    comps = session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Landelijk Jongens O18")).all()
-    assert len(comps) == 1
-    session.refresh(poule)
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 700)).first()
     assert poule.competition_id == canonical.id
+    assert session.exec(
+        select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == 19)
+    ).all() == [canonical]
+
+
+def test_apply_poule_capture_keeps_a_districted_poule_when_a_recapture_loses_the_district(session):
+    # Item 1166: hockey.nl leverde vanaf 17-09-2026 voor sommige competities
+    # een gesponsorde competition-vorm (bv. "HelloFresh Meisjes O14
+    # Topklasse") zonder district_name meer aan. Een al gekoppelde poule met
+    # een bekend district mag daardoor niet naar een nieuwe district=NULL-rij
+    # verhuizen - dat gebeurde bij ~350 poules tegelijk op productie.
+    target_season = get_target_season(session)
+    canonical = HockeyCompetition(
+        external_id="Meisjes O14 Herfst|Topklasse|Zuid-Holland|2026-2027",
+        name="Meisjes O14 Herfst", class_name="Topklasse", district="Zuid-Holland",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(canonical)
+    session.commit()
+    session.refresh(canonical)
+    poule = HockeyPoule(poule_id=701, name="Poule B", competition_id=canonical.id, season="2026-2027")
+    session.add(poule)
+    session.commit()
+
+    # Recapture in de nieuwe (sponsor-)vorm zonder district - zou zonder de
+    # fix een nieuwe HockeyCompetition-rij (district=None) aanmaken en de
+    # poule daarnaartoe verhuizen.
+    body = _body(
+        poule_id=701, team_id=701, team_name="Team B",
+        poule_name="Poule B", competition_name="HelloFresh Meisjes O14 Topklasse",
+        class_name="Topklasse", district="",
+    )
+    apply_poule_capture(session, body, target_season)
+    session.commit()
+
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 701)).first()
+    assert poule.competition_id == canonical.id
+    assert session.exec(
+        select(HockeyCompetition).where(HockeyCompetition.district == "Zuid-Holland")
+    ).all() == [canonical]

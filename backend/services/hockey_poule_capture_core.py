@@ -191,13 +191,23 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
     # alle poules op de duplicaat-rij belandden i.p.v. de gepubliceerde).
     # Bestaat de poule al en hoort 'ie bij een hl_comp_id-rij, dan die rij
     # gewoon hergebruiken i.p.v. opnieuw af te leiden via ext_id.
+    #
+    # Item 1166: hockey.nl leverde vanaf 17-09-2026 voor sommige competities
+    # een gesponsorde competition-vorm (bv. "HelloFresh Meisjes O14
+    # Topklasse") zonder district_name/period_name. Een reeds gekoppelde
+    # poule met een BEKEND district mag dan niet worden losgetrokken van zijn
+    # goede HockeyCompetition-rij omdat de nieuwe scrape geen district meer
+    # meelevert - dat leidde tot honderden poules die naar een net aangemaakte
+    # district=NULL-rij verhuisden en zo uit elke district-gefilterde
+    # weergave vielen. Bij een ontbrekend district op de nieuwe capture dus
+    # ook de bestaande koppeling hergebruiken, net als bij hl_comp_id.
     existing_poule_for_comp = session.exec(
         select(HockeyPoule).where(HockeyPoule.poule_id == body.poule_id)
     ).first()
     comp = None
     if existing_poule_for_comp and existing_poule_for_comp.competition_id:
         prior_comp = session.get(HockeyCompetition, existing_poule_for_comp.competition_id)
-        if prior_comp and prior_comp.hl_comp_id:
+        if prior_comp and (prior_comp.hl_comp_id or (prior_comp.district and not body.district)):
             comp = prior_comp
             comp.updated_at = now
             if body.hockey_type:
