@@ -5,6 +5,7 @@ import { ghostBtn } from './styles.js'
 import { resolveHockeyType } from './hockeyTypeHelpers.js'
 import ScanEfficiencySection from './vanger/ScanEfficiencySection.jsx'
 import PouleRankingSection from './vanger/PouleRankingSection.jsx'
+import DataShapeFlagsSection from './vanger/DataShapeFlagsSection.jsx'
 
 export default function StatsTab() {
   const [clubs,       setClubs]       = useState([])
@@ -190,6 +191,8 @@ export default function StatsTab() {
           )}
         </div>
       )}
+
+      <DataShapeFlagsSection section={section} />
 
       {errors.length > 0 && (
         <div>

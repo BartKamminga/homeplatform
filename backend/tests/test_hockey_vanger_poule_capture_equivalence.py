@@ -6,14 +6,15 @@ ZA-dead-code-divergentie die upsert_poule_capture voorheen had (hockey_type
 samenvoeging structureel opgelost - beide paden geven nu dezelfde,
 correcte ZA-fallback."""
 
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from sqlmodel import select
 
-from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyTeam
+from models.hockey_discovery import DataShapeFlag, HockeyCompetition, HockeyPoule, HockeyTeam
 from models.settings import AppSetting
 from routers.hockey_capture import MatchIn, PouleCaptureIn, StandingIn, TeamInPoule, upsert_poule_capture
-from services.hockey_poule_capture_core import apply_poule_capture, notify_finished_matches
+from services.hockey_poule_capture_core import apply_poule_capture, notify_data_shape_flags, notify_finished_matches
 from services.hockey_vanger_ingest import _call_poule_capture
 from services.hockey_vanger_settings import get_target_season
 
@@ -245,3 +246,51 @@ def test_apply_poule_capture_keeps_a_districted_poule_when_a_recapture_loses_the
     assert session.exec(
         select(HockeyCompetition).where(HockeyCompetition.district == "Zuid-Holland")
     ).all() == [canonical]
+
+    # Item 1167: dit scenario moet ook gesignaleerd worden.
+    flag = session.exec(select(DataShapeFlag).where(DataShapeFlag.poule_id == 701)).first()
+    assert flag is not None
+    assert flag.missing_field == "district"
+    assert flag.competition_id == canonical.id
+    assert flag.detail == "HelloFresh Meisjes O14 Topklasse"
+
+
+def test_notify_data_shape_flags_sends_a_push_when_new_flags_exist(session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(DataShapeFlag(
+        poule_id=701, competition_id=1, missing_field="district",
+        detail="HelloFresh Meisjes O14 Topklasse", created_at=now,
+    ))
+    session.commit()
+
+    with patch("services.hockey_poule_capture_core.send_push", return_value=1) as mock_send_push:
+        sent = notify_data_shape_flags(session, now)
+
+    assert sent == 1
+    mock_send_push.assert_called_once()
+    assert "1 poule" in mock_send_push.call_args.kwargs["body"]
+
+
+def test_notify_data_shape_flags_is_throttled_within_the_hour(session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(DataShapeFlag(
+        poule_id=701, competition_id=1, missing_field="district", created_at=now,
+    ))
+    session.commit()
+
+    with patch("services.hockey_poule_capture_core.send_push", return_value=1) as mock_send_push:
+        notify_data_shape_flags(session, now)
+        sent_again = notify_data_shape_flags(session, now)
+
+    assert sent_again == 0
+    mock_send_push.assert_called_once()
+
+
+def test_notify_data_shape_flags_does_nothing_when_there_are_no_flags(session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    with patch("services.hockey_poule_capture_core.send_push") as mock_send_push:
+        sent = notify_data_shape_flags(session, now)
+
+    assert sent == 0
+    mock_send_push.assert_not_called()

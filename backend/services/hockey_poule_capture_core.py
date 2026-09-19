@@ -12,7 +12,7 @@ import re
 from sqlmodel import Session, col, func, select
 
 from models.hockey_discovery import (
-    HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam, HockeyTeamPoule,
+    DataShapeFlag, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding, HockeyTeam, HockeyTeamPoule,
 )
 from models.settings import AppSetting
 from services.hockey_vanger_settings import (
@@ -144,6 +144,41 @@ def notify_new_phase_indeling(session: Session, now: datetime) -> int:
     return sent
 
 
+_DATA_SHAPE_FLAG_NOTIFY_THROTTLE_KEY = "data_shape_flag_notify_last_run"
+
+
+def notify_data_shape_flags(session: Session, now: datetime) -> int:
+    """Item 1167: signaleert wanneer de scraper (Scout/Ghost) een veld mist
+    dat er eerder wel was (zie DataShapeFlag/apply_poule_capture) - i.p.v.
+    dat zo'n bronwijziging pas opvalt zodra poules zichtbaar verdwijnen
+    (zoals bij item 1166/HelloFresh). Zelfde 1x/uur-throttle-patroon als
+    notify_new_phase_indeling, aangeroepen vanuit dezelfde vanger_heartbeat."""
+    last_run_row = session.get(AppSetting, _DATA_SHAPE_FLAG_NOTIFY_THROTTLE_KEY)
+    since = None
+    if last_run_row and last_run_row.value:
+        try:
+            since = datetime.fromisoformat(last_run_row.value)
+            if (now - since).total_seconds() < 3600:
+                return 0
+        except ValueError:
+            since = None
+    _set_str_setting(session, _DATA_SHAPE_FLAG_NOTIFY_THROTTLE_KEY, now.isoformat())
+    session.commit()
+
+    query = select(func.count()).select_from(DataShapeFlag)
+    if since:
+        query = query.where(DataShapeFlag.created_at > since)
+    new_count = session.exec(query).one()
+    if not new_count:
+        return 0
+
+    return send_push(
+        user_id=None, title="Scandata-afwijking gedetecteerd",
+        body=f"{new_count} poule(s) misten een verwacht veld (bv. district) bij de laatste scan - check de Stats-tab.",
+        url="/hockey-inside/", site="hockey-inside",
+    )
+
+
 def _is_different_competition(session: Session, poule_id: int, new_comp_id: int) -> bool:
     """Item 990: bepaalt of een team al een primaire poule heeft die bij een
     ANDERE competitie hoort dan de nieuw gecapturede poule - zo ja, is dit een
@@ -207,6 +242,16 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
     comp = None
     if existing_poule_for_comp and existing_poule_for_comp.competition_id:
         prior_comp = session.get(HockeyCompetition, existing_poule_for_comp.competition_id)
+        if prior_comp and prior_comp.district and not body.district:
+            # Item 1167: dit is precies het scenario van 1166 - de bron
+            # miste een veld dat er eerder wel was. Signaleren i.p.v.
+            # stilzwijgend opvangen, zodat een volgende bronwijziging opvalt
+            # voordat poules er weer aan onderdoor gaan.
+            session.add(DataShapeFlag(
+                poule_id=body.poule_id, competition_id=prior_comp.id,
+                missing_field="district", detail=body.competition_name,
+                created_at=now,
+            ))
         if prior_comp and (prior_comp.hl_comp_id or (prior_comp.district and not body.district)):
             comp = prior_comp
             comp.updated_at = now
