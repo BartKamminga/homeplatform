@@ -60,7 +60,7 @@ function StandaloneMatchView({ matchRef }) {
 function BeheerderPaneel() {
   const [me, setMe] = useState(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('spelers')
+  const [tab, setTab] = useState('wedstrijden')
   const [matchDetailRef, setMatchDetailRef] = useState(null)
   const [playerEditId, setPlayerEditId] = useState(null)
   const [generalEditId, setGeneralEditId] = useState(null)
