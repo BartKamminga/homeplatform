@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, getPhotoBlockPosition } from '../api.js'
+import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
+import { LikeButton } from './LikeButton.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
@@ -233,6 +234,11 @@ export default function PublicEntry({
                     )
                   })()}
                   <LinkTiles links={r.links} />
+                  {!adminMode && (
+                    <div style={{ marginTop: 6 }}>
+                      <LikeButton kind="report" id={r.id} initialCount={r.like_count} likeFn={likeReport} unlikeFn={unlikeReport} />
+                    </div>
+                  )}
                 </div>
                 {adminMode && (
                   <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>

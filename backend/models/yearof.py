@@ -89,6 +89,7 @@ class YearOfPhoto(SQLModel, table=True):
     created_at:     datetime        = Field(default_factory=datetime.utcnow)  # uploaddatum
     published_at:   Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
     updated_at:     datetime        = Field(default_factory=datetime.utcnow)
+    like_count:     int             = Field(default=0)
 
 
 class YearOfPhotoPlayerTag(SQLModel, table=True):
@@ -176,6 +177,7 @@ class YearOfReport(SQLModel, table=True):
     created_at:       datetime        = Field(default_factory=datetime.utcnow)  # aanmaak-/uploaddatum
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)
     published_at:     Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
+    like_count:       int             = Field(default=0)
 
 
 class YearOfReportLink(SQLModel, table=True):

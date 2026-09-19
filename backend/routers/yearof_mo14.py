@@ -1045,6 +1045,27 @@ def delete_photo(
     return {"ok": True}
 
 
+@router.post("/photos/{photo_id}/like")
+def like_photo(photo_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Publiek - alleen positieve reactie (hartje), geen aparte like-rijen per
+    bezoeker. Dedupe (niet meerdere keren liken) gebeurt client-side via
+    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site."""
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    photo.like_count += 1
+    session.add(photo)
+    session.commit()
+    return {"like_count": photo.like_count}
+
+
+@router.delete("/photos/{photo_id}/like")
+def unlike_photo(photo_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    photo.like_count = max(0, photo.like_count - 1)
+    session.add(photo)
+    session.commit()
+    return {"like_count": photo.like_count}
+
+
 @router.post("/photos/{photo_id}/tags/{player_id}")
 def tag_photo(
     photo_id: str,
@@ -1557,6 +1578,27 @@ def delete_report(
     session.delete(report)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/reports/{report_id}/like")
+def like_report(report_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    """Publiek - alleen positieve reactie (hartje), geen aparte like-rijen per
+    bezoeker. Dedupe (niet meerdere keren liken) gebeurt client-side via
+    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site."""
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    report.like_count += 1
+    session.add(report)
+    session.commit()
+    return {"like_count": report.like_count}
+
+
+@router.delete("/reports/{report_id}/like")
+def unlike_report(report_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    report.like_count = max(0, report.like_count - 1)
+    session.add(report)
+    session.commit()
+    return {"like_count": report.like_count}
 
 
 @router.post("/reports/{report_id}/move")

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { getSpotlightReports, getPlayers, getTimeline, getPhotosByReport } from '../api.js'
+import { getSpotlightReports, getPlayers, getTimeline, getPhotosByReport, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
+import { LikeButton } from './LikeButton.jsx'
 
 const ROLE_LABEL = { speelster: 'speelster', coach: 'coach', ouder: 'ouder' }
 
@@ -130,6 +131,11 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
                     {title} &rsaquo;
                   </a>
                 </p>
+              )}
+              {!adminMode && (
+                <div style={{ marginTop: 6 }}>
+                  <LikeButton kind="report" id={r.id} initialCount={r.like_count} likeFn={likeReport} unlikeFn={unlikeReport} />
+                </div>
               )}
             </div>
           )

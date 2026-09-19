@@ -89,6 +89,8 @@ export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/pho
 export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)
 export const tagPhoto            = (photoId, playerId) => api.post(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
 export const untagPhoto          = (photoId, playerId) => api.delete(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)
+export const likePhoto           = (photoId) => api.post(withCode(`/api/yearof-mo14/photos/${photoId}/like`))
+export const unlikePhoto         = (photoId) => api.delete(withCode(`/api/yearof-mo14/photos/${photoId}/like`))
 
 // Wedstrijd-invullink (contributor)
 export const createContributorLink = (body) => api.post('/api/yearof-mo14/contributor-links', body)
@@ -125,6 +127,8 @@ export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/r
 export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const moveReport          = (reportId, direction) => api.post(`/api/yearof-mo14/reports/${reportId}/move`, { direction })
+export const likeReport          = (reportId) => api.post(withCode(`/api/yearof-mo14/reports/${reportId}/like`))
+export const unlikeReport        = (reportId) => api.delete(withCode(`/api/yearof-mo14/reports/${reportId}/like`))
 
 // Profiellinkje (spelersprofiel zelf-bijwerken)
 export const createProfileLink  = (playerId) => api.post(`/api/yearof-mo14/profile-links?player_id=${encodeURIComponent(playerId)}`)
