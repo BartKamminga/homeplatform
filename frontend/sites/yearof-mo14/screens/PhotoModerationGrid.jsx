@@ -153,10 +153,6 @@ export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePubli
         <button onClick={bulkDelete} className="yof-btn-secondary" style={{ fontSize: 12 }} disabled={selected.size === 0 || busy}>
           Verwijder geselecteerd
         </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#666', marginLeft: 'auto', cursor: 'pointer' }}>
-          <input type="checkbox" checked={autoAdvance} onChange={toggleAutoAdvance} />
-          Na publiceren automatisch volgende tonen
-        </label>
       </div>
       <p style={{ fontSize: 11, color: '#999', margin: '0 0 10px' }}>
         &#127991; = aantal getagde spelers &middot; klik een foto (of het potloodje) om te openen: taggen, notitie, los publiceren/verwijderen.
@@ -174,32 +170,31 @@ export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePubli
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
         }}>
-          {photos.length > 1 && (
-            <button onClick={e => { e.stopPropagation(); setOpenIndex(i => (i - 1 + photos.length) % photos.length) }} style={{
-              position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 32, color: 'white',
-              background: 'none', border: 'none', cursor: 'pointer', padding: 12, zIndex: 1,
-            }}>&lsaquo;</button>
-          )}
           <div onClick={e => e.stopPropagation()} style={{
             width: '100%', maxWidth: 340, background: 'white', borderRadius: 12, padding: 10,
             maxHeight: '90vh', overflowY: 'auto',
           }}>
-            {photos.length > 1 && (
-              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#999', textAlign: 'center' }}>
-                {openIndex + 1} / {photos.length}
-              </p>
-            )}
             <PhotoCard photo={stillOpenPhoto} players={players} entryTitle={entryTitle}
               onTogglePublish={handleModalPublish} onDelete={id => { onDelete(id); setOpenIndex(null) }}
               onToggleTag={onToggleTag} onSaveCaption={onSaveCaption} />
+
+            {photos.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+                <button onClick={() => setOpenIndex(i => (i - 1 + photos.length) % photos.length)} className="yof-btn-secondary" style={{ padding: '2px 10px' }}>&lsaquo;</button>
+                <span style={{ fontSize: 11, color: '#999' }}>{openIndex + 1} / {photos.length}</span>
+                <button onClick={() => setOpenIndex(i => (i + 1) % photos.length)} className="yof-btn-secondary" style={{ padding: '2px 10px' }}>&rsaquo;</button>
+                <label title="Automatisch naar volgende na publiceren" style={{
+                  display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, cursor: 'pointer',
+                  color: autoAdvance ? '#16a34a' : '#999', marginLeft: 4,
+                }}>
+                  <input type="checkbox" checked={autoAdvance} onChange={toggleAutoAdvance} style={{ margin: 0 }} />
+                  &gt;&gt; auto
+                </label>
+              </div>
+            )}
+
             <button onClick={() => setOpenIndex(null)} className="yof-btn" style={{ width: '100%', marginTop: 8 }}>Sluiten</button>
           </div>
-          {photos.length > 1 && (
-            <button onClick={e => { e.stopPropagation(); setOpenIndex(i => (i + 1) % photos.length) }} style={{
-              position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 32, color: 'white',
-              background: 'none', border: 'none', cursor: 'pointer', padding: 12, zIndex: 1,
-            }}>&rsaquo;</button>
-          )}
         </div>
       )}
     </div>
