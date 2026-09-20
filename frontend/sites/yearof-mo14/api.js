@@ -15,6 +15,13 @@ function withCode(url) {
 export const getStatus = () => api.get('/api/yearof-mo14/status')
 export const getMe     = () => api.get('/api/yearof-mo14/me')
 
+// Landelijke MO14 Topklasse-ranglijst (poulebord's query-widget-endpoint,
+// publiek net als /action - geen teamcode nodig). Tournament-id en tag zijn
+// bewust hardcoded, zelfde single-tenant aanpak als de rest van deze site.
+const MO14_TOURNAMENT_ID = '05615c6e-5c10-4151-b8a1-691779f8f467'
+export const getNationalRanking = (limit = 10) =>
+  api.get(`/api/hockey/public/tournaments/${MO14_TOURNAMENT_ID}/query/ranking?tag=Topklasse&limit=${limit}`)
+
 // Roadmap (platform-brede roadmap, gefilterd op deze site)
 export const getRoadmapItems = () => api.get('/api/roadmap?site=yearof-mo14')
 
