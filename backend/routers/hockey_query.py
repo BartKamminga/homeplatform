@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, col, select
 
 from core.database import get_session
+from models.hockey import HockeyPublicationTagCategory
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_query_scope import (
     ALL_RANKING_STATS,
@@ -24,6 +25,24 @@ from services.hockey_scope import get_comp_link_tags_bulk, get_publication_links
 from services.hockey_teams import resolve_team_clubs, club_logo_for_team
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-query"])
+
+_REGIO_CATEGORY_NAME = "Regio"
+
+
+def _regio_category_id(session: Session) -> Optional[str]:
+    """Item 1169: per rij toonden de query-widgets elke gekoppelde tag
+    (niveau + regio + ongecategoriseerde tags als "Autoscan") - het niveau
+    staat al in de sectiekop (bv. "Queries · Topklasse"), dus dat is per rij
+    ruis. Alleen de regio-tag is per rij nog relevant (uit welk district komt
+    dit team)."""
+    cat = session.exec(
+        select(HockeyPublicationTagCategory).where(HockeyPublicationTagCategory.name == _REGIO_CATEGORY_NAME)
+    ).first()
+    return cat.id if cat else None
+
+
+def _regio_tags(tags: list, regio_category_id: Optional[str]) -> list:
+    return [t for t in tags if t.category_id == regio_category_id]
 
 
 @router.get("/public/tournaments/{tid}/query/ranking")
@@ -46,6 +65,7 @@ def get_tag_ranking(
     poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
     tags_by_ext = tags_by_poule_ext(session, scoped)
+    regio_id = _regio_category_id(session)
     standings = session.exec(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
     ).all()
@@ -73,7 +93,7 @@ def get_tag_ranking(
             "club_logo_url":    club_logo_for_team(teams, clubs, r.team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(r.poule_id, [])],
+            "tags":             [{"id": t.id, "name": t.name} for t in _regio_tags(tags_by_ext.get(r.poule_id, []), regio_id)],
             "points":           r.points,
             "won":              r.won,
             "drawn":            r.drawn,
@@ -110,6 +130,7 @@ def get_tag_round_scorers(
     poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
     tags_by_ext = tags_by_poule_ext(session, scoped)
+    regio_id = _regio_category_id(session)
     matches, last_round = last_round_only(finished_matches(session, poule_ext_ids))
 
     totals: dict = {}  # (poule_ext_id, team_id) -> {team_name, goals_for, goals_against}
@@ -142,7 +163,7 @@ def get_tag_round_scorers(
             "club_logo_url":    club_logo_for_team(teams, clubs, team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(poule_ext_id, [])],
+            "tags":             [{"id": t.id, "name": t.name} for t in _regio_tags(tags_by_ext.get(poule_ext_id, []), regio_id)],
             "goals_for":        data["goals_for"],
             "goals_against":    data["goals_against"],
             "round":            last_round.get(poule_ext_id),
@@ -173,6 +194,7 @@ def get_tag_round_matches(
     poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
     tags_by_ext = tags_by_poule_ext(session, scoped)
+    regio_id = _regio_category_id(session)
     matches, _ = scoped_matches(session, poule_ext_ids, scope)
 
     candidates = []
@@ -199,7 +221,7 @@ def get_tag_round_matches(
             "margin":           margin,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(m.poule_id, [])],
+            "tags":             [{"id": t.id, "name": t.name} for t in _regio_tags(tags_by_ext.get(m.poule_id, []), regio_id)],
             "round":            m.round,
         })
     return {"tags": tag, "stat": stat, "scope": scope, "rows": rows}
@@ -228,6 +250,7 @@ def get_upcoming_matches(
     poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
     tags_by_ext = tags_by_poule_ext(session, scoped)
+    regio_id = _regio_category_id(session)
 
     scheduled = session.exec(
         select(HockeyPouleMatch)
@@ -283,7 +306,7 @@ def get_upcoming_matches(
             "match_date":       m.match_date,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(m.poule_id, [])],
+            "tags":             [{"id": t.id, "name": t.name} for t in _regio_tags(tags_by_ext.get(m.poule_id, []), regio_id)],
         })
     return {"tags": tag, "rows": rows}
 
@@ -316,6 +339,7 @@ def get_live_matches(
         ).all()
     }
     tags_by_link = get_comp_link_tags_bulk(session, [lnk.id for lnk in links])
+    regio_id = _regio_category_id(session)
 
     poules = session.exec(select(HockeyPoule).where(col(HockeyPoule.competition_id).in_(comp_ids))).all()
     poule_ext_ids = [p.poule_id for p in poules]
@@ -349,7 +373,7 @@ def get_live_matches(
         lnk = link_by_comp_id.get(poule.competition_id)
         comp_group = comp_groups.setdefault(poule.competition_id, {
             "competition_name": (lnk.label if lnk and lnk.label else (comp.name if comp else None)),
-            "tags": [t.name for t in tags_by_link.get(lnk.id, [])] if lnk else [],
+            "tags": [t.name for t in _regio_tags(tags_by_link.get(lnk.id, []), regio_id)] if lnk else [],
             "poules": {},
         })
         poule_group = comp_group["poules"].setdefault(poule.poule_id, {"poule_name": poule.name, "matches": []})
