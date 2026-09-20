@@ -1,79 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPhotosModeration, updatePhoto, deletePhoto, getTimelineModeration, getPlayers, tagPhoto, untagPhoto } from '../api.js'
-import { useConfirm } from '@components/ConfirmDialog.jsx'
-
-export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption }) {
-  const [captionDraft, setCaptionDraft] = useState(undefined)
-  const [confirm, confirmDialog] = useConfirm()
-
-  async function saveCaption() {
-    if (captionDraft === undefined || captionDraft === (photo.caption || '')) return
-    await onSaveCaption(photo, captionDraft)
-  }
-
-  async function handleDelete() {
-    if (!(await confirm(`${photo.media_type === 'video' ? 'Deze video' : 'Deze foto'} verwijderen? Dit kan niet ongedaan gemaakt worden.`))) return
-    onDelete(photo.id)
-  }
-
-  return (
-    <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'hidden' }}>
-      {photo.media_type === 'video' ? (
-        <video src={`/api/yearof-mo14/photos/${photo.id}/video`} controls
-          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', background: '#000' }} />
-      ) : (
-        <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt=""
-          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', background: '#eee' }} />
-      )}
-      <div style={{ padding: 8, fontSize: 11 }}>
-        <div style={{ color: photo.status === 'published' ? '#16a34a' : '#d97706', fontWeight: 700, marginBottom: 4 }}>
-          {photo.status === 'published' ? 'Gepubliceerd' : 'Concept'}
-        </div>
-        <div style={{ color: '#888', marginBottom: 6 }}>
-          {photo.photo_type} &middot; <strong>{entryTitle(photo.match_ref)}</strong>
-        </div>
-        <div style={{ color: '#999', marginBottom: 6 }}>
-          Geupload: {new Date(photo.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-          {photo.published_at && (
-            <> &middot; Gepubliceerd: {new Date(photo.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}</>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-          {players.map(pl => {
-            const tagged = photo.player_ids.includes(pl.id)
-            return (
-              <button key={pl.id} onClick={() => onToggleTag(photo, pl.id)}
-                style={{
-                  border: 'none', borderRadius: 999, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
-                  background: tagged ? '#16a34a' : '#e5e7eb',
-                  color: tagged ? 'white' : '#555',
-                }}>
-                {pl.nickname || pl.name}
-              </button>
-            )
-          })}
-        </div>
-
-        <input
-          placeholder="Notitie (optioneel)"
-          defaultValue={photo.caption || ''}
-          onChange={e => setCaptionDraft(e.target.value)}
-          onBlur={saveCaption}
-          style={{ width: '100%', boxSizing: 'border-box', fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd', marginBottom: 6 }}
-        />
-
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => onTogglePublish(photo)} className="yof-btn-secondary" style={{ flex: 1 }}>
-            {photo.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
-          </button>
-          <button onClick={handleDelete} className="yof-btn-secondary">&times;</button>
-        </div>
-      </div>
-      {confirmDialog}
-    </div>
-  )
-}
+import { PhotoModerationGrid } from './PhotoModerationGrid.jsx'
 
 export default function PhotosAdmin() {
   const [photos, setPhotos] = useState([])
@@ -134,18 +61,32 @@ export default function PhotosAdmin() {
     }
   }
 
+  async function bulkPublish(ids) {
+    try {
+      await Promise.all(ids.map(id => updatePhoto(id, { status: 'published' })))
+      load()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function bulkDelete(ids) {
+    try {
+      await Promise.all(ids.map(id => deletePhoto(id)))
+      load()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div>
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Foto&rsquo;s modereren</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-        {photos.map(p => (
-          <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
-            onTogglePublish={togglePublish} onDelete={remove} onToggleTag={toggleTag} onSaveCaption={saveCaption} />
-        ))}
-        {photos.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s geupload.</p>}
-      </div>
+      <PhotoModerationGrid photos={photos} players={players} entryTitle={entryTitle}
+        onTogglePublish={togglePublish} onDelete={remove} onToggleTag={toggleTag} onSaveCaption={saveCaption}
+        onBulkPublish={bulkPublish} onBulkDelete={bulkDelete} />
     </div>
   )
 }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, col, select
 
 from core.database import get_session
+from models.hockey import HockeyPublicationTagCategory
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_query_scope import (
     ALL_RANKING_STATS,
@@ -24,6 +25,16 @@ from services.hockey_scope import get_comp_link_tags_bulk, get_publication_links
 from services.hockey_teams import resolve_team_clubs, club_logo_for_team
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-query"])
+
+
+def _tag_category_map(session: Session) -> dict:
+    """Item 1170: mo14-a-paris wil per rij alleen de regio/district-tag tonen
+    (niveau staat al in de sectiekop). Poulebord zelf blijft alle tags tonen -
+    hier wordt alleen een categorienaam TOEGEVOEGD aan elk tag-object i.p.v.
+    tags weg te filteren, zodat poulebord's eigen rendering (die alle tags
+    toont) ongewijzigd blijft."""
+    cats = session.exec(select(HockeyPublicationTagCategory)).all()
+    return {c.id: c.name for c in cats}
 
 
 @router.get("/public/tournaments/{tid}/query/ranking")
@@ -46,6 +57,7 @@ def get_tag_ranking(
     poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
     tags_by_ext = tags_by_poule_ext(session, scoped)
+    cat_map = _tag_category_map(session)
     standings = session.exec(
         select(HockeyPouleStanding).where(col(HockeyPouleStanding.poule_id).in_(poule_ext_ids))
     ).all()
@@ -73,7 +85,7 @@ def get_tag_ranking(
             "club_logo_url":    club_logo_for_team(teams, clubs, r.team_id),
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(r.poule_id, [])],
+            "tags":             [{"id": t.id, "name": t.name, "category": cat_map.get(t.category_id)} for t in tags_by_ext.get(r.poule_id, [])],
             "points":           r.points,
             "won":              r.won,
             "drawn":            r.drawn,
@@ -228,6 +240,7 @@ def get_upcoming_matches(
     poule_ext_ids = [p.poule_id for p, _, _ in scoped]
     poule_by_ext = {p.poule_id: (p, comp) for p, comp, _ in scoped}
     tags_by_ext = tags_by_poule_ext(session, scoped)
+    cat_map = _tag_category_map(session)
 
     scheduled = session.exec(
         select(HockeyPouleMatch)
@@ -283,7 +296,7 @@ def get_upcoming_matches(
             "match_date":       m.match_date,
             "poule_name":       poule.name if poule else None,
             "competition_name": comp.name if comp else None,
-            "tags":             [{"id": t.id, "name": t.name} for t in tags_by_ext.get(m.poule_id, [])],
+            "tags":             [{"id": t.id, "name": t.name, "category": cat_map.get(t.category_id)} for t in tags_by_ext.get(m.poule_id, [])],
         })
     return {"tags": tag, "rows": rows}
 

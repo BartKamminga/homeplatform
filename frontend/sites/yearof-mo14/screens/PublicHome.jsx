@@ -58,7 +58,7 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
   return (
     <div>
       <div className="yof-hero">
-        <div style={{ fontSize: 32 }}>🇫🇷</div>
+        <div style={{ fontSize: 32 }}>🗼</div>
         <h1>Samen op naar Parijs!</h1>
         <p>Volg het team, bekijk de wedstrijden en steun de actie voor onze teamtrip.</p>
         <div style={{ marginTop: 16 }}>

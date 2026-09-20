@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTimeline, getStandings } from '../api.js'
+import NationalQueries from './NationalQueries.jsx'
 
 function fmtDate(iso) {
   if (!iso) return '-'
@@ -84,6 +85,8 @@ export default function PublicTimeline({ onOpenEntry }) {
           </table>
         </div>
       )}
+
+      <NationalQueries />
     </div>
   )
 }
