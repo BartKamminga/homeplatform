@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getTimeline, getStandings, getNationalRanking } from '../api.js'
-
-const OUR_TEAM_NAME = 'Victoria MO14-1'
+import { getTimeline, getStandings } from '../api.js'
+import NationalQueries from './NationalQueries.jsx'
 
 function fmtDate(iso) {
   if (!iso) return '-'
@@ -16,13 +15,11 @@ function fmtDate(iso) {
 export default function PublicTimeline({ onOpenEntry }) {
   const [items, setItems] = useState([])
   const [standings, setStandings] = useState(null)
-  const [nationalRanking, setNationalRanking] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     getTimeline().then(setItems).catch(e => setError(e.message))
     getStandings().then(setStandings).catch(() => {})
-    getNationalRanking().then(res => setNationalRanking(res.rows)).catch(() => {})
   }, [])
 
   return (
@@ -89,42 +86,7 @@ export default function PublicTimeline({ onOpenEntry }) {
         </div>
       )}
 
-      {nationalRanking?.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Landelijke ranglijst &middot; MO14 Topklasse</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: '#888' }}>
-                <th style={{ padding: '4px 6px' }}>#</th>
-                <th style={{ padding: '4px 6px' }}>Team</th>
-                <th style={{ padding: '4px 6px', textAlign: 'center' }}>W-G-V</th>
-                <th style={{ padding: '4px 6px', textAlign: 'center' }}>DS</th>
-                <th style={{ padding: '4px 6px', textAlign: 'right' }}>Pt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nationalRanking.map(r => (
-                <tr key={`${r.team_name}-${r.rank}`} style={{
-                  borderTop: '1px solid #eee',
-                  fontWeight: r.team_name === OUR_TEAM_NAME ? 700 : 400,
-                  background: r.team_name === OUR_TEAM_NAME ? '#fdf8e8' : 'transparent',
-                }}>
-                  <td style={{ padding: '4px 6px' }}>{r.rank}</td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {r.club_logo_url && <img src={r.club_logo_url} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />}
-                      {r.team_name}
-                    </div>
-                  </td>
-                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.won}-{r.drawn}-{r.lost}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.goal_diff}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <NationalQueries />
     </div>
   )
 }
