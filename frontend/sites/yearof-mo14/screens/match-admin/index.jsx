@@ -8,7 +8,7 @@ import {
 } from '../../api.js'
 import { copyToClipboard } from '../../clipboard.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
-import { PhotoCard } from '../PhotosAdmin.jsx'
+import { PhotoModerationGrid } from '../PhotoModerationGrid.jsx'
 import { ReportForm } from '../ReportForm.jsx'
 import ContributeReport from '../ContributeReport.jsx'
 import PublicEntry from '../PublicEntry.jsx'
@@ -88,6 +88,14 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   }
   async function savePhotoCaption(p, value) {
     await updatePhoto(p.id, { caption: value })
+    loadPhotos()
+  }
+  async function bulkPublishPhotos(ids) {
+    await Promise.all(ids.map(id => updatePhoto(id, { status: 'published' })))
+    loadPhotos()
+  }
+  async function bulkDeletePhotos(ids) {
+    await Promise.all(ids.map(id => deletePhoto(id)))
     loadPhotos()
   }
 
@@ -230,12 +238,10 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             {showPhotos ? 'Verberg' : 'Toon'} fotobeheer ({photos.length})
           </button>
           {showPhotos && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
-              {photos.map(p => (
-                <PhotoCard key={p.id} photo={p} players={players} entryTitle={entryTitle}
-                  onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption} />
-              ))}
-              {photos.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>}
+            <div style={{ marginBottom: 20 }}>
+              <PhotoModerationGrid photos={photos} players={players} entryTitle={entryTitle}
+                onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption}
+                onBulkPublish={bulkPublishPhotos} onBulkDelete={bulkDeletePhotos} />
             </div>
           )}
         </>

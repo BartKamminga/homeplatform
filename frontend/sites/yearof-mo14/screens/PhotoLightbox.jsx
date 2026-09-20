@@ -46,7 +46,7 @@ export function PhotoThumb({ photo }) {
     return <VideoThumb photo={photo} />
   }
   return (
-    <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt=""
+    <img src={`/api/yearof-mo14/photos/${photo.id}/thumb.jpg`} alt="" loading="lazy"
       style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
   )
 }
