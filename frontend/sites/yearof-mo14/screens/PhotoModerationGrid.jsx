@@ -3,6 +3,8 @@ import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { PhotoThumb } from './PhotoLightbox.jsx'
 import { PhotoCard } from './PhotoCard.jsx'
 
+const AUTO_ADVANCE_KEY = 'yof_photo_mod_autoadvance'
+
 // Item 1168: bij 350+ fotos per wedstrijd was de oude aanpak (elke foto als
 // volledige kaart met tags/notitie/knoppen, allemaal tegelijk gerenderd)
 // niet meer te doen. Nu: lichte tegels (alleen thumbnail + aanvinkvakje +
@@ -60,6 +62,25 @@ export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePubli
   const [openIndex, setOpenIndex] = useState(null)
   const [busy, setBusy] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
+  // Voorkeur onthouden tussen sessies - snel modereren betekent meestal
+  // "publiceren en meteen door naar de volgende", maar niet iedereen wil dat.
+  const [autoAdvance, setAutoAdvance] = useState(() => localStorage.getItem(AUTO_ADVANCE_KEY) !== 'false')
+
+  function toggleAutoAdvance() {
+    setAutoAdvance(prev => {
+      const next = !prev
+      localStorage.setItem(AUTO_ADVANCE_KEY, String(next))
+      return next
+    })
+  }
+
+  async function handleModalPublish(photo) {
+    const wasPublished = photo.status === 'published'
+    await onTogglePublish(photo)
+    if (!wasPublished && autoAdvance && photos.length > 1) {
+      setOpenIndex(i => (i + 1) % photos.length)
+    }
+  }
 
   const openPhotoId = openIndex != null ? photos[openIndex]?.id : null
   // Zodra de lijst ververst (bv. na een bulk-actie) kan de foto op de
@@ -132,6 +153,10 @@ export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePubli
         <button onClick={bulkDelete} className="yof-btn-secondary" style={{ fontSize: 12 }} disabled={selected.size === 0 || busy}>
           Verwijder geselecteerd
         </button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#666', marginLeft: 'auto', cursor: 'pointer' }}>
+          <input type="checkbox" checked={autoAdvance} onChange={toggleAutoAdvance} />
+          Na publiceren automatisch volgende tonen
+        </label>
       </div>
       <p style={{ fontSize: 11, color: '#999', margin: '0 0 10px' }}>
         &#127991; = aantal getagde spelers &middot; klik een foto (of het potloodje) om te openen: taggen, notitie, los publiceren/verwijderen.
@@ -165,7 +190,7 @@ export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePubli
               </p>
             )}
             <PhotoCard photo={stillOpenPhoto} players={players} entryTitle={entryTitle}
-              onTogglePublish={p => onTogglePublish(p)} onDelete={id => { onDelete(id); setOpenIndex(null) }}
+              onTogglePublish={handleModalPublish} onDelete={id => { onDelete(id); setOpenIndex(null) }}
               onToggleTag={onToggleTag} onSaveCaption={onSaveCaption} />
             <button onClick={() => setOpenIndex(null)} className="yof-btn" style={{ width: '100%', marginTop: 8 }}>Sluiten</button>
           </div>
