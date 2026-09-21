@@ -69,6 +69,7 @@ from routers import hockey_query  # noqa: E402
 from routers import hockey_scenario  # noqa: E402
 from routers import poulebord  # noqa: E402
 from routers import infra  # noqa: E402
+from routers import deploy_grants  # noqa: E402
 from routers import agent_control  # noqa: E402
 from routers import dev_sessions  # noqa: E402
 from routers import mindbox  # noqa: E402
@@ -219,6 +220,7 @@ app.include_router(hockey_scenario.router)
 app.include_router(poulebord.router)
 app.include_router(scrapster_router)
 app.include_router(infra.router)
+app.include_router(deploy_grants.router)
 app.include_router(agent_control.router)
 app.include_router(dev_sessions.router)
 app.include_router(yearof_mo14.router)

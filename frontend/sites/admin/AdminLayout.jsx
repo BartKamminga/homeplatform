@@ -14,6 +14,7 @@ const NAV = [
   { to: "/admin/site-monitoring", icon: "◉", label: "Site monitoring" },
   { to: "/admin/monitoring", icon: "🔗", label: "Beheer & links" },
   { to: "/admin/infrastructure", icon: "🖥", label: "Infrastructuur" },
+  { to: "/admin/deploy-grants", icon: "🔑", label: "Externe deploy-toegang" },
   { to: "/admin/workflows", icon: "⟳", label: "Workflows" },
   { to: "/admin/data-storage", icon: "◈", label: "Data & instellingen" },
   { to: "/admin/data-sources", icon: "🔌", label: "Databronnen & API's" },
