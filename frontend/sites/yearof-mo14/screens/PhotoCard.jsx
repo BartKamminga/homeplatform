@@ -59,10 +59,13 @@ export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelet
         </div>
 
         {photo.match_ref && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6, cursor: 'pointer' }}>
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
+            cursor: 'pointer', userSelect: 'none',
+          }}>
             <input type="checkbox" checked={!!photo.match_highlight}
               onChange={() => onToggleHighlight(photo)} style={{ margin: 0 }} />
-            Match highlight (ook zichtbaar op de losse wedstrijdlink)
+            Match highlight
           </label>
         )}
 
