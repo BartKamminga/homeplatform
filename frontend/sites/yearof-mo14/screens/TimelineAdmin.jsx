@@ -39,7 +39,7 @@ function ScoreCell({ item, onSave }) {
 
   if (!item.match_ref.startsWith('custom:')) {
     // competitiewedstrijden: uitslag komt automatisch uit Poulebord/hockey-inside, read-only
-    return <span>{item.score_us != null ? `${item.score_us}-${item.score_them}` : '-'}</span>
+    return <span>{item.score_home != null ? `${item.score_home}-${item.score_away}` : '-'}</span>
   }
 
   async function save() {

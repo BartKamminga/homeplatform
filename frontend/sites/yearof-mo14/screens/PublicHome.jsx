@@ -22,7 +22,7 @@ function MatchTeaser({ label, item, onOpen }) {
         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>{label}</div>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>
         <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
-          {fmtDate(item.date)}{item.score_us != null ? ` · ${item.score_us}-${item.score_them}` : ''}
+          {fmtDate(item.date)}{(item.score_home ?? item.score_us) != null ? ` · ${item.score_home ?? item.score_us}-${item.score_away ?? item.score_them}` : ''}
         </div>
       </div>
     </a>

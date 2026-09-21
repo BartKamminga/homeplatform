@@ -100,8 +100,10 @@ export default function PublicEntry({
               target="_blank" rel="noreferrer" style={{ color: '#12203c' }}>{item.location}</a>
           </p>
         )}
-        {item.score_us != null && (
-          <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>{item.score_us} - {item.score_them}</p>
+        {(item.score_home ?? item.score_us) != null && (
+          <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>
+            {item.score_home ?? item.score_us} - {item.score_away ?? item.score_them}
+          </p>
         )}
         {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{item.description}</p>}
       </div>

@@ -44,7 +44,9 @@ export default function PublicTimeline({ onOpenEntry }) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {it.score_us != null && <strong>{it.score_us}-{it.score_them}</strong>}
+            {(it.score_home ?? it.score_us) != null && (
+              <strong>{it.score_home ?? it.score_us}-{it.score_away ?? it.score_them}</strong>
+            )}
             <span className={`badge ${it.kind}`}>{it.kind === 'competitie' ? 'competitie' : it.kind}</span>
           </div>
         </a>
