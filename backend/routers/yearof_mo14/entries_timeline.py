@@ -204,6 +204,13 @@ def _competition_timeline_items(session: Session) -> list[dict]:
                 "is_home": is_home,
                 "score_us": (m["home_score"] if is_home else m["away_score"]) if status_key == "finished" else None,
                 "score_them": (m["away_score"] if is_home else m["home_score"]) if status_key == "finished" else None,
+                # Aparte thuis/uit-geordende score (i.t.t. score_us/score_them
+                # hierboven) zodat de score net als de titel altijd
+                # thuis-uit getoond kan worden - bug ontdekt 21/09: titel in
+                # thuis/uit-volgorde naast score in wij/zij-volgorde liet de
+                # uitslag bij een uitwedstrijd omgedraaid lijken.
+                "score_home": m["home_score"] if status_key == "finished" else None,
+                "score_away": m["away_score"] if status_key == "finished" else None,
                 "location": m.get("location"),
                 "home_club_logo": m.get("home_club_logo"),
                 "away_club_logo": m.get("away_club_logo"),

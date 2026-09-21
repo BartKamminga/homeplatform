@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useFetch } from '@core/useFetch.js'
-import { saveBoard, getBoardByCode, searchDiscoveryPools } from './api.js'
+import { saveBoard, searchDiscoveryPools } from './api.js'
 import { C, CLUB_KEY, BOARD_KEY, MY_BOARDS_KEY } from './constants.js'
 import { BoardView } from './PinnedBoard.jsx'
 import { usePublicationBrowse, usePoulebordPins } from './hooks.js'
@@ -23,7 +23,7 @@ export default function App() {
     pubComps, expandedCompId, setExpandedCompId, allTags, filteredComps, navigateTo } = browse
 
   const pinsApi = usePoulebordPins()
-  const { pins, setPins, setPinsRaw, poolPins, setPoolPins, setPoolPinsRaw, queryPins, filterPins,
+  const { pins, setPins, poolPins, setPoolPins, queryPins, filterPins,
     togglePin, togglePoolPin, setQueryPin, updateQueryPin, removeQueryPin,
     filterPinKey, toggleFilterPin, removeFilterPin } = pinsApi
 
@@ -45,7 +45,6 @@ export default function App() {
   const searchRef                             = useRef(null)
   const [searchResults, setSearchResults]     = useState(null)
   const searchTimerRef                        = useRef(null)
-  const [sharedBoard, setSharedBoard]         = useState(null)
   const [filtersOpen, setFiltersOpen]         = useState(() => localStorage.getItem('pb_filters') !== '0')
   const [saveDialog, setSaveDialog]           = useState(false)
   const [saveName, setSaveName]               = useState('')
@@ -56,18 +55,6 @@ export default function App() {
 
   useEffect(() => {
     fetch('/api/tournix/public/beacon', { method: 'POST' }).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('b')
-    if (!code) return
-    getBoardByCode(code).then(b => {
-      setClub(b.club)
-      setPinsRaw(new Set(b.pins))
-      setPoolPinsRaw(new Map(b.pool_pins.map(p => [`${p.phaseId}::${p.poolName}`, p])))
-      setBoardOn(true)
-      setSharedBoard({ id: b.id, name: b.name })
-    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -140,7 +127,6 @@ export default function App() {
     setPins(new Set(b.pins || []))
     setPoolPins(new Map((b.pool_pins || []).map(p => [`${p.phaseId}::${p.poolName}`, p])))
     setBoardOn(true)
-    setSharedBoard(null)
     setMyBoardsView(false)
     if (b.club) localStorage.setItem(CLUB_KEY, b.club)
     localStorage.setItem(BOARD_KEY, '1')
@@ -247,21 +233,6 @@ export default function App() {
         />
       ) : boardOn ? (
         <>
-          {sharedBoard && (
-            <div style={{ background: 'rgba(207,159,63,0.08)', borderBottom: `1px solid ${C.border}`,
-              padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: C.gold, flex: 1 }}>
-                📌 Gedeeld board: <strong>{sharedBoard.name}</strong>
-              </span>
-              <button onClick={() => {
-                setSaveName(sharedBoard.name)
-                setSaveDialog(true)
-              }} style={{
-                background: 'transparent', border: `1px solid ${C.gold}`, borderRadius: 6,
-                padding: '3px 10px', fontSize: 10, color: C.gold, cursor: 'pointer', fontFamily: 'inherit',
-              }}>Opslaan als mijn board</button>
-            </div>
-          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px 0' }}>
             <button onClick={() => { setSaveName(''); setSavedCode(null); setSaveDialog(true) }} style={{
               background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 16,

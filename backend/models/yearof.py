@@ -84,6 +84,7 @@ class YearOfPhoto(SQLModel, table=True):
     media_type:     str             = Field(default="photo")  # photo | video
     file_ext:       Optional[str]  = Field(default=None)  # alleen bij video - welk bestand serveren (geen transcode)
     status:         str             = Field(default="concept")  # concept | published
+    match_highlight: bool           = Field(default=False)  # gecureerde subset - alleen deze tonen op de losse wedstrijdlink (naast de volledige set in de hele app)
     uploader_code:  Optional[str]   = Field(default=None)
     caption:        Optional[str]  = Field(default=None)
     created_at:     datetime        = Field(default_factory=datetime.utcnow)  # uploaddatum

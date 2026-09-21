@@ -33,7 +33,7 @@ export default function PublicEntry({
     // previewMode/adminMode: ook concept-fotos/video's tonen (bv. net
     // geupload via een invullinkje) - anders lijken ze "verdwenen" totdat
     // een beheerder ze los publiceert.
-    const call = previewMode ? getPhotosModeration() : getPhotos(matchRef)
+    const call = previewMode ? getPhotosModeration() : getPhotos(matchRef, standalone)
     call
       .then(rows => setPhotos(previewMode ? rows.filter(p => p.match_ref === matchRef) : rows))
       .catch(() => {})
@@ -100,8 +100,10 @@ export default function PublicEntry({
               target="_blank" rel="noreferrer" style={{ color: '#12203c' }}>{item.location}</a>
           </p>
         )}
-        {item.score_us != null && (
-          <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>{item.score_us} - {item.score_them}</p>
+        {(item.score_home ?? item.score_us) != null && (
+          <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>
+            {item.score_home ?? item.score_us} - {item.score_away ?? item.score_them}
+          </p>
         )}
         {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{item.description}</p>}
       </div>
