@@ -90,6 +90,10 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     await updatePhoto(p.id, { caption: value })
     loadPhotos()
   }
+  async function togglePhotoHighlight(p) {
+    await updatePhoto(p.id, { match_highlight: !p.match_highlight })
+    loadPhotos()
+  }
   async function bulkPublishPhotos(ids) {
     await Promise.all(ids.map(id => updatePhoto(id, { status: 'published' })))
     loadPhotos()
@@ -241,7 +245,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             <div style={{ marginBottom: 20 }}>
               <PhotoModerationGrid photos={photos} players={players} entryTitle={entryTitle}
                 onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption}
-                onBulkPublish={bulkPublishPhotos} onBulkDelete={bulkDeletePhotos} />
+                onToggleHighlight={togglePhotoHighlight} onBulkPublish={bulkPublishPhotos} onBulkDelete={bulkDeletePhotos} />
             </div>
           )}
         </>
