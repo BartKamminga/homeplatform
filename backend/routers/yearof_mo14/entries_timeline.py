@@ -198,7 +198,11 @@ def _competition_timeline_items(session: Session) -> list[dict]:
             items.append({
                 "kind": "competitie",
                 "match_ref": f"knhb:{m['match_id']}",
-                "title": f"{m['home']} - {m['away']}",
+                # Altijd "wij - tegenstander", consistent met score_us/score_them
+                # hieronder - anders staat bij een uitwedstrijd de titel in
+                # thuis/uit-volgorde terwijl de score in wij/zij-volgorde staat,
+                # wat de uitslag omgedraaid laat lijken (bug, ontdekt 21/09).
+                "title": f"{TEAM_NAME} - {(m['away'] if is_home else m['home'])}",
                 "date": m["date"],
                 "opponent": m["away"] if is_home else m["home"],
                 "is_home": is_home,
