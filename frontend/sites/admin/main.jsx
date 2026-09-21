@@ -22,6 +22,7 @@ import DataStorage from "./pages/DataStorage.jsx";
 import DataSources from "./pages/DataSources.jsx";
 import Workflows from "./pages/Workflows.jsx";
 import Infrastructure from "./pages/Infrastructure.jsx";
+import DeployGrants from "./pages/DeployGrants.jsx";
 import ErrorBoundary from "@components/ErrorBoundary.jsx";
 import { isLoggedIn } from "@core/auth.js";
 import { trackEvent } from "@core/api.js";
@@ -70,6 +71,7 @@ createRoot(document.getElementById("root")).render(
                 <Route path="data-sources" element={<DataSources />} />
                 <Route path="workflows" element={<Workflows />} />
                 <Route path="infrastructure" element={<Infrastructure />} />
+                <Route path="deploy-grants" element={<DeployGrants />} />
               </Routes>
             </PrivateRoute>
           }

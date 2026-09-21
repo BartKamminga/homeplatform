@@ -147,6 +147,32 @@ class AuditLog(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
+# Externe deploy-toegang (item 1173) — overzicht van SSH-sleutels die externe
+# (niet-homeplatform) repo's op de G4 mogen deployen, met de bijbehorende
+# sudo-allowlist/forced-command-restrictie. Puur registratie/naslag - handhaaft
+# zelf niets, de daadwerkelijke restrictie staat in authorized_keys/sudoers op
+# de server.
+# ---------------------------------------------------------------------------
+
+
+class ExternalDeployGrant(SQLModel, table=True):
+    __tablename__ = "external_deploy_grants"
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    name: str
+    repo_url: Optional[str] = Field(default=None)
+    host: str = Field(default="192.168.30.232")
+    deploy_user: str
+    forced_command: Optional[str] = Field(default=None)
+    sudo_rule: Optional[str] = Field(default=None)
+    ports: Optional[str] = Field(default=None)
+    status: str = Field(default="active")  # active | revoked
+    notes: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
 # Roadmap
 # ---------------------------------------------------------------------------
 
