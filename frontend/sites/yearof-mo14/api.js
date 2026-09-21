@@ -90,7 +90,13 @@ export async function uploadPhoto(file, { matchRef, reportId, photoType, code })
   return res.json()
 }
 
-export const getPhotos           = (matchRef) => api.get(withCode(`/api/yearof-mo14/photos${matchRef ? `?match_ref=${encodeURIComponent(matchRef)}` : ''}`))
+export const getPhotos           = (matchRef, highlightsOnly = false) => {
+  const params = new URLSearchParams()
+  if (matchRef) params.set('match_ref', matchRef)
+  if (highlightsOnly) params.set('highlights_only', '1')
+  const qs = params.toString()
+  return api.get(withCode(`/api/yearof-mo14/photos${qs ? `?${qs}` : ''}`))
+}
 export const getPhotosByReport   = (reportId) => api.get(withCode(`/api/yearof-mo14/photos?report_id=${encodeURIComponent(reportId)}`))
 export const getPlayerPhotos     = (playerId) => api.get(withCode(`/api/yearof-mo14/photos?player_id=${encodeURIComponent(playerId)}`))
 export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')

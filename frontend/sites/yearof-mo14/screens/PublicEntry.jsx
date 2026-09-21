@@ -33,7 +33,7 @@ export default function PublicEntry({
     // previewMode/adminMode: ook concept-fotos/video's tonen (bv. net
     // geupload via een invullinkje) - anders lijken ze "verdwenen" totdat
     // een beheerder ze los publiceert.
-    const call = previewMode ? getPhotosModeration() : getPhotos(matchRef)
+    const call = previewMode ? getPhotosModeration() : getPhotos(matchRef, standalone)
     call
       .then(rows => setPhotos(previewMode ? rows.filter(p => p.match_ref === matchRef) : rows))
       .catch(() => {})

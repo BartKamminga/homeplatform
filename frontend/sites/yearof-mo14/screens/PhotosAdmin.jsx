@@ -61,6 +61,15 @@ export default function PhotosAdmin() {
     }
   }
 
+  async function toggleHighlight(photo) {
+    try {
+      await updatePhoto(photo.id, { match_highlight: !photo.match_highlight })
+      load()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   async function bulkPublish(ids) {
     try {
       await Promise.all(ids.map(id => updatePhoto(id, { status: 'published' })))
@@ -86,7 +95,7 @@ export default function PhotosAdmin() {
 
       <PhotoModerationGrid photos={photos} players={players} entryTitle={entryTitle}
         onTogglePublish={togglePublish} onDelete={remove} onToggleTag={toggleTag} onSaveCaption={saveCaption}
-        onBulkPublish={bulkPublish} onBulkDelete={bulkDelete} />
+        onToggleHighlight={toggleHighlight} onBulkPublish={bulkPublish} onBulkDelete={bulkDelete} />
     </div>
   )
 }

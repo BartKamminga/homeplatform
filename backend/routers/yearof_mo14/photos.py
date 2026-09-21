@@ -75,6 +75,7 @@ class PhotoUpdate(BaseModel):
     photo_type: Optional[str] = None
     caption: Optional[str] = None
     report_id: Optional[str] = None
+    match_highlight: Optional[bool] = None
 
 
 @router.post("/photos", status_code=201)
@@ -190,14 +191,18 @@ def list_photos(
     match_ref: Optional[str] = None,
     report_id: Optional[str] = None,
     player_id: Optional[str] = None,
+    highlights_only: bool = False,
     session: Session = Depends(get_session),
     _: None = Depends(require_team_access),
 ):
     """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only,
-    zie /photos/moderation)."""
+    zie /photos/moderation). highlights_only (de losse wedstrijdlink, buiten de
+    volledige app om) laat alleen de gecureerde match_highlight-subset zien."""
     q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
+    if highlights_only:
+        q = q.where(YearOfPhoto.match_highlight == True)  # noqa: E712
     if report_id:
         q = q.where(YearOfPhoto.report_id == report_id)
     if player_id:

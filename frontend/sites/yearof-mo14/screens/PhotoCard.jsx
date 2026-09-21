@@ -5,7 +5,7 @@ import { useConfirm } from '@components/ConfirmDialog.jsx'
 // wordt getoond in de detail-modal van PhotoModerationGrid.jsx zodra je een
 // tegel openklikt, niet meer standaard voor elke foto tegelijk (item 1168:
 // bij 350+ fotos per wedstrijd was dat niet meer te doen).
-export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption }) {
+export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption, onToggleHighlight }) {
   const [captionDraft, setCaptionDraft] = useState(undefined)
   const [confirm, confirmDialog] = useConfirm()
 
@@ -57,6 +57,14 @@ export function PhotoCard({ photo, players, entryTitle, onTogglePublish, onDelet
             )
           })}
         </div>
+
+        {photo.match_ref && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!photo.match_highlight}
+              onChange={() => onToggleHighlight(photo)} style={{ margin: 0 }} />
+            Match highlight (ook zichtbaar op de losse wedstrijdlink)
+          </label>
+        )}
 
         <input
           placeholder="Notitie (optioneel)"

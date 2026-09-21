@@ -43,6 +43,14 @@ function PhotoTile({ photo, selected, onToggleSelect, onOpen }) {
           &#127991; {tagCount}
         </span>
       )}
+      {photo.match_highlight && (
+        <span title="Match highlight" style={{
+          position: 'absolute', bottom: 4, right: 30, zIndex: 1, fontSize: 11, fontWeight: 700, padding: '2px 5px',
+          borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fbbf24',
+        }}>
+          &#11088;
+        </span>
+      )}
       <a href="#" onClick={e => { e.preventDefault(); onOpen(photo) }} style={{ display: 'block', position: 'relative' }}>
         <PhotoThumb photo={photo} />
         <span style={{
@@ -57,7 +65,7 @@ function PhotoTile({ photo, selected, onToggleSelect, onOpen }) {
   )
 }
 
-export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption, onBulkPublish, onBulkDelete }) {
+export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePublish, onDelete, onToggleTag, onSaveCaption, onToggleHighlight, onBulkPublish, onBulkDelete }) {
   const [selected, setSelected] = useState(() => new Set())
   const [openIndex, setOpenIndex] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -176,7 +184,7 @@ export function PhotoModerationGrid({ photos, players, entryTitle, onTogglePubli
           }}>
             <PhotoCard photo={stillOpenPhoto} players={players} entryTitle={entryTitle}
               onTogglePublish={handleModalPublish} onDelete={id => { onDelete(id); setOpenIndex(null) }}
-              onToggleTag={onToggleTag} onSaveCaption={onSaveCaption} />
+              onToggleTag={onToggleTag} onSaveCaption={onSaveCaption} onToggleHighlight={onToggleHighlight} />
 
             {photos.length > 1 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }}>
