@@ -128,10 +128,11 @@ export const createReportDirect  = (body)      => api.post('/api/yearof-mo14/rep
 export const addReportLink       = (reportId, body) => api.post(`/api/yearof-mo14/reports/${reportId}/links`, body)
 export const updateReportLink    = (linkId, body)   => api.patch(`/api/yearof-mo14/reports/links/${linkId}`, body)
 export const deleteReportLink    = (linkId)         => api.delete(`/api/yearof-mo14/reports/links/${linkId}`)
-export const getReports          = (matchRef, reportType) => {
+export const getReports          = (matchRef, reportType, highlightsOnly = false) => {
   const params = new URLSearchParams()
   if (matchRef) params.set('match_ref', matchRef)
   if (reportType) params.set('report_type', reportType)
+  if (highlightsOnly) params.set('highlights_only', '1')
   const qs = params.toString()
   return api.get(withCode(`/api/yearof-mo14/reports${qs ? `?${qs}` : ''}`))
 }

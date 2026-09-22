@@ -16,7 +16,7 @@ export default function PublicEntry({
   const [error, setError] = useState('')
 
   function loadReports() {
-    const call = previewMode ? getReportsModeration() : getReports(matchRef)
+    const call = previewMode ? getReportsModeration() : getReports(matchRef, undefined, standalone)
     call
       .then(rows => {
         const filtered = previewMode ? rows.filter(r => r.match_ref === matchRef) : rows
@@ -205,7 +205,12 @@ export default function PublicEntry({
                   {adminMode && (
                     <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
                   )}
-                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>
+                    {r.title}
+                    {adminMode && r.match_highlight && (
+                      <span title="Op wedstrijdlink" style={{ marginLeft: 6, fontSize: 12, color: '#d97706' }}>&#11088;</span>
+                    )}
+                  </h4>
                   {(r.author_name || r.published_at) && (
                     <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>
                       {r.author_name && `door ${r.author_name}`}

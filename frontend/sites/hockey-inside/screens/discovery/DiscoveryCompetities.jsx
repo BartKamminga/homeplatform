@@ -3,7 +3,7 @@ import { previewEmptyCompetitions, deleteEmptyCompetitions, deletePoule } from '
 import { ghostBtnSm } from '../styles.js'
 import { useQueueCmd } from '../queueShared.jsx'
 import { ConfirmDialog, useConfirm } from '../ui.jsx'
-import { isJeugd, AGE_GROUP_ORDER, normalizeDistrict, groupByNameSorted } from './discoveryHelpers.js'
+import { isJeugd, AGE_GROUP_ORDER, normalizeDistrict, groupByNameSorted, NO_FIXED_DISTRICT } from './discoveryHelpers.js'
 import { DiscoveryTreeProvider } from './DiscoveryTreeContext.jsx'
 import NameGroup from './NameGroup.jsx'
 
@@ -185,12 +185,12 @@ export default function DiscoveryCompetities({ competitions, capturedPoules, all
                 if (compView === 'district') {
                   const byDist = {}
                   for (const c of ageGroup) {
-                    const d = normalizeDistrict(c.district || 'Onbekend')
+                    const d = normalizeDistrict(c.district || NO_FIXED_DISTRICT)
                     if (!byDist[d]) byDist[d] = []
                     byDist[d].push(c)
                   }
                   const districts = Object.keys(byDist).sort((a, b) =>
-                    a === 'Onbekend' ? 1 : b === 'Onbekend' ? -1 : a.localeCompare(b, 'nl')
+                    a === NO_FIXED_DISTRICT ? 1 : b === NO_FIXED_DISTRICT ? -1 : a.localeCompare(b, 'nl')
                   )
                   return (
                     <div key={ag}>

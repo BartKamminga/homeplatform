@@ -34,18 +34,34 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [showPhotos, setShowPhotos] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
 
+  async function resolveEntryLinkUrl() {
+    const links = await listTeamLinks()
+    const active = links.find(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()))
+    if (!active) {
+      setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
+      return null
+    }
+    const link = await createShortLink({ team_code: active.id, match_ref: matchRef })
+    return `${window.location.origin}/l/${link.id}`
+  }
+
   async function copyEntryLink() {
     try {
-      const links = await listTeamLinks()
-      const active = links.find(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()))
-      if (!active) {
-        setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
-        return
-      }
-      const link = await createShortLink({ team_code: active.id, match_ref: matchRef })
-      await copyToClipboard(`${window.location.origin}/l/${link.id}`)
+      const url = await resolveEntryLinkUrl()
+      if (!url) return
+      await copyToClipboard(url)
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 2000)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function openEntryLink() {
+    try {
+      const url = await resolveEntryLinkUrl()
+      if (!url) return
+      window.open(url, '_blank', 'noopener')
     } catch (e) {
       setError(e.message)
     }
@@ -168,9 +184,14 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
-        <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-          {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
+            {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
+          </button>
+          <button onClick={openEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }} title="Opent precies wat een bezoeker via de wedstrijdlink ziet (alleen highlights)">
+            👁 Bekijk wedstrijdlink
+          </button>
+        </div>
       </div>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
@@ -193,7 +214,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <ReportForm
           fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
           players={players} onToggleTag={toggleEditingReportTag}
-          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onLinksChanged={refreshEditingReport}
+          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onRefresh={refreshEditingReport}
         />
       )}
       {view === 'invul' && (
