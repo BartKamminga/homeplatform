@@ -9,22 +9,26 @@ import PublicSpotlight from './PublicSpotlight.jsx'
 import PublicAction from './PublicAction.jsx'
 import PinksterWeekend from './PinksterWeekend.jsx'
 
-// Deeplinks (?entry=<matchRef>) alleen op de echte publieke site syncen -
-// niet in de admin "Bekijk site"-preview, die leeft in de admin-URL.
+// Deeplinks (?match=<matchRef>) alleen op de echte publieke site syncen -
+// niet in de admin "Bekijk site"-preview, die leeft in de admin-URL. Bewust
+// een andere paramnaam dan de standalone wedstrijdlink (?entry=, zie
+// App.jsx/StandaloneMatchView) - anders herkent App.jsx bij een refresh of
+// het openen van deze deeplink-URL het per ongeluk als de kale, navbar-loze
+// wedstrijdlink-weergave i.p.v. de volledige site op deze wedstrijd.
 const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
 
 export default function PublicSite({ previewMode = false, adminMode = false, onEditMatch, onEditPlayer, onEditGeneral }) {
   const [view, setView] = useState(() => {
     if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
-    const entry = new URLSearchParams(window.location.search).get('entry')
+    const entry = new URLSearchParams(window.location.search).get('match')
     return entry ? { name: 'entry', ref: entry } : { name: 'home' }
   })
 
   function setUrlEntry(ref) {
     if (!syncsUrl(previewMode, adminMode)) return
     const url = new URL(window.location.href)
-    if (ref) url.searchParams.set('entry', ref)
-    else url.searchParams.delete('entry')
+    if (ref) url.searchParams.set('match', ref)
+    else url.searchParams.delete('match')
     window.history.replaceState({}, '', url.toString())
   }
 

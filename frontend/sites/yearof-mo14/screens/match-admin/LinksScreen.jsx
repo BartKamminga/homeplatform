@@ -45,6 +45,15 @@ export function LinksScreen({ matchRef, reportType, existingReport, insertAfterI
     }
   }
 
+  async function toggleMatchHighlight() {
+    try {
+      await updateReport(existingReport.id, { match_highlight: !existingReport.match_highlight })
+      onRefresh()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   return (
     <div style={{ marginBottom: 24 }}>
       {confirmDialog}
@@ -62,6 +71,9 @@ export function LinksScreen({ matchRef, reportType, existingReport, insertAfterI
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button onClick={toggleBlockPublish} className="yof-btn-secondary">
               {existingReport.status === 'published' ? `Hele ${meta.title}-blok naar concept` : `Hele ${meta.title}-blok publiceren`}
+            </button>
+            <button onClick={toggleMatchHighlight} className="yof-btn-secondary">
+              {existingReport.match_highlight ? '⭐ Uit wedstrijdlink halen' : '⭐ Op wedstrijdlink tonen'}
             </button>
             <button onClick={removeBlock} className="yof-btn-secondary">Verwijder dit blok</button>
           </div>
