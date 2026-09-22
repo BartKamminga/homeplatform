@@ -26,6 +26,13 @@ const _DIST_NORM = {
 }
 export function normalizeDistrict(d) { return _DIST_NORM[d] || d }
 
+// Label voor competities zonder eenduidig district (cross-district
+// sponsorpoules zoals "HelloFresh ..." - teams uit meerdere KNHB-districten
+// spelen samen in dezelfde poule, dus er is geen "missend" district om op te
+// vullen). "Onbekend" suggereerde een datafout die met een herscan op te
+// lossen was; dat is hier niet het geval.
+export const NO_FIXED_DISTRICT = 'Geen vast district'
+
 // Sortering op klasse-hiërarchie — strip "Landelijke" / "Voorcompetitie" prefix zodat
 // "Landelijke Subtopklasse" op dezelfde plek belandt als "Subtopklasse".
 export function classRank(name) {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { pill } from '../ui.jsx'
-import { classRank } from './discoveryHelpers.js'
+import { classRank, NO_FIXED_DISTRICT } from './discoveryHelpers.js'
 import { useDiscoveryTree } from './DiscoveryTreeContext.jsx'
 import CompEntry from './CompEntry.jsx'
 
@@ -38,7 +38,7 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
     // item 636: in per-competitie view (showDistBadge) niet nested tonen — op zelfde niveau als multi-entry headers
     return (
       <CompEntry
-        comp={nmComps[0]} nested={!showDistBadge} distBadge={showDistBadge ? (nmComps[0].district || 'Onbekend') : null}
+        comp={nmComps[0]} nested={!showDistBadge} distBadge={showDistBadge ? (nmComps[0].district || NO_FIXED_DISTRICT) : null}
       />
     )
   }
@@ -93,8 +93,8 @@ export default function NameGroup({ nm, nmComps, keyPrefix, showDistBadge = fals
           const cPoules = capturedPoulesByComp[c.id] || []
           // per-competitie: kolom-label = district; per-district: kolom-label = class_name
           const colLabel = showDistBadge
-            ? (c.district || 'Onbekend')
-            : (c.class_name || c.district || 'Onbekend')
+            ? (c.district || NO_FIXED_DISTRICT)
+            : (c.class_name || c.district || NO_FIXED_DISTRICT)
           const colSub   = showDistBadge ? c.class_name : null
           // Poule-health rollup (zie CompEntry.jsx voor de toelichting op de
           // 2 losse velden) - ook hier tonen, deze multi-kolom weergave
