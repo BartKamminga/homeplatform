@@ -214,7 +214,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
         <ReportForm
           fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
           players={players} onToggleTag={toggleEditingReportTag}
-          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onLinksChanged={refreshEditingReport}
+          onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onRefresh={refreshEditingReport}
         />
       )}
       {view === 'invul' && (

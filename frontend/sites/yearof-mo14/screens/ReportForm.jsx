@@ -19,7 +19,7 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
 export function ReportForm({
   matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId, defaultReportType,
-  players, onToggleTag, onSaved, onCancel, onDeleted, onLinksChanged,
+  players, onToggleTag, onSaved, onCancel, onDeleted, onRefresh,
 }) {
   const isEdit = !!existingReport
   const [matchRef, setMatchRef] = useState(existingReport?.match_ref || fixedMatchRef || '')
@@ -98,17 +98,17 @@ export function ReportForm({
 
   async function togglePublish() {
     await updateReport(existingReport.id, { status: existingReport.status === 'published' ? 'concept' : 'published' })
-    onSaved()
+    onRefresh()
   }
 
   async function toggleFeatured() {
     await updateReport(existingReport.id, { featured: !existingReport.featured })
-    onSaved()
+    onRefresh()
   }
 
   async function toggleMatchHighlight() {
     await updateReport(existingReport.id, { match_highlight: !existingReport.match_highlight })
-    onSaved()
+    onRefresh()
   }
 
   async function remove() {
@@ -245,7 +245,7 @@ export function ReportForm({
 
       <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
       {isEdit ? (
-        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onLinksChanged} />
+        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
       ) : (
         <NewLinksEditor links={newLinks} onChange={setNewLinks} />
       )}

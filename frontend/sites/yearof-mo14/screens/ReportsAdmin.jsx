@@ -96,7 +96,7 @@ export default function ReportsAdmin({ initialEditId }) {
       {view === 'edit' && editingReport && (
         <ReportForm
           existingReport={editingReport} players={players} onToggleTag={toggleEditingReportTag}
-          onSaved={backToList} onCancel={backToList} onDeleted={backToList} onLinksChanged={refreshEditingReport}
+          onSaved={backToList} onCancel={backToList} onDeleted={backToList} onRefresh={refreshEditingReport}
         />
       )}
       {view === 'list' && (
