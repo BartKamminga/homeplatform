@@ -106,6 +106,11 @@ export function ReportForm({
     onSaved()
   }
 
+  async function toggleMatchHighlight() {
+    await updateReport(existingReport.id, { match_highlight: !existingReport.match_highlight })
+    onSaved()
+  }
+
   async function remove() {
     if (!(await confirm('Dit bericht verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     await deleteReport(existingReport.id)
@@ -283,6 +288,11 @@ export function ReportForm({
           {reportType !== 'nieuws' && (
             <button onClick={toggleFeatured} className="yof-btn-secondary">
               {existingReport.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
+            </button>
+          )}
+          {existingReport.match_ref && (
+            <button onClick={toggleMatchHighlight} className="yof-btn-secondary">
+              {existingReport.match_highlight ? '⭐ Uit wedstrijdlink halen' : '⭐ Op wedstrijdlink tonen'}
             </button>
           )}
           <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>

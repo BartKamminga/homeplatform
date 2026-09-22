@@ -187,6 +187,7 @@ class YearOfReport(SQLModel, table=True):
     body:             str
     author_name:      Optional[str]  = Field(default=None)
     featured:         bool            = Field(default=False)  # handmatig geselecteerd voor "In de kijker"
+    match_highlight:  bool            = Field(default=False)  # gecureerde subset - alleen deze tonen op de losse wedstrijdlink (zelfde concept als YearOfPhoto.match_highlight)
     sort_order:       int             = Field(default=0)  # volgorde binnen 1 wedstrijdpagina (WYSIWYG-editor)
     contributor_code: Optional[str]  = Field(default=None)
     created_at:       datetime        = Field(default_factory=datetime.utcnow)  # aanmaak-/uploaddatum

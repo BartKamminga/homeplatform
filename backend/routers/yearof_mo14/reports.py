@@ -75,6 +75,7 @@ class ReportUpdate(BaseModel):
     body: Optional[str] = None
     author_name: Optional[str] = None
     featured: Optional[bool] = None
+    match_highlight: Optional[bool] = None
     status: Optional[str] = None
 
 
@@ -207,16 +208,21 @@ def create_report_direct(
 def list_reports(
     match_ref: Optional[str] = None,
     report_type: Optional[str] = None,
+    highlights_only: bool = False,
     session: Session = Depends(get_session),
     _: None = Depends(require_team_access),
 ):
     """Publiek — toont alleen gepubliceerde verslagen. Zie /reports/spotlight
-    voor de handmatig-curated "In de kijker"-selectie."""
+    voor de handmatig-curated "In de kijker"-selectie. highlights_only (de
+    losse wedstrijdlink, buiten de volledige app om) laat alleen de
+    gecureerde match_highlight-subset zien - zelfde concept als bij fotos."""
     q = select(YearOfReport).where(YearOfReport.status == "published")
     if match_ref:
         q = q.where(YearOfReport.match_ref == match_ref)
     if report_type:
         q = q.where(YearOfReport.report_type == report_type)
+    if highlights_only:
+        q = q.where(YearOfReport.match_highlight == True)  # noqa: E712
     reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()
 
     report_ids = [r.id for r in reports]
