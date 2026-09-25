@@ -201,18 +201,28 @@
   // net-geschreven poule_id weer wegtrimde als die numeriek "lager" sorteerde
   // dan een paar toevallige oudere keys — vandaar de blijvende key_ontbreekt-
   // meldingen. Zelfde patroon als saveCompetition() hieronder.
+  // Item 1177: het nieuwe match-center (24-09-2026) levert de poule onder
+  // data.poules[] i.p.v. data.poule - zelfde fallback als de backend-parser
+  // (_extract_poule_data in hockey_vanger_ingest.py).
+  function pouleOf(data, pouleId) {
+    const d = (data && data.data) || {};
+    if (d.poule) return d.poule;
+    return (d.poules || []).find(p => String(p.id) === String(pouleId)) || null;
+  }
+
   function save(url, pouleId, teamId, data) {
     try {
       let pouleName = '', teamName = '', compName = '', className = '', seizoen = '';
+      const poule = pouleOf(data, pouleId) || {};
       try {
-        pouleName = data.data.poule.name || '';
-        teamName  = data.data.team.name || '';
-        compName  = data.data.poule.competition.name || '';
-        className = data.data.poule.competition.class_name || '';
+        pouleName = poule.name || '';
+        teamName  = (data.data.team && data.data.team.name) || (data.header && data.header.title) || '';
+        compName  = poule.competition.name || '';
+        className = poule.competition.class_name || '';
       } catch(e) {}
       // Seizoen bepalen op basis van eerste wedstrijddatum (geen season-veld in API)
       try {
-        var matches = data.data.poule.matches || [];
+        var matches = poule.matches || [];
         if (matches.length > 0) {
           var d = new Date(matches[0].date);
           var y = d.getFullYear(), mo = d.getMonth() + 1;
@@ -231,7 +241,7 @@
       safeSetItem(STORE_KEY, JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('__hw_captured'));
       let teams = [];
-      try { teams = data.data.poule.standings.map(s => s.team.name); } catch(e) {}
+      try { teams = poule.standings.map(s => s.team.name); } catch(e) {}
       writeLog('ok', '✅ Gevangen: ' + pouleName + ' · ' + compName + ' · ' + className + ' (via ' + teamName + ')', {
         poule_id: pouleId, poule_name: pouleName, comp: compName + ' · ' + className, teams: teams
       });

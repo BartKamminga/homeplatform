@@ -13,7 +13,12 @@ export default function ItemDetail({ item, onReprocess, reprocessing }) {
   // Parse standings and matches from payload — zelfde dubbele data-envelope
   // als de backend-parser (_parse_raw_poule leest raw.data.data.poule, zie
   // item 709); compDetailData hieronder deed dit al goed, poule_capture niet.
-  const pouleData = item.payload?.data?.data?.poule ?? null
+  // Item 1177: nieuwe match-center-vorm heeft de poule onder data.poules[].
+  const pouleInner = item.payload?.data?.data ?? {}
+  const pouleData  = pouleInner.poule
+    ?? (pouleInner.poules ?? []).find(p => String(p.id) === String(item.payload?.poule_id))
+    ?? pouleInner.poules?.[0]
+    ?? null
   const standings = pouleData?.standings ?? []
   const matches   = pouleData?.matches   ?? []
 
