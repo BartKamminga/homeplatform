@@ -221,7 +221,7 @@ function startHeartbeat() {
 // ══════════════════════════════════════
 // TABBLAD — juiste pagina afdwingen
 // ══════════════════════════════════════
-// De hash-routes (/club/..., /team/...|.../standings) worden alleen herkend
+// De hash-routes (/club/..., /team/...|...) worden alleen herkend
 // als de SPA al op match-center staat (zelfde ontdekking als bij de
 // Ghost-fix). "Ga naar hockey.nl" alleen checken is dus niet genoeg — als het
 // tabblad op een andere hockey.nl-pagina staat, corrigeren we 'm eerst.
@@ -447,7 +447,10 @@ function executeCmd(cmd) {
       reportResult(cmd.id, null, 'team_id ontbreekt');
       return;
     }
-    hash  = '/team/' + cmd.params.team_id + '|' + cmd.params.poule_id + '/standings';
+    // item 1177: sinds het nieuwe match-center (24-09-2026) laadt
+    // '.../standings' bij een directe reload de poule niet meer - de kale
+    // team-route wel (die stuurt zelf door naar /overview).
+    hash  = '/team/' + cmd.params.team_id + '|' + cmd.params.poule_id;
     lsKey = '__hw_poules';
     lsId  = String(cmd.params.poule_id);
   } else if (cmd.cmd_type === 'scan_club') {

@@ -213,9 +213,12 @@ def capture_for_cmd(page, cmd_type):
             # normaal van Scout's eigen opslagformaat (interceptor.js bewaart
             # {poule_id, team_id, ..., data: <api-response>}). Ghost heeft die
             # wrapper niet, dus die voegen we hier zelf toe (item 709).
+            # Item 1177: sinds het nieuwe match-center (24-09-2026) staat de
+            # poule onder data.poules[] i.p.v. data.poule - beide accepteren.
             if cmd_type == "get_poule" and POULE_RE.search(url):
                 body = response.json()
-                if body and isinstance(body.get("data"), dict) and body["data"].get("poule"):
+                d = body.get("data") if isinstance(body, dict) else None
+                if isinstance(d, dict) and (d.get("poule") or d.get("poules")):
                     captured["data"] = {"data": body}
             elif cmd_type == "scan_club" and CLUB_DETAIL_RE.search(url):
                 body = response.json()
@@ -253,7 +256,7 @@ def capture_for_cmd(page, cmd_type):
             pass
 
     page.on("response", on_response)
-    return captured
+    return captured, on_response
 
 
 def process_cmd(page, cmd, delay_range):
@@ -265,16 +268,21 @@ def process_cmd(page, cmd, delay_range):
     if cmd_type == "get_poule" and not params.get("team_id"):
         return None, "team_id ontbreekt"
 
-    captured = capture_for_cmd(page, cmd_type)
-    target_hash = hash_fn(params)
-    page.evaluate("h => { window.location.hash = h }", target_hash)
-    page.wait_for_timeout(400)
-    page.reload(wait_until="domcontentloaded", timeout=20000)
-    dismiss_consent(page)
+    captured, listener = capture_for_cmd(page, cmd_type)
+    try:
+        target_hash = hash_fn(params)
+        page.evaluate("h => { window.location.hash = h }", target_hash)
+        page.wait_for_timeout(400)
+        page.reload(wait_until="domcontentloaded", timeout=20000)
+        dismiss_consent(page)
 
-    delay_min, delay_max = delay_range
-    delay = random.randint(delay_min, delay_max)
-    page.wait_for_timeout(delay * 1000)
+        delay_min, delay_max = delay_range
+        delay = random.randint(delay_min, delay_max)
+        page.wait_for_timeout(delay * 1000)
+    finally:
+        # Listener weer loskoppelen - anders stapelden ze zich per cmd op
+        # binnen een sessie (elke xhr werd N keer gelogd/verwerkt, item 1177).
+        page.remove_listener("response", listener)
 
     if "data" in captured:
         return captured["data"], None

@@ -302,6 +302,57 @@ def test_parse_raw_poule_extracts_linked_poules_excluding_the_current_one():
     }
 
 
+# ── item 1177: nieuwe match-center-vorm (data.poules[] i.p.v. data.poule) ──
+
+def test_parse_raw_poule_handles_the_new_match_center_shape():
+    # Verkorte versie van de echte response van poules/181184/teams/26673 op
+    # 24-09-2026 (Gooische MO14-9) - top-level naam draagt de sponsornaam,
+    # poules[].competition niet, en district/periode staan er gewoon in.
+    raw = {"data": {"data": {
+        "id": "zldffsyaglajrfmiar", "name": "HelloFresh Meisjes O14 4e klasse",
+        "poule_id": 181184, "district_name": "Midden Nederland", "period_name": "Voorcompetitie",
+        "poules": [{
+            "id": 181184, "name": "Poule C",
+            "competition": {
+                "id": 181184, "name": "Meisjes O14 Voorcompetitie", "period_name": "Voorcompetitie",
+                "class_name": "4e klasse", "poule_name": "Poule C",
+                "district_id": 4, "district_name": "Midden Nederland",
+            },
+            "standings": [{
+                "rank": 1, "played": 3, "points": 9, "wins": 3, "draws": 0, "losses": 0,
+                "goals_for": 18, "goals_against": 6,
+                "team": {"id": 1160, "name": "Hoevelaken MO14-1", "short_name": "MO14-1", "federation_reference_id": "HH11JB8"},
+            }],
+            "matches": [{
+                "id": 2050425, "date": "2026-09-05T10:20:00+02:00", "status": "final",
+                "home": {"id": 9388, "name": "Kampong MO14-7"}, "away": {"id": 9386, "name": "Leusden MO14-4"},
+                "score": {"home": 2, "away": 1},
+            }],
+        }],
+    }, "header": {"title": "Gooische MO14-9"}}}
+
+    result = _parse_raw_poule(raw, params={"poule_id": 181184, "team_id": 26673})
+
+    assert result is not None
+    assert result.poule_name == "Poule C"
+    assert result.competition_name == "Meisjes O14 Voorcompetitie"
+    assert result.class_name == "4e klasse"
+    assert result.district == "Midden Nederland"
+    assert result.period_name == "Voorcompetitie"
+    assert result.season == "2026-2027"
+    assert result.team_id == 26673
+    assert [(s.team_id, s.position, s.won, s.points) for s in result.standings_data] == [(1160, 1, 3, 9)]
+    assert [(m.match_id, m.home_team_id, m.away_team_id, m.home_score, m.away_score) for m in result.matches_data] == [
+        (2050425, 9388, 9386, 2, 1),
+    ]
+    assert result.linked_poules == []
+
+
+def test_parse_raw_poule_returns_none_when_the_requested_poule_is_missing_in_the_new_shape():
+    raw = {"data": {"data": {"poules": [{"id": 999, "name": "Poule A", "competition": {}}]}}}
+    assert _parse_raw_poule(raw, params={"poule_id": 181184}) is None
+
+
 def test_call_poule_capture_queues_a_genuine_next_phase_poule_in_the_target_season(session):
     # Seizoensranges opbouwen zoals infer_poule_season ze zou aantreffen:
     # oud seizoen 2025-2026 dekt poule_id 1000-1600, huidig seizoen 2026-2027

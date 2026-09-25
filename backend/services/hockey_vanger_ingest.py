@@ -43,9 +43,26 @@ def _season_from_date(date_str: str) -> Optional[str]:
     return f"{year}-{year + 1}" if dt.month >= 7 else f"{year - 1}-{year}"
 
 
+def _extract_poule_data(inner: dict, poule_id) -> Optional[dict]:
+    """Item 1177: hockey.nl levert sinds 24-09-2026 (nieuw match-center) de
+    poule onder data.poules[] (met o.a. competition/standings/matches) i.p.v.
+    data.poule - de elementen zelf hebben dezelfde vorm. Beide vormen
+    accepteren; bij de nieuwe vorm de entry met het gevraagde poule_id."""
+    if isinstance(inner.get("poule"), dict):
+        return inner["poule"]
+    poules = inner.get("poules") or []
+    for p in poules:
+        if isinstance(p, dict) and p.get("id") == poule_id:
+            return p
+    return None
+
+
 def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = None) -> Optional[PouleCaptureIn]:
     try:
-        poule_data = raw["data"]["data"]["poule"]
+        inner      = raw["data"]["data"]
+        poule_data = _extract_poule_data(inner, params["poule_id"])
+        if poule_data is None:
+            return None
         comp       = poule_data.get("competition") or {}
         subcomp    = comp.get("subcompetition") or {}
 
@@ -107,9 +124,13 @@ def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = Non
         # (_call_poule_capture) op seizoen + period_name beoordeeld voordat
         # er iets mee gebeurt. Bewust hier al gefilterd op ontbrekend id,
         # anders zou een kapotte entry een crash bij het queuen veroorzaken.
+        #
+        # Item 1177: in de nieuwe vorm staat er geen data.team meer; de
+        # poules-lijst staat dan direct onder data (zelfde entry-vorm).
         linked_poules: List[LinkedPouleIn] = []
-        team_data = raw["data"]["data"].get("team") or {}
-        for lp in team_data.get("poules") or []:
+        team_data = inner.get("team") or {}
+        linked_src = team_data.get("poules") if "team" in inner else inner.get("poules")
+        for lp in linked_src or []:
             lp_id = lp.get("id")
             if not lp_id or lp_id == params["poule_id"]:
                 continue
@@ -136,7 +157,7 @@ def _parse_raw_poule(raw: dict, params: dict, target_season: Optional[str] = Non
             hockey_type=hockey_type,
             season=season,
             period_name=comp.get("period_name"),
-            team_id=team_data.get("id"),
+            team_id=team_data.get("id") or params.get("team_id"),
             teams_in_poule=teams_list,
             standings_data=standings_list,
             matches_data=matches_list,

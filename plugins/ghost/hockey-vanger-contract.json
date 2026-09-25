@@ -7,7 +7,7 @@
     "competition": "/competitions/national/(\\d+)"
   },
   "hash_templates": {
-    "get_poule": "/team/{team_id}|{poule_id}/standings",
+    "get_poule": "/team/{team_id}|{poule_id}",
     "scan_club": "/club/{external_id}/field-teams",
     "get_clubs": "/search/clubs",
     "get_competition_detail": "/competitions/{comp_id}",
