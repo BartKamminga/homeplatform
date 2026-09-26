@@ -218,3 +218,29 @@ def test_add_vanger_cmd_does_not_redirect_a_regular_poule(session):
     cmds = session.exec(select(VangerCmd)).all()
     assert len(cmds) == 1
     assert cmds[0].cmd_type == "get_poule"
+
+
+# ── item 1178: comp_key bij het uitdelen van get_competition_detail ──
+
+def test_next_adds_the_string_comp_key_to_a_competition_detail_cmd(session):
+    from models.hockey_discovery import HockeyCompetition
+    session.add(HockeyCompetition(
+        external_id="Landelijk Meisjes O16|Landelijke Topklasse|Landelijk|2026-2027",
+        name="Landelijk Meisjes O16", class_name="Landelijke Topklasse", season="2026-2027",
+        hl_comp_id=22, hl_comp_key="nwwavznjsuechr",
+    ))
+    session.add(VangerCmd(cmd_type="get_competition_detail", params=json.dumps({"comp_id": 22, "label": "X"}), status="pending", reason=None))
+    session.commit()
+
+    result = get_cmd_queue_next(session=session, _=None)
+
+    assert result["params"] == {"comp_id": 22, "label": "X", "comp_key": "nwwavznjsuechr"}
+
+
+def test_next_falls_back_on_the_numeric_id_when_no_comp_key_is_known(session):
+    session.add(VangerCmd(cmd_type="get_competition_detail", params=json.dumps({"comp_id": 99, "label": "X"}), status="pending", reason=None))
+    session.commit()
+
+    result = get_cmd_queue_next(session=session, _=None)
+
+    assert result["params"]["comp_key"] == "99"

@@ -246,9 +246,11 @@ def capture_for_cmd(page, cmd_type):
                 # /competitions/national-lijst - zonder deze check greep Ghost
                 # willekeurig welke "data"-array-response het laatst binnenkwam
                 # (roadmap-melding: "10 competities gevonden zonder naam").
+                # Item 1178: nieuwe match-center-vorm heeft string-id's en
+                # class_name kan null zijn (bv. Staatsloterij Hoofdklasse).
                 if isinstance(data, list) and data and isinstance(data[0], dict) \
-                        and isinstance(data[0].get("id"), int) \
-                        and isinstance(data[0].get("class_name"), str) \
+                        and isinstance(data[0].get("id"), (int, str)) \
+                        and "class_name" in data[0] \
                         and isinstance(data[0].get("poule_id"), int) \
                         and data[0].get("federation_reference_id") is None:
                     captured["data"] = body

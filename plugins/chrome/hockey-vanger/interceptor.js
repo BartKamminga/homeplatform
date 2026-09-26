@@ -19,7 +19,7 @@
   // backend/tests/test_hockey_vanger_plugin_contract.py bewaakt dat deze
   // letterlijke kopie niet stilzwijgend van het contract afwijkt.
   const POULE_RE        = /\/poules\/(\d+)\/teams\/(\d+)/;
-  const COMP_RE         = /\/competitions\/national\/(\d+)/;
+  const COMP_RE         = /\/competitions\/national\/([A-Za-z0-9]+)/;
   // /clubs/HH11AR3 — club-id uit URL, ongeacht body-veldnamen
   const CLUB_DETAIL_RE  = /\/clubs\/([A-Za-z0-9]+)(?:\/|$)/;
 
@@ -54,8 +54,9 @@
     return Array.isArray(body && body.data) &&
       body.data.length > 0 &&
       typeof body.data[0].poule_id === 'number' &&
-      typeof body.data[0].class_name === 'string' &&
-      typeof body.data[0].id === 'number' &&
+      // item 1178: nieuwe match-center-vorm - string-id's, class_name soms null
+      'class_name' in body.data[0] &&
+      (typeof body.data[0].id === 'number' || typeof body.data[0].id === 'string') &&
       body.data[0].federation_reference_id === undefined;
   }
 

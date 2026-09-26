@@ -461,11 +461,20 @@ def get_cmd_queue_next(
     cmd.started_at = now
     session.add(cmd)
     session.commit()
+    params = json.loads(cmd.params)
+    # Item 1178: het nieuwe match-center navigeert op een string-key
+    # (#/competitions/national/{key}); de cmd zelf blijft op hl_comp_id
+    # (dedupe/filters/item 1013), de key wordt pas bij uitdelen toegevoegd.
+    if cmd.cmd_type == "get_competition_detail" and params.get("comp_id") and not params.get("comp_key"):
+        comp = session.exec(
+            select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == params["comp_id"])
+        ).first()
+        params["comp_key"] = (comp.hl_comp_key if comp else None) or str(params["comp_id"])
     return {
         "done":     False,
         "id":       cmd.id,
         "cmd_type": cmd.cmd_type,
-        "params":   json.loads(cmd.params),
+        "params":   params,
     }
 
 

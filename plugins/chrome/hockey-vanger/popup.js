@@ -462,9 +462,11 @@ function executeCmd(cmd) {
     lsKey = '__hw_clubs';
     lsId  = null;
   } else if (cmd.cmd_type === 'get_competition_detail') {
-    hash  = '/competitions/' + cmd.params.comp_id;
+    // item 1178: nieuw match-center adresseert op string-key (backend vult
+    // comp_key bij het uitdelen, fallback op het oude numerieke id)
+    hash  = '/competitions/national/' + (cmd.params.comp_key || cmd.params.comp_id);
     lsKey = '__hw_comp_detail';
-    lsId  = String(cmd.params.comp_id);
+    lsId  = String(cmd.params.comp_key || cmd.params.comp_id);
   } else if (cmd.cmd_type === 'get_competitions') {
     hash  = '/search/competition';
     lsKey = '__hw_competitions';
