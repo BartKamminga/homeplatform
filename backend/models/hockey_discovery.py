@@ -92,6 +92,9 @@ class HockeyCompetition(SQLModel, table=True):
     hockey_type:  str           = Field(default="")  # VE / ZA
     season:       str
     hl_comp_id:   Optional[int] = Field(default=None, unique=True, index=True)   # hockey.nl competition id
+    # item 1178: string-id uit het nieuwe match-center (24-09-2026, bv. "nwwavznjsuechr")
+    # - alleen voor navigatie (#/competitions/national/{key}); hl_comp_id blijft de sleutel.
+    hl_comp_key:  Optional[str] = Field(default=None, index=True)
     discovered_at: datetime     = Field(default_factory=datetime.utcnow)
     updated_at:    datetime     = Field(default_factory=datetime.utcnow)
 

@@ -296,6 +296,28 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
     if not isinstance(poules_list, list) or not poules_list:
         return None
 
+    # Item 1178: het nieuwe match-center geeft als top-level naam de
+    # sponsorvorm ("HelloFresh Meisjes O16 Landelijke Topklasse") en per poule
+    # de fase-naam ("Meisjes O16 Herfst") - geen van beide is onze bestaande
+    # rij ("Landelijk Meisjes O16"). Zonder deze stap zou elke detail-scan
+    # een nieuwe competitie aanmaken en alle poules daarheen verhuizen (weg
+    # van gekoppelde publicaties). Bestaande hl_comp_id-rij is dus leidend
+    # voor de naam; het numerieke id staat ook in de response
+    # (competition.national_competition_id). Alleen bij de nieuwe vorm
+    # (string-id): bij de oude vorm is de top-level naam wel de echte en kan
+    # een verkeerd toegekend hl_comp_id juist gecorrigeerd moeten worden.
+    hl_key = inner.get("id") if isinstance(inner.get("id"), str) else None
+    if hl_key and not params.get("comp_id"):
+        _nat_id = ((poules_list[0] or {}).get("competition") or {}).get("national_competition_id")
+        if isinstance(_nat_id, int):
+            params = {**params, "comp_id": _nat_id}
+    if hl_key and params.get("comp_id"):
+        _hl_row = session.exec(
+            select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == params["comp_id"])
+        ).first()
+        if _hl_row:
+            comp_name = _hl_row.name
+
     fallback_season = ""
     for _pd in poules_list:
         for _m in (_pd.get("matches") or []):
@@ -367,6 +389,8 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         if comp_row:
             comp_row.class_name = class_name or comp_row.class_name
             comp_row.district   = district or comp_row.district
+            if hl_key:
+                comp_row.hl_comp_key = hl_key
             if hl_cid:
                 _release_stale_hl_comp_id(session, hl_cid, keep_id=comp_row.id)
                 # flush vóór het toekennen: forceert het "loskoppelen" van het
@@ -386,7 +410,7 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
                 external_id=ext_id, name=comp_name, class_name=class_name,
                 district=district or None,
                 hockey_type="VE", season=season or "onbekend",
-                hl_comp_id=hl_cid, discovered_at=now, updated_at=now,
+                hl_comp_id=hl_cid, hl_comp_key=hl_key, discovered_at=now, updated_at=now,
             )
             session.add(comp_row)
         session.flush()
@@ -545,9 +569,26 @@ def _call_competitions_list(raw: dict, session: Session):
     target_season = get_target_season(session)
     upserted = 0
     skipped  = 0
+    linked   = 0
     for item in items:
         if not isinstance(item, dict):
             skipped += 1
+            continue
+        # Item 1178: nieuwe match-center-vorm - string-id en ALLE competitie-
+        # groepen (ook district), dus geen nieuwe rijen/hl_comp_id's meer
+        # hieruit afleiden. Alleen de navigatie-key koppelen aan een rij die al
+        # landelijk is (hl_comp_id), via de eerste poule van de entry.
+        if isinstance(item.get("id"), str) and isinstance(item.get("poule_id"), int):
+            poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == item["poule_id"])).first()
+            comp = session.get(HockeyCompetition, poule.competition_id) if poule else None
+            if comp and comp.hl_comp_id:
+                if comp.hl_comp_key != item["id"]:
+                    comp.hl_comp_key = item["id"]
+                    comp.updated_at  = now
+                    session.add(comp)
+                linked += 1
+            else:
+                skipped += 1
             continue
         if isinstance(item.get("id"), int) and isinstance(item.get("class_name"), str) \
                 and "federation_reference_id" not in item:
@@ -597,4 +638,4 @@ def _call_competitions_list(raw: dict, session: Session):
         upserted += 1
 
     session.commit()
-    return {"competitions_found": len(items), "upserted": upserted, "skipped": skipped}
+    return {"competitions_found": len(items), "upserted": upserted, "skipped": skipped, "linked_keys": linked}

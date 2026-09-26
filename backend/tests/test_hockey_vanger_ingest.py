@@ -108,7 +108,7 @@ def test_call_competitions_list_skips_team_and_club_search_hits(session):
     ]}
     result = _call_competitions_list(raw, session)
 
-    assert result == {"competitions_found": 3, "upserted": 1, "skipped": 2}
+    assert result == {"competitions_found": 3, "upserted": 1, "skipped": 2, "linked_keys": 0}
     comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == 19)).first()
     assert comp.name == "Landelijk Jongens O18"
 
@@ -120,7 +120,7 @@ def test_call_competitions_list_handles_the_flat_national_list_shape(session):
     ]}
     result = _call_competitions_list(raw, session)
 
-    assert result == {"competitions_found": 2, "upserted": 2, "skipped": 0}
+    assert result == {"competitions_found": 2, "upserted": 2, "skipped": 0, "linked_keys": 0}
     comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.hl_comp_id == 21)).first()
     assert comp.name == "Landelijk Jongens O16"
 
@@ -142,7 +142,7 @@ def test_call_competitions_list_updates_the_existing_real_competition_instead_of
     ]}
     result = _call_competitions_list(raw, session)
 
-    assert result == {"competitions_found": 1, "upserted": 1, "skipped": 0}
+    assert result == {"competitions_found": 1, "upserted": 1, "skipped": 0, "linked_keys": 0}
     assert session.exec(select(HockeyCompetition).where(HockeyCompetition.name == "Landelijk Jongens O16")).all() == [real]
     session.refresh(real)
     assert real.hl_comp_id == 21
@@ -398,3 +398,89 @@ def test_call_poule_capture_does_not_requeue_an_already_captured_linked_poule(se
     session.commit()
 
     assert session.exec(select(VangerCmd).where(VangerCmd.cmd_type == "get_poule")).all() == []
+
+
+# ── item 1178: nieuw match-center - string-id's voor landelijke competities ──
+
+def _landelijk_mo16(session, **kw):
+    comp = HockeyCompetition(
+        external_id="Landelijk Meisjes O16|Landelijke Topklasse|Landelijk|2026-2027",
+        name="Landelijk Meisjes O16", class_name="Landelijke Topklasse", district="Landelijk",
+        hockey_type="VE", season="2026-2027", hl_comp_id=22, **kw,
+    )
+    session.add(comp)
+    session.commit()
+    session.refresh(comp)
+    return comp
+
+
+def _new_shape_detail():
+    # Verkorte versie van de echte response van competitions/national/nwwavznjsuechr
+    # (26-09-2026): top-level sponsornaam, per poule de fase-naam, het oude
+    # numerieke id als national_competition_id.
+    return {"data": {"data": {
+        "id": "nwwavznjsuechr", "name": "HelloFresh Meisjes O16 Landelijke Topklasse",
+        "poules": [{
+            "id": 180891, "name": "Poule A",
+            "competition": {
+                "id": 180891, "name": "Meisjes O16 Herfst", "period_name": "Herfst",
+                "class_name": "Landelijke Topklasse", "district_name": "Landelijk",
+                "national_competition_id": 22, "national_competition_name": None,
+            },
+            "standings": [],
+            "matches": [{"id": 1, "date": "2026-09-06T12:00:00+02:00", "status": "final",
+                         "home": {"id": 10, "name": "A"}, "away": {"id": 11, "name": "B"},
+                         "score": {"home": 1, "away": 0}}],
+        }],
+    }}}
+
+
+def test_call_competition_detail_keeps_the_existing_landelijk_row_for_the_new_shape(session):
+    comp = _landelijk_mo16(session)
+
+    result = _call_competition_detail(_new_shape_detail(), session, params={"comp_id": 22, "label": "Landelijk Meisjes O16"})
+
+    assert result is not None
+    comps = session.exec(select(HockeyCompetition)).all()
+    assert [c.id for c in comps] == [comp.id]
+    session.refresh(comp)
+    assert comp.hl_comp_key == "nwwavznjsuechr"
+    poule = session.exec(select(HockeyPoule).where(HockeyPoule.poule_id == 180891)).first()
+    assert poule.competition_id == comp.id
+
+
+def test_call_competition_detail_falls_back_on_national_competition_id_without_comp_id_param(session):
+    comp = _landelijk_mo16(session)
+
+    _call_competition_detail(_new_shape_detail(), session, params={"label": "?"})
+
+    assert [c.id for c in session.exec(select(HockeyCompetition)).all()] == [comp.id]
+
+
+def test_call_competitions_list_links_string_keys_via_poule_id_without_creating_rows(session):
+    comp = _landelijk_mo16(session)
+    session.add(HockeyPoule(poule_id=180891, name="Poule A", competition_id=comp.id, season="2026-2027"))
+    district = HockeyCompetition(
+        external_id="Meisjes O14 Voorcompetitie|4e klasse|Midden Nederland|2026-2027",
+        name="Meisjes O14 Voorcompetitie", class_name="4e klasse", district="Midden Nederland",
+        hockey_type="VE", season="2026-2027",
+    )
+    session.add(district)
+    session.commit()
+    session.add(HockeyPoule(poule_id=181182, name="Poule A", competition_id=district.id, season="2026-2027"))
+    session.commit()
+    raw = {"data": [
+        {"id": "mqtcokvtpune", "name": "Staatsloterij Hoofdklasse Dames", "class_name": None, "poule_id": 180863},
+        {"id": "nwwavznjsuechr", "name": "HelloFresh Meisjes O16 Landelijke Topklasse",
+         "class_name": "Landelijke Topklasse", "poule_id": 180891},
+        {"id": "zldffsyaglajrfmiar", "name": "HelloFresh Meisjes O14 4e klasse", "class_name": "4e klasse", "poule_id": 181182},
+    ]}
+
+    result = _call_competitions_list(raw, session)
+
+    assert result == {"competitions_found": 3, "upserted": 0, "skipped": 2, "linked_keys": 1}
+    session.refresh(comp)
+    session.refresh(district)
+    assert comp.hl_comp_key == "nwwavznjsuechr"
+    assert district.hl_comp_key is None and district.hl_comp_id is None
+    assert len(session.exec(select(HockeyCompetition)).all()) == 2

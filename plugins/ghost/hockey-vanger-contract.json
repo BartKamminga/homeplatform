@@ -4,13 +4,13 @@
   "url_patterns": {
     "poule": "/poules/(\\d+)/teams/(\\d+)",
     "club_detail": "/clubs/([A-Za-z0-9]+)(?:/|$)",
-    "competition": "/competitions/national/(\\d+)"
+    "competition": "/competitions/national/([A-Za-z0-9]+)"
   },
   "hash_templates": {
     "get_poule": "/team/{team_id}|{poule_id}",
     "scan_club": "/club/{external_id}/field-teams",
     "get_clubs": "/search/clubs",
-    "get_competition_detail": "/competitions/{comp_id}",
+    "get_competition_detail": "/competitions/national/{comp_key}",
     "get_competitions": "/search/competition"
   },
   "defaults": {
