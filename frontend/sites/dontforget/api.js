@@ -12,8 +12,9 @@ async function _upload(file, name, category = 'dontforget') {
   const token = localStorage.getItem('hp_token')
   const formData = new FormData()
   formData.append('file', file, name)
-  formData.append('category', category)
-  const res = await fetch('/api/uploads', {
+  // category moet als query-param mee (zelfde patroon als core/uploadImage.js) -
+  // de backend leest 'm niet uit de FormData-body, alleen uit de query-string.
+  const res = await fetch(`/api/uploads?category=${encodeURIComponent(category)}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
