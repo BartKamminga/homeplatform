@@ -50,8 +50,14 @@ jobs:
     steps:
       - name: Pull
         run: |
-          if [ ! -d "$PROD_REPO" ]; then
-            git clone -b main https://github.com/BartKamminga/homeplatform.git $PROD_REPO
+          if [ ! -d "$PROD_REPO/.git" ]; then
+            # init+fetch i.p.v. clone: build-and-push heeft frontend/dist al aangemaakt
+            # (rsync-stap), dus de map is niet per se leeg - clone zou daarop stuklopen.
+            mkdir -p $PROD_REPO
+            git -C $PROD_REPO init -b main
+            git -C $PROD_REPO remote add origin https://github.com/BartKamminga/homeplatform.git
+            git -C $PROD_REPO fetch origin main
+            git -C $PROD_REPO reset --hard origin/main
           else
             git -C $PROD_REPO pull
           fi
