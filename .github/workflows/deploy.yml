@@ -12,9 +12,33 @@ jobs:
   deploy-prod:
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, g4]
+    environment: production
     steps:
       - name: Pull
         run: git -C $PROD_REPO pull
+
+      - name: .env genereren (production-environment secrets)
+        run: |
+          cat > $PROD_REPO/.env << 'EOF'
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          NAS_URL=${{ secrets.NAS_URL }}
+          EXTERNAL_URL=${{ secrets.EXTERNAL_URL }}
+          VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT=${{ secrets.VAPID_SUBJECT }}
+          CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GHOST_API_KEY=${{ secrets.GHOST_API_KEY }}
+          HOCKEY_EMAIL=${{ secrets.HOCKEY_EMAIL }}
+          HOCKEY_PASSWORD=${{ secrets.HOCKEY_PASSWORD }}
+          AGENT_WORKER_API_KEY=${{ secrets.AGENT_WORKER_API_KEY }}
+          CLOUDFLARE_TUNNEL_TOKEN=${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          BUGSINK_DB_PASSWORD=${{ secrets.BUGSINK_DB_PASSWORD }}
+          BUGSINK_SECRET_KEY=${{ secrets.BUGSINK_SECRET_KEY }}
+          BUGSINK_SUPERUSER=${{ secrets.BUGSINK_SUPERUSER }}
+          EOF
+          chmod 600 $PROD_REPO/.env
 
       - name: Backend bouwen en herstarten
         working-directory: ${{ env.PROD_REPO }}
@@ -49,15 +73,36 @@ jobs:
   deploy-acc:
     if: github.ref == 'refs/heads/develop'
     runs-on: [self-hosted, g4]
+    environment: acceptance
     steps:
       - name: Pull (acc)
         run: |
           if [ ! -d "$ACC_REPO" ]; then
             git clone -b develop https://github.com/BartKamminga/homeplatform.git $ACC_REPO
-            cp $PROD_REPO/.env $ACC_REPO/.env
           else
             git -C $ACC_REPO pull
           fi
+
+      - name: .env genereren (acceptance-environment secrets)
+        run: |
+          cat > $ACC_REPO/.env << 'EOF'
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          NAS_URL=${{ secrets.NAS_URL }}
+          EXTERNAL_URL=${{ secrets.EXTERNAL_URL }}
+          VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT=${{ secrets.VAPID_SUBJECT }}
+          CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GHOST_API_KEY=${{ secrets.GHOST_API_KEY }}
+          HOCKEY_EMAIL=${{ secrets.HOCKEY_EMAIL }}
+          HOCKEY_PASSWORD=${{ secrets.HOCKEY_PASSWORD }}
+          AGENT_WORKER_API_KEY=${{ secrets.AGENT_WORKER_API_KEY }}
+          PROD_API_BASE=${{ secrets.PROD_API_BASE }}
+          PROD_API_KEY=${{ secrets.PROD_API_KEY }}
+          EOF
+          chmod 600 $ACC_REPO/.env
 
       - name: Backend bouwen en herstarten (acc)
         run: |
