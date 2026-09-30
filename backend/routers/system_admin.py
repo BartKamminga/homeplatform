@@ -132,6 +132,8 @@ def system_overview(session: Session = Depends(get_session), _: User = Depends(r
         "nas_host": settings.NAS_IP or None,
         "nas_path": settings.NAS_PATH or None,
         "nas_url":  settings.NAS_URL  or None,
+        "prod_lan_ip": settings.PROD_LAN_IP,
+        "acc_lan_ip": settings.ACC_LAN_IP,
         "links": _build_links(),
         "hardware": _get_hardware_info(),
     }
@@ -198,7 +200,8 @@ def post_deploy_version(body: DeployVersionIn, _: User = Depends(require_admin))
 
 def _get_hardware_info() -> dict:
     try:
-        import psutil, time as _t
+        import psutil, socket as _socket, time as _t
+        hostname = _socket.gethostname()
         cpu_pct = psutil.cpu_percent(interval=0.3)
         mem  = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
@@ -217,6 +220,7 @@ def _get_hardware_info() -> dict:
 
         return {
             "available": True,
+            "hostname": hostname,
             "cpu_percent": cpu_pct,
             "cpu_temp": cpu_temp,
             "memory": {
