@@ -26,8 +26,8 @@ services:
     container_name: homeplatform_backend
     volumes:
       - /home/bart/homeplatform/db:/app/db
-      - /home/bart/homeplatform/uploads:/app/uploads
-      - /home/bart/homeplatform/nas-files:/app/nas-files
+      - /mnt/extra-ssd/uploads:/app/uploads
+      - /mnt/extra-ssd/nas-files:/app/nas-files
       - /home/bart/homeplatform/music:/app/music
       - /home/bart/homeplatform/music/downloads:/app/downloads
       - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
@@ -55,7 +55,7 @@ services:
       - DEV_SESSION_MEMORY_MB=${DEV_SESSION_MEMORY_MB:-2048}
       - DEV_SESSION_MAX_CONCURRENT_GIT=${DEV_SESSION_MAX_CONCURRENT_GIT:-1}
       - DEV_SESSION_MAX_CONCURRENT_OTHER=${DEV_SESSION_MAX_CONCURRENT_OTHER:-5}
-      - DEV_SESSION_UPLOADS_HOST_PATH=${DEV_SESSION_UPLOADS_HOST_PATH:-/home/bart/homeplatform/uploads}
+      - DEV_SESSION_UPLOADS_HOST_PATH=${DEV_SESSION_UPLOADS_HOST_PATH:-/mnt/extra-ssd/uploads}
       - DEV_SESSION_CONFIG_HOST_PATH=${DEV_SESSION_CONFIG_HOST_PATH:-/home/bart/homeplatform-secrets/session-config}
     restart: unless-stopped
     healthcheck:
