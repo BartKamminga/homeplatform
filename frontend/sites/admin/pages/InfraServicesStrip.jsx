@@ -38,9 +38,18 @@ export default function InfraServicesStrip() {
 
   const runner = data.runner;
   const cron   = data.backup_cron;
+  const sync   = data.data_sync;
 
   const runnerColor = runner.status === 'online' ? '#22c55e' : runner.status === 'offline' ? '#dc2626' : '#94a3b8';
   const checkedAgo  = runner.checked_at ? Math.round((Date.now() - new Date(runner.checked_at)) / 1000) : null;
+
+  const syncAgo = sync?.last_sync_at ? Math.round((Date.now() - new Date(sync.last_sync_at)) / 1000) : null;
+  const syncColor = syncAgo === null ? '#94a3b8' : syncAgo < 20 * 60 ? '#22c55e' : syncAgo < 60 * 60 ? '#ea580c' : '#dc2626';
+  function fmtAgo(s) {
+    if (s < 60) return `${s}s geleden`;
+    if (s < 3600) return `${Math.round(s / 60)}m geleden`;
+    return `${Math.round(s / 3600)}u geleden`;
+  }
 
   return (
     <>
@@ -100,6 +109,26 @@ export default function InfraServicesStrip() {
               </button>
             </div>
           </div>
+
+          {/* Data-sync card — alleen zichtbaar zolang de g4->g5 schaduw-sync actief is */}
+          {sync && (
+            <div style={card}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                Data-sync → {sync.target}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 700, background: syncColor + '22', color: syncColor, border: `1px solid ${syncColor}44` }}>
+                  {syncAgo !== null ? fmtAgo(syncAgo) : 'onbekend'}
+                </span>
+                {sync.staging && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>staging (nog niet actief)</span>}
+              </div>
+              {sync.db_bytes != null && (
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  DB-snapshot: {(sync.db_bytes / 1024 / 1024).toFixed(1)} MB
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {status && (
