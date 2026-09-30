@@ -22,6 +22,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: ghcr.io/bartkamminga/homeplatform-backend:${IMAGE_TAG:-latest}
     container_name: homeplatform_backend
     volumes:
       - /home/bart/homeplatform/db:/app/db
@@ -68,6 +69,7 @@ services:
     build:
       context: ./plugins/ghost
       dockerfile: Dockerfile
+    image: ghcr.io/bartkamminga/homeplatform-ghost:${IMAGE_TAG:-latest}
     container_name: homeplatform_ghost
     shm_size: "1gb"
     environment:
@@ -83,6 +85,7 @@ services:
     build:
       context: ./plugins/agent-worker
       dockerfile: Dockerfile
+    image: ghcr.io/bartkamminga/homeplatform-agent-worker:${IMAGE_TAG:-latest}
     container_name: homeplatform_agent_worker
     environment:
       - AGENT_API_BASE=http://backend:8000
