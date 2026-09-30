@@ -38,6 +38,7 @@ jobs:
 
       - name: Frontend naar g5 kopieren
         run: |
+          ssh -i /home/bart/.ssh/homeplatform-g5 bart@192.168.30.49 "mkdir -p /home/bart/homeplatform-repo/frontend/dist"
           rsync -az --delete -e "ssh -i /home/bart/.ssh/homeplatform-g5" \
             $PROD_REPO/frontend/dist/ bart@192.168.30.49:/home/bart/homeplatform-repo/frontend/dist/
 
