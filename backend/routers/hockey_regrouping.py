@@ -1,4 +1,4 @@
-"""Poulebord — herindelingsprognose (item 1182). Logica zit in
+"""Poulebord — herindelingsprognose (items 1182/1183). Logica zit in
 services/hockey_regrouping_forecast.py, hier alleen data ophalen."""
 
 from fastapi import APIRouter, Depends
@@ -7,9 +7,8 @@ from sqlmodel import Session, col, select
 from core.database import get_session
 from models.hockey_discovery import HockeyPouleMatch, HockeyPouleStanding
 from services.hockey_query_scope import scoped_poules
-from services.hockey_regrouping_forecast import (
-    RULES, SourcePoule, TeamStanding, category_from_competition, forecast,
-)
+from services.hockey_regrouping_forecast import SourcePoule, TeamStanding, category_from_competition, forecast
+from services.hockey_regrouping_rules import RULES
 from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-regrouping"])

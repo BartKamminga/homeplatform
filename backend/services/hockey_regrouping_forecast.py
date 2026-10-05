@@ -1,4 +1,4 @@
-"""Herindelingsprognose (item 1182) - teksten in de output (via/warnings) zijn
+"""Herindelingsprognose (items 1182/1183, regels in hockey_regrouping_rules.py) - teksten in de output (via/warnings) zijn
 Engels omdat ze direct in de UI verschijnen.
 
 Projecteert op basis van de huidige stand
@@ -23,40 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-RULE_SOURCE = "KNHB Herindelingsregeling competities Jeugd 2025-2026"
-
-# Volgorde van de klassen bepaalt de tier in de plaatsingslijst.
-CLASS_LEVEL = {"Topklasse": 0, "Subtopklasse": 1}
-
-# Per categorie: doelen in verwerkingsvolgorde (eerst Super, dan IDC) zodat
-# een team dat via aanvullen in een hoger doel komt niet nog eens meetelt.
-# direct: (klasse, posities, district|None). fill: (klasse, positie) kandidaten.
-RULES = {
-    "MO14": {
-        "source_classes": ["Topklasse", "Subtopklasse"],
-        "targets": [
-            {"key": "super", "name": "Super O14", "pools": 5, "size": 6,
-             "direct": [("Topklasse", (1, 2, 3), None)], "fill": []},
-            {"key": "idc", "name": "IDC O14", "pools": 6, "size": 6,
-             "direct": [("Topklasse", (4, 5), None), ("Subtopklasse", (1,), None)],
-             # Beste nr 2 van ZH plaatst zich direct, daarna vullen landelijk de beste nrs 2.
-             "district_best": [("Subtopklasse", 2, "Zuid-Holland")],
-             "fill": [("Subtopklasse", 2)]},
-        ],
-        "relegated": {"name": "Subtopklasse", "from": ("Topklasse", (6,))},
-    },
-    "JO14": {
-        "source_classes": ["Topklasse", "Subtopklasse"],
-        "targets": [
-            {"key": "super", "name": "Super O14", "pools": 5, "size": 6,
-             "direct": [("Topklasse", (1, 2, 3), None)], "fill": [("Topklasse", 4)]},
-            {"key": "idc", "name": "IDC O14", "pools": 6, "size": 6,
-             "direct": [("Topklasse", (4, 5), None), ("Subtopklasse", (1, 2), None)],
-             "fill": [("Subtopklasse", 3)]},
-        ],
-        "relegated": {"name": "Subtopklasse", "from": ("Topklasse", (6,))},
-    },
-}
+from services.hockey_regrouping_rules import CLASS_LEVEL, RULE_SOURCE, RULES
 
 _CATEGORY_RE = re.compile(r"\b(Meisjes|Jongens)\s*O(\d+)", re.IGNORECASE)
 _CLUB_SUFFIX_RE = re.compile(r"\s+[MJ]O\d+-\d+\s*$", re.IGNORECASE)
@@ -107,6 +74,7 @@ def _entry(poule: SourcePoule, t: TeamStanding, via: str) -> dict:
         "team_id": t.team_id, "team_name": t.team_name, "club": club_of(t.team_name),
         "club_logo_url": t.club_logo_url,
         "origin_class": poule.class_name, "origin_poule": poule.label,
+        "origin_code": f"{'S' if CLASS_LEVEL.get(poule.class_name) == 1 else 'T'}{t.position}",
         "origin_district": poule.district, "origin_position": t.position,
         "played": t.played, "points": t.points, "goal_diff": t.goals_for - t.goals_against,
         "goals_for": t.goals_for, "via": via,
@@ -153,7 +121,7 @@ def forecast(category: str, poules: list) -> Optional[dict]:
     warnings = []
     targets_out = []
     for tgt in rules["targets"]:
-        capacity = tgt["pools"] * tgt["size"]
+        capacity = tgt["pools"] * tgt["size"] if tgt["pools"] else None
         entries = []
 
         def add(p, t, via):
@@ -179,27 +147,20 @@ def forecast(category: str, poules: list) -> Optional[dict]:
                     break
                 add(p, t, f"best #{pos} {class_name}")
 
-        if len(entries) != capacity:
+        if capacity is not None and len(entries) != capacity:
             warnings.append(f"{tgt['name']}: {len(entries)} teams projected, capacity {capacity}")
 
         entries.sort(key=lambda e: (CLASS_LEVEL.get(e["origin_class"], 9), e["origin_position"], e["_key"]))
         for seed, e in enumerate(entries, 1):
             e["seed"] = seed
-        pools = serpentine(entries, tgt["pools"])
+        pools = serpentine(entries, tgt["pools"]) if tgt["pools"] else None
         for e in entries:
             e.pop("_key", None)
         targets_out.append({
-            "key": tgt["key"], "name": tgt["name"], "capacity": capacity,
+            "key": tgt["key"], "name": tgt["name"], "capacity": capacity, "note": tgt.get("note"),
             "seeding": entries,
-            "pools": [{"name": f"Poule {chr(65 + i)}", "teams": pool} for i, pool in enumerate(pools)],
+            "pools": [{"name": f"Poule {chr(65 + i)}", "teams": pool} for i, pool in enumerate(pools)] if pools else None,
         })
-
-    rel_class, rel_positions = rules["relegated"]["from"]
-    relegated = [
-        _entry(p, t, f"#{pos} {rel_class}")
-        for pos in rel_positions for p, t in _at_position(poules, rel_class, pos)
-    ]
-    relegated.sort(key=lambda e: e.pop("_key"))
 
     for p in poules:
         if p.matches_played == 0:
@@ -211,7 +172,7 @@ def forecast(category: str, poules: list) -> Optional[dict]:
         "category": category,
         "rule_source": RULE_SOURCE,
         "progress": {"played": played, "total": total},
+        "season_step": rules["season_step"],
         "targets": targets_out,
-        "relegated": {"name": rules["relegated"]["name"], "teams": relegated},
         "warnings": warnings,
     }

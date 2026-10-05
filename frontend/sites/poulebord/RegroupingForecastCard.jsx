@@ -3,10 +3,12 @@ import { C, badgeStyle, cardStyle, pillStyle, pinButtonStyle } from './constants
 import { getRegroupingForecast } from './api.js'
 import { RankRow, TeamName } from './RankRow.jsx'
 
-// item 1182: prognose van de herindeling na de herfst-/voorcompetitie (MO14/JO14
-// Topklasse -> Super/IDC/Subtopklasse). Berekening zit in de backend
-// (services/hockey_regrouping_forecast.py); deze kaart toont per doelcompetitie
-// de poules en de plaatsingslijst (serpentine) waarop die indeling gebaseerd is.
+// items 1182/1183: prognose van de herindeling na de herfst-/voorcompetitie
+// (O14/O16/O18). Berekening + regels zitten in de backend
+// (services/hockey_regrouping_forecast.py + _rules.py); deze kaart toont per
+// doelcompetitie de poules en de plaatsingslijst (serpentine) waarop die
+// indeling gebaseerd is. Doelen zonder poules (regionaal ingedeeld) tonen
+// alleen de lijst.
 
 const CACHE_TTL = 5 * 60 * 1000
 const _cache = {}
@@ -25,15 +27,10 @@ function useRegroupingForecast(tournamentId) {
   return data
 }
 
-// "T1" = nr 1 Topklasse, "S2" = nr 2 Subtopklasse
-function originCode(e) {
-  return `${e.origin_class === 'Topklasse' ? 'T' : 'S'}${e.origin_position}`
-}
-
 function OriginBadge({ entry }) {
   return (
     <span title={`${entry.via} · ${entry.origin_poule}`} style={{ ...badgeStyle(), flexShrink: 0 }}>
-      {originCode(entry)}{entry.provisional ? '?' : ''}
+      {entry.origin_code}{entry.provisional ? '?' : ''}
     </span>
   )
 }
@@ -68,7 +65,7 @@ function SeedingView({ entries, showPool }) {
   return entries.map((e, i) => (
     <RankRow key={e.team_id}
       rank={e.seed ?? i + 1} logoUrl={e.club_logo_url} name={e.team_name}
-      tags={[{ name: `${originCode(e)}${e.provisional ? '?' : ''}` }]}
+      tags={[{ name: `${e.origin_code}${e.provisional ? '?' : ''}` }]}
       meta={`${e.origin_poule} · ${e.points}p/${e.played} · ${e.goal_diff >= 0 ? '+' : ''}${e.goal_diff}`}
       value={showPool ? `→ ${String.fromCharCode(65 + e.pool_index)}` : ''} />
   ))
@@ -76,13 +73,12 @@ function SeedingView({ entries, showPool }) {
 
 export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
   const forecast = useRegroupingForecast(pin.tournamentId)
-  const targetKey = pin.target || 'super'
-  const view = pin.view || 'pools'
-
-  const tabs = forecast
-    ? [...forecast.targets.map(t => ({ key: t.key, label: t.name })), { key: 'relegated', label: forecast.relegated.name }]
-    : []
-  const target = forecast?.targets.find(t => t.key === targetKey)
+  // Doel-keys verschillen per categorie (O14: super/idc, O16/O18: national/super)
+  // - een gepinde of standaard-keuze die hier niet bestaat valt terug op de eerste.
+  const target = forecast?.targets.find(t => t.key === pin.target) || forecast?.targets[0]
+  const targetKey = target?.key
+  const view = target?.pools ? (pin.view || 'pools') : 'seeding'
+  const tabs = forecast ? forecast.targets.map(t => ({ key: t.key, label: t.name })) : []
   const progress = forecast?.progress
 
   return (
@@ -111,7 +107,7 @@ export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
               <button key={t.key} onClick={() => onUpdate({ target: t.key })}
                 style={pillStyle(targetKey === t.key, 'sm')}>{t.label}</button>
             ))}
-            {target && (
+            {target?.pools && (
               <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
                 {[['pools', 'Pools'], ['seeding', 'Seeding list']].map(([k, label]) => (
                   <button key={k} onClick={() => onUpdate({ view: k })} style={pillStyle(view === k, 'sm')}>
@@ -123,11 +119,13 @@ export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
           </div>
 
           {target && view === 'pools' && <PoolsView pools={target.pools} />}
-          {target && view === 'seeding' && <SeedingView entries={target.seeding} showPool={true} />}
-          {targetKey === 'relegated' && <SeedingView entries={forecast.relegated.teams} showPool={false} />}
+          {target && view === 'seeding' && <SeedingView entries={target.seeding} showPool={!!target.pools} />}
+          {target?.note && (
+            <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px 0', fontStyle: 'italic' }}>{target.note}</div>
+          )}
 
           <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px', lineHeight: 1.5 }}>
-            {progress && `Based on current standings (${progress.played}/${progress.total} matches played). `}
+            {forecast.season_step}. {progress && `Based on current standings (${progress.played}/${progress.total} matches played). `}
             Seeding: tier by class and position (T1 = Topklasse #1, S1 = Subtopklasse #1), then points,
             goal difference and goals for per match played; distributed in serpentine order,
             max one team per club per pool. Rules: {forecast.rule_source}.

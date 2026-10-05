@@ -14,9 +14,10 @@ const QUERY_SLOTS = [
   { template: 'upcoming_matches', stat: '' },
 ]
 
-// item 1182: herindelingsprognose alleen tonen als er op Topklasse gefilterd is.
+// items 1182/1183: herindelingsprognose alleen tonen als er op het hoogste
+// niveau gefilterd is (O14: Topklasse, O16/O18: Landelijke Topklasse).
 const FORECAST_SLOT = { template: 'regrouping_forecast', stat: '' }
-const FORECAST_TAG = 'Topklasse'
+const FORECAST_TAGS = ['Topklasse', 'Landelijke Topklasse']
 
 // De 5 canonieke query-kaarten voor een publicatie(+tag), altijd zichtbaar onder
 // de competitielijst (item 659). Niet-gepinde kaarten tonen een live preview met
@@ -27,7 +28,7 @@ export function QuerySlotsSection({
   onSetQueryPin, onUpdateQueryPin, onRemoveQueryPin, onSetQueryDraft,
 }) {
   const tagKey = [...(tags || [])].sort().join(',')
-  const slots = (tags || []).includes(FORECAST_TAG) ? [FORECAST_SLOT, ...QUERY_SLOTS] : QUERY_SLOTS
+  const slots = (tags || []).some(t => FORECAST_TAGS.includes(t)) ? [FORECAST_SLOT, ...QUERY_SLOTS] : QUERY_SLOTS
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',

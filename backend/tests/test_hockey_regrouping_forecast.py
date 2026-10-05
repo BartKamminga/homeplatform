@@ -1,4 +1,4 @@
-"""Tests voor de herindelingsprognose (item 1182)."""
+"""Tests voor de herindelingsprognose (items 1182/1183)."""
 
 from models.hockey import HockeyPublicationComp
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyPouleStanding
@@ -10,12 +10,12 @@ from services.hockey_regrouping_forecast import (
 _next_id = [0]
 
 
-def _poule(class_name, district, label, club_prefix, points, played=5):
+def _poule(class_name, district, label, club_prefix, points, played=5, suffix="MO14-1"):
     standings = []
     for pos, pts in enumerate(points, 1):
         _next_id[0] += 1
         standings.append(TeamStanding(
-            team_id=_next_id[0], team_name=f"{club_prefix}{pos} MO14-1", position=pos,
+            team_id=_next_id[0], team_name=f"{club_prefix}{pos} {suffix}", position=pos,
             played=played, points=pts, goals_for=10 - pos, goals_against=pos,
         ))
     return SourcePoule(label=label, class_name=class_name, district=district,
@@ -45,7 +45,7 @@ def test_category_and_club_parsing():
 
 def test_mo14_forecast_fills_super_and_idc_exactly():
     result = forecast("MO14", _mo14_poules())
-    super_, idc = result["targets"]
+    super_, idc, subtop = result["targets"]
 
     assert len(super_["seeding"]) == 30
     assert all(e["origin_class"] == "Topklasse" and e["origin_position"] <= 3 for e in super_["seeding"])
@@ -55,7 +55,7 @@ def test_mo14_forecast_fills_super_and_idc_exactly():
     assert len(idc["seeding"]) == 36
     zh2 = [e for e in idc["seeding"] if e["origin_class"] == "Subtopklasse" and e["origin_position"] == 2]
     assert len(zh2) == 1 and zh2[0]["origin_district"] == "Zuid-Holland"
-    assert len(result["relegated"]["teams"]) == 10
+    assert len(subtop["seeding"]) == 10 and subtop["pools"] is None
     assert result["warnings"] == []
 
 
@@ -85,7 +85,35 @@ def test_poule_without_results_gives_warning():
 
 
 def test_unknown_category_returns_none():
-    assert forecast("MO16", _mo14_poules()) is None
+    assert forecast("MO12", _mo14_poules()) is None
+
+
+def test_o18_forecast_follows_national_rules():
+    top, sub = "Landelijke Topklasse", "Landelijke Subtopklasse"
+    poules = [_poule(top, "Landelijk", f"T{i}", f"T{i}x", [9, 6, 3, 0], played=6, suffix="MO18-1") for i in range(8)]
+    poules += [_poule(sub, "Landelijk", f"S{i}", f"S{i}x", [9, 6, 3, 0], played=6, suffix="MO18-1") for i in range(16)]
+    result = forecast("MO18", poules)
+    national, super_, subtop, out = result["targets"]
+
+    assert len(national["seeding"]) == 16 and [len(p["teams"]) for p in national["pools"]] == [8, 8]
+    assert len(super_["seeding"]) == 32 and [len(p["teams"]) for p in super_["pools"]] == [8] * 4
+    assert {e["origin_code"] for e in super_["seeding"]} == {"T3", "T4", "S1"}
+    assert len(subtop["seeding"]) == 32 and subtop["pools"] is None
+    assert {e["origin_code"] for e in out["seeding"]} == {"S4"}
+    assert result["warnings"] == []
+
+
+def test_o16_forecast_follows_national_rules():
+    top, sub = "Landelijke Topklasse", "Subtopklasse"
+    points = [15, 12, 9, 6, 3, 0]
+    poules = [_poule(top, "Landelijk", f"T{i}", f"T{i}x", points, suffix="JO16-1") for i in range(8)]
+    poules += [_poule(sub, "Landelijk", f"S{i}", f"S{i}x", points, suffix="JO16-1") for i in range(8)]
+    national, super_, subtop, out = forecast("JO16", poules)["targets"]
+
+    assert len(national["seeding"]) == 24 and [len(p["teams"]) for p in national["pools"]] == [6] * 4
+    assert {e["origin_code"] for e in super_["seeding"]} == {"T4", "T5", "S1"} and len(super_["seeding"]) == 24
+    assert len(subtop["seeding"]) == 8 + 32
+    assert len(out["seeding"]) == 8
 
 
 def test_router_builds_forecast_from_db(session):
@@ -108,4 +136,4 @@ def test_router_builds_forecast_from_db(session):
     assert result["progress"]["played"] == 15
     assert not any("no results" in w for w in result["warnings"])
     assert len(result["targets"][0]["seeding"]) == 3
-    assert result["relegated"]["teams"][0]["team_name"] == "Club6 MO14-1"
+    assert result["targets"][2]["seeding"][0]["team_name"] == "Club6 MO14-1"
