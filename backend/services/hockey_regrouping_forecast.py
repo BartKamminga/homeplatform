@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from services.hockey_club_geo import max_travel
+from services.hockey_club_geo import format_minutes, max_travel, trips_over
 from services.hockey_regrouping_rules import CLASS_LEVEL, RULE_SOURCE, RULES
 
 _CATEGORY_RE = re.compile(r"\b(Meisjes|Jongens)\s*O(\d+)", re.IGNORECASE)
@@ -165,6 +165,14 @@ def forecast(category: str, poules: list) -> Optional[dict]:
             pools_out = []
             for i, pool in enumerate(pools):
                 travel = max_travel(pool)
+                if limit:
+                    trips = trips_over(pool, limit)
+                    if trips:
+                        listed = ", ".join(f"{a} – {b} ~{format_minutes(m)}" for a, b, m in trips)
+                        warnings.append(
+                            f"{tgt['name']} · Poule {chr(65 + i)}: {len(trips)} trip{'s' if len(trips) != 1 else ''} "
+                            f"over {format_minutes(limit)}: {listed}"
+                        )
                 pools_out.append({
                     "name": f"Poule {chr(65 + i)}", "teams": pool, "travel": travel,
                     "too_far": bool(limit and travel and travel["minutes"] > limit),
