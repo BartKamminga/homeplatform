@@ -104,5 +104,8 @@ def test_router_builds_forecast_from_db(session):
 
     result = get_regrouping_forecast(tid="pub-mo14", session=session)["forecast"]
     assert result["category"] == "MO14"
+    # Gespeeld komt uit de stand (6 teams x 5 / 2), niet uit wedstrijdstatussen.
+    assert result["progress"]["played"] == 15
+    assert not any("no results" in w for w in result["warnings"])
     assert len(result["targets"][0]["seeding"]) == 3
     assert result["relegated"]["teams"][0]["team_name"] == "Club6 MO14-1"

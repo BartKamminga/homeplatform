@@ -44,17 +44,19 @@ def get_regrouping_forecast(tid: str, session: Session = Depends(get_session)):
     for r in rows:
         rows_by_poule.setdefault(r.poule_id, []).append(r)
 
-    counts: dict = {}
+    # Alleen het totaal uit de wedstrijden; "gespeeld" komt uit de stand zelf.
+    # Wedstrijdstatussen lopen soms achter op de stand (acc: standen gevuld,
+    # bijna geen wedstrijd op "final"), wat onterechte waarschuwingen gaf.
+    match_totals: dict = {}
     for m in session.exec(select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_(ext_ids))).all():
-        c = counts.setdefault(m.poule_id, [0, 0])
-        c[1] += 1
-        if m.status == "final":
-            c[0] += 1
+        match_totals[m.poule_id] = match_totals.get(m.poule_id, 0) + 1
 
     poules = []
     for p, comp in scoped:
         prow = sorted(rows_by_poule.get(p.poule_id, []), key=lambda r: (r.position is None, r.position or 0, -r.points))
-        played, total = counts.get(p.poule_id, [0, 0])
+        n = len(prow)
+        played = sum(r.played for r in prow) // 2
+        total = match_totals.get(p.poule_id) or n * (n - 1)  # fallback: hele competitie (uit + thuis)
         poules.append(SourcePoule(
             label=f"{comp.district or '?'} · {p.name}",
             class_name=comp.class_name, district=comp.district,
