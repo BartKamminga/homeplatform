@@ -39,5 +39,15 @@ dst.close(); src.close()
 }
 
 echo "--- backup $DATE ---" >> /home/bart/backup.log
-backup_env ""      # prod: /home/bart/homeplatform
-backup_env "-acc"  # acc:  /home/bart/homeplatform-acc
+# Welke omgevingen: argumenten "prod" en/of "acc" (default: beide, oude gedrag).
+# Na de g4->g5-cutover: g5 draait alleen "prod", G4 alleen "acc" - anders
+# schrijven beide hosts naar dezelfde NAS-bestandsnaam en overschrijven ze elkaar.
+for ENV_NAME in "${@:-prod acc}"; do
+    for E in $ENV_NAME; do
+        case "$E" in
+            prod) backup_env "" ;;      # /home/bart/homeplatform
+            acc)  backup_env "-acc" ;;  # /home/bart/homeplatform-acc
+            *)    echo "Onbekende omgeving: $E" >> "$LOG" ;;
+        esac
+    done
+done

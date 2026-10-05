@@ -16,6 +16,13 @@ sudo mount -a
 df -h /mnt/nas-backup
 ```
 
+## Omgeving per host (sinds de g4->g5-cutover)
+
+`backup-homeplatform.sh` en `backup-files.sh` accepteren `prod` en/of `acc` als argument (zonder
+argument: beide). g5 (prod) draait ze met `prod`, G4 (acc) met `acc` — beide schrijven naar
+dezelfde NAS-bestandsnamen, dus nooit allebei dezelfde omgeving laten back-uppen.
+Zie `docs/cutover-g4-g5.md`.
+
 ## backup-homeplatform.sh
 
 Dagelijkse SQLite-snapshot (prod + acc), lokaal bewaard (14 dagen) + kopie naar

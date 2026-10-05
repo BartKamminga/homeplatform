@@ -11,6 +11,11 @@ backup_env() {
     local ENV=$1
     local UPLOADS="/home/bart/homeplatform${ENV}/uploads"
     local NASFILES="/home/bart/homeplatform${ENV}/nas-files"
+    # g5: prod-bestanden staan op de extra datadisk (docker-compose.g4.yml-volumes)
+    if [ -z "$ENV" ] && [ -d /mnt/extra-ssd/uploads ]; then
+        UPLOADS="/mnt/extra-ssd/uploads"
+        NASFILES="/mnt/extra-ssd/nas-files"
+    fi
     local LABEL="prod"; [ -n "$ENV" ] && LABEL="acc"
 
     mkdir -p "$NAS_DIR/$LABEL/uploads" "$NAS_DIR/$LABEL/nas-files"
@@ -33,5 +38,15 @@ backup_env() {
 }
 
 echo "--- files backup $(date +%Y-%m-%d) ---" >> $LOG
-backup_env ""      # prod: /home/bart/homeplatform
-backup_env "-acc"  # acc:  /home/bart/homeplatform-acc
+# Welke omgevingen: argumenten "prod" en/of "acc" (default: beide, oude gedrag).
+# Na de g4->g5-cutover: g5 draait alleen "prod", G4 alleen "acc" - anders
+# schrijven beide hosts naar dezelfde NAS-bestandsnaam en overschrijven ze elkaar.
+for ENV_NAME in "${@:-prod acc}"; do
+    for E in $ENV_NAME; do
+        case "$E" in
+            prod) backup_env "" ;;      # /home/bart/homeplatform
+            acc)  backup_env "-acc" ;;  # /home/bart/homeplatform-acc
+            *)    echo "Onbekende omgeving: $E" >> "$LOG" ;;
+        esac
+    done
+done
