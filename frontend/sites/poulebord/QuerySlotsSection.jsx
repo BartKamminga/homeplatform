@@ -14,6 +14,10 @@ const QUERY_SLOTS = [
   { template: 'upcoming_matches', stat: '' },
 ]
 
+// item 1182: herindelingsprognose alleen tonen als er op Topklasse gefilterd is.
+const FORECAST_SLOT = { template: 'regrouping_forecast', stat: '' }
+const FORECAST_TAG = 'Topklasse'
+
 // De 5 canonieke query-kaarten voor een publicatie(+tag), altijd zichtbaar onder
 // de competitielijst (item 659). Niet-gepinde kaarten tonen een live preview met
 // de standaardconfiguratie; wijzigingen daarop blijven lokaal (queryDrafts) tot
@@ -23,13 +27,14 @@ export function QuerySlotsSection({
   onSetQueryPin, onUpdateQueryPin, onRemoveQueryPin, onSetQueryDraft,
 }) {
   const tagKey = [...(tags || [])].sort().join(',')
+  const slots = (tags || []).includes(FORECAST_TAG) ? [FORECAST_SLOT, ...QUERY_SLOTS] : QUERY_SLOTS
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
         color: C.muted, padding: '4px 2px 8px', borderTop: `1px solid ${C.border}` }}>
         Queries{tags?.length ? ` · ${tags.join(', ')}` : ''}
       </div>
-      {QUERY_SLOTS.map(({ template, stat }) => {
+      {slots.map(({ template, stat }) => {
         const key = `${tournamentId}::${tagKey}::${template}::${stat}`
         const pinnedPin = queryPins.get(key)
         const pin = pinnedPin || {
