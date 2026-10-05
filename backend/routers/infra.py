@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from core.auth import require_admin
 from core.docker_engine import docker_api
+from core.settings import settings
 from models.core import User
 
 router = APIRouter(prefix="/api", tags=["infra"])
@@ -15,6 +16,7 @@ _RESTART_FLAG       = os.path.join(_DB_DIR, "restart_runner")
 _CRON_DISABLED_FLAG = os.path.join(_DB_DIR, "cron_disabled")
 _BACKUP_DIR         = os.path.join(_DB_DIR, "backups")
 _BACKUP_RE          = re.compile(r'^homeplatform-\d{4}-\d{2}-\d{2}\.sqlite$')
+_SYNC_STATUS_FILE   = os.path.join(_DB_DIR, "sync_status.json")
 
 
 def _docker(path: str):
@@ -24,11 +26,33 @@ def _docker(path: str):
         return None
 
 
+def _machine() -> dict:
+    # Deze omgeving draait ("environment"-instelling bepaalt of het de prod- of
+    # acc-backend is) op zijn eigen LAN-IP — de andere server is per definitie
+    # de andere. Zo blijft de Infrastructuur-pagina kloppen als prod/acc van
+    # machine wisselen (bv. na de g4→g5 migratie) zonder frontend-hardcoding.
+    is_prod = settings.ENVIRONMENT == "production"
+    return {
+        "hostname": _hostname(),
+        "lan_ip": settings.PROD_LAN_IP if is_prod else settings.ACC_LAN_IP,
+        "prod_lan_ip": settings.PROD_LAN_IP,
+        "acc_lan_ip": settings.ACC_LAN_IP,
+    }
+
+
+def _hostname() -> str:
+    try:
+        import socket
+        return socket.gethostname()
+    except Exception:
+        return ""
+
+
 @router.get("/admin/infrastructure")
 def get_infrastructure(_: User = Depends(require_admin)):
     raw = _docker("/containers/json?all=false")
     if raw is None:
-        return {"available": False, "containers": [], "hardware": _hardware()}
+        return {"available": False, "containers": [], "hardware": _hardware(), "machine": _machine()}
 
     containers = []
     for c in sorted(raw, key=lambda x: x.get("Names", [""])[0]):
@@ -67,7 +91,7 @@ def get_infrastructure(_: User = Depends(require_admin)):
             "mounts":      mounts,
         })
 
-    return {"available": True, "containers": containers, "hardware": _hardware()}
+    return {"available": True, "containers": containers, "hardware": _hardware(), "machine": _machine()}
 
 
 @router.get("/admin/infra/services")
@@ -90,9 +114,21 @@ def get_services(_: User = Depends(require_admin)):
         pass
 
     cron_enabled = not os.path.exists(_CRON_DISABLED_FLAG)
+
+    # item: g4->g5 cutover-voorbereiding - tijdelijke "schaduw"-sync
+    # (scripts/sync-to-g5.sh) schrijft dit manifest op G4 en rsynct het mee
+    # naar g5, zodat beide admin-UI's dezelfde versheid tonen.
+    data_sync = None
+    try:
+        with open(_SYNC_STATUS_FILE) as f:
+            data_sync = json.load(f)
+    except Exception:
+        pass
+
     return {
         "runner": runner,
         "backup_cron": {"enabled": cron_enabled, "last_backup": last_backup},
+        "data_sync": data_sync,
     }
 
 

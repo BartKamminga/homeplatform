@@ -58,3 +58,5 @@ export const getLiveMatches = (tid, tags) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/live-matches?${tagQuery(tags, {})}`)
 export const getClubRanking = (tid, tags, limit) =>
   api.get(`/api/hockey/public/tournaments/${tid}/query/club-ranking?${tagQuery(tags, { limit })}`)
+export const getRegroupingForecast = (tid) =>
+  api.get(`/api/hockey/public/tournaments/${tid}/query/regrouping-forecast`)

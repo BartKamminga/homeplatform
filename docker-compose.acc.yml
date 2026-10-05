@@ -41,6 +41,8 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
       - NAS_URL=${NAS_URL:-}
       - EXTERNAL_URL=${EXTERNAL_URL:-}
+      - PROD_LAN_IP=${PROD_LAN_IP:-192.168.30.49}
+      - ACC_LAN_IP=${ACC_LAN_IP:-192.168.30.232}
       - WORKER_POLL_IDLE_SEC=300
       - PROD_API_BASE=${PROD_API_BASE:-}
       - PROD_API_KEY=${PROD_API_KEY:-}

@@ -1,6 +1,7 @@
 import { C, badgeStyle, pinButtonStyle } from './constants.js'
 import { useQueryResult } from './hooks.js'
 import { RankRow } from './RankRow.jsx'
+import { RegroupingForecastCard } from './RegroupingForecastCard.jsx'
 
 export const STATS_BY_TEMPLATE = {
   ranking: [
@@ -128,6 +129,12 @@ function ClubRankingRows({ rows }) {
 }
 
 export function QueryCard({ pin: rawPin, pinned, onTogglePin, onUpdate }) {
+  // item 1182: eigen kaartvorm, maar wel via de query-pins zodat pinnen op het
+  // board gratis meekomt. Vroege return vóór de hooks is veilig: template zit in
+  // de pin-key, dus een kaart-instantie wisselt nooit van template.
+  if (rawPin.template === 'regrouping_forecast') {
+    return <RegroupingForecastCard pin={rawPin} pinned={pinned} onTogglePin={onTogglePin} onUpdate={onUpdate} />
+  }
   // Migratie item 673: win_streak bestond ooit als los template, is nu de
   // streak-stat op ranking. Kaarten die al gepind waren vóór deze wijziging
   // migreren hier stilzwijgend mee.

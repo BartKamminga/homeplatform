@@ -3,13 +3,18 @@ import AdminLayout from '../AdminLayout.jsx';
 import { api } from '@core/api.js';
 import InfraServicesStrip from './InfraServicesStrip.jsx';
 
-const KNOWN_URLS = {
-  homeplatform_caddy:       [{ label: ':8080', href: 'http://192.168.30.232:8080', cls: 'prod' }, { label: 'webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
-  homeplatform_caddy_acc:   [{ label: ':8081', href: 'http://192.168.30.232:8081', cls: 'acc' }],
-  homeplatform_cloudflared: [{ label: 'tunnel → webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
-  bugsink:                  [{ label: ':8090', href: 'http://192.168.30.232:8090', cls: 'ext' }],
-  portainer:                [{ label: ':9000', href: 'http://192.168.30.232:9000', cls: 'ext' }, { label: ':9443', href: 'https://192.168.30.232:9443', cls: 'ext' }],
-};
+// Alle containers hier komen van de docker-socket van de machine die deze
+// pagina bedient (infra.py leest de lokale socket) - dus hun URL's wijzen
+// altijd naar het eigen LAN-IP van die machine, niet naar een vast IP.
+function knownUrls(ownIp) {
+  return {
+    homeplatform_caddy:       [{ label: ':8080', href: `http://${ownIp}:8080`, cls: 'prod' }, { label: 'webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
+    homeplatform_caddy_acc:   [{ label: ':8081', href: `http://${ownIp}:8081`, cls: 'acc' }],
+    homeplatform_cloudflared: [{ label: 'tunnel → webheaven.nl', href: 'https://webheaven.nl', cls: 'green' }],
+    bugsink:                  [{ label: ':8090', href: `http://${ownIp}:8090`, cls: 'ext' }],
+    portainer:                [{ label: ':9000', href: `http://${ownIp}:9000`, cls: 'ext' }, { label: ':9443', href: `https://${ownIp}:9443`, cls: 'ext' }],
+  };
+}
 
 const COCKPIT = { name: 'cockpit', image: 'system service', status: 'running', health: null, ports: [{ public: 9091 }], mounts: [], _cockpit: true };
 
@@ -30,6 +35,8 @@ export default function Infrastructure() {
   }, []);
 
   const hw = data?.hardware;
+  const machine = data?.machine || {};
+  const ownIp   = machine.lan_ip || machine.prod_lan_ip || '';
   const all = data?.available ? [...data.containers, COCKPIT] : [];
   const prod  = all.filter(c => envOf(c.name) === 'prod');
   const acc   = all.filter(c => envOf(c.name) === 'acc');
@@ -39,13 +46,13 @@ export default function Infrastructure() {
     <AdminLayout>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Infrastructuur</h1>
       <p style={{ color: 'var(--color-text-muted)', marginBottom: 24, fontSize: 13 }}>
-        HP ProDesk 600 G4 SFF · 192.168.30.232 · live via Docker socket
+        {machine.hostname || 'server'} · {ownIp || '…'} · live via Docker socket
       </p>
 
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: 16 }}>{error}</p>}
       {!data && !error && <p style={{ color: 'var(--color-text-muted)' }}>Laden…</p>}
 
-      {hw && <HwStrip hw={hw} />}
+      {hw && <HwStrip hw={hw} machine={machine} ownIp={ownIp} />}
       {backups && <BackupStrip backups={backups} />}
       <InfraServicesStrip />
 
@@ -57,33 +64,33 @@ export default function Infrastructure() {
 
       {data?.available && (<>
         <Section title="Productie" badge="prod" badgeColor="var(--color-primary)">
-          <Grid containers={prod} />
+          <Grid containers={prod} ownIp={ownIp} />
         </Section>
         <Section title="Acceptatie" badge="acc" badgeColor="#8b5cf6">
-          <Grid containers={acc} />
+          <Grid containers={acc} ownIp={ownIp} />
         </Section>
         <Section title="Overige services" badge={null}>
-          <Grid containers={ext} />
+          <Grid containers={ext} ownIp={ownIp} />
         </Section>
-        <PortTable containers={all} />
+        <PortTable prodIp={machine.prod_lan_ip} accIp={machine.acc_lan_ip} />
       </>)}
     </AdminLayout>
   );
 }
 
 /* ── Hardware strip ── */
-function HwStrip({ hw }) {
+function HwStrip({ hw, machine, ownIp }) {
   function fmtUptime(s) {
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
     return d > 0 ? `${d}d ${h}u ${m}m` : h > 0 ? `${h}u ${m}m` : `${m}m`;
   }
   const cells = [
-    { label: 'Machine', value: 'HP ProDesk 600 G4 SFF' },
+    { label: 'Machine', value: machine.hostname || '—' },
     { label: 'CPU', value: `${hw.cpu_percent}%` },
     { label: 'RAM', value: `${hw.memory.used_gb} / ${hw.memory.total_gb} GB (${hw.memory.percent}%)` },
     { label: 'Schijf (/)', value: `${hw.disk.used_gb} / ${hw.disk.total_gb} GB (${hw.disk.percent}%)` },
     { label: 'Uptime', value: fmtUptime(hw.uptime_s) },
-    { label: 'IP (LAN)', value: '192.168.30.232', accent: true },
+    { label: 'IP (LAN)', value: ownIp || '—', accent: true },
   ];
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: 'var(--color-border)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden', marginBottom: 28 }}>
@@ -112,22 +119,22 @@ function Section({ title, badge, badgeColor, children }) {
 }
 
 /* ── Grid + Card ── */
-function Grid({ containers }) {
+function Grid({ containers, ownIp }) {
   if (!containers.length) return <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Geen containers</p>;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-      {containers.map(c => <ContainerCard key={c.name} c={c} />)}
+      {containers.map(c => <ContainerCard key={c.name} c={c} ownIp={ownIp} />)}
     </div>
   );
 }
 
-function ContainerCard({ c }) {
+function ContainerCard({ c, ownIp }) {
   const env    = envOf(c.name);
   const accent = env === 'prod' ? 'var(--color-primary)' : env === 'acc' ? '#8b5cf6' : 'var(--color-border)';
-  const known  = KNOWN_URLS[c.name] || [];
+  const known  = knownUrls(ownIp)[c.name] || [];
 
   const portUrls = (c.ports || []).filter(p => p.public && !known.find(k => k.label === `:${p.public}`))
-    .map(p => ({ label: `:${p.public}→${p.private}/${p.type || 'tcp'}`, href: `http://192.168.30.232:${p.public}`, cls: env }));
+    .map(p => ({ label: `:${p.public}→${p.private}/${p.type || 'tcp'}`, href: `http://${ownIp}:${p.public}`, cls: env }));
 
   const allUrls = [...known, ...portUrls];
 
@@ -202,14 +209,16 @@ function BackupStrip({ backups }) {
 }
 
 /* ── Port table ── */
-function PortTable({ containers }) {
+function PortTable({ prodIp, accIp }) {
+  // ext-services (Bugsink/Portainer/Cockpit) draaien vooralsnog nog op de
+  // acc-machine (G4) - die zijn nog niet meeverhuisd bij de prod-cutover.
   const rows = [
-    { port: 8080, service: 'HomePlatform prod (Caddy)', url: 'http://192.168.30.232:8080', env: 'prod' },
-    { port: 8081, service: 'HomePlatform acc (Caddy)', url: 'http://192.168.30.232:8081', env: 'acc' },
-    { port: 8090, service: 'Bugsink (foutmonitoring)', url: 'http://192.168.30.232:8090', env: 'ext' },
-    { port: 9000, service: 'Portainer', url: 'http://192.168.30.232:9000', env: 'ext' },
-    { port: 9443, service: 'Portainer (HTTPS)', url: 'https://192.168.30.232:9443', env: 'ext' },
-    { port: 9091, service: 'Cockpit (systeemdienst)', url: 'http://192.168.30.232:9091', env: 'ext' },
+    { port: 8080, service: 'HomePlatform prod (Caddy)', url: `http://${prodIp}:8080`, env: 'prod' },
+    { port: 8081, service: 'HomePlatform acc (Caddy)', url: `http://${accIp}:8081`, env: 'acc' },
+    { port: 8090, service: 'Bugsink (foutmonitoring)', url: `http://${accIp}:8090`, env: 'ext' },
+    { port: 9000, service: 'Portainer', url: `http://${accIp}:9000`, env: 'ext' },
+    { port: 9443, service: 'Portainer (HTTPS)', url: `https://${accIp}:9443`, env: 'ext' },
+    { port: 9091, service: 'Cockpit (systeemdienst)', url: `http://${accIp}:9091`, env: 'ext' },
     { port: '443 / 80', service: 'Cloudflare Tunnel → extern', url: 'https://webheaven.nl', env: 'green' },
   ];
   const badgeColor = { prod: 'var(--color-primary)', acc: '#8b5cf6', ext: 'var(--color-text-muted)', green: '#22c55e' };
