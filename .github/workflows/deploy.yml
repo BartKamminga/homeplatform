@@ -59,7 +59,10 @@ jobs:
             git -C $PROD_REPO fetch origin main
             git -C $PROD_REPO reset --hard origin/main
           else
-            git -C $PROD_REPO pull
+            # fetch+reset i.p.v. pull: een init+fetch-repo heeft geen tracking-
+            # branch, waardoor 'git pull' faalt. Untracked (.env, frontend/dist) blijft staan.
+            git -C $PROD_REPO fetch origin main
+            git -C $PROD_REPO reset --hard origin/main
           fi
 
       - name: .env genereren (production-environment secrets)
