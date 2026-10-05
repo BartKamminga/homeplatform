@@ -107,7 +107,10 @@ jobs:
 
       - name: Caddy reload
         run: |
-          cd $PROD_REPO && docker compose -f docker-compose.g4.yml up -d --force-recreate caddy
+          # --no-deps + IMAGE_TAG: zonder deze twee maakte compose via depends_on ook
+          # de backend opnieuw aan, zonder IMAGE_TAG -> terugval op het oude :latest-image.
+          export IMAGE_TAG=$(git -C $PROD_REPO rev-parse --short HEAD)
+          cd $PROD_REPO && docker compose -f docker-compose.g4.yml up -d --no-deps --force-recreate caddy
 
       - name: Deploy-info schrijven
         run: |
