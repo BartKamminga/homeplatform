@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from services.hockey_club_geo import max_travel
 from services.hockey_regrouping_rules import CLASS_LEVEL, RULE_SOURCE, RULES
 
 _CATEGORY_RE = re.compile(r"\b(Meisjes|Jongens)\s*O(\d+)", re.IGNORECASE)
@@ -51,6 +52,8 @@ class TeamStanding:
     goals_for: int
     goals_against: int
     club_logo_url: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
 
 
 @dataclass
@@ -72,7 +75,7 @@ def br26_key(t: TeamStanding):
 def _entry(poule: SourcePoule, t: TeamStanding, via: str) -> dict:
     return {
         "team_id": t.team_id, "team_name": t.team_name, "club": club_of(t.team_name),
-        "club_logo_url": t.club_logo_url,
+        "club_logo_url": t.club_logo_url, "lat": t.lat, "lon": t.lon,
         "origin_class": poule.class_name, "origin_poule": poule.label,
         "origin_code": f"{'S' if CLASS_LEVEL.get(poule.class_name) == 1 else 'T'}{t.position}",
         "origin_district": poule.district, "origin_position": t.position,
@@ -156,10 +159,19 @@ def forecast(category: str, poules: list) -> Optional[dict]:
         pools = serpentine(entries, tgt["pools"]) if tgt["pools"] else None
         for e in entries:
             e.pop("_key", None)
+        limit = tgt.get("max_travel_minutes")
+        pools_out = None
+        if pools:
+            pools_out = []
+            for i, pool in enumerate(pools):
+                travel = max_travel(pool)
+                pools_out.append({
+                    "name": f"Poule {chr(65 + i)}", "teams": pool, "travel": travel,
+                    "too_far": bool(limit and travel and travel["minutes"] > limit),
+                })
         targets_out.append({
             "key": tgt["key"], "name": tgt["name"], "capacity": capacity, "note": tgt.get("note"),
-            "seeding": entries,
-            "pools": [{"name": f"Poule {chr(65 + i)}", "teams": pool} for i, pool in enumerate(pools)] if pools else None,
+            "max_travel_minutes": limit, "seeding": entries, "pools": pools_out,
         })
 
     for p in poules:

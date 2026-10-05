@@ -14,6 +14,13 @@ from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 router = APIRouter(prefix="/api/hockey", tags=["hockey-regrouping"])
 
 
+def _club_location(teams: dict, clubs: dict, team_id) -> dict:
+    """lat/lon van de club achter een team (item 1184), leeg als onbekend."""
+    team = teams.get(team_id)
+    club = clubs.get(team.club_external_id) if team else None
+    return {"lat": club.latitude, "lon": club.longitude} if club else {}
+
+
 @router.get("/public/tournaments/{tid}/query/regrouping-forecast")
 def get_regrouping_forecast(tid: str, session: Session = Depends(get_session)):
     """Prognose van de herindeling na de herfst/voorcompetitie voor een publicatie.
@@ -65,6 +72,7 @@ def get_regrouping_forecast(tid: str, session: Session = Depends(get_session)):
                     team_id=r.team_id, team_name=r.team_name, position=r.position or i,
                     played=r.played, points=r.points, goals_for=r.goals_for, goals_against=r.goals_against,
                     club_logo_url=club_logo_for_team(teams, clubs, r.team_id),
+                    **_club_location(teams, clubs, r.team_id),
                 )
                 for i, r in enumerate(prow, 1)
             ],

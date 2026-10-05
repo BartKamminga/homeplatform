@@ -12,6 +12,9 @@ een team dat via aanvullen in een hoger doel komt niet nog eens meetelt.
 - pools/size: None = geen landelijke poule-indeling te voorspellen (regionaal
   ingedeeld en/of aangevuld uit districtscompetities); dan alleen een lijst.
 - note: korte toelichting in de UI (Engels, zie taalafspraak UI).
+- max_travel_minutes: reistijdgrens per poule (item 1184) - alleen O14, waar de
+  KNHB naar reisafstand kijkt (vermoedelijk ~2 uur). Puur signalering: de
+  serpentine-indeling zelf houdt er (nog) geen rekening mee.
 """
 
 RULE_SOURCE = "KNHB Herindelingsregeling competities Jeugd 2025-2026"
@@ -43,10 +46,10 @@ def _o14(gender: str) -> dict:
         "season_step": "Autumn -> spring (after winter break)",
         "source_classes": [top, sub],
         "targets": [
-            {"key": "super", "name": "Super O14", "pools": 5, "size": 6,
+            {"key": "super", "name": "Super O14", "pools": 5, "size": 6, "max_travel_minutes": 120,
              "direct": [(top, (1, 2, 3), None)], "fill": super_fill,
              "note": "#1 and #2 of each pool qualify for the NK O14."},
-            {"key": "idc", "name": "IDC O14", "pools": 6, "size": 6, **idc},
+            {"key": "idc", "name": "IDC O14", "pools": 6, "size": 6, "max_travel_minutes": 120, **idc},
             {"key": "subtop", "name": "Subtopklasse", "pools": None,
              "direct": [(top, (6,), None)], "fill": [], "note": _SUBTOP_REGIONAL},
         ],

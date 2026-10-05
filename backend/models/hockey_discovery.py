@@ -34,6 +34,9 @@ class HockeyClub(SQLModel, table=True):
     website:         Optional[str] = None
     tenue:           Optional[str] = None
     district:        Optional[str] = None
+    # item 1184: centroide van de postcode (PDOK), voor reisafstand in de herindelingsprognose
+    latitude:        Optional[float] = None
+    longitude:       Optional[float] = None
     payment_options: Optional[str] = None
     parking:         Optional[str] = None
     hockey_types:    Optional[str] = None   # JSON-string: ["Veldhockey","Zaalhockey",...]

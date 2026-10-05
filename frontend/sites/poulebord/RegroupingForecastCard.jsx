@@ -35,14 +35,36 @@ function OriginBadge({ entry }) {
   )
 }
 
-function PoolsView({ pools }) {
+// item 1184: langste reis binnen een voorspelde poule. Rood boven de grens van
+// het doel (O14: ~2 uur), oranje vlak eronder; zonder grens (O16/O18) neutraal.
+function formatMinutes(min) {
+  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
+}
+
+function TravelChip({ travel, tooFar, limit }) {
+  if (!travel) return null
+  const color = tooFar ? '#e0705c' : limit && travel.minutes > limit * 0.85 ? C.goldBr : C.muted
+  const title = `Furthest trip: ${travel.between.join(' – ')} · ${travel.km} km straight-line, `
+    + `~${formatMinutes(travel.minutes)} by road (estimate)`
+    + (travel.unknown ? ` · ${travel.unknown} club(s) without location` : '')
+  return (
+    <span title={title} style={{ fontSize: 9, fontWeight: 700, color, border: `1px solid ${color}`,
+      borderRadius: 8, padding: '0 5px', letterSpacing: 0, textTransform: 'none', whiteSpace: 'nowrap' }}>
+      {tooFar ? '⚠ ' : '🚗 '}{formatMinutes(travel.minutes)}{travel.unknown ? '?' : ''}
+    </span>
+  )
+}
+
+function PoolsView({ pools, limit }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6, padding: 8 }}>
       {pools.map(pool => (
         <div key={pool.name} style={{ ...cardStyle(8), background: C.deep }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: C.gold, padding: '4px 8px',
-            borderBottom: `1px solid ${C.border}`, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            borderBottom: `1px solid ${C.border}`, letterSpacing: '0.05em', textTransform: 'uppercase',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
             {pool.name}
+            <TravelChip travel={pool.travel} tooFar={pool.too_far} limit={limit} />
           </div>
           {pool.teams.map(t => (
             <div key={t.team_id} style={{ display: 'flex', alignItems: 'center', gap: 6,
@@ -71,6 +93,36 @@ function SeedingView({ entries, showPool }) {
   ))
 }
 
+// Uitleg + waarschuwingen standaard ingeklapt: bij weinig gespeelde poules
+// (bv. acc) kan de waarschuwingslijst tientallen regels lang zijn.
+function ForecastFooter({ forecast }) {
+  const [open, setOpen] = useState(false)
+  const { progress, warnings } = forecast
+  return (
+    <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px', lineHeight: 1.5 }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit',
+        fontSize: 10, color: C.muted, display: 'flex', gap: 8, alignItems: 'center',
+      }}>
+        <span>{open ? '▾' : '▸'} About this forecast</span>
+        {progress && <span>· {progress.played}/{progress.total} matches played</span>}
+        {warnings.length > 0 && <span style={{ color: C.goldBr }}>· ⚠ {warnings.length} warning{warnings.length !== 1 ? 's' : ''}</span>}
+      </button>
+      {open && (
+        <div style={{ marginTop: 4 }}>
+          {forecast.season_step}. Based on current standings. Seeding: tier by class and position
+          (T1 = Topklasse #1, S1 = Subtopklasse #1), then points, goal difference and goals for per match
+          played; distributed in serpentine order, max one team per club per pool.
+          Rules: {forecast.rule_source}.
+          {warnings.map(w => (
+            <div key={w} style={{ color: C.goldBr }}>⚠ {w}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
   const forecast = useRegroupingForecast(pin.tournamentId)
   // Doel-keys verschillen per categorie (O14: super/idc, O16/O18: national/super)
@@ -79,7 +131,6 @@ export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
   const targetKey = target?.key
   const view = target?.pools ? (pin.view || 'pools') : 'seeding'
   const tabs = forecast ? forecast.targets.map(t => ({ key: t.key, label: t.name })) : []
-  const progress = forecast?.progress
 
   return (
     <div style={{ ...cardStyle(), marginBottom: 8 }}>
@@ -118,21 +169,20 @@ export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
             )}
           </div>
 
-          {target && view === 'pools' && <PoolsView pools={target.pools} />}
+          {target && view === 'pools' && <PoolsView pools={target.pools} limit={target.max_travel_minutes} />}
           {target && view === 'seeding' && <SeedingView entries={target.seeding} showPool={!!target.pools} />}
+          {target?.max_travel_minutes && view === 'pools' && (
+            <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px 0', fontStyle: 'italic' }}>
+              🚗 = longest trip in the pool (estimate: straight-line × 1.3 at 80 km/h). The KNHB keeps these
+              pools within roughly {formatMinutes(target.max_travel_minutes)} travel time; ⚠ pools are unlikely
+              to be formed like this.
+            </div>
+          )}
           {target?.note && (
             <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px 0', fontStyle: 'italic' }}>{target.note}</div>
           )}
 
-          <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px', lineHeight: 1.5 }}>
-            {forecast.season_step}. {progress && `Based on current standings (${progress.played}/${progress.total} matches played). `}
-            Seeding: tier by class and position (T1 = Topklasse #1, S1 = Subtopklasse #1), then points,
-            goal difference and goals for per match played; distributed in serpentine order,
-            max one team per club per pool. Rules: {forecast.rule_source}.
-            {forecast.warnings.map(w => (
-              <div key={w} style={{ color: C.goldBr }}>⚠ {w}</div>
-            ))}
-          </div>
+          <ForecastFooter forecast={forecast} />
         </>
       )}
     </div>
