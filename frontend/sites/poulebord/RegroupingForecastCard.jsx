@@ -173,7 +173,7 @@ export function RegroupingForecastCard({ pin, pinned, onTogglePin, onUpdate }) {
           {target && view === 'seeding' && <SeedingView entries={target.seeding} showPool={!!target.pools} />}
           {target?.max_travel_minutes && view === 'pools' && (
             <div style={{ fontSize: 10, color: C.muted, padding: '6px 10px 0', fontStyle: 'italic' }}>
-              🚗 = longest trip in the pool (estimate: straight-line × 1.3 at 80 km/h). The KNHB keeps these
+              🚗 = longest trip in the pool (estimate: straight-line × 1.25 at 100 km/h + 10 min). The KNHB keeps these
               pools within roughly {formatMinutes(target.max_travel_minutes)} travel time; ⚠ pools are unlikely
               to be formed like this.
             </div>

@@ -2,7 +2,8 @@
 
 Geocoding via de PDOK locatieserver (gratis, Nederlandse overheid): eerst op
 volledige postcode, anders op woonplaats. Reistijd is een ruwe schatting
-(hemelsbreed x omrijfactor / gemiddelde snelheid) - bedoeld om te zien of een
+(hemelsbreed x omrijfactor / gemiddelde snelheid + vaste op/afrit-tijd; geijkt
+op o.a. Groningen-Maastricht ~3u30, Den Bosch-Groningen ~2u20) - bedoeld om te zien of een
 voorspelde poule binnen de ~2 uur reistijd blijft die de KNHB bij O14 aanhoudt,
 niet als routeplanner.
 """
@@ -14,8 +15,9 @@ from typing import Optional, Tuple
 import httpx
 
 PDOK_URL = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
-ROAD_FACTOR = 1.3      # weg-afstand t.o.v. hemelsbreed
-AVG_SPEED_KMH = 80.0   # mix snelweg/stad incl. op- en afrit
+ROAD_FACTOR = 1.25     # weg-afstand t.o.v. hemelsbreed
+AVG_SPEED_KMH = 100.0  # lange ritten zijn vrijwel helemaal snelweg
+FIXED_MINUTES = 10     # op/afrit, stad in en uit
 
 _POINT_RE = re.compile(r"POINT\(([-\d.]+) ([-\d.]+)\)")
 
@@ -48,7 +50,24 @@ def distance_km(a: Tuple[float, float], b: Tuple[float, float]) -> float:
 
 
 def travel_minutes(km: float) -> int:
-    return round(km * ROAD_FACTOR / AVG_SPEED_KMH * 60)
+    return round(km * ROAD_FACTOR / AVG_SPEED_KMH * 60) + FIXED_MINUTES
+
+
+def format_minutes(minutes: int) -> str:
+    return f"{minutes // 60}h{minutes % 60:02d}"
+
+
+def trips_over(teams: list, limit_minutes: int) -> list:
+    """Alle clubparen binnen een poule met geschatte reistijd boven de grens,
+    langste eerst: [(club_a, club_b, minutes)]."""
+    located = [t for t in teams if t.get("lat") is not None and t.get("lon") is not None]
+    trips = []
+    for i, a in enumerate(located):
+        for b in located[i + 1:]:
+            minutes = travel_minutes(distance_km((a["lat"], a["lon"]), (b["lat"], b["lon"])))
+            if minutes > limit_minutes:
+                trips.append((a["club"], b["club"], minutes))
+    return sorted(trips, key=lambda t: -t[2])
 
 
 def max_travel(teams: list) -> Optional[dict]:

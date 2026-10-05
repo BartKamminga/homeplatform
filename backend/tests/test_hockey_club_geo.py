@@ -14,7 +14,8 @@ def test_distance_and_travel_estimate():
     km = distance_km(MAASTRICHT, GRONINGEN)
     assert 255 < km < 275
     assert travel_minutes(km) > 120
-    assert travel_minutes(distance_km(UTRECHT, GRONINGEN)) < 180
+    assert 195 < travel_minutes(km) < 225          # werkelijk ~3u30
+    assert 115 < travel_minutes(distance_km(UTRECHT, GRONINGEN)) < 140  # werkelijk ~2u
 
 
 def test_max_travel_picks_furthest_pair_and_counts_unknown():
@@ -54,6 +55,10 @@ def test_o14_pool_with_maastricht_and_groningen_is_too_far():
     pool_e = by_name["Poule E"]
     assert {t["club"] for t in pool_e["teams"]} == {"Maastricht", "Groningen"}
     assert pool_e["too_far"] is True
+    result = forecast("MO14", [p1, p2])
+    travel_warnings = [w for w in result["warnings"] if "Poule E" in w and "over 2h00" in w]
+    assert len(travel_warnings) == 1
+    assert "Maastricht" in travel_warnings[0] and "Groningen" in travel_warnings[0]
     assert by_name["Poule A"]["travel"] is None  # maar 1 team
 
 
