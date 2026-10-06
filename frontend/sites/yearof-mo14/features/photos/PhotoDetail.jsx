@@ -9,7 +9,7 @@ const fmt = iso => iso ? new Date(/[zZ]$/.test(iso) ? iso : `${iso}Z`).toLocaleD
 const label = { display: 'block', fontSize: 11, fontWeight: 700, color: '#888', margin: '10px 0 4px', textTransform: 'uppercase', letterSpacing: '.04em' }
 const select = { fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd', background: 'white', width: '100%' }
 
-export default function PhotoDetail({ photo, tagPlayers, entries, entryTitle, onAction, onCaption, onDelete, lockedMatch }) {
+export default function PhotoDetail({ photo, tagPlayers, entries, entryTitle, onAction, onCaption, onDelete, onPurge, lockedMatch }) {
   const [caption, setCaption] = useState(photo.caption || '')
   useEffect(() => setCaption(photo.caption || ''), [photo.id, photo.caption])
   const live = photo.status === 'published'
@@ -28,6 +28,13 @@ export default function PhotoDetail({ photo, tagPlayers, entries, entryTitle, on
       </div>
 
       <div style={{ flex: '1 1 240px', fontSize: 12 }}>
+        {photo.archived_at && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, padding: 8, background: '#f3f4f6', borderRadius: 8 }}>
+            <strong style={{ flex: 1 }}>In het archief</strong>
+            <button onClick={() => onAction('restore')} className="yof-btn-secondary">Terugzetten</button>
+            <button onClick={onPurge} className="yof-btn-secondary" style={{ color: '#c23b3b' }}>Definitief verwijderen</button>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span style={{
             fontWeight: 700, padding: '2px 8px', borderRadius: 999,
@@ -36,7 +43,9 @@ export default function PhotoDetail({ photo, tagPlayers, entries, entryTitle, on
           <button onClick={() => onAction(live ? 'concept' : 'publish')} className="yof-btn-secondary" style={{ flex: 1 }}>
             {live ? 'Terug naar concept' : 'Publiceren'} <span style={{ opacity: 0.5 }}>[P]</span>
           </button>
-          <button onClick={onDelete} className="yof-btn-secondary" style={{ color: '#c23b3b' }} title="Verwijderen [Del]">&times;</button>
+          {!photo.archived_at && (
+            <button onClick={onDelete} className="yof-btn-secondary" style={{ color: '#c23b3b' }} title="Naar het archief (terug te zetten) [Del]">Archiveren</button>
+          )}
         </div>
 
         <span style={label}>Speelsters <span style={{ textTransform: 'none', fontWeight: 400 }}>(toets 1-9)</span></span>

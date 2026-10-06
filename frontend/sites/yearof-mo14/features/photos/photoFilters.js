@@ -1,10 +1,12 @@
 // Filteren, sorteren en groeperen voor de PhotoManager (item 1213) - pure
 // functies, geen React. ctx = { entryTitle(ref), entryDate(ref), playerName(id), players }
 
+// Gearchiveerde foto's (item 1214: nooit echt verwijderen) staan alleen in "Archief".
 export const QUICK_FILTERS = [
-  { key: 'review', label: 'Te beoordelen', test: p => p.status !== 'published' },
-  { key: 'untagged', label: 'Zonder tags', test: p => p.status === 'published' && p.player_ids.length === 0 },
-  { key: 'all', label: 'Alles', test: () => true },
+  { key: 'review', label: 'Te beoordelen', test: p => !p.archived_at && p.status !== 'published' },
+  { key: 'untagged', label: 'Zonder tags', test: p => !p.archived_at && p.status === 'published' && p.player_ids.length === 0 },
+  { key: 'all', label: 'Alles', test: p => !p.archived_at },
+  { key: 'archive', label: 'Archief', test: p => !!p.archived_at },
 ]
 
 export const SORTS = [

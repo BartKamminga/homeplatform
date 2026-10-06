@@ -257,7 +257,7 @@ def _annotate_content_flags(session: Session, items: list[dict]) -> list[dict]:
     if not match_refs:
         return items
     photos = session.exec(
-        select(YearOfPhoto).where(YearOfPhoto.status == "published").where(col(YearOfPhoto.match_ref).in_(match_refs))
+        select(YearOfPhoto).where(YearOfPhoto.status == "published", col(YearOfPhoto.archived_at).is_(None)).where(col(YearOfPhoto.match_ref).in_(match_refs))
     ).all()
     photos_by_ref = {p.match_ref for p in photos}
 

@@ -27,9 +27,10 @@ export default function PhotoTile({ photo, selected, onToggleSelect, onOpen }) {
       </button>
       <span style={{
         ...pill, top: 4, right: 4, fontSize: 9,
-        color: live ? '#065f46' : '#92400e', background: live ? '#bbf7d0' : '#fde68a',
+        color: photo.archived_at ? 'white' : live ? '#065f46' : '#92400e',
+        background: photo.archived_at ? '#6b7280' : live ? '#bbf7d0' : '#fde68a',
       }}>
-        {live ? 'live' : 'concept'}
+        {photo.archived_at ? 'archief' : live ? 'live' : 'concept'}
       </span>
       <span style={{ ...pill, bottom: 4, left: 4, background: tagCount ? 'rgba(0,0,0,.6)' : 'rgba(194,59,59,.85)' }}
         title={tagCount ? `${tagCount} speelster(s) getagd` : 'Nog niemand getagd'}>

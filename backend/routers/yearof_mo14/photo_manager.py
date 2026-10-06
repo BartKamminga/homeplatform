@@ -77,7 +77,9 @@ def list_photos_for_manager(
 
 class BulkIn(BaseModel):
     ids: list[str]
-    action: Literal["publish", "concept", "delete", "type", "highlight_on", "highlight_off", "move", "tag", "untag"]
+    # archive = "verwijderen" (item 1214: nooit echt weg), restore = terugzetten,
+    # purge = definitief verwijderen - alleen voor fotos die al in het archief staan.
+    action: Literal["publish", "concept", "archive", "restore", "purge", "type", "highlight_on", "highlight_off", "move", "tag", "untag"]
     value: Optional[str] = None  # type / match_ref / player_id, afhankelijk van action
 
 
@@ -89,7 +91,8 @@ def bulk_photos(
 ):
     """Beheerder-only - 1 actie op veel fotos in 1 transactie. Verplaatsen
     slaat fotos over die bij een verslag horen (hun wedstrijd volgt het
-    verslag); highlight alleen voor fotos bij een wedstrijd."""
+    verslag); highlight alleen voor fotos bij een wedstrijd; definitief
+    verwijderen (purge) alleen vanuit het archief."""
     if body.action == "type" and body.value not in PHOTO_TYPES:
         raise HTTPException(status_code=400, detail="Onbekend type")
     if body.action in ("move", "tag", "untag") and not body.value:
@@ -131,7 +134,14 @@ def bulk_photos(
                 session.delete(existing)
             updated += 1
             continue
-        elif body.action == "delete":
+        elif body.action == "archive":
+            photo.archived_at = photo.archived_at or now
+        elif body.action == "restore":
+            photo.archived_at = None
+        elif body.action == "purge":
+            if photo.archived_at is None:
+                skipped += 1
+                continue
             for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo.id)).all():
                 session.delete(tag)
             session.delete(photo)

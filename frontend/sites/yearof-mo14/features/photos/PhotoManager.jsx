@@ -109,9 +109,15 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
     })
   }
 
-  async function deleteOne(photo) {
-    if (!(await confirm(`${photo.media_type === 'video' ? 'Deze video' : 'Deze foto'} verwijderen? Dit kan niet ongedaan gemaakt worden.`))) return
-    try { await bulk([photo.id], 'delete') } catch (e) { setError(e.message) }
+  // Item 1214: verwijderen = archiveren; definitief alleen vanuit het archief (dubbele bevestiging).
+  async function archiveOne(photo) {
+    if (!(await confirm(`${photo.media_type === 'video' ? 'Deze video' : 'Deze foto'} naar het archief? Je kunt hem altijd terugzetten.`))) return
+    try { await bulk([photo.id], 'archive') } catch (e) { setError(e.message) }
+  }
+  async function purgeOne(photo) {
+    if (!(await confirm('Definitief verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    if (!(await confirm('Weet je het zeker? Het bestand wordt echt gewist.'))) return
+    try { await bulk([photo.id], 'purge') } catch (e) { setError(e.message) }
   }
 
   // Bulkacties werken alleen op geselecteerde foto's die nu zichtbaar zijn -
@@ -141,8 +147,8 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
         size={size} setSize={setSize} counts={counts} entries={entries} players={activePlayers} lockedMatch={matchRef} />
       <PhotoBulkBar selectedCount={selectedExisting.size} visibleCount={ordered.length}
         onSelectAll={() => selectGroup(ordered, true)} onDeselect={() => setSelected(new Set())}
-        onBulk={(action, value) => bulk([...selectedExisting], action, value).finally(() => action === 'delete' && setSelected(new Set()))}
-        players={activePlayers} entries={entries} lockedMatch={matchRef} />
+        onBulk={(action, value) => bulk([...selectedExisting], action, value).finally(() => ['archive', 'restore', 'purge'].includes(action) && setSelected(new Set()))}
+        players={activePlayers} entries={entries} lockedMatch={matchRef} inArchive={filters.quick === 'archive'} />
 
       {ordered.length === 0 ? (
         <p style={{ color: '#666', fontSize: 13 }}>
@@ -162,7 +168,7 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
           entries={entries} entryTitle={ctx.entryTitle} lockedMatch={matchRef}
           onAction={(photo, action, value) => bulk([photo.id], action, value).catch(e => setError(e.message))}
           onCaption={(photo, caption) => updatePhoto(photo.id, { caption }).then(load).catch(e => setError(e.message))}
-          onDelete={deleteOne} />
+          onDelete={archiveOne} onPurge={purgeOne} />
       )}
     </div>
   )

@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.crud import get_or_404
@@ -36,6 +36,7 @@ def favorite_photos(session: Session, player_id: str) -> list[YearOfPhoto]:
             YearOfPhotoPlayerTag.player_id == player_id,
             YearOfPhotoPlayerTag.favorite == True,  # noqa: E712
             YearOfPhoto.status == "published",
+            col(YearOfPhoto.archived_at).is_(None),
             YearOfPhoto.media_type == "photo",
         )
         .order_by(YearOfPhoto.created_at.desc())
@@ -69,7 +70,7 @@ def list_player_photos_for_favorites(
     rows = session.exec(
         select(YearOfPhoto, YearOfPhotoPlayerTag.favorite)
         .join(YearOfPhotoPlayerTag, YearOfPhotoPlayerTag.photo_id == YearOfPhoto.id)
-        .where(YearOfPhotoPlayerTag.player_id == player_id, YearOfPhoto.media_type == "photo")
+        .where(YearOfPhotoPlayerTag.player_id == player_id, YearOfPhoto.media_type == "photo", col(YearOfPhoto.archived_at).is_(None))
         .order_by(YearOfPhoto.created_at.desc())
     ).all()
     return [{**photo.model_dump(), "favorite": favorite} for photo, favorite in rows]
@@ -98,9 +99,13 @@ def set_player_favorite(
     if body.favorite and photo.media_type != "photo":
         raise HTTPException(status_code=400, detail="Alleen fotos kunnen favoriet zijn, geen filmpjes")
     if body.favorite and not tag.favorite:
+        # Gearchiveerde fotos tellen niet mee voor het maximum (item 1214).
         count = len(session.exec(
-            select(YearOfPhotoPlayerTag).where(
+            select(YearOfPhotoPlayerTag)
+            .join(YearOfPhoto, YearOfPhoto.id == YearOfPhotoPlayerTag.photo_id)
+            .where(
                 YearOfPhotoPlayerTag.player_id == player_id, YearOfPhotoPlayerTag.favorite == True,  # noqa: E712
+                col(YearOfPhoto.archived_at).is_(None),
             )
         ).all())
         if count >= MAX_FAVORITES:

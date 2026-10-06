@@ -17,19 +17,24 @@ function ActionSelect({ label, options, onPick, disabled }) {
   )
 }
 
-export default function PhotoBulkBar({ selectedCount, visibleCount, onSelectAll, onDeselect, onBulk, players, entries, lockedMatch }) {
+// inArchive = snelfilter Archief: alleen terugzetten of definitief verwijderen.
+export default function PhotoBulkBar({ selectedCount, visibleCount, onSelectAll, onDeselect, onBulk, players, entries, lockedMatch, inArchive }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [confirm, confirmDialog] = useConfirm()
 
   async function run(action, value = null, label = '') {
-    if (action === 'delete' && !(await confirm(`${selectedCount} foto('s)/filmpje(s) verwijderen? Dit kan niet ongedaan gemaakt worden.`))) return
+    if (action === 'archive' && !(await confirm(`${selectedCount} foto('s)/filmpje(s) naar het archief? Ze verdwijnen van de site, maar je kunt ze altijd terugzetten.`))) return
+    if (action === 'purge') {
+      if (!(await confirm(`${selectedCount} foto('s)/filmpje(s) DEFINITIEF verwijderen? Dit kan niet ongedaan gemaakt worden.`))) return
+      if (!(await confirm('Weet je het zeker? De bestanden worden echt gewist.'))) return
+    }
     if (action === 'move' && !(await confirm(`${selectedCount} foto('s) verplaatsen naar "${label}"? Foto's die bij een verslag horen blijven staan.`))) return
     setBusy(true)
     setMessage('')
     try {
       const res = await onBulk(action, value)
-      const skipped = res?.skipped ? ` · ${res.skipped} overgeslagen (bij een verslag of zonder wedstrijd)` : ''
+      const skipped = res?.skipped ? ` · ${res.skipped} overgeslagen (bij een verslag, zonder wedstrijd of niet in het archief)` : ''
       setMessage(`${res?.updated ?? 0} bijgewerkt${skipped}`)
     } catch (e) {
       setMessage(`Mislukt: ${e.message}`)
@@ -52,7 +57,14 @@ export default function PhotoBulkBar({ selectedCount, visibleCount, onSelectAll,
       <strong>{selectedCount} geselecteerd</strong>
       <button onClick={onSelectAll} className="yof-btn-secondary" style={{ fontSize: 12 }}>Selecteer alle {visibleCount} zichtbare</button>
       {selectedCount > 0 && <button onClick={onDeselect} className="yof-btn-secondary" style={{ fontSize: 12 }}>Deselecteer</button>}
-      {selectedCount > 0 && (
+      {selectedCount > 0 && inArchive && (
+        <>
+          <span style={{ opacity: 0.5 }}>|</span>
+          <button disabled={none} onClick={() => run('restore')} className="yof-btn-secondary" style={{ fontSize: 12 }}>Terugzetten</button>
+          <button disabled={none} onClick={() => run('purge')} className="yof-btn-secondary" style={{ fontSize: 12, color: '#c23b3b' }}>Definitief verwijderen</button>
+        </>
+      )}
+      {selectedCount > 0 && !inArchive && (
         <>
           <span style={{ opacity: 0.5 }}>|</span>
           <button disabled={none} onClick={() => run('publish')} className="yof-btn-secondary" style={{ fontSize: 12 }}>Publiceren</button>
@@ -66,7 +78,7 @@ export default function PhotoBulkBar({ selectedCount, visibleCount, onSelectAll,
           <ActionSelect label={lockedMatch ? 'Verplaats naar andere wedstrijd...' : 'Verplaatsen naar...'} disabled={none}
             onPick={v => run('move', v, entries.find(e => e.match_ref === v)?.title || v)}
             options={entries.filter(e => e.match_ref !== lockedMatch).map(e => ({ value: e.match_ref, label: `${(e.date || '').slice(0, 10)} · ${e.title}` }))} />
-          <button disabled={none} onClick={() => run('delete')} className="yof-btn-secondary" style={{ fontSize: 12, color: '#c23b3b' }}>Verwijderen</button>
+          <button disabled={none} onClick={() => run('archive')} className="yof-btn-secondary" style={{ fontSize: 12, color: '#c23b3b' }}>Archiveren</button>
         </>
       )}
       {busy && <span>Bezig...</span>}
