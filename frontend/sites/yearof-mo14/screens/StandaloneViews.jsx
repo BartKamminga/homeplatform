@@ -5,6 +5,7 @@ import { trackVisit } from '../tracking.js'
 import Gate from './Gate.jsx'
 import PublicEntry from './PublicEntry.jsx'
 import PlayerProfileCard from './PlayerProfileCard.jsx'
+import PlayerCircleCard from './PlayerCircleCard.jsx'
 import Thermometer from './Thermometer.jsx'
 
 // Losse pagina's zonder navigatiebalk voor de Vrienden-van-WhatsApp (item
@@ -122,6 +123,7 @@ export function StandalonePlayerView({ code }) {
   return (
     <Shell>
       <PlayerProfileCard player={player} />
+      <PlayerCircleCard player={player} />
       <ActionBlock />
     </Shell>
   )

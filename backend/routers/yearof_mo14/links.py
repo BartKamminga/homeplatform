@@ -5,8 +5,8 @@ Drie soorten (item 1186):
 - site:   sitelink voor de ouder-WhatsApp, stuurt door met de teamcode (hele site).
 - match:  wedstrijdlink voor de Vrienden-van-WhatsApp - de link zelf is het
           token, alleen deze wedstrijd (highlights), geeft de teamcode NIET prijs.
-- player: spelerslink voor de Vrienden-van-WhatsApp - alleen de basisvelden van
-          1 speelster (geen fotos, verslagen, uitslagen of ouders/buddy/coaches).
+- player: spelerslink voor de Vrienden-van-WhatsApp - alleen het profiel van
+          1 speelster incl. ouders/buddy/coaches (geen fotos, verslagen of uitslagen).
 Wedstrijd- en spelerslinks vervallen standaard 10 dagen na aanmaken, los van
 de rotatie van de sitelink, en kunnen ingetrokken worden.
 """
@@ -33,7 +33,10 @@ SHORT_LINK_DEFAULT_DAYS = 10
 
 # Wat een spelerslink van een speelster laat zien - bewust een whitelist,
 # zodat nieuwe kolommen op YearOfPlayer niet vanzelf meelekken.
-PLAYER_LINK_FIELDS = ("id", "name", "nickname", "shirt_number", "role_title", "position", "photo_url", "bio", "fun_facts")
+PLAYER_LINK_FIELDS = (
+    "id", "name", "nickname", "shirt_number", "role_title", "position", "photo_url", "bio", "fun_facts",
+    "parents", "buddy", "coaches",
+)
 
 
 class ShortLinkIn(BaseModel):

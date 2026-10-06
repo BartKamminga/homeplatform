@@ -28,7 +28,7 @@ class YearOfPlayer(SQLModel, table=True):
     bio:          Optional[str]  = Field(default=None)
     fun_facts:    Optional[str]  = Field(default=None)  # JSON: [{"label": ..., "value": ...}]
     # Item 1185: vrije tekst, alleen door beheerders in te vullen (bewust niet
-    # in YearOfPlayerEdit/profiellink) en niet zichtbaar via de spelerslink.
+    # in YearOfPlayerEdit/profiellink); wel zichtbaar op de spelerslink.
     parents:      Optional[str]  = Field(default=None)
     buddy:        Optional[str]  = Field(default=None)
     coaches:      Optional[str]  = Field(default=None)

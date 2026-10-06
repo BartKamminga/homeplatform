@@ -72,6 +72,24 @@
 .yof-player-card .pos { font-size: 12px; color: var(--muted); }
 
 /* Zelfde tegel-stijl voor foto-preview op invoerpagina's (beheerder + spelers zelf-service) */
+/* Grote profielfoto bovenaan de spelerspagina / spelerslink */
+.yof-profile-photo {
+  position: relative; width: 100%; max-width: 320px; margin: 0 auto 14px;
+  aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden;
+  background: linear-gradient(160deg, #2a2a2a, #0b0b0b);
+}
+.yof-profile-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.yof-profile-photo .no-photo {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  color: rgba(244,200,30,.35); font-weight: 800; font-size: 64px;
+}
+.yof-profile-photo .shirt-badge {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  min-width: 34px; height: 34px; padding: 0 8px;
+  border-radius: 999px; background: var(--accent); color: #1a1a1a; border: 3px solid var(--card);
+  font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+}
+
 .yof-photo-tile {
   position: relative; width: 96px; border-radius: 10px; overflow: hidden;
   aspect-ratio: 3 / 4; background: linear-gradient(160deg, #2a2a2a, #0b0b0b); flex-shrink: 0;

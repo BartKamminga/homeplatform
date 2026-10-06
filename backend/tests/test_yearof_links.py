@@ -61,7 +61,8 @@ def test_player_link_only_exposes_whitelisted_fields(client, admin_token, sessio
 
     data = client.get(f"{API}/player-links/{link['id']}").json()
     assert data["name"] == "Fleur" and data["bio"] == "Hoi"
-    assert not {"parents", "buddy", "coaches", "archived_at"} & set(data)
+    assert (data["parents"], data["buddy"], data["coaches"]) == ("Jan & Petra", "Sanne", "Kim")
+    assert not {"archived_at", "created_at"} & set(data)
 
     # Een spelerslink is geen toegang tot de rest van de site
     assert client.get(f"{API}/photos?player_id={player.id}&code={link['id']}").status_code == 403

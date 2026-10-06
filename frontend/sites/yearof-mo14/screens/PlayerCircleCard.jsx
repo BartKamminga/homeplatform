@@ -1,5 +1,5 @@
 // "Rond <naam>"-kaart (item 1185): ouders, buddy en coaches van een speelster.
-// Alleen op de volledige site (sitelink) - niet via de spelerslink voor vrienden.
+// Op de spelerspagina van de site en op de spelerslink voor vrienden.
 // Verschijnt alleen als minstens 1 veld is ingevuld (bv. niet bij begeleiders).
 export default function PlayerCircleCard({ player }) {
   const rows = [
