@@ -9,8 +9,12 @@ on:
         default: ""
 
 env:
+  # Prod draait sinds de cutover op g5; deze job draait op G4 (acc) en haalt de prod-db via ssh op.
+  PROD_HOST: bart@192.168.30.49
+  PROD_SSH_KEY: /home/bart/.ssh/homeplatform-g5
   PROD_DB: /home/bart/homeplatform/db/homeplatform.sqlite
   ACC_DB:  /home/bart/homeplatform-acc/db/homeplatform.sqlite
+  REMOTE_TMP: /tmp/homeplatform-snapshot-for-acc.sqlite
 
 jobs:
   snapshot:
@@ -20,23 +24,23 @@ jobs:
       - name: Controleer bevestiging
         run: echo "Bevestigd — snapshot wordt gemaakt"
 
+      - name: Snapshot maken op prod (sqlite backup-API, consistent ook met WAL)
+        run: |
+          ssh -i $PROD_SSH_KEY $PROD_HOST "python3 -c \"
+          import sqlite3
+          src = sqlite3.connect('$PROD_DB'); dst = sqlite3.connect('$REMOTE_TMP')
+          src.backup(dst); dst.close(); src.close()
+          \""
+
       - name: Acc backend stoppen
         run: docker stop homeplatform_backend_acc || true
-
-      - name: Prod WAL checkpointen (item 1083 - WAL-mode)
-        run: |
-          docker exec homeplatform_backend python3 -c "
-          import sqlite3
-          con = sqlite3.connect('/app/db/homeplatform.sqlite')
-          con.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-          con.close()
-          print('WAL gecheckpoint - hoofdbestand bevat nu alle commits')
-          "
 
       - name: DB kopiëren van prod naar acc
         run: |
           mkdir -p $(dirname $ACC_DB)
-          cp $PROD_DB $ACC_DB
+          rm -f $ACC_DB-wal $ACC_DB-shm
+          scp -i $PROD_SSH_KEY $PROD_HOST:$REMOTE_TMP $ACC_DB
+          ssh -i $PROD_SSH_KEY $PROD_HOST "rm -f $REMOTE_TMP"
           echo "Snapshot klaar: $(du -sh $ACC_DB | cut -f1)"
 
       - name: Acc backend starten
@@ -45,7 +49,7 @@ jobs:
       - name: Migraties draaien op acc
         run: |
           sleep 3
-          docker exec homeplatform_backend_acc alembic upgrade head
+          docker exec homeplatform_backend_acc alembic upgrade heads
 
       - name: Klaar
         run: echo "Acc draait nu op een snapshot van prod"

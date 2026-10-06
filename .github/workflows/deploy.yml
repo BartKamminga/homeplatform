@@ -7,8 +7,14 @@ on:
 env:
   PROD_REPO: /home/bart/homeplatform-repo
   ACC_REPO:  /home/bart/homeplatform-repo-acc
+  PROD_DB:   /home/bart/homeplatform/db/homeplatform.sqlite
+  ACC_DB:    /home/bart/homeplatform-acc/db/homeplatform.sqlite
+  # Geen provenance-attestaties: één manifest per image, zodat GHCR-versies = tags (opschonen blijft simpel).
+  BUILDX_NO_DEFAULT_ATTESTATIONS: 1
 
 jobs:
+  # Prod: G4 bouwt alle images (backend, ghost, agent_worker, web = caddy + frontend) en pusht naar GHCR.
+  # Bouwt in de eigen runner-workspace, niet in een repo die ergens live geserveerd wordt.
   build-and-push:
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, g4]
@@ -16,32 +22,21 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Pull
-        run: git -C $PROD_REPO pull
+      - uses: actions/checkout@v4
+
+      - name: Image-tag bepalen
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: GHCR inloggen
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Images bouwen en pushen
-        working-directory: ${{ env.PROD_REPO }}
         run: |
-          export IMAGE_TAG=$(git rev-parse --short HEAD)
-          docker compose -f docker-compose.g4.yml build backend ghost agent_worker
-          docker compose -f docker-compose.g4.yml push backend ghost agent_worker
+          docker compose -f docker-compose.g4.yml build backend ghost agent_worker caddy
+          docker compose -f docker-compose.g4.yml push backend ghost agent_worker caddy
 
-      - name: Frontend bouwen
-        working-directory: ${{ env.PROD_REPO }}
-        run: |
-          chmod -R u+w frontend/dist 2>/dev/null || true
-          cd frontend && npm ci --prefer-offline
-          cd sites && npm ci --prefer-offline && npm run build
-
-      - name: Frontend naar g5 kopieren
-        run: |
-          ssh -i /home/bart/.ssh/homeplatform-g5 bart@192.168.30.49 "mkdir -p /home/bart/homeplatform-repo/frontend/dist"
-          rsync -az --delete -e "ssh -i /home/bart/.ssh/homeplatform-g5" \
-            $PROD_REPO/frontend/dist/ bart@192.168.30.49:/home/bart/homeplatform-repo/frontend/dist/
-
+  # Prod: g5 haalt de images op. Volgorde: pull -> db-snapshot -> backend/ghost/agent_worker ->
+  # migraties -> pas dan web. Faalt een migratie, dan blijft de oude frontend gewoon draaien.
   deploy-prod:
     if: github.ref == 'refs/heads/main'
     needs: build-and-push
@@ -50,20 +45,19 @@ jobs:
     steps:
       - name: Pull
         run: |
+          # g5 heeft alleen de compose-file, scripts en MindBox.ps1 uit de repo nodig - geen build.
           if [ ! -d "$PROD_REPO/.git" ]; then
-            # init+fetch i.p.v. clone: build-and-push heeft frontend/dist al aangemaakt
-            # (rsync-stap), dus de map is niet per se leeg - clone zou daarop stuklopen.
             mkdir -p $PROD_REPO
             git -C $PROD_REPO init -b main
             git -C $PROD_REPO remote add origin https://github.com/BartKamminga/homeplatform.git
-            git -C $PROD_REPO fetch origin main
-            git -C $PROD_REPO reset --hard origin/main
-          else
-            # fetch+reset i.p.v. pull: een init+fetch-repo heeft geen tracking-
-            # branch, waardoor 'git pull' faalt. Untracked (.env, frontend/dist) blijft staan.
-            git -C $PROD_REPO fetch origin main
-            git -C $PROD_REPO reset --hard origin/main
           fi
+          # fetch + reset naar exact deze commit (geen pull: init-repo heeft geen tracking-branch,
+          # en origin/main kan intussen verder zijn). Untracked (.env) blijft staan.
+          git -C $PROD_REPO fetch origin main
+          git -C $PROD_REPO reset --hard $GITHUB_SHA
+
+      - name: Image-tag bepalen
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: .env genereren (production-environment secrets)
         run: |
@@ -91,34 +85,62 @@ jobs:
       - name: GHCR inloggen
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Images pullen en herstarten
+      - name: Images pullen
+        working-directory: ${{ env.PROD_REPO }}
+        run: docker compose -f docker-compose.g4.yml pull backend ghost agent_worker caddy
+
+      - name: DB-snapshot (voor migraties)
+        run: bash $PROD_REPO/scripts/db-snapshot-predeploy.sh $PROD_DB $IMAGE_TAG
+
+      - name: Backend herstarten
         working-directory: ${{ env.PROD_REPO }}
         run: |
-          export IMAGE_TAG=$(git rev-parse --short HEAD)
-          docker compose -f docker-compose.g4.yml pull backend ghost agent_worker
           docker compose -f docker-compose.g4.yml up -d --force-recreate backend ghost agent_worker
           sleep 5
 
       - name: Migraties + seed
         run: |
           docker exec homeplatform_backend sh -c "alembic heads 2>&1; alembic current 2>&1" || true
-          docker exec homeplatform_backend alembic upgrade heads || { echo "Alembic upgrade FAILED — deploy afgebroken"; exit 1; }
+          docker exec homeplatform_backend alembic upgrade heads || { echo "Alembic upgrade FAILED — deploy afgebroken, snapshot staat in db/backups/"; exit 1; }
           docker exec homeplatform_backend python seed.py
 
-      - name: Caddy reload
+      - name: Web (caddy + frontend) herstarten
+        working-directory: ${{ env.PROD_REPO }}
+        # --no-deps: anders maakt compose via depends_on ook de backend opnieuw aan.
+        run: docker compose -f docker-compose.g4.yml up -d --no-deps --force-recreate caddy
+
+      - name: Controle draaiende images
         run: |
-          # --no-deps + IMAGE_TAG: zonder deze twee maakte compose via depends_on ook
-          # de backend opnieuw aan, zonder IMAGE_TAG -> terugval op het oude :latest-image.
-          export IMAGE_TAG=$(git -C $PROD_REPO rev-parse --short HEAD)
-          cd $PROD_REPO && docker compose -f docker-compose.g4.yml up -d --no-deps --force-recreate caddy
+          docker ps --format "{{.Names}}\t{{.Image}}" | grep homeplatform_
+          for c in homeplatform_backend homeplatform_ghost homeplatform_agent_worker homeplatform_caddy; do
+            img=$(docker inspect -f '{{.Config.Image}}' $c)
+            case "$img" in *":$IMAGE_TAG") ;; *) echo "FOUT: $c draait $img, verwacht :$IMAGE_TAG"; exit 1 ;; esac
+          done
 
       - name: Deploy-info schrijven
         run: |
-          COMMIT=$(git -C $PROD_REPO rev-parse HEAD)
-          SHORT=${COMMIT:0:7}
           TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          echo "{\"commit\":\"$COMMIT\",\"short\":\"$SHORT\",\"deployed_at\":\"$TS\",\"env\":\"prod\"}" > /home/bart/homeplatform/db/deploy_info.json
+          echo "{\"commit\":\"$GITHUB_SHA\",\"short\":\"$IMAGE_TAG\",\"deployed_at\":\"$TS\",\"env\":\"prod\"}" > /home/bart/homeplatform/db/deploy_info.json
 
+  # Oude image-versies in GHCR opruimen; laatste 20 per image blijven staan (rollback-ruimte).
+  cleanup-ghcr:
+    if: github.ref == 'refs/heads/main'
+    needs: deploy-prod
+    runs-on: [self-hosted, g4]
+    continue-on-error: true
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        package: [homeplatform-backend, homeplatform-ghost, homeplatform-agent-worker, homeplatform-web]
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          min-versions-to-keep: 20
+
+  # Acc: bouwt lokaal op G4 met hetzelfde web-Dockerfile als prod (met Caddyfile.acc).
   deploy-acc:
     if: github.ref == 'refs/heads/develop'
     runs-on: [self-hosted, g4]
@@ -128,9 +150,9 @@ jobs:
         run: |
           if [ ! -d "$ACC_REPO" ]; then
             git clone -b develop https://github.com/BartKamminga/homeplatform.git $ACC_REPO
-          else
-            git -C $ACC_REPO pull
           fi
+          git -C $ACC_REPO fetch origin develop
+          git -C $ACC_REPO reset --hard $GITHUB_SHA
 
       - name: .env genereren (acceptance-environment secrets)
         run: |
@@ -153,15 +175,19 @@ jobs:
           EOF
           chmod 600 $ACC_REPO/.env
 
-      - name: Backend bouwen en herstarten (acc)
+      - name: Images bouwen (acc)
         run: |
-          mkdir -p $ACC_REPO/frontend/dist
           mkdir -p /home/bart/homeplatform-acc/db
           mkdir -p /home/bart/homeplatform-acc/uploads
           mkdir -p /home/bart/homeplatform-acc/nas-files
-          cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc ghost_acc agent_worker_acc
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc ghost_acc agent_worker_acc caddy_acc
+
+      - name: DB-snapshot (acc, voor migraties)
+        run: bash $ACC_REPO/scripts/db-snapshot-predeploy.sh $ACC_DB ${GITHUB_SHA::7}
+
+      - name: Backend herstarten (acc)
+        run: |
           cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d --force-recreate backend_acc ghost_acc agent_worker_acc
-          cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d
           sleep 5
 
       - name: Migraties + seed (acc)
@@ -178,19 +204,11 @@ jobs:
             python seed.py
           "
 
-      - name: Frontend bouwen (acc)
+      - name: Web (caddy + frontend) herstarten (acc)
         run: |
-          chmod -R u+w $ACC_REPO/frontend/dist 2>/dev/null || true
-          cd $ACC_REPO/frontend && npm ci --prefer-offline
-          cd $ACC_REPO/frontend/sites && npm ci --prefer-offline && npm run build
-
-      - name: Caddy reload (acc)
-        run: |
-          cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d --force-recreate caddy_acc
+          cd $ACC_REPO && docker compose -f docker-compose.acc.yml up -d --no-deps --force-recreate caddy_acc
 
       - name: Deploy-info schrijven (acc)
         run: |
-          COMMIT=$(git -C $ACC_REPO rev-parse HEAD)
-          SHORT=${COMMIT:0:7}
           TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          echo "{\"commit\":\"$COMMIT\",\"short\":\"$SHORT\",\"deployed_at\":\"$TS\",\"env\":\"acceptatie\"}" > /home/bart/homeplatform-acc/db/deploy_info.json
+          echo "{\"commit\":\"$GITHUB_SHA\",\"short\":\"${GITHUB_SHA::7}\",\"deployed_at\":\"$TS\",\"env\":\"acceptatie\"}" > /home/bart/homeplatform-acc/db/deploy_info.json

@@ -3,13 +3,16 @@
 
 services:
   caddy_acc:
-    image: caddy:latest
+    # Zelfde web-image als prod (docker/web/Dockerfile), lokaal gebouwd met Caddyfile.acc
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      args:
+        CADDYFILE: Caddyfile.acc
     container_name: homeplatform_caddy_acc
     ports:
       - "8081:80"
     volumes:
-      - ./Caddyfile.acc:/etc/caddy/Caddyfile
-      - ./frontend/dist:/srv/www
       - caddy_acc_data:/data
       - caddy_acc_config:/config
     depends_on:
