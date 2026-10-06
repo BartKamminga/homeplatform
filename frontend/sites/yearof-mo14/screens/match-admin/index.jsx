@@ -18,6 +18,7 @@ import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDet
 import { LinksScreen } from './LinksScreen.jsx'
 import { GoalsPanel } from './GoalsPanel.jsx'
 import LinkPanel from '../LinkPanel.jsx'
+import InviteCreateForm from '../InviteCreateForm.jsx'
 
 export default function MatchAdminDetail({ matchRef, onBack }) {
   const [item, setItem] = useState(null)
@@ -35,19 +36,19 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [showPhotos, setShowPhotos] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
-  const [linksReloadKey, setLinksReloadKey] = useState(0)
 
   // Wedstrijdlink voor de Vrienden-van-WhatsApp (item 1186): eigen token,
   // 10 dagen geldig, los van de sitelink - hergebruikt een nog geldige link.
-  async function resolveEntryLinkUrl() {
+  // reload = het Wedstrijdlinks-blok verversen zodat de link er meteen staat.
+  async function resolveEntryLinkUrl(reload) {
     const link = await createShortLink({ match_ref: matchRef })
-    setLinksReloadKey(k => k + 1)
+    reload?.()
     return `${window.location.origin}/l/${link.id}`
   }
 
-  async function copyEntryLink() {
+  async function copyEntryLink(reload) {
     try {
-      const url = await resolveEntryLinkUrl()
+      const url = await resolveEntryLinkUrl(reload)
       if (!url) return
       await copyToClipboard(url)
       setLinkCopied(true)
@@ -57,9 +58,9 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     }
   }
 
-  async function openEntryLink() {
+  async function openEntryLink(reload) {
     try {
-      const url = await resolveEntryLinkUrl()
+      const url = await resolveEntryLinkUrl(reload)
       if (!url) return
       window.open(url, '_blank', 'noopener')
     } catch (e) {
@@ -182,17 +183,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-            {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
-          </button>
-          <button onClick={openEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }} title="Opent precies wat een bezoeker via de wedstrijdlink ziet (alleen highlights)">
-            👁 Bekijk wedstrijdlink
-          </button>
-        </div>
-      </div>
+      <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
@@ -264,7 +255,19 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           </button>
           {showLinks && (
             <div style={{ marginBottom: 20 }}>
-              <LinkPanel kinds={['match', 'contribute']} filter={l => l.match_ref === matchRef} reloadKey={linksReloadKey} />
+              <LinkPanel kinds={['match', 'contribute']} filter={l => l.match_ref === matchRef} actions={{
+                match: (_, reload) => (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button onClick={() => copyEntryLink(reload)} className="yof-btn-secondary" style={{ fontSize: 12 }}>
+                      {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
+                    </button>
+                    <button onClick={() => openEntryLink(reload)} className="yof-btn-secondary" style={{ fontSize: 12 }} title="Opent precies wat een bezoeker via de wedstrijdlink ziet (alleen highlights)">
+                      👁 Bekijk wedstrijdlink
+                    </button>
+                  </div>
+                ),
+                contribute: (_, reload) => <InviteCreateForm matchRef={matchRef} players={players} onCreated={reload} />,
+              }} />
             </div>
           )}
 

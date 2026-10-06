@@ -11,6 +11,7 @@ export const SECTIONS = [
   { key: 'match', title: 'Wedstrijdlinks', hint: 'Vrienden-van-WhatsApp, 1 wedstrijd' },
   { key: 'player', title: 'Spelerslinks', hint: 'Vrienden-van-WhatsApp, 1 speelster' },
   { key: 'contribute', title: 'Invullinks', hint: 'verslag/interview insturen' },
+  { key: 'profile', title: 'Profiellinks', hint: 'speelster werkt eigen profiel bij, permanent' },
 ]
 
 const STATUS_LABEL = { active: 'geldig', expired: 'verlopen', revoked: 'ingetrokken' }
@@ -25,6 +26,7 @@ const AdminCount = ({ n }) => n > 0
 
 function linkUrl(kind, code) {
   if (kind === 'contribute') return `${window.location.origin}/yearof-mo14/?invul=${code}`
+  if (kind === 'profile') return `${window.location.origin}/yearof-mo14/?profiel=${code}`
   return `${window.location.origin}/l/${code}`
 }
 
@@ -141,7 +143,9 @@ function LinkTable({ kind, rows, onRevoke }) {
 
 // Eén blok per soort: geldige linkjes, daaronder inklapbare historie
 // (verlopen/ingetrokken, nieuwste eerst) met hun bezoekcijfers.
-export function LinkSection({ section, links, onRevoke }) {
+// actions: knoppen/formulier om dit soort link te maken of te kopiëren - staat
+// als werkbalk direct onder de kopregel, zodat alles per soort gegroepeerd is.
+export function LinkSection({ section, links, onRevoke, actions = null }) {
   const [showHistory, setShowHistory] = useState(false)
   const active = links.filter(l => l.status === 'active')
   const history = links.filter(l => l.status !== 'active')
@@ -158,6 +162,9 @@ export function LinkSection({ section, links, onRevoke }) {
           {active.length}
         </span>
       </div>
+      {actions && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid #e6e9f0' }}>{actions}</div>
+      )}
       {active.length === 0
         ? <p style={{ fontSize: 12, color: '#999', margin: 0, padding: '10px 12px' }}>Geen geldige linkjes.</p>
         : <LinkTable kind={section.key} rows={active} onRevoke={onRevoke} />}

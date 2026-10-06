@@ -1,6 +1,5 @@
 """Bezoeken per deelbare link (item 1193) + 1 overzicht van alle linkjes voor
-de beheerder: sitelinks, wedstrijdlinks, spelerslinks en invullinks.
-Profiellinks (speelster bewerkt eigen profiel) bewust niet.
+de beheerder: sitelinks, wedstrijdlinks, spelerslinks, invullinks en profiellinks.
 
 Tellen gebeurt via een ping van de frontend bij het openen van een link
 (opens = elke keer, uniek = per visitor_id uit localStorage). Geen IP-adres.
@@ -22,6 +21,7 @@ from models.yearof import (
     YearOfContributorLink,
     YearOfLinkVisit,
     YearOfPlayer,
+    YearOfProfileLink,
     YearOfShortLink,
     YearOfTeamLink,
 )
@@ -32,7 +32,7 @@ from .entries_timeline import _competition_timeline_items, _custom_timeline_item
 
 router = APIRouter(tags=["yearof-mo14"])
 
-LINK_KINDS = {"site", "match", "player", "contribute"}
+LINK_KINDS = {"site", "match", "player", "contribute", "profile"}
 
 
 class VisitIn(BaseModel):
@@ -47,6 +47,8 @@ def _link_exists(session: Session, kind: str, code: str) -> bool:
         return session.get(YearOfTeamLink, code) is not None
     if kind == "contribute":
         return session.get(YearOfContributorLink, code) is not None
+    if kind == "profile":
+        return session.get(YearOfProfileLink, code) is not None
     link = session.get(YearOfShortLink, code)
     return link is not None and link.link_type == kind
 
@@ -152,4 +154,10 @@ def link_overview(
         for c in list_contributor_links(session=session, _=None)
     ]
 
-    return {"site": site, "match": match, "player": player, "contribute": contribute}
+    # Profiellinks (speelster bewerkt eigen profiel): permanent, geen vervaldatum.
+    profile = [
+        row("profile", p.id, players.get(p.player_id, "?"), p.created_at, None, None, player_id=p.player_id)
+        for p in session.exec(select(YearOfProfileLink).order_by(YearOfProfileLink.created_at.desc())).all()
+    ]
+
+    return {"site": site, "match": match, "player": player, "contribute": contribute, "profile": profile}

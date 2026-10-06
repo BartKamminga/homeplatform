@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getProfileLinkContext, getPlayerModeration, submitPlayerEdit, updatePlayer, uploadProfilePhoto, uploadPlayerPhotoAdmin } from '../api.js'
 import PlayerCircleCard from './PlayerCircleCard.jsx'
+import { trackVisit } from '../tracking.js'
 
 // Gedeeld met de beheerder-kant (PlayersAdmin, adminMode): zelfde
 // invulscherm als de publieke profiellink, zodat spelersprofiel-editen
@@ -30,6 +31,7 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
     const load = adminMode ? getPlayerModeration(playerId) : getProfileLinkContext(code)
     load.then(p => {
       setPlayer(p)
+      if (!adminMode) trackVisit('profile', code)
       setName(p.name || '')
       setShirtNumber(p.shirt_number ?? '')
       setRoleTitle(p.role_title || '')

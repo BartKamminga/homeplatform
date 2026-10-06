@@ -148,6 +148,17 @@ def test_overview_rows_carry_match_and_contribute_status(client, admin_token, se
     assert "opened_at" in contribute and "revoked_at" in contribute
 
 
+def test_profile_link_visits_counted(client, admin_token, session):
+    player = _player(session)
+    profile = client.post(f"{API}/profile-links?player_id={player.id}", headers=_auth(admin_token)).json()
+    res = client.post(f"{API}/visits", json={"kind": "profile", "code": profile["id"], "visitor_id": "a"})
+    assert res.json() == {"counted": True}
+
+    overview = client.get(f"{API}/link-overview", headers=_auth(admin_token)).json()
+    row = overview["profile"][0]
+    assert (row["code"], row["player_id"], row["opens"], row["status"]) == (profile["id"], player.id, 1, "active")
+
+
 def test_visit_for_unknown_link_rejected(client):
     res = client.post(f"{API}/visits", json={"kind": "match", "code": "nope", "visitor_id": "a"})
     assert res.status_code == 400

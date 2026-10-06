@@ -5,9 +5,9 @@ import { SECTIONS, LinkSection } from './LinkOverview.jsx'
 
 // Generiek linkjes-overzicht (items 1186/1193): haalt het overzicht op en toont
 // per soort (kinds) een blok, eventueel gefilterd - bv. alleen de linkjes van
-// 1 wedstrijd of 1 speelster. reloadKey ophogen = opnieuw ophalen (bv. nadat
-// er elders een link is aangemaakt).
-export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = () => true, reloadKey = 0 }) {
+// 1 wedstrijd of 1 speelster. actions = { soort: (rows, reload) => knoppen }
+// voor maken/kopiëren in het juiste blok. reloadKey ophogen = opnieuw ophalen.
+export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = () => true, actions = {}, reloadKey = 0 }) {
   const [overview, setOverview] = useState(null)
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
@@ -29,9 +29,13 @@ export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = (
   return (
     <div>
       {confirmDialog}
-      {SECTIONS.filter(s => kinds.includes(s.key)).map(s => (
-        <LinkSection key={s.key} section={s} links={(overview[s.key] || []).filter(filter)} onRevoke={revoke} />
-      ))}
+      {SECTIONS.filter(s => kinds.includes(s.key)).map(s => {
+        const rows = (overview[s.key] || []).filter(filter)
+        return (
+          <LinkSection key={s.key} section={s} links={rows} onRevoke={revoke}
+            actions={actions[s.key] ? actions[s.key](rows, load) : null} />
+        )
+      })}
     </div>
   )
 }
