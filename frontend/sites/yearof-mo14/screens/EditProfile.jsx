@@ -239,10 +239,11 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
           <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
             Alleen door beheerders in te vullen - speelsters zien deze velden niet via hun profiellink.
           </p>
-          {[['Ouders', parents, setParents, 'bv. Jan & Petra'], ['Buddy', buddy, setBuddy, ''], ['Coaches', coaches, setCoaches, '']].map(([label, value, setter, placeholder]) => (
+          {[['Ouders', parents, setParents], ['Buddy', buddy, setBuddy], ['Coaches', coaches, setCoaches]].map(([label, value, setter]) => (
             <div key={label}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>{label}</label>
-              <input value={value} onChange={e => setter(e.target.value)} placeholder={placeholder}
+              <textarea value={value} onChange={e => setter(e.target.value)} rows={4}
+                placeholder="Wat vertellen ze over de speelster?"
                 style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
             </div>
           ))}

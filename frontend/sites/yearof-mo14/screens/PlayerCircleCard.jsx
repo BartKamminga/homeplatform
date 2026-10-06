@@ -1,5 +1,6 @@
-// "Rond <naam>"-kaart (item 1185): ouders, buddy en coaches van een speelster.
-// Op de spelerspagina van de site en op de spelerslink voor vrienden.
+// "Rond <naam>"-kaart (item 1185): wat ouders, buddy en coaches over een
+// speelster zeggen. Op de spelerspagina van de site en op de spelerslink.
+// Tekst over de volle breedte, afzender klein eronder (zoals een citaat).
 // Verschijnt alleen als minstens 1 veld is ingevuld (bv. niet bij begeleiders).
 export default function PlayerCircleCard({ player }) {
   const rows = [
@@ -13,10 +14,10 @@ export default function PlayerCircleCard({ player }) {
   return (
     <div className="yof-card" style={{ marginTop: 12 }}>
       <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Rond {player.nickname || player.name}</h3>
-      {rows.map(([label, value]) => (
-        <div key={label} style={{ display: 'flex', gap: 10, fontSize: 14, padding: '4px 0' }}>
-          <span style={{ width: 70, flexShrink: 0, color: '#666', fontSize: 13 }}>{label}</span>
-          <span>{value}</span>
+      {rows.map(([label, value], i) => (
+        <div key={label} style={{ marginTop: i === 0 ? 0 : 14 }}>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{value}</p>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#999', fontStyle: 'italic' }}>&mdash; {label}</div>
         </div>
       ))}
     </div>
