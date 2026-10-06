@@ -130,6 +130,9 @@ class YearOfPhoto(SQLModel, table=True):
     caption:        Optional[str]  = Field(default=None)
     created_at:     datetime        = Field(default_factory=datetime.utcnow)  # uploaddatum
     published_at:   Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
+    # Item 1214: nooit echt verwijderen - "verwijderen" = archiveren (overal
+    # verborgen, terug te zetten); definitief verwijderen alleen vanuit het archief.
+    archived_at:    Optional[datetime] = Field(default=None)
     updated_at:     datetime        = Field(default_factory=datetime.utcnow)
     like_count:     int             = Field(default=0)
 

@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react'
 import {
   getTimelineItemModeration, getPlayers,
   getReportsModeration, tagReport, untagReport, moveReport,
-  getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   listContributorLinks,
   movePhotoBlock,
 } from '../../api.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
-import { PhotoModerationGrid } from '../PhotoModerationGrid.jsx'
+import PhotoManager from '../../features/photos/PhotoManager.jsx'
 import { ReportForm } from '../ReportForm.jsx'
 import ContributeReport from '../ContributeReport.jsx'
 import PublicEntry from '../PublicEntry.jsx'
@@ -23,7 +22,6 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [item, setItem] = useState(null)
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
-  const [photos, setPhotos] = useState([])
   const [links, setLinks] = useState([])
   const [error, setError] = useState('')
   const [view, setView] = useState('preview') // preview | choose | write | edit | invul | invite | fill-invite | links
@@ -33,13 +31,11 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
+  const [previewKey, setPreviewKey] = useState(0) // ophogen = wedstrijdpreview opnieuw laden
   const [showLinks, setShowLinks] = useState(false)
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
-  }
-  function loadPhotos() {
-    getPhotosModeration().then(rows => setPhotos(rows.filter(p => p.match_ref === matchRef))).catch(e => setError(e.message))
   }
   function loadLinks() {
     listContributorLinks().then(rows => setLinks(rows.filter(l => l.match_ref === matchRef))).catch(() => {})
@@ -49,42 +45,11 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
-    loadPhotos()
     loadLinks()
   }, [matchRef])
 
   function entryTitle() {
     return item?.title || matchRef
-  }
-
-  async function togglePhotoTag(p, playerId) {
-    if (p.player_ids.includes(playerId)) await untagPhoto(p.id, playerId)
-    else await tagPhoto(p.id, playerId)
-    loadPhotos()
-  }
-  async function togglePublishPhoto(p) {
-    await updatePhoto(p.id, { status: p.status === 'published' ? 'concept' : 'published' })
-    loadPhotos()
-  }
-  async function deletePhotoRow(id) {
-    await deletePhoto(id)
-    loadPhotos()
-  }
-  async function savePhotoCaption(p, value) {
-    await updatePhoto(p.id, { caption: value })
-    loadPhotos()
-  }
-  async function togglePhotoHighlight(p) {
-    await updatePhoto(p.id, { match_highlight: !p.match_highlight })
-    loadPhotos()
-  }
-  async function bulkPublishPhotos(ids) {
-    await Promise.all(ids.map(id => updatePhoto(id, { status: 'published' })))
-    loadPhotos()
-  }
-  async function bulkDeletePhotos(ids) {
-    await Promise.all(ids.map(id => deletePhoto(id)))
-    loadPhotos()
   }
 
   function backToPreview() {
@@ -198,7 +163,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
       {view === 'preview' && (
         <>
-          <PublicEntry
+          <PublicEntry key={previewKey}
             matchRef={matchRef} onBack={() => {}} previewMode adminMode
             onEditReport={handleEditReport}
             onAddItem={addItemAt}
@@ -234,13 +199,12 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           )}
 
           <button onClick={() => setShowPhotos(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
-            {showPhotos ? 'Verberg' : 'Toon'} fotobeheer ({photos.length})
+            {showPhotos ? 'Verberg' : 'Toon'} fotobeheer
           </button>
           {showPhotos && (
             <div style={{ marginBottom: 20 }}>
-              <PhotoModerationGrid photos={photos} players={players} entryTitle={entryTitle}
-                onTogglePublish={togglePublishPhoto} onDelete={deletePhotoRow} onToggleTag={togglePhotoTag} onSaveCaption={savePhotoCaption}
-                onToggleHighlight={togglePhotoHighlight} onBulkPublish={bulkPublishPhotos} onBulkDelete={bulkDeletePhotos} />
+              {/* Zelfde fotobeheer als de tab Foto's (item 1213), vast op deze wedstrijd */}
+              <PhotoManager matchRef={matchRef} onChanged={() => setPreviewKey(k => k + 1)} />
             </div>
           )}
         </>

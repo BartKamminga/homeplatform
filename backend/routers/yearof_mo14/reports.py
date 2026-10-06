@@ -307,7 +307,10 @@ def update_report(
     # anders blijft een net gepubliceerd verslag toch onzichtbare (concept)
     # fotos houden totdat je ze los publiceert in het fotobeheer.
     if report.status == "published" and not was_published:
-        for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
+        # Gearchiveerde fotos (item 1214) niet mee-publiceren.
+        for photo in session.exec(
+            select(YearOfPhoto).where(YearOfPhoto.report_id == report_id, col(YearOfPhoto.archived_at).is_(None))
+        ).all():
             photo.status = "published"
             if photo.published_at is None:
                 photo.published_at = datetime.utcnow()

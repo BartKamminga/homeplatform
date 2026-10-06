@@ -82,6 +82,7 @@ const LS_ROWS = [
   { label: 'rm_site / rm_status / rm_priority / rm_last_site', note: 'Roadmap filters — cache (via DB)', scope: 'Admin / Roadmap' },
   { label: 'pb_query_pins', note: 'Gepinde query-templates (ranglijst / rondetopscorers per niveau-tag)', scope: 'Poulebord' },
   { label: 'yof_team_code',                      note: 'Teamcode van de sitelink (ouders) — niet bij wedstrijd-/spelerslinks', scope: 'MO14 a Paris' },
+  { label: 'yof_photo_manager_all / _match / _report', note: 'Fotobeheer: onthouden filters, sortering, indeling, tegelgrootte (per plek)', scope: 'MO14 a Paris' },
   { label: 'yof_visitor_id / yof_no_track',      note: 'Anonieme apparaat-id voor bezoektelling + vlag "dit apparaat niet meetellen"', scope: 'MO14 a Paris' },
 ];
 

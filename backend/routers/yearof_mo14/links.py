@@ -19,7 +19,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.crud import get_or_404
@@ -218,7 +218,7 @@ def resolve_short_link(code: str, request: Request, session: Session = Depends(g
             else:
                 photo = session.exec(
                     select(YearOfPhoto)
-                    .where(YearOfPhoto.match_ref == link.match_ref, YearOfPhoto.status == "published",
+                    .where(YearOfPhoto.match_ref == link.match_ref, YearOfPhoto.status == "published", col(YearOfPhoto.archived_at).is_(None),
                            YearOfPhoto.match_highlight == True, YearOfPhoto.media_type == "photo")  # noqa: E712
                     .order_by(YearOfPhoto.created_at.desc())
                 ).first()

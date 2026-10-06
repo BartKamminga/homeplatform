@@ -4,7 +4,6 @@ moderatie, tags, like/unlike. Zie __init__.py voor hoe dit sub-router
 samengevoegd wordt onder /api/yearof-mo14."""
 
 import io
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -204,7 +203,7 @@ def list_photos(
     Via een wedstrijdlink (access "match") is dat altijd zo (item 1186)."""
     if access == "match":
         highlights_only = True
-    q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
+    q = select(YearOfPhoto).where(YearOfPhoto.status == "published", col(YearOfPhoto.archived_at).is_(None))
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
     if highlights_only:
@@ -226,8 +225,11 @@ def list_photos_for_moderation(
     _: User = Depends(get_current_user),
 ):
     """Beheerder-only — inclusief de huidige speler-tags per foto (player_ids),
-    zodat de moderatie-UI niet apart per foto hoeft te pollen."""
-    photos = session.exec(select(YearOfPhoto).order_by(YearOfPhoto.created_at.desc())).all()
+    zodat de moderatie-UI niet apart per foto hoeft te pollen. Zonder
+    gearchiveerde fotos (die staan alleen in /photos/manager, item 1214)."""
+    photos = session.exec(
+        select(YearOfPhoto).where(col(YearOfPhoto.archived_at).is_(None)).order_by(YearOfPhoto.created_at.desc())
+    ).all()
     all_tags = session.exec(select(YearOfPhotoPlayerTag)).all()
     tags_by_photo: dict[str, list[str]] = {}
     for t in all_tags:
@@ -262,13 +264,13 @@ def delete_photo(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """Item 1214: archiveert (nooit echt verwijderen) - terug te zetten en
+    definitief te verwijderen via het fotobeheer (/photos/bulk)."""
     photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
-    for tag in session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo_id)).all():
-        session.delete(tag)
-    session.delete(photo)
+    photo.archived_at = photo.archived_at or datetime.utcnow()
+    session.add(photo)
     session.commit()
-    shutil.rmtree(PHOTO_ROOT / photo_id, ignore_errors=True)
-    return {"ok": True}
+    return {"ok": True, "archived": True}
 
 
 @router.post("/photos/{photo_id}/like")
