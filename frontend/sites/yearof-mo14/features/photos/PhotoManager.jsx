@@ -111,10 +111,12 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
 
   // Item 1214: verwijderen = archiveren; definitief alleen vanuit het archief (dubbele bevestiging).
   async function archiveOne(photo) {
+    window.getSelection()?.removeAllRanges()
     if (!(await confirm(`${photo.media_type === 'video' ? 'Deze video' : 'Deze foto'} naar het archief? Je kunt hem altijd terugzetten.`))) return
     try { await bulk([photo.id], 'archive') } catch (e) { setError(e.message) }
   }
   async function purgeOne(photo) {
+    window.getSelection()?.removeAllRanges()
     if (!(await confirm('Definitief verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     if (!(await confirm('Weet je het zeker? Het bestand wordt echt gewist.'))) return
     try { await bulk([photo.id], 'purge') } catch (e) { setError(e.message) }

@@ -13,8 +13,9 @@ export default function PhotoTile({ photo, selected, onToggleSelect, onOpen }) {
   const tagCount = photo.player_ids?.length || 0
   const live = photo.status === 'published'
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', userSelect: 'none' }}>
       <button
+        onMouseDown={e => e.shiftKey && e.preventDefault()}
         onClick={e => { e.stopPropagation(); onToggleSelect(photo.id, e.shiftKey) }}
         aria-label="Selecteer" title="Selecteren (shift-klik = reeks)"
         style={{
