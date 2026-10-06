@@ -3,6 +3,7 @@ import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModer
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
+import FormattedText from './FormattedText.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
@@ -105,7 +106,7 @@ export default function PublicEntry({
             {item.score_home ?? item.score_us} - {item.score_away ?? item.score_them}
           </p>
         )}
-        {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{item.description}</p>}
+        {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-line' }}><FormattedText text={item.description} /></p>}
       </div>
 
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
@@ -218,7 +219,7 @@ export default function PublicEntry({
                       {r.published_at && new Date(r.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
                     </p>
                   )}
-                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}><FormattedText text={r.body} /></p>
                   {(() => {
                     const reportPhotos = photos.filter(p => p.report_id === r.id)
                     if (reportPhotos.length === 0) return null

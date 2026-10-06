@@ -3,6 +3,7 @@ import { getSpotlightReports, getPlayers, getTimeline, getPhotosByReport, likeRe
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
+import FormattedText, { stripFormatting } from './FormattedText.jsx'
 
 const ROLE_LABEL = { speelster: 'speelster', coach: 'coach', ouder: 'ouder' }
 
@@ -105,12 +106,12 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
               )}
               {!open && (
                 <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
-                  {r.body.length > 120 ? r.body.slice(0, 120) + '...' : r.body}
+                  {stripFormatting(r.body).length > 120 ? stripFormatting(r.body).slice(0, 120) + '...' : stripFormatting(r.body)}
                 </p>
               )}
               {open && (
                 <div onClick={e => e.stopPropagation()}>
-                  <p style={{ margin: '0 0 8px', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{r.body}</p>
+                  <p style={{ margin: '0 0 8px', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}><FormattedText text={r.body} /></p>
                   <LinkTiles links={r.links} />
                 </div>
               )}

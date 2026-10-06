@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getProfileLinkContext, getPlayerModeration, submitPlayerEdit, updatePlayer, uploadProfilePhoto, uploadPlayerPhotoAdmin } from '../api.js'
 import PlayerCircleCard from './PlayerCircleCard.jsx'
 import { trackVisit } from '../tracking.js'
+import FormattedText from './FormattedText.jsx'
 
 // Gedeeld met de beheerder-kant (PlayersAdmin, adminMode): zelfde
 // invulscherm als de publieke profiellink, zodat spelersprofiel-editen
@@ -130,9 +131,9 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
       <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
         {roleTitle || position || '-'} {!roleTitle && shirtNumber !== '' ? `· #${shirtNumber}` : ''}
       </p>
-      {bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5 }}>{bio}</p>}
+      {bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-line' }}><FormattedText text={bio} /></p>}
       {funFacts && (
-        <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;{funFacts}&rdquo;</p>
+        <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;<FormattedText text={funFacts} />&rdquo;</p>
       )}
       </div>
       {adminMode && <PlayerCircleCard player={{ name, nickname, parents, buddy, coaches }} />}

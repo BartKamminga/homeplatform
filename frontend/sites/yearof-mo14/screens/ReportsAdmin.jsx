@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getPlayers, getReportsModeration, tagReport, untagReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { ReportForm } from './ReportForm.jsx'
+import FormattedText from './FormattedText.jsx'
 
 // Zelfde kaart-stijl/klik-om-te-bewerken-patroon als de wedstrijdpagina's
 // (PublicEntry in adminMode) - WYSIWYG, alleen voor niet-wedstrijd-gebonden
@@ -31,7 +32,7 @@ function AlgemeenReportCard({ report, onEdit }) {
           <> &middot; Gepubliceerd: {new Date(report.published_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}</>
         )}
       </p>
-      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{report.body}</p>
+      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}><FormattedText text={report.body} /></p>
       <LinkTiles links={report.links} />
     </div>
   )
