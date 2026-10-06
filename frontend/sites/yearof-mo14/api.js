@@ -93,7 +93,12 @@ export async function uploadPhoto(file, { matchRef, reportId, photoType, code })
   if (reportId) fd.append('report_id', reportId)
   fd.append('photo_type', photoType)
   if (code) fd.append('code', code)
-  const res = await fetch('/api/yearof-mo14/photos', { method: 'POST', body: fd })
+  // Beheerder (ingelogd): login meesturen, zodat de upload als "Beheerder"
+  // herkend wordt en blijft werken zodra uploaden een code/login vereist (1203).
+  const token = localStorage.getItem('hp_token')
+  const res = await fetch('/api/yearof-mo14/photos', {
+    method: 'POST', body: fd, headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || 'Upload mislukt')
@@ -119,6 +124,9 @@ export const setPlayerSpotlight  = (playerId) => api.put('/api/yearof-mo14/playe
 export const setPlayerFavorite   = (playerId, photoId, favorite) =>
   api.put(`/api/yearof-mo14/players/${encodeURIComponent(playerId)}/favorites/${encodeURIComponent(photoId)}`, { favorite })
 export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')
+// Fotobeheer-werkbak (item 1213): lijst met tags/favorieten/bron + bulk-acties
+export const getPhotosManager    = ()         => api.get('/api/yearof-mo14/photos/manager')
+export const bulkPhotos          = (ids, action, value = null) => api.post('/api/yearof-mo14/photos/bulk', { ids, action, value })
 export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/photos/${id}`, body)
 export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)
 export const tagPhoto            = (photoId, playerId) => api.post(`/api/yearof-mo14/photos/${photoId}/tags/${playerId}`)

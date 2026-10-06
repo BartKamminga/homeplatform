@@ -59,6 +59,7 @@ from .favorites import router as favorites_router
 from .links import router as links_router
 from .links import shortlink_router
 from .matches import router as matches_router
+from .photo_manager import router as photo_manager_router
 from .photos import router as photos_router
 from .players import router as players_router
 from .reports import router as reports_router
@@ -88,6 +89,7 @@ router.include_router(matches_router)
 router.include_router(access_router)
 router.include_router(links_router)
 router.include_router(visits_router)
+router.include_router(photo_manager_router)  # voor photos_router: /photos/manager en /photos/bulk
 router.include_router(photos_router)
 router.include_router(contributor_links_router)
 router.include_router(reports_router)
