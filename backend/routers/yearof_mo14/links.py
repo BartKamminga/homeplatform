@@ -29,7 +29,9 @@ from models.yearof import YearOfPhoto, YearOfPlayer, YearOfShortLink, YearOfTeam
 
 from ._shared import _valid_short_link, new_link_code
 from .entries_timeline import _competition_timeline_items, _custom_timeline_items
-from .og_preview import DEFAULT_DESCRIPTION, DEFAULT_TITLE, default_image_png, preview_html, public_base_url
+from .og_preview import (
+    DEFAULT_DESCRIPTION, DEFAULT_TITLE, default_image_png, match_image_png, preview_html, public_base_url,
+)
 
 router = APIRouter(tags=["yearof-mo14"])
 
@@ -200,19 +202,25 @@ def resolve_short_link(code: str, request: Request, session: Session = Depends(g
     elif link.link_type == "match":
         target = f"/yearof-mo14/?entry={quote(link.match_ref or '')}&link={link.id}"
         if _valid_short_link(link.id, session):
-            item = next((i for i in _competition_timeline_items(session) + _custom_timeline_items(session)
-                         if i["match_ref"] == link.match_ref), None) or {}
+            item = _find_timeline_item(session, link.match_ref)
             title = item.get("title")
-            photo = session.exec(
-                select(YearOfPhoto)
-                .where(YearOfPhoto.match_ref == link.match_ref, YearOfPhoto.status == "published",
-                       YearOfPhoto.match_highlight == True, YearOfPhoto.media_type == "photo")  # noqa: E712
-                .order_by(YearOfPhoto.created_at.desc())
-            ).first()
+            # Plaatje: clublogo's + uitslag (competitie, herkenbaar), anders een
+            # highlight-foto (bv. oefenwedstrijd zonder logo's), anders standaard.
+            # score in de URL: WhatsApp cachet per URL, na de uitslag dus vers.
+            if item.get("home_club_logo") or item.get("away_club_logo"):
+                image_path = f"/api/yearof-mo14/og-match.png?ref={quote(link.match_ref)}&s={quote(_score_text(item))}"
+            else:
+                photo = session.exec(
+                    select(YearOfPhoto)
+                    .where(YearOfPhoto.match_ref == link.match_ref, YearOfPhoto.status == "published",
+                           YearOfPhoto.match_highlight == True, YearOfPhoto.media_type == "photo")  # noqa: E712
+                    .order_by(YearOfPhoto.created_at.desc())
+                ).first()
+                image_path = f"/api/yearof-mo14/photos/{photo.id}/medium.jpg" if photo else None
             preview = {
                 "title": f"{title or 'Wedstrijd'} · MO14 à Paris",
                 "description": _match_description(item) + _valid_until(link, session),
-                "image_path": f"/api/yearof-mo14/photos/{photo.id}/medium.jpg" if photo else None,
+                "image_path": image_path,
             }
     else:
         target = f"/yearof-mo14/?code={link.team_code}"
@@ -222,6 +230,38 @@ def resolve_short_link(code: str, request: Request, session: Session = Depends(g
         preview["description"] = f"{DEFAULT_DESCRIPTION} · Deze link is verlopen"
 
     return HTMLResponse(preview_html(base=base, link_path=f"/l/{code}", target=target, **preview))
+
+
+DUTCH_DAYS = ("ma", "di", "wo", "do", "vr", "za", "zo")
+DUTCH_MONTHS = ("januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus",
+                "september", "oktober", "november", "december")
+
+
+def _find_timeline_item(session: Session, match_ref: Optional[str]) -> dict:
+    return next((i for i in _competition_timeline_items(session) + _custom_timeline_items(session)
+                 if i["match_ref"] == match_ref), None) or {}
+
+
+def _score_text(item: dict) -> str:
+    home = item.get("score_home", item.get("score_us"))
+    away = item.get("score_away", item.get("score_them"))
+    return f"{home} - {away}" if home is not None and away is not None else "vs"
+
+
+@router.get("/og-match.png")
+def og_match_image(ref: str, session: Session = Depends(get_session)):
+    """Publiek - wedstrijdplaatje voor link-previews: beide clublogo's +
+    uitslag + datum (alleen openbare competitiegegevens)."""
+    item = _find_timeline_item(session, ref)
+    if not item or not (item.get("home_club_logo") or item.get("away_club_logo")):
+        raise HTTPException(status_code=404, detail="Geen wedstrijdplaatje")
+    home, _, away = item["title"].partition(" - ")
+    date = ""
+    if item.get("date"):
+        d = datetime.fromisoformat(str(item["date"])[:19])
+        date = f"{DUTCH_DAYS[d.weekday()]} {d.day} {DUTCH_MONTHS[d.month - 1]} {d.year}"
+    png = match_image_png(home, away, item.get("home_club_logo"), item.get("away_club_logo"), _score_text(item), date)
+    return Response(content=png, media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/og-default.png")

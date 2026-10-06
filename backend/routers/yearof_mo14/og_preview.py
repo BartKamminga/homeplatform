@@ -19,6 +19,7 @@ from functools import lru_cache
 from html import escape
 from typing import Optional
 
+import httpx
 from fastapi import Request
 from PIL import Image, ImageDraw, ImageFont
 
@@ -102,6 +103,78 @@ def default_image_png() -> bytes:
     draw.line([(x + a_width * 0.3, a_top - 50), (x + a_width * 0.6, a_top - 12)], fill=(255, 255, 255), width=13)
     centered("Victoria MO14-1", 590, small, YELLOW)
     centered("Pinksterweekend 2027", 650, small, (154, 165, 192))
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Wedstrijdplaatje: beide clublogo's naast elkaar + uitslag/"vs" + datum.
+# De logo's van hockeyweerelt zijn 80x80 met een ondertekende URL (grootte niet
+# aan te passen) - daarom zelf samenstellen op 800x800 i.p.v. direct linken.
+# ---------------------------------------------------------------------------
+
+_logo_cache: dict[str, Image.Image] = {}
+
+
+def _fetch_logo(url: str) -> Optional[Image.Image]:
+    """Alleen geslaagde downloads cachen - een tijdelijke storing mag niet
+    voorgoed een logo-loos plaatje opleveren."""
+    if url in _logo_cache:
+        return _logo_cache[url]
+    try:
+        res = httpx.get(url, timeout=4, follow_redirects=True)
+        res.raise_for_status()
+        logo = Image.open(io.BytesIO(res.content)).convert("RGBA")
+    except Exception:
+        return None
+    if len(_logo_cache) < 128:
+        _logo_cache[url] = logo
+    return logo
+
+
+def _club_short(name: str) -> str:
+    # "Alphen MO14-1" -> "Alphen": teamaanduiding is dubbel op een MO14-site
+    return name.replace(" MO14-1", "").replace(" MO14", "").strip()
+
+
+@lru_cache(maxsize=64)
+def match_image_png(
+    home_name: str, away_name: str, home_logo: Optional[str], away_logo: Optional[str], score: str, date: str,
+) -> bytes:
+    size = 800
+    img = Image.new("RGB", (size, size), NAVY)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, 0, size, 24], fill=YELLOW)
+    name_font = ImageFont.load_default(size=40)
+    score_font = ImageFont.load_default(size=120)
+    small = ImageFont.load_default(size=40)
+
+    card, top = 280, 110
+    for i, (name, logo_url) in enumerate(((home_name, home_logo), (away_name, away_logo))):
+        left = 80 if i == 0 else size - 80 - card
+        draw.rounded_rectangle([left, top, left + card, top + card], radius=28, fill=(255, 255, 255))
+        logo = _fetch_logo(logo_url) if logo_url else None
+        if logo:
+            logo = logo.copy()
+            logo.thumbnail((card - 40, card - 40), Image.LANCZOS)
+            if logo.width < card - 40:  # kleine bron-logo's opschalen
+                scale = (card - 40) / max(logo.width, logo.height)
+                logo = logo.resize((int(logo.width * scale), int(logo.height * scale)), Image.LANCZOS)
+            img.paste(logo, (left + (card - logo.width) // 2, top + (card - logo.height) // 2), logo)
+        else:
+            initial = _club_short(name)[:1].upper() or "?"
+            w = draw.textlength(initial, font=score_font)
+            draw.text((left + (card - w) / 2, top + 60), initial, font=score_font, fill=NAVY)
+        short = _club_short(name)
+        w = draw.textlength(short, font=name_font)
+        draw.text((left + (card - w) / 2, top + card + 20), short, font=name_font, fill=(255, 255, 255))
+
+    w = draw.textlength(score, font=score_font)
+    draw.text(((size - w) / 2, 500), score, font=score_font, fill=YELLOW)
+    if date:
+        w = draw.textlength(date, font=small)
+        draw.text(((size - w) / 2, 660), date, font=small, fill=(154, 165, 192))
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)
     return buf.getvalue()
