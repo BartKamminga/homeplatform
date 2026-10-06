@@ -79,6 +79,7 @@ jobs:
           BUGSINK_DB_PASSWORD=${{ secrets.BUGSINK_DB_PASSWORD }}
           BUGSINK_SECRET_KEY=${{ secrets.BUGSINK_SECRET_KEY }}
           BUGSINK_SUPERUSER=${{ secrets.BUGSINK_SUPERUSER }}
+          INFRA_PEER_TOKEN=${{ secrets.INFRA_PEER_TOKEN }}
           EOF
           chmod 600 $PROD_REPO/.env
 
@@ -172,6 +173,7 @@ jobs:
           AGENT_WORKER_API_KEY=${{ secrets.AGENT_WORKER_API_KEY }}
           PROD_API_BASE=${{ secrets.PROD_API_BASE }}
           PROD_API_KEY=${{ secrets.PROD_API_KEY }}
+          INFRA_PEER_TOKEN=${{ secrets.INFRA_PEER_TOKEN }}
           EOF
           chmod 600 $ACC_REPO/.env
 

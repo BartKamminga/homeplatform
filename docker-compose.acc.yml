@@ -34,6 +34,7 @@ services:
       - /home/bart/homeplatform/plugins:/app/plugins
       - /var/run/docker.sock:/var/run/docker.sock
       - ./MindBox.ps1:/app/MindBox.ps1:ro
+      - /etc/hostname:/etc/host_hostname:ro
     environment:
       - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
       - SECRET_KEY=${SECRET_KEY}
@@ -46,6 +47,7 @@ services:
       - EXTERNAL_URL=${EXTERNAL_URL:-}
       - PROD_LAN_IP=${PROD_LAN_IP:-192.168.30.49}
       - ACC_LAN_IP=${ACC_LAN_IP:-192.168.30.232}
+      - INFRA_PEER_TOKEN=${INFRA_PEER_TOKEN:-}
       - WORKER_POLL_IDLE_SEC=300
       - PROD_API_BASE=${PROD_API_BASE:-}
       - PROD_API_KEY=${PROD_API_KEY:-}
