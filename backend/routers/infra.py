@@ -7,6 +7,7 @@ from core.auth import require_admin
 from core.docker_engine import docker_api
 from core.settings import settings
 from models.core import User
+from services import host_info
 
 router = APIRouter(prefix="/api", tags=["infra"])
 
@@ -32,26 +33,18 @@ def _machine() -> dict:
     # machine wisselen (bv. na de g4→g5 migratie) zonder frontend-hardcoding.
     is_prod = settings.ENVIRONMENT == "production"
     return {
-        "hostname": _hostname(),
+        "hostname": host_info.hostname(),
         "lan_ip": settings.PROD_LAN_IP if is_prod else settings.ACC_LAN_IP,
         "prod_lan_ip": settings.PROD_LAN_IP,
         "acc_lan_ip": settings.ACC_LAN_IP,
     }
 
 
-def _hostname() -> str:
-    try:
-        import socket
-        return socket.gethostname()
-    except Exception:
-        return ""
-
-
 @router.get("/admin/infrastructure")
 def get_infrastructure(_: User = Depends(require_admin)):
     raw = _docker("/containers/json?all=false")
     if raw is None:
-        return {"available": False, "containers": [], "hardware": _hardware(), "machine": _machine()}
+        return {"available": False, "containers": [], "hardware": host_info.hardware(), "machine": _machine()}
 
     containers = []
     for c in sorted(raw, key=lambda x: x.get("Names", [""])[0]):
@@ -90,7 +83,7 @@ def get_infrastructure(_: User = Depends(require_admin)):
             "mounts":      mounts,
         })
 
-    return {"available": True, "containers": containers, "hardware": _hardware(), "machine": _machine()}
+    return {"available": True, "containers": containers, "hardware": host_info.hardware(), "machine": _machine()}
 
 
 @router.get("/admin/infra/services")
@@ -135,18 +128,3 @@ def toggle_backup_cron(_: User = Depends(require_admin)):
     with open(_CRON_DISABLED_FLAG, "w") as f:
         f.write("1")
     return {"enabled": False}
-
-
-def _hardware():
-    try:
-        import psutil, time as _t
-        mem  = psutil.virtual_memory()
-        disk = psutil.disk_usage("/")
-        return {
-            "cpu_percent": psutil.cpu_percent(interval=0.2),
-            "memory":  {"total_gb": round(mem.total / 1024**3, 1), "used_gb": round(mem.used / 1024**3, 1), "percent": mem.percent},
-            "disk":    {"total_gb": round(disk.total / 1024**3, 1), "used_gb": round(disk.used / 1024**3, 1), "percent": disk.percent},
-            "uptime_s": int(_t.time() - psutil.boot_time()),
-        }
-    except Exception:
-        return None

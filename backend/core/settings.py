@@ -21,8 +21,11 @@ class Settings(BaseSettings):
     # Bewust géén secrets (niet gevoelig) en bewust niet vanuit de container zelf
     # afgeleid (bv. via psutil/socket) - dat zou het Docker-netwerk-IP geven, niet
     # het host-LAN-IP, door de bridge-netwerkmodus van docker-compose.
-    PROD_LAN_IP: str = "192.168.30.232"
-    ACC_LAN_IP:  str = "192.168.30.232"
+    PROD_LAN_IP: str = "192.168.30.49"    # g5 sinds de cutover (06-10-2026)
+    ACC_LAN_IP:  str = "192.168.30.232"   # G4: acc + beheertools
+    # item 1190: prod en acc halen elkaars machine-info op via /api/infra/host met deze gedeelde token
+    INFRA_PEER_TOKEN: str = ""
+    HOST_HOSTNAME_FILE: str = "/etc/host_hostname"  # read-only mount van /etc/hostname van de host
     UPLOAD_ROOT: str = "/app/uploads"
     DOWNLOAD_DIR: str = "/app/downloads"
     BEATPORTDL_CONFIG_DIR: str = ""  # pad naar beatportdl config-map (optioneel)

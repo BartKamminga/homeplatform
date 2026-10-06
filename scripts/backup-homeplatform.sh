@@ -7,6 +7,19 @@ DATE=$(date +%Y-%m-%d)
 LOG="/home/bart/backup.log"
 NAS_MOUNT="/mnt/nas-backup"
 
+write_nas_index() {
+    local OUT=$1 DIR=$2 LBL=$3 MOUNTED=0
+    mountpoint -q "$NAS_MOUNT" && MOUNTED=1
+    python3 - "$OUT" "$DIR" "$LBL" "$MOUNTED" <<'PY'
+import datetime, json, os, sys
+out, nas_dir, label, mounted = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1"
+files = sorted(f for f in os.listdir(nas_dir) if f.startswith(label + "-")) if mounted and os.path.isdir(nas_dir) else []
+with open(out, "w") as fh:
+    json.dump({"checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               "mounted": mounted, "label": label, "files": files}, fh)
+PY
+}
+
 backup_env() {
     local ENV=$1
     local DB="/home/bart/homeplatform${ENV}/db/homeplatform.sqlite"
@@ -40,6 +53,10 @@ dst.close(); src.close()
             && echo "[$LABEL] NAS ok" >> $LOG \
             || echo "[$LABEL] NAS mislukt (doorgaan)" >> $LOG
     fi
+
+    # Index voor de admin Infrastructuur-pagina (item 1190): was de NAS gemount, en welke backups
+    # van deze omgeving staan er (zo zie je ook later verdwenen NAS-bestanden).
+    write_nas_index "$BACKUP_DIR/nas_index.json" "$NAS_DIR" "$LABEL"
 
     # Bewaar max 14 dagelijkse lokale backups
     ls -t "$BACKUP_DIR"/homeplatform-*.sqlite 2>/dev/null | tail -n +15 | xargs -r rm -f

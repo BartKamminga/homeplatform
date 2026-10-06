@@ -44,12 +44,7 @@ export default function InfraServicesStrip() {
 
   return (
     <>
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <span style={labelStyle}>Host services</span>
-          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
-        </div>
-
+      <div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {/* Runner card */}
           <div style={card}>
@@ -130,6 +125,5 @@ export default function InfraServicesStrip() {
   );
 }
 
-const labelStyle = { fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
 const card = { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '14px 16px', flex: '1 1 280px' };
 const btn  = { padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--color-background)', border: '1px solid var(--color-border)', color: 'var(--color-text)', flexShrink: 0 };
