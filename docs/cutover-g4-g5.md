@@ -41,12 +41,15 @@ Tunnel-ingress (Cloudflare, remote-managed, token in `.env` als `CLOUDFLARE_TUNN
    Alle vier per omgeving aan te roepen (`prod` / `acc`); zonder argument = beide (oude gedrag).
 2. ⏳ **sudo-regel op g5** voor `services-watcher.sh` (runner herstarten vanuit admin) — Bart, met sudo:
    ```bash
-   echo 'bart ALL=(root) NOPASSWD: /usr/bin/systemctl restart actions.runner.*' | sudo tee /etc/sudoers.d/homeplatform-runner
+   echo 'bart ALL=(root) NOPASSWD: /usr/bin/systemctl restart actions.runner.BartKamminga-homeplatform.g5-runner' | sudo tee /etc/sudoers.d/homeplatform-runner
    sudo chmod 440 /etc/sudoers.d/homeplatform-runner && sudo visudo -c
    ```
+   Let op: sudo-rs (Ubuntu 26.04) staat geen wildcards in argumenten toe — exacte servicenaam, zonder
+   `.service` (zo roept `services-watcher.sh` hem aan). Zelfde vorm als op G4.
 3. ✅ (06-10) Schaduw-sync recent (elke 15 min `sync ok`), g5 gezond (196 GB vrij, 13 GB RAM vrij).
-4. ⏳ **Besluit dev-sessions**: op g5 ontbreken de deploy-key (`/home/bart/homeplatform/secrets/claude-agent-deploy-key`)
-   en het image `homeplatform-claude-agent`. Na de cutover start prod de sessions op g5 → falen, tot item 1165.
+4. ✅ **Besluit dev-sessions (06-10)**: op g5 ontbreken de deploy-key (`/home/bart/homeplatform/secrets/claude-agent-deploy-key`)
+   en het image `homeplatform-claude-agent`. Geaccepteerd: na de cutover werken dev-sessions vanuit prod
+   niet tot item 1165 (G4 als dedicated sessionhost). Niet tijdelijk op g5 neerzetten.
 
 ## Fase 2 — Freeze G4 + laatste sync (downtime start)
 
