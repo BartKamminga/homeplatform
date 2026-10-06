@@ -4,8 +4,8 @@ Profiellinks (speelster bewerkt eigen profiel) bewust niet.
 
 Tellen gebeurt via een ping van de frontend bij het openen van een link
 (opens = elke keer, uniek = per visitor_id uit localStorage). Geen IP-adres.
-Ingelogde beheerders worden server-side overgeslagen; apparaten met
-"niet meetellen" sturen zelf geen ping."""
+Bezoeken van ingelogde beheerders en van apparaten met "niet meetellen"
+worden gemarkeerd (is_admin) en apart getoond, niet meegeteld in de cijfers."""
 
 from collections import defaultdict
 from datetime import datetime
@@ -38,6 +38,7 @@ class VisitIn(BaseModel):
     kind: str
     code: str
     visitor_id: str
+    excluded: bool = False  # apparaat met "niet meetellen" (beheerder zonder login)
 
 
 def _link_exists(session: Session, kind: str, code: str) -> bool:
@@ -55,27 +56,35 @@ def record_visit(
     session: Session = Depends(get_session),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Publiek. Telt niet als de bezoeker ingelogd is (beheerder)."""
-    if current_user is not None:
-        return {"counted": False}
+    """Publiek. Bezoeken van beheerders (ingelogd of "niet meetellen") worden
+    opgeslagen met is_admin=True en apart getoond."""
     code = body.code.strip().lower()
     if body.kind not in LINK_KINDS or not _link_exists(session, body.kind, code):
         raise HTTPException(status_code=400, detail="Onbekende link")
-    session.add(YearOfLinkVisit(link_kind=body.kind, link_code=code, visitor_id=body.visitor_id[:64]))
+    is_admin = current_user is not None or body.excluded
+    session.add(YearOfLinkVisit(link_kind=body.kind, link_code=code, visitor_id=body.visitor_id[:64], is_admin=is_admin))
     session.commit()
-    return {"counted": True}
+    return {"counted": not is_admin}
 
 
 def _visit_stats(visits: list[YearOfLinkVisit]) -> dict:
+    """Cijfers zonder beheerders; admin_opens = bezoeken van beheerders (tussen haakjes)."""
+    counted = [v for v in visits if not v.is_admin]
     by_day: dict[str, list[YearOfLinkVisit]] = defaultdict(list)
     for v in visits:
         by_day[v.visited_at.date().isoformat()].append(v)
     return {
-        "opens": len(visits),
-        "unique": len({v.visitor_id for v in visits}),
-        "last_visit": max((v.visited_at for v in visits), default=None),
+        "opens": len(counted),
+        "unique": len({v.visitor_id for v in counted}),
+        "admin_opens": len(visits) - len(counted),
+        "last_visit": max((v.visited_at for v in counted), default=None),
         "days": [
-            {"date": day, "opens": len(rows), "unique": len({v.visitor_id for v in rows})}
+            {
+                "date": day,
+                "opens": sum(1 for v in rows if not v.is_admin),
+                "unique": len({v.visitor_id for v in rows if not v.is_admin}),
+                "admin_opens": sum(1 for v in rows if v.is_admin),
+            }
             for day, rows in sorted(by_day.items(), reverse=True)
         ],
     }

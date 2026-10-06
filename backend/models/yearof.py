@@ -81,7 +81,8 @@ class YearOfLinkVisit(SQLModel, table=True):
     """Bezoek aan een deelbare link (item 1193): 1 rij per keer openen.
     visitor_id is een willekeurige id uit localStorage (unieke apparaten
     tellen), bewust geen IP-adres. Bezoeken van ingelogde beheerders en van
-    apparaten met "niet meetellen" worden niet opgeslagen."""
+    apparaten met "niet meetellen" krijgen is_admin=True: ze tellen niet mee
+    in de cijfers, maar staan los (tussen haakjes) in het overzicht."""
     __tablename__ = "yearof_link_visits"
 
     id:         Optional[int]  = Field(default=None, primary_key=True)
@@ -89,6 +90,7 @@ class YearOfLinkVisit(SQLModel, table=True):
     link_code:  str            = Field(index=True)
     visitor_id: str
     visited_at: datetime        = Field(default_factory=datetime.utcnow)
+    is_admin:   bool           = Field(default=False)
 
 
 class YearOfPhoto(SQLModel, table=True):

@@ -18,6 +18,11 @@ const STATUS_LABEL = { active: 'geldig', expired: 'verlopen', revoked: 'ingetrok
 const fmtDate = (iso) => iso ? iso.slice(0, 10) : '-'
 const fmtDateTime = (iso) => iso ? iso.slice(0, 16).replace('T', ' ') : '-'
 
+// Bezoeken van beheerders (ingelogd of "niet meetellen") apart, tussen haakjes.
+const AdminCount = ({ n }) => n > 0
+  ? <span style={{ color: '#999', fontWeight: 400 }} title="Bezoeken van beheerders"> ({n})</span>
+  : null
+
 function linkUrl(kind, code) {
   if (kind === 'contribute') return `${window.location.origin}/yearof-mo14/?invul=${code}`
   return `${window.location.origin}/l/${code}`
@@ -50,7 +55,7 @@ function LinkRow({ kind, link, onRevoke }) {
           {STATUS_LABEL[link.status]}
           <div style={{ color: '#999' }}>t/m {fmtDate(link.expires_at)}</div>
         </td>
-        <td style={{ ...cell, textAlign: 'right' }}><strong>{link.opens}</strong></td>
+        <td style={{ ...cell, textAlign: 'right' }}><strong>{link.opens}</strong><AdminCount n={link.admin_opens} /></td>
         <td style={{ ...cell, textAlign: 'right' }}><strong>{link.unique}</strong></td>
         <td style={cell}>{fmtDateTime(link.last_visit)}</td>
         <td style={cell}>
@@ -84,7 +89,7 @@ function LinkRow({ kind, link, onRevoke }) {
                   {link.days.map(d => (
                     <tr key={d.date}>
                       <td style={{ padding: '2px 12px 2px 0' }}>{d.date}</td>
-                      <td style={{ padding: '2px 12px 2px 0', textAlign: 'right' }}>{d.opens}</td>
+                      <td style={{ padding: '2px 12px 2px 0', textAlign: 'right' }}>{d.opens}<AdminCount n={d.admin_opens} /></td>
                       <td style={{ padding: '2px 0', textAlign: 'right' }}>{d.unique}</td>
                     </tr>
                   ))}

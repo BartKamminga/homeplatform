@@ -31,7 +31,8 @@ export default function LinksAdmin() {
 
       <p style={{ fontSize: 12, color: '#666', margin: '20px 0 10px' }}>
         Geopend = elke keer dat een link geopend wordt, uniek = aantal verschillende apparaten.
-        Bezoeken van ingelogde beheerders tellen niet mee. Wedstrijd- en spelerslinks maak je
+        Bezoeken van beheerders (ingelogd, of op een apparaat met "niet meetellen") tellen niet
+        mee en staan apart tussen haakjes, bijvoorbeeld 12 (3). Wedstrijd- en spelerslinks maak je
         bij de wedstrijd of de speler; ze zijn 10 dagen geldig.
       </p>
       <label style={{ display: 'block', fontSize: 12, padding: 10, background: '#f4f6fb', borderRadius: 8 }}>

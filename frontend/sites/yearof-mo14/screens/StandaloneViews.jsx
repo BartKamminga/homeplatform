@@ -7,6 +7,7 @@ import PublicEntry from './PublicEntry.jsx'
 import PlayerProfileCard from './PlayerProfileCard.jsx'
 import PlayerCircleCard from './PlayerCircleCard.jsx'
 import Thermometer from './Thermometer.jsx'
+import SponsorList from './SponsorList.jsx'
 
 // Losse pagina's zonder navigatiebalk voor de Vrienden-van-WhatsApp (item
 // 1186): een wedstrijdlink (?entry=<ref>&link=<code>) of spelerslink
@@ -125,6 +126,7 @@ export function StandalonePlayerView({ code }) {
       <PlayerProfileCard player={player} />
       <PlayerCircleCard player={player} />
       <ActionBlock />
+      <SponsorList />
     </Shell>
   )
 }

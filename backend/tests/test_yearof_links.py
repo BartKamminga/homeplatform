@@ -124,11 +124,13 @@ def test_visits_counted_per_link_and_admin_skipped(client, admin_token, session)
     res = client.post(f"{API}/visits", json={"kind": "player", "code": link["id"], "visitor_id": "c"},
                       headers=_auth(admin_token))
     assert res.json() == {"counted": False}
+    res = client.post(f"{API}/visits", json={"kind": "player", "code": link["id"], "visitor_id": "d", "excluded": True})
+    assert res.json() == {"counted": False}
 
     overview = client.get(f"{API}/link-overview", headers=_auth(admin_token)).json()
     row = next(r for r in overview["player"] if r["code"] == link["id"])
-    assert (row["opens"], row["unique"], row["label"]) == (3, 2, "Fleurtje")
-    assert row["days"][0]["opens"] == 3
+    assert (row["opens"], row["unique"], row["admin_opens"], row["label"]) == (3, 2, 2, "Fleurtje")
+    assert (row["days"][0]["opens"], row["days"][0]["admin_opens"]) == (3, 2)
 
 
 def test_visit_for_unknown_link_rejected(client):

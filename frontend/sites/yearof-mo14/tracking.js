@@ -1,8 +1,8 @@
 import { postVisit } from './api.js'
 
 // Bezoeken tellen per deelbare link (item 1193). visitor_id = willekeurige
-// id per apparaat (unieke bezoekers), geen IP. Ingelogde beheerders slaat de
-// backend zelf over; "niet meetellen" is voor je eigen telefoon zonder login.
+// id per apparaat (unieke bezoekers), geen IP. Ingelogde beheerders herkent de
+// backend zelf; "niet meetellen" is voor je eigen telefoon zonder login.
 const VISITOR_KEY = 'yof_visitor_id'
 const NO_TRACK_KEY = 'yof_no_track'
 
@@ -26,8 +26,9 @@ export function setTrackingDisabled(disabled) {
 // openen in die browser zet "niet meetellen" daar aan.
 if (new URLSearchParams(window.location.search).get('notrack') === '1') setTrackingDisabled(true)
 
-// kind: site | match | player | contribute
+// kind: site | match | player | contribute. Met "niet meetellen" (of ingelogd)
+// wordt het bezoek wel opgeslagen, maar als beheerder-bezoek apart getoond.
 export function trackVisit(kind, code) {
-  if (!code || isTrackingDisabled()) return
-  postVisit({ kind, code, visitor_id: visitorId() }).catch(() => {})
+  if (!code) return
+  postVisit({ kind, code, visitor_id: visitorId(), excluded: isTrackingDisabled() }).catch(() => {})
 }
