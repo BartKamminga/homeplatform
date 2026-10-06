@@ -2,6 +2,7 @@
 gebruikt door 2 of meer van de domeinmodules in dit package (zie __init__.py
 voor hoe de sub-routers samengevoegd worden tot router/shortlink_router)."""
 
+import random
 import string
 from datetime import datetime
 from typing import Optional
@@ -13,7 +14,7 @@ from sqlmodel import Session, select
 from core.auth import decode_token, hash_api_key
 from core.database import get_session
 from models.core import User, UserApiKey
-from models.yearof import YearOfTeamLink
+from models.yearof import YearOfShortLink, YearOfTeamLink
 
 TEAM_NAME = "Victoria MO14-1"
 POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 architectuurbeslissing)
@@ -24,6 +25,17 @@ POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 archite
 # ---------------------------------------------------------------------------
 
 TEAM_LINK_CHARS = string.ascii_lowercase + string.digits
+
+
+def new_link_code(session: Session) -> str:
+    """Unieke 6-char code voor een teamlinkje of korte link. Beide komen als
+    `code`-parameter binnen (zie check_match_access), dus de code mag in
+    geen van beide tabellen al bestaan."""
+    for _ in range(20):
+        code = "".join(random.choices(TEAM_LINK_CHARS, k=6))
+        if not session.get(YearOfTeamLink, code) and not session.get(YearOfShortLink, code):
+            return code
+    raise RuntimeError("Geen unieke code gevonden")
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +107,48 @@ def _valid_team_link(code: Optional[str], session: Session) -> Optional[YearOfTe
     if link.expires_at and link.expires_at < datetime.utcnow():
         return None
     return link
+
+
+def _valid_short_link(code: Optional[str], session: Session) -> Optional[YearOfShortLink]:
+    """Wedstrijd-/spelerslink als toegangstoken (item 1186). Nieuwe links
+    hebben een eigen vervaldatum; legacy wedstrijdlinks (zonder expires_at)
+    blijven geldig zolang hun bevroren teamcode geldig is."""
+    if not code:
+        return None
+    link = session.get(YearOfShortLink, code.strip().lower())
+    if not link or link.revoked_at is not None:
+        return None
+    if link.expires_at is None:
+        return link if _valid_team_link(link.team_code, session) else None
+    return link if link.expires_at >= datetime.utcnow() else None
+
+
+def check_match_access(
+    session: Session,
+    current_user: Optional[User],
+    code: Optional[str],
+    match_ref: Optional[str],
+) -> str:
+    """'full' voor beheerder/teamcode, 'match' voor een wedstrijdlink van
+    precies deze wedstrijd - anders 403. Bij 'match' tonen de endpoints
+    alleen de gecureerde highlights (zoals de losse wedstrijdpagina)."""
+    if current_user is not None or _valid_team_link(code, session):
+        return "full"
+    link = _valid_short_link(code, session)
+    if link and link.link_type == "match" and match_ref and link.match_ref == match_ref:
+        return "match"
+    raise HTTPException(status_code=403, detail="Deze link is verlopen of ongeldig")
+
+
+def require_match_access(
+    match_ref: Optional[str] = None,
+    code: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> str:
+    """Dependency-variant van check_match_access - match_ref komt uit het pad
+    of de query van het endpoint zelf."""
+    return check_match_access(session, current_user, code, match_ref)
 
 
 def require_team_access(

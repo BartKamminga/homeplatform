@@ -27,6 +27,11 @@ class YearOfPlayer(SQLModel, table=True):
     photo_url:    Optional[str]  = Field(default=None)
     bio:          Optional[str]  = Field(default=None)
     fun_facts:    Optional[str]  = Field(default=None)  # JSON: [{"label": ..., "value": ...}]
+    # Item 1185: vrije tekst, alleen door beheerders in te vullen (bewust niet
+    # in YearOfPlayerEdit/profiellink) en niet zichtbaar via de spelerslink.
+    parents:      Optional[str]  = Field(default=None)
+    buddy:        Optional[str]  = Field(default=None)
+    coaches:      Optional[str]  = Field(default=None)
     archived_at:  Optional[datetime] = Field(default=None)  # verborgen op de publieke site, content eronder blijft bestaan
     created_at:   datetime       = Field(default_factory=datetime.utcnow)
     updated_at:   datetime       = Field(default_factory=datetime.utcnow)
@@ -59,9 +64,31 @@ class YearOfShortLink(SQLModel, table=True):
     __tablename__ = "yearof_short_links"
 
     id:         str            = Field(primary_key=True)  # 6-char code
-    team_code:  str
-    match_ref:  Optional[str]  = Field(default=None)  # None = hele site, anders wedstrijdlink
+    team_code:  str            = Field(default="")  # alleen voor link_type "site" (en legacy wedstrijdlinks)
+    match_ref:  Optional[str]  = Field(default=None)  # gezet bij link_type "match"
     created_at: datetime        = Field(default_factory=datetime.utcnow)
+    # Item 1186: wedstrijd- en spelerslinks (voor de Vrienden-van-groep) zijn
+    # zelf het toegangstoken, beperkt tot 1 wedstrijd/speelster, met een eigen
+    # vervaldatum - ze geven de teamcode niet meer prijs. Legacy wedstrijdlinks
+    # (expires_at None) blijven geldig zolang hun team_code geldig is.
+    link_type:  str            = Field(default="site")  # site | match | player
+    player_id:  Optional[str]  = Field(default=None)    # gezet bij link_type "player"
+    expires_at: Optional[datetime] = Field(default=None)
+    revoked_at: Optional[datetime] = Field(default=None)
+
+
+class YearOfLinkVisit(SQLModel, table=True):
+    """Bezoek aan een deelbare link (item 1193): 1 rij per keer openen.
+    visitor_id is een willekeurige id uit localStorage (unieke apparaten
+    tellen), bewust geen IP-adres. Bezoeken van ingelogde beheerders en van
+    apparaten met "niet meetellen" worden niet opgeslagen."""
+    __tablename__ = "yearof_link_visits"
+
+    id:         Optional[int]  = Field(default=None, primary_key=True)
+    link_kind:  str            = Field(index=True)  # site | match | player | contribute
+    link_code:  str            = Field(index=True)
+    visitor_id: str
+    visited_at: datetime        = Field(default_factory=datetime.utcnow)
 
 
 class YearOfPhoto(SQLModel, table=True):

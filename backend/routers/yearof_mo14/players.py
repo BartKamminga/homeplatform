@@ -55,6 +55,9 @@ class PlayerIn(BaseModel):
     photo_url: Optional[str] = None
     bio: Optional[str] = None
     fun_facts: Optional[str] = None  # JSON-string
+    parents: Optional[str] = None
+    buddy: Optional[str] = None
+    coaches: Optional[str] = None
 
 
 class PlayerUpdate(BaseModel):
@@ -66,6 +69,11 @@ class PlayerUpdate(BaseModel):
     photo_url: Optional[str] = None
     bio: Optional[str] = None
     fun_facts: Optional[str] = None
+    # Beheerder-only (item 1185) - staan bewust niet in de player-edit-flow
+    # van de profiellink, zodat speelsters ze niet zelf kunnen aanpassen.
+    parents: Optional[str] = None
+    buddy: Optional[str] = None
+    coaches: Optional[str] = None
 
 
 @router.get("/players")
@@ -250,7 +258,8 @@ def get_profile_link_context(code: str, session: Session = Depends(get_session))
     if not link:
         raise HTTPException(status_code=403, detail="Dit profiellinkje is ongeldig")
     player = get_or_404(session, YearOfPlayer, link.player_id, "Speler")
-    return player
+    # Beheerder-only velden (item 1185) niet via de profiellink meesturen.
+    return player.model_dump(exclude={"parents", "buddy", "coaches"})
 
 
 PROFILE_PHOTO_ROOT = Path(settings.UPLOAD_ROOT).resolve() / "yearof-mo14" / "profile-photos"

@@ -3,6 +3,7 @@ import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, creat
 import { copyToClipboard } from '../clipboard.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
+import PlayerLinkButtons from './PlayerLinkButtons.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -220,6 +221,7 @@ export default function PlayersAdmin({ initialEditId }) {
               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{p.position ?? '-'}</div>
             </div>
             <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
+            <PlayerLinkButtons playerId={p.id} />
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
               <button onClick={() => archive(p.id)} className="yof-btn-secondary">archiveer</button>

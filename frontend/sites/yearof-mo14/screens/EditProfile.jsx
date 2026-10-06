@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getProfileLinkContext, getPlayerModeration, submitPlayerEdit, updatePlayer, uploadProfilePhoto, uploadPlayerPhotoAdmin } from '../api.js'
+import PlayerCircleCard from './PlayerCircleCard.jsx'
 
 // Gedeeld met de beheerder-kant (PlayersAdmin, adminMode): zelfde
 // invulscherm als de publieke profiellink, zodat spelersprofiel-editen
@@ -17,6 +18,9 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
   const [position, setPosition] = useState('')
   const [bio, setBio] = useState('')
   const [funFacts, setFunFacts] = useState('')
+  const [parents, setParents] = useState('')
+  const [buddy, setBuddy] = useState('')
+  const [coaches, setCoaches] = useState('')
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -33,6 +37,9 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
       setPosition(p.position || '')
       setBio(p.bio || '')
       setFunFacts(p.fun_facts || '')
+      setParents(p.parents || '')
+      setBuddy(p.buddy || '')
+      setCoaches(p.coaches || '')
     }).catch(e => setError(e.message))
   }, [code, adminMode, playerId])
 
@@ -58,6 +65,9 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
           position: position || null,
           bio: bio || null,
           fun_facts: funFacts || null,
+          parents: parents || null,
+          buddy: buddy || null,
+          coaches: coaches || null,
         })
         onSaved()
         return
@@ -98,7 +108,8 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
   if (!player) return null
 
   const previewCard = (
-    <div className="yof-card" style={{ textAlign: 'center' }}>
+    <>
+      <div className="yof-card" style={{ textAlign: 'center' }}>
       {(photoPreview || player.photo_url) ? (
         <img src={photoPreview || player.photo_url} alt="" style={{
           width: 72, height: 72, margin: '0 auto 12px', borderRadius: '50%', objectFit: 'cover', display: 'block',
@@ -121,7 +132,9 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
       {funFacts && (
         <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic' }}>&ldquo;{funFacts}&rdquo;</p>
       )}
-    </div>
+      </div>
+      {adminMode && <PlayerCircleCard player={{ name, nickname, parents, buddy, coaches }} />}
+    </>
   )
 
   if (showPreview) {
@@ -218,6 +231,21 @@ export default function EditProfile({ code, adminMode = false, playerId, onSaved
       <textarea value={funFacts} onChange={e => setFunFacts(e.target.value)} rows={2}
         placeholder="Bijv. je favoriete actie, hockeyheld, of waar je naar uitkijkt in Parijs"
         style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+
+      {adminMode && (
+        <>
+          <p style={{ fontSize: 12, color: '#999', margin: '0 0 10px' }}>
+            Alleen door beheerders in te vullen - speelsters zien deze velden niet via hun profiellink.
+          </p>
+          {[['Ouders', parents, setParents, 'bv. Jan & Petra'], ['Buddy', buddy, setBuddy, ''], ['Coaches', coaches, setCoaches, '']].map(([label, value, setter, placeholder]) => (
+            <div key={label}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>{label}</label>
+              <input value={value} onChange={e => setter(e.target.value)} placeholder={placeholder}
+                style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }} />
+            </div>
+          ))}
+        </>
+      )}
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="yof-btn" onClick={() => setShowPreview(true)} style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>

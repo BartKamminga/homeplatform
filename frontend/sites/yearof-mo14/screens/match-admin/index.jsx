@@ -4,7 +4,7 @@ import {
   getReportsModeration, tagReport, untagReport, moveReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   listContributorLinks,
-  movePhotoBlock, listTeamLinks, createShortLink,
+  movePhotoBlock, createShortLink,
 } from '../../api.js'
 import { copyToClipboard } from '../../clipboard.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
@@ -34,14 +34,10 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [showPhotos, setShowPhotos] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
 
+  // Wedstrijdlink voor de Vrienden-van-WhatsApp (item 1186): eigen token,
+  // 10 dagen geldig, los van de sitelink - hergebruikt een nog geldige link.
   async function resolveEntryLinkUrl() {
-    const links = await listTeamLinks()
-    const active = links.find(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()))
-    if (!active) {
-      setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
-      return null
-    }
-    const link = await createShortLink({ team_code: active.id, match_ref: matchRef })
+    const link = await createShortLink({ match_ref: matchRef })
     return `${window.location.origin}/l/${link.id}`
   }
 

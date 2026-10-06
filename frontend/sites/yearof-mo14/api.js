@@ -1,12 +1,13 @@
 import { api } from '@core/api.js'
-import { getStoredCode } from './gate.js'
+import { getActiveCode } from './gate.js'
 
 // Publieke content-endpoints vereisen sinds fase 7 een geldige teamcode (of
 // een homeplatform-login voor de beheerder) - hangt 'm automatisch aan als
 // er een code in localStorage staat. Onschadelijk voor de beheerder: die is
-// al ingelogd, dus de backend negeert deze code gewoon.
+// al ingelogd, dus de backend negeert deze code gewoon. Op een losse
+// wedstrijdpagina is dat de wedstrijdlink-code i.p.v. de teamcode (item 1186).
 function withCode(url) {
-  const code = getStoredCode()
+  const code = getActiveCode()
   if (!code) return url
   const sep = url.includes('?') ? '&' : '?'
   return `${url}${sep}code=${encodeURIComponent(code)}`
@@ -55,7 +56,17 @@ export async function uploadPlayerPhotoAdmin(id, file) {
 export const validateTeamCode = (code) => api.get(`/api/yearof-mo14/team-links/validate?code=${encodeURIComponent(code)}`)
 export const createTeamLink   = (vangnetDays) => api.post(`/api/yearof-mo14/team-links${vangnetDays ? `?vangnet_days=${vangnetDays}` : ''}`)
 export const listTeamLinks    = ()      => api.get('/api/yearof-mo14/team-links')
-export const createShortLink  = (body)  => api.post('/api/yearof-mo14/short-links', body)
+
+// Korte deel-links: sitelink (team_code), wedstrijdlink (match_ref) of
+// spelerslink (player_id) - item 1186
+export const createShortLink    = (body)  => api.post('/api/yearof-mo14/short-links', body)
+export const revokeShortLink    = (code)  => api.post(`/api/yearof-mo14/short-links/${encodeURIComponent(code)}/revoke`)
+export const validateShortLink  = (code)  => api.get(`/api/yearof-mo14/short-links/${encodeURIComponent(code)}/validate`)
+export const getPlayerLinkView  = (code)  => api.get(`/api/yearof-mo14/player-links/${encodeURIComponent(code)}`)
+
+// Bezoeken per link + overzicht van alle linkjes (item 1193)
+export const postVisit       = (body) => api.post('/api/yearof-mo14/visits', body)
+export const getLinkOverview = ()     => api.get('/api/yearof-mo14/link-overview')
 
 // Oefenwedstrijden & bijzondere dagen
 export const getEntries    = (kind)      => api.get(withCode(`/api/yearof-mo14/entries${kind ? `?kind=${kind}` : ''}`))

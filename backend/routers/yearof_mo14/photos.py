@@ -36,6 +36,9 @@ from ._shared import (
     VIDEO_ALLOWED_TYPES,
     VIDEO_MAX_SIZE_MB,
     _valid_team_link,
+    check_match_access,
+    get_optional_user,
+    require_match_access,
     require_team_access,
 )
 
@@ -193,11 +196,14 @@ def list_photos(
     player_id: Optional[str] = None,
     highlights_only: bool = False,
     session: Session = Depends(get_session),
-    _: None = Depends(require_team_access),
+    access: str = Depends(require_match_access),
 ):
     """Publiek — toont alleen gepubliceerde fotos (concepten zijn beheerder-only,
     zie /photos/moderation). highlights_only (de losse wedstrijdlink, buiten de
-    volledige app om) laat alleen de gecureerde match_highlight-subset zien."""
+    volledige app om) laat alleen de gecureerde match_highlight-subset zien.
+    Via een wedstrijdlink (access "match") is dat altijd zo (item 1186)."""
+    if access == "match":
+        highlights_only = True
     q = select(YearOfPhoto).where(YearOfPhoto.status == "published")
     if match_ref:
         q = q.where(YearOfPhoto.match_ref == match_ref)
@@ -266,11 +272,18 @@ def delete_photo(
 
 
 @router.post("/photos/{photo_id}/like")
-def like_photo(photo_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+def like_photo(
+    photo_id: str,
+    code: Optional[str] = None,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """Publiek - alleen positieve reactie (hartje), geen aparte like-rijen per
     bezoeker. Dedupe (niet meerdere keren liken) gebeurt client-side via
-    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site."""
+    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site.
+    Ook via de wedstrijdlink van de wedstrijd waar deze foto bij hoort."""
     photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    check_match_access(session, current_user, code, photo.match_ref)
     photo.like_count += 1
     session.add(photo)
     session.commit()
@@ -278,8 +291,14 @@ def like_photo(photo_id: str, session: Session = Depends(get_session), _: None =
 
 
 @router.delete("/photos/{photo_id}/like")
-def unlike_photo(photo_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+def unlike_photo(
+    photo_id: str,
+    code: Optional[str] = None,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    check_match_access(session, current_user, code, photo.match_ref)
     photo.like_count = max(0, photo.like_count - 1)
     session.add(photo)
     session.commit()

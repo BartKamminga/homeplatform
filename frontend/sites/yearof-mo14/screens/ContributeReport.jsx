@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getContributorContext, submitReport, uploadPhoto } from '../api.js'
 import { compressImage } from '../compressImage.js'
+import { trackVisit } from '../tracking.js'
 
 const TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', interview: 'Interview', nieuws: 'Algemeen', foto: "Foto's" }
 const TYPE_HEADING = {
@@ -34,6 +35,7 @@ export default function ContributeReport({ code, adminMode = false, onBack, onSa
   useEffect(() => {
     getContributorContext(code).then(ctx => {
       setContext(ctx)
+      if (!adminMode) trackVisit('contribute', code)
       const existing = ctx.existing_report
       if (existing) {
         setTitle(existing.title || '')
