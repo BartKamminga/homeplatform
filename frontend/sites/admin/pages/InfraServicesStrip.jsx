@@ -16,7 +16,7 @@ export default function InfraServicesStrip() {
     setConfirm(null); setStatus(null);
     try {
       await api.post('/api/admin/infra/services/runner/restart', {});
-      setStatus({ type: 'ok', msg: 'Restart ingepland — runner herstart binnen ~1 min.' });
+      setStatus({ type: 'ok', msg: 'Restart scheduled — the runner restarts within ~1 min.' });
       load();
     } catch (e) {
       setStatus({ type: 'err', msg: e.message });
@@ -27,7 +27,7 @@ export default function InfraServicesStrip() {
     setStatus(null);
     try {
       const r = await api.post('/api/admin/infra/services/cron/toggle', {});
-      setStatus({ type: 'ok', msg: r.enabled ? 'Backup-cron ingeschakeld.' : 'Backup-cron uitgeschakeld.' });
+      setStatus({ type: 'ok', msg: r.enabled ? 'Backup cron enabled.' : 'Backup cron disabled.' });
       load();
     } catch (e) {
       setStatus({ type: 'err', msg: e.message });
@@ -38,18 +38,9 @@ export default function InfraServicesStrip() {
 
   const runner = data.runner;
   const cron   = data.backup_cron;
-  const sync   = data.data_sync;
 
   const runnerColor = runner.status === 'online' ? '#22c55e' : runner.status === 'offline' ? '#dc2626' : '#94a3b8';
   const checkedAgo  = runner.checked_at ? Math.round((Date.now() - new Date(runner.checked_at)) / 1000) : null;
-
-  const syncAgo = sync?.last_sync_at ? Math.round((Date.now() - new Date(sync.last_sync_at)) / 1000) : null;
-  const syncColor = syncAgo === null ? '#94a3b8' : syncAgo < 20 * 60 ? '#22c55e' : syncAgo < 60 * 60 ? '#ea580c' : '#dc2626';
-  function fmtAgo(s) {
-    if (s < 60) return `${s}s geleden`;
-    if (s < 3600) return `${Math.round(s / 60)}m geleden`;
-    return `${Math.round(s / 3600)}u geleden`;
-  }
 
   return (
     <>
@@ -67,22 +58,22 @@ export default function InfraServicesStrip() {
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4 }}>GitHub Actions Runner</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 700, background: runnerColor + '22', color: runnerColor, border: `1px solid ${runnerColor}44` }}>{runner.status}</span>
-                  {runner.restart_pending && <span style={{ fontSize: 10, color: '#ea580c' }}>⏳ restart wacht…</span>}
+                  {runner.restart_pending && <span style={{ fontSize: 10, color: '#ea580c' }}>⏳ restart pending…</span>}
                 </div>
                 {checkedAgo !== null && (
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                    Gecontroleerd: {checkedAgo < 60 ? `${checkedAgo}s geleden` : `${Math.round(checkedAgo / 60)}m geleden`}
+                    Checked: {checkedAgo < 60 ? `${checkedAgo}s ago` : `${Math.round(checkedAgo / 60)}m ago`}
                     {runner.service && runner.service !== 'unknown' && <span style={{ fontFamily: 'monospace', marginLeft: 6, fontSize: 10, color: 'var(--color-text-muted)' }}>{runner.service}</span>}
                   </div>
                 )}
-                {checkedAgo === null && <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>services-watcher.sh niet actief</div>}
+                {checkedAgo === null && <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>services-watcher.sh not running</div>}
               </div>
               <button
                 onClick={() => setConfirm('runner')}
                 disabled={runner.restart_pending}
                 style={{ ...btn, opacity: runner.restart_pending ? 0.4 : 1 }}
               >
-                Herstart
+                Restart
               </button>
             </div>
           </div>
@@ -91,44 +82,25 @@ export default function InfraServicesStrip() {
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4 }}>Backup cron (03:00 dagelijks)</div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4 }}>Backup cron (daily 03:00)</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 700,
                     background: cron.enabled ? '#22c55e22' : '#dc262622',
                     color: cron.enabled ? '#22c55e' : '#dc2626',
                     border: `1px solid ${cron.enabled ? '#22c55e' : '#dc2626'}44` }}>
-                    {cron.enabled ? 'ingeschakeld' : 'uitgeschakeld'}
+                    {cron.enabled ? 'enabled' : 'disabled'}
                   </span>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  Laatste backup: {cron.last_backup ?? '—'}
+                  Last backup: {cron.last_backup ?? '—'}
                 </div>
               </div>
               <button onClick={doToggleCron} style={btn}>
-                {cron.enabled ? 'Uitzetten' : 'Inschakelen'}
+                {cron.enabled ? 'Disable' : 'Enable'}
               </button>
             </div>
           </div>
 
-          {/* Data-sync card — alleen zichtbaar zolang de g4->g5 schaduw-sync actief is */}
-          {sync && (
-            <div style={card}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4 }}>
-                Data-sync → {sync.target}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 700, background: syncColor + '22', color: syncColor, border: `1px solid ${syncColor}44` }}>
-                  {syncAgo !== null ? fmtAgo(syncAgo) : 'onbekend'}
-                </span>
-                {sync.staging && <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>staging (nog niet actief)</span>}
-              </div>
-              {sync.db_bytes != null && (
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  DB-snapshot: {(sync.db_bytes / 1024 / 1024).toFixed(1)} MB
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {status && (
@@ -143,13 +115,13 @@ export default function InfraServicesStrip() {
       {confirm === 'runner' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ background: 'var(--color-surface)', borderRadius: 16, padding: '28px 24px', maxWidth: 380, width: '100%' }}>
-            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Runner herstarten?</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Restart runner?</h2>
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
-              De services-watcher.sh herstelt de runner via <code style={{ fontFamily: 'monospace' }}>systemctl restart</code>. Lopende jobs worden afgebroken.
+              services-watcher.sh restarts the runner via <code style={{ fontFamily: 'monospace' }}>systemctl restart</code>. Running jobs are aborted.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={doRestartRunner} style={{ ...btn, flex: 1, background: '#dc2626', color: '#fff', border: 'none' }}>Ja, herstart</button>
-              <button onClick={() => setConfirm(null)} style={{ ...btn, flex: 1 }}>Annuleren</button>
+              <button onClick={doRestartRunner} style={{ ...btn, flex: 1, background: '#dc2626', color: '#fff', border: 'none' }}>Yes, restart</button>
+              <button onClick={() => setConfirm(null)} style={{ ...btn, flex: 1 }}>Cancel</button>
             </div>
           </div>
         </div>

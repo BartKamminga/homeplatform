@@ -5,7 +5,7 @@ export default function Workflows() {
     <AdminLayout>
       <h1 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>Workflows</h1>
       <p style={{ color: 'var(--color-text-muted)', marginBottom: '28px', fontSize: 'var(--font-size-sm)' }}>
-        Stap-voor-stap uitleg van de vaste werkprocessen binnen het platform.
+        Step-by-step explanation of the standard processes within the platform.
       </p>
 
       {/* ── Roadmap workflow ── */}
@@ -42,14 +42,14 @@ export default function Workflows() {
           </div>
           <div style={{ display: 'grid', gap: '8px' }}>
             {[
-              { status: 'idea',        color: 'var(--color-text-muted)', desc: 'Nieuwe wens of taak — staat in de backlog, nog niet opgepakt.' },
-              { status: 'analyzed',    color: '#8b5cf6',                 desc: 'Impact, risk en scope zijn ingevuld — klaar voor verdere prioritering.' },
-              { status: 'pick_up',     color: '#0ea5e9',                 desc: 'Expliciet geprioriteerd — wordt als eerste opgepakt in de volgende sessie.' },
-              { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Wordt actief aan gewerkt — code in ontwikkeling.' },
-              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is klaar — gepusht naar develop, nog niet getest op acc.' },
-              { status: 'on_acc',      color: '#f97316',                 desc: 'Live op de acceptatie-omgeving (:8081) — getest, wacht op deploy naar prod.' },
-              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Merge naar main bezig — GitHub Actions pipeline deployt naar prod.' },
-              { status: 'done',        color: 'var(--color-success)',    desc: 'Live op prod (webheaven.nl) — changelog-entry automatisch aangemaakt.' },
+              { status: 'idea',        color: 'var(--color-text-muted)', desc: 'New wish or task — in the backlog, not picked up yet.' },
+              { status: 'analyzed',    color: '#8b5cf6',                 desc: 'Impact, risk and scope are filled in — ready for prioritisation.' },
+              { status: 'pick_up',     color: '#0ea5e9',                 desc: 'Explicitly prioritised — picked up first in the next session.' },
+              { status: 'in_progress', color: 'var(--color-primary)',    desc: 'Actively being worked on — code in development.' },
+              { status: 'ready',       color: 'var(--color-warning)',    desc: 'Code is ready — pushed to develop, not yet tested on acc.' },
+              { status: 'on_acc',      color: '#f97316',                 desc: 'Live on the acceptance environment (:8081) — tested, waiting for the prod deploy.' },
+              { status: 'deploying',   color: 'var(--color-danger)',     desc: 'Merge to main in progress — the GitHub Actions pipeline deploys to prod.' },
+              { status: 'done',        color: 'var(--color-success)',    desc: 'Live on prod (webheaven.nl) — changelog entry created automatically.' },
             ].map(({ status, color, desc }) => (
               <div key={status} style={{ display: 'flex', alignItems: 'baseline', gap: '12px', fontSize: '13px' }}>
                 <span style={{
@@ -68,45 +68,46 @@ export default function Workflows() {
       {/* ── Deploy workflow ── */}
       <Section title="Deploy workflow">
         <div style={{ display: 'grid', gap: '12px' }}>
-          <WorkflowStep step={1} title="Wijzigingen maken op develop" color="var(--color-primary)">
-            Werk op de <code>develop</code> branch. Pas code aan in <code>backend/</code> of <code>frontend/sites/</code>.
-            Test lokaal via de dev-server (<code>vite dev</code>) of de lokale backend (<code>F5</code>).
+          <WorkflowStep step={1} title="Make changes on develop" color="var(--color-primary)">
+            Work on the <code>develop</code> branch. Change code in <code>backend/</code> or <code>frontend/sites/</code>.
+            Test locally via the dev server (<code>vite dev</code>) or the local backend (<code>F5</code>).
           </WorkflowStep>
-          <WorkflowStep step={2} title="Migratie aanmaken (alleen bij DB-wijziging)" color="var(--color-primary)">
-            Voeg een nieuw bestand toe in <code>backend/alembic/versions/</code> met de juiste
-            <code> down_revision</code>. De G4 draait de migratie automatisch via de pipeline.
+          <WorkflowStep step={2} title="Create a migration (DB changes only)" color="var(--color-primary)">
+            Add a new file in <code>backend/alembic/versions/</code> with the correct
+            <code> down_revision</code>. The pipeline runs it automatically, right after a database snapshot.
           </WorkflowStep>
-          <WorkflowStep step={3} title="Push naar develop → test op acc" color="#f59e0b">
-            <code>git push origin develop</code> — GitHub Actions bouwt en deployt automatisch naar de
-            acceptatie-omgeving op <strong>192.168.30.232:8081</strong>.
-            Test hier de wijzigingen voor je naar productie gaat.
+          <WorkflowStep step={3} title="Push to develop → test on acc" color="#f59e0b">
+            <code>git push origin develop</code> — GitHub Actions builds and deploys automatically to the
+            acceptance environment on <strong>G4 (:8081)</strong>.
+            Test the changes here before going to production.
           </WorkflowStep>
-          <WorkflowStep step={4} title="Merge naar main → live op prod" color="#22c55e">
-            <code>git merge develop &amp;&amp; git push origin main</code> — pipeline deployt automatisch naar productie.
-            Na ±60 seconden is alles live op <strong>webheaven.nl</strong>.
+          <WorkflowStep step={4} title="Merge to main → live on prod" color="#22c55e">
+            <code>git merge develop &amp;&amp; git push origin main</code> — G4 builds the images and pushes them to GHCR,
+            prod (g5) pulls them: database snapshot → backend → migrations → frontend.
+            A few minutes later everything is live on <strong>webheaven.nl</strong>.
           </WorkflowStep>
         </div>
       </Section>
 
       {/* ── Gebruikers workflow ── */}
-      <Section title="Gebruikers workflow">
+      <Section title="User workflow">
         <div style={{ display: 'grid', gap: '12px' }}>
-          <WorkflowStep step={1} title="Uitnodiging aanmaken" color="var(--color-primary)">
-            Ga naar <a href="/admin/users" style={{ color: 'var(--color-primary)' }}>Admin → Gebruikers</a> →
-            klik <strong>✉ Uitnodigen</strong> → kies een groep → genereer link.
-            De link is 7 dagen geldig en eenmalig bruikbaar.
+          <WorkflowStep step={1} title="Create an invite" color="var(--color-primary)">
+            Go to <a href="/admin/users" style={{ color: 'var(--color-primary)' }}>Admin → Users</a> →
+            click <strong>✉ Invite</strong> → choose a group → generate a link.
+            The link is valid for 7 days and can be used once.
           </WorkflowStep>
-          <WorkflowStep step={2} title="Link versturen" color="var(--color-primary)">
-            Kopieer de link (<code>/account/invite/…</code>) en stuur hem via WhatsApp, e-mail of een ander kanaal.
+          <WorkflowStep step={2} title="Send the link" color="var(--color-primary)">
+            Copy the link (<code>/account/invite/…</code>) and send it via WhatsApp, e-mail or another channel.
           </WorkflowStep>
-          <WorkflowStep step={3} title="Registratie" color="#22c55e">
-            Ontvanger opent de link, kiest gebruikersnaam + wachtwoord en maakt een account aan.
-            Na registratie is de gebruiker direct ingelogd en lid van de gekozen groep.
+          <WorkflowStep step={3} title="Registration" color="#22c55e">
+            The recipient opens the link, chooses a username + password and creates an account.
+            After registering, the user is logged in straight away and is a member of the chosen group.
           </WorkflowStep>
-          <WorkflowStep step={4} title="Beheer" color="#22c55e">
-            Groepen en toegang beheer je via <a href="/admin/users" style={{ color: 'var(--color-primary)' }}>Admin → Gebruikers</a>.
-            De gebruiker kan zelf van groep wisselen via{' '}
-            <a href="/account/groups" style={{ color: 'var(--color-primary)' }}>Account → Groepen</a>.
+          <WorkflowStep step={4} title="Management" color="#22c55e">
+            Manage groups and access via <a href="/admin/users" style={{ color: 'var(--color-primary)' }}>Admin → Users</a>.
+            Users can switch groups themselves via{' '}
+            <a href="/account/groups" style={{ color: 'var(--color-primary)' }}>Account → Groups</a>.
           </WorkflowStep>
         </div>
       </Section>

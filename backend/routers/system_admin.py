@@ -254,7 +254,13 @@ def _build_links() -> dict:
         except Exception:
             pass
     external = settings.EXTERNAL_URL.rstrip("/") if settings.EXTERNAL_URL else None
+    # Acc en de beheertools (bugsink/portainer/cockpit) draaien op de acc-machine (G4 sinds de cutover)
+    mgmt = settings.ACC_LAN_IP
     return {
+        "acc": f"http://{mgmt}:8081",
+        "bugsink": f"http://{mgmt}:8090",
+        "portainer": f"http://{mgmt}:9000",
+        "cockpit": f"http://{mgmt}:9091",
         "glitchtip": glitchtip,
         "nas": settings.NAS_URL or None,
         "api_docs": "/api/docs" if settings.is_dev else None,
