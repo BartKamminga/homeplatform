@@ -14,8 +14,10 @@ de rotatie van de sitelink, en kunnen ingetrokken worden.
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -23,9 +25,11 @@ from core.auth import get_current_user
 from core.crud import get_or_404
 from core.database import get_session
 from models.core import User
-from models.yearof import YearOfPlayer, YearOfShortLink
+from models.yearof import YearOfPhoto, YearOfPlayer, YearOfShortLink, YearOfTeamLink
 
 from ._shared import _valid_short_link, new_link_code
+from .entries_timeline import _competition_timeline_items, _custom_timeline_items
+from .og_preview import DEFAULT_DESCRIPTION, DEFAULT_TITLE, default_image_png, preview_html, public_base_url
 
 router = APIRouter(tags=["yearof-mo14"])
 
@@ -142,16 +146,86 @@ def get_player_link_view(code: str, session: Session = Depends(get_session)):
 shortlink_router = APIRouter(tags=["yearof-mo14-shortlinks"])
 
 
-@shortlink_router.get("/l/{code}")
-def resolve_short_link(code: str, session: Session = Depends(get_session)):
-    """Ook verlopen wedstrijd-/spelerslinks sturen door naar hun pagina, zodat
-    die een duidelijke "link verlopen"-melding kan tonen i.p.v. de
-    teamcode-invoer (vrienden hebben geen teamcode)."""
+def _match_description(item: dict) -> str:
+    """Bv. "26-09-2026 · uitslag 4-1 · foto's en verslag van Victoria MO14-1"."""
+    parts = []
+    if item.get("date"):
+        d = str(item["date"])[:10].split("-")
+        parts.append("-".join(reversed(d)) if len(d) == 3 else str(item["date"])[:10])
+    home = item.get("score_home", item.get("score_us"))
+    away = item.get("score_away", item.get("score_them"))
+    if home is not None and away is not None:
+        parts.append(f"uitslag {home}-{away}")
+    parts.append("foto's en verslag van Victoria MO14-1")
+    return " · ".join(parts)
+
+
+def _valid_until(link: YearOfShortLink, session: Session) -> str:
+    """" · Link geldig t/m 16-10-2026"" voor in de preview. Sitelinks en legacy
+    wedstrijdlinks volgen de vervaldatum van hun teamcode; verlopen = melding."""
+    expires_at = link.expires_at
+    team = session.get(YearOfTeamLink, link.team_code) if link.team_code and link.expires_at is None else None
+    if team:
+        if team.revoked_at is not None:
+            return " · Deze link is verlopen"
+        expires_at = team.expires_at
+    if link.revoked_at is not None or (expires_at and expires_at < datetime.utcnow()):
+        return " · Deze link is verlopen"
+    return f" · Link geldig t/m {expires_at:%d-%m-%Y}" if expires_at else ""
+
+
+@shortlink_router.get("/l/{code}", response_class=HTMLResponse)
+def resolve_short_link(code: str, request: Request, session: Session = Depends(get_session)):
+    """Geeft een kleine HTML-pagina met link-preview (og:-tags, zie
+    og_preview.py) die direct doorstuurt - een kale redirect toont in WhatsApp
+    alleen "webheaven.nl". Ook verlopen wedstrijd-/spelerslinks sturen door
+    naar hun pagina, zodat die een duidelijke "link verlopen"-melding kan tonen
+    i.p.v. de teamcode-invoer (vrienden hebben geen teamcode)."""
     link = session.get(YearOfShortLink, code.strip().lower())
+    base = public_base_url(request)
+    preview = {"title": DEFAULT_TITLE, "description": DEFAULT_DESCRIPTION, "image_path": None}
+
     if not link:
-        return RedirectResponse("/yearof-mo14/")
-    if link.link_type == "player":
-        return RedirectResponse(f"/yearof-mo14/?speler={link.id}")
-    if link.link_type == "match":
-        return RedirectResponse(f"/yearof-mo14/?entry={link.match_ref}&link={link.id}")
-    return RedirectResponse(f"/yearof-mo14/?code={link.team_code}")
+        target = "/yearof-mo14/"
+    elif link.link_type == "player":
+        target = f"/yearof-mo14/?speler={link.id}"
+        player = session.get(YearOfPlayer, link.player_id) if _valid_short_link(link.id, session) else None
+        if player and player.archived_at is None:
+            name = player.nickname or player.name
+            preview = {
+                "title": f"{name} · MO14 à Paris",
+                "description": f"Maak kennis met {name} van Victoria MO14-1 - samen op weg naar Parijs!{_valid_until(link, session)}",
+                "image_path": player.photo_url,
+            }
+    elif link.link_type == "match":
+        target = f"/yearof-mo14/?entry={quote(link.match_ref or '')}&link={link.id}"
+        if _valid_short_link(link.id, session):
+            item = next((i for i in _competition_timeline_items(session) + _custom_timeline_items(session)
+                         if i["match_ref"] == link.match_ref), None) or {}
+            title = item.get("title")
+            photo = session.exec(
+                select(YearOfPhoto)
+                .where(YearOfPhoto.match_ref == link.match_ref, YearOfPhoto.status == "published",
+                       YearOfPhoto.match_highlight == True, YearOfPhoto.media_type == "photo")  # noqa: E712
+                .order_by(YearOfPhoto.created_at.desc())
+            ).first()
+            preview = {
+                "title": f"{title or 'Wedstrijd'} · MO14 à Paris",
+                "description": _match_description(item) + _valid_until(link, session),
+                "image_path": f"/api/yearof-mo14/photos/{photo.id}/medium.jpg" if photo else None,
+            }
+    else:
+        target = f"/yearof-mo14/?code={link.team_code}"
+        preview["description"] = DEFAULT_DESCRIPTION + _valid_until(link, session)
+
+    if link and link.link_type in ("player", "match") and preview["title"] == DEFAULT_TITLE:
+        preview["description"] = f"{DEFAULT_DESCRIPTION} · Deze link is verlopen"
+
+    return HTMLResponse(preview_html(base=base, link_path=f"/l/{code}", target=target, **preview))
+
+
+@router.get("/og-default.png")
+def og_default_image():
+    """Publiek - standaardplaatje voor link-previews (zie og_preview.py)."""
+    return Response(content=default_image_png(), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})

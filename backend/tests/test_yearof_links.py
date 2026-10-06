@@ -37,9 +37,9 @@ def test_match_link_is_scoped_to_one_match(client, admin_token):
     link = _short_link(client, admin_token, match_ref="m1")
     assert link["link_type"] == "match" and link["expires_at"]
 
-    res = client.get(f"/l/{link['id']}", follow_redirects=False)
-    assert res.headers["location"] == f"/yearof-mo14/?entry=m1&link={link['id']}"
-    assert team not in res.headers["location"]
+    res = client.get(f"/l/{link['id']}")
+    assert f"/yearof-mo14/?entry=m1&amp;link={link['id']}" in res.text
+    assert team not in res.text
 
     assert client.get(f"{API}/photos?match_ref=m1&code={link['id']}").status_code == 200
     assert client.get(f"{API}/reports?match_ref=m1&code={link['id']}").status_code == 200
@@ -56,8 +56,8 @@ def test_player_link_only_exposes_whitelisted_fields(client, admin_token, sessio
     player = _player(session, parents="Jan & Petra", buddy="Sanne", coaches="Kim")
     link = _short_link(client, admin_token, player_id=player.id)
 
-    res = client.get(f"/l/{link['id']}", follow_redirects=False)
-    assert res.headers["location"] == f"/yearof-mo14/?speler={link['id']}"
+    res = client.get(f"/l/{link['id']}")
+    assert f"/yearof-mo14/?speler={link['id']}" in res.text
 
     data = client.get(f"{API}/player-links/{link['id']}").json()
     assert data["name"] == "Fleur" and data["bio"] == "Hoi"
@@ -106,8 +106,8 @@ def test_legacy_match_link_follows_team_code(client, admin_token, session):
     session.add(YearOfShortLink(id="legacy", team_code=team, match_ref="m1", link_type="match"))
     session.commit()
 
-    res = client.get("/l/legacy", follow_redirects=False)
-    assert team not in res.headers["location"]
+    res = client.get("/l/legacy")
+    assert team not in res.text
     assert client.get(f"{API}/photos?match_ref=m1&code=legacy").status_code == 200
 
     _team_code(client, admin_token)  # nieuwe sitelink trekt de oude teamcode in
@@ -164,3 +164,27 @@ def test_profile_link_visits_counted(client, admin_token, session):
 def test_visit_for_unknown_link_rejected(client):
     res = client.post(f"{API}/visits", json={"kind": "match", "code": "nope", "visitor_id": "a"})
     assert res.status_code == 400
+
+
+def test_short_link_preview_tags(client, admin_token, session):
+    player = _player(session, photo_url="/api/yearof-mo14/profile-photos/x.jpg")
+    link = _short_link(client, admin_token, player_id=player.id)
+
+    html = client.get(f"/l/{link['id']}").text
+    assert '<meta property="og:title" content="Fleurtje · MO14 à Paris">' in html
+    assert "/api/yearof-mo14/profile-photos/x.jpg" in html
+    assert "Link geldig t/m" in html
+    assert "og:image" in html and "http" in html.split('og:image" content="')[1][:8]
+
+    # Verlopen link: geen naam of foto in de preview
+    row = session.get(YearOfShortLink, link["id"])
+    row.expires_at = datetime.utcnow() - timedelta(minutes=1)
+    session.add(row)
+    session.commit()
+    html = client.get(f"/l/{link['id']}").text
+    assert "Fleurtje" not in html and "profile-photos" not in html
+    assert "Deze link is verlopen" in html
+    assert "/api/yearof-mo14/og-default.png" in html
+
+    res = client.get(f"{API}/og-default.png")
+    assert res.status_code == 200 and res.headers["content-type"] == "image/png"
