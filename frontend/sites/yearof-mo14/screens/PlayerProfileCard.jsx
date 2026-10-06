@@ -1,6 +1,8 @@
 // Basiskaart van een speelster (foto, naam, rugnummer, positie, bio, fun facts).
 // Gedeeld door de spelerspagina op de site en de spelerslink voor vrienden.
 // De profielfoto staat groot bovenaan, met het rugnummer (of de rol) erover.
+import FormattedText from './FormattedText.jsx'
+
 export default function PlayerProfileCard({ player }) {
   const badge = player.role_title || player.shirt_number
   return (
@@ -16,9 +18,15 @@ export default function PlayerProfileCard({ player }) {
       <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
         {player.role_title || player.position || '-'} {!player.role_title && player.shirt_number ? `· #${player.shirt_number}` : ''}
       </p>
-      {player.bio && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{player.bio}</p>}
+      {player.bio && (
+        <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>
+          <FormattedText text={player.bio} />
+        </p>
+      )}
       {player.fun_facts && (
-        <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic', overflowWrap: 'anywhere' }}>&ldquo;{player.fun_facts}&rdquo;</p>
+        <p style={{ marginTop: 10, fontSize: 13, color: '#666', fontStyle: 'italic', overflowWrap: 'anywhere' }}>
+          &ldquo;<FormattedText text={player.fun_facts} />&rdquo;
+        </p>
       )}
     </div>
   )

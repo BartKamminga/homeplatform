@@ -3,6 +3,7 @@ import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, getPl
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
 import PlayerLinksPanel from './PlayerLinksPanel.jsx'
+import FormattedText from './FormattedText.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -98,8 +99,8 @@ function PlayerEditsModeration({ players }) {
           <ul style={{ margin: '6px 0', paddingLeft: 18 }}>
             {e.nickname && <li>Bijnaam: {e.nickname}</li>}
             {e.position && <li>Positie: {e.position}</li>}
-            {e.bio && <li>Over mij: {e.bio}</li>}
-            {e.fun_facts && <li>Leuk weetje: {e.fun_facts}</li>}
+            {e.bio && <li>Over mij: <FormattedText text={e.bio} /></li>}
+            {e.fun_facts && <li>Leuk weetje: <FormattedText text={e.fun_facts} /></li>}
           </ul>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => approve(e.id)} className="yof-btn-secondary">Goedkeuren</button>

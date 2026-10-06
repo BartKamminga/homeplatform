@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings } from '../api.js'
 import Thermometer from './Thermometer.jsx'
 import { PouleCard } from './PouleCard.jsx'
+import { stripFormatting } from './FormattedText.jsx'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -114,7 +115,7 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
                 className="yof-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
                 <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>&ldquo;{r.title}&rdquo;</h3>
                 <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
-                  {r.body.length > 90 ? r.body.slice(0, 90) + '...' : r.body}
+                  {stripFormatting(r.body).length > 90 ? stripFormatting(r.body).slice(0, 90) + '...' : stripFormatting(r.body)}
                 </p>
               </a>
             ))}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getSponsors } from '../api.js'
+import FormattedText from './FormattedText.jsx'
 
 // Sponsors van de actie - publiek, geen teamcode nodig. Gedeeld door de
 // actiepagina en de spelerslink voor vrienden (item 1186).
@@ -27,7 +28,7 @@ export default function SponsorList() {
               )}
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name}</div>
-                <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>{s.description}</div>
+                <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}><FormattedText text={s.description} /></div>
               </div>
             </div>
           ) : (
