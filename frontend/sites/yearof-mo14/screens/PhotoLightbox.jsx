@@ -51,7 +51,8 @@ export function PhotoThumb({ photo }) {
   )
 }
 
-export function PhotoLightbox({ photos, index, onClose, onNavigate }) {
+// showLikes=false op de spelerslink: vrienden mogen niet liken (geen teamcode).
+export function PhotoLightbox({ photos, index, onClose, onNavigate, showLikes = true }) {
   const open = index != null && photos[index]
 
   useEffect(() => {
@@ -112,7 +113,9 @@ export function PhotoLightbox({ photos, index, onClose, onNavigate }) {
             {new Date(photo.published_at || photo.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
           </span>
         )}
-        <LikeButton key={photo.id} kind="photo" id={photo.id} initialCount={photo.like_count} likeFn={likePhoto} unlikeFn={unlikePhoto} dark />
+        {showLikes && (
+          <LikeButton key={photo.id} kind="photo" id={photo.id} initialCount={photo.like_count} likeFn={likePhoto} unlikeFn={unlikePhoto} dark />
+        )}
       </div>
     </div>
   )

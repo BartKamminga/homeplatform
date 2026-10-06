@@ -110,6 +110,14 @@ export const getPhotos           = (matchRef, highlightsOnly = false) => {
 }
 export const getPhotosByReport   = (reportId) => api.get(withCode(`/api/yearof-mo14/photos?report_id=${encodeURIComponent(reportId)}`))
 export const getPlayerPhotos     = (playerId) => api.get(withCode(`/api/yearof-mo14/photos?player_id=${encodeURIComponent(playerId)}`))
+// Favoriete foto's per speelster (item 1199) - max 6, alleen beheerder kiest
+export const getPlayerFavorites  = (playerId) => api.get(withCode(`/api/yearof-mo14/players/${encodeURIComponent(playerId)}/favorites`))
+export const getPlayerPhotosForFavorites = (playerId) => api.get(`/api/yearof-mo14/players/${encodeURIComponent(playerId)}/photos/moderation`)
+// Speelster van de week (item 1200) - max 1; playerId null = niemand
+export const getPlayerSpotlight  = ()         => api.get(withCode('/api/yearof-mo14/player-spotlight'))
+export const setPlayerSpotlight  = (playerId) => api.put('/api/yearof-mo14/player-spotlight', { player_id: playerId })
+export const setPlayerFavorite   = (playerId, photoId, favorite) =>
+  api.put(`/api/yearof-mo14/players/${encodeURIComponent(playerId)}/favorites/${encodeURIComponent(photoId)}`, { favorite })
 export const getPhotosModeration = ()         => api.get('/api/yearof-mo14/photos/moderation')
 export const updatePhoto         = (id, body) => api.patch(`/api/yearof-mo14/photos/${id}`, body)
 export const deletePhoto         = (id)       => api.delete(`/api/yearof-mo14/photos/${id}`)

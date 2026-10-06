@@ -6,6 +6,7 @@ import Gate from './Gate.jsx'
 import PublicEntry from './PublicEntry.jsx'
 import PlayerProfileCard from './PlayerProfileCard.jsx'
 import PlayerCircleCard from './PlayerCircleCard.jsx'
+import { FavoritesBlock } from './PlayerFavorites.jsx'
 import Thermometer from './Thermometer.jsx'
 import SponsorList from './SponsorList.jsx'
 
@@ -125,6 +126,7 @@ export function StandalonePlayerView({ code }) {
     <Shell>
       <PlayerProfileCard player={player} />
       <PlayerCircleCard player={player} />
+      <FavoritesBlock photos={player.favorite_photos} title={`Foto's van ${player.nickname || player.name}`} showLikes={false} />
       <ActionBlock />
       <SponsorList />
     </Shell>

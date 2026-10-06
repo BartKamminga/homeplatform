@@ -77,6 +77,18 @@ class YearOfShortLink(SQLModel, table=True):
     revoked_at: Optional[datetime] = Field(default=None)
 
 
+class YearOfPlayerSpotlight(SQLModel, table=True):
+    """Speelster van de week (item 1200): max 1 tegelijk in de kijker, bovenaan
+    de "In de kijker"-sectie op de homepagina. Een nieuwe kiezen beeindigt de
+    vorige (ended_at). De kaart toont haar bio (geen eigen tekst)."""
+    __tablename__ = "yearof_player_spotlights"
+
+    id:         str            = Field(default_factory=new_uuid, primary_key=True)
+    player_id:  str            = Field(foreign_key="yearof_players.id", index=True)
+    started_at: datetime        = Field(default_factory=datetime.utcnow)
+    ended_at:   Optional[datetime] = Field(default=None)  # None = nu in de kijker
+
+
 class YearOfLinkVisit(SQLModel, table=True):
     """Bezoek aan een deelbare link (item 1193): 1 rij per keer openen.
     visitor_id is een willekeurige id uit localStorage (unieke apparaten
@@ -128,6 +140,10 @@ class YearOfPhotoPlayerTag(SQLModel, table=True):
     id:        str = Field(default_factory=new_uuid, primary_key=True)
     photo_id:  str = Field(foreign_key="yearof_photos.id", index=True)
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
+    # Item 1199: favoriet van DEZE speelster (op de tag, niet op de foto - een
+    # teamfoto kan favoriet zijn voor 1 speelster). Max 6, alleen fotos,
+    # alleen door de beheerder; getoond op de spelerslink en spelerspagina.
+    favorite:  bool = Field(default=False)
 
 
 class YearOfProfileLink(SQLModel, table=True):

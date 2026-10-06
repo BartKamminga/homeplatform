@@ -3,7 +3,9 @@ en vervaldatum, en bezoektelling per link."""
 
 from datetime import datetime, timedelta
 
-from models.yearof import YearOfPlayer, YearOfShortLink
+from sqlmodel import select
+
+from models.yearof import YearOfPhoto, YearOfPhotoPlayerTag, YearOfPlayer, YearOfPlayerSpotlight, YearOfShortLink
 
 API = "/api/yearof-mo14"
 
@@ -188,3 +190,74 @@ def test_short_link_preview_tags(client, admin_token, session):
 
     res = client.get(f"{API}/og-default.png")
     assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+
+
+def _photo(session, player, status="published", media_type="photo", favorite=False):
+    photo = YearOfPhoto(match_ref="m1", status=status, media_type=media_type)
+    session.add(photo)
+    session.commit()
+    session.refresh(photo)
+    session.add(YearOfPhotoPlayerTag(photo_id=photo.id, player_id=player.id, favorite=favorite))
+    session.commit()
+    return photo
+
+
+def test_favorites_max_six_photos_only(client, admin_token, session):
+    player = _player(session)
+    photos = [_photo(session, player) for _ in range(7)]
+    video = _photo(session, player, media_type="video")
+
+    for p in photos[:6]:
+        res = client.put(f"{API}/players/{player.id}/favorites/{p.id}", json={"favorite": True}, headers=_auth(admin_token))
+        assert res.status_code == 200
+    res = client.put(f"{API}/players/{player.id}/favorites/{photos[6].id}", json={"favorite": True}, headers=_auth(admin_token))
+    assert res.status_code == 400
+    res = client.put(f"{API}/players/{player.id}/favorites/{video.id}", json={"favorite": True}, headers=_auth(admin_token))
+    assert res.status_code == 400
+    # Zonder login niet aan te passen
+    assert client.put(f"{API}/players/{player.id}/favorites/{photos[0].id}", json={"favorite": False}).status_code == 401
+
+    rows = client.get(f"{API}/players/{player.id}/photos/moderation", headers=_auth(admin_token)).json()
+    assert sum(r["favorite"] for r in rows) == 6 and all(r["media_type"] == "photo" for r in rows)
+
+
+def test_player_link_shows_only_published_favorites(client, admin_token, session):
+    player = _player(session)
+    fav = _photo(session, player, favorite=True)
+    _photo(session, player, favorite=True, status="concept")
+    _photo(session, player)  # geen favoriet
+    link = _short_link(client, admin_token, player_id=player.id)
+
+    data = client.get(f"{API}/player-links/{link['id']}").json()
+    assert [p["id"] for p in data["favorite_photos"]] == [fav.id]
+    assert set(data["favorite_photos"][0]) == {"id", "media_type", "caption", "created_at", "published_at"}
+
+    team = _team_code(client, admin_token)
+    res = client.get(f"{API}/players/{player.id}/favorites?code={team}")
+    assert [p["id"] for p in res.json()] == [fav.id]
+    assert client.get(f"{API}/players/{player.id}/favorites?code={link['id']}").status_code == 403
+
+
+def test_player_spotlight_max_one(client, admin_token, session):
+    jip = _player(session)
+    fleur = YearOfPlayer(name="Fleur B", shirt_number=9, bio="Bio Fleur")
+    session.add(fleur)
+    session.commit()
+    team = _team_code(client, admin_token)
+
+    assert client.get(f"{API}/player-spotlight?code={team}").json() is None
+    client.put(f"{API}/player-spotlight", json={"player_id": jip.id}, headers=_auth(admin_token))
+    client.put(f"{API}/player-spotlight", json={"player_id": fleur.id}, headers=_auth(admin_token))
+
+    current = client.get(f"{API}/player-spotlight?code={team}").json()
+    assert current["player"]["name"] == "Fleur B" and current["player"]["bio"] == "Bio Fleur"
+    assert "parents" not in current["player"]
+    active = session.exec(select(YearOfPlayerSpotlight).where(YearOfPlayerSpotlight.ended_at.is_(None))).all()
+    assert len(active) == 1
+
+    # Alleen met teamcode en alleen de beheerder kan kiezen
+    assert client.get(f"{API}/player-spotlight").status_code == 403
+    assert client.put(f"{API}/player-spotlight", json={"player_id": jip.id}).status_code == 401
+
+    client.put(f"{API}/player-spotlight", json={"player_id": None}, headers=_auth(admin_token))
+    assert client.get(f"{API}/player-spotlight?code={team}").json() is None
