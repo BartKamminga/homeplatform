@@ -55,7 +55,6 @@ export default function AccessAdmin({ onChanged }) {
 
   return (
     <div>
-      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Sitelink (ouder-WhatsApp, hele site)</h3>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
 
       {active ? (

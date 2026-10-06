@@ -3,10 +3,10 @@ import { isTrackingDisabled, setTrackingDisabled } from '../tracking.js'
 import AccessAdmin from './AccessAdmin.jsx'
 import LinkPanel from './LinkPanel.jsx'
 
-// Tabblad "Linkjes": sitelink beheren + overzicht van alle deelbare linkjes
-// met bezoekcijfers (items 1186/1193). Uitleg en "niet meetellen" onderaan.
+// Tabblad "Linkjes": totalen + alle deelbare linkjes met bezoekcijfers (items
+// 1186/1193). Sitelink beheren gebeurt in het Sitelinks-blok zelf, net als de
+// wedstrijdlink-knoppen bij Wedstrijdlinks. Uitleg en "niet meetellen" onderaan.
 export default function LinksAdmin() {
-  const [reloadKey, setReloadKey] = useState(0)
   const [noTrack, setNoTrack] = useState(isTrackingDisabled())
 
   function toggleNoTrack(checked) {
@@ -16,10 +16,8 @@ export default function LinksAdmin() {
 
   return (
     <div>
-      <AccessAdmin onChanged={() => setReloadKey(k => k + 1)} />
-
-      <h3 style={{ fontSize: 15, margin: '24px 0 10px' }}>Alle linkjes en bezoeken</h3>
-      <LinkPanel reloadKey={reloadKey} showTotals />
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Alle linkjes en bezoeken</h3>
+      <LinkPanel showTotals actions={{ site: (_, reload) => <AccessAdmin onChanged={reload} /> }} />
 
       <p style={{ fontSize: 12, color: '#666', margin: '20px 0 10px' }}>
         Geopend = elke keer dat een link geopend wordt, uniek = aantal verschillende apparaten.
