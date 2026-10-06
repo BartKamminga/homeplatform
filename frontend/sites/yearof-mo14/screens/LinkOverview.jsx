@@ -19,6 +19,16 @@ const STATUS_LABEL = { active: 'geldig', expired: 'verlopen', revoked: 'ingetrok
 const fmtDate = (iso) => iso ? iso.slice(0, 10) : '-'
 const fmtDateTime = (iso) => iso ? iso.slice(0, 16).replace('T', ' ') : '-'
 
+// "(nog 3 dagen)" achter een geldige link. expires_at komt als UTC zonder
+// tijdzone uit de backend, vandaar de 'Z'.
+function daysLeft(iso) {
+  if (!iso) return null
+  const ms = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`) - new Date()
+  if (ms <= 0) return null
+  const days = Math.ceil(ms / 86400000)
+  return days === 1 ? '(laatste dag)' : `(nog ${days} dagen)`
+}
+
 // Bezoeken van beheerders (ingelogd of "niet meetellen") apart, tussen haakjes.
 const AdminCount = ({ n }) => n > 0
   ? <span style={{ color: '#999', fontWeight: 400 }} title="Bezoeken van beheerders"> ({n})</span>
@@ -57,7 +67,10 @@ function LinkRow({ kind, link, onRevoke }) {
           {kind === 'contribute'
             ? <span style={{ color: contributorLinkStatus(link).color, fontWeight: 600 }}>{contributorLinkStatus(link).label}</span>
             : STATUS_LABEL[link.status]}
-          <div style={{ color: '#999', whiteSpace: 'nowrap' }}>t/m {fmtDate(link.expires_at)}</div>
+          {active && daysLeft(link.expires_at) && <span style={{ color: '#666' }}> {daysLeft(link.expires_at)}</span>}
+          <div style={{ color: '#999', whiteSpace: 'nowrap' }}>
+            {link.expires_at ? `t/m ${fmtDate(link.expires_at)}` : 'permanent'}
+          </div>
         </td>
         <td style={{ ...cell, textAlign: 'right' }}><strong>{link.opens}</strong><AdminCount n={link.admin_opens} /></td>
         <td style={{ ...cell, textAlign: 'right' }}><strong>{link.unique}</strong></td>
