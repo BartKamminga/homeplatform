@@ -4,18 +4,17 @@
 
 - **Nooit deployen zonder expliciete opdracht van de gebruiker.**
 - Deploy verloopt via **GitHub Actions** — push naar de juiste branch:
-  - `develop` → acceptatie (poort 8081)
-  - `main` → productie (poort 8080)
+  - `develop` → acceptatie op G4 (poort 8081), lokaal gebouwd
+  - `main` → productie op g5 (poort 8080): G4 bouwt images → GHCR → g5 pullt
 - Workflow: altijd eerst naar `develop`, testen op acc, dan mergen naar `main`.
-- Build-keuze (in de Actions workflow):
-  - `fe` — alleen frontend (Vite build + dist upload + Caddy reload)
-  - `be` — alleen backend (Docker rebuild)
-  - `be_db` — backend + alembic migraties + seed
-  - `all` — alles (standaard)
+- Prod-deploy volgorde: images pullen → db-snapshot (`db/backups/pre-deploy-*`) → backend/ghost/agent_worker
+  → migraties + seed → pas dan web (Caddy + frontend in image `homeplatform-web`).
+- Compose-commando's op prod vereisen `IMAGE_TAG` (geen `:latest`-fallback):
+  `export IMAGE_TAG=$(git rev-parse --short=7 HEAD)`.
 
 ## Roadmap en changelog
 
-De **centrale database (via API op de G4)** is de backlog. Todos en changelog werken samen via de `roadmap_items` tabel:
+De **centrale database (via API op prod, g5)** is de backlog. Todos en changelog werken samen via de `roadmap_items` tabel:
 
 - **Todos bijhouden**: gebruik `/api/roadmap` (POST/PATCH) of `.\roadmap.ps1` — niet in conversatienotities.
 - **Aan het begin van een sessie**:
@@ -100,18 +99,26 @@ homeplatform/
   docker-compose.acc.yml
 ```
 
-## G4 (productieserver)
+## Servers (sinds cutover 06-10-2026)
 
-- IP: `192.168.30.232`, prod poort `8080`, acc poort `8081`
-- SSH-key: `%USERPROFILE%\.ssh\homeplatform`
-- Pad prod: `/home/bart/homeplatform-repo`
-- Pad acc: `/home/bart/homeplatform-acc`
+SSH-key voor beide: `%USERPROFILE%\.ssh\homeplatform`
 
-### Caddy reset (bij crash of config-probleem)
+- **g5 — productie**: `192.168.30.49`, poort `8080`, `webheaven.nl` via cloudflared-tunnel (in compose)
+  - Repo: `/home/bart/homeplatform-repo` (alleen compose-file, scripts, MindBox.ps1 — geen build)
+  - Data: `/home/bart/homeplatform/db`, uploads/nas-files op `/mnt/extra-ssd/`
+- **G4 — acceptatie + beheer**: `192.168.30.232`, acc poort `8081`, bugsink `:8090`, portainer `:9000`,
+  cockpit `:9091`, sponsordeck `:8082` (mo14.webheaven.nl). Bouwt de prod-images.
+  - Repo acc: `/home/bart/homeplatform-repo-acc`, data acc: `/home/bart/homeplatform-acc`
+  - Oude prod-repo/data op G4 (`/home/bart/homeplatform-repo`, `/home/bart/homeplatform`) is niet meer
+    actief — opruimen via item 1189. Bugsink draait nog vanuit die oude repo.
+- Host-scripts (backup, restore, services-watcher): `scripts/`, per omgeving (`prod`/`acc`), zie `scripts/README.md`.
+
+### Caddy reset op prod (bij crash of config-probleem)
 
 ```bash
-ssh -i %USERPROFILE%\.ssh\homeplatform bart@192.168.30.232
-docker compose -f /home/bart/homeplatform-repo/docker-compose.g4.yml down
+ssh -i %USERPROFILE%\.ssh\homeplatform bart@192.168.30.49
+cd /home/bart/homeplatform-repo && export IMAGE_TAG=$(git rev-parse --short=7 HEAD)
+docker compose -f docker-compose.g4.yml rm -sf caddy
 docker volume rm homeplatform-repo_caddy_config
-docker compose -f /home/bart/homeplatform-repo/docker-compose.g4.yml up -d
+docker compose -f docker-compose.g4.yml up -d --no-deps caddy
 ```
