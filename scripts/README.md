@@ -43,9 +43,35 @@ Cron (nieuw, 30 min na de DB-backup):
 30 3 * * * [ ! -f /home/bart/homeplatform/db/cron_disabled ] && /home/bart/backup-files.sh >> /home/bart/backup-files.log 2>&1
 ```
 
-## Overige host-scripts (nog niet in de repo)
+## NAS-mountcontrole
 
-- `restore-homeplatform.sh` — leest de `pending_restore`-vlag (gezet via de admin-UI) en voert de
-  daadwerkelijke restore + backend-herstart uit. Draait elke minuut.
-- `services-watcher.sh` — bewaakt/herstelt de GitHub Actions runner en overige services. Draait elke
-  minuut.
+Beide backup-scripts controleren met `mountpoint -q /mnt/nas-backup` of de share echt gemount is.
+Zonder die check schreef `cp`/`rsync` bij een mislukte mount naar de lokale map onder het mountpunt:
+21–24 sept 2026 gaven zo "NAS ok" terwijl de kopieën op G4's eigen schijf belandden (NAS-IP was
+gewijzigd, mount faalde na een reboot). Nu: `NAS mislukt: ... niet gemount` in het log.
+
+## restore-homeplatform.sh
+
+Leest de `pending_restore`-vlag (gezet via de admin-UI) en voert de restore uit: backend stoppen,
+huidige db bewaren als `.pre-restore.<tijd>`, backup terugzetten, backend starten. Per omgeving:
+```
+* * * * * /home/bart/restore-homeplatform.sh prod >> /home/bart/restore.log 2>&1   # g5
+* * * * * /home/bart/restore-homeplatform.sh acc  >> /home/bart/restore.log 2>&1   # G4
+```
+
+## services-watcher.sh
+
+Schrijft de runner-status naar `db/runner_status.json` (admin Infrastructuur) en herstart de
+GitHub Actions-runner op verzoek van de admin-UI. Vereist sudo zonder wachtwoord voor
+`systemctl restart actions.runner.*`.
+```
+* * * * * /home/bart/services-watcher.sh >> /home/bart/services.log 2>&1
+```
+
+## Uitrollen
+
+Host-scripts gaan niet mee met de deploy-pipeline. Na een wijziging naar beide hosts kopiëren:
+```bash
+scp -i ~/.ssh/homeplatform scripts/<script>.sh bart@<host>:/home/bart/
+ssh -i ~/.ssh/homeplatform bart@<host> 'sed -i "s/\r$//" /home/bart/<script>.sh && chmod +x /home/bart/<script>.sh'
+```

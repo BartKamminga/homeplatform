@@ -5,7 +5,15 @@
 # Vereist: /mnt/nas-backup gemount (zie scripts/README.md).
 set -e
 LOG="/home/bart/backup-files.log"
-NAS_DIR="/mnt/nas-backup/files"
+NAS_MOUNT="/mnt/nas-backup"
+NAS_DIR="$NAS_MOUNT/files"
+
+# Zonder gemounte share zou rsync naar de lokale map onder het mountpunt schrijven (zie backup-homeplatform.sh).
+if ! mountpoint -q "$NAS_MOUNT"; then
+    echo "--- files backup $(date +%Y-%m-%d) ---" >> $LOG
+    echo "[$(date +%H:%M)] NAS mislukt: $NAS_MOUNT niet gemount - geen bestanden-backup" >> $LOG
+    exit 1
+fi
 
 backup_env() {
     local ENV=$1
