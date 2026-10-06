@@ -67,9 +67,9 @@ export default function PublicPlayer({ playerId, onBack, adminMode = false }) {
     <div>
       <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het team</a>
       <PlayerProfileCard player={player} />
-      <FavoritesBlock photos={favorites} />
 
       <PlayerCircleCard player={player} />
+      <FavoritesBlock photos={favorites} />
 
       {photos.length > 0 && (
         <div style={{ marginTop: 16 }}>

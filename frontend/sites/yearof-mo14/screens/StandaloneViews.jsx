@@ -125,8 +125,8 @@ export function StandalonePlayerView({ code }) {
   return (
     <Shell>
       <PlayerProfileCard player={player} />
-      <FavoritesBlock photos={player.favorite_photos} title={`Foto's van ${player.nickname || player.name}`} showLikes={false} />
       <PlayerCircleCard player={player} />
+      <FavoritesBlock photos={player.favorite_photos} title={`Foto's van ${player.nickname || player.name}`} showLikes={false} />
       <ActionBlock />
       <SponsorList />
     </Shell>
