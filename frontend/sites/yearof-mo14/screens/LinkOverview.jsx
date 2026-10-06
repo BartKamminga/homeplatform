@@ -67,6 +67,11 @@ function LinkRow({ kind, link, onRevoke }) {
             {active && kind !== 'site' && (
               <button onClick={copy} className="yof-btn-secondary">{copied ? 'OK!' : 'Kopieer'}</button>
             )}
+            {active && (kind === 'match' || kind === 'player') && (
+              <button onClick={e => { e.stopPropagation(); window.open(linkUrl(kind, link.code), '_blank', 'noopener') }} className="yof-btn-secondary">
+                Bekijk
+              </button>
+            )}
             {kind === 'contribute' && (
               <button onClick={e => { e.stopPropagation(); window.open(linkUrl(kind, link.code), '_blank') }} className="yof-btn-secondary">
                 Openen

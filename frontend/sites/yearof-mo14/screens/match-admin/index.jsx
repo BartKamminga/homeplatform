@@ -4,9 +4,8 @@ import {
   getReportsModeration, tagReport, untagReport, moveReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   listContributorLinks,
-  movePhotoBlock, createShortLink,
+  movePhotoBlock,
 } from '../../api.js'
-import { copyToClipboard } from '../../clipboard.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
 import { PhotoModerationGrid } from '../PhotoModerationGrid.jsx'
 import { ReportForm } from '../ReportForm.jsx'
@@ -17,7 +16,7 @@ import { InviteLinkScreen } from './InviteLinkScreen.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import { LinksScreen } from './LinksScreen.jsx'
 import { GoalsPanel } from './GoalsPanel.jsx'
-import LinkPanel from '../LinkPanel.jsx'
+import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
 import InviteCreateForm from '../InviteCreateForm.jsx'
 
 export default function MatchAdminDetail({ matchRef, onBack }) {
@@ -34,39 +33,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
   const [showLinks, setShowLinks] = useState(false)
-
-  // Wedstrijdlink voor de Vrienden-van-WhatsApp (item 1186): eigen token,
-  // 10 dagen geldig, los van de sitelink - hergebruikt een nog geldige link.
-  // reload = het Wedstrijdlinks-blok verversen zodat de link er meteen staat.
-  async function resolveEntryLinkUrl(reload) {
-    const link = await createShortLink({ match_ref: matchRef })
-    reload?.()
-    return `${window.location.origin}/l/${link.id}`
-  }
-
-  async function copyEntryLink(reload) {
-    try {
-      const url = await resolveEntryLinkUrl(reload)
-      if (!url) return
-      await copyToClipboard(url)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch (e) {
-      setError(e.message)
-    }
-  }
-
-  async function openEntryLink(reload) {
-    try {
-      const url = await resolveEntryLinkUrl(reload)
-      if (!url) return
-      window.open(url, '_blank', 'noopener')
-    } catch (e) {
-      setError(e.message)
-    }
-  }
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -256,15 +223,10 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           {showLinks && (
             <div style={{ marginBottom: 20 }}>
               <LinkPanel kinds={['match', 'contribute']} filter={l => l.match_ref === matchRef} actions={{
-                match: (_, reload) => (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => copyEntryLink(reload)} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-                      {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
-                    </button>
-                    <button onClick={() => openEntryLink(reload)} className="yof-btn-secondary" style={{ fontSize: 12 }} title="Opent precies wat een bezoeker via de wedstrijdlink ziet (alleen highlights)">
-                      👁 Bekijk wedstrijdlink
-                    </button>
-                  </div>
+                // Wedstrijdlink voor de Vrienden-van-groep (item 1186): eigen token, 10 dagen
+                // geldig. Kopieer/Bekijk/Intrekken staan in de rij van de link.
+                match: (rows, reload) => (
+                  <CreateShortLinkButton rows={rows} body={{ match_ref: matchRef }} label="Maak wedstrijdlink" onCreated={reload} />
                 ),
                 contribute: (_, reload) => <InviteCreateForm matchRef={matchRef} players={players} onCreated={reload} />,
               }} />
