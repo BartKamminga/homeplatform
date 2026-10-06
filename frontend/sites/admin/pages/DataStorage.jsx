@@ -59,6 +59,7 @@ const DB_GLOBAL_ROWS = [
   { label: 'agent_key, reasoning, notes, notification, cmds_json', where: 'agent_run_logs', note: 'Agent Control — resultaat per analyse-cyclus (kennis = notes van laatste rij, log = alle rijen)' },
   { label: 'name, shirt_number, bio, fun_facts, parents, buddy, coaches', where: 'yearof_players', note: 'MO14 a Paris — spelers (parents/buddy/coaches alleen door beheerder, niet via profiellink)' },
   { label: 'link_type, team_code, match_ref, player_id, expires_at, revoked_at', where: 'yearof_short_links', note: 'MO14 a Paris — korte deel-links /l/<code>: sitelink, wedstrijdlink, spelerslink' },
+  { label: 'photo_id, player_id, favorite', where: 'yearof_photo_player_tags', note: 'MO14 a Paris — foto-tags per speelster; favorite = max 6 favorieten, getoond op spelerslink en spelerspagina' },
   { label: 'link_kind, link_code, visitor_id, visited_at', where: 'yearof_link_visits', note: 'MO14 a Paris — bezoeken per deelbare link (geen IP, beheerders niet geteld)' },
   { label: 'agent_status:{key}, agent_enabled:{key}',       where: 'app_settings',     note: 'Agent Control — status/heartbeat en aan/uit per agent' },
 ];

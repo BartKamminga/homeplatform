@@ -55,6 +55,7 @@ from .access import router as access_router
 from .action_sponsors import router as action_sponsors_router
 from .contributor_links import router as contributor_links_router
 from .entries_timeline import router as entries_timeline_router
+from .favorites import router as favorites_router
 from .links import router as links_router
 from .links import shortlink_router
 from .matches import router as matches_router
@@ -79,6 +80,7 @@ def me(current_user: User = Depends(get_current_user)):
 
 
 router.include_router(players_router)
+router.include_router(favorites_router)
 router.include_router(entries_timeline_router)
 router.include_router(matches_router)
 router.include_router(access_router)

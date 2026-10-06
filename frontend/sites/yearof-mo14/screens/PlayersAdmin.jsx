@@ -3,6 +3,7 @@ import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, getPl
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
 import PlayerLinksPanel from './PlayerLinksPanel.jsx'
+import { PlayerPhotosPanel } from './PlayerFavorites.jsx'
 import FormattedText from './FormattedText.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
@@ -119,6 +120,7 @@ export default function PlayersAdmin({ initialEditId }) {
   const [error, setError] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [linksOpenId, setLinksOpenId] = useState('')
+  const [photosOpenId, setPhotosOpenId] = useState('')
   const [confirm, confirmDialog] = useConfirm()
 
   function load() {
@@ -194,10 +196,18 @@ export default function PlayersAdmin({ initialEditId }) {
               <button onClick={() => setLinksOpenId(id => id === p.id ? '' : p.id)} className="yof-btn-secondary">
                 {linksOpenId === p.id ? '▾' : '▸'} linkjes
               </button>
+              <button onClick={() => setPhotosOpenId(id => id === p.id ? '' : p.id)} className="yof-btn-secondary">
+                {photosOpenId === p.id ? '▾' : '▸'} foto's
+              </button>
             </div>
             {linksOpenId === p.id && (
               <div style={{ flexBasis: '100%' }}>
                 <PlayerLinksPanel playerId={p.id} />
+              </div>
+            )}
+            {photosOpenId === p.id && (
+              <div style={{ flexBasis: '100%' }}>
+                <PlayerPhotosPanel playerId={p.id} />
               </div>
             )}
           </div>

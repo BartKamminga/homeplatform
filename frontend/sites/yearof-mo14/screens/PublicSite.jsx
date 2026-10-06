@@ -68,7 +68,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, onE
         {view.name === 'action' && <PublicAction />}
         {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={adminMode} onEditGeneral={onEditGeneral} />}
         {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}
-        {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} />}
+        {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={adminMode} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={previewMode} />}
         {view.name === 'upload' && <PublicUploadPhotos />}

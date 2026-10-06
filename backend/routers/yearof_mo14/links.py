@@ -29,6 +29,7 @@ from models.yearof import YearOfPhoto, YearOfPlayer, YearOfShortLink, YearOfTeam
 
 from ._shared import _valid_short_link, new_link_code
 from .entries_timeline import _competition_timeline_items, _custom_timeline_items
+from .favorites import favorite_photos, public_photo
 from .og_preview import (
     DEFAULT_DESCRIPTION, DEFAULT_TITLE, default_image_png, match_image_png, preview_html, public_base_url,
 )
@@ -140,7 +141,12 @@ def get_player_link_view(code: str, session: Session = Depends(get_session)):
     player = session.get(YearOfPlayer, link.player_id)
     if not player or player.archived_at is not None:
         raise HTTPException(status_code=404, detail="Speler niet gevonden")
-    return {field: getattr(player, field) for field in PLAYER_LINK_FIELDS}
+    return {
+        **{field: getattr(player, field) for field in PLAYER_LINK_FIELDS},
+        # Alleen de door de beheerder gekozen favorieten (item 1199) - de rest
+        # van haar fotos blijft afgeschermd voor vrienden.
+        "favorite_photos": [public_photo(p) for p in favorite_photos(session, player.id)],
+    }
 
 
 # Kaal, niet onder /api/yearof-mo14 - apart geregistreerd in main.py, want

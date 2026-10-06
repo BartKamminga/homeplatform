@@ -128,6 +128,10 @@ class YearOfPhotoPlayerTag(SQLModel, table=True):
     id:        str = Field(default_factory=new_uuid, primary_key=True)
     photo_id:  str = Field(foreign_key="yearof_photos.id", index=True)
     player_id: str = Field(foreign_key="yearof_players.id", index=True)
+    # Item 1199: favoriet van DEZE speelster (op de tag, niet op de foto - een
+    # teamfoto kan favoriet zijn voor 1 speelster). Max 6, alleen fotos,
+    # alleen door de beheerder; getoond op de spelerslink en spelerspagina.
+    favorite:  bool = Field(default=False)
 
 
 class YearOfProfileLink(SQLModel, table=True):
