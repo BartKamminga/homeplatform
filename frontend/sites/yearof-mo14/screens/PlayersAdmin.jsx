@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
+import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit, getPlayerSpotlight, setPlayerSpotlight } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
 import PlayerLinksPanel from './PlayerLinksPanel.jsx'
@@ -121,12 +121,25 @@ export default function PlayersAdmin({ initialEditId }) {
   const [showArchived, setShowArchived] = useState(false)
   const [linksOpenId, setLinksOpenId] = useState('')
   const [photosOpenId, setPhotosOpenId] = useState('')
+  const [spotlightId, setSpotlightId] = useState(null) // speelster van de week (item 1200), max 1
   const [confirm, confirmDialog] = useConfirm()
 
   function load() {
     getPlayersModeration().then(setPlayers).catch(e => setError(e.message))
   }
-  useEffect(() => { load() }, [])
+  function loadSpotlight() {
+    getPlayerSpotlight().then(s => setSpotlightId(s?.player?.id || null)).catch(() => {})
+  }
+  useEffect(() => { load(); loadSpotlight() }, [])
+
+  async function toggleSpotlight(id) {
+    try {
+      await setPlayerSpotlight(spotlightId === id ? null : id)
+      loadSpotlight()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
 
   const activePlayers = players.filter(p => !p.archived_at)
   const archivedPlayers = players.filter(p => p.archived_at)
@@ -187,11 +200,19 @@ export default function PlayersAdmin({ initialEditId }) {
               {p.role_title || p.shirt_number || '?'}
             </div>
             <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>
+                {p.name}{p.nickname ? ` (${p.nickname})` : ''}
+                {spotlightId === p.id && <span style={{ marginLeft: 6, fontSize: 11, color: '#a3245c' }}>⭐ speelster van de week</span>}
+              </div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{p.position ?? '-'}</div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
+              <button onClick={() => toggleSpotlight(p.id)} className="yof-btn-secondary"
+                title={spotlightId === p.id ? 'Uit de kijker halen' : 'Speelster van de week maken (de huidige gaat eruit)'}
+                style={spotlightId === p.id ? { background: '#f4c81e', borderColor: '#f4c81e' } : undefined}>
+                {spotlightId === p.id ? '★ in de kijker' : '☆ in de kijker'}
+              </button>
               <button onClick={() => archive(p.id)} className="yof-btn-secondary">archiveer</button>
               <button onClick={() => setLinksOpenId(id => id === p.id ? '' : p.id)} className="yof-btn-secondary">
                 {linksOpenId === p.id ? '▾' : '▸'} linkjes

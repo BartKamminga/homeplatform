@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings } from '../api.js'
+import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings, getPlayerSpotlight } from '../api.js'
+import PlayerSpotlightCard from './PlayerSpotlightCard.jsx'
 import Thermometer from './Thermometer.jsx'
 import { PouleCard } from './PouleCard.jsx'
 import { stripFormatting } from './FormattedText.jsx'
@@ -30,18 +31,20 @@ function MatchTeaser({ label, item, onOpen }) {
   )
 }
 
-export default function PublicHome({ onNavigate, onOpenMatch }) {
+export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer }) {
   const [settings, setSettings] = useState(null)
   const [interviews, setInterviews] = useState([])
   const [pastMatch, setPastMatch] = useState(null)
   const [nextMatch, setNextMatch] = useState(null)
   const [candidates, setCandidates] = useState([])
   const [standings, setStandings] = useState(null)
+  const [playerSpotlight, setPlayerSpotlight] = useState(null)
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
     getSpotlightReports().then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
     getStandings().then(setStandings).catch(() => {})
+    getPlayerSpotlight().then(setPlayerSpotlight).catch(() => {})
     getTimeline().then(items => {
       const now = new Date()
       const past = items.filter(it => new Date(it.date) <= now)
@@ -104,12 +107,13 @@ export default function PublicHome({ onNavigate, onOpenMatch }) {
         </div>
       )}
 
-      {interviews.length > 0 && (
+      {(interviews.length > 0 || playerSpotlight) && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', margin: '0 0 8px' }}>
             In de kijker
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
+            <PlayerSpotlightCard spotlight={playerSpotlight} onOpenPlayer={onOpenPlayer} />
             {interviews.map(r => (
               <a key={r.id} href="#" onClick={e => { e.preventDefault(); onNavigate('spotlight') }}
                 className="yof-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>

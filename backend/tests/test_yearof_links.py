@@ -3,7 +3,9 @@ en vervaldatum, en bezoektelling per link."""
 
 from datetime import datetime, timedelta
 
-from models.yearof import YearOfPhoto, YearOfPhotoPlayerTag, YearOfPlayer, YearOfShortLink
+from sqlmodel import select
+
+from models.yearof import YearOfPhoto, YearOfPhotoPlayerTag, YearOfPlayer, YearOfPlayerSpotlight, YearOfShortLink
 
 API = "/api/yearof-mo14"
 
@@ -234,3 +236,28 @@ def test_player_link_shows_only_published_favorites(client, admin_token, session
     res = client.get(f"{API}/players/{player.id}/favorites?code={team}")
     assert [p["id"] for p in res.json()] == [fav.id]
     assert client.get(f"{API}/players/{player.id}/favorites?code={link['id']}").status_code == 403
+
+
+def test_player_spotlight_max_one(client, admin_token, session):
+    jip = _player(session)
+    fleur = YearOfPlayer(name="Fleur B", shirt_number=9, bio="Bio Fleur")
+    session.add(fleur)
+    session.commit()
+    team = _team_code(client, admin_token)
+
+    assert client.get(f"{API}/player-spotlight?code={team}").json() is None
+    client.put(f"{API}/player-spotlight", json={"player_id": jip.id}, headers=_auth(admin_token))
+    client.put(f"{API}/player-spotlight", json={"player_id": fleur.id}, headers=_auth(admin_token))
+
+    current = client.get(f"{API}/player-spotlight?code={team}").json()
+    assert current["player"]["name"] == "Fleur B" and current["player"]["bio"] == "Bio Fleur"
+    assert "parents" not in current["player"]
+    active = session.exec(select(YearOfPlayerSpotlight).where(YearOfPlayerSpotlight.ended_at.is_(None))).all()
+    assert len(active) == 1
+
+    # Alleen met teamcode en alleen de beheerder kan kiezen
+    assert client.get(f"{API}/player-spotlight").status_code == 403
+    assert client.put(f"{API}/player-spotlight", json={"player_id": jip.id}).status_code == 401
+
+    client.put(f"{API}/player-spotlight", json={"player_id": None}, headers=_auth(admin_token))
+    assert client.get(f"{API}/player-spotlight?code={team}").json() is None

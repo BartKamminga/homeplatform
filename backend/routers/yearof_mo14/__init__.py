@@ -62,6 +62,7 @@ from .matches import router as matches_router
 from .photos import router as photos_router
 from .players import router as players_router
 from .reports import router as reports_router
+from .spotlight import router as spotlight_router
 from .visits import router as visits_router
 
 router = APIRouter(prefix="/api/yearof-mo14", tags=["yearof-mo14"])
@@ -81,6 +82,7 @@ def me(current_user: User = Depends(get_current_user)):
 
 router.include_router(players_router)
 router.include_router(favorites_router)
+router.include_router(spotlight_router)
 router.include_router(entries_timeline_router)
 router.include_router(matches_router)
 router.include_router(access_router)

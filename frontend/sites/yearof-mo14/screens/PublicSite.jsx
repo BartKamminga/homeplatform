@@ -64,7 +64,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, onE
         ))}
       </div>
       <div className="yof-main">
-        {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} />}
+        {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer} />}
         {view.name === 'action' && <PublicAction />}
         {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={adminMode} onEditGeneral={onEditGeneral} />}
         {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}

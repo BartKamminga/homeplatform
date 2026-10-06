@@ -27,8 +27,10 @@ from models.yearof import (
     YearOfPhotoPlayerTag,
     YearOfPlayer,
     YearOfPlayerEdit,
+    YearOfPlayerSpotlight,
     YearOfProfileLink,
     YearOfReportPlayerTag,
+    YearOfShortLink,
 )
 
 from ._shared import (
@@ -194,6 +196,11 @@ def delete_player(
         session.delete(link)
     for edit in session.exec(select(YearOfPlayerEdit).where(YearOfPlayerEdit.player_id == player_id)).all():
         session.delete(edit)
+    # Item 1186/1200: spelerslinks en "speelster van de week"-historie
+    for link in session.exec(select(YearOfShortLink).where(YearOfShortLink.player_id == player_id)).all():
+        session.delete(link)
+    for spot in session.exec(select(YearOfPlayerSpotlight).where(YearOfPlayerSpotlight.player_id == player_id)).all():
+        session.delete(spot)
 
     session.delete(player)
     session.commit()
