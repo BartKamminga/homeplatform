@@ -4,9 +4,8 @@ import {
   getReportsModeration, tagReport, untagReport, moveReport,
   getPhotosModeration, updatePhoto, deletePhoto, tagPhoto, untagPhoto,
   listContributorLinks,
-  movePhotoBlock, listTeamLinks, createShortLink,
+  movePhotoBlock,
 } from '../../api.js'
-import { copyToClipboard } from '../../clipboard.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
 import { PhotoModerationGrid } from '../PhotoModerationGrid.jsx'
 import { ReportForm } from '../ReportForm.jsx'
@@ -17,6 +16,8 @@ import { InviteLinkScreen } from './InviteLinkScreen.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import { LinksScreen } from './LinksScreen.jsx'
 import { GoalsPanel } from './GoalsPanel.jsx'
+import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
+import InviteCreateForm from '../InviteCreateForm.jsx'
 
 export default function MatchAdminDetail({ matchRef, onBack }) {
   const [item, setItem] = useState(null)
@@ -32,40 +33,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
-
-  async function resolveEntryLinkUrl() {
-    const links = await listTeamLinks()
-    const active = links.find(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()))
-    if (!active) {
-      setError('Geen actief teamlinkje - maak er eerst een aan bij Toegang.')
-      return null
-    }
-    const link = await createShortLink({ team_code: active.id, match_ref: matchRef })
-    return `${window.location.origin}/l/${link.id}`
-  }
-
-  async function copyEntryLink() {
-    try {
-      const url = await resolveEntryLinkUrl()
-      if (!url) return
-      await copyToClipboard(url)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch (e) {
-      setError(e.message)
-    }
-  }
-
-  async function openEntryLink() {
-    try {
-      const url = await resolveEntryLinkUrl()
-      if (!url) return
-      window.open(url, '_blank', 'noopener')
-    } catch (e) {
-      setError(e.message)
-    }
-  }
+  const [showLinks, setShowLinks] = useState(false)
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -182,17 +150,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={copyEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-            {linkCopied ? 'Link gekopieerd!' : '🔗 Kopieer wedstrijdlink'}
-          </button>
-          <button onClick={openEntryLink} className="yof-btn-secondary" style={{ fontSize: 12 }} title="Opent precies wat een bezoeker via de wedstrijdlink ziet (alleen highlights)">
-            👁 Bekijk wedstrijdlink
-          </button>
-        </div>
-      </div>
+      <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
@@ -256,6 +214,22 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           {showGoals && (
             <div style={{ marginBottom: 20 }}>
               <GoalsPanel matchRef={matchRef} players={players} />
+            </div>
+          )}
+
+          <button onClick={() => setShowLinks(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
+            {showLinks ? 'Verberg' : 'Toon'} linkjes &amp; bezoeken
+          </button>
+          {showLinks && (
+            <div style={{ marginBottom: 20 }}>
+              <LinkPanel kinds={['match', 'contribute']} filter={l => l.match_ref === matchRef} actions={{
+                // Wedstrijdlink voor de Vrienden-van-groep (item 1186): eigen token, 10 dagen
+                // geldig. Kopieer/Bekijk/Intrekken staan in de rij van de link.
+                match: (rows, reload) => (
+                  <CreateShortLinkButton rows={rows} body={{ match_ref: matchRef }} label="Maak wedstrijdlink" onCreated={reload} />
+                ),
+                contribute: (_, reload) => <InviteCreateForm matchRef={matchRef} players={players} onCreated={reload} />,
+              }} />
             </div>
           )}
 

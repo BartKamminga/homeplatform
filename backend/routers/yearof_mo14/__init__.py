@@ -52,14 +52,16 @@ from core.auth import get_current_user
 from models.core import User
 
 from .access import router as access_router
-from .access import shortlink_router
 from .action_sponsors import router as action_sponsors_router
 from .contributor_links import router as contributor_links_router
 from .entries_timeline import router as entries_timeline_router
+from .links import router as links_router
+from .links import shortlink_router
 from .matches import router as matches_router
 from .photos import router as photos_router
 from .players import router as players_router
 from .reports import router as reports_router
+from .visits import router as visits_router
 
 router = APIRouter(prefix="/api/yearof-mo14", tags=["yearof-mo14"])
 
@@ -80,6 +82,8 @@ router.include_router(players_router)
 router.include_router(entries_timeline_router)
 router.include_router(matches_router)
 router.include_router(access_router)
+router.include_router(links_router)
+router.include_router(visits_router)
 router.include_router(photos_router)
 router.include_router(contributor_links_router)
 router.include_router(reports_router)

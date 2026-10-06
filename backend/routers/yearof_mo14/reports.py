@@ -23,7 +23,7 @@ from models.yearof import (
     YearOfReportPlayerTag,
 )
 
-from ._shared import require_team_access
+from ._shared import check_match_access, get_optional_user, require_match_access, require_team_access
 
 router = APIRouter(tags=["yearof-mo14"])
 
@@ -210,12 +210,15 @@ def list_reports(
     report_type: Optional[str] = None,
     highlights_only: bool = False,
     session: Session = Depends(get_session),
-    _: None = Depends(require_team_access),
+    access: str = Depends(require_match_access),
 ):
     """Publiek — toont alleen gepubliceerde verslagen. Zie /reports/spotlight
     voor de handmatig-curated "In de kijker"-selectie. highlights_only (de
     losse wedstrijdlink, buiten de volledige app om) laat alleen de
-    gecureerde match_highlight-subset zien - zelfde concept als bij fotos."""
+    gecureerde match_highlight-subset zien - zelfde concept als bij fotos.
+    Via een wedstrijdlink (access "match") is dat altijd zo (item 1186)."""
+    if access == "match":
+        highlights_only = True
     q = select(YearOfReport).where(YearOfReport.status == "published")
     if match_ref:
         q = q.where(YearOfReport.match_ref == match_ref)
@@ -335,11 +338,18 @@ def delete_report(
 
 
 @router.post("/reports/{report_id}/like")
-def like_report(report_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+def like_report(
+    report_id: str,
+    code: Optional[str] = None,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """Publiek - alleen positieve reactie (hartje), geen aparte like-rijen per
     bezoeker. Dedupe (niet meerdere keren liken) gebeurt client-side via
-    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site."""
+    localStorage, zelfde vertrouwensmodel als de rest van de anonieme site.
+    Ook via de wedstrijdlink van de wedstrijd waar dit verslag bij hoort."""
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    check_match_access(session, current_user, code, report.match_ref)
     report.like_count += 1
     session.add(report)
     session.commit()
@@ -347,8 +357,14 @@ def like_report(report_id: str, session: Session = Depends(get_session), _: None
 
 
 @router.delete("/reports/{report_id}/like")
-def unlike_report(report_id: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+def unlike_report(
+    report_id: str,
+    code: Optional[str] = None,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    check_match_access(session, current_user, code, report.match_ref)
     report.like_count = max(0, report.like_count - 1)
     session.add(report)
     session.commit()

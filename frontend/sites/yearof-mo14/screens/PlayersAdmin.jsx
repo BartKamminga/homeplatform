@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, createProfileLink, listProfileLinks, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
-import { copyToClipboard } from '../clipboard.js'
+import { getPlayersModeration, createPlayer, archivePlayer, restorePlayer, getPlayerEditsModeration, applyPlayerEdit, rejectPlayerEdit } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import EditProfile from './EditProfile.jsx'
+import PlayerLinksPanel from './PlayerLinksPanel.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -62,35 +62,6 @@ function NewPlayerForm({ onCreated, onCancel }) {
   )
 }
 
-function ProfileLinkCell({ playerId, links, onCreated }) {
-  const [copied, setCopied] = useState(false)
-  const link = links.find(l => l.player_id === playerId)
-
-  async function make() {
-    await createProfileLink(playerId)
-    onCreated()
-  }
-  async function copy() {
-    const url = `${window.location.origin}/yearof-mo14/?profiel=${link.id}`
-    try {
-      await copyToClipboard(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch { /* fallback: het veldje hieronder blijft handmatig selecteerbaar */ }
-  }
-
-  if (!link) return <button onClick={make} className="yof-btn-secondary">Maak profiellink</button>
-
-  const url = `${window.location.origin}/yearof-mo14/?profiel=${link.id}`
-  return (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-      <input readOnly value={url} onFocus={e => e.target.select()}
-        style={{ fontSize: 11, padding: '3px 5px', borderRadius: 6, border: '1px solid #ddd', width: 150 }} />
-      <button onClick={copy} className="yof-btn-secondary">{copied ? 'OK!' : 'Kopieer'}</button>
-    </div>
-  )
-}
-
 function PlayerEditsModeration({ players }) {
   const [edits, setEdits] = useState([])
   const [error, setError] = useState('')
@@ -142,20 +113,17 @@ function PlayerEditsModeration({ players }) {
 
 export default function PlayersAdmin({ initialEditId }) {
   const [players, setPlayers] = useState([])
-  const [profileLinks, setProfileLinks] = useState([])
   const [view, setView] = useState('list') // list | new
   const [editingId, setEditingId] = useState(initialEditId || '')
   const [error, setError] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [linksOpenId, setLinksOpenId] = useState('')
   const [confirm, confirmDialog] = useConfirm()
 
   function load() {
     getPlayersModeration().then(setPlayers).catch(e => setError(e.message))
   }
-  function loadLinks() {
-    listProfileLinks().then(setProfileLinks).catch(() => {})
-  }
-  useEffect(() => { load(); loadLinks() }, [])
+  useEffect(() => { load() }, [])
 
   const activePlayers = players.filter(p => !p.archived_at)
   const archivedPlayers = players.filter(p => p.archived_at)
@@ -219,11 +187,18 @@ export default function PlayersAdmin({ initialEditId }) {
               <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}{p.nickname ? ` (${p.nickname})` : ''}</div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{p.position ?? '-'}</div>
             </div>
-            <ProfileLinkCell playerId={p.id} links={profileLinks} onCreated={loadLinks} />
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setEditingId(p.id)} className="yof-btn-secondary">bewerken</button>
               <button onClick={() => archive(p.id)} className="yof-btn-secondary">archiveer</button>
+              <button onClick={() => setLinksOpenId(id => id === p.id ? '' : p.id)} className="yof-btn-secondary">
+                {linksOpenId === p.id ? '▾' : '▸'} linkjes
+              </button>
             </div>
+            {linksOpenId === p.id && (
+              <div style={{ flexBasis: '100%' }}>
+                <PlayerLinksPanel playerId={p.id} />
+              </div>
+            )}
           </div>
         ))}
       </div>

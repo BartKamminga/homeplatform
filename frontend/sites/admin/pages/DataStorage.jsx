@@ -57,6 +57,9 @@ const DB_GLOBAL_ROWS = [
   { label: 'agent_key, message, link, read_at',             where: 'agent_notifications', note: 'Agent Control — meldingen van smart agents' },
   { label: 'agent_key, instruction, status, result',        where: 'agent_tasks',      note: 'Agent Control — ad-hoc opdrachten-queue per agent' },
   { label: 'agent_key, reasoning, notes, notification, cmds_json', where: 'agent_run_logs', note: 'Agent Control — resultaat per analyse-cyclus (kennis = notes van laatste rij, log = alle rijen)' },
+  { label: 'name, shirt_number, bio, fun_facts, parents, buddy, coaches', where: 'yearof_players', note: 'MO14 a Paris — spelers (parents/buddy/coaches alleen door beheerder, niet via profiellink)' },
+  { label: 'link_type, team_code, match_ref, player_id, expires_at, revoked_at', where: 'yearof_short_links', note: 'MO14 a Paris — korte deel-links /l/<code>: sitelink, wedstrijdlink, spelerslink' },
+  { label: 'link_kind, link_code, visitor_id, visited_at', where: 'yearof_link_visits', note: 'MO14 a Paris — bezoeken per deelbare link (geen IP, beheerders niet geteld)' },
   { label: 'agent_status:{key}, agent_enabled:{key}',       where: 'app_settings',     note: 'Agent Control — status/heartbeat en aan/uit per agent' },
 ];
 
@@ -76,6 +79,8 @@ const LS_ROWS = [
   { label: 'nk_disclaimer_seen',                 note: 'Disclaimer gezien',                              scope: 'NKHockey' },
   { label: 'rm_site / rm_status / rm_priority / rm_last_site', note: 'Roadmap filters — cache (via DB)', scope: 'Admin / Roadmap' },
   { label: 'pb_query_pins', note: 'Gepinde query-templates (ranglijst / rondetopscorers per niveau-tag)', scope: 'Poulebord' },
+  { label: 'yof_team_code',                      note: 'Teamcode van de sitelink (ouders) — niet bij wedstrijd-/spelerslinks', scope: 'MO14 a Paris' },
+  { label: 'yof_visitor_id / yof_no_track',      note: 'Anonieme apparaat-id voor bezoektelling + vlag "dit apparaat niet meetellen"', scope: 'MO14 a Paris' },
 ];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */

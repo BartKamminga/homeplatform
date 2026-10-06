@@ -5,7 +5,7 @@ import { getMe, validateTeamCode } from './api.js'
 import { getStoredCode, storeCode } from './gate.js'
 import PlayersAdmin from './screens/PlayersAdmin.jsx'
 import TimelineAdmin from './screens/TimelineAdmin.jsx'
-import AccessAdmin from './screens/AccessAdmin.jsx'
+import LinksAdmin from './screens/LinksAdmin.jsx'
 import ActionAdmin from './screens/ActionAdmin.jsx'
 import SponsorsAdmin from './screens/SponsorsAdmin.jsx'
 import PhotosAdmin from './screens/PhotosAdmin.jsx'
@@ -13,49 +13,10 @@ import ReportsAdmin from './screens/ReportsAdmin.jsx'
 import MatchAdminDetail from './screens/match-admin/index.jsx'
 import Gate from './screens/Gate.jsx'
 import PublicSite from './screens/PublicSite.jsx'
-import PublicEntry from './screens/PublicEntry.jsx'
 import ContributeReport from './screens/ContributeReport.jsx'
 import EditProfile from './screens/EditProfile.jsx'
-
-// "Wedstrijdlink" (?entry=<matchRef>, evt. met &code=): deelt dezelfde
-// teamcode-levensduur als de rest van de site (zelfde gate-check als
-// hieronder in App()), maar toont bewust GEEN navigatiebalk - alleen die
-// ene wedstrijdpagina. Zo kan een wedstrijd breed gedeeld worden zonder
-// de rest van de site (spelersprofielen, andere wedstrijden) te ontsluiten.
-function StandaloneMatchView({ matchRef }) {
-  const [status, setStatus] = useState('checking') // checking | locked | unlocked
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const urlCode = params.get('code')
-    const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
-    if (!code) { setStatus('locked'); return }
-    validateTeamCode(code)
-      .then(res => {
-        if (res.valid) {
-          storeCode(code)
-          if (urlCode) {
-            const url = new URL(window.location.href)
-            url.searchParams.delete('code')
-            window.history.replaceState({}, '', url.toString())
-          }
-        }
-        setStatus(res.valid ? 'unlocked' : 'locked')
-      })
-      .catch(() => setStatus('locked'))
-  }, [])
-
-  if (status === 'checking') return null
-  if (status === 'locked') return <Gate onUnlock={() => setStatus('unlocked')} />
-  return (
-    <div className="yof">
-      <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
-      <div className="yof-main">
-        <PublicEntry matchRef={matchRef} standalone />
-      </div>
-    </div>
-  )
-}
+import { StandaloneMatchView, StandalonePlayerView } from './screens/StandaloneViews.jsx'
+import { trackVisit } from './tracking.js'
 
 function BeheerderPaneel() {
   const [me, setMe] = useState(null)
@@ -98,7 +59,7 @@ function BeheerderPaneel() {
           { key: 'verslagen', label: 'Algemene berichten' },
           { key: 'actie', label: 'Actie' },
           { key: 'sponsors', label: 'Sponsors' },
-          { key: 'toegang', label: 'Toegang' },
+          { key: 'toegang', label: 'Linkjes' },
           { key: 'preview', label: 'Bekijk site' },
         ].map(t => (
           <button key={t.key} onClick={() => {
@@ -119,7 +80,7 @@ function BeheerderPaneel() {
           ? <MatchAdminDetail matchRef={matchDetailRef} onBack={() => setMatchDetailRef(null)} />
           : <TimelineAdmin onOpenMatch={setMatchDetailRef} />
       )}
-      {tab === 'toegang' && <AccessAdmin />}
+      {tab === 'toegang' && <LinksAdmin />}
       {tab === 'fotos' && <PhotosAdmin />}
       {tab === 'verslagen' && <ReportsAdmin initialEditId={generalEditId} />}
       {tab === 'actie' && <ActionAdmin />}
@@ -144,9 +105,10 @@ export default function App() {
   const invulCode = new URLSearchParams(window.location.search).get('invul')
   const profielCode = new URLSearchParams(window.location.search).get('profiel')
   const entryMatchRef = new URLSearchParams(window.location.search).get('entry')
+  const spelerCode = new URLSearchParams(window.location.search).get('speler')
 
   useEffect(() => {
-    if (invulCode || profielCode || entryMatchRef) return // los scherm, doet zelf een (eventueel) gate-check
+    if (invulCode || profielCode || entryMatchRef || spelerCode) return // los scherm, doet zelf een (eventueel) gate-check
     const params = new URLSearchParams(window.location.search)
     const urlCode = params.get('code')
     const code = (urlCode || getStoredCode() || '').trim().toLowerCase()
@@ -159,6 +121,7 @@ export default function App() {
       .then(res => {
         if (res.valid) {
           storeCode(code)
+          trackVisit('site', code)
           if (urlCode) {
             // code niet zichtbaar in de URL laten staan (adresbalk/geschiedenis/screenshots)
             const url = new URL(window.location.href)
@@ -176,6 +139,9 @@ export default function App() {
   }
   if (profielCode) {
     return <EditProfile code={profielCode} />
+  }
+  if (spelerCode) {
+    return <StandalonePlayerView code={spelerCode} />
   }
 
   if (showBeheer) {
@@ -200,7 +166,7 @@ export default function App() {
   if (gateStatus === 'locked') {
     return (
       <>
-        <Gate onUnlock={() => setGateStatus('unlocked')} />
+        <Gate onUnlock={() => { trackVisit('site', getStoredCode()); setGateStatus('unlocked') }} />
         <BeheerderLink onClick={() => setShowBeheer(true)} />
       </>
     )

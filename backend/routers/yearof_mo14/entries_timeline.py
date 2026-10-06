@@ -29,7 +29,7 @@ from models.yearof import (
 )
 from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
 
-from ._shared import POULE_ID, TEAM_NAME, require_team_access
+from ._shared import POULE_ID, TEAM_NAME, require_match_access, require_team_access
 from .photos import PHOTO_ROOT
 
 router = APIRouter(tags=["yearof-mo14"])
@@ -304,7 +304,7 @@ def get_timeline_item_moderation(match_ref: str, session: Session = Depends(get_
 
 
 @router.get("/timeline/{match_ref}")
-def get_timeline_item(match_ref: str, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+def get_timeline_item(match_ref: str, session: Session = Depends(get_session), _: str = Depends(require_match_access)):
     items = _competition_timeline_items(session) + _custom_timeline_items(session)
     for item in items:
         if item["match_ref"] == match_ref:
