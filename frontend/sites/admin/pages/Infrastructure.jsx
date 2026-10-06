@@ -37,20 +37,32 @@ export default function Infrastructure() {
   const hw = data?.hardware;
   const machine = data?.machine || {};
   const ownIp   = machine.lan_ip || machine.prod_lan_ip || '';
-  const all = data?.available ? [...data.containers, COCKPIT] : [];
+  // Sinds de cutover: prod op g5, acc + beheertools (o.a. cockpit) op G4. Deze pagina ziet alleen de eigen machine.
+  const isProdHost = ownIp && ownIp === machine.prod_lan_ip;
+  const otherIp    = isProdHost ? machine.acc_lan_ip : machine.prod_lan_ip;
+  const otherAdmin = otherIp ? `http://${otherIp}:${isProdHost ? 8081 : 8080}/admin/infrastructure` : null;
+  const all = data?.available ? [...data.containers, ...(isProdHost ? [] : [COCKPIT])] : [];
   const prod  = all.filter(c => envOf(c.name) === 'prod');
   const acc   = all.filter(c => envOf(c.name) === 'acc');
   const ext   = all.filter(c => envOf(c.name) === 'ext' || c._cockpit);
 
   return (
     <AdminLayout>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Infrastructuur</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Infrastructure</h1>
       <p style={{ color: 'var(--color-text-muted)', marginBottom: 24, fontSize: 13 }}>
-        {machine.hostname || 'server'} · {ownIp || '…'} · live via Docker socket
+        {machine.hostname || 'server'} · {ownIp || '…'} · {isProdHost ? 'production' : 'acceptance + management'} · live via Docker socket
       </p>
 
+      {otherAdmin && (
+        <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: -12, marginBottom: 24 }}>
+          This page only shows this machine.{' '}
+          {isProdHost ? 'Acceptance and the management tools (Bugsink, Portainer, Cockpit) run on ' : 'Production runs on '}
+          <a href={otherAdmin} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)' }}>{otherIp} ↗</a>
+        </p>
+      )}
+
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: 16 }}>{error}</p>}
-      {!data && !error && <p style={{ color: 'var(--color-text-muted)' }}>Laden…</p>}
+      {!data && !error && <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>}
 
       {hw && <HwStrip hw={hw} machine={machine} ownIp={ownIp} />}
       {backups && <BackupStrip backups={backups} />}
@@ -58,18 +70,22 @@ export default function Infrastructure() {
 
       {!data?.available && data && (
         <div style={{ padding: '16px 20px', borderRadius: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 13, marginBottom: 24 }}>
-          Docker socket niet beschikbaar — mount <code>/var/run/docker.sock</code> in de backend-container.
+          Docker socket not available — mount <code>/var/run/docker.sock</code> in the backend container.
         </div>
       )}
 
       {data?.available && (<>
-        <Section title="Productie" badge="prod" badgeColor="var(--color-primary)">
-          <Grid containers={prod} ownIp={ownIp} />
-        </Section>
-        <Section title="Acceptatie" badge="acc" badgeColor="#8b5cf6">
-          <Grid containers={acc} ownIp={ownIp} />
-        </Section>
-        <Section title="Overige services" badge={null}>
+        {prod.length > 0 && (
+          <Section title="Production" badge="prod" badgeColor="var(--color-primary)">
+            <Grid containers={prod} ownIp={ownIp} />
+          </Section>
+        )}
+        {acc.length > 0 && (
+          <Section title="Acceptance" badge="acc" badgeColor="#8b5cf6">
+            <Grid containers={acc} ownIp={ownIp} />
+          </Section>
+        )}
+        <Section title="Other services" badge={null}>
           <Grid containers={ext} ownIp={ownIp} />
         </Section>
         <PortTable prodIp={machine.prod_lan_ip} accIp={machine.acc_lan_ip} />
@@ -82,13 +98,13 @@ export default function Infrastructure() {
 function HwStrip({ hw, machine, ownIp }) {
   function fmtUptime(s) {
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-    return d > 0 ? `${d}d ${h}u ${m}m` : h > 0 ? `${h}u ${m}m` : `${m}m`;
+    return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
   const cells = [
     { label: 'Machine', value: machine.hostname || '—' },
     { label: 'CPU', value: `${hw.cpu_percent}%` },
     { label: 'RAM', value: `${hw.memory.used_gb} / ${hw.memory.total_gb} GB (${hw.memory.percent}%)` },
-    { label: 'Schijf (/)', value: `${hw.disk.used_gb} / ${hw.disk.total_gb} GB (${hw.disk.percent}%)` },
+    { label: 'Disk (/)', value: `${hw.disk.used_gb} / ${hw.disk.total_gb} GB (${hw.disk.percent}%)` },
     { label: 'Uptime', value: fmtUptime(hw.uptime_s) },
     { label: 'IP (LAN)', value: ownIp || '—', accent: true },
   ];
@@ -120,7 +136,7 @@ function Section({ title, badge, badgeColor, children }) {
 
 /* ── Grid + Card ── */
 function Grid({ containers, ownIp }) {
-  if (!containers.length) return <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Geen containers</p>;
+  if (!containers.length) return <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>No containers</p>;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
       {containers.map(c => <ContainerCard key={c.name} c={c} ownIp={ownIp} />)}
@@ -171,7 +187,7 @@ function ContainerCard({ c, ownIp }) {
       )}
 
       {c._cockpit && (
-        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Systeemdienst (niet Docker) — serverbeheer UI</p>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>System service (not Docker) — server management UI</p>
       )}
     </div>
   );
@@ -189,11 +205,11 @@ function BackupStrip({ backups }) {
   const latest = backups.backups?.[0];
   const pending = backups.pending_restore;
   const cells = [
-    { label: 'Schema', value: 'Dagelijks 03:00' },
-    { label: 'Laatste backup', value: latest ? latest.date : '—', accent: !!latest },
-    { label: 'Grootte', value: latest ? `${latest.size_mb} MB` : '—' },
-    { label: 'Bewaard', value: `${backups.backups?.length ?? 0} snapshots` },
-    { label: 'NAS kopie', value: 'Music/.hp_backups/', note: true },
+    { label: 'Schedule', value: 'Daily 03:00' },
+    { label: 'Last backup', value: latest ? latest.date : '—', accent: !!latest },
+    { label: 'Size', value: latest ? `${latest.size_mb} MB` : '—' },
+    { label: 'Kept', value: `${backups.backups?.length ?? 0} snapshots` },
+    { label: 'NAS copy', value: 'nas-backup/database/', note: true },
     { label: 'Restore', value: pending ? `⏳ ${pending}` : '—', warn: !!pending },
   ];
   return (
@@ -210,29 +226,29 @@ function BackupStrip({ backups }) {
 
 /* ── Port table ── */
 function PortTable({ prodIp, accIp }) {
-  // ext-services (Bugsink/Portainer/Cockpit) draaien vooralsnog nog op de
-  // acc-machine (G4) - die zijn nog niet meeverhuisd bij de prod-cutover.
+  // Beheertools (Bugsink/Portainer/Cockpit) en sponsordeck blijven bewust op de acc-machine (G4), besluit cutover 06-10.
   const rows = [
     { port: 8080, service: 'HomePlatform prod (Caddy)', url: `http://${prodIp}:8080`, env: 'prod' },
     { port: 8081, service: 'HomePlatform acc (Caddy)', url: `http://${accIp}:8081`, env: 'acc' },
-    { port: 8090, service: 'Bugsink (foutmonitoring)', url: `http://${accIp}:8090`, env: 'ext' },
+    { port: 8082, service: 'Sponsor deck (mo14.webheaven.nl)', url: `http://${accIp}:8082`, env: 'ext' },
+    { port: 8090, service: 'Bugsink (error monitoring)', url: `http://${accIp}:8090`, env: 'ext' },
     { port: 9000, service: 'Portainer', url: `http://${accIp}:9000`, env: 'ext' },
     { port: 9443, service: 'Portainer (HTTPS)', url: `https://${accIp}:9443`, env: 'ext' },
-    { port: 9091, service: 'Cockpit (systeemdienst)', url: `http://${accIp}:9091`, env: 'ext' },
-    { port: '443 / 80', service: 'Cloudflare Tunnel → extern', url: 'https://webheaven.nl', env: 'green' },
+    { port: 9091, service: 'Cockpit (system service)', url: `http://${accIp}:9091`, env: 'ext' },
+    { port: '443 / 80', service: 'Cloudflare Tunnel → external (on prod)', url: 'https://webheaven.nl', env: 'green' },
   ];
   const badgeColor = { prod: 'var(--color-primary)', acc: '#8b5cf6', ext: 'var(--color-text-muted)', green: '#22c55e' };
   return (
     <div style={{ marginBottom: 32 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Poortreferentie</span>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Port reference</span>
         <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
       </div>
       <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid var(--color-border)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--color-background)' }}>
-              {['Poort', 'Service', 'URL', ''].map(h => (
+              {['Port', 'Service', 'URL', ''].map(h => (
                 <th key={h} style={{ textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', padding: '8px 14px', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
               ))}
             </tr>

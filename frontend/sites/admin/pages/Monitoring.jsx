@@ -16,138 +16,138 @@ export default function Monitoring() {
 
   return (
     <AdminLayout>
-      <h1 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>Beheer & links</h1>
+      <h1 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>Management & links</h1>
       <p style={{ color: 'var(--color-text-muted)', marginBottom: '28px', fontSize: 'var(--font-size-sm)' }}>
-        Snelle toegang tot externe beheeromgevingen
+        Quick access to external management environments
       </p>
 
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>{error}</p>}
 
       {/* ── Toegang ── */}
-      <Section title="Toegang">
+      <Section title="Access">
         <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
           <LinkCard
             icon="🌐"
             title="webheaven.nl"
-            description="Externe toegang via Cloudflare Tunnel. Bereikbaar voor iedereen met een uitnodiging."
+            description="External access via Cloudflare Tunnel. Reachable for everyone with an invite."
             href={links.external_url}
             badge="live"
             badgeColor="#22c55e"
-            placeholder="Stel EXTERNAL_URL in .env in"
+            placeholder="Set EXTERNAL_URL in .env"
           />
           <LinkCard
             icon="☁"
             title="Cloudflare Tunnel"
-            description="Beheer de tunnel die het platform extern bereikbaar maakt. Status, replicas en routes."
+            description="Manage the tunnel that makes the platform reachable externally. Status, replicas and routes."
             href={links.cloudflare_tunnel}
-            placeholder="Stel EXTERNAL_URL in .env in"
+            placeholder="Set EXTERNAL_URL in .env"
           />
           <LinkCard
             icon="📊"
             title="Cloudflare Analytics"
-            description="Bezoekers, requests, bandbreedte en threats voor webheaven.nl."
+            description="Visitors, requests, bandwidth and threats for webheaven.nl."
             href={links.cloudflare_analytics}
-            placeholder="Stel EXTERNAL_URL in .env in"
+            placeholder="Set EXTERNAL_URL in .env"
           />
           <LinkCard
             icon="🌍"
             title="mijndomein.nl"
-            description="Domeinregistrar — hier staat het webheaven.nl-domein geregistreerd. DNS, verlenging en factuurbeheer."
+            description="Domain registrar — the webheaven.nl domain is registered here. DNS, renewal and invoices."
             href="https://www.mijndomein.nl/"
           />
           <LinkCard
             icon="🐛"
             title="Bugsink"
-            description="Fout- en crash-monitoring. Sentry-compatible drop-in, draait op de G4."
-            href="http://192.168.30.232:8090"
-            badge={overview?.sentry_enabled ? `actief · ${overview.sentry_min_level}+` : null}
+            description="Error and crash monitoring. Sentry-compatible drop-in, runs on the acc/management machine (G4)."
+            href={links.bugsink}
+            badge={overview?.sentry_enabled ? `active · ${overview.sentry_min_level}+` : null}
             badgeColor={overview?.sentry_enabled ? '#22c55e' : null}
           />
           <LinkCard
             icon="🐳"
             title="Portainer"
-            description="Docker beheer UI op de G4. Containers, images, volumes en logs."
-            href="http://192.168.30.232:9000"
+            description="Docker management UI on the acc/management machine (G4). Containers, images, volumes and logs."
+            href={links.portainer}
           />
           <LinkCard
             icon="🖥"
             title="Cockpit"
-            description="Serverbeheer UI op de G4. CPU, geheugen, netwerk en services."
-            href="http://192.168.30.232:9091"
+            description="Server management UI on the acc/management machine (G4). CPU, memory, network and services."
+            href={links.cockpit}
           />
           <LinkCard
             icon="📄"
-            title="API documentatie"
-            description="Interactieve Swagger UI voor alle backend endpoints (alleen development)."
+            title="API documentation"
+            description="Interactive Swagger UI for all backend endpoints (development only)."
             href={links.api_docs}
-            placeholder="Alleen beschikbaar in development mode"
+            placeholder="Only available in development mode"
             internal
           />
           <LinkCard
             icon="🔑"
-            title="Admin — Systeem"
-            description="Volledig platformoverzicht: versies, gebruikers, groepen en tabelgroottes."
+            title="Admin — System"
+            description="Full platform overview: versions, users, groups and table sizes."
             href="/admin/system"
             internal
           />
           <LinkCard
             icon="🖥"
-            title="Admin — Infrastructuur"
-            description="Live overzicht van alle G4-containers: images, status, poorten en volumes."
+            title="Admin — Infrastructure"
+            description="Live overview of the containers on this machine: images, status, ports and volumes."
             href="/admin/infrastructure"
             internal
           />
           <LinkCard
             icon="📈"
             title="Admin — API stats"
-            description="Live overzicht van hoeveel elke backend-endpoint wordt aangeroepen."
+            description="Live overview of how often each backend endpoint is called."
             href="/admin/api-stats"
             internal
           />
           <LinkCard
             icon="🐙"
             title="GitHub"
-            description="Broncode van het platform. Commits, branches, pull requests en de volledige history."
+            description="Platform source code. Commits, branches, pull requests and the full history."
             href={links.github}
           />
           <LinkCard
             icon="⚙"
             title="GitHub Actions"
-            description="CI/CD pipelines: deploy naar acc (develop) en prod (main). DB snapshot prod→acc handmatig triggeren."
+            description="CI/CD pipelines: deploy to acc (develop) and prod (main). Trigger the prod→acc DB snapshot manually."
             href={links.github ? links.github + '/actions' : null}
-            placeholder="Stel GITHUB_URL in .env in"
+            placeholder="Set GITHUB_URL in .env"
           />
           <LinkCard
             icon="🧪"
-            title="Acceptatie-omgeving"
-            description="Develop branch — test nieuwe features vóór ze naar prod gaan. Zelfde stack als prod, eigen database."
-            href="http://192.168.30.232:8081"
+            title="Acceptance environment"
+            description="Develop branch — test new features before they go to prod. Same stack as prod, own database."
+            href={links.acc}
           />
           <LinkCard
             icon="◈"
             title="Roadmap"
-            description="Ideeën, lopende taken en voltooide items. De centrale backlog van het platform."
+            description="Ideas, ongoing tasks and finished items. The central backlog of the platform."
             href="/admin/roadmap"
             internal
           />
           <LinkCard
             icon="◷"
             title="Changelog"
-            description="Overzicht van alle releases en wijzigingen die live zijn gegaan."
+            description="Overview of all releases and changes that went live."
             href="/admin/changelog"
             internal
           />
           <LinkCard
             icon="⟳"
             title="Workflows"
-            description="Stap-voor-stap uitleg van de roadmap-, deploy- en gebruikersworkflow."
+            description="Step-by-step explanation of the roadmap, deploy and user workflows."
             href="/admin/workflows"
             internal
           />
           <LinkCard
             icon="◈"
-            title="Data &amp; instellingen"
-            description="Overzicht van wat per gebruiker, groep of apparaat wordt opgeslagen."
+            title="Data &amp; settings"
+            description="Overview of what is stored per user, group or device."
             href="/admin/data-storage"
             internal
           />
@@ -156,18 +156,18 @@ export default function Monitoring() {
 
       {/* ── Omgeving ── */}
       {overview && (
-        <Section title="Omgeving">
+        <Section title="Environment">
           <div style={{
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'grid', gap: '8px',
           }}>
             <EnvRow label="Environment"           value={overview.environment} />
-            <EnvRow label="Backend versie"        value={overview.backend_version} />
-            <EnvRow label="DB revisie"            value={overview.db_revision} mono />
+            <EnvRow label="Backend version"        value={overview.backend_version} />
+            <EnvRow label="DB revision"            value={overview.db_revision} mono />
             <EnvRow label="Database"              value={overview.database_file} mono />
-            <EnvRow label="Extern"                value={links.external_url || '—'} />
-            <EnvRow label="Bugsink"               value={overview.sentry_enabled ? `actief (${overview.sentry_min_level}+)` : 'uitgeschakeld'} />
-            <EnvRow label="Download map"          value={overview.download_dir || '—'} mono />
+            <EnvRow label="External"                value={links.external_url || '—'} />
+            <EnvRow label="Bugsink"               value={overview.sentry_enabled ? `active (${overview.sentry_min_level}+)` : 'disabled'} />
+            <EnvRow label="Download folder"          value={overview.download_dir || '—'} mono />
             {overview.beatportdl_config_dir && (
               <EnvRow label="beatportdl config"   value={overview.beatportdl_config_dir} mono />
             )}
@@ -225,7 +225,7 @@ function LinkCard({ icon, title, description, href, badge, badgeColor, placehold
             textDecoration: 'none', fontWeight: 500, marginTop: 'auto',
           }}
         >
-          {internal ? 'Openen →' : 'Openen ↗'}
+          {internal ? 'Open →' : 'Open ↗'}
         </a>
       ) : (
         <span style={{ fontSize: '12px', color: 'var(--color-text-light)', fontStyle: 'italic', marginTop: 'auto' }}>

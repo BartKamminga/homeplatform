@@ -47,7 +47,7 @@ export const EXTERNAL_GROUPS = [
   {
     title: 'Roadmap-CLI',
     rows: [
-      { source: 'Interne roadmap-API (G4)', purpose: 'Roadmap-items lezen/wijzigen, changelog/release triggeren', file: 'roadmap.ps1, backend/routers/roadmap.py', verdict: 'yes', note: 'Al in gebruik als context voor de roadmap-agent.' },
+      { source: 'Interne roadmap-API (prod)', purpose: 'Roadmap-items lezen/wijzigen, changelog/release triggeren', file: 'roadmap.ps1, backend/routers/roadmap.py', verdict: 'yes', note: 'Al in gebruik als context voor de roadmap-agent.' },
     ],
   },
   {

@@ -302,58 +302,59 @@ export default function DataStorage() {
         </div>
 
         <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '14px', textAlign: 'center' }}>
-          Actieve Beatport-provider: <strong style={{ fontFamily: 'var(--font-mono)' }}>{beatportProvider ?? '…'}</strong>
-          {' '}— instelbaar via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in docker-compose.g4.yml
+          Active Beatport provider: <strong style={{ fontFamily: 'var(--font-mono)' }}>{beatportProvider ?? '…'}</strong>
+          {' '}— configurable via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in the prod compose file (docker-compose.g4.yml)
         </p>
       </SectionCard>
 
-      {/* ── Deploy-omgevingen ───────────────────────────────────────────── */}
+      {/* ── Deploy-omgevingen (sinds cutover 06-10: prod op g5, acc + beheer op G4) ── */}
       <SectionCard
-        title="Deploy-omgevingen"
-        subtitle="Lokale ontwikkeling (Windows) en productie op de G4 (HP ProDesk 600 G4 — Ubuntu + Docker)."
+        title="Deploy environments"
+        subtitle="Local development (Windows), acceptance + management on G4 (HP ProDesk 600 G4) and production on g5 (HP EliteDesk 705 G5) — both Ubuntu + Docker."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
-              Lokaal — ontwikkeling
+              Local — development
             </div>
-            <EnvRow label="Vite dev server"  note="Frontend MPA — elke site eigen port" />
-            <EnvRow label="FastAPI uvicorn"  note="Backend op :8000 — F5 launch config in .venv" />
-            <EnvRow label="Git branch"       note="develop voor feature-werk, main voor productie" />
+            <EnvRow label="Vite dev server"  note="Frontend MPA — every site has its own port" />
+            <EnvRow label="FastAPI uvicorn"  note="Backend on :8000 — F5 launch config in .venv" />
+            <EnvRow label="Git branch"       note="develop for feature work, main for production" />
           </div>
 
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
-              G4 — acceptatie (192.168.30.232:8081)
+              G4 — acceptance + management (:8081)
             </div>
-            <EnvRow label="Branch"           note="develop → automatisch via GitHub Actions" />
-            <EnvRow label="Caddy (Docker)"   note="Poort 8081 — docker-compose.acc.yml" />
+            <EnvRow label="Branch"           note="develop → automatically via GitHub Actions" />
+            <EnvRow label="Caddy (Docker)"   note="Port 8081 — docker-compose.acc.yml" />
             <EnvRow label="Backend (Docker)" note="FastAPI container — homeplatform_backend_acc" />
             <EnvRow label="SQLite"           note="/home/bart/homeplatform-acc/db/homeplatform.sqlite" />
+            <EnvRow label="Build"            note="Builds the prod images and pushes them to GHCR" />
+            <EnvRow label="Management"       note="Bugsink (:8090), Portainer (:9000), Cockpit (:9091)" />
           </div>
 
           <div>
             <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid var(--color-border)' }}>
-              G4 — productie (192.168.30.232:8080)
+              g5 — production (:8080)
             </div>
-            <EnvRow label="Branch"           note="main → automatisch via GitHub Actions" />
-            <EnvRow label="Caddy (Docker)"   note="Poort 8080 / 8443 — docker-compose.g4.yml" />
-            <EnvRow label="Backend (Docker)" note="FastAPI container — Dockerfile in /backend" />
+            <EnvRow label="Branch"           note="main → automatically via GitHub Actions" />
+            <EnvRow label="Images"           note="Pulled from GHCR (backend, ghost, agent-worker, web)" />
+            <EnvRow label="Caddy (Docker)"   note="Port 8080 / 8443 — frontend inside the web image" />
             <EnvRow label="SQLite"           note="/home/bart/homeplatform/db/homeplatform.sqlite" />
-            <EnvRow label="Downloads"        note="/home/bart/homeplatform/downloads — beatportdl + yt-dlp output" />
-            <EnvRow label="Bugsink"          note="Fout-tracking op G4 (poort 8090)" />
-            <EnvRow label="Cloudflare Tunnel" note="Externe toegang via cloudflared" />
+            <EnvRow label="Uploads"          note="/mnt/extra-ssd/uploads + nas-files" />
+            <EnvRow label="Cloudflare Tunnel" note="webheaven.nl via cloudflared" />
           </div>
         </div>
 
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-light)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-            Deploy-flow — GitHub Actions
+            Deploy flow — GitHub Actions
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
             {[
-              { branch: 'develop', desc: 'push → acc (8081): Vite build + Docker rebuild + migraties' },
-              { branch: 'main',    desc: 'push → prod (8080): zelfde flow, live op webheaven.nl' },
+              { branch: 'develop', desc: 'push → acc (G4 :8081): local Docker build + DB snapshot + migrations' },
+              { branch: 'main',    desc: 'push → G4 builds images → GHCR → prod (g5) pulls: DB snapshot, backend, migrations, then frontend' },
             ].map((item) => (
               <div key={item.branch} style={{
                 background: 'var(--color-background)', border: '1px solid var(--color-border)',
