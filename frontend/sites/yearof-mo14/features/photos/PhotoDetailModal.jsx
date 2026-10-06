@@ -57,16 +57,24 @@ export default function PhotoDetailModal({ photos, openId, setOpenId, autoAdvanc
       }}>
         <PhotoDetail photo={photo} tagPlayers={tagPlayers} onAction={act} onCaption={v => onCaption(photo, v)}
           onDelete={() => onDelete(photo)} onPurge={() => onPurge(photo)} {...rest} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, fontSize: 12, flexWrap: 'wrap', whiteSpace: 'nowrap' }}>
-          <button onClick={() => go(-1)} className="yof-btn-secondary" style={{ whiteSpace: 'nowrap' }}>&lsaquo; vorige</button>
-          <span style={{ color: '#999' }}>{index + 1} / {photos.length}</span>
-          <button onClick={() => go(1)} className="yof-btn-secondary" style={{ whiteSpace: 'nowrap' }}>volgende &rsaquo;</button>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: autoAdvance ? '#16a34a' : '#999', cursor: 'pointer', whiteSpace: 'nowrap' }}
+        {/* Onderbalk op 1 regel: navigatie links, Sluiten rechts. Let op: .yof-btn
+            is standaard width:100% - hier expliciet auto, anders drukt hij de rest samen. */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 12,
+          borderTop: '1px solid #eee', fontSize: 12, whiteSpace: 'nowrap',
+        }}>
+          <button onClick={() => go(-1)} className="yof-btn-secondary" style={{ flexShrink: 0 }}>&lsaquo; vorige</button>
+          <span style={{ color: '#999', minWidth: 44, textAlign: 'center', flexShrink: 0 }}>{index + 1} / {photos.length}</span>
+          <button onClick={() => go(1)} className="yof-btn-secondary" style={{ flexShrink: 0 }}>volgende &rsaquo;</button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: autoAdvance ? '#16a34a' : '#999', cursor: 'pointer', flexShrink: 0 }}
             title="Na publiceren automatisch naar de volgende foto">
             <input type="checkbox" checked={autoAdvance} onChange={e => setAutoAdvance(e.target.checked)} style={{ margin: 0 }} />
             auto door
           </label>
-          <button onClick={() => setOpenId(null)} className="yof-btn" style={{ marginLeft: 'auto' }}>Sluiten [Esc]</button>
+          <button onClick={() => setOpenId(null)} className="yof-btn"
+            style={{ width: 'auto', marginLeft: 'auto', padding: '8px 18px', fontSize: 13, flexShrink: 0 }}>
+            Sluiten <span style={{ opacity: 0.6, fontWeight: 400 }}>[Esc]</span>
+          </button>
         </div>
       </div>
     </div>

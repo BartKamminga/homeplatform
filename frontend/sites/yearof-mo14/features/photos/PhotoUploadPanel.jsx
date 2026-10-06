@@ -64,7 +64,7 @@ export default function PhotoUploadPanel({ matchRef = null, reportId = null, ent
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-        <button onClick={upload} disabled={!canUpload} className="yof-btn" style={{ fontSize: 13 }}>
+        <button onClick={upload} disabled={!canUpload} className="yof-btn" style={{ width: 'auto', padding: '8px 18px', fontSize: 13 }}>
           {queue.busy ? `Uploaden ${queue.progress.done}/${queue.progress.total}...` : `Upload ${queue.files.length || ''}`.trim()}
         </button>
         {queue.progress && !queue.busy && queue.errors.length === 0 && <span style={{ fontSize: 12, color: '#16a34a' }}>Klaar!</span>}

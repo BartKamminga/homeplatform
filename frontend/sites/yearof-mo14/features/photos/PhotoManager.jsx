@@ -138,7 +138,7 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
             onChanged?.()
           }} />
       ) : (
-        <button onClick={() => setShowUpload(true)} className="yof-btn" style={{ fontSize: 13, marginBottom: 10 }}>
+        <button onClick={() => setShowUpload(true)} className="yof-btn" style={{ width: 'auto', padding: '8px 18px', fontSize: 13, marginBottom: 10 }}>
           + Foto's uploaden{matchRef || reportId ? ' (direct gekoppeld)' : ''}
         </button>
       )}
