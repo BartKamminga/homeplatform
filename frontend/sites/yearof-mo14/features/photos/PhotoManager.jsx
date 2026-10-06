@@ -129,7 +129,6 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
 
   return (
     <div>
-      {confirmDialog}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {showUpload ? (
         <PhotoUploadPanel matchRef={matchRef} reportId={reportId} entries={entries} onClose={() => setShowUpload(false)}
@@ -170,6 +169,8 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
           onCaption={(photo, caption) => updatePhoto(photo.id, { caption }).then(load).catch(e => setError(e.message))}
           onDelete={archiveOne} onPurge={purgeOne} />
       )}
+      {/* Als laatste: zelfde z-index als het detailvenster, dus later in de DOM = bovenop */}
+      {confirmDialog}
     </div>
   )
 }

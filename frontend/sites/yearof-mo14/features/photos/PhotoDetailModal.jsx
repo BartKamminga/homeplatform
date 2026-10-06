@@ -57,11 +57,11 @@ export default function PhotoDetailModal({ photos, openId, setOpenId, autoAdvanc
       }}>
         <PhotoDetail photo={photo} tagPlayers={tagPlayers} onAction={act} onCaption={v => onCaption(photo, v)}
           onDelete={() => onDelete(photo)} onPurge={() => onPurge(photo)} {...rest} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, fontSize: 12 }}>
-          <button onClick={() => go(-1)} className="yof-btn-secondary">&lsaquo; vorige</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, fontSize: 12, flexWrap: 'wrap', whiteSpace: 'nowrap' }}>
+          <button onClick={() => go(-1)} className="yof-btn-secondary" style={{ whiteSpace: 'nowrap' }}>&lsaquo; vorige</button>
           <span style={{ color: '#999' }}>{index + 1} / {photos.length}</span>
-          <button onClick={() => go(1)} className="yof-btn-secondary">volgende &rsaquo;</button>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: autoAdvance ? '#16a34a' : '#999', cursor: 'pointer' }}
+          <button onClick={() => go(1)} className="yof-btn-secondary" style={{ whiteSpace: 'nowrap' }}>volgende &rsaquo;</button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: autoAdvance ? '#16a34a' : '#999', cursor: 'pointer', whiteSpace: 'nowrap' }}
             title="Na publiceren automatisch naar de volgende foto">
             <input type="checkbox" checked={autoAdvance} onChange={e => setAutoAdvance(e.target.checked)} style={{ margin: 0 }} />
             auto door
