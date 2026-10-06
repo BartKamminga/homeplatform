@@ -5,12 +5,13 @@
 set -e
 DATE=$(date +%Y-%m-%d)
 LOG="/home/bart/backup.log"
+NAS_MOUNT="/mnt/nas-backup"
 
 backup_env() {
     local ENV=$1
     local DB="/home/bart/homeplatform${ENV}/db/homeplatform.sqlite"
     local BACKUP_DIR="/home/bart/homeplatform${ENV}/db/backups"
-    local NAS_DIR="/mnt/nas-backup/database"
+    local NAS_DIR="$NAS_MOUNT/database"
     local LABEL="prod"; [ -n "$ENV" ] && LABEL="acc"
 
     if [ ! -f "$DB" ]; then echo "[$LABEL] DB niet gevonden: $DB" >> $LOG; return; fi
@@ -28,17 +29,23 @@ dst.close(); src.close()
     SIZE=$(du -sh "$TARGET" | cut -f1)
     echo "[$(date +%H:%M)] [$LABEL] backup ok: homeplatform-$DATE.sqlite ($SIZE)" >> $LOG
 
-    # Kopieer naar NAS (apart backup-share, niet meer de Music-share)
-    mkdir -p "$NAS_DIR"
-    cp "$TARGET" "$NAS_DIR/${LABEL}-homeplatform-$DATE.sqlite" 2>/dev/null \
-        && echo "[$LABEL] NAS ok" >> $LOG \
-        || echo "[$LABEL] NAS mislukt (doorgaan)" >> $LOG
+    # Kopieer naar NAS (apart backup-share, niet meer de Music-share).
+    # Alleen als de share echt gemount is: anders schrijft cp naar de lokale map onder het
+    # mountpunt en verdwijnt de kopie uit zicht zodra de mount terugkomt (gebeurd 21-24 sept).
+    if ! mountpoint -q "$NAS_MOUNT"; then
+        echo "[$LABEL] NAS mislukt: $NAS_MOUNT niet gemount" >> $LOG
+    else
+        mkdir -p "$NAS_DIR"
+        cp "$TARGET" "$NAS_DIR/${LABEL}-homeplatform-$DATE.sqlite" 2>/dev/null \
+            && echo "[$LABEL] NAS ok" >> $LOG \
+            || echo "[$LABEL] NAS mislukt (doorgaan)" >> $LOG
+    fi
 
     # Bewaar max 14 dagelijkse lokale backups
     ls -t "$BACKUP_DIR"/homeplatform-*.sqlite 2>/dev/null | tail -n +15 | xargs -r rm -f
 }
 
-echo "--- backup $DATE ---" >> /home/bart/backup.log
+echo "--- backup $DATE ---" >> $LOG
 # Welke omgevingen: argumenten "prod" en/of "acc" (default: beide, oude gedrag).
 # Na de g4->g5-cutover: g5 draait alleen "prod", G4 alleen "acc" - anders
 # schrijven beide hosts naar dezelfde NAS-bestandsnaam en overschrijven ze elkaar.

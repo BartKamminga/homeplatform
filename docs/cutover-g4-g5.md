@@ -35,19 +35,18 @@ Tunnel-ingress (Cloudflare, remote-managed, token in `.env` als `CLOUDFLARE_TUNN
    de containers op `:<sha>` draaien, inclusief `homeplatform_caddy` = `homeplatform-web:<sha>`.
    Vóór die main-deploy de secret `SENTRY_DSN` (environment `production`) aanpassen: host `bugsink`
    → `192.168.30.232`, zodat de deploy de juiste `.env` schrijft. Controle: test-error in admin → zichtbaar in bugsink.
-1. Host-scripts bijwerken (repo `scripts/`, nu per omgeving aan te roepen met `prod` / `acc`):
+1. ✅ (06-10) Host-scripts in de repo (`scripts/`) en op beide hosts in `/home/bart/` (oude versies als
+   `*.bak-20261006`): `backup-homeplatform.sh`, `backup-files.sh` (nu met NAS-mountcontrole, item 1188),
+   `restore-homeplatform.sh` (nu per omgeving + fix containernaam acc), `services-watcher.sh`.
+   Alle vier per omgeving aan te roepen (`prod` / `acc`); zonder argument = beide (oude gedrag).
+2. ⏳ **sudo-regel op g5** voor `services-watcher.sh` (runner herstarten vanuit admin) — Bart, met sudo:
    ```bash
-   # vanaf de werkplek
-   scp -i ~/.ssh/homeplatform scripts/backup-homeplatform.sh scripts/backup-files.sh bart@192.168.30.49:/home/bart/
-   scp -i ~/.ssh/homeplatform scripts/backup-homeplatform.sh scripts/backup-files.sh bart@192.168.30.232:/home/bart/
-   ssh ... 'sed -i "s/\r$//" /home/bart/backup-*.sh && chmod +x /home/bart/backup-*.sh'   # beide hosts (CRLF!)
+   echo 'bart ALL=(root) NOPASSWD: /usr/bin/systemctl restart actions.runner.*' | sudo tee /etc/sudoers.d/homeplatform-runner
+   sudo chmod 440 /etc/sudoers.d/homeplatform-runner && sudo visudo -c
    ```
-2. `restore-homeplatform.sh` en `services-watcher.sh` (staan alleen op G4) naar g5 kopiëren:
-   ```bash
-   # op G4
-   scp -i /home/bart/.ssh/homeplatform-g5 /home/bart/restore-homeplatform.sh /home/bart/services-watcher.sh bart@192.168.30.49:/home/bart/
-   ```
-3. Check dat de laatste schaduw-sync recent is: `tail -3 /home/bart/sync-to-g5.log` (G4).
+3. ✅ (06-10) Schaduw-sync recent (elke 15 min `sync ok`), g5 gezond (196 GB vrij, 13 GB RAM vrij).
+4. ⏳ **Besluit dev-sessions**: op g5 ontbreken de deploy-key (`/home/bart/homeplatform/secrets/claude-agent-deploy-key`)
+   en het image `homeplatform-claude-agent`. Na de cutover start prod de sessions op g5 → falen, tot item 1165.
 
 ## Fase 2 — Freeze G4 + laatste sync (downtime start)
 
@@ -109,19 +108,23 @@ curl -s -o /dev/null -w "%{http_code}\n" https://mo14.webheaven.nl/      # spons
 
 ## Fase 5 — Afronden
 
-1. **Clublocaties** (prod-db mist ze na promote):
+0. **Lokale CLI-configs naar g5** (werkplek, gitignored) — direct na fase 4, anders schrijven
+   `roadmap.ps1` en `MindBox.ps1 -Env prod` naar de gestopte G4-backend:
+   `.roadmap.config.ps1` en `.mindbox.config.prod.ps1`: `$HP_API_BASE = "http://192.168.30.49:8080/api"`.
+   De API-keys blijven geldig (zitten in de gepromoveerde db). Acc (`PROD_API_BASE`) en de Chrome-plugins
+   gebruiken `https://webheaven.nl` en hoeven niet aangepast.
+1. **Clublocaties** (prod-db mist ze na promote), met de roadmap-key (`hp_…`, werkt op elk ingelogd endpoint):
    `curl -X POST -H "Authorization: Bearer <key>" https://webheaven.nl/api/hockey/clubs/geocode`
 2. **Crons g5**:
    ```
    0 3 * * *   [ ! -f /home/bart/homeplatform/db/cron_disabled ] && /home/bart/backup-homeplatform.sh prod >> /home/bart/backup.log 2>&1
    30 3 * * *  [ ! -f /home/bart/homeplatform/db/cron_disabled ] && /home/bart/backup-files.sh prod >> /home/bart/backup-files.log 2>&1
-   * * * * *   /home/bart/restore-homeplatform.sh >> /home/bart/restore.log 2>&1
+   * * * * *   /home/bart/restore-homeplatform.sh prod >> /home/bart/restore.log 2>&1
    * * * * *   /home/bart/services-watcher.sh >> /home/bart/services.log 2>&1
    ```
-   `restore-homeplatform.sh` op g5: alleen `restore_env ""` (prod) laten staan.
    Daarna `rm /home/bart/homeplatform/db/cron_disabled` (g5).
 3. **Crons G4**: backups alleen nog acc (`backup-homeplatform.sh acc`, `backup-files.sh acc`),
-   `restore-homeplatform.sh` alleen `restore_env "-acc"`, sync-to-g5-regel verwijderen.
+   `restore-homeplatform.sh acc`, sync-to-g5-regel verwijderen.
    ⚠️ Zonder deze stap overschrijft G4 om 03:00 de echte g5-backup op de NAS met de oude G4-db.
 4. **Oude prod-containers G4** niet meer laten herstarten (bugsink/portainer/sponsordeck blijven draaien):
    ```bash
