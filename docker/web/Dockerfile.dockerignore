@@ -1,0 +1,8 @@
+# Build-context is de repo-root: alleen meesturen wat het web-image nodig heeft.
+*
+!frontend/
+!Caddyfile.prod
+!Caddyfile.acc
+**/node_modules
+**/dist
+frontend/sites/temp

@@ -1,6 +1,6 @@
 # Cutover G4 → g5 (prod) — stappenplan
 
-Opgesteld 05-10-2026, uit te voeren 06-10-2026. Doel: `webheaven.nl` laten bedienen door g5
+Opgesteld 05-10-2026, bijgewerkt 06-10-2026 (nieuwe pipeline, item 1187 — eerst live op g5, dan cutover). Doel: `webheaven.nl` laten bedienen door g5
 (192.168.30.49) in plaats van G4 (192.168.30.232). G4 blijft daarna acc + beheer-/dev-host.
 
 Geschatte duur: 60–90 min, waarvan **~5–10 min downtime** (fase 2 t/m 4).
@@ -14,25 +14,27 @@ SSH: `ssh -i ~/.ssh/homeplatform bart@192.168.30.232` (G4) en `... bart@192.168.
 | Verkeer webheaven.nl | ✅ via `homeplatform_cloudflared` (token-tunnel) | ❌ alleen testtunnel `g5.webheaven.nl` |
 | Backend | oud image (26-09), container sinds 30-09 | `5bdfac9` (v5.8), correct |
 | DB | live, alembic `b4d6f8a0c2e4` | eigen kopie; staging-db elke 15 min ververst |
-| Frontend | nieuwste (pipeline bouwt op G4) | nieuwste |
+| Frontend | stand van de laatste oude-pipeline-build (de nieuwe pipeline raakt G4-prod niet meer) | in het web-image (`homeplatform-web:<sha>`) |
 | Crons | backup, backup-files, restore, services-watcher, sync-to-g5 | backup + backup-files — **tijdelijk uit** via `db/cron_disabled` |
 
 Tunnel-ingress (Cloudflare, remote-managed, token in `.env` als `CLOUDFLARE_TUNNEL_TOKEN`):
 - `webheaven.nl` → `http://caddy:80` (compose-servicenaam, werkt op g5 net zo)
 - `mo14.webheaven.nl` → `http://192.168.30.232:8082` (sponsordeck op G4, blijft via LAN bereikbaar)
 
-## Fase 0 — Open beslissingen (vooraf, samen)
+## Fase 0 — Besluiten (06-10)
 
-1. **bugsink + bugsink_db** (op G4, in compose-project `homeplatform-repo`): laten staan op G4?
-   Check waar `SENTRY_DSN` (production-secret) naar wijst — moet vanaf g5 bereikbaar zijn.
-2. **portainer** en **cockpit** op G4 laten als beheertools?
-3. **Sponsordeck** (`server-mo14-1`, mo14.webheaven.nl): op G4 laten (werkt via LAN door)?
-4. **Testtunnel** `g5.webheaven.nl` (`homeplatform_tunnel_g5`): houden als directe g5-ingang of opruimen?
-5. **NAS-retentie**: prod-backups 22–27 sept ontbreken op `/mnt/nas-backup/database` — bewust opgeruimd?
-6. Downtime-moment: wanneer (rustig moment, geen live-wedstrijden/scans)?
+1. **bugsink + bugsink_db** blijven op G4. `SENTRY_DSN` (production-secret) wees naar `http://…@bugsink:8090`
+   (compose-naam, bestaat niet op g5) → host wordt `192.168.30.232:8090` (zie fase 1).
+2. **portainer**, **cockpit** en **sponsordeck** (`server-mo14-1`) blijven op G4.
+3. **Testtunnel** `g5.webheaven.nl` wordt na de cutover opgeruimd (fase 5).
+4. Nog open: NAS-retentie prod-backups 22–27 sept, en het downtime-moment.
 
 ## Fase 1 — Voorbereiding (geen downtime)
 
+0. **Nieuwe pipeline live op g5** (item 1187): eerst via develop/acc, dan main. Check op g5 dat alle vier
+   de containers op `:<sha>` draaien, inclusief `homeplatform_caddy` = `homeplatform-web:<sha>`.
+   Vóór die main-deploy de secret `SENTRY_DSN` (environment `production`) aanpassen: host `bugsink`
+   → `192.168.30.232`, zodat de deploy de juiste `.env` schrijft. Controle: test-error in admin → zichtbaar in bugsink.
 1. Host-scripts bijwerken (repo `scripts/`, nu per omgeving aan te roepen met `prod` / `acc`):
    ```bash
    # vanaf de werkplek
@@ -72,12 +74,12 @@ rm -f homeplatform.sqlite-wal homeplatform.sqlite-shm
 mv homeplatform.sqlite.staging homeplatform.sqlite
 chmod 664 homeplatform.sqlite
 cd /home/bart/homeplatform-repo
-export IMAGE_TAG=$(git rev-parse --short HEAD)                 # moet de main-HEAD zijn (nu 5bdfac9)
+export IMAGE_TAG=$(git rev-parse --short=7 HEAD)               # moet de main-HEAD zijn
 docker compose -f docker-compose.g4.yml up -d --force-recreate backend ghost agent_worker
 sleep 5
 docker exec homeplatform_backend alembic upgrade heads         # b4d6f8a0c2e4 -> c8e0a2b4d6f8 (clublocaties)
 docker compose -f docker-compose.g4.yml up -d --no-deps --force-recreate caddy
-docker ps --format "{{.Names}}\t{{.Image}}" | grep homeplatform_   # backend/ghost/agent_worker = :<sha>, NIET :latest
+docker ps --format "{{.Names}}\t{{.Image}}" | grep homeplatform_   # alle vier (ook caddy = homeplatform-web) op :<sha>
 ```
 
 Controle via de testtunnel (nog vóór de omzetting):
@@ -92,8 +94,9 @@ het verkeer over beide connectors.
 ```bash
 # G4
 docker update --restart=no homeplatform_cloudflared && docker stop homeplatform_cloudflared
-# g5
-cd /home/bart/homeplatform-repo && docker compose -f docker-compose.g4.yml up -d --no-deps cloudflared
+# g5 (IMAGE_TAG is verplicht voor elk compose-commando op deze file)
+cd /home/bart/homeplatform-repo && export IMAGE_TAG=$(git rev-parse --short=7 HEAD)
+docker compose -f docker-compose.g4.yml up -d --no-deps cloudflared
 docker logs --tail 20 homeplatform_cloudflared          # "Registered tunnel connection" x4
 ```
 
@@ -125,9 +128,14 @@ curl -s -o /dev/null -w "%{http_code}\n" https://mo14.webheaven.nl/      # spons
    docker update --restart=no homeplatform_backend homeplatform_ghost homeplatform_agent_worker homeplatform_caddy
    docker stop homeplatform_caddy
    ```
-5. **Roadmap**: `.\roadmap.ps1 -Close -Ids "1182,1183,1184" -Version v5.8`
-6. **Documentatie**: CLAUDE.md (sectie G4 → g5 als prod), memory `project_server_migratie`.
-7. **Volgende ochtend**: `tail /home/bart/backup.log` op g5 en grootte van
+5. **Testtunnel opruimen** (g5): `docker rm -f homeplatform_tunnel_g5`; in Cloudflare de tunnel
+   `homeplatform-g5` + DNS-record `g5.webheaven.nl` verwijderen.
+6. **G4-prod-repo** (`/home/bart/homeplatform-repo`) wordt door de pipeline niet meer bijgewerkt; daar
+   draaien alleen nog bugsink/bugsink_db uit. Niet `git pull`-en zonder te beseffen dat de nieuwe
+   compose-file `IMAGE_TAG` verplicht stelt.
+7. **Roadmap**: `.\roadmap.ps1 -Close -Ids "1182,1183,1184" -Version v5.8`
+8. **Documentatie**: CLAUDE.md (sectie G4 → g5 als prod), memory `project_server_migratie`.
+9. **Volgende ochtend**: `tail /home/bart/backup.log` op g5 en grootte van
    `/mnt/nas-backup/database/prod-homeplatform-<datum>.sqlite` = g5-backup.
 
 ## Terugvalplan
@@ -146,5 +154,6 @@ curl -s -o /dev/null -w "%{http_code}\n" https://mo14.webheaven.nl/      # spons
   Caddy-reload recreëerde de backend met oud `:latest` → nu `--no-deps` + `IMAGE_TAG`.
 - g5-backupcron overschreef de G4-prod-backup op de NAS (zelfde bestandsnaam, g5 draait na G4):
   g5-crons uit via `cron_disabled`, NAS-backups van 02/04/05-10 hersteld uit de lokale G4-backups.
-- Pipeline bouwt de prod-frontend op G4 in de live dist-map → tot de cutover draait webheaven.nl een
-  nieuwe frontend op een oude backend (o.a. "No forecast available" in Poulebord). Lost zich op met de cutover.
+- Pipeline bouwde de prod-frontend op G4 in de live dist-map → webheaven.nl draaide een nieuwe frontend
+  op een oude backend (o.a. "No forecast available" in Poulebord). Opgelost met item 1187: build in de
+  runner-workspace, frontend zit in het web-image, gaat pas live na geslaagde migraties.

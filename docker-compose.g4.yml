@@ -1,17 +1,23 @@
 # docker-compose.g4.yml
-# HP ProDesk G4 configuratie
-# Gebruik: docker compose -f docker-compose.g4.yml up --build -d
+# Prod-stack (sinds de cutover op g5; bestandsnaam historisch).
+# Images komen uit GHCR, getagd met de korte commit-sha. IMAGE_TAG is verplicht - geen :latest-fallback,
+# want die startte stil een oud lokaal image:
+#   export IMAGE_TAG=<sha> && docker compose -f docker-compose.g4.yml up -d
 
 services:
   caddy:
-    image: caddy:latest
+    # Caddy + Caddyfile.prod + gebouwde frontend (docker/web/Dockerfile)
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      args:
+        CADDYFILE: Caddyfile.prod
+    image: ghcr.io/bartkamminga/homeplatform-web:${IMAGE_TAG:?IMAGE_TAG niet gezet}
     container_name: homeplatform_caddy
     ports:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./Caddyfile.prod:/etc/caddy/Caddyfile
-      - ./frontend/dist:/srv/www
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -22,7 +28,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: ghcr.io/bartkamminga/homeplatform-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/bartkamminga/homeplatform-backend:${IMAGE_TAG:?IMAGE_TAG niet gezet}
     container_name: homeplatform_backend
     volumes:
       - /home/bart/homeplatform/db:/app/db
@@ -71,7 +77,7 @@ services:
     build:
       context: ./plugins/ghost
       dockerfile: Dockerfile
-    image: ghcr.io/bartkamminga/homeplatform-ghost:${IMAGE_TAG:-latest}
+    image: ghcr.io/bartkamminga/homeplatform-ghost:${IMAGE_TAG:?IMAGE_TAG niet gezet}
     container_name: homeplatform_ghost
     shm_size: "1gb"
     environment:
@@ -87,7 +93,7 @@ services:
     build:
       context: ./plugins/agent-worker
       dockerfile: Dockerfile
-    image: ghcr.io/bartkamminga/homeplatform-agent-worker:${IMAGE_TAG:-latest}
+    image: ghcr.io/bartkamminga/homeplatform-agent-worker:${IMAGE_TAG:?IMAGE_TAG niet gezet}
     container_name: homeplatform_agent_worker
     environment:
       - AGENT_API_BASE=http://backend:8000
