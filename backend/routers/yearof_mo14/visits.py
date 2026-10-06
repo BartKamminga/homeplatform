@@ -27,6 +27,7 @@ from models.yearof import (
 )
 
 from ._shared import get_optional_user
+from .contributor_links import list_contributor_links
 from .entries_timeline import _competition_timeline_items, _custom_timeline_items
 
 router = APIRouter(tags=["yearof-mo14"])
@@ -116,7 +117,7 @@ def link_overview(
 
     def row(kind: str, code: str, label: str, created_at, expires_at, revoked_at, **extra) -> dict:
         return {
-            "code": code, "label": label, "created_at": created_at, "expires_at": expires_at,
+            "code": code, "label": label, "created_at": created_at, "expires_at": expires_at, "revoked_at": revoked_at,
             "status": _status(expires_at, revoked_at), **extra,
             **_visit_stats(visits_by_link.get((kind, code), [])),
         }
@@ -135,15 +136,20 @@ def link_overview(
             expires_at = team.expires_at if team else s.expires_at
             revoked_at = s.revoked_at or (team.revoked_at if team else None)
             match.append(row("match", s.id, match_titles.get(s.match_ref, s.match_ref), s.created_at,
-                             expires_at, revoked_at, legacy=s.expires_at is None))
+                             expires_at, revoked_at, legacy=s.expires_at is None, match_ref=s.match_ref))
         elif s.link_type == "player":
-            player.append(row("player", s.id, players.get(s.player_id, "?"), s.created_at, s.expires_at, s.revoked_at))
+            player.append(row("player", s.id, players.get(s.player_id, "?"), s.created_at, s.expires_at, s.revoked_at,
+                              player_id=s.player_id))
 
+    # Invullinks incl. invul-status (geopend/ingevuld/...) uit de bestaande
+    # lijst, zodat het blok op de wedstrijdpagina die oude lijst kan vervangen.
     contribute = [
-        row("contribute", c.id,
-            f"{match_titles.get(c.match_ref, c.match_ref)} — {players.get(c.player_id, 'algemeen') if c.player_id else 'algemeen'}",
-            c.created_at, c.expires_at, c.revoked_at, report_type=c.report_type)
-        for c in session.exec(select(YearOfContributorLink).order_by(YearOfContributorLink.created_at.desc())).all()
+        row("contribute", c["id"],
+            f"{match_titles.get(c['match_ref'], c['match_ref'])} — {players.get(c['player_id'], 'algemeen') if c['player_id'] else 'algemeen'}",
+            c["created_at"], c["expires_at"], c["revoked_at"],
+            match_ref=c["match_ref"], player_id=c["player_id"], report_type=c["report_type"],
+            opened_at=c["opened_at"], report_status=c["report_status"], photo_count=c["photo_count"])
+        for c in list_contributor_links(session=session, _=None)
     ]
 
     return {"site": site, "match": match, "player": player, "contribute": contribute}

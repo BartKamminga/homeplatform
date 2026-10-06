@@ -130,7 +130,22 @@ def test_visits_counted_per_link_and_admin_skipped(client, admin_token, session)
     overview = client.get(f"{API}/link-overview", headers=_auth(admin_token)).json()
     row = next(r for r in overview["player"] if r["code"] == link["id"])
     assert (row["opens"], row["unique"], row["admin_opens"], row["label"]) == (3, 2, 2, "Fleurtje")
+    assert row["player_id"] == player.id  # filter voor het blok per speelster
     assert (row["days"][0]["opens"], row["days"][0]["admin_opens"]) == (3, 2)
+
+
+def test_overview_rows_carry_match_and_contribute_status(client, admin_token, session):
+    player = _player(session)
+    _short_link(client, admin_token, match_ref="m1")
+    res = client.post(f"{API}/contributor-links", headers=_auth(admin_token),
+                      json={"match_ref": "m1", "player_id": player.id, "report_type": "interview", "expires_days": 14})
+    assert res.status_code == 200
+
+    overview = client.get(f"{API}/link-overview", headers=_auth(admin_token)).json()
+    assert overview["match"][0]["match_ref"] == "m1"
+    contribute = overview["contribute"][0]
+    assert (contribute["match_ref"], contribute["player_id"], contribute["report_status"]) == ("m1", player.id, None)
+    assert "opened_at" in contribute and "revoked_at" in contribute
 
 
 def test_visit_for_unknown_link_rejected(client):

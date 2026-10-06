@@ -17,6 +17,7 @@ import { InviteLinkScreen } from './InviteLinkScreen.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import { LinksScreen } from './LinksScreen.jsx'
 import { GoalsPanel } from './GoalsPanel.jsx'
+import LinkPanel from '../LinkPanel.jsx'
 
 export default function MatchAdminDetail({ matchRef, onBack }) {
   const [item, setItem] = useState(null)
@@ -33,11 +34,14 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [showGoals, setShowGoals] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [showLinks, setShowLinks] = useState(false)
+  const [linksReloadKey, setLinksReloadKey] = useState(0)
 
   // Wedstrijdlink voor de Vrienden-van-WhatsApp (item 1186): eigen token,
   // 10 dagen geldig, los van de sitelink - hergebruikt een nog geldige link.
   async function resolveEntryLinkUrl() {
     const link = await createShortLink({ match_ref: matchRef })
+    setLinksReloadKey(k => k + 1)
     return `${window.location.origin}/l/${link.id}`
   }
 
@@ -252,6 +256,15 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           {showGoals && (
             <div style={{ marginBottom: 20 }}>
               <GoalsPanel matchRef={matchRef} players={players} />
+            </div>
+          )}
+
+          <button onClick={() => setShowLinks(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
+            {showLinks ? 'Verberg' : 'Toon'} linkjes &amp; bezoeken
+          </button>
+          {showLinks && (
+            <div style={{ marginBottom: 20 }}>
+              <LinkPanel kinds={['match', 'contribute']} filter={l => l.match_ref === matchRef} reloadKey={linksReloadKey} />
             </div>
           )}
 

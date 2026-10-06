@@ -1,0 +1,37 @@
+import { useState, useEffect } from 'react'
+import { getLinkOverview, revokeShortLink } from '../api.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
+import { SECTIONS, LinkSection } from './LinkOverview.jsx'
+
+// Generiek linkjes-overzicht (items 1186/1193): haalt het overzicht op en toont
+// per soort (kinds) een blok, eventueel gefilterd - bv. alleen de linkjes van
+// 1 wedstrijd of 1 speelster. reloadKey ophogen = opnieuw ophalen (bv. nadat
+// er elders een link is aangemaakt).
+export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = () => true, reloadKey = 0 }) {
+  const [overview, setOverview] = useState(null)
+  const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
+
+  function load() {
+    getLinkOverview().then(setOverview).catch(e => setError(e.message))
+  }
+  useEffect(load, [reloadKey])
+
+  async function revoke(link) {
+    if (!(await confirm(`Link "${link.label}" (${link.code}) intrekken? Wie de link heeft, kan de pagina daarna niet meer openen.`))) return
+    await revokeShortLink(link.code)
+    load()
+  }
+
+  if (error) return <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>
+  if (!overview) return <p style={{ fontSize: 13 }}>Laden...</p>
+
+  return (
+    <div>
+      {confirmDialog}
+      {SECTIONS.filter(s => kinds.includes(s.key)).map(s => (
+        <LinkSection key={s.key} section={s} links={(overview[s.key] || []).filter(filter)} onRevoke={revoke} />
+      ))}
+    </div>
+  )
+}

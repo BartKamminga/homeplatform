@@ -1,12 +1,12 @@
 import { Fragment, useState } from 'react'
-import { revokeShortLink } from '../api.js'
 import { copyToClipboard } from '../clipboard.js'
-import { useConfirm } from '@components/ConfirmDialog.jsx'
+import { contributorLinkStatus } from '../linkStatus.js'
 
-// Overzicht van alle deelbare linkjes met bezoekcijfers (item 1193).
-// Klik op een rij voor de bezoeken per dag.
+// Bouwstenen voor het linkjes-overzicht met bezoekcijfers (item 1193):
+// 1 blok (LinkSection) per soort link. Klik op een rij voor de bezoeken per
+// dag. Gebruikt via LinkPanel op de Linkjes-tab, wedstrijd- en spelerspagina.
 
-const SECTIONS = [
+export const SECTIONS = [
   { key: 'site', title: 'Sitelinks', hint: 'ouder-WhatsApp, hele site' },
   { key: 'match', title: 'Wedstrijdlinks', hint: 'Vrienden-van-WhatsApp, 1 wedstrijd' },
   { key: 'player', title: 'Spelerslinks', hint: 'Vrienden-van-WhatsApp, 1 speelster' },
@@ -52,8 +52,10 @@ function LinkRow({ kind, link, onRevoke }) {
           <div style={{ color: '#999' }}>{link.code}{link.legacy ? ' · oude stijl' : ''}</div>
         </td>
         <td style={cell}>
-          {STATUS_LABEL[link.status]}
-          <div style={{ color: '#999' }}>t/m {fmtDate(link.expires_at)}</div>
+          {kind === 'contribute'
+            ? <span style={{ color: contributorLinkStatus(link).color, fontWeight: 600 }}>{contributorLinkStatus(link).label}</span>
+            : STATUS_LABEL[link.status]}
+          <div style={{ color: '#999', whiteSpace: 'nowrap' }}>t/m {fmtDate(link.expires_at)}</div>
         </td>
         <td style={{ ...cell, textAlign: 'right' }}><strong>{link.opens}</strong><AdminCount n={link.admin_opens} /></td>
         <td style={{ ...cell, textAlign: 'right' }}><strong>{link.unique}</strong></td>
@@ -62,6 +64,11 @@ function LinkRow({ kind, link, onRevoke }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end' }}>
             {active && kind !== 'site' && (
               <button onClick={copy} className="yof-btn-secondary">{copied ? 'OK!' : 'Kopieer'}</button>
+            )}
+            {kind === 'contribute' && (
+              <button onClick={e => { e.stopPropagation(); window.open(linkUrl(kind, link.code), '_blank') }} className="yof-btn-secondary">
+                Openen
+              </button>
             )}
             {canRevoke && (
               <button onClick={e => { e.stopPropagation(); onRevoke(link) }} className="yof-btn-secondary">
@@ -108,11 +115,11 @@ function LinkTable({ kind, rows, onRevoke }) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
       <colgroup>
-        <col style={{ width: '34%' }} />
-        <col style={{ width: '16%' }} />
+        <col style={{ width: '30%' }} />
+        <col style={{ width: '22%' }} />
         <col style={{ width: '9%' }} />
-        <col style={{ width: '8%' }} />
-        <col style={{ width: '15%' }} />
+        <col style={{ width: '7%' }} />
+        <col style={{ width: '14%' }} />
         <col style={{ width: '18%' }} />
       </colgroup>
       <thead>
@@ -134,7 +141,7 @@ function LinkTable({ kind, rows, onRevoke }) {
 
 // Eén blok per soort: geldige linkjes, daaronder inklapbare historie
 // (verlopen/ingetrokken, nieuwste eerst) met hun bezoekcijfers.
-function LinkSection({ section, links, onRevoke }) {
+export function LinkSection({ section, links, onRevoke }) {
   const [showHistory, setShowHistory] = useState(false)
   const active = links.filter(l => l.status === 'active')
   const history = links.filter(l => l.status !== 'active')
@@ -165,23 +172,6 @@ function LinkSection({ section, links, onRevoke }) {
           {showHistory && <LinkTable kind={section.key} rows={history} onRevoke={onRevoke} />}
         </div>
       )}
-    </div>
-  )
-}
-
-export default function LinkOverview({ overview, onChanged }) {
-  const [confirm, confirmDialog] = useConfirm()
-
-  async function revoke(link) {
-    if (!(await confirm(`Link "${link.label}" (${link.code}) intrekken? Wie de link heeft, kan de pagina daarna niet meer openen.`))) return
-    await revokeShortLink(link.code)
-    onChanged()
-  }
-
-  return (
-    <div>
-      {confirmDialog}
-      {SECTIONS.map(s => <LinkSection key={s.key} section={s} links={overview[s.key] || []} onRevoke={revoke} />)}
     </div>
   )
 }

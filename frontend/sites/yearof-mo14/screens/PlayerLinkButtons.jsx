@@ -5,7 +5,7 @@ import { copyToClipboard } from '../clipboard.js'
 // Spelerslink voor de Vrienden-van-WhatsApp (item 1186): alleen het profiel
 // van deze speelster, geen foto's/verslagen/uitslagen, 10 dagen geldig.
 // Hergebruikt een nog geldige link; anders maakt de backend een nieuwe.
-export default function PlayerLinkButtons({ playerId }) {
+export default function PlayerLinkButtons({ playerId, onCreated }) {
   const [url, setUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -14,6 +14,7 @@ export default function PlayerLinkButtons({ playerId }) {
     const link = await createShortLink({ player_id: playerId })
     const full = `${window.location.origin}/l/${link.id}`
     setUrl(full)
+    onCreated?.()
     return full
   }
 

@@ -1,20 +1,13 @@
-import { useState, useEffect } from 'react'
-import { getLinkOverview } from '../api.js'
+import { useState } from 'react'
 import { isTrackingDisabled, setTrackingDisabled } from '../tracking.js'
 import AccessAdmin from './AccessAdmin.jsx'
-import LinkOverview from './LinkOverview.jsx'
+import LinkPanel from './LinkPanel.jsx'
 
 // Tabblad "Linkjes": sitelink beheren + overzicht van alle deelbare linkjes
 // met bezoekcijfers (items 1186/1193). Uitleg en "niet meetellen" onderaan.
 export default function LinksAdmin() {
-  const [overview, setOverview] = useState(null)
-  const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
   const [noTrack, setNoTrack] = useState(isTrackingDisabled())
-
-  function load() {
-    getLinkOverview().then(setOverview).catch(e => setError(e.message))
-  }
-  useEffect(load, [])
 
   function toggleNoTrack(checked) {
     setTrackingDisabled(checked)
@@ -23,11 +16,10 @@ export default function LinksAdmin() {
 
   return (
     <div>
-      <AccessAdmin onChanged={load} />
+      <AccessAdmin onChanged={() => setReloadKey(k => k + 1)} />
 
       <h3 style={{ fontSize: 15, margin: '24px 0 10px' }}>Alle linkjes en bezoeken</h3>
-      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      {overview ? <LinkOverview overview={overview} onChanged={load} /> : !error && <p style={{ fontSize: 13 }}>Laden...</p>}
+      <LinkPanel reloadKey={reloadKey} />
 
       <p style={{ fontSize: 12, color: '#666', margin: '20px 0 10px' }}>
         Geopend = elke keer dat een link geopend wordt, uniek = aantal verschillende apparaten.
