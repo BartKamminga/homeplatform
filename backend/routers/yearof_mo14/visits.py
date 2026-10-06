@@ -160,4 +160,22 @@ def link_overview(
         for p in session.exec(select(YearOfProfileLink).order_by(YearOfProfileLink.created_at.desc())).all()
     ]
 
-    return {"site": site, "match": match, "player": player, "contribute": contribute, "profile": profile}
+    # Totalen per soort en overall - uniek moet hier over de ruwe bezoeken,
+    # niet door rijen op te tellen (1 apparaat opent vaak meerdere links).
+    all_visits = [v for rows in visits_by_link.values() for v in rows]
+
+    def totals(visits: list[YearOfLinkVisit]) -> dict:
+        counted = [v for v in visits if not v.is_admin]
+        return {
+            "opens": len(counted),
+            "unique": len({v.visitor_id for v in counted}),
+            "admin_opens": len(visits) - len(counted),
+        }
+
+    return {
+        "site": site, "match": match, "player": player, "contribute": contribute, "profile": profile,
+        "totals": {
+            "all": totals(all_visits),
+            **{kind: totals([v for v in all_visits if v.link_kind == kind]) for kind in LINK_KINDS},
+        },
+    }

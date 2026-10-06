@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { getLinkOverview, revokeShortLink } from '../api.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { SECTIONS, LinkSection } from './LinkOverview.jsx'
+import LinkTotals from './LinkTotals.jsx'
 
 // Generiek linkjes-overzicht (items 1186/1193): haalt het overzicht op en toont
 // per soort (kinds) een blok, eventueel gefilterd - bv. alleen de linkjes van
 // 1 wedstrijd of 1 speelster. actions = { soort: (rows, reload) => knoppen }
 // voor maken/kopiëren in het juiste blok. reloadKey ophogen = opnieuw ophalen.
-export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = () => true, actions = {}, reloadKey = 0 }) {
+export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = () => true, actions = {}, reloadKey = 0, showTotals = false }) {
   const [overview, setOverview] = useState(null)
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
@@ -29,6 +30,7 @@ export default function LinkPanel({ kinds = SECTIONS.map(s => s.key), filter = (
   return (
     <div>
       {confirmDialog}
+      {showTotals && <LinkTotals totals={overview.totals} />}
       {SECTIONS.filter(s => kinds.includes(s.key)).map(s => {
         const rows = (overview[s.key] || []).filter(filter)
         return (

@@ -19,7 +19,7 @@ export default function LinksAdmin() {
       <AccessAdmin onChanged={() => setReloadKey(k => k + 1)} />
 
       <h3 style={{ fontSize: 15, margin: '24px 0 10px' }}>Alle linkjes en bezoeken</h3>
-      <LinkPanel reloadKey={reloadKey} />
+      <LinkPanel reloadKey={reloadKey} showTotals />
 
       <p style={{ fontSize: 12, color: '#666', margin: '20px 0 10px' }}>
         Geopend = elke keer dat een link geopend wordt, uniek = aantal verschillende apparaten.

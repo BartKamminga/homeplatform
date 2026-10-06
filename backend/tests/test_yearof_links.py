@@ -131,6 +131,8 @@ def test_visits_counted_per_link_and_admin_skipped(client, admin_token, session)
     row = next(r for r in overview["player"] if r["code"] == link["id"])
     assert (row["opens"], row["unique"], row["admin_opens"], row["label"]) == (3, 2, 2, "Fleurtje")
     assert row["player_id"] == player.id  # filter voor het blok per speelster
+    assert overview["totals"]["player"] == {"opens": 3, "unique": 2, "admin_opens": 2}
+    assert overview["totals"]["all"]["opens"] == 3
     assert (row["days"][0]["opens"], row["days"][0]["admin_opens"]) == (3, 2)
 
 
