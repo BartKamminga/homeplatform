@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { getPouleMatches } from '../../api.js'
 
 // Item 1229: alle wedstrijden van de poule (niet alleen die van Victoria),
-// per speelronde. Laatst gespeelde en eerstvolgende ronde staan open.
+// per speelronde. Altijd zichtbaar: de afgelopen en de volgende ronde; de
+// overige rondes achter 1 knop ("Alle rondes tonen"), daarin per ronde uit te klappen.
 
 const fmt = iso => {
   const d = new Date(iso)
@@ -39,7 +40,8 @@ function MatchRow({ m, teamName }) {
 export default function PouleResults({ pouleId, teamName }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const [open, setOpen] = useState(null)
+  const [open, setOpen] = useState(() => new Set())
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     getPouleMatches(pouleId).then(setData).catch(e => setError(e.message))
@@ -59,31 +61,56 @@ export default function PouleResults({ pouleId, teamName }) {
     .map(([round, matches]) => ({ round, matches: matches.sort((a, b) => (a.date || '').localeCompare(b.date || '')) }))
     .sort((a, b) => (a.matches[0].date || '').localeCompare(b.matches[0].date || ''))
   const isPlayed = r => r.matches.every(m => m.home_score != null)
-  const lastPlayed = [...list].reverse().find(isPlayed)?.round
-  const next = list.find(r => !isPlayed(r))?.round
-  const openSet = open ?? new Set([lastPlayed, next])
+  const isStarted = r => r.matches.some(m => m.home_score != null)
+  const last = [...list].reverse().find(isPlayed)
+  const next = list.find(r => !isPlayed(r))
+  // Altijd zichtbaar: de afgelopen en de volgende ronde. De rest achter 1 knop.
+  const featured = [
+    last && { ...last, label: 'Afgelopen ronde' },
+    next && { ...next, label: isStarted(next) ? 'Huidige ronde' : 'Volgende ronde' },
+  ].filter(Boolean)
+  const rest = list.filter(r => !featured.some(f => f.round === r.round))
 
   function toggle(round) {
-    const n = new Set(openSet)
-    n.has(round) ? n.delete(round) : n.add(round)
-    setOpen(n)
+    setOpen(prev => {
+      const n = new Set(prev)
+      n.has(round) ? n.delete(round) : n.add(round)
+      return n
+    })
   }
 
   return (
     <div className="yof-card" style={{ marginBottom: 14 }}>
       <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Uitslagen en programma</h3>
-      {list.map(r => (
-        <div key={r.round} style={{ borderTop: '1px solid #eee' }}>
-          <button onClick={() => toggle(r.round)} style={{
-            width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '8px 2px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-          }}>
-            <span>{openSet.has(r.round) ? '▾' : '▸'} Ronde {r.round}{r.round === next ? ' · volgende' : ''}</span>
-            <span style={{ fontWeight: 400, color: '#888', fontSize: 12 }}>{fmt(r.matches[0].date)}</span>
-          </button>
-          {openSet.has(r.round) && <div style={{ paddingBottom: 8 }}>{r.matches.map(m => <MatchRow key={m.match_id} m={m} teamName={teamName} />)}</div>}
+      {featured.map(r => (
+        <div key={r.round} style={{ borderTop: '1px solid #eee', paddingBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '8px 2px', fontSize: 13 }}>
+            <strong>{r.label} <span style={{ fontWeight: 400, color: '#888' }}>· ronde {r.round}</span></strong>
+            <span style={{ color: '#888', fontSize: 12 }}>{fmt(r.matches[0].date)}</span>
+          </div>
+          {r.matches.map(m => <MatchRow key={m.match_id} m={m} teamName={teamName} />)}
         </div>
       ))}
+
+      {rest.length > 0 && (
+        <div style={{ borderTop: '1px solid #eee', paddingTop: 8 }}>
+          <button onClick={() => setShowAll(v => !v)} className="yof-btn-secondary">
+            {showAll ? '▾ Overige rondes verbergen' : `▸ Alle rondes tonen (${rest.length})`}
+          </button>
+          {showAll && rest.map(r => (
+            <div key={r.round} style={{ borderTop: '1px solid #f3f3f3', marginTop: 6 }}>
+              <button onClick={() => toggle(r.round)} style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '7px 2px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              }}>
+                <span>{open.has(r.round) ? '▾' : '▸'} Ronde {r.round}</span>
+                <span style={{ fontWeight: 400, color: '#888', fontSize: 12 }}>{fmt(r.matches[0].date)}</span>
+              </button>
+              {open.has(r.round) && <div style={{ paddingBottom: 6 }}>{r.matches.map(m => <MatchRow key={m.match_id} m={m} teamName={teamName} />)}</div>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
