@@ -73,7 +73,7 @@ export default function PublicTimeline({ onOpenEntry }) {
       {items.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog niets gepland.</p>}
 
       {standings?.standings?.length > 0 && (
-        <div style={{ marginTop: 20 }}>
+        <div className="yof-card" style={{ marginTop: 20, marginBottom: 14 }}>
           <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Pouletabel{standings.pool_name ? ` · ${standings.pool_name}` : ''}</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
