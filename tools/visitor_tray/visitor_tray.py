@@ -1,4 +1,4 @@
-"""Bezoekers-tray: klein icoon in de Windows system tray met de bezoekers van
+﻿"""Bezoekers-tray: klein icoon in de Windows system tray met de bezoekers van
 het homeplatform, met de nadruk op MO14 a Paris (yearof-mo14).
 
 Bronnen (prod-API, zelfde config als roadmap.ps1 in .roadmap.config.ps1):
@@ -12,90 +12,29 @@ anders wordt $HP_API_KEY gebruikt.
 Starten: .venv\\Scripts\\pythonw.exe tools\\visitor_tray\\visitor_tray.py
 """
 
-import json
-import re
+import logging
+import os
+import sys
 import threading
 import urllib.error
-import urllib.request
 import webbrowser
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import pystray
 from PIL import Image, ImageDraw, ImageFont
 
+from mo14_data import KIND_LABELS, POLL_SECONDS, api_get, describe_visit, load_config, local_time, summarize_mo14
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONFIG_FILE = REPO_ROOT / ".roadmap.config.ps1"
-POLL_SECONDS = 60
+# pythonw heeft geen console: fouten gaan anders stil verloren.
+LOG_FILE = Path(os.environ.get("LOCALAPPDATA", REPO_ROOT)) / "hp-visitor-tray.log"
 MO14_URL = "https://webheaven.nl/yearof-mo14/"
 ADMIN_URL = "https://webheaven.nl/admin/site-monitoring"
-LINK_KINDS = ("site", "match", "player", "contribute", "profile")
-KIND_LABELS = {"site": "Sitelink", "match": "Wedstrijd", "player": "Speelster", "contribute": "Invullink", "profile": "Profiel"}
-
-WHO_LABELS = {"user": "ingelogd", "excluded": "beheer", "unknown": "onbekend"}
-
 COLOR_IDLE = (120, 120, 130)
 COLOR_ACTIVE = (30, 90, 200)
 COLOR_NEW = (30, 160, 80)
 COLOR_ERROR = (200, 50, 50)
-
-
-def load_config() -> tuple[str, str]:
-    text = CONFIG_FILE.read_text(encoding="utf-8-sig")
-    values = dict(re.findall(r'^\s*\$(\w+)\s*=\s*"([^"]*)"', text, re.MULTILINE))
-    return values["HP_API_BASE"].rstrip("/"), values.get("HP_TRAY_API_KEY") or values["HP_API_KEY"]
-
-
-def api_get(base: str, key: str, path: str):
-    req = urllib.request.Request(base + path, headers={"Authorization": f"Bearer {key}"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def local_time(iso: str) -> str:
-    """visited_at is naive UTC; toon in lokale tijd."""
-    dt = datetime.fromisoformat(iso).replace(tzinfo=timezone.utc).astimezone()
-    if dt.date() == datetime.now().date():
-        return dt.strftime("%H:%M")
-    return dt.strftime("%d-%m %H:%M")
-
-
-def describe_visit(v: dict) -> str:
-    """Bijv. 'onbekend (nieuw) - Wedstrijd: HDM - MO14-1'."""
-    if v["who"] == "user":
-        who = v["username"] or "ingelogd"
-    else:
-        who = f"{WHO_LABELS[v['who']]} {v['visitor']}" + (" (nieuw)" if v["new_visitor"] else "")
-    label = KIND_LABELS.get(v["kind"], v["kind"]) + ("" if v["kind"] == "site" else f": {v['label']}")
-    return f"{who} - {label}"
-
-
-def summarize_mo14(overview: dict) -> dict:
-    """Vandaag-cijfers (UTC-dag, zoals de backend telt) en per-link opens voor de diff."""
-    today = datetime.now(timezone.utc).date().isoformat()
-    links, today_opens, today_unique_sum = [], 0, 0
-    last = None
-    for kind in LINK_KINDS:
-        for row in overview.get(kind, []):
-            day = next((d for d in row["days"] if d["date"] == today), None)
-            opens_today = day["opens"] if day else 0
-            today_opens += opens_today
-            today_unique_sum += day["unique"] if day else 0
-            label = f"{KIND_LABELS[kind]}: {row['label']}"
-            links.append({"key": (kind, row["code"]), "label": label, "opens": row["opens"],
-                          "unique": row["unique"], "today": opens_today})
-            if row["last_visit"] and (last is None or row["last_visit"] > last[0]):
-                last = (row["last_visit"], label)
-    return {
-        "totals": overview["totals"]["all"],
-        "by_kind": {k: overview["totals"][k] for k in LINK_KINDS},
-        "today_opens": today_opens,
-        # Som per link: een apparaat dat 2 links opent telt 2x - de backend geeft
-        # geen ontdubbeld vandaag-totaal, dus dit is een bovengrens.
-        "today_unique_max": today_unique_sum,
-        "links": links,
-        "last": last,
-    }
 
 
 class VisitorTray:
@@ -114,10 +53,10 @@ class VisitorTray:
         self._prev_opens: dict | None = None
         self._stop = threading.Event()
         self._wake = threading.Event()
-        self.icon = pystray.Icon("hp-visitors", self._render_icon("…", COLOR_IDLE), "HomePlatform bezoekers",
+        self.icon = pystray.Icon("hp-visitors", self._render_icon("â€¦", COLOR_IDLE), "HomePlatform bezoekers",
                                  menu=pystray.Menu(self._menu_items))
 
-    # ── data ────────────────────────────────────────────────────────────────
+    # â”€â”€ data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def refresh(self):
         try:
@@ -175,11 +114,19 @@ class VisitorTray:
 
     def _poll_loop(self):
         while not self._stop.is_set():
-            self.refresh()
+            try:
+                self.refresh()
+            except Exception as exc:  # noqa: BLE001 - poll-thread mag nooit stoppen
+                logging.exception("refresh mislukt")
+                self.error = f"intern: {exc}"[:80]
+                try:
+                    self._update_view()
+                except Exception:  # noqa: BLE001
+                    logging.exception("update_view mislukt")
             self._wake.wait(POLL_SECONDS)
             self._wake.clear()
 
-    # ── weergave ────────────────────────────────────────────────────────────
+    # â”€â”€ weergave â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @staticmethod
     def _render_icon(text: str, color) -> Image.Image:
@@ -268,7 +215,7 @@ class VisitorTray:
             for site, s in rows
         ] + [pystray.Menu.SEPARATOR, Item("Open site-monitoring", lambda: webbrowser.open(ADMIN_URL))]
 
-    # ── acties ──────────────────────────────────────────────────────────────
+    # â”€â”€ acties â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _mark_seen(self):
         self.new_since_open = 0
@@ -279,6 +226,7 @@ class VisitorTray:
         self.icon.update_menu()
 
     def _quit(self):
+        logging.info("afgesloten via menu")
         self._stop.set()
         self._wake.set()
         self.icon.stop()
@@ -291,4 +239,12 @@ class VisitorTray:
 
 
 if __name__ == "__main__":
-    VisitorTray().run()
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, encoding="utf-8",
+                        format="%(asctime)s %(levelname)s %(threadName)s %(message)s")
+    sys.excepthook = lambda *exc: logging.critical("onverwachte fout", exc_info=exc)
+    threading.excepthook = lambda a: logging.critical("fout in thread %s", a.thread, exc_info=(a.exc_type, a.exc_value, a.exc_traceback))
+    logging.info("gestart (pid %s)", os.getpid())
+    try:
+        VisitorTray().run()
+    finally:
+        logging.info("gestopt")
