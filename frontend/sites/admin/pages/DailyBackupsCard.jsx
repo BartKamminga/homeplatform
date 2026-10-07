@@ -31,7 +31,7 @@ export default function DailyBackupsCard() {
     setStatus(null)
     try {
       const r = await api.post('/api/admin/backup/daily/trigger', {})
-      setStatus({ type: 'ok', msg: `✓ Backup gemaakt: ${r.filename} (${r.size_mb} MB)` })
+      setStatus({ type: 'ok', msg: `✓ Backup created: ${r.filename} (${r.size_mb} MB)` })
       load()
     } catch (e) {
       setStatus({ type: 'err', msg: e.message })
@@ -42,7 +42,7 @@ export default function DailyBackupsCard() {
     setConfirm(null); setStatus(null)
     try {
       await api.post(`/api/admin/backup/daily/restore/${filename}`, {})
-      setStatus({ type: 'warn', msg: `⚠ Restore ingepland voor "${filename}". Backend herstart binnen ~1 minuut.` })
+      setStatus({ type: 'warn', msg: `⚠ Restore scheduled for "${filename}". The backend restarts within ~1 minute.` })
       load()
     } catch (e) {
       setStatus({ type: 'err', msg: e.message })
@@ -63,20 +63,20 @@ export default function DailyBackupsCard() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span style={{ fontSize: 20 }}>📅</span>
-              <span style={{ fontSize: 16, fontWeight: 600 }}>Dagelijkse backups</span>
+              <span style={{ fontSize: 16, fontWeight: 600 }}>Daily backups</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
-              Automatisch elke dag om 03:00 (prod + acc). Bewaard: 14 dagen lokaal + kopie op NAS.
+              Every day at 03:00, for this environment only (prod runs on g5, acc on G4). Kept: 14 days locally + a copy on the NAS.
             </p>
           </div>
           <button onClick={doTrigger} style={{ ...btnSecondary, flexShrink: 0, whiteSpace: 'nowrap' }}>
-            ▶ Backup nu
+            ▶ Back up now
           </button>
         </div>
 
         {pending && (
           <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: '#fef9c3', color: '#713f12', fontSize: 12, fontWeight: 500 }}>
-            ⏳ Restore in behandeling: <code style={{ fontFamily: 'monospace' }}>{pending}</code> — backend herstart binnen ~1 min
+            ⏳ Restore pending: <code style={{ fontFamily: 'monospace' }}>{pending}</code> — the backend restarts within ~1 min
           </div>
         )}
 
@@ -90,10 +90,10 @@ export default function DailyBackupsCard() {
           </div>
         )}
 
-        {loading && <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Laden…</p>}
+        {loading && <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Loading…</p>}
 
         {!loading && backups.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Nog geen backups. Klik "Backup nu" om de eerste aan te maken.</p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No backups yet. Click "Back up now" to create the first one.</p>
         )}
 
         {!loading && backups.length > 0 && (
@@ -107,7 +107,7 @@ export default function DailyBackupsCard() {
               }}>
                 <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text)', flex: 1 }}>
                   {b.date}
-                  {i === 0 && <span style={{ marginLeft: 8, fontSize: 10, background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>laatste</span>}
+                  {i === 0 && <span style={{ marginLeft: 8, fontSize: 10, background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>latest</span>}
                 </span>
                 <span style={{ fontSize: 12, color: 'var(--color-text-muted)', minWidth: 60, textAlign: 'right' }}>{b.size_mb} MB</span>
                 <button
@@ -115,7 +115,7 @@ export default function DailyBackupsCard() {
                   disabled={!!pending}
                   style={{ ...btnSecondary, fontSize: 11, padding: '4px 10px', opacity: pending ? 0.4 : 1 }}
                 >
-                  Terugzetten
+                  Restore
                 </button>
               </div>
             ))}
@@ -126,16 +126,16 @@ export default function DailyBackupsCard() {
       {confirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ background: 'var(--color-surface)', borderRadius: 16, padding: '28px 24px', maxWidth: 420, width: '100%' }}>
-            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Backup terugzetten?</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Restore backup?</h2>
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 6 }}>
-              Bestand: <code style={{ fontFamily: 'monospace' }}>{confirm}</code>
+              File: <code style={{ fontFamily: 'monospace' }}>{confirm}</code>
             </p>
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
-              De huidige database wordt vervangen. De backend herstart automatisch (~1 min). <strong>Dit is onomkeerbaar.</strong>
+              The current database is replaced and the backend restarts automatically (~1 min). The current database is kept on the server as a <code style={{ fontFamily: 'monospace' }}>.pre-restore</code> copy. <strong>Changes made after this backup are lost.</strong>
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => doRestore(confirm)} style={{ ...btnDanger, flex: 1 }}>Ja, terugzetten</button>
-              <button onClick={() => setConfirm(null)} style={{ ...btnSecondary, flex: 1 }}>Annuleren</button>
+              <button onClick={() => doRestore(confirm)} style={{ ...btnDanger, flex: 1 }}>Yes, restore</button>
+              <button onClick={() => setConfirm(null)} style={{ ...btnSecondary, flex: 1 }}>Cancel</button>
             </div>
           </div>
         </div>

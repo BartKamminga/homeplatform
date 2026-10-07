@@ -24,6 +24,7 @@ export default function PhotoBulkBar({ selectedCount, visibleCount, onSelectAll,
   const [confirm, confirmDialog] = useConfirm()
 
   async function run(action, value = null, label = '') {
+    window.getSelection()?.removeAllRanges()
     if (action === 'archive' && !(await confirm(`${selectedCount} foto('s)/filmpje(s) naar het archief? Ze verdwijnen van de site, maar je kunt ze altijd terugzetten.`))) return
     if (action === 'purge') {
       if (!(await confirm(`${selectedCount} foto('s)/filmpje(s) DEFINITIEF verwijderen? Dit kan niet ongedaan gemaakt worden.`))) return

@@ -261,3 +261,22 @@ def test_player_spotlight_max_one(client, admin_token, session):
 
     client.put(f"{API}/player-spotlight", json={"player_id": None}, headers=_auth(admin_token))
     assert client.get(f"{API}/player-spotlight?code={team}").json() is None
+
+def test_recent_visits_show_who_and_which_link(client, admin_token, session):
+    player = _player(session)
+    link = _short_link(client, admin_token, player_id=player.id)
+    post = lambda visitor, **extra: client.post(  # noqa: E731
+        f"{API}/visits", json={"kind": "player", "code": link["id"], "visitor_id": visitor, **extra.pop("body", {})},
+        **extra)
+
+    post("anon-1")
+    post("anon-1")
+    post("admin-dev", headers=_auth(admin_token))
+    post("phone", body={"excluded": True})
+
+    assert client.get(f"{API}/visits/recent").status_code == 401
+    rows = client.get(f"{API}/visits/recent", headers=_auth(admin_token)).json()
+    assert [r["who"] for r in rows] == ["excluded", "user", "unknown", "unknown"]
+    assert rows[1]["username"] is not None
+    assert all(r["label"] == "Fleurtje" and r["kind"] == "player" for r in rows)
+    assert [r["new_visitor"] for r in rows] == [True, True, False, True]

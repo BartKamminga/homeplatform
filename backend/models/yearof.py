@@ -103,6 +103,7 @@ class YearOfLinkVisit(SQLModel, table=True):
     visitor_id: str
     visited_at: datetime        = Field(default_factory=datetime.utcnow)
     is_admin:   bool           = Field(default=False)
+    user_id:    Optional[int]  = Field(default=None)  # ingelogde gebruiker, NULL = onbekend
 
 
 class YearOfPhoto(SQLModel, table=True):
