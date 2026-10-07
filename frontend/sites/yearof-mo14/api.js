@@ -32,6 +32,7 @@ export const getPouleMatches       = (pid)    => api.get(`/api/hockey/public/hoc
 export const getPositionDistribution = (pid, teamId) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?team_id=${teamId}&type=position_distribution`)
 export const getRegroupingForecast = (tid)    => api.get(`/api/hockey/public/tournaments/${tid}/query/regrouping-forecast`)
+export const getCompetitionStandings = (tid)  => api.get(`/api/hockey/public/tournaments/${tid}/competition-standings`)
 
 // Is de bezoeker een ingelogde platformbeheerder? Bewust kale fetch: de
 // gedeelde api-client stuurt bij een 401 naar de loginpagina, en dat mag een

@@ -3,6 +3,7 @@ import NationalQueries from '../../screens/NationalQueries.jsx'
 import PositionChances from './PositionChances.jsx'
 import PouleResults from './PouleResults.jsx'
 import RegroupingForecast from './RegroupingForecast.jsx'
+import TopklasseOverview from './TopklasseOverview.jsx'
 
 // Tab "Competitie" (items 1229-1232): kans op eindplek, alle uitslagen in de
 // poule, herindelingsprognose en Topklasse landelijk. Achter een featureflag:
@@ -38,7 +39,8 @@ export default function CompetitionTab({ access }) {
       <PositionChances pouleId={config.poule_id} teamId={config.team_id} />
       <PouleResults pouleId={config.poule_id} teamName={config.team_name} />
       <RegroupingForecast tournamentId={config.tournament_id} teamId={config.team_id} />
-      {/* Topklasse landelijk (1230): bestaande ranglijst + belangrijke wedstrijden */}
+      {/* Topklasse landelijk (1230): alle poules + bestaande ranglijst/belangrijke wedstrijden */}
+      <TopklasseOverview tournamentId={config.tournament_id} teamId={config.team_id} />
       <NationalQueries />
     </div>
   )
