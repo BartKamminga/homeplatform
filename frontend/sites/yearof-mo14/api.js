@@ -25,6 +25,28 @@ export const getNationalRanking = (stat = 'points', limit = 10) =>
 export const getNationalUpcomingMatches = (limit = 5) =>
   api.get(`/api/hockey/public/tournaments/${MO14_TOURNAMENT_ID}/query/upcoming-matches?tag=Topklasse&limit=${limit}`)
 
+// Competitie-tab (items 1229-1232): config + featureflag, en openbare hockey-data
+export const getCompetition        = ()       => api.get('/api/yearof-mo14/competition')
+export const setCompetitionPublic  = (pub)    => api.put('/api/yearof-mo14/competition/public', { public: pub })
+export const getPouleMatches       = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
+export const getPositionDistribution = (pid, teamId) =>
+  api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?team_id=${teamId}&type=position_distribution`)
+export const getRegroupingForecast = (tid)    => api.get(`/api/hockey/public/tournaments/${tid}/query/regrouping-forecast`)
+
+// Is de bezoeker een ingelogde platformbeheerder? Bewust kale fetch: de
+// gedeelde api-client stuurt bij een 401 naar de loginpagina, en dat mag een
+// bezoeker met een verlopen login op de publieke site niet overkomen.
+export async function checkPlatformAdmin() {
+  const token = localStorage.getItem('hp_token')
+  if (!token) return false
+  try {
+    const res = await fetch('/api/yearof-mo14/me', { headers: { Authorization: `Bearer ${token}` } })
+    return res.ok ? !!(await res.json()).is_platform_admin : false
+  } catch {
+    return false
+  }
+}
+
 // Roadmap (platform-brede roadmap, gefilterd op deze site)
 export const getRoadmapItems = () => api.get('/api/roadmap?site=yearof-mo14')
 

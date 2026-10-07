@@ -8,6 +8,8 @@ import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 import PublicSpotlight from './PublicSpotlight.jsx'
 import PublicAction from './PublicAction.jsx'
 import PinksterWeekend from './PinksterWeekend.jsx'
+import CompetitionTab from '../features/competition/CompetitionTab.jsx'
+import useCompetitionAccess from '../features/competition/useCompetitionAccess.js'
 
 // Deeplinks (?match=<matchRef>) alleen op de echte publieke site syncen -
 // niet in de admin "Bekijk site"-preview, die leeft in de admin-URL. Bewust
@@ -42,6 +44,8 @@ export default function PublicSite({ previewMode = false, adminMode = false, onE
   // (Wedstrijden/Spelers-tabblad) - 1 pad i.p.v. twee (item 1155).
   const openMatch = adminMode ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
   const openPlayer = adminMode ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
+  // Competitie-tab (1229-1232) achter featureflag: tot vrijgave alleen voor de platformbeheerder.
+  const competition = useCompetitionAccess()
 
   return (
     <div className="yof">
@@ -55,6 +59,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, onE
           { key: 'spotlight', label: 'In de kijker' },
           { key: 'team', label: 'Team' },
           { key: 'timeline', label: 'Wedstrijden' },
+          ...(competition.visible ? [{ key: 'competition', label: 'Competitie' }] : []),
           { key: 'upload', label: "Foto's toevoegen" },
           { key: 'pinksterweekend', label: 'Parijs weekend' },
         ].map(t => (
@@ -70,6 +75,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, onE
         {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={adminMode} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}
+        {view.name === 'competition' && competition.visible && <CompetitionTab access={competition} />}
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={previewMode} />}
         {view.name === 'upload' && <PublicUploadPhotos />}
         {view.name === 'pinksterweekend' && (

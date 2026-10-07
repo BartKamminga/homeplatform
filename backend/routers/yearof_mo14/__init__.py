@@ -47,12 +47,15 @@ structureel, main.py's `from routers import yearof_mo14` +
 """
 
 from fastapi import APIRouter, Depends
+from sqlmodel import Session, select
 
-from core.auth import get_current_user
-from models.core import User
+from core.auth import ADMIN_GROUP, get_current_user
+from core.database import get_session
+from models.core import Group, User, UserGroup
 
 from .access import router as access_router
 from .action_sponsors import router as action_sponsors_router
+from .competition import router as competition_router
 from .contributor_links import router as contributor_links_router
 from .entries_timeline import router as entries_timeline_router
 from .favorites import router as favorites_router
@@ -76,14 +79,20 @@ def status():
 
 
 @router.get("/me")
-def me(current_user: User = Depends(get_current_user)):
-    """Beheerder-only — bewijst dat de bestaande homeplatform-login werkt voor deze site."""
-    return {"username": current_user.username, "email": current_user.email}
+def me(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """Beheerder-only — bewijst dat de bestaande homeplatform-login werkt voor deze site.
+    is_platform_admin (groep admins) = mag featureflags omzetten (bv. Competitie-tab)."""
+    is_platform_admin = session.exec(
+        select(UserGroup).join(Group, Group.id == UserGroup.group_id)
+        .where(UserGroup.user_id == current_user.id, Group.slug == ADMIN_GROUP)
+    ).first() is not None
+    return {"username": current_user.username, "email": current_user.email, "is_platform_admin": is_platform_admin}
 
 
 router.include_router(players_router)
 router.include_router(favorites_router)
 router.include_router(spotlight_router)
+router.include_router(competition_router)
 router.include_router(entries_timeline_router)
 router.include_router(matches_router)
 router.include_router(access_router)
