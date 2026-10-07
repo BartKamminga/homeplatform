@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getTimeline, getStandings } from '../api.js'
 import NationalQueries from './NationalQueries.jsx'
 
@@ -12,28 +12,46 @@ function fmtDate(iso) {
   return `${datePart} · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
 }
 
+// Een wedstrijd die vandaag al begonnen is, blijft nog even "de volgende"
+// (tot 2 uur na aanvang) - anders springt de markering midden in de wedstrijd door.
+const NEXT_MATCH_GRACE_MS = 2 * 60 * 60 * 1000
+
 export default function PublicTimeline({ onOpenEntry }) {
   const [items, setItems] = useState([])
   const [standings, setStandings] = useState(null)
   const [error, setError] = useState('')
+  const nextRef = useRef(null)
 
   useEffect(() => {
     getTimeline().then(setItems).catch(e => setError(e.message))
     getStandings().then(setStandings).catch(() => {})
   }, [])
 
+  const nextMatch = items.find(it => new Date(it.date).getTime() > Date.now() - NEXT_MATCH_GRACE_MS)
+
+  // Na het laden 1x soepel naar de volgende wedstrijd scrollen (midden in beeld).
+  useEffect(() => {
+    if (!nextRef.current) return
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const t = setTimeout(() => nextRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }), 250)
+    return () => clearTimeout(t)
+  }, [nextMatch?.match_ref])
+
   return (
     <div>
       <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Wedstrijden &amp; bijzondere dagen</h2>
       {error && <p style={{ color: '#c23b3b' }}>{error}</p>}
-      {items.map(it => (
-        <a key={it.match_ref} className="yof-list-row"
+      {items.map(it => {
+        const isNext = it.match_ref === nextMatch?.match_ref
+        return (
+        <a key={it.match_ref} ref={isNext ? nextRef : undefined} className={`yof-list-row${isNext ? ' yof-next-match' : ''}`}
           href="#" onClick={e => { e.preventDefault(); onOpenEntry(it.match_ref) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {it.opponent_club_logo && (
               <img src={it.opponent_club_logo} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             )}
             <div>
+              {isNext && <div className="yof-next-match-label">Volgende wedstrijd</div>}
               <div style={{ fontSize: 13, color: '#666' }}>{fmtDate(it.date)}</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{it.title}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 2, fontSize: 12 }}>
@@ -50,7 +68,8 @@ export default function PublicTimeline({ onOpenEntry }) {
             <span className={`badge ${it.kind}`}>{it.kind === 'competitie' ? 'competitie' : it.kind}</span>
           </div>
         </a>
-      ))}
+        )
+      })}
       {items.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog niets gepland.</p>}
 
       {standings?.standings?.length > 0 && (
