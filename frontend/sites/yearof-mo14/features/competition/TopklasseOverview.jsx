@@ -87,7 +87,6 @@ export default function TopklasseOverview({ tournamentId, teamId }) {
 
   return (
     <div style={{ marginBottom: 14 }}>
-      <h3 style={{ fontSize: 15, margin: '0 0 4px' }}>Topklasse MO14 landelijk</h3>
       <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>Alle Topklasse-poules. Klik op een poule voor de uitslagen en het programma.</p>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {['', ...districts].map(d => (
