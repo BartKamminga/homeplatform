@@ -37,7 +37,8 @@ export default function NationalQueries() {
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div className="yof-card" style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
         <h3 style={{ fontSize: 15, margin: 0 }}>Landelijke ranglijst &middot; MO14 Topklasse</h3>
         <select value={stat} onChange={e => setStat(e.target.value)} style={{ fontSize: 12, padding: '3px 6px' }}>
           {RANKING_STATS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -82,18 +83,19 @@ export default function NationalQueries() {
         </table>
       )}
       {rows?.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Geen data beschikbaar.</p>}
+      </div>
 
       {upcoming?.length > 0 && (
-        <div style={{ marginTop: 20 }}>
+        <div className="yof-card" style={{ marginBottom: 14 }}>
           <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Belangrijke wedstrijd op komst &middot; MO14 Topklasse</h3>
           <div style={{ display: 'grid', gap: 6 }}>
             {upcoming.map(m => {
               const tag = districtTag(m.tags)
               const isUs = m.home_team === OUR_TEAM_NAME || m.away_team === OUR_TEAM_NAME
               return (
-                <div key={`${m.home_team}-${m.away_team}-${m.rank}`} className="yof-card" style={{
-                  padding: '8px 10px', fontSize: 13, fontWeight: isUs ? 700 : 400,
-                  background: isUs ? '#fdf8e8' : undefined,
+                <div key={`${m.home_team}-${m.away_team}-${m.rank}`} style={{
+                  padding: '8px 10px', fontSize: 13, fontWeight: isUs ? 700 : 400, borderRadius: 10,
+                  background: isUs ? '#fdf8e8' : '#f7f8fb', border: '1px solid #eef0f5',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <span>{m.home_team} &ndash; {m.away_team}</span>
