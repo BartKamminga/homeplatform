@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
-// Balk voor de platformbeheerder bovenaan de tabs Competitie en Topklasse
-// (items 1229-1232): toont of de tabs al voor bezoekers zichtbaar zijn en
-// laat ze vrijgeven/verbergen. 1 schakelaar voor beide tabs.
+// Schakelaar live/concept voor de tabs Competitie en Topklasse (items
+// 1229-1232), alleen in het bewerkscherm van de beheerstudio (item 1239).
+// 1 schakelaar voor beide tabs.
 export default function FeatureFlagBar({ access }) {
   const { config, isPlatformAdmin, setPublic } = access
   const [busy, setBusy] = useState(false)
@@ -20,11 +20,11 @@ export default function FeatureFlagBar({ access }) {
     }}>
       <strong style={{ flex: 1 }}>
         {config.public
-          ? 'Competitie en Topklasse zijn zichtbaar voor alle bezoekers'
-          : 'Competitie en Topklasse zijn alleen zichtbaar voor jou (beheerder) - nog niet vrijgegeven'}
+          ? 'Live - Competitie en Topklasse staan in het menu voor alle bezoekers'
+          : 'Concept - Competitie en Topklasse zijn nog nergens op de site te zien'}
       </strong>
       <button onClick={toggle} disabled={busy} className="yof-btn-secondary" style={{ background: 'white' }}>
-        {config.public ? 'Weer verbergen' : 'Vrijgeven voor bezoekers'}
+        {config.public ? 'Naar concept' : 'Live zetten'}
       </button>
     </div>
   )

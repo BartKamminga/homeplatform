@@ -9,14 +9,13 @@ import RegroupingForecast from './RegroupingForecast.jsx'
 // herindelingsprognose. De bredere landelijke blik staat op de tab
 // Topklasse. Beide achter dezelfde featureflag (FeatureFlagBar); elk blok
 // apart live/concept (PageBlock, item 1239). editMode = beheerstudio.
-// showFlagBar=false: preview in de beheerstudio - de schakelaar staat daar rechts.
-export default function CompetitionTab({ access, editMode = false, showFlagBar = true }) {
+export default function CompetitionTab({ access, editMode = false }) {
   const { config } = access
   if (!config) return null
   const block = (id, label, el) => <PageBlock id={id} label={label} editMode={editMode}>{el}</PageBlock>
   return (
     <div>
-      {showFlagBar && <FeatureFlagBar access={access} />}
+      {editMode && <FeatureFlagBar access={access} />}
       <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Competitie{config.poule_name ? ` · ${config.poule_name}` : ''}</h2>
       {block('competition.chances', 'Kans op elke eindplek', <PositionChances pouleId={config.poule_id} teamId={config.team_id} />)}
       {block('competition.results', 'Uitslagen en programma', <PouleResults pouleId={config.poule_id} teamName={config.team_name} />)}
