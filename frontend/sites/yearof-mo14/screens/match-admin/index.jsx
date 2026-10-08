@@ -115,7 +115,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   return (
     <div>
-      <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
+      {onBack && <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
       {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}

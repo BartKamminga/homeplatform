@@ -9,7 +9,7 @@ const PAGES = {
       { label: 'Laatste / volgende wedstrijd en pouletabel', note: 'automatisch uit de hockeydata' },
       { label: 'Speelster van de week', section: 'spelers' },
       { label: 'Volgende week in de kijker', section: 'wedstrijden', note: 'via de invullinks van de volgende wedstrijd' },
-      { label: 'In de kijker (nieuwste 2)', section: 'verslagen' },
+      { label: 'In de kijker (nieuwste 2)', section: 'kijker' },
     ],
   },
   competitie: {
@@ -22,7 +22,7 @@ const PAGES = {
 }
 
 const SECTION_LABELS = {
-  actie: 'Actie', spelers: 'Spelers', wedstrijden: 'Wedstrijden', verslagen: 'Algemene berichten',
+  actie: 'Actie', spelers: 'Spelers', wedstrijden: 'Wedstrijden', kijker: 'In de kijker',
 }
 
 export default function InfoPanel({ section, onSelectSection }) {

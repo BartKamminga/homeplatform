@@ -23,7 +23,7 @@ const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
 // studio (item 1239): de beheerstudio stuurt de view zelf aan (view +
 // onViewChange) zodat het bewerkpaneel ernaast meeloopt; klikken op een
 // wedstrijd/speler navigeert dan gewoon in de preview i.p.v. te bridgen.
-export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer, onEditGeneral }) {
+export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer, onEditGeneral, onEditReport }) {
   const [localView, setLocalView] = useState(() => {
     if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
     const entry = new URLSearchParams(window.location.search).get('match')
@@ -80,7 +80,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer} />}
         {view.name === 'action' && <PublicAction />}
-        {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={adminMode} onEditGeneral={onEditGeneral} />}
+        {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={adminMode} onEditGeneral={onEditGeneral} onEditReport={onEditReport} />}
         {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={adminMode} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}

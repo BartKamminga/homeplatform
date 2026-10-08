@@ -7,6 +7,8 @@ import PhotosAdmin from '../../screens/PhotosAdmin.jsx'
 import ReportsAdmin from '../../screens/ReportsAdmin.jsx'
 import MatchAdminDetail from '../../screens/match-admin/index.jsx'
 import InfoPanel from './InfoPanel.jsx'
+import SpotlightAdmin from './SpotlightAdmin.jsx'
+import PinnedPageAdmin from './PinnedPageAdmin.jsx'
 
 // Het bewerkscherm voor 1 panel (zie studioSync.js). Gedeeld door de
 // beheerstudio (groot scherm) en het tabbladenbeheer (klein scherm).
@@ -23,6 +25,8 @@ export default function SectionContent({ panel, onOpenMatch, onCloseMatch, onSel
       return panel.matchRef
         ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
         : <TimelineAdmin onOpenMatch={onOpenMatch} />
+    case 'kijker': return <SpotlightAdmin key={panel.reportId || 'list'} initialReportId={panel.reportId} onOpenMatch={onOpenMatch} />
+    case 'parijs': return <PinnedPageAdmin />
     case 'toegang': return <LinksAdmin />
     case 'fotos': return <PhotosAdmin />
     case 'verslagen': return <ReportsAdmin key={panel.reportId || 'list'} initialEditId={panel.reportId} />

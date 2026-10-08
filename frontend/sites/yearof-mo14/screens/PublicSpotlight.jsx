@@ -32,7 +32,9 @@ function AuthorAvatars({ playerIds, players }) {
   )
 }
 
-export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEditGeneral }) {
+// onEditReport (beheerstudio, item 1239): elk bericht direct bewerken, ook
+// wedstrijdberichten - gaat voor de bridge naar wedstrijd/algemene berichten.
+export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEditGeneral, onEditReport }) {
   const [reports, setReports] = useState([])
   const [players, setPlayers] = useState([])
   const [entries, setEntries] = useState([])
@@ -70,7 +72,8 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
       setOpenId(open => (open === r.id ? null : r.id))
       return
     }
-    if (r.match_ref) onOpenMatch(r.match_ref)
+    if (onEditReport) onEditReport(r)
+    else if (r.match_ref) onOpenMatch(r.match_ref)
     else onEditGeneral(r.id)
   }
 

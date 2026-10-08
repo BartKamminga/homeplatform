@@ -4,11 +4,13 @@
 
 export const SECTIONS = [
   { key: 'wedstrijden', label: 'Wedstrijden & bijzondere dagen' },
+  { key: 'kijker', label: 'In de kijker' },
   { key: 'spelers', label: 'Spelers' },
   { key: 'fotos', label: "Foto's" },
   { key: 'verslagen', label: 'Algemene berichten' },
   { key: 'actie', label: 'Actie' },
   { key: 'sponsors', label: 'Sponsors' },
+  { key: 'parijs', label: 'Parijs weekend' },
   { key: 'toegang', label: 'Linkjes' },
 ]
 
@@ -17,7 +19,7 @@ export function panelForView(view) {
   switch (view.name) {
     case 'home': return { section: 'home' }
     case 'action': return { section: 'actie' }
-    case 'spotlight': return { section: 'verslagen' }
+    case 'spotlight': return { section: 'kijker' }
     case 'team': return { section: 'spelers' }
     case 'player': return { section: 'spelers', playerId: view.id }
     case 'timeline': return { section: 'wedstrijden' }
@@ -25,7 +27,7 @@ export function panelForView(view) {
     case 'competition':
     case 'topklasse': return { section: 'competitie' }
     case 'upload': return { section: 'fotos' }
-    case 'pinksterweekend': return { section: 'wedstrijden' }
+    case 'pinksterweekend': return { section: 'parijs' }
     default: return null
   }
 }
@@ -37,7 +39,9 @@ export function viewForSection(section) {
     case 'wedstrijden': return { name: 'timeline' }
     case 'spelers': return { name: 'team' }
     case 'fotos': return { name: 'upload' }
+    case 'kijker':
     case 'verslagen': return { name: 'spotlight' }
+    case 'parijs': return { name: 'pinksterweekend' }
     case 'actie':
     case 'sponsors': return { name: 'action' }
     default: return null
