@@ -23,7 +23,7 @@ const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
 // studio (item 1239): de beheerstudio stuurt de view zelf aan (view +
 // onViewChange) zodat het bewerkpaneel ernaast meeloopt; klikken op een
 // wedstrijd/speler navigeert dan gewoon in de preview i.p.v. te bridgen.
-export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer, onEditGeneral, onEditReport }) {
+export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer, onEditGeneral }) {
   const [localView, setLocalView] = useState(() => {
     if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
     const entry = new URLSearchParams(window.location.search).get('match')
@@ -50,6 +50,9 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   // preview-view, maar bridget meteen naar het echte wysiwyg-bewerkscherm
   // (Wedstrijden/Spelers-tabblad) - 1 pad i.p.v. twee (item 1155).
   const bridge = adminMode && !studio
+  // Bewerkknoppen/-labels op de pagina's alleen in het oude tabbladenbeheer; in de
+  // studio is de preview precies de site en wordt rechts bewerkt (item 1239).
+  const controls = adminMode && !studio
   const openMatch = bridge ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
   const openPlayer = bridge ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
   // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232: elk
@@ -81,9 +84,9 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer} />}
         {view.name === 'action' && <PublicAction />}
-        {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={adminMode} onEditGeneral={onEditGeneral} onEditReport={onEditReport} />}
+        {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={controls} onEditGeneral={onEditGeneral} />}
         {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}
-        {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={adminMode} />}
+        {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={controls} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}
         {view.name === 'competition' && competition.visible && <CompetitionTab access={competition} />}
         {view.name === 'topklasse' && competition.topklasseVisible && <TopklasseTab access={competition} />}
@@ -97,7 +100,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={previewMode} />}
         {view.name === 'upload' && <PublicUploadPhotos />}
         {view.name === 'pinksterweekend' && (
-          <PinksterWeekend onBack={() => nav('home')} previewMode={previewMode} adminMode={adminMode} onEditMatch={onEditMatch} />
+          <PinksterWeekend onBack={() => nav('home')} previewMode={previewMode} adminMode={controls} onEditMatch={onEditMatch} />
         )}
       </div>
     </div>
