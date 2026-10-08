@@ -9,6 +9,7 @@ import PlayerCircleCard from './PlayerCircleCard.jsx'
 import { FavoritesBlock } from './PlayerFavorites.jsx'
 import Thermometer from './Thermometer.jsx'
 import SponsorList from './SponsorList.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
 
 // Losse pagina's zonder navigatiebalk voor de Vrienden-van-WhatsApp (item
 // 1186): een wedstrijdlink (?entry=<ref>&link=<code>) of spelerslink
@@ -101,7 +102,7 @@ export function StandaloneMatchView({ matchRef }) {
   return (
     <Shell>
       <PublicEntry matchRef={matchRef} standalone />
-      <ActionBlock />
+      <PageBlock id="action.thermometer"><ActionBlock /></PageBlock>
     </Shell>
   )
 }
@@ -127,8 +128,8 @@ export function StandalonePlayerView({ code }) {
       <PlayerProfileCard player={player} />
       <PlayerCircleCard player={player} />
       <FavoritesBlock photos={player.favorite_photos} title={`Foto's van ${player.nickname || player.name}`} showLikes={false} />
-      <ActionBlock />
-      <SponsorList />
+      <PageBlock id="action.thermometer"><ActionBlock /></PageBlock>
+      <PageBlock id="action.sponsors"><SponsorList /></PageBlock>
     </Shell>
   )
 }

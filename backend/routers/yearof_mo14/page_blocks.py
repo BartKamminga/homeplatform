@@ -30,6 +30,8 @@ KNOWN_BLOCKS = {
     "topklasse.overview",
     "topklasse.regrouping",
     "topklasse.national",
+    "action.thermometer",  # ook op Home en onder de wedstrijd-/spelerslinks
+    "action.sponsors",     # ook onder de spelerslink
 }
 
 

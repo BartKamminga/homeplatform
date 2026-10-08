@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import usePageBlocks from './usePageBlocks.js'
 
 // Een blok op een pagina dat live of concept kan staan (item 1239).
 // - bezoekers: concept-blok wordt niet getoond;
 // - beheerder op de site: concept-blok zichtbaar met gestippelde rand + label;
 // - editMode (bewerkscherm in de beheerstudio): balk met de schakelaar.
-export default function PageBlock({ id, label, access, editMode = false, children }) {
+// id moet ook in KNOWN_BLOCKS staan (backend page_blocks.py).
+export default function PageBlock({ id, label, editMode = false, children }) {
+  const access = usePageBlocks()
   const [busy, setBusy] = useState(false)
   const concept = access.conceptBlocks.has(id)
 

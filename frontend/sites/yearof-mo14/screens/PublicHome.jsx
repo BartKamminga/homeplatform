@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings, getPlayerSpotlight } from '../api.js'
 import PlayerSpotlightCard from './PlayerSpotlightCard.jsx'
 import Thermometer from './Thermometer.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
 import { PouleCard } from './PouleCard.jsx'
 import { stripFormatting } from './FormattedText.jsx'
 
@@ -65,9 +66,11 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer }) {
         <div style={{ fontSize: 32 }}>🗼</div>
         <h1>Samen op naar Parijs!</h1>
         <p>Volg het team, bekijk de wedstrijden en steun de actie voor onze teamtrip.</p>
-        <div style={{ marginTop: 16 }}>
-          <Thermometer settings={settings} />
-        </div>
+        <PageBlock id="action.thermometer">
+          <div style={{ marginTop: 16 }}>
+            <Thermometer settings={settings} />
+          </div>
+        </PageBlock>
       </div>
 
       {(pastMatch || nextMatch) && (

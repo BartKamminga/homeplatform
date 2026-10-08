@@ -1,6 +1,6 @@
 import NationalQueries from '../../screens/NationalQueries.jsx'
 import FeatureFlagBar from './FeatureFlagBar.jsx'
-import PageBlock from './PageBlock.jsx'
+import PageBlock from '../blocks/PageBlock.jsx'
 import TopklasseOverview from './TopklasseOverview.jsx'
 import RegroupingFull from './RegroupingFull.jsx'
 
@@ -12,7 +12,7 @@ import RegroupingFull from './RegroupingFull.jsx'
 export default function TopklasseTab({ access, editMode = false, showFlagBar = true }) {
   const { config } = access
   if (!config) return null
-  const block = (id, label, el) => <PageBlock id={id} label={label} access={access} editMode={editMode}>{el}</PageBlock>
+  const block = (id, label, el) => <PageBlock id={id} label={label} editMode={editMode}>{el}</PageBlock>
   return (
     <div>
       {showFlagBar && <FeatureFlagBar access={access} />}

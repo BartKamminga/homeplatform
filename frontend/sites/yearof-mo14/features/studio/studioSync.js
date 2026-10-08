@@ -14,7 +14,6 @@ export const SECTIONS = [
   { key: 'fotos', label: "Foto's" },
   { key: 'parijs', label: 'Parijs weekend' },
   { key: 'verslagen', label: 'Algemene berichten', extra: true },
-  { key: 'sponsors', label: 'Sponsors', extra: true },
   { key: 'toegang', label: 'Linkjes', extra: true },
 ]
 

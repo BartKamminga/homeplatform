@@ -1,5 +1,5 @@
 import FeatureFlagBar from './FeatureFlagBar.jsx'
-import PageBlock from './PageBlock.jsx'
+import PageBlock from '../blocks/PageBlock.jsx'
 import PositionChances from './PositionChances.jsx'
 import PouleResults from './PouleResults.jsx'
 import RegroupingForecast from './RegroupingForecast.jsx'
@@ -13,7 +13,7 @@ import RegroupingForecast from './RegroupingForecast.jsx'
 export default function CompetitionTab({ access, editMode = false, showFlagBar = true }) {
   const { config } = access
   if (!config) return null
-  const block = (id, label, el) => <PageBlock id={id} label={label} access={access} editMode={editMode}>{el}</PageBlock>
+  const block = (id, label, el) => <PageBlock id={id} label={label} editMode={editMode}>{el}</PageBlock>
   return (
     <div>
       {showFlagBar && <FeatureFlagBar access={access} />}

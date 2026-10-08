@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getActionSettings } from '../api.js'
 import Thermometer from './Thermometer.jsx'
 import SponsorList from './SponsorList.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
 
 export default function PublicAction() {
   const [settings, setSettings] = useState(null)
@@ -21,6 +22,7 @@ export default function PublicAction() {
         </p>
       </div>
 
+      <PageBlock id="action.thermometer">
       <div style={{ background: '#12203c', borderRadius: 16, padding: '18px 20px', marginBottom: 14 }}>
         <Thermometer settings={settings} />
       </div>
@@ -36,8 +38,9 @@ export default function PublicAction() {
           De donatielink volgt binnenkort.
         </p>
       )}
+      </PageBlock>
 
-      <SponsorList />
+      <PageBlock id="action.sponsors"><SponsorList /></PageBlock>
     </div>
   )
 }

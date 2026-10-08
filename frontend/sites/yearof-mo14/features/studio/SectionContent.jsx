@@ -1,7 +1,6 @@
 import PlayersAdmin from '../../screens/PlayersAdmin.jsx'
 import TimelineAdmin from '../../screens/TimelineAdmin.jsx'
 import LinksAdmin from '../../screens/LinksAdmin.jsx'
-import ActionAdmin from '../../screens/ActionAdmin.jsx'
 import SponsorsAdmin from '../../screens/SponsorsAdmin.jsx'
 import PhotosAdmin from '../../screens/PhotosAdmin.jsx'
 import ReportsAdmin from '../../screens/ReportsAdmin.jsx'
@@ -9,6 +8,7 @@ import MatchAdminDetail from '../../screens/match-admin/index.jsx'
 import InfoPanel from './InfoPanel.jsx'
 import SpotlightAdmin from './SpotlightAdmin.jsx'
 import PinnedPageAdmin from './PinnedPageAdmin.jsx'
+import ActionPageAdmin from './ActionPageAdmin.jsx'
 import CompetitionAdmin from './CompetitionAdmin.jsx'
 
 // Het bewerkscherm voor 1 panel (zie studioSync.js). Gedeeld door de
@@ -32,7 +32,7 @@ export default function SectionContent({ panel, onOpenMatch, onCloseMatch, onSel
     case 'toegang': return <LinksAdmin />
     case 'fotos': return <PhotosAdmin />
     case 'verslagen': return <ReportsAdmin key={panel.reportId || 'list'} initialEditId={panel.reportId} />
-    case 'actie': return <ActionAdmin />
+    case 'actie': return <ActionPageAdmin />
     case 'sponsors': return <SponsorsAdmin />
     default: return null
   }
