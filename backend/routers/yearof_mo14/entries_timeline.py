@@ -30,6 +30,7 @@ from models.yearof import (
 from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
 
 from ._shared import POULE_ID, TEAM_NAME, require_match_access, require_team_access
+from .page_blocks import match_photos_concept
 from .photos import PHOTO_ROOT
 
 router = APIRouter(tags=["yearof-mo14"])
@@ -259,10 +260,11 @@ def _annotate_content_flags(session: Session, items: list[dict]) -> list[dict]:
     photos = session.exec(
         select(YearOfPhoto).where(YearOfPhoto.status == "published", col(YearOfPhoto.archived_at).is_(None)).where(col(YearOfPhoto.match_ref).in_(match_refs))
     ).all()
-    photos_by_ref = {p.match_ref for p in photos}
+    # Fotoblok op concept (item 1239): geen fotootje-icoon in de lijst.
+    photos_by_ref = {p.match_ref for p in photos} - match_photos_concept(session)
 
     reports = session.exec(
-        select(YearOfReport).where(YearOfReport.status == "published").where(col(YearOfReport.match_ref).in_(match_refs))
+        select(YearOfReport).where(YearOfReport.status == "published", col(YearOfReport.archived_at).is_(None)).where(col(YearOfReport.match_ref).in_(match_refs))
     ).all()
     reports_by_ref = {r.match_ref for r in reports if r.report_type in ("wedstrijdverslag", "interview")}
     footage_by_ref = {r.match_ref for r in reports if r.report_type == "wedstrijd_beelden"}

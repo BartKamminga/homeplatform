@@ -243,6 +243,9 @@ class YearOfReport(SQLModel, table=True):
     updated_at:       datetime        = Field(default_factory=datetime.utcnow)
     published_at:     Optional[datetime] = Field(default=None)  # moment van eerste publicatie (blijft staan bij een latere concept-terugzet)
     like_count:       int             = Field(default=0)
+    # Item 1239: berichten worden nooit verwijderd maar gearchiveerd (overal
+    # verborgen, terug te zetten op de pagina of in het Berichten-overzicht).
+    archived_at:      Optional[datetime] = Field(default=None)
 
 
 class YearOfReportLink(SQLModel, table=True):

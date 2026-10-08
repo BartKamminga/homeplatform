@@ -96,6 +96,32 @@ def list_contributor_links(
     ]
 
 
+class ContributorLinkUpdate(BaseModel):
+    player_id: Optional[str] = None
+    report_type: Optional[str] = None
+
+
+@router.patch("/contributor-links/{code}")
+def update_contributor_link(
+    code: str,
+    body: ContributorLinkUpdate,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Beheerder - voor wie/wat het invullinkje is aanpassen (item 1239: het
+    blok wordt eerst aangemaakt, daarna ingevuld). player_id leeg = hele team."""
+    link = get_or_404(session, YearOfContributorLink, code, "Invullinkje")
+    data = body.model_dump(exclude_unset=True)
+    if "player_id" in data:
+        link.player_id = data["player_id"] or None
+    if data.get("report_type"):
+        link.report_type = data["report_type"]
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
 @router.delete("/contributor-links/{code}")
 def delete_contributor_link(
     code: str,

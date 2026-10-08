@@ -82,7 +82,6 @@ function CustomEntryForm({ existingItem, onSaved, onCancel }) {
   const [date, setDate] = useState(toDatetimeLocal(existingItem?.date))
   const [opponent, setOpponent] = useState(existingItem?.opponent || '')
   const [location, setLocation] = useState(existingItem?.location || '')
-  const [isPinned, setIsPinned] = useState(existingItem?.is_pinned || false)
   const [scoreUs, setScoreUs] = useState(existingItem?.score_us ?? '')
   const [scoreThem, setScoreThem] = useState(existingItem?.score_them ?? '')
   const [error, setError] = useState('')
@@ -93,7 +92,6 @@ function CustomEntryForm({ existingItem, onSaved, onCancel }) {
       kind, title, date,
       opponent: opponent || null,
       location: location || null,
-      is_pinned: kind === 'bijzonder' ? isPinned : false,
       score_us: scoreUs === '' ? null : Number(scoreUs),
       score_them: scoreThem === '' ? null : Number(scoreThem),
     }
@@ -144,19 +142,16 @@ function CustomEntryForm({ existingItem, onSaved, onCancel }) {
           </div>
         </div>
       )}
-      {kind === 'bijzonder' && (
-        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-          <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} />
-          vastpinnen (bv. Pinksterweekend)
-        </label>
-      )}
 
       <button className="yof-btn" onClick={submit}>{isEdit ? 'Opslaan' : 'Toevoegen'}</button>
     </div>
   )
 }
 
-export default function TimelineAdmin({ onOpenMatch }) {
+// footer: alleen in de lijstweergave, niet bij het bewerken van een dag
+// (beheerstudio: de blokken onder de wedstrijdlijst, item 1239).
+// Vastpinnen is vervallen: Parijs weekend is een eigen pagina (item 1239).
+export default function TimelineAdmin({ onOpenMatch, footer = null }) {
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
   const [showArchived, setShowArchived] = useState(false)
@@ -176,15 +171,6 @@ export default function TimelineAdmin({ onOpenMatch }) {
     setEditingItem(null)
     setView('list')
     load()
-  }
-
-  async function togglePin(it) {
-    try {
-      await updateEntry(it.match_ref.replace('custom:', ''), { is_pinned: !it.is_pinned })
-      load()
-    } catch (e) {
-      setError(e.message)
-    }
   }
 
   async function saveScore(id, body) {
@@ -237,7 +223,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
               : <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#eef1f8', flexShrink: 0 }} />}
             <div style={{ flex: 1, minWidth: 180 }}>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', marginBottom: 4 }}>
-                {it.kind}{it.is_pinned ? ' · 📌' : ''}
+                {it.kind}
               </div>
               <button onClick={() => onOpenMatch(it.match_ref)}
                 style={{ fontWeight: 700, fontSize: 14, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#12203c', textAlign: 'left' }}>
@@ -255,11 +241,6 @@ export default function TimelineAdmin({ onOpenMatch }) {
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
               {it.match_ref.startsWith('custom:') && (
                 <button onClick={() => { setEditingItem(it); setView('form') }} className="yof-btn-secondary">bewerken</button>
-              )}
-              {it.match_ref.startsWith('custom:') && it.kind === 'bijzonder' && (
-                <button onClick={() => togglePin(it)} className="yof-btn-secondary">
-                  {it.is_pinned ? 'losmaken' : 'vastpinnen'}
-                </button>
               )}
               {it.match_ref.startsWith('custom:') && (
                 <button onClick={() => archive(it.match_ref)} className="yof-btn-secondary">archiveer</button>
@@ -293,6 +274,7 @@ export default function TimelineAdmin({ onOpenMatch }) {
       <button onClick={() => { setEditingItem(null); setView('form') }} className="yof-btn" style={{ width: '100%' }}>
         + Nieuwe wedstrijd/bijzondere dag
       </button>
+      {footer}
     </div>
   )
 }

@@ -9,6 +9,7 @@ import PlayerCircleCard from './PlayerCircleCard.jsx'
 import { FavoritesBlock } from './PlayerFavorites.jsx'
 import Thermometer from './Thermometer.jsx'
 import SponsorList from './SponsorList.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
 
 // Losse pagina's zonder navigatiebalk voor de Vrienden-van-WhatsApp (item
 // 1186): een wedstrijdlink (?entry=<ref>&link=<code>) of spelerslink
@@ -98,15 +99,23 @@ export function StandaloneMatchView({ matchRef }) {
   if (status === 'checking') return null
   if (status === 'expired') return <LinkExpired />
   if (status === 'locked') return <Gate onUnlock={() => setStatus('unlocked')} />
+  return <FanMatchView matchRef={matchRef} />
+}
+
+// Wat een fan via de wedstrijdlink ziet: geen menu, alleen wat op de
+// wedstrijdlink staat, plus het inzamelblok. Ook de fan-weergave in de
+// beheerstudio (item 1239).
+export function FanMatchView({ matchRef }) {
   return (
     <Shell>
       <PublicEntry matchRef={matchRef} standalone />
-      <ActionBlock />
+      <PageBlock id="action.thermometer"><ActionBlock /></PageBlock>
     </Shell>
   )
 }
 
-export function StandalonePlayerView({ code }) {
+// track=false: fan-weergave in de beheerstudio telt niet als bezoek (item 1239).
+export function StandalonePlayerView({ code, track = true }) {
   const [player, setPlayer] = useState(null)
   const [status, setStatus] = useState('checking') // checking | expired | ok
 
@@ -115,7 +124,7 @@ export function StandalonePlayerView({ code }) {
       .then(p => {
         setPlayer(p)
         setStatus('ok')
-        trackVisit('player', code)
+        if (track) trackVisit('player', code)
       })
       .catch(() => setStatus('expired'))
   }, [code])
@@ -127,8 +136,8 @@ export function StandalonePlayerView({ code }) {
       <PlayerProfileCard player={player} />
       <PlayerCircleCard player={player} />
       <FavoritesBlock photos={player.favorite_photos} title={`Foto's van ${player.nickname || player.name}`} showLikes={false} />
-      <ActionBlock />
-      <SponsorList />
+      <PageBlock id="action.thermometer"><ActionBlock /></PageBlock>
+      <PageBlock id="action.sponsors"><SponsorList /></PageBlock>
     </Shell>
   )
 }

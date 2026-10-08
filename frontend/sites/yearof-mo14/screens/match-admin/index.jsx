@@ -4,21 +4,23 @@ import {
   getReportsModeration, tagReport, untagReport, moveReport,
   listContributorLinks,
   movePhotoBlock,
+  createReportDirect, createContributorLink,
 } from '../../api.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
+import { onDataChanged } from '../../dataChanged.js'
 import PhotoManager from '../../features/photos/PhotoManager.jsx'
 import { ReportForm } from '../ReportForm.jsx'
 import ContributeReport from '../ContributeReport.jsx'
 import PublicEntry from '../PublicEntry.jsx'
-import { ChooseReportKind } from './ChooseReportKind.jsx'
-import { InviteLinkScreen } from './InviteLinkScreen.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import { LinksScreen } from './LinksScreen.jsx'
 import { GoalsPanel } from './GoalsPanel.jsx'
 import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
 import InviteCreateForm from '../InviteCreateForm.jsx'
 
-export default function MatchAdminDetail({ matchRef, onBack }) {
+// pinnedPage (Parijs weekend, item 1239): eigen pagina zonder wedstrijd/dag -
+// alleen berichten en foto's; geen doelpunten, wedstrijdlink of invullinks.
+export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false, pageTitle }) {
   const [item, setItem] = useState(null)
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
@@ -26,11 +28,8 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   const [error, setError] = useState('')
   const [view, setView] = useState('preview') // preview | choose | write | edit | invul | invite | fill-invite | links
   const [editingReport, setEditingReport] = useState(null)
-  const [insertAfterId, setInsertAfterId] = useState(null)
-  const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
-  const [showPhotos, setShowPhotos] = useState(false)
   const [previewKey, setPreviewKey] = useState(0) // ophogen = wedstrijdpreview opnieuw laden
   const [showLinks, setShowLinks] = useState(false)
 
@@ -42,11 +41,17 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
   }
 
   useEffect(() => {
-    getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
+    if (pinnedPage) setItem({ title: pageTitle || 'Pagina', kind: 'pagina' })
+    else getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadLinks()
   }, [matchRef])
+
+  // Na elke opslag (ook elders, bv. een invullink via Linkjes & bezoeken) de
+  // invullinks en berichten opnieuw ophalen - anders verschijnt de plaatshouder
+  // van een nieuwe invullink pas na herladen (item 1239).
+  useEffect(() => onDataChanged(() => { loadLinks(); loadReports() }), [matchRef])
 
   function entryTitle() {
     return item?.title || matchRef
@@ -54,25 +59,33 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   function backToPreview() {
     setEditingReport(null)
-    setInsertAfterId(null)
     setView('preview')
     loadReports()
     loadLinks()
   }
 
   function handleEditReport(report) {
-    if (report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden') {
-      setLinksReportType(report.report_type)
-      setView('links')
-      return
-    }
+    // Er kunnen meerdere Instagram-/beeldenblokken zijn: altijd dit ene blok bewerken.
     setEditingReport(report)
-    setView('edit')
+    setView(report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden' ? 'links' : 'edit')
   }
 
-  function addItemAt(afterId) {
-    setInsertAfterId(afterId)
-    setView('choose')
+  // Keuzebalk (item 1239): een keuze maakt meteen een conceptblok aan op de
+  // gekozen plek; invullen gaat via Bewerken op het blok (invullink: via de plaatshouder).
+  async function addItemAt(afterId, kind) {
+    const block = (report_type, title) => createReportDirect({
+      match_ref: matchRef, report_type, title, body: '', status: 'concept', links: [], insert_after_id: afterId,
+    })
+    try {
+      if (kind === 'self') await block(pinnedPage ? 'nieuws' : 'wedstrijdverslag', pinnedPage ? 'Nieuw bericht' : 'Nieuw verslag')
+      else if (kind === 'instagram') await block('instagram', 'Instagram')
+      else if (kind === 'footage') await block('wedstrijd_beelden', 'Wedstrijdbeelden')
+      else if (kind === 'invite_report') await createContributorLink({ match_ref: matchRef, report_type: 'wedstrijdverslag' })
+      else if (kind === 'invite_photos') await createContributorLink({ match_ref: matchRef, report_type: 'foto' })
+      setPreviewKey(k => k + 1)
+    } catch (e) {
+      setError(e.message)
+    }
   }
 
   async function handleMoveReport(reportId, direction) {
@@ -99,7 +112,6 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
     setReports(fresh.filter(r => r.match_ref === matchRef))
   }
 
-  const linksExistingReport = reports.find(r => r.report_type === linksReportType)
   const activeInvite = links.find(l => l.id === activeInviteId)
 
   function playerName(id) {
@@ -115,38 +127,23 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
 
   return (
     <div>
-      <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>
+      {onBack && <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
-      {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
+      {item && !pinnedPage && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
+      {item && !pinnedPage && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
 
-      {view === 'choose' && (
-        <ChooseReportKind
-          onWriteMyself={() => setView('write')}
-          onSendInvite={() => setView('invul')}
-          onAddInstagram={() => { setLinksReportType('instagram'); setView('links') }}
-          onAddFootage={() => { setLinksReportType('wedstrijd_beelden'); setView('links') }}
-          onBack={() => { setInsertAfterId(null); setView('preview') }}
-        />
-      )}
-      {view === 'write' && (
-        <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} insertAfterId={insertAfterId}
-          onSaved={backToPreview} onCancel={() => setView('choose')} />
-      )}
       {view === 'edit' && editingReport && (
         <ReportForm
-          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
+          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport} allowNews={pinnedPage} controlsOnBar
           players={players} onToggleTag={toggleEditingReportTag}
           onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onRefresh={refreshEditingReport}
         />
-      )}
-      {view === 'invul' && (
-        <InviteLinkScreen matchRef={matchRef} players={players} onBack={() => setView('choose')} />
       )}
       {view === 'invite' && (
         <InviteDetailScreen link={activeInvite} players={players}
           onBack={() => { setActiveInviteId(null); setView('preview') }}
           onDeleted={() => { setActiveInviteId(null); setView('preview'); loadLinks() }}
+          onChanged={loadLinks}
           onFill={() => setView('fill-invite')}
         />
       )}
@@ -156,9 +153,9 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
           onSaved={() => { setActiveInviteId(null); setView('preview'); loadReports(); loadLinks() }}
         />
       )}
-      {view === 'links' && (
-        <LinksScreen matchRef={matchRef} reportType={linksReportType} existingReport={linksExistingReport}
-          insertAfterId={insertAfterId} onBack={backToPreview} onRefresh={loadReports} />
+      {view === 'links' && editingReport && (
+        <LinksScreen reportType={editingReport.report_type} existingReport={editingReport}
+          onBack={backToPreview} onRefresh={refreshEditingReport} />
       )}
 
       {view === 'preview' && (
@@ -167,12 +164,17 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             matchRef={matchRef} onBack={() => {}} previewMode adminMode
             onEditReport={handleEditReport}
             onAddItem={addItemAt}
+            // Fotobeheer (item 1213) klapt open onder het blok Foto's zelf (item 1239)
+            renderPhotoManager={onChanged => <PhotoManager matchRef={matchRef} onChanged={onChanged} />}
+            // Eigen pagina: geen invullinks (die horen bij een wedstrijd)
+            addKinds={pinnedPage ? ['self', 'instagram', 'footage'] : undefined}
             onMoveReport={handleMoveReport}
             onMovePhotoBlock={handleMovePhotoBlock}
             pendingInvites={pendingInvites}
             onOpenInvites={id => { setActiveInviteId(id); setView('invite') }}
           />
 
+          {!pinnedPage && <>
           <button onClick={() => setShowGoals(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
             {showGoals ? 'Verberg' : 'Toon'} doelpunten
           </button>
@@ -197,16 +199,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
               }} />
             </div>
           )}
-
-          <button onClick={() => setShowPhotos(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
-            {showPhotos ? 'Verberg' : 'Toon'} fotobeheer
-          </button>
-          {showPhotos && (
-            <div style={{ marginBottom: 20 }}>
-              {/* Zelfde fotobeheer als de tab Foto's (item 1213), vast op deze wedstrijd */}
-              <PhotoManager matchRef={matchRef} onChanged={() => setPreviewKey(k => k + 1)} />
-            </div>
-          )}
+          </>}
         </>
       )}
     </div>

@@ -51,7 +51,7 @@ export default function PhotoToolbar({ filters, setFilters, sort, setSort, group
         {!lockedMatch && (
           <Select value={filters.matchRef} onChange={set('matchRef')} title="Wedstrijd">
             <option value="">Wedstrijd: alle</option>
-            <option value="none">Zonder wedstrijd (algemene berichten)</option>
+            <option value="none">Zonder wedstrijd of pagina</option>
             {entries.map(e => <option key={e.match_ref} value={e.match_ref}>{(e.date || '').slice(0, 10)} · {e.title}</option>)}
           </Select>
         )}

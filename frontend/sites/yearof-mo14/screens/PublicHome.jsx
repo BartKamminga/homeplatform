@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
-import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings, getPlayerSpotlight } from '../api.js'
+import { getActionSettings, getHomeReports, getTimeline, getInterviewCandidates, getStandings, getPlayerSpotlight } from '../api.js'
 import PlayerSpotlightCard from './PlayerSpotlightCard.jsx'
 import Thermometer from './Thermometer.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
+import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { PouleCard } from './PouleCard.jsx'
 import { stripFormatting } from './FormattedText.jsx'
+import usePageMeta from '../features/pages/pageMeta.js'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -31,7 +34,8 @@ function MatchTeaser({ label, item, onOpen }) {
   )
 }
 
-export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer }) {
+// onOpenPage(ref): bericht onder In de kijker aanklikken = naar de pagina waar het op staat (item 1241).
+export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, onOpenPage, editMode = false }) {
   const [settings, setSettings] = useState(null)
   const [interviews, setInterviews] = useState([])
   const [pastMatch, setPastMatch] = useState(null)
@@ -39,10 +43,12 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer }) {
   const [candidates, setCandidates] = useState([])
   const [standings, setStandings] = useState(null)
   const [playerSpotlight, setPlayerSpotlight] = useState(null)
+  const { conceptBlocks, setting } = usePageBlocks()
+  const homeCount = setting('home.spotlight', 'count', 4)
+  const home = usePageMeta()('home') // kop instelbaar (item 1248)
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
-    getSpotlightReports().then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
     getStandings().then(setStandings).catch(() => {})
     getPlayerSpotlight().then(setPlayerSpotlight).catch(() => {})
     getTimeline().then(items => {
@@ -59,28 +65,49 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer }) {
     }).catch(() => {})
   }, [])
 
+  // In de kijker (item 1241): nieuwste berichten van de eigen paginas met Toon op Home.
+  useEffect(() => {
+    getHomeReports(homeCount).then(setInterviews).catch(() => {})
+  }, [homeCount])
+
+  // Elk blok apart live/concept (item 1239). editMode = bewerkscherm in de
+  // beheerstudio: ook lege blokken tonen, zodat de schakelaar bereikbaar is.
+  const block = (id, label, content, options) => (
+    <PageBlock id={id} label={label} editMode={editMode} options={options}>
+      {content || (editMode ? <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Nu leeg - verschijnt vanzelf zodra er iets is.</p> : null)}
+    </PageBlock>
+  )
+  const live = id => editMode || !conceptBlocks.has(id)
+  const countOptions = [{ key: 'count', label: 'Aantal', fallback: 4,
+    choices: [2, 4, 6].map(n => ({ value: n, label: String(n) })) }]
+  const showSpotlightHeading = (interviews.length > 0 && live('home.spotlight')) || (playerSpotlight && live('home.player_spotlight')) || editMode
+
   return (
     <div>
-      <div className="yof-hero">
-        <div style={{ fontSize: 32 }}>🗼</div>
-        <h1>Samen op naar Parijs!</h1>
-        <p>Volg het team, bekijk de wedstrijden en steun de actie voor onze teamtrip.</p>
-        <div style={{ marginTop: 16 }}>
-          <Thermometer settings={settings} />
+      {block('home.hero', 'Kop', (
+        <div className="yof-hero">
+          {home.icon && <div style={{ fontSize: 32 }}>{home.icon}</div>}
+          <h1>{home.title}</h1>
+          {home.subtitle && <p>{home.subtitle}</p>}
+          <PageBlock id="action.thermometer">
+            <div style={{ marginTop: 16 }}>
+              <Thermometer settings={settings} />
+            </div>
+          </PageBlock>
         </div>
-      </div>
+      ))}
 
-      {(pastMatch || nextMatch) && (
+      {(pastMatch || nextMatch || editMode) && (
         <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
-          <MatchTeaser label="Laatste wedstrijd" item={pastMatch} onOpen={onOpenMatch} />
-          {standings?.standings?.length > 0 && (
+          {block('home.last_match', 'Laatste wedstrijd', pastMatch && <MatchTeaser label="Laatste wedstrijd" item={pastMatch} onOpen={onOpenMatch} />)}
+          {block('home.standings', 'Pouletabel', standings?.standings?.length > 0 && (
             <PouleCard title={standings.pool_name || 'Poule'} rows={standings.standings} onOpen={() => onNavigate('timeline')} />
-          )}
-          <MatchTeaser label="Volgende wedstrijd" item={nextMatch} onOpen={onOpenMatch} />
+          ))}
+          {block('home.next_match', 'Volgende wedstrijd', nextMatch && <MatchTeaser label="Volgende wedstrijd" item={nextMatch} onOpen={onOpenMatch} />)}
         </div>
       )}
 
-      {candidates.length > 0 && (
+      {block('home.interview_candidates', 'Volgende week in de kijker', candidates.length > 0 && (
         <div className="yof-card" style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a3245c', fontWeight: 700, marginBottom: 8 }}>
             Volgende week in de kijker
@@ -105,24 +132,28 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer }) {
             Zij vertellen binnenkort over de wedstrijd &mdash; hou &ldquo;In de kijker&rdquo; in de gaten!
           </p>
         </div>
-      )}
+      ))}
 
-      {(interviews.length > 0 || playerSpotlight) && (
+      {showSpotlightHeading && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#999', margin: '0 0 8px' }}>
             In de kijker
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
-            <PlayerSpotlightCard spotlight={playerSpotlight} onOpenPlayer={onOpenPlayer} />
-            {interviews.map(r => (
-              <a key={r.id} href="#" onClick={e => { e.preventDefault(); onNavigate('spotlight') }}
-                className="yof-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>&ldquo;{r.title}&rdquo;</h3>
-                <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
-                  {stripFormatting(r.body).length > 90 ? stripFormatting(r.body).slice(0, 90) + '...' : stripFormatting(r.body)}
-                </p>
-              </a>
-            ))}
+            {block('home.player_spotlight', 'Speelster van de week', playerSpotlight && <PlayerSpotlightCard spotlight={playerSpotlight} onOpenPlayer={onOpenPlayer} />)}
+            {block('home.spotlight', 'In de kijker - berichten met Toon op Home', interviews.length > 0 && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {interviews.map(r => (
+                  <a key={r.id} href="#" onClick={e => { e.preventDefault(); onOpenPage ? onOpenPage(r.match_ref) : onNavigate('spotlight') }}
+                    className="yof-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+                    <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>&ldquo;{r.title}&rdquo;</h3>
+                    <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
+                      {stripFormatting(r.body).length > 90 ? stripFormatting(r.body).slice(0, 90) + '...' : stripFormatting(r.body)}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            ), countOptions)}
           </div>
         </div>
       )}

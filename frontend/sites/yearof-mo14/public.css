@@ -137,6 +137,16 @@
   .yof-list-row.yof-next-match { animation: none; }
 }
 
+/* Rolodex "Alle rondes" (uitslagen en programma): ronde schuift in vanuit de
+   bladerrichting. */
+.yof-rolodex-next { animation: yof-rolodex-in-right .22s ease-out; }
+.yof-rolodex-prev { animation: yof-rolodex-in-left .22s ease-out; }
+@keyframes yof-rolodex-in-right { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes yof-rolodex-in-left  { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .yof-rolodex-next, .yof-rolodex-prev { animation: none; }
+}
+
 .yof-btn {
   display: inline-block; padding: 12px 20px; border-radius: 999px; border: none;
   background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 15px;

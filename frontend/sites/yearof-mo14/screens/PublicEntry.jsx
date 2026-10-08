@@ -1,20 +1,40 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
+import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, deleteReport, restoreReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
+import EntryHeader from './EntryHeader.jsx'
+import ItemBar from '../features/blocks/ItemBar.jsx'
+import AddBar from '../features/blocks/AddBar.jsx'
+import ArchivedReports from '../features/blocks/ArchivedReports.jsx'
+import usePageBlocks from '../features/blocks/usePageBlocks.js'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
-  onEditReport, onAddItem, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
+  onEditReport, onAddItem, addKinds, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
-  const [lightboxIndex, setLightboxIndex] = useState(null)
+  // Lightbox per blok (item 1243): alleen door de foto's van het blok waarin je klikte swipen.
+  const [lightbox, setLightbox] = useState(null) // { list, index }
+  const openLightbox = (list, photo) => setLightbox({ list, index: list.findIndex(x => x.id === photo.id) })
   const [error, setError] = useState('')
+  // Eigen pagina (bv. 'page:pinksterweekend', item 1239): zelfde berichten/foto's,
+  // maar zonder wedstrijd/dag erachter - geen kop en geen terug-link.
+  const isPage = matchRef.startsWith('page:')
+  const [confirm, confirmDialog] = useConfirm()
+  const [showPhotoManager, setShowPhotoManager] = useState(false)
+  const [insertAfter, setInsertAfter] = useState(null) // tussen-keuzebalk open na dit blok
+  // Keuze = meteen een (concept)blok aanmaken (item 1239), invullen via Bewerken.
+  const add = (afterId, kind) => { setInsertAfter(null); onAddItem(afterId, kind) }
+  // Fotoblok van deze wedstrijd live/concept (item 1239), opgeslagen als blok "photos:<match_ref>".
+  const { conceptBlocks, setBlockState } = usePageBlocks()
+  const photosBlockId = `photos:${matchRef}`
+  const photosLive = !conceptBlocks.has(photosBlockId)
 
   function loadReports() {
     const call = previewMode ? getReportsModeration() : getReports(matchRef, undefined, standalone)
@@ -41,8 +61,10 @@ export default function PublicEntry({
   }
 
   useEffect(() => {
-    const itemCall = adminMode ? getTimelineItemModeration(matchRef) : getTimelineItem(matchRef)
-    itemCall.then(setItem).catch(e => setError(e.message))
+    if (!isPage) {
+      const itemCall = adminMode ? getTimelineItemModeration(matchRef) : getTimelineItem(matchRef)
+      itemCall.then(setItem).catch(e => setError(e.message))
+    }
     loadReports()
     loadPhotoBlockPosition()
     loadPhotos()
@@ -53,11 +75,27 @@ export default function PublicEntry({
     loadReports()
   }
 
-  async function move(reportId, direction, e) {
-    e.stopPropagation()
+  async function move(reportId, direction) {
     await onMoveReport(reportId, direction)
     loadReports()
   }
+
+  // Bewerkscherm (item 1239): live/concept, wedstrijdlink en verwijderen op het blok zelf.
+  async function changeReport(r, patch) {
+    await updateReport(r.id, patch)
+    loadReports()
+  }
+  async function removeReport(r) {
+    if (!(await confirm(`"${r.title}" archiveren? Je kunt het terugzetten via Archief onderaan de pagina.`))) return
+    await deleteReport(r.id)
+    loadReports()
+  }
+  async function restore(r) {
+    await restoreReport(r.id)
+    loadReports()
+  }
+  // Gearchiveerde berichten (item 1239) staan niet op de pagina, alleen in het archief van het bewerkscherm.
+  const liveReports = reports.filter(r => !r.archived_at)
 
   async function movePhotos(direction) {
     await onMovePhotoBlock(direction)
@@ -66,50 +104,18 @@ export default function PublicEntry({
   }
 
   if (error) return <p style={{ color: '#c23b3b' }}>{error}</p>
-  if (!item) return <p>Laden...</p>
+  if (!item && !isPage) return <p>Laden...</p>
 
   return (
     <div>
-      {!adminMode && !standalone && (
+      {!adminMode && !standalone && !isPage && (
         <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
       )}
-      <div className="yof-card" style={{ marginBottom: 14 }}>
-        <span className={`badge ${item.kind}`}>{item.kind}</span>
-        {(item.home_club_logo || item.away_club_logo) && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '10px 0 2px' }}>
-            {item.home_club_logo
-              ? <img src={item.home_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-              : <div style={{ width: 36, height: 36 }} />}
-            <span style={{ fontSize: 12, color: '#999' }}>vs</span>
-            {item.away_club_logo
-              ? <img src={item.away_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-              : <div style={{ width: 36, height: 36 }} />}
-          </div>
-        )}
-        <h2 style={{ margin: '10px 0 4px', fontSize: 18 }}>{item.title}</h2>
-        <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
-          {new Date(item.date).toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-          {(() => {
-            const d = new Date(item.date)
-            const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(item.date)
-            return hasTime ? ` · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}` : ''
-          })()}
-        </p>
-        {item.location && (
-          <p style={{ margin: '4px 0 0', fontSize: 13 }}>
-            📍 <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
-              target="_blank" rel="noreferrer" style={{ color: '#12203c' }}>{item.location}</a>
-          </p>
-        )}
-        {(item.score_home ?? item.score_us) != null && (
-          <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>
-            {item.score_home ?? item.score_us} - {item.score_away ?? item.score_them}
-          </p>
-        )}
-        {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-line' }}><FormattedText text={item.description} /></p>}
-      </div>
+      {!isPage && <EntryHeader item={item} />}
 
-      <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
+      <PhotoLightbox photos={lightbox?.list || []} index={lightbox?.index ?? null} onClose={() => setLightbox(null)}
+        onNavigate={i => setLightbox(l => ({ ...l, index: i }))} />
+      {confirmDialog}
 
       {(() => {
         // Het generieke Foto's-blok toont bewust alleen gepubliceerde, niet
@@ -119,17 +125,17 @@ export default function PublicEntry({
         // een verslag horen (report_id) tonen inline op dat verslag, incl.
         // concept-badge - daar wil je juist meteen zien of het gelukt is.
         const unassignedPublished = photos.filter(p => !p.report_id && p.status === 'published')
-        const showPhotoBlock = unassignedPublished.length > 0 || adminMode
+        const showPhotoBlock = (unassignedPublished.length > 0 && photosLive) || adminMode
         const blocks = []
         if (showPhotoBlock) blocks.push({ kind: 'photos', sort_order: photoBlockSortOrder })
-        reports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
+        liveReports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
         blocks.sort((a, b) => a.sort_order - b.sort_order)
 
         if (blocks.length === 0 && pendingInvites.length === 0) return null
 
         return (
       <div>
-          <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s, verslagen &amp; interviews</h3>
+          {!isPage && <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s, verslagen &amp; interviews</h3>}
           {pendingInvites.map(inv => (
             <div key={inv.id} onClick={() => onOpenInvites(inv.id)} className="yof-card"
               style={{
@@ -156,24 +162,30 @@ export default function PublicEntry({
               return (
                 <div key="photos" style={{ marginBottom: 14, position: 'relative' }}>
                   {adminMode && (
-                    <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: 2 }}>
-                      <button onClick={() => movePhotos('up')} disabled={atTop}
-                        style={{ fontSize: 12, cursor: atTop ? 'default' : 'pointer', opacity: atTop ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
-                      <button onClick={() => movePhotos('down')} disabled={atBottom}
-                        style={{ fontSize: 12, cursor: atBottom ? 'default' : 'pointer', opacity: atBottom ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
-                    </div>
+                    <ItemBar label="Foto's"
+                      live={photosLive}
+                      onToggleLive={() => setBlockState(photosBlockId, !photosLive)}
+                      onUp={atTop ? undefined : () => movePhotos('up')}
+                      onDown={atBottom ? undefined : () => movePhotos('down')}
+                      onEdit={renderPhotoManager ? () => setShowPhotoManager(s => !s) : undefined}
+                      editLabel={showPhotoManager ? 'Fotobeheer sluiten' : 'Fotobeheer'} />
                   )}
+                  <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>
                   <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
                   {unassignedPublished.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
                       {unassignedPublished.map(p => (
-                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(photos.findIndex(x => x.id === p.id)) }}>
+                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); openLightbox(unassignedPublished, p) }}>
                           <PhotoThumb photo={p} />
                         </a>
                       ))}
                     </div>
                   ) : (
-                    <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>
+                    <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s{isPage ? '' : ' voor deze wedstrijd'}.</p>
+                  )}
+                  </div>
+                  {adminMode && showPhotoManager && renderPhotoManager && (
+                    <div style={{ marginTop: 12 }}>{renderPhotoManager(loadPhotos)}</div>
                   )}
                 </div>
               )
@@ -182,10 +194,23 @@ export default function PublicEntry({
             const r = b.report
             return (
               <div key={r.id}>
+                {adminMode && (
+                  <ItemBar label={r.title}
+                    live={r.status === 'published'}
+                    onToggleLive={() => changeReport(r, { status: r.status === 'published' ? 'concept' : 'published' })}
+                    onMatchLink={r.match_highlight}
+                    onToggleMatchLink={isPage ? undefined : () => changeReport(r, { match_highlight: !r.match_highlight })}
+                    featured={r.featured}
+                    onToggleFeatured={isPage ? () => changeReport(r, { featured: !r.featured }) : undefined}
+                    onUp={atTop ? undefined : () => move(r.id, 'up')}
+                    onDown={atBottom ? undefined : () => move(r.id, 'down')}
+                    onEdit={() => onEditReport(r)}
+                    onDelete={() => removeReport(r)} />
+                )}
                 <div className="yof-card"
                   onClick={adminMode ? () => onEditReport(r) : undefined}
-                  style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default' }}>
-                  {r.status === 'concept' && (
+                  style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default', opacity: adminMode && r.status === 'concept' ? 0.5 : 1 }}>
+                  {r.status === 'concept' && !adminMode && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <span style={{ background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
                         CONCEPT
@@ -195,23 +220,7 @@ export default function PublicEntry({
                       )}
                     </div>
                   )}
-                  {adminMode && (
-                    <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 2 }}>
-                      <button onClick={e => move(r.id, 'up', e)} disabled={atTop}
-                        style={{ fontSize: 12, cursor: atTop ? 'default' : 'pointer', opacity: atTop ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
-                      <button onClick={e => move(r.id, 'down', e)} disabled={atBottom}
-                        style={{ fontSize: 12, cursor: atBottom ? 'default' : 'pointer', opacity: atBottom ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
-                    </div>
-                  )}
-                  {adminMode && (
-                    <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
-                  )}
-                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>
-                    {r.title}
-                    {adminMode && r.match_highlight && (
-                      <span title="Op wedstrijdlink" style={{ marginLeft: 6, fontSize: 12, color: '#d97706' }}>&#11088;</span>
-                    )}
-                  </h4>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
                   {(r.author_name || r.published_at) && (
                     <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>
                       {r.author_name && `door ${r.author_name}`}
@@ -227,7 +236,7 @@ export default function PublicEntry({
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
                         {reportPhotos.map(p => (
                           <a key={p.id} href="#"
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); setLightboxIndex(photos.findIndex(x => x.id === p.id)) }}
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); openLightbox(reportPhotos, p) }}
                             style={{ position: 'relative', display: 'block' }}>
                             <PhotoThumb photo={p} />
                             {p.status === 'concept' && (
@@ -248,22 +257,21 @@ export default function PublicEntry({
                     </div>
                   )}
                 </div>
-                {adminMode && (
-                  <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>
-                    <button onClick={() => onAddItem(r.id)}
-                      style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      + hier iets invoegen
-                    </button>
-                  </div>
-                )}
+                {adminMode && (insertAfter === r.id
+                  ? <AddBar compact kinds={addKinds} onPick={kind => add(r.id, kind)} />
+                  : (
+                    <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>
+                      <button onClick={() => setInsertAfter(r.id)}
+                        style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        + hier iets invoegen
+                      </button>
+                    </div>
+                  ))}
               </div>
             )
           })}
-          {adminMode && (
-            <button onClick={() => onAddItem(null)} className="yof-btn" style={{ width: '100%', marginTop: 4 }}>
-              + Verslag, interview, Instagram of wedstrijdbeelden toevoegen
-            </button>
-          )}
+          {adminMode && <AddBar kinds={addKinds} onPick={kind => add(null, kind)} />}
+          {adminMode && <ArchivedReports reports={reports.filter(r => r.archived_at)} onRestore={restore} />}
       </div>
         )
       })()}

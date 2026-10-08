@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getNationalRanking, getNationalUpcomingMatches } from '../api.js'
+import PageBlock from '../features/blocks/PageBlock.jsx'
 
 const OUR_TEAM_NAME = 'Victoria MO14-1'
 
@@ -22,7 +23,9 @@ function districtTag(tags) {
   return tags?.find(t => t.category === 'Regio') || null
 }
 
-export default function NationalQueries() {
+// blockPrefix (bv. 'timeline'): ranglijst en belangrijke wedstrijden elk als
+// eigen blok live/concept (<prefix>.ranking / <prefix>.upcoming, item 1239).
+export default function NationalQueries({ blockPrefix, editMode = false }) {
   const [stat, setStat] = useState('points')
   const [rows, setRows] = useState(null)
   const [upcoming, setUpcoming] = useState(null)
@@ -37,7 +40,9 @@ export default function NationalQueries() {
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <Block prefix={blockPrefix} part="ranking" label="Landelijke ranglijst" editMode={editMode}>
+      <div className="yof-card" style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
         <h3 style={{ fontSize: 15, margin: 0 }}>Landelijke ranglijst &middot; MO14 Topklasse</h3>
         <select value={stat} onChange={e => setStat(e.target.value)} style={{ fontSize: 12, padding: '3px 6px' }}>
           {RANKING_STATS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -82,18 +87,21 @@ export default function NationalQueries() {
         </table>
       )}
       {rows?.length === 0 && <p style={{ color: '#666', fontSize: 13 }}>Geen data beschikbaar.</p>}
+      </div>
+      </Block>
 
+      <Block prefix={blockPrefix} part="upcoming" label="Belangrijke wedstrijden op komst" editMode={editMode}>
       {upcoming?.length > 0 && (
-        <div style={{ marginTop: 20 }}>
+        <div className="yof-card" style={{ marginBottom: 14 }}>
           <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Belangrijke wedstrijd op komst &middot; MO14 Topklasse</h3>
           <div style={{ display: 'grid', gap: 6 }}>
             {upcoming.map(m => {
               const tag = districtTag(m.tags)
               const isUs = m.home_team === OUR_TEAM_NAME || m.away_team === OUR_TEAM_NAME
               return (
-                <div key={`${m.home_team}-${m.away_team}-${m.rank}`} className="yof-card" style={{
-                  padding: '8px 10px', fontSize: 13, fontWeight: isUs ? 700 : 400,
-                  background: isUs ? '#fdf8e8' : undefined,
+                <div key={`${m.home_team}-${m.away_team}-${m.rank}`} style={{
+                  padding: '8px 10px', fontSize: 13, fontWeight: isUs ? 700 : 400, borderRadius: 10,
+                  background: isUs ? '#fdf8e8' : '#f7f8fb', border: '1px solid #eef0f5',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <span>{m.home_team} &ndash; {m.away_team}</span>
@@ -112,6 +120,12 @@ export default function NationalQueries() {
           </div>
         </div>
       )}
+      </Block>
     </div>
   )
+}
+
+function Block({ prefix, part, label, editMode, children }) {
+  if (!prefix) return children
+  return <PageBlock id={`${prefix}.${part}`} label={label} editMode={editMode}>{children}</PageBlock>
 }

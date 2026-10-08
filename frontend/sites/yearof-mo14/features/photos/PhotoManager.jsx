@@ -7,6 +7,7 @@ import PhotoBulkBar from './PhotoBulkBar.jsx'
 import PhotoGroup from './PhotoGroup.jsx'
 import PhotoDetailModal from './PhotoDetailModal.jsx'
 import PhotoUploadPanel from './PhotoUploadPanel.jsx'
+import useCustomPages, { SPOTLIGHT_PAGE } from '../pages/useCustomPages.js'
 
 // Fotobeheer als werkbak (item 1213) - 1 component voor de tab Foto's en het
 // fotobeheer op de wedstrijdpagina. matchRef gezet = alleen die wedstrijd
@@ -32,7 +33,14 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
   const initial = useMemo(() => loadPrefs(scope), [scope])
   const [showUpload, setShowUpload] = useState(false)
   const [photos, setPhotos] = useState(null)
-  const [entries, setEntries] = useState([])
+  const [matchEntries, setEntries] = useState([])
+  // Pagina's (In de kijker en eigen pagina's, item 1241) als extra 'wedstrijden' in de
+  // keuzelijsten, zodat foto's daar ook bij naam staan en te verplaatsen zijn.
+  const customPages = useCustomPages()
+  const entries = useMemo(() => [
+    ...[SPOTLIGHT_PAGE, ...customPages].map(p => ({ match_ref: `page:${p.id}`, title: `Pagina: ${p.label}`, date: '' })),
+    ...matchEntries,
+  ], [customPages, matchEntries])
   const [players, setPlayers] = useState([])
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(initial.filters)

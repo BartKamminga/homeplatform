@@ -9,7 +9,9 @@ from sqlmodel import Session
 
 from core.database import get_session
 from models.hockey_discovery import HockeyPoule
+from services import scenario_cache
 from services.hockey_scenario import MATCH_OUTCOMES, load_poule_inputs
+from services.scenario_cache import inputs_fingerprint
 from services.scenario_types import SCENARIO_TYPE_REGISTRY
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-scenario"])
@@ -74,11 +76,18 @@ def simulate_poule_scenario(
     fixed_outcomes, fixed_scores = _parse_fixed(fixed)
 
     standings, remaining = load_poule_inputs(session, poule.poule_id)
+    # Cache (item 1232): sleutel = vraag + vingerafdruk van stand en resterende
+    # wedstrijden, dus nieuwe standen/uitslagen geven vanzelf een nieuwe berekening.
+    key = (
+        pid, scenario_type, team_id, target_position, comparator, method,
+        tuple(sorted(fixed_outcomes.items())), tuple(sorted(fixed_scores.items())),
+        inputs_fingerprint(standings, remaining),
+    )
     try:
-        summary = scenario["run"](
+        summary = scenario_cache.cached(key, lambda: scenario["run"](
             standings, remaining, team_id=team_id, target_position=target_position,
             comparator=comparator, method=method, fixed_outcomes=fixed_outcomes, fixed_scores=fixed_scores,
-        )
+        ))
     except ValueError as e:
         raise HTTPException(400, str(e))
 

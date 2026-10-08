@@ -1,4 +1,16 @@
-import { api } from '@core/api.js'
+import { api as coreApi } from '@core/api.js'
+import { notifyDataChanged } from './dataChanged.js'
+
+// Elke geslaagde schrijfactie meldt zich (item 1239): de beheerstudio ververst
+// dan de preview naast het bewerkpaneel.
+const mutate = fn => (...args) => fn(...args).then(res => { notifyDataChanged(); return res })
+const api = {
+  get: coreApi.get,
+  post: mutate(coreApi.post),
+  put: mutate(coreApi.put),
+  patch: mutate(coreApi.patch),
+  delete: mutate(coreApi.delete),
+}
 import { getActiveCode } from './gate.js'
 
 // Publieke content-endpoints vereisen sinds fase 7 een geldige teamcode (of
@@ -25,6 +37,40 @@ export const getNationalRanking = (stat = 'points', limit = 10) =>
 export const getNationalUpcomingMatches = (limit = 5) =>
   api.get(`/api/hockey/public/tournaments/${MO14_TOURNAMENT_ID}/query/upcoming-matches?tag=Topklasse&limit=${limit}`)
 
+// Competitie-tab (items 1229-1232): config + featureflag, en openbare hockey-data
+export const getCompetition        = ()       => api.get('/api/yearof-mo14/competition')
+export const setCompetitionPublic  = (pub, page = 'competition') => api.put('/api/yearof-mo14/competition/public', { public: pub, page })
+// Blokken per pagina live/concept (item 1239) - concept = alleen voor de platformbeheerder
+export const getConceptBlocks      = ()       => api.get('/api/yearof-mo14/blocks')
+// Instellingen per blok (item 1248), bv. { 'competition.results': { window: 3 } }
+export const getBlockSettings      = ()       => api.get('/api/yearof-mo14/block-settings')
+export const setBlockSettings      = (id, body) => api.put(`/api/yearof-mo14/block-settings/${encodeURIComponent(id)}`, body)
+// Eigen pagina's (max 3, item 1239)
+export const getCustomPages        = ()       => api.get('/api/yearof-mo14/custom-pages')
+export const createCustomPage      = (body)   => api.post('/api/yearof-mo14/custom-pages', body)
+export const updateCustomPage      = (id, body) => api.put(`/api/yearof-mo14/custom-pages/${encodeURIComponent(id)}`, body)
+export const deleteCustomPage      = (id)     => api.delete(`/api/yearof-mo14/custom-pages/${encodeURIComponent(id)}`)
+export const setBlockLive          = (id, live) => api.put(`/api/yearof-mo14/blocks/${encodeURIComponent(id)}`, { live })
+export const getPouleMatches       = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
+export const getPositionDistribution = (pid, teamId) =>
+  api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?team_id=${teamId}&type=position_distribution`)
+export const getRegroupingForecast = (tid)    => api.get(`/api/hockey/public/tournaments/${tid}/query/regrouping-forecast`)
+export const getCompetitionStandings = (tid)  => api.get(`/api/hockey/public/tournaments/${tid}/competition-standings`)
+
+// Is de bezoeker een ingelogde platformbeheerder? Bewust kale fetch: de
+// gedeelde api-client stuurt bij een 401 naar de loginpagina, en dat mag een
+// bezoeker met een verlopen login op de publieke site niet overkomen.
+export async function checkPlatformAdmin() {
+  const token = localStorage.getItem('hp_token')
+  if (!token) return false
+  try {
+    const res = await fetch('/api/yearof-mo14/me', { headers: { Authorization: `Bearer ${token}` } })
+    return res.ok ? !!(await res.json()).is_platform_admin : false
+  } catch {
+    return false
+  }
+}
+
 // Roadmap (platform-brede roadmap, gefilterd op deze site)
 export const getRoadmapItems = () => api.get('/api/roadmap?site=yearof-mo14')
 
@@ -49,6 +95,7 @@ export async function uploadPlayerPhotoAdmin(id, file) {
     const errBody = await res.json().catch(() => ({}))
     throw new Error(errBody.detail || 'Upload mislukt')
   }
+  notifyDataChanged()
   return res.json()
 }
 
@@ -103,6 +150,7 @@ export async function uploadPhoto(file, { matchRef, reportId, photoType, code })
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || 'Upload mislukt')
   }
+  notifyDataChanged()
   return res.json()
 }
 
@@ -139,6 +187,7 @@ export const createContributorLink = (body) => api.post('/api/yearof-mo14/contri
 export const listContributorLinks  = ()     => api.get('/api/yearof-mo14/contributor-links')
 export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
 export const deleteContributorLink = (code) => api.delete(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
+export const updateContributorLink = (code, body) => api.patch(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`, body)
 export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/interview-candidates`))
 
 // Doelpunten per speler per wedstrijd
@@ -163,10 +212,13 @@ export const getReports          = (matchRef, reportType, highlightsOnly = false
   const qs = params.toString()
   return api.get(withCode(`/api/yearof-mo14/reports${qs ? `?${qs}` : ''}`))
 }
-export const getSpotlightReports  = ()         => api.get(withCode('/api/yearof-mo14/reports/spotlight'))
+// Home 'In de kijker' (item 1241): berichten van eigen paginas met Toon op Home
+export const getHomeReports       = (limit = 4) => api.get(withCode(`/api/yearof-mo14/reports/home?limit=${limit}`))
 export const getReportsModeration = ()         => api.get('/api/yearof-mo14/reports/moderation')
 export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/reports/${id}`, body)
+// 'Verwijderen' = archiveren (item 1239), terug te zetten met restoreReport
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)
+export const restoreReport       = (id)        => api.post(`/api/yearof-mo14/reports/${id}/restore`)
 export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const moveReport          = (reportId, direction) => api.post(`/api/yearof-mo14/reports/${reportId}/move`, { direction })
