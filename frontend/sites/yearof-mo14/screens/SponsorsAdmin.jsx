@@ -139,8 +139,9 @@ export default function SponsorsAdmin() {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Naam nieuwe sponsor"
-          style={{ padding: 6, fontSize: 13, flex: 1 }} onKeyDown={e => e.key === 'Enter' && add()} />
-        <button onClick={add} className="yof-btn">+ Toevoegen</button>
+          style={{ padding: 6, fontSize: 13, flex: 1, minWidth: 0 }} onKeyDown={e => e.key === 'Enter' && add()} />
+        {/* .yof-btn is standaard width 100% - in een rij drukt dat het invoerveld weg (item 1251) */}
+        <button onClick={add} className="yof-btn" style={{ width: 'auto', flexShrink: 0 }}>+ Toevoegen</button>
       </div>
     </div>
   )
