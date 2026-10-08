@@ -84,8 +84,8 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={adminMode} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}
-        {view.name === 'competition' && competition.visible && <CompetitionTab access={competition} />}
-        {view.name === 'topklasse' && competition.visible && <TopklasseTab access={competition} />}
+        {view.name === 'competition' && competition.visible && <CompetitionTab access={competition} showFlagBar={!studio} />}
+        {view.name === 'topklasse' && competition.visible && <TopklasseTab access={competition} showFlagBar={!studio} />}
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={previewMode} />}
         {view.name === 'upload' && <PublicUploadPhotos />}
         {view.name === 'pinksterweekend' && (

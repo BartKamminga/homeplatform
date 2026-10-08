@@ -8,13 +8,14 @@ import RegroupingFull from './RegroupingFull.jsx'
 // Topklasse - alle poules per district, de hele herindelingsprognose en de
 // landelijke ranglijst/belangrijke wedstrijden. Het eigen team staat op de
 // tab Competitie. Elk blok apart live/concept (PageBlock, item 1239).
-export default function TopklasseTab({ access, editMode = false }) {
+// showFlagBar=false: preview in de beheerstudio - de schakelaar staat daar rechts.
+export default function TopklasseTab({ access, editMode = false, showFlagBar = true }) {
   const { config } = access
   if (!config) return null
   const block = (id, label, el) => <PageBlock id={id} label={label} access={access} editMode={editMode}>{el}</PageBlock>
   return (
     <div>
-      <FeatureFlagBar access={access} />
+      {showFlagBar && <FeatureFlagBar access={access} />}
       <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Topklasse MO14 landelijk</h2>
       {block('topklasse.overview', 'Alle Topklasse-poules', <TopklasseOverview tournamentId={config.tournament_id} teamId={config.team_id} />)}
       {block('topklasse.regrouping', 'Volledige herindeling', <RegroupingFull tournamentId={config.tournament_id} teamId={config.team_id} />)}
