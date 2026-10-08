@@ -9,6 +9,7 @@ import MatchAdminDetail from '../../screens/match-admin/index.jsx'
 import InfoPanel from './InfoPanel.jsx'
 import SpotlightAdmin from './SpotlightAdmin.jsx'
 import PinnedPageAdmin from './PinnedPageAdmin.jsx'
+import CompetitionAdmin from './CompetitionAdmin.jsx'
 
 // Het bewerkscherm voor 1 panel (zie studioSync.js). Gedeeld door de
 // beheerstudio (groot scherm) en het tabbladenbeheer (klein scherm).
@@ -17,8 +18,9 @@ import PinnedPageAdmin from './PinnedPageAdmin.jsx'
 export default function SectionContent({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
   switch (panel.section) {
     case 'home':
-    case 'competitie':
       return <InfoPanel section={panel.section} onSelectSection={onSelectSection} />
+    case 'competitie': return <CompetitionAdmin page="competition" />
+    case 'topklasse': return <CompetitionAdmin page="topklasse" />
     case 'spelers':
       return <PlayersAdmin key={panel.playerId || 'list'} initialEditId={panel.playerId} />
     case 'wedstrijden':

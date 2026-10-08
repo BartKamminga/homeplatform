@@ -28,3 +28,22 @@ def test_competition_flag_only_platform_admin(client, admin_token, session):
     assert client.put(f"{API}/competition/public", json={"public": False}, headers=_auth(token)).status_code == 403
     assert client.put(f"{API}/competition/public", json={"public": False}).status_code == 401
     assert client.get(f"{API}/competition").json()["public"] is True
+
+
+def test_page_blocks_concept_only_platform_admin(client, admin_token, session):
+    assert client.get(f"{API}/blocks").json() == {"concept": []}
+
+    res = client.put(f"{API}/blocks/competition.chances", json={"live": False}, headers=_auth(admin_token))
+    assert res.status_code == 200
+    assert client.get(f"{API}/blocks").json() == {"concept": ["competition.chances"]}
+
+    # Onbekend blok, niet ingelogd en geen platformbeheerder: geweigerd
+    assert client.put(f"{API}/blocks/bestaat.niet", json={"live": False}, headers=_auth(admin_token)).status_code == 404
+    assert client.put(f"{API}/blocks/competition.chances", json={"live": True}).status_code == 401
+    session.add(User(username="laura", email="laura@test.nl", password_hash=hash_password("Pass12345")))
+    session.commit()
+    token = client.post("/api/auth/login", data={"username": "laura", "password": "Pass12345"}).json()["access_token"]
+    assert client.put(f"{API}/blocks/competition.chances", json={"live": True}, headers=_auth(token)).status_code == 403
+
+    client.put(f"{API}/blocks/competition.chances", json={"live": True}, headers=_auth(admin_token))
+    assert client.get(f"{API}/blocks").json() == {"concept": []}

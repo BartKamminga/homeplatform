@@ -62,6 +62,7 @@ from .favorites import router as favorites_router
 from .links import router as links_router
 from .links import shortlink_router
 from .matches import router as matches_router
+from .page_blocks import router as page_blocks_router
 from .photo_manager import router as photo_manager_router
 from .photos import router as photos_router
 from .players import router as players_router
@@ -93,6 +94,7 @@ router.include_router(players_router)
 router.include_router(favorites_router)
 router.include_router(spotlight_router)
 router.include_router(competition_router)
+router.include_router(page_blocks_router)
 router.include_router(entries_timeline_router)
 router.include_router(matches_router)
 router.include_router(access_router)

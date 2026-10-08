@@ -7,7 +7,7 @@ import FormattedText from './FormattedText.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
-  onEditReport, onAddItem, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
+  onEditReport, onAddItem, addLabel, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
@@ -261,7 +261,7 @@ export default function PublicEntry({
           })}
           {adminMode && (
             <button onClick={() => onAddItem(null)} className="yof-btn" style={{ width: '100%', marginTop: 4 }}>
-              + Verslag, interview, Instagram of wedstrijdbeelden toevoegen
+              {addLabel || '+ Verslag, interview, Instagram of wedstrijdbeelden toevoegen'}
             </button>
           )}
       </div>

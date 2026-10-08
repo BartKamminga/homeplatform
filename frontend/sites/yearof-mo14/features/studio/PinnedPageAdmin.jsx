@@ -23,5 +23,5 @@ export default function PinnedPageAdmin() {
       </p>
     )
   }
-  return <MatchAdminDetail matchRef={pinnedRef} />
+  return <MatchAdminDetail matchRef={pinnedRef} pinnedPage />
 }

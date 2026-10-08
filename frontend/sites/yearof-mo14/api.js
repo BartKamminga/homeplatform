@@ -40,6 +40,9 @@ export const getNationalUpcomingMatches = (limit = 5) =>
 // Competitie-tab (items 1229-1232): config + featureflag, en openbare hockey-data
 export const getCompetition        = ()       => api.get('/api/yearof-mo14/competition')
 export const setCompetitionPublic  = (pub)    => api.put('/api/yearof-mo14/competition/public', { public: pub })
+// Blokken per pagina live/concept (item 1239) - concept = alleen voor de platformbeheerder
+export const getConceptBlocks      = ()       => api.get('/api/yearof-mo14/blocks')
+export const setBlockLive          = (id, live) => api.put(`/api/yearof-mo14/blocks/${encodeURIComponent(id)}`, { live })
 export const getPouleMatches       = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
 export const getPositionDistribution = (pid, teamId) =>
   api.get(`/api/hockey/public/hockey-poules/${pid}/simulate?team_id=${teamId}&type=position_distribution`)

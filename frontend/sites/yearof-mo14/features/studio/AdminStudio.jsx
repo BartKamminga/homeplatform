@@ -89,10 +89,12 @@ export default function AdminStudio({ me }) {
               {me && <span style={{ fontSize: 12, color: '#888' }}>ingelogd als {me.username}</span>}
             </div>
             <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 6 }}>
-              {SECTIONS.map(t => (
+              {SECTIONS.map((t, i) => (
                 <button key={t.key} onClick={() => selectSection(t.key)} style={{
                   padding: '8px 12px', fontSize: 13, fontWeight: panel.section === t.key ? 600 : 400,
-                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  background: 'transparent', border: 'none', cursor: 'pointer', color: t.extra ? '#888' : undefined,
+                  // scheiding tussen de pagina's van de site en de rest
+                  marginLeft: t.extra && !SECTIONS[i - 1].extra ? 18 : 0,
                   borderBottom: panel.section === t.key ? '2px solid #f4c81e' : '2px solid transparent',
                 }}>
                   {t.label}

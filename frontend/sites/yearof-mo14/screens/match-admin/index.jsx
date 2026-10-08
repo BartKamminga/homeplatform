@@ -18,7 +18,9 @@ import { GoalsPanel } from './GoalsPanel.jsx'
 import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
 import InviteCreateForm from '../InviteCreateForm.jsx'
 
-export default function MatchAdminDetail({ matchRef, onBack }) {
+// pinnedPage (Parijs weekend, item 1239): ook een gewoon bericht toevoegen,
+// niet alleen verslag/interview/linkjes.
+export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false }) {
   const [item, setItem] = useState(null)
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
@@ -131,11 +133,12 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
       )}
       {view === 'write' && (
         <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} insertAfterId={insertAfterId}
+          allowNews={pinnedPage} defaultReportType={pinnedPage ? 'nieuws' : undefined}
           onSaved={backToPreview} onCancel={() => setView('choose')} />
       )}
       {view === 'edit' && editingReport && (
         <ReportForm
-          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport}
+          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport} allowNews={pinnedPage}
           players={players} onToggleTag={toggleEditingReportTag}
           onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onRefresh={refreshEditingReport}
         />
@@ -167,6 +170,7 @@ export default function MatchAdminDetail({ matchRef, onBack }) {
             matchRef={matchRef} onBack={() => {}} previewMode adminMode
             onEditReport={handleEditReport}
             onAddItem={addItemAt}
+            addLabel={pinnedPage ? '+ Bericht toevoegen' : undefined}
             onMoveReport={handleMoveReport}
             onMovePhotoBlock={handleMovePhotoBlock}
             pendingInvites={pendingInvites}

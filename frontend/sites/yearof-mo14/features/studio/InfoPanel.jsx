@@ -12,13 +12,6 @@ const PAGES = {
       { label: 'In de kijker (nieuwste 2)', section: 'kijker' },
     ],
   },
-  competitie: {
-    title: 'Competitie en Topklasse',
-    intro: 'Deze tabs komen volledig uit de hockeydata en hebben niets om te bewerken.',
-    blocks: [
-      { label: 'Zichtbaar voor bezoekers', note: 'aan/uit via de gele balk bovenaan de pagina in de preview' },
-    ],
-  },
 }
 
 const SECTION_LABELS = {

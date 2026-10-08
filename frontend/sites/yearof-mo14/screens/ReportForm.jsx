@@ -19,7 +19,7 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
 export function ReportForm({
   matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId, defaultReportType,
-  players, onToggleTag, onSaved, onCancel, onDeleted, onRefresh,
+  players, onToggleTag, onSaved, onCancel, onDeleted, onRefresh, allowNews = false,
 }) {
   const isEdit = !!existingReport
   const [matchRef, setMatchRef] = useState(existingReport?.match_ref || fixedMatchRef || '')
@@ -175,6 +175,7 @@ export function ReportForm({
           <option value="wedstrijdverslag">Wedstrijdverslag</option>
           <option value="interview">Interview</option>
           {!fixedMatchRef && <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>}
+          {fixedMatchRef && allowNews && <option value="nieuws">Bericht</option>}
         </select>
         {reportType === 'interview' && (
           <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 13 }}>
