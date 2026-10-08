@@ -11,6 +11,7 @@ import PinksterWeekend from './PinksterWeekend.jsx'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
 import useCompetitionAccess from '../features/competition/useCompetitionAccess.js'
+import usePageBlocks from '../features/blocks/usePageBlocks.js'
 
 // Deeplinks (?match=<matchRef>) alleen op de echte publieke site syncen -
 // niet in de admin "Bekijk site"-preview, die leeft in de admin-URL. Bewust
@@ -60,6 +61,15 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232: elk
   // een eigen featureflag; op concept staan ze nergens in het menu (item 1239).
   const competition = useCompetitionAccess()
+  // Overige pagina's live/concept (item 1239): concept = niet in het menu en
+  // leeg als je er toch komt - voor iedereen gelijk, ook in de studio-preview.
+  const { conceptBlocks } = usePageBlocks()
+  const pageLive = name => {
+    if (name === 'competition') return competition.visible
+    if (name === 'topklasse') return competition.topklasseVisible
+    return !conceptBlocks.has(`page.${name}`)
+  }
+  const show = name => view.name === name && pageLive(name)
 
   return (
     <div className="yof">
@@ -73,11 +83,11 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
           { key: 'spotlight', label: 'In de kijker' },
           { key: 'team', label: 'Team' },
           { key: 'timeline', label: 'Wedstrijden' },
-          ...(competition.visible ? [{ key: 'competition', label: 'Competitie' }] : []),
-          ...(competition.topklasseVisible ? [{ key: 'topklasse', label: 'Topklasse' }] : []),
+          { key: 'competition', label: 'Competitie' },
+          { key: 'topklasse', label: 'Topklasse' },
           { key: 'upload', label: "Foto's toevoegen" },
           { key: 'pinksterweekend', label: 'Parijs weekend' },
-        ].map(t => (
+        ].filter(t => t.key === 'home' || pageLive(t.key)).map(t => (
           <button key={t.key} className={view.name === t.key ? 'active' : ''} onClick={() => nav(t.key)}>
             {t.label}
           </button>
@@ -85,23 +95,21 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
       </div>
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer} />}
-        {view.name === 'action' && <PublicAction />}
-        {view.name === 'spotlight' && <PublicSpotlight onOpenMatch={openMatch} adminMode={controls} onEditGeneral={onEditGeneral} />}
-        {view.name === 'team' && <PublicTeam onOpenPlayer={openPlayer} />}
+        {show('action') && <PublicAction />}
+        {show('spotlight') && <PublicSpotlight onOpenMatch={openMatch} adminMode={controls} onEditGeneral={onEditGeneral} />}
+        {show('team') && <PublicTeam onOpenPlayer={openPlayer} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={controls} />}
-        {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}
-        {view.name === 'competition' && competition.visible && <CompetitionTab access={competition} />}
-        {view.name === 'topklasse' && competition.topklasseVisible && <TopklasseTab access={competition} />}
-        {studio && competition.config && (
-          (view.name === 'competition' && !competition.visible) || (view.name === 'topklasse' && !competition.topklasseVisible)
-        ) && (
+        {show('timeline') && <PublicTimeline onOpenEntry={openMatch} />}
+        {show('competition') && <CompetitionTab access={competition} />}
+        {show('topklasse') && <TopklasseTab access={competition} />}
+        {!['home', 'entry', 'player'].includes(view.name) && !pageLive(view.name) && (competition.config || !['competition', 'topklasse'].includes(view.name)) && (
           <p style={{ fontSize: 13, color: '#888', textAlign: 'center', marginTop: 40 }}>
-            Deze pagina staat op concept - bezoekers zien hem niet, ook niet in het menu.
+            Deze pagina is (nog) niet beschikbaar.
           </p>
         )}
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={showConcepts} />}
-        {view.name === 'upload' && <PublicUploadPhotos />}
-        {view.name === 'pinksterweekend' && (
+        {show('upload') && <PublicUploadPhotos />}
+        {show('pinksterweekend') && (
           <PinksterWeekend onBack={() => nav('home')} previewMode={showConcepts} adminMode={controls} onEditMatch={onEditMatch} />
         )}
       </div>

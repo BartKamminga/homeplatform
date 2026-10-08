@@ -40,6 +40,13 @@ KNOWN_BLOCKS = {
     "home.player_spotlight",
     "home.spotlight",
     "paris.hero",
+    # Hele pagina's in het menu (concept = niet in het menu)
+    "page.action",
+    "page.spotlight",
+    "page.team",
+    "page.timeline",
+    "page.upload",
+    "page.pinksterweekend",
 }
 
 

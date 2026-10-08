@@ -9,13 +9,27 @@ import PublicHome from '../../screens/PublicHome.jsx'
 import SpotlightAdmin from './SpotlightAdmin.jsx'
 import PinnedPageAdmin from './PinnedPageAdmin.jsx'
 import ActionPageAdmin from './ActionPageAdmin.jsx'
+import PageSwitch, { PAGES } from '../blocks/PageSwitch.jsx'
 import CompetitionAdmin from './CompetitionAdmin.jsx'
 
 // Het bewerkscherm voor 1 panel (zie studioSync.js). Gedeeld door de
 // beheerstudio (groot scherm) en het tabbladenbeheer (klein scherm).
 // key op de schermen met initialEditId: die lezen hun startwaarde 1x in,
 // dus bij een andere speelster/bericht opnieuw mounten.
-export default function SectionContent({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
+export default function SectionContent(props) {
+  const { panel } = props
+  // Pagina's in het menu: bovenaan live/concept voor de hele pagina (item 1239).
+  const page = PAGES[panel.section]
+  const showSwitch = page && !(panel.section === 'wedstrijden' && panel.matchRef)
+  return (
+    <>
+      {showSwitch && <PageSwitch id={page.id} label={page.label} />}
+      <SectionBody {...props} />
+    </>
+  )
+}
+
+function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
   switch (panel.section) {
     case 'home':
       // Home zoals op de site, per blok live/concept; de blokken worden elders bewerkt.
