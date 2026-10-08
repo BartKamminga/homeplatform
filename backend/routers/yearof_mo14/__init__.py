@@ -57,6 +57,7 @@ from .access import router as access_router
 from .action_sponsors import router as action_sponsors_router
 from .competition import router as competition_router
 from .contributor_links import router as contributor_links_router
+from .custom_pages import router as custom_pages_router
 from .entries_timeline import router as entries_timeline_router
 from .favorites import router as favorites_router
 from .links import router as links_router
@@ -95,6 +96,7 @@ router.include_router(favorites_router)
 router.include_router(spotlight_router)
 router.include_router(competition_router)
 router.include_router(page_blocks_router)
+router.include_router(custom_pages_router)
 router.include_router(entries_timeline_router)
 router.include_router(matches_router)
 router.include_router(access_router)

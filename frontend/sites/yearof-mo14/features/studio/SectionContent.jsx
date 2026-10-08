@@ -7,7 +7,7 @@ import ReportsAdmin from '../../screens/ReportsAdmin.jsx'
 import MatchAdminDetail from '../../screens/match-admin/index.jsx'
 import PublicHome from '../../screens/PublicHome.jsx'
 import SpotlightAdmin from './SpotlightAdmin.jsx'
-import PinnedPageAdmin from './PinnedPageAdmin.jsx'
+import CustomPageAdmin from '../pages/CustomPageAdmin.jsx'
 import ActionPageAdmin from './ActionPageAdmin.jsx'
 import TimelineBlocksAdmin from './TimelineBlocksAdmin.jsx'
 import PageSwitch, { PAGES } from '../blocks/PageSwitch.jsx'
@@ -31,6 +31,10 @@ export default function SectionContent(props) {
 }
 
 function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
+  if (panel.section.startsWith('custom:')) {
+    const id = panel.section.slice(7)
+    return <CustomPageAdmin key={id} pageId={id} onDeleted={() => onSelectSection('home')} />
+  }
   switch (panel.section) {
     case 'home':
       // Home zoals op de site, per blok live/concept; de blokken worden elders bewerkt.
@@ -45,7 +49,6 @@ function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
         ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
         : <TimelineAdmin onOpenMatch={onOpenMatch} footer={<TimelineBlocksAdmin />} />
     case 'kijker': return <SpotlightAdmin key={panel.reportId || 'list'} initialReportId={panel.reportId} onOpenMatch={onOpenMatch} />
-    case 'parijs': return <PinnedPageAdmin />
     case 'toegang': return <LinksAdmin />
     case 'fotos': return <PhotosAdmin />
     case 'verslagen': return <ReportsAdmin key={panel.reportId || 'list'} initialEditId={panel.reportId} />

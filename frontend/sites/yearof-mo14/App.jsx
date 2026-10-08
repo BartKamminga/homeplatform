@@ -11,7 +11,7 @@ import { StandaloneMatchView, StandalonePlayerView } from './screens/StandaloneV
 import { trackVisit } from './tracking.js'
 import AdminStudio from './features/studio/AdminStudio.jsx'
 import SectionContent from './features/studio/SectionContent.jsx'
-import { SECTIONS } from './features/studio/studioSync.js'
+import SectionTabs from './features/studio/SectionTabs.jsx'
 import useWideScreen from './features/studio/useWideScreen.js'
 
 function BeheerderPaneel() {
@@ -43,16 +43,9 @@ function AdminTabs({ me }) {
       {me && <p style={{ fontSize: 13, color: '#666' }}>Ingelogd als <strong>{me.username}</strong> ({me.email})</p>}
       <p style={{ fontSize: 12, color: '#888' }}>Tip: op een groot scherm staan de site en het beheer naast elkaar.</p>
 
-      <div style={{ display: 'flex', gap: 4, margin: '16px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap' }}>
-        {[...SECTIONS, { key: 'preview', label: 'Bekijk site' }].map(t => (
-          <button key={t.key} onClick={() => setPanel({ section: t.key })} style={{
-            padding: '8px 14px', fontSize: 13, fontWeight: panel.section === t.key ? 600 : 400,
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            borderBottom: panel.section === t.key ? '2px solid #f4c81e' : '2px solid transparent',
-          }}>
-            {t.label}
-          </button>
-        ))}
+      <div style={{ margin: '16px 0', borderBottom: '1px solid #eee' }}>
+        <SectionTabs active={panel.section} onSelect={section => setPanel({ section })}
+          extraTabs={[{ key: 'preview', label: 'Bekijk site', extra: true }]} />
       </div>
 
       {panel.section === 'preview' ? (

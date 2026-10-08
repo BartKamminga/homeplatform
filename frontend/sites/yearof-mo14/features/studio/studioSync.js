@@ -12,10 +12,17 @@ export const SECTIONS = [
   { key: 'competitie', label: 'Competitie' },
   { key: 'topklasse', label: 'Topklasse' },
   { key: 'fotos', label: "Foto's" },
-  { key: 'parijs', label: 'Parijs weekend' },
+  // hier komen de eigen pagina's (buildSections)
   { key: 'verslagen', label: 'Algemene berichten', extra: true },
   { key: 'toegang', label: 'Linkjes', extra: true },
 ]
+
+// Eigen pagina's (max 3, item 1239) als tabs na de vaste pagina's: key "custom:<id>".
+export function buildSections(customPages) {
+  const custom = customPages.map(p => ({ key: `custom:${p.id}`, label: p.label }))
+  const firstExtra = SECTIONS.findIndex(s => s.extra)
+  return [...SECTIONS.slice(0, firstExtra), ...custom, ...SECTIONS.slice(firstExtra)]
+}
 
 // Welke pagina in de preview hoort bij welk bewerkscherm.
 export function panelForView(view) {
@@ -30,7 +37,7 @@ export function panelForView(view) {
     case 'competition': return { section: 'competitie' }
     case 'topklasse': return { section: 'topklasse' }
     case 'upload': return { section: 'fotos' }
-    case 'pinksterweekend': return { section: 'parijs' }
+    case 'custom': return { section: `custom:${view.id}` }
     default: return null
   }
 }
@@ -38,6 +45,7 @@ export function panelForView(view) {
 // Andersom: een tab rechts kiezen laat de preview de bijbehorende pagina tonen.
 // null = preview blijft waar hij is (bv. Linkjes heeft geen eigen pagina).
 export function viewForSection(section) {
+  if (section.startsWith('custom:')) return { name: 'custom', id: section.slice(7) }
   switch (section) {
     case 'home': return { name: 'home' }
     case 'competitie': return { name: 'competition' }
@@ -47,7 +55,6 @@ export function viewForSection(section) {
     case 'fotos': return { name: 'upload' }
     case 'kijker':
     case 'verslagen': return { name: 'spotlight' }
-    case 'parijs': return { name: 'pinksterweekend' }
     case 'actie':
     case 'sponsors': return { name: 'action' }
     default: return null

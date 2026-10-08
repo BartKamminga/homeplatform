@@ -42,6 +42,11 @@ export const getCompetition        = ()       => api.get('/api/yearof-mo14/compe
 export const setCompetitionPublic  = (pub, page = 'competition') => api.put('/api/yearof-mo14/competition/public', { public: pub, page })
 // Blokken per pagina live/concept (item 1239) - concept = alleen voor de platformbeheerder
 export const getConceptBlocks      = ()       => api.get('/api/yearof-mo14/blocks')
+// Eigen pagina's (max 3, item 1239)
+export const getCustomPages        = ()       => api.get('/api/yearof-mo14/custom-pages')
+export const createCustomPage      = (body)   => api.post('/api/yearof-mo14/custom-pages', body)
+export const updateCustomPage      = (id, body) => api.put(`/api/yearof-mo14/custom-pages/${encodeURIComponent(id)}`, body)
+export const deleteCustomPage      = (id)     => api.delete(`/api/yearof-mo14/custom-pages/${encodeURIComponent(id)}`)
 export const setBlockLive          = (id, live) => api.put(`/api/yearof-mo14/blocks/${encodeURIComponent(id)}`, { live })
 export const getPouleMatches       = (pid)    => api.get(`/api/hockey/public/hockey-poules/${pid}/matches`)
 export const getPositionDistribution = (pid, teamId) =>

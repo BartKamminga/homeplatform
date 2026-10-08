@@ -121,7 +121,7 @@ export default function PublicEntry({
 
         return (
       <div>
-          <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s, verslagen &amp; interviews</h3>
+          {!isPage && <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Foto&rsquo;s, verslagen &amp; interviews</h3>}
           {pendingInvites.map(inv => (
             <div key={inv.id} onClick={() => onOpenInvites(inv.id)} className="yof-card"
               style={{
@@ -167,7 +167,7 @@ export default function PublicEntry({
                       ))}
                     </div>
                   ) : (
-                    <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>
+                    <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s{isPage ? '' : ' voor deze wedstrijd'}.</p>
                   )}
                   </div>
                   {adminMode && showPhotoManager && renderPhotoManager && (

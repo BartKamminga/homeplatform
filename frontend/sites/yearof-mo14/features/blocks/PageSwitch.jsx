@@ -10,7 +10,6 @@ export const PAGES = {
   spelers: { id: 'page.team', label: 'Team' },
   wedstrijden: { id: 'page.timeline', label: 'Wedstrijden' },
   fotos: { id: 'page.upload', label: "Foto's toevoegen" },
-  parijs: { id: 'page.pinksterweekend', label: 'Parijs weekend' },
 }
 
 export default function PageSwitch({ id, label }) {

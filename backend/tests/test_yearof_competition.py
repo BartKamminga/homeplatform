@@ -62,3 +62,18 @@ def test_match_photo_block_concept(client, admin_token):
     assert res.status_code == 200
     assert "photos:knhb:12345" in client.get(f"{API}/blocks").json()["concept"]
     assert client.put(f"{API}/blocks/photos:onzin", json={"live": False}, headers=_auth(admin_token)).status_code == 404
+
+
+def test_custom_pages_max_three(client, admin_token):
+    pages = client.get(f"{API}/custom-pages").json()
+    assert [p["id"] for p in pages] == ["pinksterweekend"]  # standaard: Parijs weekend
+    assert client.post(f"{API}/custom-pages", json={"label": "Toernooi"}).status_code == 401
+    t = client.post(f"{API}/custom-pages", json={"label": "Toernooi", "title": "Het toernooi"}, headers=_auth(admin_token)).json()
+    assert t["id"].startswith("toernooi-")
+    client.post(f"{API}/custom-pages", json={"label": "Derde"}, headers=_auth(admin_token))
+    assert client.post(f"{API}/custom-pages", json={"label": "Vierde"}, headers=_auth(admin_token)).status_code == 400
+    res = client.put(f"{API}/custom-pages/{t['id']}", json={"label": "Toernooi", "title": "Nieuw"}, headers=_auth(admin_token))
+    assert res.json()["title"] == "Nieuw"
+    assert client.put(f"{API}/blocks/page.{t['id']}", json={"live": False}, headers=_auth(admin_token)).status_code == 200
+    assert client.delete(f"{API}/custom-pages/{t['id']}", headers=_auth(admin_token)).status_code == 200
+    assert len(client.get(f"{API}/custom-pages").json()) == 2

@@ -7,7 +7,8 @@ import PublicEntry from './PublicEntry.jsx'
 import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 import PublicSpotlight from './PublicSpotlight.jsx'
 import PublicAction from './PublicAction.jsx'
-import PinksterWeekend from './PinksterWeekend.jsx'
+import CustomPage from '../features/pages/CustomPage.jsx'
+import useCustomPages from '../features/pages/useCustomPages.js'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
 import useCompetitionAccess from '../features/competition/useCompetitionAccess.js'
@@ -64,6 +65,9 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   // Overige pagina's live/concept (item 1239): concept = niet in het menu en
   // leeg als je er toch komt - voor iedereen gelijk, ook in de studio-preview.
   const { conceptBlocks } = usePageBlocks()
+  // Eigen pagina's (max 3, bv. Parijs weekend): view { name: 'custom', id }.
+  const customPages = useCustomPages()
+  const customPage = view.name === 'custom' ? customPages.find(p => p.id === view.id) : null
   const pageLive = name => {
     if (name === 'competition') return competition.visible
     if (name === 'topklasse') return competition.topklasseVisible
@@ -86,10 +90,15 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
           { key: 'competition', label: 'Competitie' },
           { key: 'topklasse', label: 'Topklasse' },
           { key: 'upload', label: "Foto's toevoegen" },
-          { key: 'pinksterweekend', label: 'Parijs weekend' },
         ].filter(t => t.key === 'home' || pageLive(t.key)).map(t => (
           <button key={t.key} className={view.name === t.key ? 'active' : ''} onClick={() => nav(t.key)}>
             {t.label}
+          </button>
+        ))}
+        {customPages.filter(p => pageLive(p.id)).map(p => (
+          <button key={p.id} className={view.name === 'custom' && view.id === p.id ? 'active' : ''}
+            onClick={() => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) }}>
+            {p.label}
           </button>
         ))}
       </div>
@@ -102,15 +111,18 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {show('timeline') && <PublicTimeline onOpenEntry={openMatch} />}
         {show('competition') && <CompetitionTab access={competition} />}
         {show('topklasse') && <TopklasseTab access={competition} />}
-        {!['home', 'entry', 'player'].includes(view.name) && !pageLive(view.name) && (competition.config || !['competition', 'topklasse'].includes(view.name)) && (
+        {!['home', 'entry', 'player', 'custom'].includes(view.name) && !pageLive(view.name) && (competition.config || !['competition', 'topklasse'].includes(view.name)) && (
           <p style={{ fontSize: 13, color: '#888', textAlign: 'center', marginTop: 40 }}>
             Deze pagina is (nog) niet beschikbaar.
           </p>
         )}
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={showConcepts} />}
         {show('upload') && <PublicUploadPhotos />}
-        {show('pinksterweekend') && (
-          <PinksterWeekend onBack={() => nav('home')} previewMode={showConcepts} />
+        {customPage && pageLive(customPage.id) && (
+          <CustomPage key={customPage.id} page={customPage} onBack={() => nav('home')} previewMode={showConcepts} />
+        )}
+        {view.name === 'custom' && customPages.length > 0 && !(customPage && pageLive(customPage.id)) && (
+          <p style={{ fontSize: 13, color: '#888', textAlign: 'center', marginTop: 40 }}>Deze pagina is (nog) niet beschikbaar.</p>
         )}
       </div>
     </div>

@@ -20,7 +20,7 @@ import InviteCreateForm from '../InviteCreateForm.jsx'
 
 // pinnedPage (Parijs weekend, item 1239): eigen pagina zonder wedstrijd/dag -
 // alleen berichten en foto's; geen doelpunten, wedstrijdlink of invullinks.
-export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false }) {
+export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false, pageTitle }) {
   const [item, setItem] = useState(null)
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
@@ -43,7 +43,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
   }
 
   useEffect(() => {
-    if (pinnedPage) setItem({ title: 'Parijs weekend', kind: 'pagina' })
+    if (pinnedPage) setItem({ title: pageTitle || 'Pagina', kind: 'pagina' })
     else getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
