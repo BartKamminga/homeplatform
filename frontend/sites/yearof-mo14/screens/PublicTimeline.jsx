@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getTimeline, getStandings } from '../api.js'
 import NationalQueries from './NationalQueries.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
 
 function fmtDate(iso) {
   if (!iso) return '-'
@@ -72,42 +73,48 @@ export default function PublicTimeline({ onOpenEntry }) {
       })}
       {items.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog niets gepland.</p>}
 
-      {standings?.standings?.length > 0 && (
-        <div className="yof-card" style={{ marginTop: 20, marginBottom: 14 }}>
-          <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Pouletabel{standings.pool_name ? ` · ${standings.pool_name}` : ''}</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: '#888' }}>
-                <th style={{ padding: '4px 6px' }}>#</th>
-                <th style={{ padding: '4px 6px' }}>Team</th>
-                <th style={{ padding: '4px 6px', textAlign: 'center' }}>G</th>
-                <th style={{ padding: '4px 6px', textAlign: 'center' }}>W-G-V</th>
-                <th style={{ padding: '4px 6px', textAlign: 'center' }}>DS</th>
-                <th style={{ padding: '4px 6px', textAlign: 'right' }}>Pt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {standings.standings.map((r, i) => (
-                <tr key={r.team_id} style={{ borderTop: '1px solid #eee', fontWeight: r.is_us ? 700 : 400, background: r.is_us ? '#fdf8e8' : 'transparent' }}>
-                  <td style={{ padding: '4px 6px' }}>{i + 1}</td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {r.club_logo_url && <img src={r.club_logo_url} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />}
-                      {r.team_name}
-                    </div>
-                  </td>
-                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.played}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.won}-{r.drawn}-{r.lost}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.gf}-{r.ga}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.pts}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <PageBlock id="timeline.standings"><StandingsCard standings={standings} /></PageBlock>
 
-      <NationalQueries />
+      <NationalQueries blockPrefix="timeline" />
+    </div>
+  )
+}
+
+// Pouletabel onder de wedstrijdlijst - eigen blok (item 1239), ook gebruikt in de beheerstudio.
+export function StandingsCard({ standings }) {
+  if (!(standings?.standings?.length > 0)) return null
+  return (
+    <div className="yof-card" style={{ marginTop: 20, marginBottom: 14 }}>
+      <h3 style={{ fontSize: 15, margin: '0 0 10px' }}>Pouletabel{standings.pool_name ? ` · ${standings.pool_name}` : ''}</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ textAlign: 'left', color: '#888' }}>
+            <th style={{ padding: '4px 6px' }}>#</th>
+            <th style={{ padding: '4px 6px' }}>Team</th>
+            <th style={{ padding: '4px 6px', textAlign: 'center' }}>G</th>
+            <th style={{ padding: '4px 6px', textAlign: 'center' }}>W-G-V</th>
+            <th style={{ padding: '4px 6px', textAlign: 'center' }}>DS</th>
+            <th style={{ padding: '4px 6px', textAlign: 'right' }}>Pt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {standings.standings.map((r, i) => (
+            <tr key={r.team_id} style={{ borderTop: '1px solid #eee', fontWeight: r.is_us ? 700 : 400, background: r.is_us ? '#fdf8e8' : 'transparent' }}>
+              <td style={{ padding: '4px 6px' }}>{i + 1}</td>
+              <td style={{ padding: '4px 6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {r.club_logo_url && <img src={r.club_logo_url} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />}
+                  {r.team_name}
+                </div>
+              </td>
+              <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.played}</td>
+              <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.won}-{r.drawn}-{r.lost}</td>
+              <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.gf}-{r.ga}</td>
+              <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.pts}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

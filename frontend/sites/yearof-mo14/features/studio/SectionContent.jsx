@@ -9,6 +9,7 @@ import PublicHome from '../../screens/PublicHome.jsx'
 import SpotlightAdmin from './SpotlightAdmin.jsx'
 import PinnedPageAdmin from './PinnedPageAdmin.jsx'
 import ActionPageAdmin from './ActionPageAdmin.jsx'
+import TimelineBlocksAdmin from './TimelineBlocksAdmin.jsx'
 import PageSwitch, { PAGES } from '../blocks/PageSwitch.jsx'
 import CompetitionAdmin from './CompetitionAdmin.jsx'
 
@@ -42,7 +43,7 @@ function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
     case 'wedstrijden':
       return panel.matchRef
         ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
-        : <TimelineAdmin onOpenMatch={onOpenMatch} />
+        : <><TimelineAdmin onOpenMatch={onOpenMatch} /><TimelineBlocksAdmin /></>
     case 'kijker': return <SpotlightAdmin key={panel.reportId || 'list'} initialReportId={panel.reportId} onOpenMatch={onOpenMatch} />
     case 'parijs': return <PinnedPageAdmin />
     case 'toegang': return <LinksAdmin />
