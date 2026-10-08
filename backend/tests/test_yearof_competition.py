@@ -55,3 +55,10 @@ def test_page_blocks_concept_only_platform_admin(client, admin_token, session):
 
     client.put(f"{API}/blocks/competition.chances", json={"live": True}, headers=_auth(admin_token))
     assert client.get(f"{API}/blocks").json() == {"concept": []}
+
+
+def test_match_photo_block_concept(client, admin_token):
+    res = client.put(f"{API}/blocks/photos:knhb:12345", json={"live": False}, headers=_auth(admin_token))
+    assert res.status_code == 200
+    assert "photos:knhb:12345" in client.get(f"{API}/blocks").json()["concept"]
+    assert client.put(f"{API}/blocks/photos:onzin", json={"live": False}, headers=_auth(admin_token)).status_code == 404

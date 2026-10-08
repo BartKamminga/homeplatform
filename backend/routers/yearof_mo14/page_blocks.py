@@ -7,6 +7,7 @@ app_settings; bij het instantiemodel (1236) gaat dit per instantie.
 """
 
 import json
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -52,13 +53,26 @@ KNOWN_BLOCKS = {
     "page.pinksterweekend",
 }
 
+# Fotoblok op een wedstrijdpagina, per wedstrijd: "photos:<match_ref>"
+# (match_ref = "knhb:<id>" of "custom:<uuid>").
+MATCH_PHOTOS_RE = re.compile(r"photos:(knhb|custom):[A-Za-z0-9_-]+")
+
+
+def is_known_block(block_id: str) -> bool:
+    return block_id in KNOWN_BLOCKS or MATCH_PHOTOS_RE.fullmatch(block_id) is not None
+
+
+def match_photos_concept(session: Session) -> set[str]:
+    """match_refs waarvan het fotoblok op concept staat."""
+    return {b.split(":", 1)[1] for b in _concept_blocks(session) if b.startswith("photos:")}
+
 
 def _concept_blocks(session: Session) -> list[str]:
     row = session.get(AppSetting, CONCEPT_BLOCKS_KEY)
     if not row or not row.value:
         return []
     try:
-        return [b for b in json.loads(row.value) if b in KNOWN_BLOCKS]
+        return [b for b in json.loads(row.value) if is_known_block(b)]
     except ValueError:
         return []
 
@@ -81,7 +95,7 @@ def set_block_state(
     _: User = Depends(require_admin),
 ):
     """Alleen platformbeheerder - blok live of concept zetten."""
-    if block_id not in KNOWN_BLOCKS:
+    if not is_known_block(block_id):
         raise HTTPException(status_code=404, detail="Onbekend blok")
     concept = set(_concept_blocks(session))
     if body.live:

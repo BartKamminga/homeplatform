@@ -5,6 +5,7 @@ import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
 import ItemBar from '../features/blocks/ItemBar.jsx'
+import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export default function PublicEntry({
@@ -19,6 +20,10 @@ export default function PublicEntry({
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
   const [showPhotoManager, setShowPhotoManager] = useState(false)
+  // Fotoblok van deze wedstrijd live/concept (item 1239), opgeslagen als blok "photos:<match_ref>".
+  const { conceptBlocks, setBlockState } = usePageBlocks()
+  const photosBlockId = `photos:${matchRef}`
+  const photosLive = !conceptBlocks.has(photosBlockId)
 
   function loadReports() {
     const call = previewMode ? getReportsModeration() : getReports(matchRef, undefined, standalone)
@@ -134,7 +139,7 @@ export default function PublicEntry({
         // een verslag horen (report_id) tonen inline op dat verslag, incl.
         // concept-badge - daar wil je juist meteen zien of het gelukt is.
         const unassignedPublished = photos.filter(p => !p.report_id && p.status === 'published')
-        const showPhotoBlock = unassignedPublished.length > 0 || adminMode
+        const showPhotoBlock = (unassignedPublished.length > 0 && photosLive) || adminMode
         const blocks = []
         if (showPhotoBlock) blocks.push({ kind: 'photos', sort_order: photoBlockSortOrder })
         reports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
@@ -172,11 +177,14 @@ export default function PublicEntry({
                 <div key="photos" style={{ marginBottom: 14, position: 'relative' }}>
                   {adminMode && (
                     <ItemBar label="Foto's"
+                      live={photosLive}
+                      onToggleLive={() => setBlockState(photosBlockId, !photosLive)}
                       onUp={atTop ? undefined : () => movePhotos('up')}
                       onDown={atBottom ? undefined : () => movePhotos('down')}
                       onEdit={renderPhotoManager ? () => setShowPhotoManager(s => !s) : undefined}
                       editLabel={showPhotoManager ? 'Fotobeheer sluiten' : 'Fotobeheer'} />
                   )}
+                  <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>
                   <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
                   {unassignedPublished.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
@@ -189,6 +197,7 @@ export default function PublicEntry({
                   ) : (
                     <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>
                   )}
+                  </div>
                   {adminMode && showPhotoManager && renderPhotoManager && (
                     <div style={{ marginTop: 12 }}>{renderPhotoManager(loadPhotos)}</div>
                   )}
