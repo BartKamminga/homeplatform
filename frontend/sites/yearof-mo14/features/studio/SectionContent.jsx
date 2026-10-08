@@ -30,7 +30,8 @@ export default function SectionContent(props) {
   return (
     <>
       {page && onPage && <PageSwitch id={page.id} label={meta(view).label} />}
-      {view && onPage && <PageSettingsCard key={view} view={view} />}
+      {/* Competitie/Topklasse: hun live-balk staat in de pagina zelf, de instellingen daaronder (zie CompetitionTab) */}
+      {view && onPage && !['competition', 'topklasse'].includes(view) && <PageSettingsCard key={view} view={view} />}
       <SectionBody {...props} spotlightPage={{ ...SPOTLIGHT_PAGE, ...meta('spotlight') }} />
     </>
   )
