@@ -5,8 +5,8 @@ import { panelForView, viewForSection } from './studioSync.js'
 import SectionTabs from './SectionTabs.jsx'
 import { onDataChanged } from '../../dataChanged.js'
 import useResizableWidth from './useResizableWidth.js'
-import useMatchLink from './useMatchLink.js'
-import { FanMatchView } from '../../screens/StandaloneViews.jsx'
+import useFanLink from './useFanLink.js'
+import { FanMatchView, StandalonePlayerView } from '../../screens/StandaloneViews.jsx'
 
 const PRESETS = [
   { label: 'Telefoon', width: 390 },
@@ -23,12 +23,16 @@ export default function AdminStudio({ me }) {
   const [previewKey, setPreviewKey] = useState(0)
   const preview = useResizableWidth()
   const maxed = preview.width >= preview.maxWidth()
-  // Bekijk als team (de site) of als fan (via de wedstrijdlink) - alleen op een
-  // wedstrijdpagina met een geldige wedstrijdlink.
+  // Bekijk als team (de site) of als fan (via de wedstrijd- of spelerslink) -
+  // alleen op een wedstrijd/speelster met een geldige fan-link.
   const [audience, setAudience] = useState('team')
   const entryRef = view.name === 'entry' ? view.ref : null
-  const hasMatchLink = useMatchLink(entryRef)
-  const asFan = audience === 'fans' && hasMatchLink && !!entryRef
+  const playerId = view.name === 'player' ? view.id : null
+  const matchLink = useFanLink('match', entryRef)
+  const playerLink = useFanLink('player', playerId)
+  const fanLink = entryRef ? matchLink : playerLink
+  const fanLabel = entryRef ? 'Fans (wedstrijdlink)' : 'Fans (spelerslink)'
+  const asFan = audience === 'fans' && !!fanLink
 
   useEffect(() => {
     let timer
@@ -61,10 +65,10 @@ export default function AdminStudio({ me }) {
       <section style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '8px 12px', fontSize: 13, background: 'white', borderBottom: '1px solid #dde1ea' }}>
           <strong style={{ flex: 1 }}>Bekijk site</strong>
-          {hasMatchLink && entryRef && (
+          {fanLink && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 6 }}>
               <span style={{ color: '#888', fontSize: 12 }}>Als:</span>
-              {[['team', 'Team (site)'], ['fans', 'Fans (wedstrijdlink)']].map(([key, text]) => (
+              {[['team', 'Team (site)'], ['fans', fanLabel]].map(([key, text]) => (
                 <button key={key} className="yof-btn-secondary" onClick={() => setAudience(key)}
                   style={audience === key ? { background: '#d97706', color: 'white', borderColor: '#d97706' } : undefined}>
                   {text}
@@ -85,7 +89,10 @@ export default function AdminStudio({ me }) {
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: `12px ${preview.gutter / 2}px` }}>
           <div style={{ width: preview.width, margin: '0 auto', boxShadow: '0 2px 12px rgba(18,32,60,.12)', borderRadius: 12, overflow: 'hidden' }}>
-            {asFan ? <FanMatchView key={`fan-${previewKey}-${entryRef}`} matchRef={entryRef} /> : (
+            {asFan ? (entryRef
+              ? <FanMatchView key={`fan-${previewKey}-${entryRef}`} matchRef={entryRef} />
+              : <StandalonePlayerView key={`fan-${previewKey}-${fanLink}`} code={fanLink} track={false} />
+            ) : (
             <PublicSite key={previewKey} previewMode adminMode studio
               view={view} onViewChange={changeView}
               onEditMatch={openMatch}

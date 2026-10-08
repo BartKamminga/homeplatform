@@ -114,7 +114,8 @@ export function FanMatchView({ matchRef }) {
   )
 }
 
-export function StandalonePlayerView({ code }) {
+// track=false: fan-weergave in de beheerstudio telt niet als bezoek (item 1239).
+export function StandalonePlayerView({ code, track = true }) {
   const [player, setPlayer] = useState(null)
   const [status, setStatus] = useState('checking') // checking | expired | ok
 
@@ -123,7 +124,7 @@ export function StandalonePlayerView({ code }) {
       .then(p => {
         setPlayer(p)
         setStatus('ok')
-        trackVisit('player', code)
+        if (track) trackVisit('player', code)
       })
       .catch(() => setStatus('expired'))
   }, [code])
