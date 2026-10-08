@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-import { getTimeline } from '../api.js'
 import PublicEntry from './PublicEntry.jsx'
 import PageBlock from '../features/blocks/PageBlock.jsx'
 
@@ -14,44 +12,15 @@ export function ParisHero() {
   )
 }
 
-export default function PinksterWeekend({ onBack, previewMode = false, adminMode = false, onEditMatch }) {
-  const [pinnedRef, setPinnedRef] = useState(null)
-  const [notFound, setNotFound] = useState(false)
-  const [error, setError] = useState('')
+// Parijs weekend is een eigen pagina met eigen berichten en foto's (item 1239),
+// opgeslagen onder PARIS_PAGE_REF - geen vastgepinde bijzondere dag meer.
+export const PARIS_PAGE_REF = 'page:pinksterweekend'
 
-  useEffect(() => {
-    getTimeline().then(items => {
-      const pinned = items.find(it => it.is_pinned)
-      if (pinned) setPinnedRef(pinned.match_ref)
-      else setNotFound(true)
-    }).catch(e => setError(e.message))
-  }, [])
-
-  if (error) return <p style={{ color: '#c23b3b' }}>{error}</p>
-
-  if (notFound) {
-    return (
-      <div>
-        <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Pinksterweekend Parijs</h2>
-        <p style={{ fontSize: 13, color: '#666' }}>
-          Deze pagina komt binnenkort — de beheerder moet nog een bijzondere dag aanmaken en vastpinnen
-          (Wedstrijden-tabblad, &ldquo;bijzonder&rdquo; + vastpinnen aanvinken).
-        </p>
-      </div>
-    )
-  }
-
-  if (!pinnedRef) return null
-
+export default function PinksterWeekend({ onBack, previewMode = false }) {
   return (
     <div>
       <PageBlock id="paris.hero"><ParisHero /></PageBlock>
-      {adminMode && (
-        <button onClick={() => onEditMatch(pinnedRef)} className="yof-btn" style={{ marginBottom: 14 }}>
-          &#9998; Bewerk deze pagina
-        </button>
-      )}
-      <PublicEntry matchRef={pinnedRef} onBack={onBack} previewMode={previewMode} />
+      <PublicEntry matchRef={PARIS_PAGE_REF} onBack={onBack} previewMode={previewMode} />
     </div>
   )
 }

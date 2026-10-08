@@ -4,6 +4,7 @@ import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
+import EntryHeader from './EntryHeader.jsx'
 import ItemBar from '../features/blocks/ItemBar.jsx'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
@@ -18,6 +19,9 @@ export default function PublicEntry({
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
+  // Eigen pagina (bv. 'page:pinksterweekend', item 1239): zelfde berichten/foto's,
+  // maar zonder wedstrijd/dag erachter - geen kop en geen terug-link.
+  const isPage = matchRef.startsWith('page:')
   const [confirm, confirmDialog] = useConfirm()
   const [showPhotoManager, setShowPhotoManager] = useState(false)
   // Fotoblok van deze wedstrijd live/concept (item 1239), opgeslagen als blok "photos:<match_ref>".
@@ -50,8 +54,10 @@ export default function PublicEntry({
   }
 
   useEffect(() => {
-    const itemCall = adminMode ? getTimelineItemModeration(matchRef) : getTimelineItem(matchRef)
-    itemCall.then(setItem).catch(e => setError(e.message))
+    if (!isPage) {
+      const itemCall = adminMode ? getTimelineItemModeration(matchRef) : getTimelineItem(matchRef)
+      itemCall.then(setItem).catch(e => setError(e.message))
+    }
     loadReports()
     loadPhotoBlockPosition()
     loadPhotos()
@@ -85,48 +91,14 @@ export default function PublicEntry({
   }
 
   if (error) return <p style={{ color: '#c23b3b' }}>{error}</p>
-  if (!item) return <p>Laden...</p>
+  if (!item && !isPage) return <p>Laden...</p>
 
   return (
     <div>
-      {!adminMode && !standalone && (
+      {!adminMode && !standalone && !isPage && (
         <a className="yof-back" href="#" onClick={e => { e.preventDefault(); onBack() }}>&larr; terug naar het overzicht</a>
       )}
-      <div className="yof-card" style={{ marginBottom: 14 }}>
-        <span className={`badge ${item.kind}`}>{item.kind}</span>
-        {(item.home_club_logo || item.away_club_logo) && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '10px 0 2px' }}>
-            {item.home_club_logo
-              ? <img src={item.home_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-              : <div style={{ width: 36, height: 36 }} />}
-            <span style={{ fontSize: 12, color: '#999' }}>vs</span>
-            {item.away_club_logo
-              ? <img src={item.away_club_logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-              : <div style={{ width: 36, height: 36 }} />}
-          </div>
-        )}
-        <h2 style={{ margin: '10px 0 4px', fontSize: 18 }}>{item.title}</h2>
-        <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
-          {new Date(item.date).toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-          {(() => {
-            const d = new Date(item.date)
-            const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(item.date)
-            return hasTime ? ` · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}` : ''
-          })()}
-        </p>
-        {item.location && (
-          <p style={{ margin: '4px 0 0', fontSize: 13 }}>
-            📍 <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
-              target="_blank" rel="noreferrer" style={{ color: '#12203c' }}>{item.location}</a>
-          </p>
-        )}
-        {(item.score_home ?? item.score_us) != null && (
-          <p style={{ fontSize: 24, fontWeight: 800, margin: '14px 0 0' }}>
-            {item.score_home ?? item.score_us} - {item.score_away ?? item.score_them}
-          </p>
-        )}
-        {item.description && <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-line' }}><FormattedText text={item.description} /></p>}
-      </div>
+      {!isPage && <EntryHeader item={item} />}
 
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
       {confirmDialog}

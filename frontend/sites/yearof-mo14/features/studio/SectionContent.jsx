@@ -43,7 +43,7 @@ function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
     case 'wedstrijden':
       return panel.matchRef
         ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
-        : <><TimelineAdmin onOpenMatch={onOpenMatch} /><TimelineBlocksAdmin /></>
+        : <TimelineAdmin onOpenMatch={onOpenMatch} footer={<TimelineBlocksAdmin />} />
     case 'kijker': return <SpotlightAdmin key={panel.reportId || 'list'} initialReportId={panel.reportId} onOpenMatch={onOpenMatch} />
     case 'parijs': return <PinnedPageAdmin />
     case 'toegang': return <LinksAdmin />

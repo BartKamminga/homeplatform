@@ -1,34 +1,14 @@
-import { useState, useEffect } from 'react'
-import { getTimelineModeration } from '../../api.js'
 import MatchAdminDetail from '../../screens/match-admin/index.jsx'
 import PageBlock from '../blocks/PageBlock.jsx'
-import { ParisHero } from '../../screens/PinksterWeekend.jsx'
+import { ParisHero, PARIS_PAGE_REF } from '../../screens/PinksterWeekend.jsx'
 
-// Parijs-weekend in de beheerstudio (item 1239): de pagina is de vastgepinde
-// bijzondere dag, dus hetzelfde bewerkscherm als een wedstrijdpagina.
+// Parijs weekend in de beheerstudio (item 1239): eigen pagina, zelfde
+// bewerkscherm als een wedstrijdpagina maar zonder dag erachter.
 export default function PinnedPageAdmin() {
-  const [pinnedRef, setPinnedRef] = useState(undefined) // undefined = laden, null = geen
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    getTimelineModeration()
-      .then(items => setPinnedRef(items.find(it => it.is_pinned)?.match_ref || null))
-      .catch(e => setError(e.message))
-  }, [])
-
-  if (error) return <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>
-  if (pinnedRef === undefined) return null
-  if (!pinnedRef) {
-    return (
-      <p style={{ fontSize: 13, color: '#666' }}>
-        Er is nog geen Parijs-weekend-pagina. Maak onder Wedstrijden &amp; bijzondere dagen een bijzondere dag aan en vink &ldquo;vastpinnen&rdquo; aan.
-      </p>
-    )
-  }
   return (
     <div>
       <PageBlock id="paris.hero" label='Kop "Het grote Parijs-weekend"' editMode><ParisHero /></PageBlock>
-      <MatchAdminDetail matchRef={pinnedRef} pinnedPage />
+      <MatchAdminDetail matchRef={PARIS_PAGE_REF} pinnedPage />
     </div>
   )
 }

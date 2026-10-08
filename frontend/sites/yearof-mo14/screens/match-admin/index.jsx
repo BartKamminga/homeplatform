@@ -18,8 +18,8 @@ import { GoalsPanel } from './GoalsPanel.jsx'
 import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
 import InviteCreateForm from '../InviteCreateForm.jsx'
 
-// pinnedPage (Parijs weekend, item 1239): ook een gewoon bericht toevoegen,
-// niet alleen verslag/interview/linkjes.
+// pinnedPage (Parijs weekend, item 1239): eigen pagina zonder wedstrijd/dag -
+// alleen berichten en foto's; geen doelpunten, wedstrijdlink of invullinks.
 export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false }) {
   const [item, setItem] = useState(null)
   const [players, setPlayers] = useState([])
@@ -43,7 +43,8 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
   }
 
   useEffect(() => {
-    getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
+    if (pinnedPage) setItem({ title: 'Parijs weekend', kind: 'pagina' })
+    else getTimelineItemModeration(matchRef).then(setItem).catch(e => setError(e.message))
     getPlayers().then(setPlayers).catch(() => {})
     loadReports()
     loadLinks()
@@ -73,7 +74,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
 
   function addItemAt(afterId) {
     setInsertAfterId(afterId)
-    setView('choose')
+    setView(pinnedPage ? 'write' : 'choose')
   }
 
   async function handleMoveReport(reportId, direction) {
@@ -118,8 +119,8 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
     <div>
       {onBack && <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      {item && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
-      {item && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
+      {item && !pinnedPage && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
+      {item && !pinnedPage && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
 
       {view === 'choose' && (
         <ChooseReportKind
@@ -178,6 +179,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
             onOpenInvites={id => { setActiveInviteId(id); setView('invite') }}
           />
 
+          {!pinnedPage && <>
           <button onClick={() => setShowGoals(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
             {showGoals ? 'Verberg' : 'Toon'} doelpunten
           </button>
@@ -202,7 +204,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
               }} />
             </div>
           )}
-
+          </>}
         </>
       )}
     </div>

@@ -110,7 +110,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={showConcepts} />}
         {show('upload') && <PublicUploadPhotos />}
         {show('pinksterweekend') && (
-          <PinksterWeekend onBack={() => nav('home')} previewMode={showConcepts} adminMode={controls} onEditMatch={onEditMatch} />
+          <PinksterWeekend onBack={() => nav('home')} previewMode={showConcepts} />
         )}
       </div>
     </div>
