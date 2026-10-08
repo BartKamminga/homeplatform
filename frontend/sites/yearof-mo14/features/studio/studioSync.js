@@ -2,7 +2,8 @@
 // view  = de pagina in de preview ({ name, ref?, id? }, zie PublicSite)
 // panel = het bewerkscherm rechts ({ section, matchRef?, playerId?, reportId? })
 
-// Zelfde volgorde als het menu van de site; daarna wat geen eigen pagina heeft.
+// Zelfde volgorde als het menu van de site; daarna (extra) het algemene beheer:
+// Berichten, Foto's en Linkjes over alle pagina's heen (item 1250).
 export const SECTIONS = [
   { key: 'home', label: 'Home' },
   { key: 'actie', label: 'Actie' },
@@ -11,9 +12,10 @@ export const SECTIONS = [
   { key: 'wedstrijden', label: 'Wedstrijden' },
   { key: 'competitie', label: 'Competitie' },
   { key: 'topklasse', label: 'Topklasse' },
-  { key: 'fotos', label: "Foto's" },
+  { key: 'upload', label: "Foto's toevoegen" }, // tijdelijk, verdwijnt met 1242
   // hier komen de eigen pagina's (buildSections)
-  { key: 'verslagen', label: 'Algemene berichten', extra: true },
+  { key: 'berichten', label: 'Berichten', extra: true },
+  { key: 'fotobeheer', label: "Foto's", extra: true },
   { key: 'toegang', label: 'Linkjes', extra: true },
 ]
 
@@ -36,7 +38,7 @@ export function panelForView(view) {
     case 'entry': return { section: 'wedstrijden', matchRef: view.ref }
     case 'competition': return { section: 'competitie' }
     case 'topklasse': return { section: 'topklasse' }
-    case 'upload': return { section: 'fotos' }
+    case 'upload': return { section: 'upload' }
     case 'custom': return { section: `custom:${view.id}` }
     default: return null
   }
@@ -52,9 +54,8 @@ export function viewForSection(section) {
     case 'topklasse': return { name: 'topklasse' }
     case 'wedstrijden': return { name: 'timeline' }
     case 'spelers': return { name: 'team' }
-    case 'fotos': return { name: 'upload' }
-    case 'kijker':
-    case 'verslagen': return { name: 'spotlight' }
+    case 'upload': return { name: 'upload' }
+    case 'kijker': return { name: 'spotlight' }
     case 'actie':
     case 'sponsors': return { name: 'action' }
     default: return null

@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, col, or_, select
+from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.crud import get_or_404
@@ -237,32 +237,21 @@ def list_reports(
     return [_report_out(session, r, tags_by_report.get(r.id, [])) for r in reports]
 
 
-@router.get("/reports/spotlight")
-def get_spotlight_reports(
+@router.get("/reports/home")
+def get_home_reports(
+    limit: int = 4,
     session: Session = Depends(get_session),
     _: None = Depends(require_team_access),
 ):
-    """"In de kijker" - beheerder selecteert handmatig welke berichten hier
-    verschijnen (featured=true). Algemene berichten (report_type="nieuws")
-    staan er altijd bij - die zijn niet aan een wedstrijd gekoppeld en hebben
-    anders nergens op de publieke site een plek. Zolang er nog niets
-    gefeatured is en er geen nieuws is, valt dit terug op het wedstrijdverslag
-    van de meest recente wedstrijd, zodat de pagina niet leeg is."""
+    """Home - sectie "In de kijker" (item 1241): de nieuwste gepubliceerde
+    berichten van de eigen paginas (incl. de vaste pagina In de kijker) die op
+    "Toon op Home" staan (featured). Wedstrijdberichten tellen niet mee."""
     q = (
         select(YearOfReport)
-        .where(YearOfReport.status == "published")
-        .where(or_(YearOfReport.featured == True, YearOfReport.report_type == "nieuws"))  # noqa: E712
+        .where(YearOfReport.status == "published", YearOfReport.featured == True)  # noqa: E712
+        .where(col(YearOfReport.match_ref).startswith("page:"))
     )
-    reports = session.exec(q.order_by(YearOfReport.created_at.desc())).all()
-
-    if not reports:
-        fallback_q = (
-            select(YearOfReport)
-            .where(YearOfReport.status == "published")
-            .where(YearOfReport.report_type == "wedstrijdverslag")
-        )
-        fallback = session.exec(fallback_q.order_by(YearOfReport.created_at.desc())).first()
-        reports = [fallback] if fallback else []
+    reports = session.exec(q.order_by(col(YearOfReport.published_at).desc()).limit(max(1, min(limit, 12)))).all()
 
     report_ids = [r.id for r in reports]
     tags_by_report: dict[str, list[str]] = {}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getActionSettings, getSpotlightReports, getTimeline, getInterviewCandidates, getStandings, getPlayerSpotlight } from '../api.js'
+import { getActionSettings, getHomeReports, getTimeline, getInterviewCandidates, getStandings, getPlayerSpotlight } from '../api.js'
 import PlayerSpotlightCard from './PlayerSpotlightCard.jsx'
 import Thermometer from './Thermometer.jsx'
 import PageBlock from '../features/blocks/PageBlock.jsx'
@@ -33,7 +33,8 @@ function MatchTeaser({ label, item, onOpen }) {
   )
 }
 
-export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, editMode = false }) {
+// onOpenPage(ref): bericht onder In de kijker aanklikken = naar de pagina waar het op staat (item 1241).
+export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, onOpenPage, editMode = false }) {
   const [settings, setSettings] = useState(null)
   const [interviews, setInterviews] = useState([])
   const [pastMatch, setPastMatch] = useState(null)
@@ -41,11 +42,11 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, edit
   const [candidates, setCandidates] = useState([])
   const [standings, setStandings] = useState(null)
   const [playerSpotlight, setPlayerSpotlight] = useState(null)
-  const { conceptBlocks } = usePageBlocks()
+  const { conceptBlocks, setting } = usePageBlocks()
+  const homeCount = setting('home.spotlight', 'count', 4)
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
-    getSpotlightReports().then(rows => setInterviews(rows.slice(0, 2))).catch(() => {})
     getStandings().then(setStandings).catch(() => {})
     getPlayerSpotlight().then(setPlayerSpotlight).catch(() => {})
     getTimeline().then(items => {
@@ -62,14 +63,21 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, edit
     }).catch(() => {})
   }, [])
 
+  // In de kijker (item 1241): nieuwste berichten van de eigen paginas met Toon op Home.
+  useEffect(() => {
+    getHomeReports(homeCount).then(setInterviews).catch(() => {})
+  }, [homeCount])
+
   // Elk blok apart live/concept (item 1239). editMode = bewerkscherm in de
   // beheerstudio: ook lege blokken tonen, zodat de schakelaar bereikbaar is.
-  const block = (id, label, content) => (
-    <PageBlock id={id} label={label} editMode={editMode}>
+  const block = (id, label, content, options) => (
+    <PageBlock id={id} label={label} editMode={editMode} options={options}>
       {content || (editMode ? <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Nu leeg - verschijnt vanzelf zodra er iets is.</p> : null)}
     </PageBlock>
   )
   const live = id => editMode || !conceptBlocks.has(id)
+  const countOptions = [{ key: 'count', label: 'Aantal', fallback: 4,
+    choices: [2, 4, 6].map(n => ({ value: n, label: String(n) })) }]
   const showSpotlightHeading = (interviews.length > 0 && live('home.spotlight')) || (playerSpotlight && live('home.player_spotlight')) || editMode
 
   return (
@@ -131,10 +139,10 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, edit
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
             {block('home.player_spotlight', 'Speelster van de week', playerSpotlight && <PlayerSpotlightCard spotlight={playerSpotlight} onOpenPlayer={onOpenPlayer} />)}
-            {block('home.spotlight', 'In de kijker (nieuwste 2)', interviews.length > 0 && (
+            {block('home.spotlight', 'In de kijker - berichten met Toon op Home', interviews.length > 0 && (
               <div style={{ display: 'grid', gap: 10 }}>
                 {interviews.map(r => (
-                  <a key={r.id} href="#" onClick={e => { e.preventDefault(); onNavigate('spotlight') }}
+                  <a key={r.id} href="#" onClick={e => { e.preventDefault(); onOpenPage ? onOpenPage(r.match_ref) : onNavigate('spotlight') }}
                     className="yof-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
                     <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>&ldquo;{r.title}&rdquo;</h3>
                     <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
@@ -143,7 +151,7 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, edit
                   </a>
                 ))}
               </div>
-            ))}
+            ), countOptions)}
           </div>
         </div>
       )}

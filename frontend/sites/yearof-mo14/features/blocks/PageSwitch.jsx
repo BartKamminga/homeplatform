@@ -9,7 +9,7 @@ export const PAGES = {
   kijker: { id: 'page.spotlight', label: 'In de kijker' },
   spelers: { id: 'page.team', label: 'Team' },
   wedstrijden: { id: 'page.timeline', label: 'Wedstrijden' },
-  fotos: { id: 'page.upload', label: "Foto's toevoegen" },
+  upload: { id: 'page.upload', label: "Foto's toevoegen" },
 }
 
 export default function PageSwitch({ id, label }) {

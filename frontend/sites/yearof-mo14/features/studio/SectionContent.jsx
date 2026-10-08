@@ -3,10 +3,10 @@ import TimelineAdmin from '../../screens/TimelineAdmin.jsx'
 import LinksAdmin from '../../screens/LinksAdmin.jsx'
 import SponsorsAdmin from '../../screens/SponsorsAdmin.jsx'
 import PhotosAdmin from '../../screens/PhotosAdmin.jsx'
-import ReportsAdmin from '../../screens/ReportsAdmin.jsx'
 import MatchAdminDetail from '../../screens/match-admin/index.jsx'
 import PublicHome from '../../screens/PublicHome.jsx'
-import SpotlightAdmin from './SpotlightAdmin.jsx'
+import ReportsManager from '../reports/ReportsManager.jsx'
+import { SPOTLIGHT_PAGE, viewForPageRef } from '../pages/useCustomPages.js'
 import CustomPageAdmin from '../pages/CustomPageAdmin.jsx'
 import ActionPageAdmin from './ActionPageAdmin.jsx'
 import TimelineBlocksAdmin from './TimelineBlocksAdmin.jsx'
@@ -39,7 +39,8 @@ function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
     case 'home':
       // Home zoals op de site, per blok live/concept; de blokken worden elders bewerkt.
       return <PublicHome editMode onOpenMatch={onOpenMatch} onOpenPlayer={() => onSelectSection('spelers')}
-        onNavigate={page => onSelectSection(page === 'spotlight' ? 'kijker' : 'wedstrijden')} />
+        onNavigate={page => onSelectSection(page === 'spotlight' ? 'kijker' : 'wedstrijden')}
+        onOpenPage={ref => { const v = viewForPageRef(ref); if (v) onSelectSection(v.name === 'spotlight' ? 'kijker' : `custom:${v.id}`) }} />
     case 'competitie': return <CompetitionAdmin page="competition" />
     case 'topklasse': return <CompetitionAdmin page="topklasse" />
     case 'spelers':
@@ -48,10 +49,12 @@ function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
       return panel.matchRef
         ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
         : <TimelineAdmin onOpenMatch={onOpenMatch} footer={<TimelineBlocksAdmin />} />
-    case 'kijker': return <SpotlightAdmin key={panel.reportId || 'list'} initialReportId={panel.reportId} onOpenMatch={onOpenMatch} />
+    case 'kijker': return <CustomPageAdmin fixedPage={SPOTLIGHT_PAGE} />
     case 'toegang': return <LinksAdmin />
-    case 'fotos': return <PhotosAdmin />
-    case 'verslagen': return <ReportsAdmin key={panel.reportId || 'list'} initialEditId={panel.reportId} />
+    case 'fotobeheer': return <PhotosAdmin />
+    case 'berichten': return <ReportsManager />
+    case 'upload':
+      return <p style={{ fontSize: 13, color: '#666' }}>Op deze pagina uploadt het team foto&rsquo;s met de sitelink. Hij verdwijnt zodra uploaden alleen nog via een link gaat (item 1242). Alle foto&rsquo;s beheer je onder Foto&rsquo;s.</p>
     case 'actie': return <ActionPageAdmin />
     case 'sponsors': return <SponsorsAdmin />
     default: return null

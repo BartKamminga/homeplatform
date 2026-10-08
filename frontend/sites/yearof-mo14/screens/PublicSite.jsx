@@ -5,10 +5,9 @@ import PublicPlayer from './PublicPlayer.jsx'
 import PublicTimeline from './PublicTimeline.jsx'
 import PublicEntry from './PublicEntry.jsx'
 import PublicUploadPhotos from './PublicUploadPhotos.jsx'
-import PublicSpotlight from './PublicSpotlight.jsx'
 import PublicAction from './PublicAction.jsx'
 import CustomPage from '../features/pages/CustomPage.jsx'
-import useCustomPages from '../features/pages/useCustomPages.js'
+import useCustomPages, { SPOTLIGHT_PAGE, viewForPageRef } from '../features/pages/useCustomPages.js'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
 import useCompetitionAccess from '../features/competition/useCompetitionAccess.js'
@@ -25,7 +24,7 @@ const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
 // studio (item 1239): de beheerstudio stuurt de view zelf aan (view +
 // onViewChange) zodat het bewerkpaneel ernaast meeloopt; klikken op een
 // wedstrijd/speler navigeert dan gewoon in de preview i.p.v. te bridgen.
-export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer, onEditGeneral }) {
+export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer }) {
   const [localView, setLocalView] = useState(() => {
     if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
     const entry = new URLSearchParams(window.location.search).get('match')
@@ -104,9 +103,10 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         ))}
       </div>
       <div className="yof-main">
-        {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer} />}
+        {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer}
+          onOpenPage={ref => { const v = viewForPageRef(ref); if (v) { setView(v); setUrlEntry(null) } }} />}
         {show('action') && <PublicAction />}
-        {show('spotlight') && <PublicSpotlight onOpenMatch={openMatch} adminMode={controls} onEditGeneral={onEditGeneral} />}
+        {show('spotlight') && <CustomPage page={SPOTLIGHT_PAGE} onBack={() => nav('home')} previewMode={showConcepts} />}
         {show('team') && <PublicTeam onOpenPlayer={openPlayer} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={controls} />}
         {show('timeline') && <PublicTimeline onOpenEntry={openMatch} />}

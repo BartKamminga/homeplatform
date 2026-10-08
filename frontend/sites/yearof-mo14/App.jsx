@@ -53,7 +53,6 @@ function AdminTabs({ me }) {
           <PublicSite previewMode adminMode
             onEditMatch={openMatch}
             onEditPlayer={playerId => setPanel({ section: 'spelers', playerId })}
-            onEditGeneral={reportId => setPanel({ section: 'verslagen', reportId: reportId || undefined })}
           />
         </div>
       ) : (

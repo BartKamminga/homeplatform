@@ -70,7 +70,6 @@ export default function AdminStudio({ me }) {
               view={view} onViewChange={changeView}
               onEditMatch={openMatch}
               onEditPlayer={id => changeView({ name: 'player', id })}
-              onEditGeneral={reportId => setPanel({ section: 'verslagen', reportId: reportId || undefined })}
             />
           </div>
         </div>

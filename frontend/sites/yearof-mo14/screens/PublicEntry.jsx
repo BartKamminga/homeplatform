@@ -192,7 +192,9 @@ export default function PublicEntry({
                     live={r.status === 'published'}
                     onToggleLive={() => changeReport(r, { status: r.status === 'published' ? 'concept' : 'published' })}
                     onMatchLink={r.match_highlight}
-                    onToggleMatchLink={() => changeReport(r, { match_highlight: !r.match_highlight })}
+                    onToggleMatchLink={isPage ? undefined : () => changeReport(r, { match_highlight: !r.match_highlight })}
+                    featured={r.featured}
+                    onToggleFeatured={isPage ? () => changeReport(r, { featured: !r.featured }) : undefined}
                     onUp={atTop ? undefined : () => move(r.id, 'up')}
                     onDown={atBottom ? undefined : () => move(r.id, 'down')}
                     onEdit={() => onEditReport(r)}

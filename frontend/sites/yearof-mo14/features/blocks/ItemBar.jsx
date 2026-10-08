@@ -24,8 +24,8 @@ export default function ItemBar({
         </button>
       )}
       {onToggleFeatured && (
-        <button onClick={onToggleFeatured} className="yof-btn-secondary" style={btn} title="Wel of niet in In de kijker">
-          {featured ? '★ In de kijker' : '☆ Niet in de kijker'}
+        <button onClick={onToggleFeatured} className="yof-btn-secondary" style={btn} title="Wel of niet onder In de kijker op Home (item 1241)">
+          {featured ? '★ Op Home' : '☆ Niet op Home'}
         </button>
       )}
       {onToggleLive && (

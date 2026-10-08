@@ -12,18 +12,21 @@ const label = { display: 'block', fontSize: 12, fontWeight: 700, margin: '8px 0 
 
 // Eigen pagina in de beheerstudio (item 1239): live/concept, menunaam en kop,
 // en de berichten/foto's zoals op een wedstrijdpagina (zonder wedstrijd erachter).
-export default function CustomPageAdmin({ pageId, onDeleted }) {
-  const page = useCustomPages().find(p => p.id === pageId)
+// fixedPage (In de kijker, item 1241): vaste pagina - geen naam/kop-formulier,
+// niet te verwijderen; live/concept staat dan al bovenaan het bewerkscherm.
+export default function CustomPageAdmin({ pageId, fixedPage, onDeleted }) {
+  const custom = useCustomPages().find(p => p.id === pageId)
+  const page = fixedPage || custom
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
 
   useEffect(() => {
-    if (page && !form) setForm({ label: page.label, title: page.title || '', subtitle: page.subtitle || '', icon: page.icon || '' })
+    if (page && !form && !fixedPage) setForm({ label: page.label, title: page.title || '', subtitle: page.subtitle || '', icon: page.icon || '' })
   }, [page])
 
-  if (!page || !form) return null
+  if (!page || (!form && !fixedPage)) return null
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }))
 
   async function save() {
@@ -41,9 +44,9 @@ export default function CustomPageAdmin({ pageId, onDeleted }) {
   return (
     <div>
       {confirmDialog}
-      <PageSwitch id={`page.${page.id}`} label={page.label} />
+      {!fixedPage && <PageSwitch id={`page.${page.id}`} label={page.label} />}
 
-      <div className="yof-card" style={{ marginBottom: 16 }}>
+      {!fixedPage && <div className="yof-card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 10 }}>
           <div><label style={label}>Naam in het menu</label><input value={form.label} onChange={set('label')} maxLength={30} style={field} /></div>
           <div><label style={label}>Icoon</label><input value={form.icon} onChange={set('icon')} maxLength={8} placeholder="🗼" style={field} /></div>
@@ -57,7 +60,7 @@ export default function CustomPageAdmin({ pageId, onDeleted }) {
           <button onClick={save} disabled={saving || !form.label.trim()} className="yof-btn-secondary">{saving ? 'Opslaan...' : 'Opslaan'}</button>
           <button onClick={remove} className="yof-btn-secondary">Pagina verwijderen</button>
         </div>
-      </div>
+      </div>}
 
       <PageBlock id={`hero.${page.id}`} label="Kop" editMode><PageHero page={page} /></PageBlock>
       <MatchAdminDetail key={page.id} matchRef={pageRef(page.id)} pinnedPage pageTitle={page.label} />

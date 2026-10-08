@@ -212,7 +212,8 @@ export const getReports          = (matchRef, reportType, highlightsOnly = false
   const qs = params.toString()
   return api.get(withCode(`/api/yearof-mo14/reports${qs ? `?${qs}` : ''}`))
 }
-export const getSpotlightReports  = ()         => api.get(withCode('/api/yearof-mo14/reports/spotlight'))
+// Home 'In de kijker' (item 1241): berichten van eigen paginas met Toon op Home
+export const getHomeReports       = (limit = 4) => api.get(withCode(`/api/yearof-mo14/reports/home?limit=${limit}`))
 export const getReportsModeration = ()         => api.get('/api/yearof-mo14/reports/moderation')
 export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/reports/${id}`, body)
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)

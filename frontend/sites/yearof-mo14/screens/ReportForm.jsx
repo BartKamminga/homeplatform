@@ -291,9 +291,9 @@ export function ReportForm({
               {existingReport.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
             </button>
           )}
-          {reportType !== 'nieuws' && (
+          {!controlsOnBar && (
             <button onClick={toggleFeatured} className="yof-btn-secondary">
-              {existingReport.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
+              {existingReport.featured ? 'Niet op Home' : 'Toon op Home'}
             </button>
           )}
           {existingReport.match_ref && !controlsOnBar && (
