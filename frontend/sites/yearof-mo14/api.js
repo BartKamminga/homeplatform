@@ -216,7 +216,9 @@ export const getReports          = (matchRef, reportType, highlightsOnly = false
 export const getHomeReports       = (limit = 4) => api.get(withCode(`/api/yearof-mo14/reports/home?limit=${limit}`))
 export const getReportsModeration = ()         => api.get('/api/yearof-mo14/reports/moderation')
 export const updateReport        = (id, body)  => api.patch(`/api/yearof-mo14/reports/${id}`, body)
+// 'Verwijderen' = archiveren (item 1239), terug te zetten met restoreReport
 export const deleteReport        = (id)        => api.delete(`/api/yearof-mo14/reports/${id}`)
+export const restoreReport       = (id)        => api.post(`/api/yearof-mo14/reports/${id}/restore`)
 export const tagReport           = (reportId, playerId) => api.post(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const untagReport         = (reportId, playerId) => api.delete(`/api/yearof-mo14/reports/${reportId}/tags/${playerId}`)
 export const moveReport          = (reportId, direction) => api.post(`/api/yearof-mo14/reports/${reportId}/move`, { direction })

@@ -165,7 +165,7 @@ def _next_sort_order(session: Session, match_ref: Optional[str], insert_after_id
     if not match_ref:
         return 0
     siblings = session.exec(
-        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref, col(YearOfReport.archived_at).is_(None)).order_by(YearOfReport.sort_order)
     ).all()
     if not siblings:
         return 1000
@@ -219,7 +219,7 @@ def list_reports(
     Via een wedstrijdlink (access "match") is dat altijd zo (item 1186)."""
     if access == "match":
         highlights_only = True
-    q = select(YearOfReport).where(YearOfReport.status == "published")
+    q = select(YearOfReport).where(YearOfReport.status == "published", col(YearOfReport.archived_at).is_(None))
     if match_ref:
         q = q.where(YearOfReport.match_ref == match_ref)
     if report_type:
@@ -248,7 +248,7 @@ def get_home_reports(
     "Toon op Home" staan (featured). Wedstrijdberichten tellen niet mee."""
     q = (
         select(YearOfReport)
-        .where(YearOfReport.status == "published", YearOfReport.featured == True)  # noqa: E712
+        .where(YearOfReport.status == "published", YearOfReport.featured == True, col(YearOfReport.archived_at).is_(None))  # noqa: E712
         .where(col(YearOfReport.match_ref).startswith("page:"))
     )
     reports = session.exec(q.order_by(col(YearOfReport.published_at).desc()).limit(max(1, min(limit, 12)))).all()
@@ -311,22 +311,37 @@ def update_report(
 
 
 @router.delete("/reports/{report_id}")
-def delete_report(
+def archive_report(
     report_id: str,
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """Item 1239: nooit echt verwijderen - "verwijderen" = archiveren (overal
+    verborgen, tags/linkjes/fotos blijven gekoppeld). Terugzetten via /restore."""
     report = get_or_404(session, YearOfReport, report_id, "Verslag")
-    for tag in session.exec(select(YearOfReportPlayerTag).where(YearOfReportPlayerTag.report_id == report_id)).all():
-        session.delete(tag)
-    for link in session.exec(select(YearOfReportLink).where(YearOfReportLink.report_id == report_id)).all():
-        session.delete(link)
-    for photo in session.exec(select(YearOfPhoto).where(YearOfPhoto.report_id == report_id)).all():
-        photo.report_id = None
-        session.add(photo)
-    session.delete(report)
+    report.archived_at = datetime.utcnow()
+    report.updated_at = datetime.utcnow()
+    session.add(report)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/reports/{report_id}/restore")
+def restore_report(
+    report_id: str,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user),
+):
+    """Uit het archief halen; komt als concept terug op zijn pagina (achteraan)."""
+    report = get_or_404(session, YearOfReport, report_id, "Verslag")
+    report.archived_at = None
+    report.status = "concept"
+    report.sort_order = _next_sort_order(session, report.match_ref, None)
+    report.updated_at = datetime.utcnow()
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    return _report_out(session, report)
 
 
 @router.post("/reports/{report_id}/like")
@@ -376,7 +391,7 @@ def move_report(
     if not report.match_ref:
         raise HTTPException(400, "Alleen wedstrijd-gebonden berichten kunnen verplaatst worden")
     siblings = session.exec(
-        select(YearOfReport).where(YearOfReport.match_ref == report.match_ref).order_by(YearOfReport.sort_order)
+        select(YearOfReport).where(YearOfReport.match_ref == report.match_ref, col(YearOfReport.archived_at).is_(None)).order_by(YearOfReport.sort_order)
     ).all()
     idx = next((i for i, r in enumerate(siblings) if r.id == report_id), None)
     if idx is None:

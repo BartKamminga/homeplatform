@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, deleteReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
+import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, deleteReport, restoreReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
@@ -7,6 +7,7 @@ import FormattedText from './FormattedText.jsx'
 import EntryHeader from './EntryHeader.jsx'
 import ItemBar from '../features/blocks/ItemBar.jsx'
 import AddBar from '../features/blocks/AddBar.jsx'
+import ArchivedReports from '../features/blocks/ArchivedReports.jsx'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 
@@ -85,10 +86,16 @@ export default function PublicEntry({
     loadReports()
   }
   async function removeReport(r) {
-    if (!(await confirm(`"${r.title}" verwijderen (inclusief alles erin)? Dit kan niet ongedaan gemaakt worden.`))) return
+    if (!(await confirm(`"${r.title}" archiveren? Je kunt het terugzetten via Archief onderaan de pagina.`))) return
     await deleteReport(r.id)
     loadReports()
   }
+  async function restore(r) {
+    await restoreReport(r.id)
+    loadReports()
+  }
+  // Gearchiveerde berichten (item 1239) staan niet op de pagina, alleen in het archief van het bewerkscherm.
+  const liveReports = reports.filter(r => !r.archived_at)
 
   async function movePhotos(direction) {
     await onMovePhotoBlock(direction)
@@ -121,7 +128,7 @@ export default function PublicEntry({
         const showPhotoBlock = (unassignedPublished.length > 0 && photosLive) || adminMode
         const blocks = []
         if (showPhotoBlock) blocks.push({ kind: 'photos', sort_order: photoBlockSortOrder })
-        reports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
+        liveReports.forEach(r => blocks.push({ kind: 'report', report: r, sort_order: r.sort_order }))
         blocks.sort((a, b) => a.sort_order - b.sort_order)
 
         if (blocks.length === 0 && pendingInvites.length === 0) return null
@@ -264,6 +271,7 @@ export default function PublicEntry({
             )
           })}
           {adminMode && <AddBar kinds={addKinds} onPick={kind => add(null, kind)} />}
+          {adminMode && <ArchivedReports reports={reports.filter(r => r.archived_at)} onRestore={restore} />}
       </div>
         )
       })()}

@@ -4,7 +4,7 @@ __init__.py voor hoe dit sub-router samengevoegd wordt onder /api/yearof-mo14.""
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from core.auth import get_current_user
 from core.crud import get_or_404
@@ -39,7 +39,7 @@ def _photo_block_sort_order(session: Session, match_ref: str) -> int:
     if block:
         return block.sort_order
     lowest_report = session.exec(
-        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref, col(YearOfReport.archived_at).is_(None)).order_by(YearOfReport.sort_order)
     ).first()
     return (lowest_report.sort_order - 500) if lowest_report else -500
 
@@ -58,7 +58,7 @@ def move_photo_block(
 ):
     photo_sort = _photo_block_sort_order(session, match_ref)
     reports = session.exec(
-        select(YearOfReport).where(YearOfReport.match_ref == match_ref).order_by(YearOfReport.sort_order)
+        select(YearOfReport).where(YearOfReport.match_ref == match_ref, col(YearOfReport.archived_at).is_(None)).order_by(YearOfReport.sort_order)
     ).all()
     merged = sorted([("photos", None, photo_sort)] + [("report", r.id, r.sort_order) for r in reports], key=lambda t: t[2])
     idx = next(i for i, m in enumerate(merged) if m[0] == "photos")

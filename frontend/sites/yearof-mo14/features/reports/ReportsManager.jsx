@@ -69,10 +69,12 @@ export default function ReportsManager() {
         const onPage = r.match_ref?.startsWith('page:')
         return (
           <div key={r.id} style={{ marginBottom: 12 }}>
-            <ItemBar label={r.title}
-              live={r.status === 'published'} onToggleLive={() => actions.toggleLive(r)}
-              featured={r.featured} onToggleFeatured={onPage ? () => actions.toggleFeatured(r) : undefined}
-              onEdit={() => setEditingId(r.id)} onDelete={() => actions.remove(r)} />
+            {r.archived_at
+              ? <ItemBar label={r.title} onRestore={() => actions.restore(r)} />
+              : <ItemBar label={r.title}
+                  live={r.status === 'published'} onToggleLive={() => actions.toggleLive(r)}
+                  featured={r.featured} onToggleFeatured={onPage ? () => actions.toggleFeatured(r) : undefined}
+                  onEdit={() => setEditingId(r.id)} onDelete={() => actions.remove(r)} />}
             <div className="yof-card" onClick={() => setEditingId(r.id)}
               style={{ cursor: 'pointer', padding: '10px 14px', opacity: r.status === 'published' ? 1 : 0.5 }}>
               <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>

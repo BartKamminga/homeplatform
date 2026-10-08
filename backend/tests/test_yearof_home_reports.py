@@ -23,3 +23,15 @@ def test_home_reports_only_featured_from_pages(client, admin_token):
     _report(client, admin_token, "page:spotlight", True, status="concept", title="concept")
     titles = [r["title"] for r in client.get(f"{API}/reports/home", headers=_auth(admin_token)).json()]
     assert titles == ["op home"]
+
+
+def test_report_archive_and_restore(client, admin_token):
+    r = _report(client, admin_token, "page:spotlight", True, title="weg")
+    assert client.delete(f"{API}/reports/{r['id']}", headers=_auth(admin_token)).json() == {"ok": True}
+    # Gearchiveerd: niet meer op Home of in de publieke lijst, wel in het beheer (met archived_at)
+    assert client.get(f"{API}/reports/home", headers=_auth(admin_token)).json() == []
+    assert client.get(f"{API}/reports?match_ref=page:spotlight", headers=_auth(admin_token)).json() == []
+    mod = [x for x in client.get(f"{API}/reports/moderation", headers=_auth(admin_token)).json() if x["id"] == r["id"]]
+    assert mod and mod[0]["archived_at"]
+    restored = client.post(f"{API}/reports/{r['id']}/restore", headers=_auth(admin_token)).json()
+    assert restored["archived_at"] is None and restored["status"] == "concept"

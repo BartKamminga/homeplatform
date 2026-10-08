@@ -5,7 +5,7 @@ const btn = { background: 'white' }
 
 export default function ItemBar({
   label, live, onToggleLive, onMatchLink, onToggleMatchLink, featured, onToggleFeatured,
-  onUp, onDown, onEdit, editLabel = '✎ Bewerken', onDelete,
+  onUp, onDown, onEdit, editLabel = '✎ Bewerken', onDelete, onRestore,
 }) {
   const hasStatus = live !== undefined
   return (
@@ -38,7 +38,8 @@ export default function ItemBar({
         </>
       )}
       {onEdit && <button onClick={onEdit} className="yof-btn-secondary" style={btn}>{editLabel}</button>}
-      {onDelete && <button onClick={onDelete} className="yof-btn-secondary" style={btn} title="Blok verwijderen">Verwijderen</button>}
+      {onDelete && <button onClick={onDelete} className="yof-btn-secondary" style={btn} title="Naar het archief - terug te zetten">Archiveren</button>}
+      {onRestore && <button onClick={onRestore} className="yof-btn-secondary" style={btn}>Terugzetten</button>}
     </div>
   )
 }

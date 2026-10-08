@@ -115,7 +115,7 @@ export function ReportForm({
   }
 
   async function remove() {
-    if (!(await confirm('Dit bericht verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
+    if (!(await confirm('Dit bericht archiveren? Je kunt het later terugzetten vanuit het archief.'))) return
     await deleteReport(existingReport.id)
     onDeleted()
   }
@@ -301,7 +301,7 @@ export function ReportForm({
               {existingReport.match_highlight ? '⭐ Uit wedstrijdlink halen' : '⭐ Op wedstrijdlink tonen'}
             </button>
           )}
-          {!controlsOnBar && <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>}
+          {!controlsOnBar && <button onClick={remove} className="yof-btn-secondary">Archiveren</button>}
         </div>
       )}
     </div>

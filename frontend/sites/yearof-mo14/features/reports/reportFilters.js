@@ -5,6 +5,7 @@ export const STATUS_FILTERS = [
   { key: '', label: 'Alle' },
   { key: 'published', label: 'Live' },
   { key: 'concept', label: 'Concept' },
+  { key: 'archived', label: 'Archief' },
 ]
 
 export const TYPE_LABEL = {
@@ -14,7 +15,9 @@ export const TYPE_LABEL = {
 
 // Pagina-filter: '' = alles, 'matches' = alle wedstrijden, anders een match_ref ("page:<id>")
 export function matchesFilters(r, f, ctx) {
-  if (f.status && r.status !== f.status) return false
+  // Archief (item 1239) alleen met het filter Archief; anders altijd zonder gearchiveerde.
+  if ((f.status === 'archived') !== !!r.archived_at) return false
+  if (f.status && f.status !== 'archived' && r.status !== f.status) return false
   if (f.page === 'matches' && r.match_ref?.startsWith('page:')) return false
   if (f.page && f.page !== 'matches' && r.match_ref !== f.page) return false
   if (f.type && r.report_type !== f.type) return false
