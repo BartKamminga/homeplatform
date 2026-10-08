@@ -99,6 +99,13 @@ export function StandaloneMatchView({ matchRef }) {
   if (status === 'checking') return null
   if (status === 'expired') return <LinkExpired />
   if (status === 'locked') return <Gate onUnlock={() => setStatus('unlocked')} />
+  return <FanMatchView matchRef={matchRef} />
+}
+
+// Wat een fan via de wedstrijdlink ziet: geen menu, alleen wat op de
+// wedstrijdlink staat, plus het inzamelblok. Ook de fan-weergave in de
+// beheerstudio (item 1239).
+export function FanMatchView({ matchRef }) {
   return (
     <Shell>
       <PublicEntry matchRef={matchRef} standalone />
