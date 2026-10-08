@@ -3,6 +3,9 @@ import { getPlayers, getReportsModeration, tagReport, untagReport } from '../api
 import { LinkTiles } from './ReportLinks.jsx'
 import { ReportForm } from './ReportForm.jsx'
 import FormattedText from './FormattedText.jsx'
+import ItemBar from '../features/blocks/ItemBar.jsx'
+import AddBar from '../features/blocks/AddBar.jsx'
+import useReportActions from '../features/blocks/useReportActions.js'
 
 // Zelfde kaart-stijl/klik-om-te-bewerken-patroon als de wedstrijdpagina's
 // (PublicEntry in adminMode) - WYSIWYG, alleen voor niet-wedstrijd-gebonden
@@ -10,20 +13,8 @@ import FormattedText from './FormattedText.jsx'
 // en worden daar bewerkt (MatchAdminDetail).
 function AlgemeenReportCard({ report, onEdit }) {
   return (
-    <div className="yof-card" onClick={() => onEdit(report)} style={{ marginBottom: 10, position: 'relative', cursor: 'pointer' }}>
-      {(report.status === 'concept' || report.featured) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          {report.status === 'concept' && (
-            <span style={{ background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
-              CONCEPT
-            </span>
-          )}
-          {report.featured && (
-            <span style={{ fontSize: 11, color: '#a3245c', fontWeight: 700 }}>&#9733; In de kijker</span>
-          )}
-        </div>
-      )}
-      <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
+    <div className="yof-card" onClick={() => onEdit(report)}
+      style={{ marginBottom: 10, position: 'relative', cursor: 'pointer', opacity: report.status === 'concept' ? 0.5 : 1 }}>
       <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{report.title}</h4>
       {report.author_name && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>door {report.author_name}</p>}
       <p style={{ margin: '0 0 4px', fontSize: 11, color: '#999' }}>
@@ -41,13 +32,15 @@ function AlgemeenReportCard({ report, onEdit }) {
 export default function ReportsAdmin({ initialEditId }) {
   const [players, setPlayers] = useState([])
   const [reports, setReports] = useState([])
-  const [view, setView] = useState('list') // list | write | edit
+  const [view, setView] = useState('list') // list | edit
   const [editingReport, setEditingReport] = useState(null)
   const [error, setError] = useState('')
   // Consumeert initialEditId precies 1x (bv. vanuit de Bekijk site-preview,
   // item 1155/1156) - anders zou elke latere loadReports() na "terug naar
   // lijst" opnieuw naar de edit-view springen.
   const pendingInitialEditId = useRef(initialEditId || null)
+  // Balk per bericht en keuzebalk, zelfde werkwijze als overal (item 1239).
+  const actions = useReportActions(() => loadReports())
 
   function loadReports() {
     getReportsModeration()
@@ -91,12 +84,9 @@ export default function ReportsAdmin({ initialEditId }) {
 
   return (
     <div>
-      {view === 'write' && (
-        <ReportForm defaultReportType="nieuws" onSaved={backToList} onCancel={() => setView('list')} />
-      )}
       {view === 'edit' && editingReport && (
         <ReportForm
-          existingReport={editingReport} players={players} onToggleTag={toggleEditingReportTag}
+          existingReport={editingReport} players={players} onToggleTag={toggleEditingReportTag} controlsOnBar
           onSaved={backToList} onCancel={backToList} onDeleted={backToList} onRefresh={refreshEditingReport}
         />
       )}
@@ -108,13 +98,18 @@ export default function ReportsAdmin({ initialEditId }) {
             Wedstrijdverslagen, interviews en linkjes bij een wedstrijd bewerk je via de wedstrijdpagina zelf.
           </p>
           {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+          {actions.confirmDialog}
           {reports.map(r => (
-            <AlgemeenReportCard key={r.id} report={r} onEdit={rep => { setEditingReport(rep); setView('edit') }} />
+            <div key={r.id}>
+              <ItemBar label={r.title}
+                live={r.status === 'published'} onToggleLive={() => actions.toggleLive(r)}
+                featured={r.featured} onToggleFeatured={r.report_type === 'nieuws' ? undefined : () => actions.toggleFeatured(r)}
+                onEdit={() => { setEditingReport(r); setView('edit') }} onDelete={() => actions.remove(r)} />
+              <AlgemeenReportCard report={r} onEdit={rep => { setEditingReport(rep); setView('edit') }} />
+            </div>
           ))}
           {reports.length === 0 && !error && <p style={{ color: '#666', fontSize: 13 }}>Nog geen algemene berichten.</p>}
-          <button onClick={() => setView('write')} className="yof-btn" style={{ width: '100%', marginTop: 4 }}>
-            + Algemeen bericht toevoegen
-          </button>
+          <AddBar kinds={['self']} onPick={() => actions.createNews()} />
         </>
       )}
     </div>

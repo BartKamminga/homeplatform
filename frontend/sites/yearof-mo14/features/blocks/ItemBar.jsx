@@ -4,7 +4,7 @@
 const btn = { background: 'white' }
 
 export default function ItemBar({
-  label, live, onToggleLive, onMatchLink, onToggleMatchLink,
+  label, live, onToggleLive, onMatchLink, onToggleMatchLink, featured, onToggleFeatured,
   onUp, onDown, onEdit, editLabel = '✎ Bewerken', onDelete,
 }) {
   const hasStatus = live !== undefined
@@ -21,6 +21,11 @@ export default function ItemBar({
         <button onClick={onToggleMatchLink} className="yof-btn-secondary" style={btn}
           title="Wel of niet tonen op de losse wedstrijdlink (fans)">
           {onMatchLink ? '★ Op wedstrijdlink' : '☆ Niet op wedstrijdlink'}
+        </button>
+      )}
+      {onToggleFeatured && (
+        <button onClick={onToggleFeatured} className="yof-btn-secondary" style={btn} title="Wel of niet in In de kijker">
+          {featured ? '★ In de kijker' : '☆ Niet in de kijker'}
         </button>
       )}
       {onToggleLive && (

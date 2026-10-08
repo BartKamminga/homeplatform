@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { deleteContributorLink } from '../../api.js'
+import { deleteContributorLink, updateContributorLink } from '../../api.js'
 import { copyToClipboard } from '../../clipboard.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
@@ -8,7 +8,9 @@ export const INVITE_TYPE_LABEL = { wedstrijdverslag: 'Wedstrijdverslag', intervi
 
 // Focust op 1 specifiek invullinkje (niet de hele lijst) - vanuit de
 // placeholder-kaart in de preview, zodat "editen" over dat ene linkje gaat.
-export function InviteDetailScreen({ link, players, onBack, onDeleted, onFill }) {
+// onChanged: na het aanpassen van speelster/soort (item 1239: de keuzebalk maakt
+// het invullinkje meteen aan, hier kies je daarna voor wie en wat).
+export function InviteDetailScreen({ link, players, onBack, onDeleted, onFill, onChanged }) {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
   const [confirm, confirmDialog] = useConfirm()
@@ -38,6 +40,15 @@ export function InviteDetailScreen({ link, players, onBack, onDeleted, onFill })
     }
   }
 
+  async function change(patch) {
+    try {
+      await updateContributorLink(link.id, patch)
+      onChanged?.()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   async function remove() {
     if (!(await confirm('Dit invullinkje verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
     try {
@@ -55,6 +66,17 @@ export function InviteDetailScreen({ link, players, onBack, onDeleted, onFill })
       <h3 style={{ fontSize: 15, margin: '0 0 4px' }}>{INVITE_TYPE_LABEL[link.report_type] || link.report_type} &middot; {forWhom}</h3>
       <p style={{ fontSize: 13, fontWeight: 600, color: status.color, margin: '0 0 14px' }}>{status.label}</p>
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        <select value={link.report_type} onChange={e => change({ report_type: e.target.value })} style={{ fontSize: 13 }}>
+          <option value="wedstrijdverslag">Wedstrijdverslag</option>
+          <option value="interview">Interview</option>
+          <option value="foto">Foto&rsquo;s &amp; filmpjes (geen tekst)</option>
+        </select>
+        <select value={link.player_id || ''} onChange={e => change({ player_id: e.target.value })} style={{ fontSize: 13 }}>
+          <option value="">Voor het hele team / mezelf</option>
+          {players.map(p => <option key={p.id} value={p.id}>{p.nickname || p.name}</option>)}
+        </select>
+      </div>
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Invullinkje</label>
       <input readOnly value={url} onFocus={e => e.target.select()}
         style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', marginBottom: 10 }} />

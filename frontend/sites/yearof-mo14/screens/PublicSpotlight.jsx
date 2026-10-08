@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getSpotlightReports, getPlayers, getTimeline, getPhotosByReport, likeReport, unlikeReport } from '../api.js'
+import { getSpotlightReports, getReportsModeration, getPlayers, getTimeline, getPhotosByReport, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
@@ -34,7 +34,9 @@ function AuthorAvatars({ playerIds, players }) {
 
 // onEditReport (beheerstudio, item 1239): elk bericht direct bewerken, ook
 // wedstrijdberichten - gaat voor de bridge naar wedstrijd/algemene berichten.
-export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEditGeneral, onEditReport }) {
+// adminList (beheerstudio, item 1239): ook concepten tonen - dezelfde selectie als
+// de site (uitgelicht of nieuws); renderBar(r) = balk boven elk bericht.
+export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEditGeneral, onEditReport, adminList = false, renderBar }) {
   const [reports, setReports] = useState([])
   const [players, setPlayers] = useState([])
   const [entries, setEntries] = useState([])
@@ -44,7 +46,12 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
   const [lightbox, setLightbox] = useState(null) // { reportId, index }
 
   useEffect(() => {
-    getSpotlightReports().then(rows => {
+    const load = adminList
+      ? getReportsModeration().then(rows => rows
+        .filter(r => r.featured || r.report_type === 'nieuws')
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')))
+      : getSpotlightReports()
+    load.then(rows => {
       setReports(rows)
       Promise.all(rows.map(r => getPhotosByReport(r.id).then(photos => [r.id, photos]).catch(() => [r.id, []])))
         .then(pairs => setPhotosByReport(Object.fromEntries(pairs)))
@@ -91,8 +98,11 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
           const name = writerName(r)
           const title = matchTitle(r.match_ref)
           return (
-            <div key={r.id} className="yof-card" onClick={() => handleCardClick(r)} style={{ cursor: 'pointer', position: 'relative' }}>
-              {adminMode && (
+            <div key={r.id}>
+            {renderBar && renderBar(r)}
+            <div className="yof-card" onClick={() => handleCardClick(r)}
+              style={{ cursor: 'pointer', position: 'relative', opacity: renderBar && r.status !== 'published' ? 0.5 : 1 }}>
+              {adminMode && !renderBar && (
                 <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
               )}
               <AuthorAvatars playerIds={r.player_ids} players={players} />
@@ -141,6 +151,7 @@ export default function PublicSpotlight({ onOpenMatch, adminMode = false, onEdit
                   <LikeButton kind="report" id={r.id} initialCount={r.like_count} likeFn={likeReport} unlikeFn={unlikeReport} />
                 </div>
               )}
+            </div>
             </div>
           )
         })}

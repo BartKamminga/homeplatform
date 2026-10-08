@@ -46,13 +46,13 @@ export default function ReportEditor({ reportId, onDone }) {
 
   // Instagram/wedstrijdbeelden zijn linkjes-berichten met een eigen scherm.
   if (report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden') {
-    return <LinksScreen matchRef={report.match_ref} reportType={report.report_type} existingReport={report}
+    return <LinksScreen reportType={report.report_type} existingReport={report}
       onBack={onDone} onRefresh={reload} />
   }
 
   return (
     <ReportForm
-      existingReport={report} players={players} onToggleTag={toggleTag}
+      existingReport={report} players={players} onToggleTag={toggleTag} controlsOnBar
       fixedMatchRef={report.match_ref || undefined} fixedMatchTitle={matchTitle}
       onSaved={onDone} onCancel={onDone} onDeleted={onDone} onRefresh={reload}
     />

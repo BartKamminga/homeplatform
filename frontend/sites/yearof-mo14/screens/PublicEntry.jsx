@@ -6,12 +6,13 @@ import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
 import EntryHeader from './EntryHeader.jsx'
 import ItemBar from '../features/blocks/ItemBar.jsx'
+import AddBar from '../features/blocks/AddBar.jsx'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
-  onEditReport, onAddItem, addLabel, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
+  onEditReport, onAddItem, addKinds, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
@@ -24,6 +25,9 @@ export default function PublicEntry({
   const isPage = matchRef.startsWith('page:')
   const [confirm, confirmDialog] = useConfirm()
   const [showPhotoManager, setShowPhotoManager] = useState(false)
+  const [insertAfter, setInsertAfter] = useState(null) // tussen-keuzebalk open na dit blok
+  // Keuze = meteen een (concept)blok aanmaken (item 1239), invullen via Bewerken.
+  const add = (afterId, kind) => { setInsertAfter(null); onAddItem(afterId, kind) }
   // Fotoblok van deze wedstrijd live/concept (item 1239), opgeslagen als blok "photos:<match_ref>".
   const { conceptBlocks, setBlockState } = usePageBlocks()
   const photosBlockId = `photos:${matchRef}`
@@ -241,22 +245,20 @@ export default function PublicEntry({
                     </div>
                   )}
                 </div>
-                {adminMode && (
-                  <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>
-                    <button onClick={() => onAddItem(r.id)}
-                      style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      + hier iets invoegen
-                    </button>
-                  </div>
-                )}
+                {adminMode && (insertAfter === r.id
+                  ? <AddBar compact kinds={addKinds} onPick={kind => add(r.id, kind)} />
+                  : (
+                    <div style={{ textAlign: 'center', margin: '-4px 0 10px' }}>
+                      <button onClick={() => setInsertAfter(r.id)}
+                        style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        + hier iets invoegen
+                      </button>
+                    </div>
+                  ))}
               </div>
             )
           })}
-          {adminMode && (
-            <button onClick={() => onAddItem(null)} className="yof-btn" style={{ width: '100%', marginTop: 4 }}>
-              {addLabel || '+ Verslag, interview, Instagram of wedstrijdbeelden toevoegen'}
-            </button>
-          )}
+          {adminMode && <AddBar kinds={addKinds} onPick={kind => add(null, kind)} />}
       </div>
         )
       })()}

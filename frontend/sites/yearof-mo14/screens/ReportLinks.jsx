@@ -99,6 +99,8 @@ const TypeSelect = ({ value, onChange }) => (
 
 // Instagram en Wedstrijdbeelden zijn twee losse, los-positioneerbare
 // blokken op de wedstrijdpagina - elk met hun eigen standaard-rijen.
+// Standaardrijen voor een nieuw linkjes-blok (niet meer gebruikt sinds de
+// keuzebalk lege blokken aanmaakt, item 1239).
 export function defaultInstagramLinks() {
   return [{ link_type: 'instagram', url: '', note: '' }]
 }

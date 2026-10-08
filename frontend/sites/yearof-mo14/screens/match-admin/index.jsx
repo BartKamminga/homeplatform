@@ -4,6 +4,7 @@ import {
   getReportsModeration, tagReport, untagReport, moveReport,
   listContributorLinks,
   movePhotoBlock,
+  createReportDirect, createContributorLink,
 } from '../../api.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
 import { onDataChanged } from '../../dataChanged.js'
@@ -11,8 +12,6 @@ import PhotoManager from '../../features/photos/PhotoManager.jsx'
 import { ReportForm } from '../ReportForm.jsx'
 import ContributeReport from '../ContributeReport.jsx'
 import PublicEntry from '../PublicEntry.jsx'
-import { ChooseReportKind } from './ChooseReportKind.jsx'
-import { InviteLinkScreen } from './InviteLinkScreen.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import { LinksScreen } from './LinksScreen.jsx'
 import { GoalsPanel } from './GoalsPanel.jsx'
@@ -29,8 +28,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
   const [error, setError] = useState('')
   const [view, setView] = useState('preview') // preview | choose | write | edit | invul | invite | fill-invite | links
   const [editingReport, setEditingReport] = useState(null)
-  const [insertAfterId, setInsertAfterId] = useState(null)
-  const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
   const [previewKey, setPreviewKey] = useState(0) // ophogen = wedstrijdpreview opnieuw laden
@@ -62,25 +59,33 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
 
   function backToPreview() {
     setEditingReport(null)
-    setInsertAfterId(null)
     setView('preview')
     loadReports()
     loadLinks()
   }
 
   function handleEditReport(report) {
-    if (report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden') {
-      setLinksReportType(report.report_type)
-      setView('links')
-      return
-    }
+    // Er kunnen meerdere Instagram-/beeldenblokken zijn: altijd dit ene blok bewerken.
     setEditingReport(report)
-    setView('edit')
+    setView(report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden' ? 'links' : 'edit')
   }
 
-  function addItemAt(afterId) {
-    setInsertAfterId(afterId)
-    setView(pinnedPage ? 'write' : 'choose')
+  // Keuzebalk (item 1239): een keuze maakt meteen een conceptblok aan op de
+  // gekozen plek; invullen gaat via Bewerken op het blok (invullink: via de plaatshouder).
+  async function addItemAt(afterId, kind) {
+    const block = (report_type, title) => createReportDirect({
+      match_ref: matchRef, report_type, title, body: '', status: 'concept', links: [], insert_after_id: afterId,
+    })
+    try {
+      if (kind === 'self') await block(pinnedPage ? 'nieuws' : 'wedstrijdverslag', pinnedPage ? 'Nieuw bericht' : 'Nieuw verslag')
+      else if (kind === 'instagram') await block('instagram', 'Instagram')
+      else if (kind === 'footage') await block('wedstrijd_beelden', 'Wedstrijdbeelden')
+      else if (kind === 'invite_report') await createContributorLink({ match_ref: matchRef, report_type: 'wedstrijdverslag' })
+      else if (kind === 'invite_photos') await createContributorLink({ match_ref: matchRef, report_type: 'foto' })
+      setPreviewKey(k => k + 1)
+    } catch (e) {
+      setError(e.message)
+    }
   }
 
   async function handleMoveReport(reportId, direction) {
@@ -107,7 +112,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
     setReports(fresh.filter(r => r.match_ref === matchRef))
   }
 
-  const linksExistingReport = reports.find(r => r.report_type === linksReportType)
   const activeInvite = links.find(l => l.id === activeInviteId)
 
   function playerName(id) {
@@ -128,20 +132,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
       {item && !pinnedPage && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
       {item && !pinnedPage && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
 
-      {view === 'choose' && (
-        <ChooseReportKind
-          onWriteMyself={() => setView('write')}
-          onSendInvite={() => setView('invul')}
-          onAddInstagram={() => { setLinksReportType('instagram'); setView('links') }}
-          onAddFootage={() => { setLinksReportType('wedstrijd_beelden'); setView('links') }}
-          onBack={() => { setInsertAfterId(null); setView('preview') }}
-        />
-      )}
-      {view === 'write' && (
-        <ReportForm fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} insertAfterId={insertAfterId}
-          allowNews={pinnedPage} defaultReportType={pinnedPage ? 'nieuws' : undefined}
-          onSaved={backToPreview} onCancel={() => setView('choose')} />
-      )}
       {view === 'edit' && editingReport && (
         <ReportForm
           fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport} allowNews={pinnedPage} controlsOnBar
@@ -149,13 +139,11 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
           onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onRefresh={refreshEditingReport}
         />
       )}
-      {view === 'invul' && (
-        <InviteLinkScreen matchRef={matchRef} players={players} onBack={() => setView('choose')} />
-      )}
       {view === 'invite' && (
         <InviteDetailScreen link={activeInvite} players={players}
           onBack={() => { setActiveInviteId(null); setView('preview') }}
           onDeleted={() => { setActiveInviteId(null); setView('preview'); loadLinks() }}
+          onChanged={loadLinks}
           onFill={() => setView('fill-invite')}
         />
       )}
@@ -165,9 +153,9 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
           onSaved={() => { setActiveInviteId(null); setView('preview'); loadReports(); loadLinks() }}
         />
       )}
-      {view === 'links' && (
-        <LinksScreen matchRef={matchRef} reportType={linksReportType} existingReport={linksExistingReport}
-          insertAfterId={insertAfterId} onBack={backToPreview} onRefresh={loadReports} />
+      {view === 'links' && editingReport && (
+        <LinksScreen reportType={editingReport.report_type} existingReport={editingReport}
+          onBack={backToPreview} onRefresh={refreshEditingReport} />
       )}
 
       {view === 'preview' && (
@@ -178,7 +166,8 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
             onAddItem={addItemAt}
             // Fotobeheer (item 1213) klapt open onder het blok Foto's zelf (item 1239)
             renderPhotoManager={onChanged => <PhotoManager matchRef={matchRef} onChanged={onChanged} />}
-            addLabel={pinnedPage ? '+ Bericht toevoegen' : undefined}
+            // Eigen pagina: geen invullinks (die horen bij een wedstrijd)
+            addKinds={pinnedPage ? ['self', 'instagram', 'footage'] : undefined}
             onMoveReport={handleMoveReport}
             onMovePhotoBlock={handleMovePhotoBlock}
             pendingInvites={pendingInvites}

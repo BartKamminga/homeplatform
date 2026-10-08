@@ -184,6 +184,7 @@ export const createContributorLink = (body) => api.post('/api/yearof-mo14/contri
 export const listContributorLinks  = ()     => api.get('/api/yearof-mo14/contributor-links')
 export const getContributorContext = (code) => api.get(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
 export const deleteContributorLink = (code) => api.delete(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`)
+export const updateContributorLink = (code, body) => api.patch(`/api/yearof-mo14/contributor-links/${encodeURIComponent(code)}`, body)
 export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/interview-candidates`))
 
 // Doelpunten per speler per wedstrijd
