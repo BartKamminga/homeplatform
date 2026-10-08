@@ -103,7 +103,9 @@ export default function AdminStudio({ me }) {
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px 40px' }}>
-          <div style={{ maxWidth: 820, margin: '0 auto' }}>
+          {/* class yof: zelfde kleuren/lettertype als de site, zodat pagina's die rechts
+              in bewerkmodus staan (Home, Competitie) er net zo uitzien als links */}
+          <div className="yof" style={{ maxWidth: 820, margin: '0 auto', minHeight: 0, background: 'transparent' }}>
             <SectionContent panel={panel}
               onOpenMatch={openMatch}
               onCloseMatch={() => selectSection('wedstrijden')}

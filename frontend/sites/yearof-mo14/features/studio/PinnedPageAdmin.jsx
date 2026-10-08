@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getTimelineModeration } from '../../api.js'
 import MatchAdminDetail from '../../screens/match-admin/index.jsx'
+import PageBlock from '../blocks/PageBlock.jsx'
+import { ParisHero } from '../../screens/PinksterWeekend.jsx'
 
 // Parijs-weekend in de beheerstudio (item 1239): de pagina is de vastgepinde
 // bijzondere dag, dus hetzelfde bewerkscherm als een wedstrijdpagina.
@@ -23,5 +25,10 @@ export default function PinnedPageAdmin() {
       </p>
     )
   }
-  return <MatchAdminDetail matchRef={pinnedRef} pinnedPage />
+  return (
+    <div>
+      <PageBlock id="paris.hero" label='Kop "Het grote Parijs-weekend"' editMode><ParisHero /></PageBlock>
+      <MatchAdminDetail matchRef={pinnedRef} pinnedPage />
+    </div>
+  )
 }

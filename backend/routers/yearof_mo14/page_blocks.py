@@ -32,6 +32,14 @@ KNOWN_BLOCKS = {
     "topklasse.national",
     "action.thermometer",  # ook op Home en onder de wedstrijd-/spelerslinks
     "action.sponsors",     # ook onder de spelerslink
+    "home.hero",
+    "home.last_match",
+    "home.standings",
+    "home.next_match",
+    "home.interview_candidates",
+    "home.player_spotlight",
+    "home.spotlight",
+    "paris.hero",
 }
 
 

@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react'
 import { getTimeline } from '../api.js'
 import PublicEntry from './PublicEntry.jsx'
+import PageBlock from '../features/blocks/PageBlock.jsx'
+
+// Kop van de Parijs-pagina - eigen blok (live/concept, item 1239).
+export function ParisHero() {
+  return (
+    <div className="yof-hero" style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 28 }}>🗼</div>
+      <h1 style={{ fontSize: 18 }}>Het grote Parijs-weekend</h1>
+      <p>15-17 mei 2027 — het hoogtepunt van de hele actie.</p>
+    </div>
+  )
+}
 
 export default function PinksterWeekend({ onBack, previewMode = false, adminMode = false, onEditMatch }) {
   const [pinnedRef, setPinnedRef] = useState(null)
@@ -33,11 +45,7 @@ export default function PinksterWeekend({ onBack, previewMode = false, adminMode
 
   return (
     <div>
-      <div className="yof-hero" style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 28 }}>🗼</div>
-        <h1 style={{ fontSize: 18 }}>Het grote Parijs-weekend</h1>
-        <p>15-17 mei 2027 — het hoogtepunt van de hele actie.</p>
-      </div>
+      <PageBlock id="paris.hero"><ParisHero /></PageBlock>
       {adminMode && (
         <button onClick={() => onEditMatch(pinnedRef)} className="yof-btn" style={{ marginBottom: 14 }}>
           &#9998; Bewerk deze pagina

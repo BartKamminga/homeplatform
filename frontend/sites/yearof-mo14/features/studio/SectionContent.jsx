@@ -5,7 +5,7 @@ import SponsorsAdmin from '../../screens/SponsorsAdmin.jsx'
 import PhotosAdmin from '../../screens/PhotosAdmin.jsx'
 import ReportsAdmin from '../../screens/ReportsAdmin.jsx'
 import MatchAdminDetail from '../../screens/match-admin/index.jsx'
-import InfoPanel from './InfoPanel.jsx'
+import PublicHome from '../../screens/PublicHome.jsx'
 import SpotlightAdmin from './SpotlightAdmin.jsx'
 import PinnedPageAdmin from './PinnedPageAdmin.jsx'
 import ActionPageAdmin from './ActionPageAdmin.jsx'
@@ -18,7 +18,9 @@ import CompetitionAdmin from './CompetitionAdmin.jsx'
 export default function SectionContent({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
   switch (panel.section) {
     case 'home':
-      return <InfoPanel section={panel.section} onSelectSection={onSelectSection} />
+      // Home zoals op de site, per blok live/concept; de blokken worden elders bewerkt.
+      return <PublicHome editMode onOpenMatch={onOpenMatch} onOpenPlayer={() => onSelectSection('spelers')}
+        onNavigate={page => onSelectSection(page === 'spotlight' ? 'kijker' : 'wedstrijden')} />
     case 'competitie': return <CompetitionAdmin page="competition" />
     case 'topklasse': return <CompetitionAdmin page="topklasse" />
     case 'spelers':
