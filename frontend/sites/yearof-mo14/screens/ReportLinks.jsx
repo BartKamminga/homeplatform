@@ -88,6 +88,14 @@ function YoutubeEmbed({ url, note }) {
 
 const fieldStyle = { boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 6, border: '1px solid #ccc', width: '100%', minWidth: 0 }
 const rowStyle = { display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto', gap: 6, marginBottom: 6, alignItems: 'center' }
+// fixedType (Instagram-/Wedstrijdbeelden-blok, item 1239): het type volgt uit
+// het blok, dus geen keuzelijst - alleen link + notitie.
+const fixedRowStyle = { ...rowStyle, gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto' }
+const TypeSelect = ({ value, onChange }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} style={{ fontSize: 12, width: '100%' }}>
+    {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+  </select>
+)
 
 // Instagram en Wedstrijdbeelden zijn twee losse, los-positioneerbare
 // blokken op de wedstrijdpagina - elk met hun eigen standaard-rijen.
@@ -104,7 +112,7 @@ export function defaultVideoLinks() {
   ]
 }
 
-export function NewLinksEditor({ links, onChange }) {
+export function NewLinksEditor({ links, onChange, fixedType }) {
   function update(i, patch) {
     onChange(links.map((l, idx) => idx === i ? { ...l, ...patch } : l))
   }
@@ -112,16 +120,14 @@ export function NewLinksEditor({ links, onChange }) {
     onChange(links.filter((_, idx) => idx !== i))
   }
   function add() {
-    onChange([...links, { link_type: 'video', url: '', note: '' }])
+    onChange([...links, { link_type: fixedType || 'video', url: '', note: '' }])
   }
 
   return (
     <div style={{ marginBottom: 8 }}>
       {links.map((l, i) => (
-        <div key={i} style={rowStyle}>
-          <select value={l.link_type} onChange={e => update(i, { link_type: e.target.value })} style={{ fontSize: 12, width: '100%' }}>
-            {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+        <div key={i} style={fixedType ? fixedRowStyle : rowStyle}>
+          {!fixedType && <TypeSelect value={l.link_type} onChange={v => update(i, { link_type: v })} />}
           <input value={l.url} onChange={e => update(i, { url: e.target.value })} placeholder="Link (optioneel)" style={fieldStyle} />
           <input value={l.note} onChange={e => update(i, { note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
           <button onClick={() => remove(i)} className="yof-btn-secondary">x</button>
@@ -132,7 +138,7 @@ export function NewLinksEditor({ links, onChange }) {
   )
 }
 
-function ExistingLinkRow({ link, onSave, onDelete }) {
+function ExistingLinkRow({ link, onSave, onDelete, fixedType }) {
   const [form, setForm] = useState({ link_type: link.link_type, url: link.url, note: link.note || '' })
   const [saving, setSaving] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
@@ -152,11 +158,9 @@ function ExistingLinkRow({ link, onSave, onDelete }) {
   }
 
   return (
-    <div style={{ ...rowStyle, gridTemplateColumns: '130px minmax(0, 1fr) minmax(0, 1fr) auto auto' }}>
+    <div style={{ ...rowStyle, gridTemplateColumns: `${fixedType ? '' : '130px '}minmax(0, 1fr) minmax(0, 1fr) auto auto` }}>
       {confirmDialog}
-      <select value={form.link_type} onChange={e => setForm({ ...form, link_type: e.target.value })} style={{ fontSize: 12, width: '100%' }}>
-        {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-      </select>
+      {!fixedType && <TypeSelect value={form.link_type} onChange={v => setForm({ ...form, link_type: v })} />}
       <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Link" style={fieldStyle} />
       <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Notitie (optioneel)" style={fieldStyle} />
       <button onClick={save} className="yof-btn-secondary">{saving ? '...' : 'Opslaan'}</button>
@@ -167,8 +171,8 @@ function ExistingLinkRow({ link, onSave, onDelete }) {
 
 // Bestaand verslag - rechtstreeks tegen de link-endpoints, toont alleen de
 // al ingevulde linkjes plus een mini-formulier om er nog een toe te voegen.
-export function ExistingLinksEditor({ reportId, links, onChanged }) {
-  const [newType, setNewType] = useState('video')
+export function ExistingLinksEditor({ reportId, links, onChanged, fixedType }) {
+  const [newType, setNewType] = useState(fixedType || 'video')
   const [newUrl, setNewUrl] = useState('')
   const [newNote, setNewNote] = useState('')
   const [error, setError] = useState('')
@@ -204,12 +208,10 @@ export function ExistingLinksEditor({ reportId, links, onChanged }) {
     <div style={{ marginBottom: 8 }}>
       {error && <p style={{ color: '#c23b3b', fontSize: 12 }}>{error}</p>}
       {links.map(l => (
-        <ExistingLinkRow key={l.id} link={l} onSave={body => saveRow(l, body)} onDelete={() => removeRow(l)} />
+        <ExistingLinkRow key={l.id} link={l} fixedType={fixedType} onSave={body => saveRow(l, body)} onDelete={() => removeRow(l)} />
       ))}
-      <div style={rowStyle}>
-        <select value={newType} onChange={e => setNewType(e.target.value)} style={{ fontSize: 12, width: '100%' }}>
-          {LINK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
+      <div style={fixedType ? fixedRowStyle : rowStyle}>
+        {!fixedType && <TypeSelect value={newType} onChange={setNewType} />}
         <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Nieuwe link" style={fieldStyle} />
         <input value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Notitie (optioneel)" style={fieldStyle} />
         <button onClick={add} className="yof-btn-secondary">+ toevoegen</button>

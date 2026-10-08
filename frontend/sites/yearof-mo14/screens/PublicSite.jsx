@@ -53,6 +53,8 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   // Bewerkknoppen/-labels op de pagina's alleen in het oude tabbladenbeheer; in de
   // studio is de preview precies de site en wordt rechts bewerkt (item 1239).
   const controls = adminMode && !studio
+  // Concepten (verslagen, foto's) alleen in het oude Bekijk site; de studio-preview toont wat bezoekers zien.
+  const showConcepts = previewMode && !studio
   const openMatch = bridge ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
   const openPlayer = bridge ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
   // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232: elk
@@ -97,10 +99,10 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
             Deze pagina staat op concept - bezoekers zien hem niet, ook niet in het menu.
           </p>
         )}
-        {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={previewMode} />}
+        {view.name === 'entry' && <PublicEntry matchRef={view.ref} onBack={() => nav('timeline')} previewMode={showConcepts} />}
         {view.name === 'upload' && <PublicUploadPhotos />}
         {view.name === 'pinksterweekend' && (
-          <PinksterWeekend onBack={() => nav('home')} previewMode={previewMode} adminMode={controls} onEditMatch={onEditMatch} />
+          <PinksterWeekend onBack={() => nav('home')} previewMode={showConcepts} adminMode={controls} onEditMatch={onEditMatch} />
         )}
       </div>
     </div>

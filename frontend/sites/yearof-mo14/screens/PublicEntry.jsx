@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
-import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
+import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, deleteReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
 import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
 import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
+import ItemBar from '../features/blocks/ItemBar.jsx'
+import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
-  onEditReport, onAddItem, addLabel, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
+  onEditReport, onAddItem, addLabel, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
@@ -15,6 +17,8 @@ export default function PublicEntry({
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
+  const [showPhotoManager, setShowPhotoManager] = useState(false)
 
   function loadReports() {
     const call = previewMode ? getReportsModeration() : getReports(matchRef, undefined, standalone)
@@ -53,9 +57,19 @@ export default function PublicEntry({
     loadReports()
   }
 
-  async function move(reportId, direction, e) {
-    e.stopPropagation()
+  async function move(reportId, direction) {
     await onMoveReport(reportId, direction)
+    loadReports()
+  }
+
+  // Bewerkscherm (item 1239): live/concept, wedstrijdlink en verwijderen op het blok zelf.
+  async function changeReport(r, patch) {
+    await updateReport(r.id, patch)
+    loadReports()
+  }
+  async function removeReport(r) {
+    if (!(await confirm(`"${r.title}" verwijderen (inclusief alles erin)? Dit kan niet ongedaan gemaakt worden.`))) return
+    await deleteReport(r.id)
     loadReports()
   }
 
@@ -110,6 +124,7 @@ export default function PublicEntry({
       </div>
 
       <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
+      {confirmDialog}
 
       {(() => {
         // Het generieke Foto's-blok toont bewust alleen gepubliceerde, niet
@@ -156,12 +171,11 @@ export default function PublicEntry({
               return (
                 <div key="photos" style={{ marginBottom: 14, position: 'relative' }}>
                   {adminMode && (
-                    <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: 2 }}>
-                      <button onClick={() => movePhotos('up')} disabled={atTop}
-                        style={{ fontSize: 12, cursor: atTop ? 'default' : 'pointer', opacity: atTop ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
-                      <button onClick={() => movePhotos('down')} disabled={atBottom}
-                        style={{ fontSize: 12, cursor: atBottom ? 'default' : 'pointer', opacity: atBottom ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
-                    </div>
+                    <ItemBar label="Foto's"
+                      onUp={atTop ? undefined : () => movePhotos('up')}
+                      onDown={atBottom ? undefined : () => movePhotos('down')}
+                      onEdit={renderPhotoManager ? () => setShowPhotoManager(s => !s) : undefined}
+                      editLabel={showPhotoManager ? 'Fotobeheer sluiten' : 'Fotobeheer'} />
                   )}
                   <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
                   {unassignedPublished.length > 0 ? (
@@ -175,6 +189,9 @@ export default function PublicEntry({
                   ) : (
                     <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s voor deze wedstrijd.</p>
                   )}
+                  {adminMode && showPhotoManager && renderPhotoManager && (
+                    <div style={{ marginTop: 12 }}>{renderPhotoManager(loadPhotos)}</div>
+                  )}
                 </div>
               )
             }
@@ -182,10 +199,21 @@ export default function PublicEntry({
             const r = b.report
             return (
               <div key={r.id}>
+                {adminMode && (
+                  <ItemBar label={r.title}
+                    live={r.status === 'published'}
+                    onToggleLive={() => changeReport(r, { status: r.status === 'published' ? 'concept' : 'published' })}
+                    onMatchLink={r.match_highlight}
+                    onToggleMatchLink={() => changeReport(r, { match_highlight: !r.match_highlight })}
+                    onUp={atTop ? undefined : () => move(r.id, 'up')}
+                    onDown={atBottom ? undefined : () => move(r.id, 'down')}
+                    onEdit={() => onEditReport(r)}
+                    onDelete={() => removeReport(r)} />
+                )}
                 <div className="yof-card"
                   onClick={adminMode ? () => onEditReport(r) : undefined}
-                  style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default' }}>
-                  {r.status === 'concept' && (
+                  style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default', opacity: adminMode && r.status === 'concept' ? 0.5 : 1 }}>
+                  {r.status === 'concept' && !adminMode && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <span style={{ background: '#fde68a', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
                         CONCEPT
@@ -195,23 +223,7 @@ export default function PublicEntry({
                       )}
                     </div>
                   )}
-                  {adminMode && (
-                    <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 2 }}>
-                      <button onClick={e => move(r.id, 'up', e)} disabled={atTop}
-                        style={{ fontSize: 12, cursor: atTop ? 'default' : 'pointer', opacity: atTop ? 0.3 : 1 }} title="Naar boven">&#8593;</button>
-                      <button onClick={e => move(r.id, 'down', e)} disabled={atBottom}
-                        style={{ fontSize: 12, cursor: atBottom ? 'default' : 'pointer', opacity: atBottom ? 0.3 : 1 }} title="Naar beneden">&#8595;</button>
-                    </div>
-                  )}
-                  {adminMode && (
-                    <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: '#999' }}>&#9998; bewerken</span>
-                  )}
-                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>
-                    {r.title}
-                    {adminMode && r.match_highlight && (
-                      <span title="Op wedstrijdlink" style={{ marginLeft: 6, fontSize: 12, color: '#d97706' }}>&#11088;</span>
-                    )}
-                  </h4>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{r.title}</h4>
                   {(r.author_name || r.published_at) && (
                     <p style={{ margin: '0 0 4px', fontSize: 12, color: '#666' }}>
                       {r.author_name && `door ${r.author_name}`}

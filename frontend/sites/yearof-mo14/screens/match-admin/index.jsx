@@ -32,7 +32,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
   const [linksReportType, setLinksReportType] = useState('wedstrijd_beelden')
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [showGoals, setShowGoals] = useState(false)
-  const [showPhotos, setShowPhotos] = useState(false)
   const [previewKey, setPreviewKey] = useState(0) // ophogen = wedstrijdpreview opnieuw laden
   const [showLinks, setShowLinks] = useState(false)
 
@@ -170,6 +169,8 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
             matchRef={matchRef} onBack={() => {}} previewMode adminMode
             onEditReport={handleEditReport}
             onAddItem={addItemAt}
+            // Fotobeheer (item 1213) klapt open onder het blok Foto's zelf (item 1239)
+            renderPhotoManager={onChanged => <PhotoManager matchRef={matchRef} onChanged={onChanged} />}
             addLabel={pinnedPage ? '+ Bericht toevoegen' : undefined}
             onMoveReport={handleMoveReport}
             onMovePhotoBlock={handleMovePhotoBlock}
@@ -202,15 +203,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
             </div>
           )}
 
-          <button onClick={() => setShowPhotos(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
-            {showPhotos ? 'Verberg' : 'Toon'} fotobeheer
-          </button>
-          {showPhotos && (
-            <div style={{ marginBottom: 20 }}>
-              {/* Zelfde fotobeheer als de tab Foto's (item 1213), vast op deze wedstrijd */}
-              <PhotoManager matchRef={matchRef} onChanged={() => setPreviewKey(k => k + 1)} />
-            </div>
-          )}
         </>
       )}
     </div>
