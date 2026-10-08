@@ -19,7 +19,7 @@ export function LinksScreen({ matchRef, reportType, existingReport, insertAfterI
   async function create() {
     try {
       await createReportDirect({
-        match_ref: matchRef, report_type: reportType, title: meta.reportTitle, body: '', status: 'published',
+        match_ref: matchRef, report_type: reportType, title: meta.reportTitle, body: '', status: 'concept',
         links, insert_after_id: insertAfterId || null,
       })
       onBack()
@@ -38,7 +38,7 @@ export function LinksScreen({ matchRef, reportType, existingReport, insertAfterI
       ) : (
         <>
           <NewLinksEditor links={links} onChange={setLinks} fixedType={meta.linkType} />
-          <button onClick={create} className="yof-btn">Toevoegen</button>
+          <button onClick={create} className="yof-btn">Opslaan</button>
         </>
       )}
     </div>

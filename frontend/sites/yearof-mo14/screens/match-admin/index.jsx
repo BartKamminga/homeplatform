@@ -137,7 +137,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false 
       )}
       {view === 'edit' && editingReport && (
         <ReportForm
-          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport} allowNews={pinnedPage}
+          fixedMatchRef={matchRef} fixedMatchTitle={entryTitle()} existingReport={editingReport} allowNews={pinnedPage} controlsOnBar
           players={players} onToggleTag={toggleEditingReportTag}
           onSaved={backToPreview} onCancel={backToPreview} onDeleted={backToPreview} onRefresh={refreshEditingReport}
         />

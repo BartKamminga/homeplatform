@@ -19,8 +19,11 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
 export function ReportForm({
   matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId, defaultReportType,
-  players, onToggleTag, onSaved, onCancel, onDeleted, onRefresh, allowNews = false,
+  players, onToggleTag, onSaved, onCancel, onDeleted, onRefresh, allowNews = false, controlsOnBar = false,
 }) {
+  // Nieuw = altijd eerst concept; live zetten gaat via de balk op het blok of
+  // de knop Publiceren bij bewerken (item 1239). controlsOnBar: publiceren,
+  // wedstrijdlink en verwijderen staan al op de balk boven het blok.
   const isEdit = !!existingReport
   const [matchRef, setMatchRef] = useState(existingReport?.match_ref || fixedMatchRef || '')
   const [reportType, setReportType] = useState(existingReport?.report_type || defaultReportType || 'wedstrijdverslag')
@@ -83,7 +86,7 @@ export function ReportForm({
       } else {
         const links = newLinks.filter(l => l.url && l.url.trim())
         const report = await createReportDirect({
-          ...data, status: 'published', insert_after_id: insertAfterId || null,
+          ...data, status: 'concept', insert_after_id: insertAfterId || null,
           links: links.length > 0 ? links : null,
         })
         await uploadStagedPhotos(report.id, report.match_ref)
@@ -241,7 +244,7 @@ export function ReportForm({
         </div>
       )}
       <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
-        Toegevoegde fotos/filmpjes worden opgeslagen zodra je op Opslaan/Publiceren klikt. Filmpjes tot 200MB (mp4/mov/webm).
+        Toegevoegde fotos/filmpjes worden opgeslagen zodra je op Opslaan klikt. Filmpjes tot 200MB (mp4/mov/webm).
       </p>
 
       <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
@@ -277,26 +280,28 @@ export function ReportForm({
           Voorbeeld bekijken
         </button>
         <button className="yof-btn" onClick={submit} disabled={sending} style={{ flex: 1 }}>
-          {sending ? 'Opslaan...' : (isEdit ? 'Opslaan' : 'Publiceren')}
+          {sending ? 'Opslaan...' : 'Opslaan'}
         </button>
       </div>
 
       {isEdit && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button onClick={togglePublish} className="yof-btn-secondary">
-            {existingReport.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
-          </button>
+          {!controlsOnBar && (
+            <button onClick={togglePublish} className="yof-btn-secondary">
+              {existingReport.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
+            </button>
+          )}
           {reportType !== 'nieuws' && (
             <button onClick={toggleFeatured} className="yof-btn-secondary">
               {existingReport.featured ? 'Uit In de kijker halen' : 'In de kijker zetten'}
             </button>
           )}
-          {existingReport.match_ref && (
+          {existingReport.match_ref && !controlsOnBar && (
             <button onClick={toggleMatchHighlight} className="yof-btn-secondary">
               {existingReport.match_highlight ? '⭐ Uit wedstrijdlink halen' : '⭐ Op wedstrijdlink tonen'}
             </button>
           )}
-          <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>
+          {!controlsOnBar && <button onClick={remove} className="yof-btn-secondary">Verwijderen</button>}
         </div>
       )}
     </div>
