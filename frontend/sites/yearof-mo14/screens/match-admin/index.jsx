@@ -6,6 +6,7 @@ import {
   movePhotoBlock,
 } from '../../api.js'
 import { contributorLinkStatus } from '../../linkStatus.js'
+import { onDataChanged } from '../../dataChanged.js'
 import PhotoManager from '../../features/photos/PhotoManager.jsx'
 import { ReportForm } from '../ReportForm.jsx'
 import ContributeReport from '../ContributeReport.jsx'
@@ -49,6 +50,11 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
     loadReports()
     loadLinks()
   }, [matchRef])
+
+  // Na elke opslag (ook elders, bv. een invullink via Linkjes & bezoeken) de
+  // invullinks en berichten opnieuw ophalen - anders verschijnt de plaatshouder
+  // van een nieuwe invullink pas na herladen (item 1239).
+  useEffect(() => onDataChanged(() => { loadLinks(); loadReports() }), [matchRef])
 
   function entryTitle() {
     return item?.title || matchRef
