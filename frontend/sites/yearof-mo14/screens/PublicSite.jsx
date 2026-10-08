@@ -20,12 +20,18 @@ import useCompetitionAccess from '../features/competition/useCompetitionAccess.j
 // wedstrijdlink-weergave i.p.v. de volledige site op deze wedstrijd.
 const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
 
-export default function PublicSite({ previewMode = false, adminMode = false, onEditMatch, onEditPlayer, onEditGeneral }) {
-  const [view, setView] = useState(() => {
+// studio (item 1239): de beheerstudio stuurt de view zelf aan (view +
+// onViewChange) zodat het bewerkpaneel ernaast meeloopt; klikken op een
+// wedstrijd/speler navigeert dan gewoon in de preview i.p.v. te bridgen.
+export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer, onEditGeneral }) {
+  const [localView, setLocalView] = useState(() => {
     if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
     const entry = new URLSearchParams(window.location.search).get('match')
     return entry ? { name: 'entry', ref: entry } : { name: 'home' }
   })
+
+  const view = controlledView || localView
+  const setView = onViewChange || setLocalView
 
   function setUrlEntry(ref) {
     if (!syncsUrl(previewMode, adminMode)) return
@@ -43,8 +49,9 @@ export default function PublicSite({ previewMode = false, adminMode = false, onE
   // adminMode: klikken op een wedstrijd/speler stapt niet naar een lokale
   // preview-view, maar bridget meteen naar het echte wysiwyg-bewerkscherm
   // (Wedstrijden/Spelers-tabblad) - 1 pad i.p.v. twee (item 1155).
-  const openMatch = adminMode ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
-  const openPlayer = adminMode ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
+  const bridge = adminMode && !studio
+  const openMatch = bridge ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
+  const openPlayer = bridge ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
   // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232, achter 1
   // featureflag: tot vrijgave alleen voor de platformbeheerder.
   const competition = useCompetitionAccess()

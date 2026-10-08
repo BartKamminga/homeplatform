@@ -1,4 +1,16 @@
-import { api } from '@core/api.js'
+import { api as coreApi } from '@core/api.js'
+import { notifyDataChanged } from './dataChanged.js'
+
+// Elke geslaagde schrijfactie meldt zich (item 1239): de beheerstudio ververst
+// dan de preview naast het bewerkpaneel.
+const mutate = fn => (...args) => fn(...args).then(res => { notifyDataChanged(); return res })
+const api = {
+  get: coreApi.get,
+  post: mutate(coreApi.post),
+  put: mutate(coreApi.put),
+  patch: mutate(coreApi.patch),
+  delete: mutate(coreApi.delete),
+}
 import { getActiveCode } from './gate.js'
 
 // Publieke content-endpoints vereisen sinds fase 7 een geldige teamcode (of
@@ -72,6 +84,7 @@ export async function uploadPlayerPhotoAdmin(id, file) {
     const errBody = await res.json().catch(() => ({}))
     throw new Error(errBody.detail || 'Upload mislukt')
   }
+  notifyDataChanged()
   return res.json()
 }
 
@@ -126,6 +139,7 @@ export async function uploadPhoto(file, { matchRef, reportId, photoType, code })
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || 'Upload mislukt')
   }
+  notifyDataChanged()
   return res.json()
 }
 

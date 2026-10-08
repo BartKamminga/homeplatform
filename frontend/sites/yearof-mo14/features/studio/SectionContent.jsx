@@ -1,0 +1,33 @@
+import PlayersAdmin from '../../screens/PlayersAdmin.jsx'
+import TimelineAdmin from '../../screens/TimelineAdmin.jsx'
+import LinksAdmin from '../../screens/LinksAdmin.jsx'
+import ActionAdmin from '../../screens/ActionAdmin.jsx'
+import SponsorsAdmin from '../../screens/SponsorsAdmin.jsx'
+import PhotosAdmin from '../../screens/PhotosAdmin.jsx'
+import ReportsAdmin from '../../screens/ReportsAdmin.jsx'
+import MatchAdminDetail from '../../screens/match-admin/index.jsx'
+import InfoPanel from './InfoPanel.jsx'
+
+// Het bewerkscherm voor 1 panel (zie studioSync.js). Gedeeld door de
+// beheerstudio (groot scherm) en het tabbladenbeheer (klein scherm).
+// key op de schermen met initialEditId: die lezen hun startwaarde 1x in,
+// dus bij een andere speelster/bericht opnieuw mounten.
+export default function SectionContent({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
+  switch (panel.section) {
+    case 'home':
+    case 'competitie':
+      return <InfoPanel section={panel.section} onSelectSection={onSelectSection} />
+    case 'spelers':
+      return <PlayersAdmin key={panel.playerId || 'list'} initialEditId={panel.playerId} />
+    case 'wedstrijden':
+      return panel.matchRef
+        ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
+        : <TimelineAdmin onOpenMatch={onOpenMatch} />
+    case 'toegang': return <LinksAdmin />
+    case 'fotos': return <PhotosAdmin />
+    case 'verslagen': return <ReportsAdmin key={panel.reportId || 'list'} initialEditId={panel.reportId} />
+    case 'actie': return <ActionAdmin />
+    case 'sponsors': return <SponsorsAdmin />
+    default: return null
+  }
+}
