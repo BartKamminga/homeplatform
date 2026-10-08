@@ -4,6 +4,7 @@ import PositionChances from './PositionChances.jsx'
 import CompetitionStandings from './CompetitionStandings.jsx'
 import PouleResults from './PouleResults.jsx'
 import RegroupingForecast from './RegroupingForecast.jsx'
+import PageTitle from '../pages/PageTitle.jsx'
 
 // Tab "Competitie" (items 1229, 1231, 1232): alles rond het eigen team -
 // kans op eindplek, uitslagen/programma in de eigen poule en de
@@ -20,7 +21,7 @@ export default function CompetitionTab({ access, editMode = false }) {
   return (
     <div>
       {editMode && <FeatureFlagBar access={access} page="competition" />}
-      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Competitie{config.poule_name ? ` · ${config.poule_name}` : ''}</h2>
+      <PageTitle view="competition" suffix={config.poule_name ? ` · ${config.poule_name}` : ''} />
       {block('competition.standings', 'Pouletabel', <CompetitionStandings />)}
       {block('competition.chances', 'Kans op elke eindplek', <PositionChances pouleId={config.poule_id} teamId={config.team_id} />)}
       {block('competition.results', 'Uitslagen en programma', <PouleResults pouleId={config.poule_id} teamName={config.team_name} />, roundOptions)}

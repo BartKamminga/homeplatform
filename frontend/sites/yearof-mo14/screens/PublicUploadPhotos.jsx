@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getTimeline, uploadPhoto } from '../api.js'
 import { compressImage } from '../compressImage.js'
 import { getStoredCode } from '../gate.js'
+import PageTitle from '../features/pages/PageTitle.jsx'
 
 export default function PublicUploadPhotos() {
   const [entries, setEntries] = useState([])
@@ -65,7 +66,7 @@ export default function PublicUploadPhotos() {
 
   return (
     <div>
-      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Foto&rsquo;s &amp; filmpjes toevoegen</h2>
+      <PageTitle view="upload" />
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>Bij welke wedstrijd/dag?</label>
       <select value={matchRef} onChange={e => setMatchRef(e.target.value)}

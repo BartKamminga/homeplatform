@@ -12,6 +12,8 @@ import ActionPageAdmin from './ActionPageAdmin.jsx'
 import TimelineBlocksAdmin from './TimelineBlocksAdmin.jsx'
 import PageSwitch, { PAGES } from '../blocks/PageSwitch.jsx'
 import CompetitionAdmin from './CompetitionAdmin.jsx'
+import PageSettingsCard from '../pages/PageSettingsCard.jsx'
+import usePageMeta, { SECTION_VIEW } from '../pages/pageMeta.js'
 
 // Het bewerkscherm voor 1 panel (zie studioSync.js). Gedeeld door de
 // beheerstudio (groot scherm) en het tabbladenbeheer (klein scherm).
@@ -21,16 +23,20 @@ export default function SectionContent(props) {
   const { panel } = props
   // Pagina's in het menu: bovenaan live/concept voor de hele pagina (item 1239).
   const page = PAGES[panel.section]
-  const showSwitch = page && !(panel.section === 'wedstrijden' && panel.matchRef)
+  const onPage = !(panel.section === 'wedstrijden' && panel.matchRef)
+  // Naam/icoon/titel/ondertitel van elke vaste pagina, ingeklapt (item 1248).
+  const view = SECTION_VIEW[panel.section]
+  const meta = usePageMeta()
   return (
     <>
-      {showSwitch && <PageSwitch id={page.id} label={page.label} />}
-      <SectionBody {...props} />
+      {page && onPage && <PageSwitch id={page.id} label={meta(view).label} />}
+      {view && onPage && <PageSettingsCard key={view} view={view} />}
+      <SectionBody {...props} spotlightPage={{ ...SPOTLIGHT_PAGE, ...meta('spotlight') }} />
     </>
   )
 }
 
-function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
+function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection, spotlightPage }) {
   if (panel.section.startsWith('custom:')) {
     const id = panel.section.slice(7)
     return <CustomPageAdmin key={id} pageId={id} onDeleted={() => onSelectSection('home')} />
@@ -49,7 +55,7 @@ function SectionBody({ panel, onOpenMatch, onCloseMatch, onSelectSection }) {
       return panel.matchRef
         ? <MatchAdminDetail key={panel.matchRef} matchRef={panel.matchRef} onBack={onCloseMatch} />
         : <TimelineAdmin onOpenMatch={onOpenMatch} footer={<TimelineBlocksAdmin />} />
-    case 'kijker': return <CustomPageAdmin fixedPage={SPOTLIGHT_PAGE} />
+    case 'kijker': return <CustomPageAdmin fixedPage={spotlightPage} />
     case 'toegang': return <LinksAdmin />
     case 'fotobeheer': return <PhotosAdmin />
     case 'berichten': return <ReportsManager />

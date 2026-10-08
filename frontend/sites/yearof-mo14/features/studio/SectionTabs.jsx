@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { createCustomPage, setBlockLive } from '../../api.js'
 import useCustomPages, { MAX_CUSTOM_PAGES } from '../pages/useCustomPages.js'
 import { buildSections } from './studioSync.js'
+import usePageMeta, { SECTION_VIEW } from '../pages/pageMeta.js'
 
 // Tabbalk van het beheer: de pagina's van de site in menuvolgorde, dan de eigen
 // pagina's (+ Pagina zolang er minder dan 3 zijn), dan wat geen eigen pagina
 // heeft (item 1239). extraTabs: bv. "Bekijk site" op een klein scherm.
 export default function SectionTabs({ active, onSelect, extraTabs = [] }) {
   const customPages = useCustomPages()
+  const meta = usePageMeta()
+  // Namen van de vaste pagina's zoals ingesteld (item 1248)
   const sections = [...buildSections(customPages), ...extraTabs]
+    .map(s => (SECTION_VIEW[s.key] ? { ...s, label: meta(SECTION_VIEW[s.key]).label } : s))
   const [busy, setBusy] = useState(false)
   const firstExtra = sections.findIndex(s => s.extra)
 

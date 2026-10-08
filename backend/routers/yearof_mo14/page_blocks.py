@@ -144,7 +144,7 @@ def set_block_settings(
     """Alleen platformbeheerder - instellingen van 1 blok samenvoegen (None = weghalen)."""
     if not is_known_block(block_id):
         raise HTTPException(status_code=404, detail="Onbekend blok")
-    if len(body) > 10 or any(len(k) > 40 or (isinstance(v, str) and len(v) > 80) for k, v in body.items()):
+    if len(body) > 10 or any(len(k) > 40 or (isinstance(v, str) and len(v) > 200) for k, v in body.items()):
         raise HTTPException(status_code=422, detail="Te veel of te lange instellingen")
     settings = load_block_settings(session)
     merged = {**settings.get(block_id, {}), **body}

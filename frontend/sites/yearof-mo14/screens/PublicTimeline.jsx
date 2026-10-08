@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getTimeline, getStandings } from '../api.js'
 import NationalQueries from './NationalQueries.jsx'
 import PageBlock from '../features/blocks/PageBlock.jsx'
+import PageTitle from '../features/pages/PageTitle.jsx'
 
 function fmtDate(iso) {
   if (!iso) return '-'
@@ -40,7 +41,7 @@ export default function PublicTimeline({ onOpenEntry }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Wedstrijden &amp; bijzondere dagen</h2>
+      <PageTitle view="timeline" />
       {error && <p style={{ color: '#c23b3b' }}>{error}</p>}
       {items.map(it => {
         const isNext = it.match_ref === nextMatch?.match_ref

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPlayers } from '../api.js'
+import PageTitle from '../features/pages/PageTitle.jsx'
 
 export default function PublicTeam({ onOpenPlayer }) {
   const [players, setPlayers] = useState([])
@@ -11,7 +12,7 @@ export default function PublicTeam({ onOpenPlayer }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Het team</h2>
+      <PageTitle view="team" />
       {error && <p style={{ color: '#c23b3b' }}>{error}</p>}
       <div className="yof-grid">
         {players.map(p => (

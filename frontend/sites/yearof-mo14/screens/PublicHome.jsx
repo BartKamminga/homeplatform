@@ -6,6 +6,7 @@ import PageBlock from '../features/blocks/PageBlock.jsx'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { PouleCard } from './PouleCard.jsx'
 import { stripFormatting } from './FormattedText.jsx'
+import usePageMeta from '../features/pages/pageMeta.js'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -44,6 +45,7 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, onOp
   const [playerSpotlight, setPlayerSpotlight] = useState(null)
   const { conceptBlocks, setting } = usePageBlocks()
   const homeCount = setting('home.spotlight', 'count', 4)
+  const home = usePageMeta()('home') // kop instelbaar (item 1248)
 
   useEffect(() => {
     getActionSettings().then(setSettings).catch(() => {})
@@ -82,11 +84,11 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, onOp
 
   return (
     <div>
-      {block('home.hero', 'Kop "Samen op naar Parijs!"', (
+      {block('home.hero', 'Kop', (
         <div className="yof-hero">
-          <div style={{ fontSize: 32 }}>🗼</div>
-          <h1>Samen op naar Parijs!</h1>
-          <p>Volg het team, bekijk de wedstrijden en steun de actie voor onze teamtrip.</p>
+          {home.icon && <div style={{ fontSize: 32 }}>{home.icon}</div>}
+          <h1>{home.title}</h1>
+          {home.subtitle && <p>{home.subtitle}</p>}
           <PageBlock id="action.thermometer">
             <div style={{ marginTop: 16 }}>
               <Thermometer settings={settings} />

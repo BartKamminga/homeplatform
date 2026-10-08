@@ -3,6 +3,7 @@ import FeatureFlagBar from './FeatureFlagBar.jsx'
 import PageBlock from '../blocks/PageBlock.jsx'
 import TopklasseOverview from './TopklasseOverview.jsx'
 import RegroupingFull from './RegroupingFull.jsx'
+import PageTitle from '../pages/PageTitle.jsx'
 
 // Tab "Topklasse" (item 1230): de bredere, landelijke blik op de hele MO14
 // Topklasse - alle poules per district, de hele herindelingsprognose en de
@@ -15,7 +16,7 @@ export default function TopklasseTab({ access, editMode = false }) {
   return (
     <div>
       {editMode && <FeatureFlagBar access={access} page="topklasse" />}
-      <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Topklasse MO14 landelijk</h2>
+      <PageTitle view="topklasse" />
       {block('topklasse.overview', 'Alle Topklasse-poules', <TopklasseOverview tournamentId={config.tournament_id} teamId={config.team_id} />)}
       {block('topklasse.regrouping', 'Volledige herindeling', <RegroupingFull tournamentId={config.tournament_id} teamId={config.team_id} />)}
       {block('topklasse.national', 'Landelijke ranglijst en belangrijke wedstrijden', <NationalQueries />)}

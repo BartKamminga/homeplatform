@@ -12,6 +12,7 @@ import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
 import useCompetitionAccess from '../features/competition/useCompetitionAccess.js'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
+import usePageMeta from '../features/pages/pageMeta.js'
 
 // Deeplinks (?match=<matchRef>) alleen op de echte publieke site syncen -
 // niet in de admin "Bekijk site"-preview, die leeft in de admin-URL. Bewust
@@ -66,6 +67,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   const { conceptBlocks } = usePageBlocks()
   // Eigen pagina's (max 3, bv. Parijs weekend): view { name: 'custom', id }.
   const customPages = useCustomPages()
+  const meta = usePageMeta() // naam/kop per vaste pagina (item 1248)
   const customPage = view.name === 'custom' ? customPages.find(p => p.id === view.id) : null
   const pageLive = name => {
     if (name === 'competition') return competition.visible
@@ -83,14 +85,8 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
       </div>
       <div className="yof-nav">
         {[
-          { key: 'action', label: 'Actie' },
-          { key: 'spotlight', label: 'In de kijker' },
-          { key: 'team', label: 'Team' },
-          { key: 'timeline', label: 'Wedstrijden' },
-          { key: 'competition', label: 'Competitie' },
-          { key: 'topklasse', label: 'Topklasse' },
-          { key: 'upload', label: "Foto's toevoegen" },
-        ].filter(t => pageLive(t.key)).map(t => (
+          'action', 'spotlight', 'team', 'timeline', 'competition', 'topklasse', 'upload',
+        ].map(key => ({ key, label: meta(key).label })).filter(t => pageLive(t.key)).map(t => (
           <button key={t.key} className={view.name === t.key ? 'active' : ''} onClick={() => nav(t.key)}>
             {t.label}
           </button>
@@ -106,7 +102,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer}
           onOpenPage={ref => { const v = viewForPageRef(ref); if (v) { setView(v); setUrlEntry(null) } }} />}
         {show('action') && <PublicAction />}
-        {show('spotlight') && <CustomPage page={SPOTLIGHT_PAGE} onBack={() => nav('home')} previewMode={showConcepts} />}
+        {show('spotlight') && <CustomPage page={{ ...SPOTLIGHT_PAGE, ...meta('spotlight') }} onBack={() => nav('home')} previewMode={showConcepts} />}
         {show('team') && <PublicTeam onOpenPlayer={openPlayer} />}
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={controls} />}
         {show('timeline') && <PublicTimeline onOpenEntry={openMatch} />}
