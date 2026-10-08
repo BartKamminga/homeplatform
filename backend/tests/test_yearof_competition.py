@@ -20,6 +20,14 @@ def test_competition_flag_only_platform_admin(client, admin_token, session):
     assert res.status_code == 200
     assert client.get(f"{API}/competition").json()["public"] is True
 
+    # Topklasse staat apart (item 1239)
+    assert client.get(f"{API}/competition").json()["topklasse_public"] is False
+    res = client.put(f"{API}/competition/public", json={"public": True, "page": "topklasse"}, headers=_auth(admin_token))
+    assert res.status_code == 200
+    cfg = client.get(f"{API}/competition").json()
+    assert cfg["topklasse_public"] is True and cfg["public"] is True
+    assert client.put(f"{API}/competition/public", json={"public": True, "page": "onzin"}, headers=_auth(admin_token)).status_code == 422
+
     # Andere ingelogde gebruiker (bv. teambeheerder) niet
     session.add(User(username="laura", email="laura@test.nl", password_hash=hash_password("Pass12345")))
     session.commit()

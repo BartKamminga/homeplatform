@@ -52,8 +52,8 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   const bridge = adminMode && !studio
   const openMatch = bridge ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
   const openPlayer = bridge ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
-  // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232, achter 1
-  // featureflag: tot vrijgave alleen voor de platformbeheerder.
+  // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232: elk
+  // een eigen featureflag; op concept staan ze nergens in het menu (item 1239).
   const competition = useCompetitionAccess()
 
   return (
@@ -68,7 +68,8 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
           { key: 'spotlight', label: 'In de kijker' },
           { key: 'team', label: 'Team' },
           { key: 'timeline', label: 'Wedstrijden' },
-          ...(competition.visible ? [{ key: 'competition', label: 'Competitie' }, { key: 'topklasse', label: 'Topklasse' }] : []),
+          ...(competition.visible ? [{ key: 'competition', label: 'Competitie' }] : []),
+          ...(competition.topklasseVisible ? [{ key: 'topklasse', label: 'Topklasse' }] : []),
           { key: 'upload', label: "Foto's toevoegen" },
           { key: 'pinksterweekend', label: 'Parijs weekend' },
         ].map(t => (
@@ -85,8 +86,10 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {view.name === 'player' && <PublicPlayer playerId={view.id} onBack={() => nav('team')} adminMode={adminMode} />}
         {view.name === 'timeline' && <PublicTimeline onOpenEntry={openMatch} />}
         {view.name === 'competition' && competition.visible && <CompetitionTab access={competition} />}
-        {view.name === 'topklasse' && competition.visible && <TopklasseTab access={competition} />}
-        {studio && (view.name === 'competition' || view.name === 'topklasse') && competition.config && !competition.visible && (
+        {view.name === 'topklasse' && competition.topklasseVisible && <TopklasseTab access={competition} />}
+        {studio && competition.config && (
+          (view.name === 'competition' && !competition.visible) || (view.name === 'topklasse' && !competition.topklasseVisible)
+        ) && (
           <p style={{ fontSize: 13, color: '#888', textAlign: 'center', marginTop: 40 }}>
             Deze pagina staat op concept - bezoekers zien hem niet, ook niet in het menu.
           </p>

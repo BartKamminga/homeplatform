@@ -14,7 +14,7 @@ export default function TopklasseTab({ access, editMode = false }) {
   const block = (id, label, el) => <PageBlock id={id} label={label} editMode={editMode}>{el}</PageBlock>
   return (
     <div>
-      {editMode && <FeatureFlagBar access={access} />}
+      {editMode && <FeatureFlagBar access={access} page="topklasse" />}
       <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Topklasse MO14 landelijk</h2>
       {block('topklasse.overview', 'Alle Topklasse-poules', <TopklasseOverview tournamentId={config.tournament_id} teamId={config.team_id} />)}
       {block('topklasse.regrouping', 'Volledige herindeling', <RegroupingFull tournamentId={config.tournament_id} teamId={config.team_id} />)}
