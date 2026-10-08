@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react'
 import { getPouleMatches } from '../../api.js'
 import { fmtRoundDate } from './MatchRow.jsx'
 import RoundRolodex from './RoundRolodex.jsx'
+import usePageBlocks from '../blocks/usePageBlocks.js'
 
 // Item 1229: alle wedstrijden van de poule (niet alleen die van Victoria),
 // per speelronde, als rolodex: altijd 2 rondes in beeld (start: afgelopen +
 // volgende ronde), bladeren schuift 1 ronde op. Zie RoundRolodex.
 
-export default function PouleResults({ pouleId, teamName }) {
+// blockId: welke blokinstelling het aantal rondes bepaalt (item 1244).
+export default function PouleResults({ pouleId, teamName, blockId = 'competition.results' }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const { setting } = usePageBlocks()
 
   useEffect(() => {
     getPouleMatches(pouleId).then(setData).catch(e => setError(e.message))
@@ -42,7 +45,8 @@ export default function PouleResults({ pouleId, teamName }) {
   return (
     <div className="yof-card" style={{ marginBottom: 14 }}>
       <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>Uitslagen en programma</h3>
-      <RoundRolodex rounds={list} startIndex={startIndex} isPlayed={isPlayed} labels={labels} teamName={teamName} />
+      <RoundRolodex rounds={list} startIndex={startIndex} isPlayed={isPlayed} labels={labels} teamName={teamName}
+        windowSize={setting(blockId, 'window', 2)} />
     </div>
   )
 }

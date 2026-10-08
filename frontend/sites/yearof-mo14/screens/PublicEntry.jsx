@@ -18,7 +18,9 @@ export default function PublicEntry({
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
-  const [lightboxIndex, setLightboxIndex] = useState(null)
+  // Lightbox per blok (item 1243): alleen door de foto's van het blok waarin je klikte swipen.
+  const [lightbox, setLightbox] = useState(null) // { list, index }
+  const openLightbox = (list, photo) => setLightbox({ list, index: list.findIndex(x => x.id === photo.id) })
   const [error, setError] = useState('')
   // Eigen pagina (bv. 'page:pinksterweekend', item 1239): zelfde berichten/foto's,
   // maar zonder wedstrijd/dag erachter - geen kop en geen terug-link.
@@ -104,7 +106,8 @@ export default function PublicEntry({
       )}
       {!isPage && <EntryHeader item={item} />}
 
-      <PhotoLightbox photos={photos} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
+      <PhotoLightbox photos={lightbox?.list || []} index={lightbox?.index ?? null} onClose={() => setLightbox(null)}
+        onNavigate={i => setLightbox(l => ({ ...l, index: i }))} />
       {confirmDialog}
 
       {(() => {
@@ -165,7 +168,7 @@ export default function PublicEntry({
                   {unassignedPublished.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
                       {unassignedPublished.map(p => (
-                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); setLightboxIndex(photos.findIndex(x => x.id === p.id)) }}>
+                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); openLightbox(unassignedPublished, p) }}>
                           <PhotoThumb photo={p} />
                         </a>
                       ))}
@@ -224,7 +227,7 @@ export default function PublicEntry({
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
                         {reportPhotos.map(p => (
                           <a key={p.id} href="#"
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); setLightboxIndex(photos.findIndex(x => x.id === p.id)) }}
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); openLightbox(reportPhotos, p) }}
                             style={{ position: 'relative', display: 'block' }}>
                             <PhotoThumb photo={p} />
                             {p.status === 'concept' && (

@@ -78,11 +78,12 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   return (
     <div className="yof">
       <div className="yof-header">
-        <div className="brand">🏑 MO14 à Paris</div>
+        {/* Klik op het logo = Home (item 1245) - scheelt een tab in het menu */}
+        <div className="brand" role="link" tabIndex={0} style={{ cursor: 'pointer' }}
+          onClick={() => nav('home')} onKeyDown={e => { if (e.key === 'Enter') nav('home') }}>🏑 MO14 à Paris</div>
       </div>
       <div className="yof-nav">
         {[
-          { key: 'home', label: 'Home' },
           { key: 'action', label: 'Actie' },
           { key: 'spotlight', label: 'In de kijker' },
           { key: 'team', label: 'Team' },
@@ -90,7 +91,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
           { key: 'competition', label: 'Competitie' },
           { key: 'topklasse', label: 'Topklasse' },
           { key: 'upload', label: "Foto's toevoegen" },
-        ].filter(t => t.key === 'home' || pageLive(t.key)).map(t => (
+        ].filter(t => pageLive(t.key)).map(t => (
           <button key={t.key} className={view.name === t.key ? 'active' : ''} onClick={() => nav(t.key)}>
             {t.label}
           </button>

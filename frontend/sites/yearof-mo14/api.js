@@ -42,6 +42,9 @@ export const getCompetition        = ()       => api.get('/api/yearof-mo14/compe
 export const setCompetitionPublic  = (pub, page = 'competition') => api.put('/api/yearof-mo14/competition/public', { public: pub, page })
 // Blokken per pagina live/concept (item 1239) - concept = alleen voor de platformbeheerder
 export const getConceptBlocks      = ()       => api.get('/api/yearof-mo14/blocks')
+// Instellingen per blok (item 1248), bv. { 'competition.results': { window: 3 } }
+export const getBlockSettings      = ()       => api.get('/api/yearof-mo14/block-settings')
+export const setBlockSettings      = (id, body) => api.put(`/api/yearof-mo14/block-settings/${encodeURIComponent(id)}`, body)
 // Eigen pagina's (max 3, item 1239)
 export const getCustomPages        = ()       => api.get('/api/yearof-mo14/custom-pages')
 export const createCustomPage      = (body)   => api.post('/api/yearof-mo14/custom-pages', body)

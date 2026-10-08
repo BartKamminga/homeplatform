@@ -77,3 +77,13 @@ def test_custom_pages_max_three(client, admin_token):
     assert client.put(f"{API}/blocks/page.{t['id']}", json={"live": False}, headers=_auth(admin_token)).status_code == 200
     assert client.delete(f"{API}/custom-pages/{t['id']}", headers=_auth(admin_token)).status_code == 200
     assert len(client.get(f"{API}/custom-pages").json()) == 2
+
+
+def test_block_settings(client, admin_token):
+    assert client.get(f"{API}/block-settings").json() == {}
+    res = client.put(f"{API}/block-settings/competition.results", json={"window": 3}, headers=_auth(admin_token))
+    assert res.json() == {"window": 3}
+    client.put(f"{API}/block-settings/competition.results", json={"window": "all"}, headers=_auth(admin_token))
+    assert client.get(f"{API}/block-settings").json() == {"competition.results": {"window": "all"}}
+    assert client.put(f"{API}/block-settings/competition.results", json={"window": 3}).status_code == 401
+    assert client.put(f"{API}/block-settings/bestaat.niet", json={"a": 1}, headers=_auth(admin_token)).status_code == 404

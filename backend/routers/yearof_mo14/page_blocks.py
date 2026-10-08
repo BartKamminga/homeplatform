@@ -8,6 +8,7 @@ app_settings; bij het instantiemodel (1236) gaat dit per instantie.
 
 import json
 import re
+from typing import Union
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +29,7 @@ KNOWN_BLOCKS = {
     "competition.chances",
     "competition.results",
     "competition.regrouping",
+    "competition.standings",
     "topklasse.overview",
     "topklasse.regrouping",
     "topklasse.national",
@@ -110,3 +112,46 @@ def set_block_state(
     session.add(row)
     session.commit()
     return {"concept": sorted(concept)}
+
+
+# Instellingen per blok/pagina (item 1248), bv. {"competition.results": {"window": 3}}.
+# Alleen kleine, platte waarden - de frontend kent per blok de mogelijke keuzes.
+BLOCK_SETTINGS_KEY = "yearof_block_settings"
+SettingValue = Union[str, int, bool, None]
+
+
+def load_block_settings(session: Session) -> dict:
+    row = session.get(AppSetting, BLOCK_SETTINGS_KEY)
+    try:
+        return json.loads(row.value) if row and row.value else {}
+    except ValueError:
+        return {}
+
+
+@router.get("/block-settings")
+def get_block_settings(session: Session = Depends(get_session)):
+    """Publiek - instellingen per blok (aantallen, weergave)."""
+    return load_block_settings(session)
+
+
+@router.put("/block-settings/{block_id}")
+def set_block_settings(
+    block_id: str,
+    body: dict[str, SettingValue],
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    """Alleen platformbeheerder - instellingen van 1 blok samenvoegen (None = weghalen)."""
+    if not is_known_block(block_id):
+        raise HTTPException(status_code=404, detail="Onbekend blok")
+    if len(body) > 10 or any(len(k) > 40 or (isinstance(v, str) and len(v) > 80) for k, v in body.items()):
+        raise HTTPException(status_code=422, detail="Te veel of te lange instellingen")
+    settings = load_block_settings(session)
+    merged = {**settings.get(block_id, {}), **body}
+    settings[block_id] = {k: v for k, v in merged.items() if v is not None}
+    row = session.get(AppSetting, BLOCK_SETTINGS_KEY) or AppSetting(key=BLOCK_SETTINGS_KEY)
+    row.value = json.dumps(settings)
+    row.updated_at = datetime.utcnow()
+    session.add(row)
+    session.commit()
+    return settings[block_id]

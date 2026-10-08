@@ -7,9 +7,11 @@ import MatchRow, { fmtRoundDate } from './MatchRow.jsx'
 // (gevuld = gespeeld, donker = in beeld); klik op een stip = daarheen.
 // rounds = [{ round, matches }] op volgorde; labels = { [round]: 'Afgelopen ronde' | ... }
 
-const WINDOW = 2
-
-export default function RoundRolodex({ rounds, startIndex, isPlayed, labels, teamName }) {
+// windowSize (item 1244, instelling van het blok): 2 of 3 rondes in beeld,
+// of 'all' = alle rondes onder elkaar, zonder bladeren (gewoon scrollen).
+export default function RoundRolodex({ rounds, startIndex, isPlayed, labels, teamName, windowSize = 2 }) {
+  const all = windowSize === 'all'
+  const WINDOW = all ? rounds.length : windowSize
   const maxStart = Math.max(0, rounds.length - WINDOW)
   const [start, setStart] = useState(Math.min(Math.max(0, startIndex), maxStart))
   const [direction, setDirection] = useState('')
@@ -43,24 +45,26 @@ export default function RoundRolodex({ rounds, startIndex, isPlayed, labels, tea
         if (Math.abs(dx) > 40) goTo(start + (dx < 0 ? 1 : -1))
         touchX.current = null
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 6px' }}>
-        <button onClick={() => goTo(start - 1)} disabled={start === 0} style={arrow(start === 0)} aria-label="Eerdere ronde">&lsaquo;</button>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 5, flexWrap: 'wrap' }}>
-          {rounds.map((r, i) => {
-            const inView = i >= start && i < start + WINDOW
-            return (
-              <button key={r.round} onClick={() => goTo(Math.min(i, maxStart))} aria-label={`Ronde ${r.round}`} title={`Ronde ${r.round}`} style={{
-                width: inView ? 16 : 8, height: 8, borderRadius: 999, border: 'none', padding: 0, cursor: 'pointer',
-                background: inView ? '#12203c' : isPlayed(r) ? '#9aa5c0' : '#dfe3ec', transition: 'width .2s',
-              }} />
-            )
-          })}
+      {!all && <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 6px' }}>
+          <button onClick={() => goTo(start - 1)} disabled={start === 0} style={arrow(start === 0)} aria-label="Eerdere ronde">&lsaquo;</button>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 5, flexWrap: 'wrap' }}>
+            {rounds.map((r, i) => {
+              const inView = i >= start && i < start + WINDOW
+              return (
+                <button key={r.round} onClick={() => goTo(Math.min(i, maxStart))} aria-label={`Ronde ${r.round}`} title={`Ronde ${r.round}`} style={{
+                  width: inView ? 16 : 8, height: 8, borderRadius: 999, border: 'none', padding: 0, cursor: 'pointer',
+                  background: inView ? '#12203c' : isPlayed(r) ? '#9aa5c0' : '#dfe3ec', transition: 'width .2s',
+                }} />
+              )
+            })}
+          </div>
+          <button onClick={() => goTo(start + 1)} disabled={start >= maxStart} style={arrow(start >= maxStart)} aria-label="Latere ronde">&rsaquo;</button>
         </div>
-        <button onClick={() => goTo(start + 1)} disabled={start >= maxStart} style={arrow(start >= maxStart)} aria-label="Latere ronde">&rsaquo;</button>
-      </div>
-      <div style={{ textAlign: 'center', fontSize: 11, color: '#999', marginBottom: 4 }}>
-        Ronde {first.round}{lastShown !== first ? `–${lastShown.round}` : ''} van {rounds.length}
-      </div>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#999', marginBottom: 4 }}>
+          Ronde {first.round}{lastShown !== first ? `–${lastShown.round}` : ''} van {rounds.length}
+        </div>
+      </>}
 
       <div key={start} className={direction ? `yof-rolodex-${direction}` : ''}>
         {shown.map(r => (

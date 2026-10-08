@@ -1,6 +1,7 @@
 import FeatureFlagBar from './FeatureFlagBar.jsx'
 import PageBlock from '../blocks/PageBlock.jsx'
 import PositionChances from './PositionChances.jsx'
+import CompetitionStandings from './CompetitionStandings.jsx'
 import PouleResults from './PouleResults.jsx'
 import RegroupingForecast from './RegroupingForecast.jsx'
 
@@ -12,13 +13,17 @@ import RegroupingForecast from './RegroupingForecast.jsx'
 export default function CompetitionTab({ access, editMode = false }) {
   const { config } = access
   if (!config) return null
-  const block = (id, label, el) => <PageBlock id={id} label={label} editMode={editMode}>{el}</PageBlock>
+  const block = (id, label, el, options) => <PageBlock id={id} label={label} editMode={editMode} options={options}>{el}</PageBlock>
+  // Uitslagen en programma: hoeveel rondes in beeld (item 1244)
+  const roundOptions = [{ key: 'window', label: 'Rondes', fallback: 2,
+    choices: [{ value: 2, label: '2' }, { value: 3, label: '3' }, { value: 'all', label: 'Alles' }] }]
   return (
     <div>
       {editMode && <FeatureFlagBar access={access} page="competition" />}
       <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Competitie{config.poule_name ? ` · ${config.poule_name}` : ''}</h2>
+      {block('competition.standings', 'Pouletabel', <CompetitionStandings />)}
       {block('competition.chances', 'Kans op elke eindplek', <PositionChances pouleId={config.poule_id} teamId={config.team_id} />)}
-      {block('competition.results', 'Uitslagen en programma', <PouleResults pouleId={config.poule_id} teamName={config.team_name} />)}
+      {block('competition.results', 'Uitslagen en programma', <PouleResults pouleId={config.poule_id} teamName={config.team_name} />, roundOptions)}
       {block('competition.regrouping', 'Herindelingsprognose', <RegroupingForecast tournamentId={config.tournament_id} teamId={config.team_id} />)}
     </div>
   )
