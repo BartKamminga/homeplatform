@@ -6,10 +6,12 @@ import { contributorLinkStatus } from '../linkStatus.js'
 // 1 blok (LinkSection) per soort link. Klik op een rij voor de bezoeken per
 // dag. Gebruikt via LinkPanel op de Linkjes-tab, wedstrijd- en spelerspagina.
 
+// level = niveau zoals in de studio (Bekijk site als: Team / Fans / Openbaar) -
+// wat iemand met deze link te zien krijgt; invul- en profiellinks hebben er geen.
 export const SECTIONS = [
-  { key: 'site', title: 'Sitelinks', hint: 'ouder-WhatsApp, hele site' },
-  { key: 'match', title: 'Wedstrijdlinks', hint: 'Vrienden-van-WhatsApp, 1 wedstrijd' },
-  { key: 'player', title: 'Spelerslinks', hint: 'Vrienden-van-WhatsApp, 1 speelster' },
+  { key: 'site', title: 'Sitelinks', level: 'Team', hint: 'ouder-WhatsApp, hele site' },
+  { key: 'match', title: 'Wedstrijdlinks', level: 'Fans', hint: 'Vrienden-van-WhatsApp, 1 wedstrijd' },
+  { key: 'player', title: 'Spelerslinks', level: 'Fans', hint: 'Vrienden-van-WhatsApp, 1 speelster' },
   { key: 'contribute', title: 'Invullinks', hint: 'verslag/interview insturen' },
   { key: 'profile', title: 'Profiellinks', hint: 'speelster werkt eigen profiel bij, permanent' },
 ]
@@ -175,6 +177,12 @@ export function LinkSection({ section, links, onRevoke, actions = null }) {
         background: '#f4f6fb', borderBottom: '1px solid #e6e9f0', borderLeft: '4px solid #f4c81e',
       }}>
         <h4 style={{ fontSize: 14, margin: 0 }}>{section.title}</h4>
+        {section.level && (
+          <span style={{
+            alignSelf: 'center', fontSize: 11, fontWeight: 700, color: 'white', borderRadius: 999, padding: '2px 9px',
+            background: section.level === 'Fans' ? '#d97706' : '#12203c',
+          }}>{section.level}</span>
+        )}
         <span style={{ color: '#888', fontSize: 12, flex: 1 }}>{section.hint}</span>
         <span style={{ fontSize: 12, fontWeight: 700, background: '#12203c', color: '#fff', borderRadius: 999, padding: '1px 8px' }}>
           {active.length}
