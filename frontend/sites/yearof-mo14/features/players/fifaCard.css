@@ -17,7 +17,8 @@
 .yof-fc .rating .pos { font-size: 6.5cqw; font-weight: 800; margin-top: .8cqw; letter-spacing: .04em; }
 .yof-fc .rating .club { width: 11.3cqw; height: 11.3cqw; margin-top: 3.4cqw; border-radius: 50%; background: #fff; display: inline-flex; align-items: center; justify-content: center; }
 .yof-fc .rating .club img { width: 8.7cqw; height: 8.7cqw; object-fit: contain; }
-.yof-fc .rating .shirtno { font-size: 5.2cqw; font-weight: 800; margin-top: 2.6cqw; opacity: .85; }
+/* rugnummer: zelfde dikke cijfers als het totaal, iets kleiner */
+.yof-fc .rating .shirtno { font-size: 10.4cqw; font-weight: 900; margin-top: 2.6cqw; }
 .yof-fc .rating .goals { margin-top: 2.6cqw; font-size: 5.2cqw; font-weight: 900; }
 .yof-fc .bottom { position: absolute; left: 0; right: 0; top: 63%; text-align: center; color: var(--ink); z-index: 2; padding-top: 2.6cqw; }
 .yof-fc .name { font-size: 9.6cqw; font-weight: 900; text-shadow: var(--shadow, none); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12%; }

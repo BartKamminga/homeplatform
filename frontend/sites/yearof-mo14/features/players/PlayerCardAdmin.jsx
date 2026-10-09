@@ -66,7 +66,7 @@ export default function PlayerCardAdmin({ playerId }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 6, marginBottom: 10 }}>
             {STAT_KEYS.map(k => (
               <label key={k} title={STAT_LABELS[k]} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontWeight: 700, fontSize: 11, color: '#555' }}>
-                {k}
+                <span>{k}<span style={{ display: 'block', fontWeight: 400, fontSize: 10, color: '#888' }}>{STAT_LABELS[k]}</span></span>
                 <input type="number" min="1" max="99" value={stats[k]} onChange={e => setStats(s => ({ ...s, [k]: e.target.value }))} style={input} />
               </label>
             ))}
