@@ -41,7 +41,8 @@
 
 /* C - zachte fade, compacte rij */
 .yof-mc-c { border: 1px solid #ece8e0; color: #141414;
-  background: linear-gradient(120deg, color-mix(in srgb, var(--home) 32%, #fff) 0%, #fff 48%, #fff 52%, color-mix(in srgb, var(--away) 28%, #fff) 100%); }
+  /* zachte tint via kleurstops buiten de kaart (geen color-mix: werkt ook op oudere iOS) */
+  background: linear-gradient(120deg, var(--home) -55%, #fff 48%, #fff 52%, var(--away) 165%); }
 .yof-mc-c::before { content: ''; position: absolute; top: -20%; bottom: -20%; left: 50%; width: 10px; transform: translateX(-50%) rotate(20deg);
   background: linear-gradient(90deg, var(--home) 0 50%, var(--away) 50% 100%); opacity: .9; }
 .yof-mc-c > * { position: relative; }

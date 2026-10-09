@@ -36,7 +36,7 @@ def club_for_team(teams: dict, clubs: dict, team_id):
     return clubs.get(team.club_external_id) if team else None
 
 
-def ensure_club_colors(session: Session, clubs: dict, limit: int = 8) -> None:
+def ensure_club_colors(session: Session, clubs: dict, limit: int = 4) -> None:
     """Bepaal 1x de kleur uit het logo voor clubs die er nog geen hebben
     (primary_color None). Mislukt = '' en wordt niet opnieuw geprobeerd.
     Hooguit `limit` logo's per verzoek, zodat een grote poulelijst niet traag
@@ -45,7 +45,7 @@ def ensure_club_colors(session: Session, clubs: dict, limit: int = 8) -> None:
 
     todo = [c for c in clubs.values() if c.logo_url and c.primary_color is None][:limit]
     for club in todo:
-        club.primary_color = color_from_logo_url(club.logo_url)
+        club.primary_color = color_from_logo_url(club.logo_url, timeout=2.0)
         session.add(club)
     if todo:
         session.commit()

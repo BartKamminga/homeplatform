@@ -1,3 +1,4 @@
+import { useRef, useState, useLayoutEffect } from 'react'
 import useClubLogo from '../brand/useClubLogo.js'
 import usePageBlocks from '../blocks/usePageBlocks.js'
 import HockeyBall from '../brand/HockeyBall.jsx'
@@ -7,9 +8,21 @@ import './fifaCard.css'
 // Spelerskaart in FIFA-stijl (goud / nacht / paris, zie temp-voorbeelden 09-10):
 // links totaal, positie, clublogo, rugnummer en doelpunten dit seizoen; rechts de
 // foto in de kaart; onder naam en de zes waarden. Schaalt mee met de breedte
-// (container query units), dus overal te gebruiken - van raster tot spelerspagina.
+// (--u = 1% van de gemeten breedte), dus overal te gebruiken - van raster tot spelerspagina.
 export default function FifaCard({ player, card, style }) {
   const logo = useClubLogo()
+  const ref = useRef(null)
+  const [unit, setUnit] = useState(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setUnit(el.getBoundingClientRect().width / 100)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const variant = style || card.effective_style || 'nacht'
   const shirt = player.role_title ? null : player.shirt_number
   // Doelpunten dit seizoen: aan/uit bij Pagina-instellingen van Team
@@ -17,7 +30,7 @@ export default function FifaCard({ player, card, style }) {
   // Onderdelen zonder waarde komen niet op de kaart (en tellen niet mee in het gemiddelde)
   const stats = STAT_KEYS.filter(k => card.stats?.[k] != null)
   return (
-    <div className={`yof-fc yof-fc-${variant}`}>
+    <div ref={ref} className={`yof-fc yof-fc-${variant}`} style={unit ? { '--u': `${unit}px` } : undefined}>
       <div className="rim" />
       <div className="shape">
         {variant === 'paris' && <div className="tricolore" />}
