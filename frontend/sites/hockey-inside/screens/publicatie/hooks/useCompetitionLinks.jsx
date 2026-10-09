@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getPublicationComps, addPublicationComp, updatePublicationComp, removePublicationComp,
-  getDiscoveryComps, syncCompetition, assignCompTag, removeCompTag,
+  getDiscoveryComps, syncCompetition, assignCompTag, removeCompTag, setCompWatch,
 } from '../../../api.js'
 
 // Uitgesplitst uit CompetitiesTab.jsx (RFTR-B6, item 989, fase 6.4).
@@ -89,6 +89,20 @@ export function useCompetitionLinks(tid, season, globalTags, flash) {
     }
   }
 
+  // Item 1254: kind = 'next_phase' | 'zaal'
+  async function handleToggleWatch(lnk, kind) {
+    const field = kind === 'zaal' ? 'watch_zaal' : 'watch_next_phase'
+    const next = !lnk[field]
+    setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, [field]: next } : l))
+    try {
+      await setCompWatch(tid, lnk.id, kind, next)
+      flash(next ? 'Added to the watch list' : 'Removed from the watch list')
+    } catch (e) {
+      setLinks(prev => prev.map(l => l.id === lnk.id ? { ...l, [field]: !next } : l))
+      flash(e.message, true)
+    }
+  }
+
   async function doRemoveLink(lnk) {
     setConfirmLink(null)
     try {
@@ -138,7 +152,7 @@ export function useCompetitionLinks(tid, season, globalTags, flash) {
   return {
     links, allComps, loading, showPicker, setShowPicker, filterQ, setFilterQ,
     adding, selectedComps, setSelectedComps, confirmLink, setConfirmLink, selectedLnk, setSelectedLnk,
-    loadLinks, handleAdd, handleBulkAdd, handleToggleVisible, handleToggleScanProfile, doRemoveLink,
+    loadLinks, handleAdd, handleBulkAdd, handleToggleVisible, handleToggleScanProfile, handleToggleWatch, doRemoveLink,
     handleAssignTag, handleRemoveCompTag, stripTagFromLinks,
   }
 }

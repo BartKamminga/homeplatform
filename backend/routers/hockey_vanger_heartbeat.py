@@ -17,6 +17,7 @@ from models.settings import AppSetting
 from routers.hockey_vanger_smartscan_control import (
     GHOST_ENABLED_KEY, SCAN_PLAN_ENABLED_KEY,
 )
+from services.hockey_phase_watch import notify_phase_watch
 from services.hockey_poule_capture_core import notify_data_shape_flags, notify_new_phase_indeling
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule
 from services.hockey_vanger_settings import NOTIFY_TEAM_IDS_KEY, _get_int_setting, _get_str_setting
@@ -85,6 +86,11 @@ def vanger_heartbeat(
         notify_data_shape_flags(session, now)
     except Exception:
         logging.getLogger("homeplatform.hockey-vanger").exception("notify_data_shape_flags mislukt")
+
+    try:
+        notify_phase_watch(session, now)  # item 1254
+    except Exception:
+        logging.getLogger("homeplatform.hockey-vanger").exception("notify_phase_watch mislukt")
 
     return {"ok": True}
 

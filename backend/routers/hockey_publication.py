@@ -1,6 +1,7 @@
 """Hockey Inside — publicatie CRUD, competitie-koppelingen en tags."""
 
 import re
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +21,7 @@ from models.hockey import (
     HockeyPublicationCompTag,
 )
 from models.hockey_discovery import HockeyCompetition, HockeyPoule, HockeyPouleMatch
-from services.hockey_vanger_scanplan import _poule_health, _team_by_poule
+from services.hockey_vanger_scanplan import _has_remaining_matches, _poule_health, _team_by_poule
 
 router = APIRouter(prefix="/api/hockey/publications", tags=["hockey-publications"])
 
@@ -373,6 +374,10 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
                 "last_scanned_at": p.last_scanned_at.isoformat() + "Z" if p.last_scanned_at else None,
             })
 
+        # Item 1254: hint 'fase afgelopen - wachten op nieuwe fase?' in CompetitionRow.
+        comp_matches = session.exec(
+            select(HockeyPouleMatch).where(col(HockeyPouleMatch.poule_id).in_([p.poule_id for p in poules]))
+        ).all() if poules else []
         result.append({
             "id":             lnk.id,
             "publication_id": lnk.publication_id,
@@ -381,6 +386,9 @@ def list_publication_competitions(pid: str, session: Session = Depends(get_sessi
             "label":          lnk.label,
             "visible":        lnk.visible,
             "scan_profile":   lnk.scan_profile,
+            "watch_next_phase": lnk.watch_next_phase_since is not None,
+            "watch_zaal":       lnk.watch_zaal_since is not None,
+            "phase_done":       bool(comp_matches) and not _has_remaining_matches(comp_matches, datetime.utcnow()),
             "fase_tags":      [{"id": t.id, "name": t.name} for _, t in assigned_tags],
             "competition": {
                 "id":          comp.id,

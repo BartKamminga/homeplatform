@@ -6,6 +6,7 @@ import { resolveHockeyType } from './hockeyTypeHelpers.js'
 import ScanEfficiencySection from './vanger/ScanEfficiencySection.jsx'
 import PouleRankingSection from './vanger/PouleRankingSection.jsx'
 import DataShapeFlagsSection from './vanger/DataShapeFlagsSection.jsx'
+import PhaseWatchSection from './vanger/PhaseWatchSection.jsx'
 
 export default function StatsTab() {
   const [clubs,       setClubs]       = useState([])
@@ -191,6 +192,8 @@ export default function StatsTab() {
           )}
         </div>
       )}
+
+      <PhaseWatchSection section={section} />
 
       <DataShapeFlagsSection section={section} />
 

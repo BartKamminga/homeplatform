@@ -20,7 +20,7 @@ from core.database import get_session
 from models.capture import DataCapture, new_uuid
 from models.hockey_discovery import HockeyClub, HockeyCompetition, HockeyPoule, HockeyTeam, HockeyTeamPoule, VangerCmd
 from services.hockey_vanger_filters import (
-    _age_sort_key, _cmd_matches_filter, _get_queue_filter,
+    FILTER_EXEMPT_REASONS, _age_sort_key, _cmd_matches_filter, _get_queue_filter,
     _is_scoreless_youth, apply_team_filter,
 )
 from services.hockey_vanger_ingest import (
@@ -136,6 +136,7 @@ def get_cmd_queue(
         params = json.loads(c.params)
         filtered_out = (
             c.status == "pending"
+            and c.reason not in FILTER_EXEMPT_REASONS
             and not _cmd_matches_filter(session, c.cmd_type, params, cats, hts)
         )
         return {
@@ -452,7 +453,7 @@ def get_cmd_queue_next(
     ).all()
     cmd = None
     for c in pending:
-        if c.reason is None or _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), cats, hts):
+        if c.reason is None or c.reason in FILTER_EXEMPT_REASONS or _cmd_matches_filter(session, c.cmd_type, json.loads(c.params), cats, hts):
             cmd = c
             break
     if not cmd:

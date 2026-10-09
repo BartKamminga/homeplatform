@@ -119,6 +119,7 @@ export default function CompetitiesTab({
           onRemoveTag={tagId => linkMgmt.handleRemoveCompTag(lnk, tagId)}
           onToggleVisible={() => linkMgmt.handleToggleVisible(lnk)}
           onToggleScanProfile={() => linkMgmt.handleToggleScanProfile(lnk)}
+          onToggleWatch={kind => linkMgmt.handleToggleWatch(lnk, kind)}
           onRemove={() => linkMgmt.setConfirmLink(lnk)}
           onOpenDetail={() => linkMgmt.setSelectedLnk(lnk)}
         />

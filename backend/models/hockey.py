@@ -55,6 +55,10 @@ class HockeyPublicationComp(SQLModel, table=True):
     visible:        bool          = Field(default=True)
     scan_profile:   str           = Field(default="manual")  # manual | active
     ai_note:        Optional[str] = Field(default=None)  # korte analyse-tekst van de scan-agent (poulebord_note-context)
+    # Item 1254: volglijst 'wacht op nieuwe fase' / 'wacht op zaal-indeling' - gezet = aan (sinds wanneer).
+    watch_next_phase_since: Optional[datetime] = Field(default=None)
+    watch_zaal_since:       Optional[datetime] = Field(default=None)
+    watch_notified:         int                = Field(default=0)  # aantal vondsten waarover al een push is gestuurd
 
 
 class HockeyPublicationCompTag(SQLModel, table=True):
