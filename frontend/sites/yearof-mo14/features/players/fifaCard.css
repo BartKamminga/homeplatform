@@ -5,7 +5,7 @@
   clip-path: polygon(50% 0, 58% 3.5%, 70% 4.5%, 84% 3%, 92% 6%, 92% 7%, 100% 9%, 100% 80%, 93% 86%, 50% 100%, 7% 86%, 0 80%, 0 9%, 8% 7%, 8% 6%, 16% 3%, 30% 4.5%, 42% 3.5%); }
 .yof-fc .rim { background: var(--rim); }
 .yof-fc .shape { inset: 2.2cqw; background: var(--bg); overflow: hidden; }
-.yof-fc .photo { position: absolute; left: 30%; right: 6%; top: 8%; height: 56%;
+.yof-fc .photo { position: absolute; left: 30%; right: 6%; top: 8%; height: 51%;
   -webkit-mask-image: linear-gradient(#000 72%, transparent), linear-gradient(90deg, transparent, #000 18%);
   -webkit-mask-composite: source-in;
   mask-image: linear-gradient(#000 72%, transparent), linear-gradient(90deg, transparent, #000 18%); mask-composite: intersect; }
@@ -20,15 +20,18 @@
 /* rugnummer: zelfde dikke cijfers als het totaal, iets kleiner */
 .yof-fc .rating .shirtno { font-size: 10.4cqw; font-weight: 900; margin-top: 2.6cqw; }
 .yof-fc .rating .goals { margin-top: 2.6cqw; font-size: 5.2cqw; font-weight: 900; }
-.yof-fc .bottom { position: absolute; left: 0; right: 0; top: 63%; text-align: center; color: var(--ink); z-index: 2; padding-top: 2.6cqw; }
-.yof-fc .name { font-size: 9.6cqw; font-weight: 900; text-shadow: var(--shadow, none); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12%; }
-.yof-fc .divider { height: 1px; margin: 1.7cqw 22% 2.6cqw; background: var(--ink); opacity: .35; }
-.yof-fc .stats { display: grid; grid-template-columns: repeat(6, 1fr); padding: 0 11%; }
+/* onderdeel hoger dan 'vrij' kan: het schild loopt vanaf ~80% naar binnen */
+.yof-fc .bottom { position: absolute; left: 0; right: 0; bottom: 0; top: 52%; text-align: center; color: var(--ink); z-index: 2; padding-top: 2.6cqw; }
+/* bijnaam deels over de onderkant van de foto */
+.yof-fc .name { position: relative; z-index: 3; font-size: 9cqw; font-weight: 900; text-shadow: var(--shadow, none); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12%; }
+.yof-fc .divider { height: 1px; margin: 1.3cqw 22% 2cqw; background: var(--ink); opacity: .35; }
+.yof-fc .stats { display: grid; grid-template-columns: repeat(6, 1fr); padding: 0 13%; }
 .yof-fc .stats div { display: flex; flex-direction: column; align-items: center; }
 .yof-fc .stats .k { font-size: 4.1cqw; font-weight: 800; opacity: .85; }
-.yof-fc .stats .v { font-size: 7.4cqw; font-weight: 800; }
+.yof-fc .stats .v { font-size: 7cqw; font-weight: 800; line-height: 1.1; }
 
 /* Victoria goud */
+.yof-fc-goud .name { text-shadow: 0 0 3px rgba(255,243,176,.9), 0 1px 2px rgba(255,255,255,.7); }
 .yof-fc-goud { --rim: linear-gradient(160deg, #fff6c4, #b8901c 45%, #fbe58c 70%, #8a6a0e); --ink: #2a1f00;
   --bg: radial-gradient(120% 70% at 70% 15%, #fff3b0 0%, rgba(255,243,176,0) 60%), linear-gradient(165deg, #f9e27a 0%, #f5c400 38%, #d8a400 70%, #b88a00 100%); }
 .yof-fc-goud .shape::after { content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -42,14 +45,14 @@
 .yof-fc-nacht .shape::before { content: ''; position: absolute; inset: 0;
   background: linear-gradient(150deg, transparent 20%, rgba(255,214,90,.18) 20% 34%, transparent 34%),
               linear-gradient(30deg, transparent 55%, rgba(255,214,90,.14) 55% 70%, transparent 70%); }
-.yof-fc-nacht .bottom { background: linear-gradient(transparent, rgba(0,0,0,.55) 25%); }
+.yof-fc-nacht .bottom { background: linear-gradient(transparent, rgba(0,0,0,.55) 35%); }
 
 /* Paris */
 .yof-fc-paris { --rim: linear-gradient(160deg, #fbe58c, #a07c12 45%, #fff3b0 70%, #7a5d0a); --ink: #f5d76e; --shadow: 0 1px 2px rgba(0,0,0,.5);
   --bg: radial-gradient(90% 60% at 50% 20%, #2a4fb8 0%, rgba(42,79,184,0) 70%), linear-gradient(170deg, #1b3a8f 0%, #12203c 70%, #0a1428 100%); }
 .yof-fc-paris .shape::before { content: ''; position: absolute; left: -4%; top: 14%; width: 42%; height: 52%; opacity: .2;
   background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 200'%3E%3Cpath fill='%23f5d76e' d='M49 0h2l2 30h-6zM46 30h8l4 45h-16zM40 75h20l3 15H37zM38 90h24l12 60H62l-6-25H44l-6 25H26zM20 150h60l14 50H72l-8-25H36l-8 25H6z'/%3E%3C/svg%3E"); }
-.yof-fc-paris .bottom { background: linear-gradient(transparent, rgba(10,20,40,.75) 25%); }
+.yof-fc-paris .bottom { background: linear-gradient(transparent, rgba(10,20,40,.75) 35%); }
 .yof-fc-paris .tricolore { position: absolute; left: 0; right: 0; top: 0; height: 2.2cqw; z-index: 3;
   background: linear-gradient(90deg, #1d3a8f 0 33.3%, #fff 33.3% 66.6%, #c8102e 66.6%); }
 

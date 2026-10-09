@@ -19,11 +19,18 @@ export default function PlayerProfileCard({ player }) {
         {player.photo_url && badge != null && <span className="shirt-badge">{badge}</span>}
       </div>
       )}
-      <h2 style={{ margin: '0 0 2px', fontSize: 20 }}>{player.nickname || player.name}</h2>
-      {player.nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>}
-      <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
-        {player.role_title || player.position || '-'} {!player.role_title && player.shirt_number ? `· #${player.shirt_number}` : ''}
-      </p>
+      {/* Met FIFA-kaart staan bijnaam, positie en rugnummer al op de kaart - alleen de echte naam eronder */}
+      {card ? (
+        player.nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>
+      ) : (
+        <>
+          <h2 style={{ margin: '0 0 2px', fontSize: 20 }}>{player.nickname || player.name}</h2>
+          {player.nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>}
+          <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
+            {player.role_title || player.position || '-'} {!player.role_title && player.shirt_number ? `· #${player.shirt_number}` : ''}
+          </p>
+        </>
+      )}
       {player.bio && (
         <p style={{ marginTop: 14, fontSize: 14, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>
           <FormattedText text={player.bio} />
