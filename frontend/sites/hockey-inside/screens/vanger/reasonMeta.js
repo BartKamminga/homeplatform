@@ -13,6 +13,7 @@ export const REASON_META = {
   manual_weekly:         { label: 'Wekelijkse ronde',       color: '#4f46e5' },
   club_scan:             { label: 'Club-scan',              color: '#0891b2' },
   club_list:             { label: 'Clublijst',              color: '#0e7490' },
+  phase_watch:           { label: 'Watch list',             color: '#b45309' },
 }
 
 export const COL_MATCH = '#2a78d6'

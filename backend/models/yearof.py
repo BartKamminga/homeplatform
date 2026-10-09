@@ -77,6 +77,21 @@ class YearOfShortLink(SQLModel, table=True):
     revoked_at: Optional[datetime] = Field(default=None)
 
 
+class YearOfPlayerCard(SQLModel, table=True):
+    """Spelerskaart in FIFA-stijl (1 per speelster). Alleen de beheerder vult de
+    waarden in; bewust een eigen tabel, los van het profiel dat speelsters zelf
+    via hun profiellink bewerken. Concept (live=False) = bezoekers zien de gewone
+    spelerskaart."""
+    __tablename__ = "yearof_player_cards"
+
+    player_id:        str            = Field(foreign_key="yearof_players.id", primary_key=True)
+    stats:            Optional[str]  = Field(default=None)  # JSON: {"SNE": 82, "TEC": 86, ...}
+    overall_override: Optional[int]  = Field(default=None)  # leeg = gemiddelde van de waarden
+    style:            Optional[str]  = Field(default=None)  # goud | nacht | paris; leeg = standaard
+    live:             bool           = Field(default=False)
+    updated_at:       datetime       = Field(default_factory=datetime.utcnow)
+
+
 class YearOfPlayerSpotlight(SQLModel, table=True):
     """Speelster van de week (item 1200): max 1 tegelijk in de kijker, bovenaan
     de "In de kijker"-sectie op de homepagina. Een nieuwe kiezen beeindigt de

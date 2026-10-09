@@ -29,12 +29,15 @@ from sqlmodel import Session, col, select
 from models.hockey_discovery import (
     HockeyClub, HockeyCompetition, HockeyPoule, HockeyPouleMatch, HockeyTeam, ScanScheduleEntry, VangerCmd,
 )
-from services.hockey_vanger_filters import _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth
+from services.hockey_vanger_filters import (
+    FILTER_EXEMPT_REASONS, _cmd_matches_filter, _get_queue_filter, _is_scoreless_youth,
+)
 from services.hockey_vanger_scanplan import (
     STEP_MAX_CMDS, MANUAL_SCAN_WEEKDAYS, _has_remaining_matches, _is_autoscan_eligible, _is_healthy,
     _manual_scan_weekday, _match_dt_info, _next_match_within, _pending_club_ext_ids, _pending_poule_ids,
     _poule_health, _scan_profile_comp_ids, _skip_healthy_daily_fallback, _team_by_poule, _team_for_poule,
 )
+from services.hockey_phase_watch import phase_watch_events
 from services.hockey_vanger_settings import _get_int_setting, get_target_season, is_zaal_active
 
 DEFAULT_HORIZON_DAYS = 14
@@ -711,6 +714,7 @@ def build_schedule_events(session: Session, now: datetime, horizon_days: int) ->
 
     events += _manual_weekly_events(session, now, horizon_end, team_by_poule, window_start_h, window_end_h)
     events += _immediate_events(session, now, get_target_season(session), STEP_MAX_CMDS)
+    events += phase_watch_events(session, now)
     return events
 
 
@@ -971,7 +975,7 @@ def promote_due_schedule_entries(
             entry.status = "cancelled"
             session.add(entry)
             continue
-        if not _cmd_matches_filter(session, entry.cmd_type, params, cats, hts):
+        if entry.reason not in FILTER_EXEMPT_REASONS and not _cmd_matches_filter(session, entry.cmd_type, params, cats, hts):
             entry.status = "cancelled"
             session.add(entry)
             continue

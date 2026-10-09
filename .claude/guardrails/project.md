@@ -15,6 +15,11 @@ homeplatform/
 - SPA routes (e.g. `/admin/login`) work in dev through the `spaFallback` plugin in `vite.config.js`.
 - `<img src>` sends no Authorization header — GET endpoints for uploads have no auth.
 - Sentry minimum level: `SENTRY_MIN_LEVEL` in `.env`.
+- yearof-mo14 (MO14 à Paris): exception to the language rule — all texts on the site (visitor pages and the
+  admin studio) are **Dutch**, also new ones. Code stays English.
+- yearof-mo14 admin: per content type always the same show and edit components, wherever it appears
+  (photos: `PhotoGrid` / `PhotoManager`; links: `LinkTiles` / `ExistingLinksEditor`). Inside an editor, show
+  it as on the site first, with Edit to the standard editor (`EditableSection`). Never build a one-off variant.
 
 ## Local development
 - Alembic: `$env:DATABASE_URL = "sqlite:///C:/Projects/homeplatform/db/homeplatform.sqlite"`

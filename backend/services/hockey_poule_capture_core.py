@@ -17,21 +17,27 @@ from models.hockey_discovery import (
 from models.settings import AppSetting
 from services.hockey_vanger_settings import (
     _get_bool_setting, _set_str_setting, get_notify_team_ids, get_season_phases, get_target_season,
+    strip_competition_sponsor,
 )
 from services.push import send_push
 
 if TYPE_CHECKING:
     from routers.hockey_capture import PouleCaptureIn
 
-_CAT_JUNIOR_RE = re.compile(r"^[zZ]?[JjMm][OoZz]\d")
+# Item 1253: op de teamcode los in de naam zoeken, niet op het begin van de
+# naam - die begint met de clubnaam ("HIC MO18-1"), waardoor jeugdteams van
+# een club met een H of D als Senioren eindigden en buiten het Junioren-filter
+# van de vanger vielen.
+_CAT_JUNIOR_RE = re.compile(r"(?:^|\s)[zZ]?[JjMm][OoZz]\d")
+_CAT_SENIOR_RE = re.compile(r"(?:^|\s)[zZ]?(?:[HhDd]\d|Heren\b|Dames\b)")
 
 
 def _derive_category(name: str) -> str:
-    """Leidt category_group_name af uit teamnaam (J/M prefix = Junioren, H/D = Senioren)."""
-    n = name.lstrip("z").lstrip("Z")
-    if _CAT_JUNIOR_RE.match(name):
+    """Leidt category_group_name af uit de teamcode in de (volledige) teamnaam:
+    JO/MO/ZJO = Junioren, H1/D2/Heren/Dames = Senioren, anders onbekend."""
+    if _CAT_JUNIOR_RE.search(name or ""):
         return "Junioren"
-    if n and n[0] in ("H", "h", "D", "d"):
+    if _CAT_SENIOR_RE.search(name or ""):
         return "Senioren"
     return ""
 
@@ -259,7 +265,9 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
                 comp.hockey_type = body.hockey_type
             session.add(comp)
 
-    ext_id = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|" + body.season
+    # Item 1252: sponsornaam eraf vóór de external_id - anders een nieuwe rij per sponsor(wissel).
+    comp_name = strip_competition_sponsor(session, body.competition_name)
+    ext_id = comp_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|" + body.season
     if not comp:
         comp = session.exec(select(HockeyCompetition).where(HockeyCompetition.external_id == ext_id)).first()
     if comp and comp.external_id == ext_id:
@@ -270,7 +278,7 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
             comp.hockey_type = body.hockey_type
         session.add(comp)
     elif not comp:
-        base_prefix = body.competition_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|"
+        base_prefix = comp_name + "|" + (body.class_name or "") + "|" + (body.district or "") + "|"
         prev_comp = session.exec(
             select(HockeyCompetition)
             .where(HockeyCompetition.external_id.like(base_prefix + "%"))
@@ -296,7 +304,7 @@ def apply_poule_capture(session: Session, body: "PouleCaptureIn", target_season:
             session.add(comp)
         else:
             comp = HockeyCompetition(
-                external_id=ext_id, name=body.competition_name, class_name=body.class_name,
+                external_id=ext_id, name=comp_name, class_name=body.class_name,
                 district=body.district or None,
                 hockey_type=body.hockey_type, season=body.season, discovered_at=now, updated_at=now,
             )

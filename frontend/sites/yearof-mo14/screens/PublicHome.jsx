@@ -7,6 +7,9 @@ import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { PouleCard } from './PouleCard.jsx'
 import { stripFormatting } from './FormattedText.jsx'
 import usePageMeta from '../features/pages/pageMeta.js'
+import { PageIcon } from '../features/brand/navIcons.jsx'
+import MatchCard from '../features/matches/MatchCard.jsx'
+import { toCardModel } from '../features/matches/matchCardModel.js'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -17,6 +20,14 @@ function fmtDate(iso) {
 
 function MatchTeaser({ label, item, onOpen }) {
   if (!item) return null
+  // Competitiewedstrijd: dezelfde compacte kaart C als in de wedstrijdenlijst
+  const model = toCardModel(item)
+  if (model) return (
+    <a href="#" onClick={e => { e.preventDefault(); onOpen(item.match_ref) }} className="yof-mc-link">
+      <div className="yof-next-match-label" style={{ background: '#eef1f8', color: '#12203c' }}>{label}</div>
+      <MatchCard model={model} variant="C" footer={null} />
+    </a>
+  )
   return (
     <a href="#" onClick={e => { e.preventDefault(); onOpen(item.match_ref) }} className="yof-card"
       style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
@@ -86,7 +97,7 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, onOp
     <div>
       {block('home.hero', 'Kop', (
         <div className="yof-hero">
-          {home.icon && <div style={{ fontSize: 32 }}>{home.icon}</div>}
+          {home.icon && <div style={{ fontSize: 32, color: 'var(--accent)' }}><PageIcon value={home.icon} size={34} /></div>}
           <h1>{home.title}</h1>
           {home.subtitle && <p>{home.subtitle}</p>}
           <PageBlock id="action.thermometer">

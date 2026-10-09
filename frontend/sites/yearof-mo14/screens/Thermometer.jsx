@@ -7,18 +7,21 @@ export default function Thermometer({ settings }) {
   return (
     <div style={{
       background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)',
-      borderRadius: 16, padding: '18px 20px', margin: '0 auto',
+      borderRadius: 16, padding: '18px 20px', margin: '0 auto', color: 'white',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8 }}>
-        <span>Opgehaald</span>
+      {/* Expliciete tekstkleur: het blok staat altijd op een donkere ondergrond, ook als de pagina licht is */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, fontSize: 14, marginBottom: 8 }}>
+        <span style={{ color: '#d5dbea' }}>Opgehaald</span>
         <span>
-          <strong style={{ fontSize: 18, color: '#f4c81e' }}>&euro;{settings.raised_amount}</strong> van &euro;{settings.goal_amount}
+          <strong style={{ fontSize: 22, color: '#f4c81e' }}>&euro;{settings.raised_amount}</strong>
+          <span style={{ color: '#d5dbea' }}> van </span>
+          <strong style={{ fontSize: 18, color: 'white' }}>&euro;{settings.goal_amount}</strong>
         </span>
       </div>
       <div style={{ height: 12, background: 'rgba(255,255,255,.15)', borderRadius: 999, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #f4c81e, #ffb24d)', borderRadius: 999 }} />
       </div>
-      <div style={{ fontSize: 11, color: '#9aa5c0', marginTop: 6 }}>{pct}% van het doel</div>
+      <div style={{ fontSize: 11, color: '#c2cbe0', marginTop: 6 }}>{pct}% van het doel</div>
     </div>
   )
 }

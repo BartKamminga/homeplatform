@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, deleteReport, restoreReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
-import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
+import PhotoGrid from '../features/photos/PhotoGrid.jsx'
 import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
 import EntryHeader from './EntryHeader.jsx'
 import ItemBar from '../features/blocks/ItemBar.jsx'
+import GoalsCard from '../features/goals/GoalsCard.jsx'
 import AddBar from '../features/blocks/AddBar.jsx'
 import ArchivedReports from '../features/blocks/ArchivedReports.jsx'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
@@ -13,21 +14,25 @@ import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
-  onEditReport, onAddItem, addKinds, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
+  renderReportEditor, onAddItem, addKinds, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
-  // Lightbox per blok (item 1243): alleen door de foto's van het blok waarin je klikte swipen.
-  const [lightbox, setLightbox] = useState(null) // { list, index }
-  const openLightbox = (list, photo) => setLightbox({ list, index: list.findIndex(x => x.id === photo.id) })
   const [error, setError] = useState('')
   // Eigen pagina (bv. 'page:pinksterweekend', item 1239): zelfde berichten/foto's,
   // maar zonder wedstrijd/dag erachter - geen kop en geen terug-link.
   const isPage = matchRef.startsWith('page:')
   const [confirm, confirmDialog] = useConfirm()
-  const [showPhotoManager, setShowPhotoManager] = useState(false)
+  // Bewerken in het blok (item 1258): 1 blok tegelijk - 'photos' of het id van een bericht.
+  // De editor vervangt zolang de inhoud van dat blok.
+  const [editing, setEditing] = useState(null)
+  function doneEditing() {
+    setEditing(null)
+    loadReports()
+    loadPhotos()
+  }
   const [insertAfter, setInsertAfter] = useState(null) // tussen-keuzebalk open na dit blok
   // Keuze = meteen een (concept)blok aanmaken (item 1239), invullen via Bewerken.
   const add = (afterId, kind) => { setInsertAfter(null); onAddItem(afterId, kind) }
@@ -113,8 +118,6 @@ export default function PublicEntry({
       )}
       {!isPage && <EntryHeader item={item} />}
 
-      <PhotoLightbox photos={lightbox?.list || []} index={lightbox?.index ?? null} onClose={() => setLightbox(null)}
-        onNavigate={i => setLightbox(l => ({ ...l, index: i }))} />
       {confirmDialog}
 
       {(() => {
@@ -167,25 +170,20 @@ export default function PublicEntry({
                       onToggleLive={() => setBlockState(photosBlockId, !photosLive)}
                       onUp={atTop ? undefined : () => movePhotos('up')}
                       onDown={atBottom ? undefined : () => movePhotos('down')}
-                      onEdit={renderPhotoManager ? () => setShowPhotoManager(s => !s) : undefined}
-                      editLabel={showPhotoManager ? 'Fotobeheer sluiten' : 'Fotobeheer'} />
+                      onEdit={renderPhotoManager && editing !== 'photos' ? () => setEditing('photos') : undefined} />
                   )}
-                  <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>
-                  <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
-                  {unassignedPublished.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-                      {unassignedPublished.map(p => (
-                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); openLightbox(unassignedPublished, p) }}>
-                          <PhotoThumb photo={p} />
-                        </a>
-                      ))}
+                  {adminMode && editing === 'photos' && renderPhotoManager ? (
+                    <div className="yof-card" style={{ marginBottom: 10 }}>
+                      {renderPhotoManager(loadPhotos)}
+                      <button className="yof-btn" onClick={doneEditing} style={{ marginTop: 10 }}>Klaar</button>
                     </div>
                   ) : (
+                  <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>
+                  <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
+                  {unassignedPublished.length > 0 ? <PhotoGrid photos={unassignedPublished} /> : (
                     <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s{isPage ? '' : ' voor deze wedstrijd'}.</p>
                   )}
                   </div>
-                  {adminMode && showPhotoManager && renderPhotoManager && (
-                    <div style={{ marginTop: 12 }}>{renderPhotoManager(loadPhotos)}</div>
                   )}
                 </div>
               )
@@ -204,11 +202,16 @@ export default function PublicEntry({
                     onToggleFeatured={isPage ? () => changeReport(r, { featured: !r.featured }) : undefined}
                     onUp={atTop ? undefined : () => move(r.id, 'up')}
                     onDown={atBottom ? undefined : () => move(r.id, 'down')}
-                    onEdit={() => onEditReport(r)}
+                    onEdit={renderReportEditor && editing !== r.id ? () => setEditing(r.id) : undefined}
                     onDelete={() => removeReport(r)} />
                 )}
+                {adminMode && editing === r.id && renderReportEditor ? renderReportEditor(r, doneEditing)
+                  : r.report_type === 'doelpunten' ? (
+                    <GoalsCard matchRef={matchRef} title={r.title} adminMode={adminMode} dimmed={adminMode && r.status === 'concept'}
+                      onClick={adminMode && renderReportEditor ? () => setEditing(r.id) : undefined} />
+                  ) : (
                 <div className="yof-card"
-                  onClick={adminMode ? () => onEditReport(r) : undefined}
+                  onClick={adminMode && renderReportEditor ? () => setEditing(r.id) : undefined}
                   style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default', opacity: adminMode && r.status === 'concept' ? 0.5 : 1 }}>
                   {r.status === 'concept' && !adminMode && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -229,27 +232,8 @@ export default function PublicEntry({
                     </p>
                   )}
                   <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}><FormattedText text={r.body} /></p>
-                  {(() => {
-                    const reportPhotos = photos.filter(p => p.report_id === r.id)
-                    if (reportPhotos.length === 0) return null
-                    return (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
-                        {reportPhotos.map(p => (
-                          <a key={p.id} href="#"
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); openLightbox(reportPhotos, p) }}
-                            style={{ position: 'relative', display: 'block' }}>
-                            <PhotoThumb photo={p} />
-                            {p.status === 'concept' && (
-                              <span style={{
-                                position: 'absolute', top: 3, left: 3, background: '#fde68a', color: '#92400e',
-                                fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 999,
-                              }}>concept</span>
-                            )}
-                          </a>
-                        ))}
-                      </div>
-                    )
-                  })()}
+                  {/* Foto's van een bericht: zelfde tonen-component als het fotoblok (item 1258) */}
+                  <PhotoGrid photos={photos.filter(p => p.report_id === r.id)} min={70} showConcept />
                   <LinkTiles links={r.links} />
                   {!adminMode && (
                     <div style={{ marginTop: 6 }}>
@@ -257,6 +241,7 @@ export default function PublicEntry({
                     </div>
                   )}
                 </div>
+                )}
                 {adminMode && (insertAfter === r.id
                   ? <AddBar compact kinds={addKinds} onPick={kind => add(r.id, kind)} />
                   : (

@@ -17,6 +17,9 @@ export const addPublicationComp    = (pid, body)         => api.post(`/api/hocke
 export const updatePublicationComp = (pid, linkId, body) => api.patch(`/api/hockey/publications/${pid}/competitions/${linkId}`, body)
 export const removePublicationComp = (pid, linkId)       => api.delete(`/api/hockey/publications/${pid}/competitions/${linkId}`)
 export const syncCompetition       = (cid)               => api.post(`/api/hockey/competitions/${cid}/sync`)
+// Item 1254: volglijst 'wacht op nieuwe fase' / 'wacht op zaal-indeling'
+export const setCompWatch          = (pid, linkId, kind, on) => api.put(`/api/hockey/publications/${pid}/competitions/${linkId}/watch`, { kind, on })
+export const getPhaseWatch         = ()                  => api.get('/api/hockey/vanger/phase-watch')
 
 // Publicatie-tags
 export const getPublicationTags       = ()       => api.get('/api/hockey/publications/tags')

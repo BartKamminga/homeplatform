@@ -1,0 +1,62 @@
+/* Spelerskaart in FIFA-stijl (FifaCard.jsx). Maten in --u = 1% van de kaartbreedte; FifaCard meet
+   de breedte (ResizeObserver) - werkt ook op oudere iOS, anders dan container query units. */
+.yof-fc { width: 100%; aspect-ratio: 230 / 340; position: relative;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.25)); }
+.yof-fc .shape, .yof-fc .rim { position: absolute; inset: 0;
+  clip-path: polygon(50% 0, 58% 3.5%, 70% 4.5%, 84% 3%, 92% 6%, 92% 7%, 100% 9%, 100% 80%, 93% 86%, 50% 100%, 7% 86%, 0 80%, 0 9%, 8% 7%, 8% 6%, 16% 3%, 30% 4.5%, 42% 3.5%); }
+.yof-fc .rim { background: var(--rim); }
+.yof-fc .shape { inset: calc(var(--u, 2.3px) * 2.2); background: var(--bg); overflow: hidden; }
+.yof-fc .photo { position: absolute; left: 30%; right: 6%; top: 8%; height: 51%;
+  -webkit-mask-image: linear-gradient(#000 72%, transparent), linear-gradient(90deg, transparent, #000 18%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(#000 72%, transparent), linear-gradient(90deg, transparent, #000 18%); mask-composite: intersect; }
+.yof-fc .photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; display: block; }
+.yof-fc .photo .no-photo { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--u, 2.3px) * 22); font-weight: 900; color: var(--ink); opacity: .35; }
+.yof-fc .rating { position: absolute; left: 11%; top: 11%; text-align: center; color: var(--ink); line-height: 1; z-index: 2; text-shadow: var(--shadow, none); }
+.yof-fc .rating .ovr { font-size: calc(var(--u, 2.3px) * 15.6); font-weight: 900; }
+.yof-fc .rating .pos { font-size: calc(var(--u, 2.3px) * 6.5); font-weight: 800; margin-top: .calc(var(--u, 2.3px) * 8); letter-spacing: .04em; }
+.yof-fc .rating .club { width: calc(var(--u, 2.3px) * 11.3); height: calc(var(--u, 2.3px) * 11.3); margin-top: calc(var(--u, 2.3px) * 3.4); border-radius: 50%; background: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.yof-fc .rating .club img { width: calc(var(--u, 2.3px) * 8.7); height: calc(var(--u, 2.3px) * 8.7); object-fit: contain; }
+/* rugnummer: zelfde dikke cijfers als het totaal, iets kleiner */
+.yof-fc .rating .shirtno { font-size: calc(var(--u, 2.3px) * 10.4); font-weight: 900; margin-top: calc(var(--u, 2.3px) * 2.6); }
+.yof-fc .rating .goals { margin-top: calc(var(--u, 2.3px) * 2.6); font-size: calc(var(--u, 2.3px) * 5.2); font-weight: 900; }
+/* onderdeel hoger dan 'vrij' kan: het schild loopt vanaf ~80% naar binnen */
+.yof-fc .bottom { position: absolute; left: 0; right: 0; bottom: 0; top: 52%; text-align: center; color: var(--ink); z-index: 2; padding-top: calc(var(--u, 2.3px) * 2.6); }
+/* bijnaam deels over de onderkant van de foto */
+.yof-fc .name { position: relative; z-index: 3; font-size: calc(var(--u, 2.3px) * 9); font-weight: 900; text-shadow: var(--shadow, none); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12%; }
+.yof-fc .divider { height: 1px; margin: calc(var(--u, 2.3px) * 1.3) 22% calc(var(--u, 2.3px) * 2); background: var(--ink); opacity: .35; }
+.yof-fc .stats { display: grid; grid-template-columns: repeat(6, 1fr); padding: 0 13%; }
+.yof-fc .stats div { display: flex; flex-direction: column; align-items: center; }
+.yof-fc .stats .k { font-size: calc(var(--u, 2.3px) * 4.1); font-weight: 800; opacity: .85; }
+.yof-fc .stats .v { font-size: calc(var(--u, 2.3px) * 7); font-weight: 800; line-height: 1.1; }
+
+/* Victoria goud */
+.yof-fc-goud .name { text-shadow: 0 0 3px rgba(255,243,176,.9), 0 1px 2px rgba(255,255,255,.7); }
+.yof-fc-goud { --rim: linear-gradient(160deg, #fff6c4, #b8901c 45%, #fbe58c 70%, #8a6a0e); --ink: #2a1f00;
+  --bg: radial-gradient(120% 70% at 70% 15%, #fff3b0 0%, rgba(255,243,176,0) 60%), linear-gradient(165deg, #f9e27a 0%, #f5c400 38%, #d8a400 70%, #b88a00 100%); }
+.yof-fc-goud .shape::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.35) 38%, transparent 46%); }
+
+/* Victoria nacht */
+.yof-fc-nacht { --rim: linear-gradient(160deg, #fbe58c, #8a6a0e 40%, #fff3b0 60%, #6b5207); --ink: #f7d44c; --shadow: 0 1px 2px rgba(0,0,0,.6);
+  --bg: linear-gradient(130deg, transparent 0 52%, rgba(245,196,0,.55) 52% 55%, transparent 55%),
+        linear-gradient(60deg, transparent 0 60%, rgba(245,196,0,.35) 60% 62%, transparent 62%),
+        conic-gradient(from 210deg at 75% 30%, #1d1d1d, #3a3000 15%, #121212 30%, #2b2400 45%, #0b0b0b 60%, #1d1d1d), #0b0b0b; }
+.yof-fc-nacht .shape::before { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(150deg, transparent 20%, rgba(255,214,90,.18) 20% 34%, transparent 34%),
+              linear-gradient(30deg, transparent 55%, rgba(255,214,90,.14) 55% 70%, transparent 70%); }
+.yof-fc-nacht .bottom { background: linear-gradient(transparent, rgba(0,0,0,.55) 35%); }
+
+/* Paris */
+.yof-fc-paris { --rim: linear-gradient(160deg, #fbe58c, #a07c12 45%, #fff3b0 70%, #7a5d0a); --ink: #f5d76e; --shadow: 0 1px 2px rgba(0,0,0,.5);
+  --bg: radial-gradient(90% 60% at 50% 20%, #2a4fb8 0%, rgba(42,79,184,0) 70%), linear-gradient(170deg, #1b3a8f 0%, #12203c 70%, #0a1428 100%); }
+.yof-fc-paris .shape::before { content: ''; position: absolute; left: -4%; top: 14%; width: 42%; height: 52%; opacity: .2;
+  background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 200'%3E%3Cpath fill='%23f5d76e' d='M49 0h2l2 30h-6zM46 30h8l4 45h-16zM40 75h20l3 15H37zM38 90h24l12 60H62l-6-25H44l-6 25H26zM20 150h60l14 50H72l-8-25H36l-8 25H6z'/%3E%3C/svg%3E"); }
+.yof-fc-paris .bottom { background: linear-gradient(transparent, rgba(10,20,40,.75) 35%); }
+.yof-fc-paris .tricolore { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u, 2.3px) * 2.2); z-index: 3;
+  background: linear-gradient(90deg, #1d3a8f 0 33.3%, #fff 33.3% 66.6%, #c8102e 66.6%); }
+
+/* In een raster (teampagina, doelpuntenblok): kaart zonder witte tegel eromheen */
+.yof-fc-tile { display: block; text-decoration: none; color: inherit; text-align: center; }
+.yof-fc-tile .under { margin-top: 6px; font-size: 13px; }

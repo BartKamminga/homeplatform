@@ -16,7 +16,7 @@ from models.hockey_discovery import (
 from models.hockey import HockeyPublicationTagCategory
 from services.hockey_query_scope import compute_win_streaks
 from services.hockey_scope import get_comp_link_tags_bulk, get_visible_comp_links, get_visible_comp_links_bulk
-from services.hockey_teams import club_logo_for_team, resolve_team_clubs
+from services.hockey_teams import club_logo_for_team, club_side_fields, ensure_club_colors, resolve_team_clubs
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-public"])
 
@@ -185,6 +185,11 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
 
     team_ids = {m.home_team_id for m in matches if m.home_team_id} | {m.away_team_id for m in matches if m.away_team_id}
     teams, clubs = resolve_team_clubs(session, list(team_ids))
+    ensure_club_colors(session, clubs)
+
+    def club_fields(m):
+        return {**club_side_fields(teams, clubs, m.home_team_id, "home"),
+                **club_side_fields(teams, clubs, m.away_team_id, "away")}
 
     return {
         "finished": [
@@ -197,8 +202,7 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
                 "date":           m.match_date,
                 "round":          m.round,
                 "location":       m.location_name,
-                "home_club_logo": club_logo_for_team(teams, clubs, m.home_team_id),
-                "away_club_logo": club_logo_for_team(teams, clubs, m.away_team_id),
+                **club_fields(m),
             }
             for m in finished
         ],
@@ -210,8 +214,7 @@ def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
                 "date":           m.match_date,
                 "round":          m.round,
                 "location":       m.location_name,
-                "home_club_logo": club_logo_for_team(teams, clubs, m.home_team_id),
-                "away_club_logo": club_logo_for_team(teams, clubs, m.away_team_id),
+                **club_fields(m),
             }
             for m in scheduled
         ],

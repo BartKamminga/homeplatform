@@ -16,7 +16,9 @@ from routers.hockey_capture import LinkedPouleIn, MatchIn, PouleCaptureIn, Stand
 from routers.hockey_clubs import ClubDetailIn, TeamIn
 from services.hockey_club_capture_core import apply_club_detail, apply_clubs_list
 from services.hockey_poule_capture_core import _derive_category, apply_poule_capture
-from services.hockey_vanger_settings import compute_poule_season_ranges, get_target_season, infer_poule_season
+from services.hockey_vanger_settings import (
+    compute_poule_season_ranges, get_target_season, infer_poule_season, strip_competition_sponsor,
+)
 
 
 def _release_stale_hl_comp_id(session: Session, hl_cid: Optional[int], keep_id: Optional[int]) -> None:
@@ -317,6 +319,8 @@ def _call_competition_detail(raw: dict, session: Session, params: dict):
         ).first()
         if _hl_row:
             comp_name = _hl_row.name
+    # Item 1252: zonder bestaande hl_comp_id-rij is dit de sponsorvorm.
+    comp_name = strip_competition_sponsor(session, comp_name)
 
     fallback_season = ""
     for _pd in poules_list:
@@ -601,6 +605,7 @@ def _call_competitions_list(raw: dict, session: Session):
         if not comp_id or not name:
             skipped += 1
             continue
+        name = strip_competition_sponsor(session, name)  # item 1252
         ht = "ZA" if "Zaal" in name else "VE"
 
         # Matchen op (naam, klasse, seizoen) i.p.v. een zelfgebouwde

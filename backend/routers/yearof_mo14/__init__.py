@@ -66,6 +66,7 @@ from .matches import router as matches_router
 from .page_blocks import router as page_blocks_router
 from .photo_manager import router as photo_manager_router
 from .photos import router as photos_router
+from .player_cards import router as player_cards_router
 from .players import router as players_router
 from .reports import router as reports_router
 from .spotlight import router as spotlight_router
@@ -92,6 +93,7 @@ def me(current_user: User = Depends(get_current_user), session: Session = Depend
 
 
 router.include_router(players_router)
+router.include_router(player_cards_router)
 router.include_router(favorites_router)
 router.include_router(spotlight_router)
 router.include_router(competition_router)

@@ -24,7 +24,7 @@ function freshnessBadge(poules) {
   return { label, stale, missing: withScan.length < poules.length }
 }
 
-export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onRemove, onOpenDetail }) {
+export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveTag, onToggleVisible, onToggleScanProfile, onToggleWatch, onRemove, onOpenDetail }) {
   const [showTagPicker, setShowTagPicker] = useState(false)
   const pickerRef   = useRef(null)
   const comp        = lnk.competition
@@ -85,9 +85,18 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
               {poules.length} poule{poules.length !== 1 ? 's' : ''}
             </span>
           )}
+          {/* Item 1254: fase uitgespeeld en nog niet op de volglijst -> hint */}
+          {lnk.phase_done && !lnk.watch_next_phase && onToggleWatch && (
+            <span
+              onClick={e => { e.stopPropagation(); onToggleWatch('next_phase') }}
+              style={{ fontSize: 10, color: 'var(--color-warning)', marginLeft: 8, cursor: 'pointer' }}
+              title="All matches have been played - add to the watch list so the next phase is picked up automatically">
+              Phase finished - wait for the next phase?
+            </span>
+          )}
           {freshness && (
             <span
-              title={freshness.missing ? 'Niet alle poules zijn ooit gescand' : 'Oudste last_scanned_at van de poules in deze competitie'}
+              title={freshness.missing ? 'Not all poules have ever been scanned' : 'Oldest last scan of the poules in this competition'}
               style={{ fontSize: 10, color: freshness.stale ? 'var(--color-warning)' : 'var(--color-text-muted)', marginLeft: 8 }}
             >
               🕓 {freshness.label}{freshness.missing ? '*' : ''}
@@ -98,7 +107,7 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
           <span
             onClick={e => handleScanGroup(e, 'result', overdueResultPoules)}
             style={{ ...pill('partial'), cursor: !groupBusy.result ? 'pointer' : 'default' }}
-            title={`${overdueResultPoules.length} poule(s) met late uitslag scannen`}>
+            title={`Scan ${overdueResultPoules.length} poule(s) with a late result`}>
             {groupBusy.result ? '…' : groupMsg.result || `⚠ ${overdueResultPoules.length}`}
           </span>
         )}
@@ -106,19 +115,31 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
           <span
             onClick={e => handleScanGroup(e, 'start', unknownStartPoules)}
             style={{ ...pill('muted'), cursor: !groupBusy.start ? 'pointer' : 'default' }}
-            title={`${unknownStartPoules.length} poule(s) met onbekende starttijd scannen`}>
+            title={`Scan ${unknownStartPoules.length} poule(s) with an unknown start time`}>
             {groupBusy.start ? '…' : groupMsg.start || `❔ ${unknownStartPoules.length}`}
           </span>
         )}
         <Toggle on={lnk.visible} onChange={e => { e.stopPropagation(); onToggleVisible() }}
-          onLabel="● Zichtbaar" offLabel="○ Concept" offVariant="partial"
-          title={lnk.visible ? 'Verbergen op Poulebord' : 'Zichtbaar maken op Poulebord'} />
+          onLabel="● Visible" offLabel="○ Draft" offVariant="partial"
+          title={lnk.visible ? 'Hide on Poulebord' : 'Show on Poulebord'} />
         {onToggleScanProfile && (
           <Toggle on={lnk.scan_profile === 'active'} onChange={e => { e.stopPropagation(); onToggleScanProfile() }}
-            onLabel="● Auto-scan" offLabel="○ Handmatig" offVariant="partial"
-            title={lnk.scan_profile === 'active' ? 'Auto-scan actief — klik om uit te zetten' : 'Auto-scan uit — klik om te activeren'} />
+            onLabel="● Auto-scan" offLabel="○ Manual" offVariant="partial"
+            title={lnk.scan_profile === 'active' ? 'Auto-scan on — click to turn off' : 'Auto-scan off — click to turn on'} />
         )}
-        <button onClick={e => { e.stopPropagation(); onRemove() }} style={deleteBtn} title="Verwijder koppeling">✕</button>
+        {onToggleWatch && (
+          <>
+            <Toggle on={lnk.watch_next_phase} onChange={e => { e.stopPropagation(); onToggleWatch('next_phase') }}
+              onLabel="⏳ Next phase" offLabel="⏳" onVariant="partial"
+              title={lnk.watch_next_phase ? 'Waiting for the next phase — click to stop' : 'Wait for the next phase: scan this competition and its clubs daily'} />
+            {comp?.hockey_type !== 'ZA' && (
+              <Toggle on={lnk.watch_zaal} onChange={e => { e.stopPropagation(); onToggleWatch('zaal') }}
+                onLabel="🏒 Indoor" offLabel="🏒" onVariant="partial"
+                title={lnk.watch_zaal ? 'Waiting for the indoor schedule — click to stop' : 'Wait for the indoor schedule: scan the clubs of this competition for their indoor teams of the same age'} />
+            )}
+          </>
+        )}
+        <button onClick={e => { e.stopPropagation(); onRemove() }} style={deleteBtn} title="Remove link">✕</button>
       </div>
 
       <div onClick={e => e.stopPropagation()}
@@ -150,12 +171,12 @@ export default function CompetitionRow({ lnk, globalTags, onAssignTag, onRemoveT
         {suggestedTags.map(tag => (
           <button key={`sug-${tag.id}`} onClick={() => { onAssignTag(tag.id); setShowTagPicker(false) }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, padding: '2px 8px', borderRadius: 20, border: '1px dashed var(--color-text-muted)', color: 'var(--color-text-muted)', background: 'none', cursor: 'pointer' }}
-            title={`Suggestie op basis van ${comp?.class_name === tag.name ? 'klasse' : 'district'}`}>
+            title={`Suggested based on ${comp?.class_name === tag.name ? 'class' : 'district'}`}>
             + {tag.name}
           </button>
         ))}
         {assigned.length === 0 && available.length === 0 && suggestedTags.length === 0 && (
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>geen tags</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>no tags</span>
         )}
       </div>
     </div>

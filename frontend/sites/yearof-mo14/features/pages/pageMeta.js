@@ -6,13 +6,13 @@ import { SPOTLIGHT_PAGE } from './useCustomPages.js'
 // "page.<view>" (eigen pagina's hebben dit in custom-pages).
 export const FIXED_PAGES = {
   home: { label: 'Home', icon: '🗼', title: 'Samen op naar Parijs!', subtitle: 'Volg het team, bekijk de wedstrijden en steun de actie voor onze teamtrip.' },
-  action: { label: 'Actie', icon: '', title: 'De actie', subtitle: '' },
-  spotlight: { label: SPOTLIGHT_PAGE.label, icon: SPOTLIGHT_PAGE.icon, title: SPOTLIGHT_PAGE.title, subtitle: SPOTLIGHT_PAGE.subtitle },
-  team: { label: 'Team', icon: '', title: 'Het team', subtitle: '' },
-  timeline: { label: 'Wedstrijden', icon: '', title: 'Wedstrijden & bijzondere dagen', subtitle: '' },
-  competition: { label: 'Competitie', icon: '', title: 'Competitie', subtitle: '' },
-  topklasse: { label: 'Topklasse', icon: '', title: 'Topklasse MO14 landelijk', subtitle: '' },
-  upload: { label: "Foto's toevoegen", icon: '', title: "Foto's & filmpjes toevoegen", subtitle: '' },
+  action: { label: 'Actie', icon: 'hand-coins', title: 'De actie', subtitle: '' },
+  spotlight: { label: SPOTLIGHT_PAGE.label, icon: 'star', title: SPOTLIGHT_PAGE.title, subtitle: SPOTLIGHT_PAGE.subtitle },
+  team: { label: 'Team', icon: 'users', title: 'Het team', subtitle: '' },
+  timeline: { label: 'Wedstrijden', icon: 'calendar-days', title: 'Wedstrijden & bijzondere dagen', subtitle: '' },
+  competition: { label: 'Competitie', icon: 'list-ordered', title: 'Competitie', subtitle: '' },
+  topklasse: { label: 'Topklasse', icon: 'trophy', title: 'Topklasse MO14 landelijk', subtitle: '' },
+  upload: { label: "Foto's toevoegen", icon: 'camera', title: "Foto's & filmpjes toevoegen", subtitle: '' },
 }
 
 // Studio-sectie -> view-naam van de vaste pagina

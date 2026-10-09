@@ -5,6 +5,7 @@ import EditProfile from './EditProfile.jsx'
 import PlayerLinksPanel from './PlayerLinksPanel.jsx'
 import { PlayerPhotosPanel } from './PlayerFavorites.jsx'
 import FormattedText from './FormattedText.jsx'
+import PlayerCardAdmin from '../features/players/PlayerCardAdmin.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const fieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -165,10 +166,14 @@ export default function PlayersAdmin({ initialEditId }) {
 
   if (editingId) {
     return (
-      <EditProfile adminMode playerId={editingId}
-        onSaved={() => { setEditingId(''); load() }}
-        onCancel={() => setEditingId('')}
-      />
+      <>
+        <EditProfile adminMode playerId={editingId}
+          onSaved={() => { setEditingId(''); load() }}
+          onCancel={() => setEditingId('')}
+        />
+        {/* Spelerskaart in FIFA-stijl: onderaan, alleen beheer */}
+        <PlayerCardAdmin key={editingId} playerId={editingId} />
+      </>
     )
   }
 

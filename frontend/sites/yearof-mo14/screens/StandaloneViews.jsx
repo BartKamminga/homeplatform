@@ -10,6 +10,7 @@ import { FavoritesBlock } from './PlayerFavorites.jsx'
 import Thermometer from './Thermometer.jsx'
 import SponsorList from './SponsorList.jsx'
 import PageBlock from '../features/blocks/PageBlock.jsx'
+import BrandMark from '../features/brand/BrandMark.jsx'
 
 // Losse pagina's zonder navigatiebalk voor de Vrienden-van-WhatsApp (item
 // 1186): een wedstrijdlink (?entry=<ref>&link=<code>) of spelerslink
@@ -19,7 +20,7 @@ import PageBlock from '../features/blocks/PageBlock.jsx'
 function Shell({ children }) {
   return (
     <div className="yof">
-      <div className="yof-header"><div className="brand">🏑 MO14 à Paris</div></div>
+      <div className="yof-header"><BrandMark /></div>
       <div className="yof-main">{children}</div>
     </div>
   )

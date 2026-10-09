@@ -1,11 +1,14 @@
 // Keuzebalk "iets toevoegen" (item 1239): een keuze maakt meteen een blok aan
 // (als concept); invullen gaat daarna via Bewerken op het blok. Overal gelijk.
+import HockeyBall from '../brand/HockeyBall.jsx'
+
 export const ADD_OPTIONS = {
   self: { label: '✎ Zelf schrijven' },
   invite_report: { label: '✉ Invullink verslag' },
   invite_photos: { label: '📷 Invullink foto\'s' },
   instagram: { label: 'Instagram' },
   footage: { label: '▶ Wedstrijdbeelden' },
+  goals: { label: <><HockeyBall /> Doelpunten</> },
 }
 
 export default function AddBar({ kinds = Object.keys(ADD_OPTIONS), onPick, compact = false }) {

@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react'
-import { createReportDirect, updateReport, deleteReport, uploadPhoto, deletePhoto, getPhotosModeration } from '../api.js'
+import { createReportDirect, updateReport, deleteReport, uploadPhoto, getPhotosModeration } from '../api.js'
 import { compressImage } from '../compressImage.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { NewLinksEditor, ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
+import ReportPhotosField from './ReportPhotosField.jsx'
+import MoreSection from '../features/blocks/MoreSection.jsx'
+import EditableSection from '../features/blocks/EditableSection.jsx'
+import PhotoGrid from '../features/photos/PhotoGrid.jsx'
+import PhotoManager from '../features/photos/PhotoManager.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -17,9 +22,12 @@ const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, bo
 // fixedMatchRef/fixedMatchTitle: wedstrijd vastzetten (geen selector, geen
 // "algemeen"-optie) - voor de wedstrijd-adminpagina.
 // existingReport: meegeven om te bewerken i.p.v. aan te maken.
+// inline (item 1258): editor in het blok zelf - titel en tekst bovenaan, de
+// rest onder Meer, geen eigen kop/voorbeeld.
 export function ReportForm({
   matchOptions = [], fixedMatchRef, fixedMatchTitle, existingReport, insertAfterId, defaultReportType,
   players, onToggleTag, onSaved, onCancel, onDeleted, onRefresh, allowNews = false, controlsOnBar = false,
+  inline = false,
 }) {
   // Nieuw = altijd eerst concept; live zetten gaat via de balk op het blok of
   // de knop Publiceren bij bewerken (item 1239). controlsOnBar: publiceren,
@@ -50,11 +58,6 @@ export function ReportForm({
   }
   function removePhotoFile(index) {
     setPhotoFiles(prev => prev.filter((_, i) => i !== index))
-  }
-  async function removeExistingPhoto(id) {
-    if (!(await confirm('Deze foto/video verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
-    await deletePhoto(id)
-    loadExistingPhotos()
   }
 
   async function uploadStagedPhotos(reportId, reportMatchRef) {
@@ -156,102 +159,56 @@ export function ReportForm({
     )
   }
 
-  return (
-    <div style={{ marginBottom: 24 }}>
-      {confirmDialog}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <h3 style={{ fontSize: 15, margin: 0 }}>{isEdit ? 'Verslag bewerken' : 'Nieuw verslag / interview'}</h3>
-        <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>&larr; terug</button>
-      </div>
-      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        {fixedMatchRef ? (
-          <span style={{ fontSize: 13, color: '#666', padding: '6px 0' }}>{fixedMatchTitle}</span>
-        ) : (
-          <select value={matchRef} onChange={e => setMatchRef(e.target.value)} style={{ fontSize: 13 }}>
-            <option value="">Geen specifieke wedstrijd (algemeen)</option>
-            {matchOptions.map(it => <option key={it.match_ref} value={it.match_ref}>{it.title}</option>)}
-          </select>
-        )}
-        <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 13 }}>
-          <option value="wedstrijdverslag">Wedstrijdverslag</option>
-          <option value="interview">Interview</option>
-          {!fixedMatchRef && <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>}
-          {fixedMatchRef && allowNews && <option value="nieuws">Bericht</option>}
+  // Type/rol: bij inline (item 1258) onder Meer, anders bovenaan zoals altijd.
+  const typeRow = (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+      {fixedMatchRef ? (
+        !inline && <span style={{ fontSize: 13, color: '#666', padding: '6px 0' }}>{fixedMatchTitle}</span>
+      ) : (
+        <select value={matchRef} onChange={e => setMatchRef(e.target.value)} style={{ fontSize: 13 }}>
+          <option value="">Geen specifieke wedstrijd (algemeen)</option>
+          {matchOptions.map(it => <option key={it.match_ref} value={it.match_ref}>{it.title}</option>)}
         </select>
-        {reportType === 'interview' && (
-          <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 13 }}>
-            <option value="speelster">Speelster</option>
-            <option value="coach">Coach</option>
-            <option value="ouder">Ouder</option>
-          </select>
-        )}
-      </div>
+      )}
+      <select value={reportType} onChange={e => setReportType(e.target.value)} style={{ fontSize: 13 }}>
+        <option value="wedstrijdverslag">Wedstrijdverslag</option>
+        <option value="interview">Interview</option>
+        {!fixedMatchRef && <option value="nieuws">Algemeen (niet wedstrijd gebonden)</option>}
+        {fixedMatchRef && allowNews && <option value="nieuws">Bericht</option>}
+      </select>
+      {reportType === 'interview' && (
+        <select value={role} onChange={e => setRole(e.target.value)} style={{ fontSize: 13 }}>
+          <option value="speelster">Speelster</option>
+          <option value="coach">Coach</option>
+          <option value="ouder">Ouder</option>
+        </select>
+      )}
+    </div>
+  )
 
-      <label style={labelStyle}>Titel</label>
-      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd" style={wideFieldStyle} />
-
-      <label style={labelStyle}>Tekst</label>
-      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} style={wideFieldStyle} />
-
+  const extraFields = (
+    <>
       <label style={labelStyle}>Door (naam, optioneel)</label>
       <input value={authorName} onChange={e => setAuthorName(e.target.value)} style={wideFieldStyle} />
 
-      <label style={labelStyle}>Foto&rsquo;s &amp; filmpjes (optioneel)</label>
-      {existingPhotos.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
-          {existingPhotos.map(p => (
-            <div key={p.id} style={{ position: 'relative' }}>
-              {p.media_type === 'video' ? (
-                <div style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶️</div>
-              ) : (
-                <img src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt=""
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
-              )}
-              {p.status === 'concept' && (
-                <span style={{ position: 'absolute', top: 2, left: 2, background: '#fde68a', color: '#92400e', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 999 }}>concept</span>
-              )}
-              <button onClick={() => removeExistingPhoto(p.id)} style={{
-                position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
-                width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
-                background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
-              }}>&times;</button>
-            </div>
-          ))}
-        </div>
-      )}
-      <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple
-        onChange={e => { addPhotoFiles(Array.from(e.target.files || [])); e.target.value = '' }}
-        style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />
-      {photoFiles.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginBottom: 8 }}>
-          {photoFiles.map((f, i) => (
-            <div key={i} style={{ position: 'relative' }}>
-              {f.type.startsWith('video/') ? (
-                <div style={{ width: '100%', aspectRatio: '1', borderRadius: 8, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>▶️</div>
-              ) : (
-                <img src={URL.createObjectURL(f)} alt=""
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
-              )}
-              <button onClick={() => removePhotoFile(i)} style={{
-                position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
-                width: 18, height: 18, fontSize: 11, lineHeight: '18px', padding: 0,
-                background: 'rgba(0,0,0,.6)', color: 'white', cursor: 'pointer',
-              }}>&times;</button>
-            </div>
-          ))}
-        </div>
-      )}
-      <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
-        Toegevoegde fotos/filmpjes worden opgeslagen zodra je op Opslaan klikt. Filmpjes tot 200MB (mp4/mov/webm).
-      </p>
-
-      <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
+      {/* Bestaand bericht (item 1258): foto's en links tonen zoals op de site, Bewerken =
+          het standaard fotobeheer / de standaard linkeditor - zelfde componenten als de blokken */}
       {isEdit ? (
-        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
+        <>
+          <EditableSection label="Foto's & filmpjes" isEmpty={existingPhotos.length === 0} empty="Nog geen foto's."
+            onDone={loadExistingPhotos}
+            show={<PhotoGrid photos={existingPhotos} min={70} showConcept />}
+            edit={<PhotoManager compact reportId={existingReport.id} matchRef={existingReport.match_ref} onChanged={loadExistingPhotos} />} />
+          <EditableSection label="Links & artikelen" isEmpty={!existingReport.links?.length} empty="Nog geen links."
+            show={<LinkTiles links={existingReport.links} />}
+            edit={<ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />} />
+        </>
       ) : (
-        <NewLinksEditor links={newLinks} onChange={setNewLinks} />
+        <>
+          <ReportPhotosField photoFiles={photoFiles} onAddFiles={addPhotoFiles} onRemoveFile={removePhotoFile} />
+          <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
+          <NewLinksEditor links={newLinks} onChange={setNewLinks} />
+        </>
       )}
 
       {isEdit && players?.length > 0 && (
@@ -273,7 +230,42 @@ export function ReportForm({
           </div>
         </>
       )}
+    </>
+  )
 
+  return (
+    <div style={{ marginBottom: inline ? 10 : 24 }}>
+      {confirmDialog}
+      {!inline && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h3 style={{ fontSize: 15, margin: 0 }}>{isEdit ? 'Verslag bewerken' : 'Nieuw verslag / interview'}</h3>
+          <button onClick={onCancel} style={{ fontSize: 12, cursor: 'pointer' }}>&larr; terug</button>
+        </div>
+      )}
+      {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
+
+      {!inline && typeRow}
+
+      <label style={labelStyle}>Titel</label>
+      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Bijv. Een spannende wedstrijd" style={wideFieldStyle} />
+
+      <label style={labelStyle}>Tekst</label>
+      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} style={wideFieldStyle} />
+
+      {inline ? <MoreSection>{typeRow}{extraFields}</MoreSection> : extraFields}
+
+      {inline ? (
+        // In het blok (item 1258): de site links is het voorbeeld, dus alleen Annuleren/Opslaan
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="yof-btn" onClick={onCancel}
+            style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
+            Annuleren
+          </button>
+          <button className="yof-btn" onClick={submit} disabled={sending} style={{ flex: 1 }}>
+            {sending ? 'Opslaan...' : 'Opslaan'}
+          </button>
+        </div>
+      ) : (
       <div style={{ display: 'flex', gap: 8, marginBottom: isEdit ? 8 : 0 }}>
         <button className="yof-btn" onClick={() => setShowPreview(true)}
           style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
@@ -283,25 +275,22 @@ export function ReportForm({
           {sending ? 'Opslaan...' : 'Opslaan'}
         </button>
       </div>
+      )}
 
-      {isEdit && (
+      {isEdit && !controlsOnBar && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {!controlsOnBar && (
-            <button onClick={togglePublish} className="yof-btn-secondary">
-              {existingReport.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
-            </button>
-          )}
-          {!controlsOnBar && (
-            <button onClick={toggleFeatured} className="yof-btn-secondary">
-              {existingReport.featured ? 'Niet op Home' : 'Toon op Home'}
-            </button>
-          )}
-          {existingReport.match_ref && !controlsOnBar && (
+          <button onClick={togglePublish} className="yof-btn-secondary">
+            {existingReport.status === 'published' ? 'Terug naar concept' : 'Publiceren'}
+          </button>
+          <button onClick={toggleFeatured} className="yof-btn-secondary">
+            {existingReport.featured ? 'Niet op Home' : 'Toon op Home'}
+          </button>
+          {existingReport.match_ref && (
             <button onClick={toggleMatchHighlight} className="yof-btn-secondary">
               {existingReport.match_highlight ? '⭐ Uit wedstrijdlink halen' : '⭐ Op wedstrijdlink tonen'}
             </button>
           )}
-          {!controlsOnBar && <button onClick={remove} className="yof-btn-secondary">Archiveren</button>}
+          <button onClick={remove} className="yof-btn-secondary">Archiveren</button>
         </div>
       )}
     </div>

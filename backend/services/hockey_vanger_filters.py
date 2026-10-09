@@ -25,6 +25,13 @@ from services.hockey_vanger_settings import is_zaal_active
 _AGE_RE         = re.compile(r"[JM][OZ](1[1-8])-")
 _AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
 
+# Item 1254: scans die de gebruiker zelf heeft aangezet via de volglijst
+# ('wacht op nieuwe fase'/'wacht op zaal-indeling') - die gaan, net als
+# handmatige toevoegingen, niet door het queue-filter. Vooral nodig voor de
+# zaal-indeling: die komt weken voor de zaalfase, als ZA nog buiten het
+# VE-filter valt.
+FILTER_EXEMPT_REASONS = {"phase_watch"}
+
 DISC_FILTER_CAT    = "disc_queue_category"
 DISC_FILTER_HT     = "disc_queue_hockey_type"
 

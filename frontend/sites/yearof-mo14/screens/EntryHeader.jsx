@@ -1,8 +1,27 @@
 import FormattedText from './FormattedText.jsx'
+import MatchCard from '../features/matches/MatchCard.jsx'
+import { toCardModel, headerSettingId, DEFAULT_HEADER_STYLE } from '../features/matches/matchCardModel.js'
+import usePageBlocks from '../features/blocks/usePageBlocks.js'
 
 // Kop van een wedstrijd/bijzondere dag: soort, logo's, titel, datum, locatie,
 // uitslag en beschrijving. Uit PublicEntry gehaald (item 1239).
 export default function EntryHeader({ item }) {
+  const { setting } = usePageBlocks()
+  const model = toCardModel(item)
+  if (model) {
+    // Competitiewedstrijd: kaart A/B/C - per wedstrijd in te stellen, anders de standaard van de pagina Wedstrijden
+    const variant = setting(headerSettingId(item.match_ref), 'style', null) || setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE)
+    return (
+      <>
+        <MatchCard model={model} variant={variant} />
+        {item.description && (
+          <div className="yof-card" style={{ marginBottom: 14 }}>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-line' }}><FormattedText text={item.description} /></p>
+          </div>
+        )}
+      </>
+    )
+  }
   return (
     <div className="yof-card" style={{ marginBottom: 14 }}>
       <span className={`badge ${item.kind}`}>{item.kind}</span>

@@ -7,6 +7,8 @@ import PublicEntry from './PublicEntry.jsx'
 import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 import PublicAction from './PublicAction.jsx'
 import CustomPage from '../features/pages/CustomPage.jsx'
+import BrandMark from '../features/brand/BrandMark.jsx'
+import { ICONS, PageIcon } from '../features/brand/navIcons.jsx'
 import useCustomPages, { SPOTLIGHT_PAGE, viewForPageRef } from '../features/pages/useCustomPages.js'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
@@ -78,25 +80,33 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
 
   return (
     <div className="yof">
+      {/* Kop + menu in 1 blok dat bij scrollen bovenaan blijft staan */}
+      <div className="yof-top">
       <div className="yof-header">
         {/* Klik op het logo = Home (item 1245) - scheelt een tab in het menu */}
-        <div className="brand" role="link" tabIndex={0} style={{ cursor: 'pointer' }}
-          onClick={() => nav('home')} onKeyDown={e => { if (e.key === 'Enter') nav('home') }}>🏑 MO14 à Paris</div>
+        <BrandMark onClick={() => nav('home')} />
       </div>
+      {/* Menu met Lucide-iconen; op een smalle site alleen het icoon (CSS-containerquery).
+          Volgorde: vaste pagina's, eigen pagina's, en Foto's toevoegen helemaal rechts. */}
       <div className="yof-nav">
         {[
-          'action', 'spotlight', 'team', 'timeline', 'competition', 'topklasse', 'upload',
-        ].map(key => ({ key, label: meta(key).label })).filter(t => pageLive(t.key)).map(t => (
-          <button key={t.key} className={view.name === t.key ? 'active' : ''} onClick={() => nav(t.key)}>
-            {t.label}
+          ...['action', 'spotlight', 'team', 'timeline', 'competition', 'topklasse']
+            .filter(key => pageLive(key))
+            .map(key => ({ id: key, label: meta(key).label, icon: meta(key).icon, active: view.name === key, go: () => nav(key) })),
+          ...customPages.filter(p => pageLive(p.id)).map(p => ({
+            // oude eigen pagina's hebben nog een emoji als icoon: dan vliegtuig (Parijs) of vlag
+            id: `custom:${p.id}`, label: p.label, icon: ICONS[p.icon] ? p.icon : (p.id === 'pinksterweekend' ? 'plane' : 'flag'),
+            active: view.name === 'custom' && view.id === p.id,
+            go: () => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) },
+          })),
+          ...(pageLive('upload') ? [{ id: 'upload', label: meta('upload').label, icon: meta('upload').icon, active: view.name === 'upload', go: () => nav('upload') }] : []),
+        ].map(t => (
+          <button key={t.id} className={t.active ? 'active' : ''} onClick={t.go} title={t.label} aria-label={t.label}>
+            <PageIcon value={t.icon} />
+            <span className="yof-nav-label">{t.label}</span>
           </button>
         ))}
-        {customPages.filter(p => pageLive(p.id)).map(p => (
-          <button key={p.id} className={view.name === 'custom' && view.id === p.id ? 'active' : ''}
-            onClick={() => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) }}>
-            {p.label}
-          </button>
-        ))}
+      </div>
       </div>
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer}
