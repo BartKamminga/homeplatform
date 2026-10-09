@@ -43,7 +43,9 @@
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   box-shadow: 0 0 0 2px var(--navy), 0 0 0 4px var(--accent);
 }
-.yof-brand-crest img { width: 26px; height: 26px; object-fit: contain; }
+/* multiply: de witte achtergrond van het logo-plaatje valt weg in het geel, zodat het logo in de cirkel staat */
+.yof-brand-crest { overflow: hidden; }
+.yof-brand-crest img { width: 30px; height: 30px; object-fit: contain; mix-blend-mode: multiply; }
 .yof-brand-mo14 {
   background: var(--accent); color: var(--accent-ink); font-weight: 900; font-size: 17px;
   letter-spacing: .04em; padding: 2px 8px; border-radius: 6px; transform: skew(-8deg);
