@@ -15,7 +15,7 @@ export function LinksScreen({ reportType, existingReport, onDone, onRefresh }) {
   return (
     <div className="yof-card" style={{ marginBottom: 10 }}>
       <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} fixedType={meta.linkType} />
-      <button className="yof-btn" onClick={onDone} style={{ marginTop: 10 }}>Done</button>
+      <button className="yof-btn" onClick={onDone} style={{ marginTop: 10 }}>Klaar</button>
     </div>
   )
 }

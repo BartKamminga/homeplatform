@@ -64,7 +64,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
       else if (kind === 'instagram') await block('instagram', 'Instagram')
       else if (kind === 'footage') await block('wedstrijd_beelden', 'Wedstrijdbeelden')
       // Doelpunten als blok: start als concept, invullen via Bewerken (spelerslijst)
-      else if (kind === 'goals') await block('doelpunten', 'Goals')
+      else if (kind === 'goals') await block('doelpunten', 'Doelpunten')
       else if (kind === 'invite_report') await createContributorLink({ match_ref: matchRef, report_type: 'wedstrijdverslag' })
       else if (kind === 'invite_photos') await createContributorLink({ match_ref: matchRef, report_type: 'foto' })
       setPreviewKey(k => k + 1)

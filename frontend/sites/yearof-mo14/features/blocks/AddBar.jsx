@@ -6,7 +6,7 @@ export const ADD_OPTIONS = {
   invite_photos: { label: '📷 Invullink foto\'s' },
   instagram: { label: 'Instagram' },
   footage: { label: '▶ Wedstrijdbeelden' },
-  goals: { label: '⚽ Goals' },
+  goals: { label: '⚽ Doelpunten' },
 }
 
 export default function AddBar({ kinds = Object.keys(ADD_OPTIONS), onPick, compact = false }) {

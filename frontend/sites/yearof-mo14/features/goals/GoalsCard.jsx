@@ -24,7 +24,7 @@ export default function GoalsCard({ matchRef, title, adminMode = false, dimmed =
       style={{ marginBottom: 10, cursor: onClick ? 'pointer' : 'default', opacity: dimmed ? 0.5 : 1 }}>
       <h4 style={{ margin: '0 0 8px', fontSize: 15 }}>{title}</h4>
       {scorers.length === 0 ? (
-        <p style={{ margin: 0, fontSize: 13, color: '#666' }}>No goals entered yet - use Edit on this block.</p>
+        <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Nog geen doelpunten ingevuld - gebruik Bewerken op dit blok.</p>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
           {scorers.map(({ player, goals }) => (

@@ -195,11 +195,11 @@ export function ReportForm({
           het standaard fotobeheer / de standaard linkeditor - zelfde componenten als de blokken */}
       {isEdit ? (
         <>
-          <EditableSection label="Foto's & filmpjes" isEmpty={existingPhotos.length === 0} empty="No photos yet."
+          <EditableSection label="Foto's & filmpjes" isEmpty={existingPhotos.length === 0} empty="Nog geen foto's."
             onDone={loadExistingPhotos}
             show={<PhotoGrid photos={existingPhotos} min={70} showConcept />}
             edit={<PhotoManager compact reportId={existingReport.id} matchRef={existingReport.match_ref} onChanged={loadExistingPhotos} />} />
-          <EditableSection label="Links & artikelen" isEmpty={!existingReport.links?.length} empty="No links yet."
+          <EditableSection label="Links & artikelen" isEmpty={!existingReport.links?.length} empty="Nog geen links."
             show={<LinkTiles links={existingReport.links} />}
             edit={<ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />} />
         </>
@@ -259,10 +259,10 @@ export function ReportForm({
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="yof-btn" onClick={onCancel}
             style={{ flex: 1, background: 'transparent', border: '1px solid #ddd', color: 'inherit' }}>
-            Cancel
+            Annuleren
           </button>
           <button className="yof-btn" onClick={submit} disabled={sending} style={{ flex: 1 }}>
-            {sending ? 'Saving...' : 'Save'}
+            {sending ? 'Opslaan...' : 'Opslaan'}
           </button>
         </div>
       ) : (

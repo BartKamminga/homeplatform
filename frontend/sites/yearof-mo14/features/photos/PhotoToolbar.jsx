@@ -44,7 +44,7 @@ export default function PhotoToolbar({ filters, setFilters, sort, setSort, group
           style={{ ...select, flex: '1 1 180px', maxWidth: 'none', padding: '5px 8px' }} />
         {compact && (
           <button onClick={() => setFull(f => !f)} className="yof-btn-secondary" style={{ fontSize: 12 }}>
-            {full ? '▾ Fewer filters' : `▸ All filters${activeCount ? ` (${activeCount})` : ''}`}
+            {full ? '▾ Minder filters' : `▸ Alle filters${activeCount ? ` (${activeCount})` : ''}`}
           </button>
         )}
       </div>

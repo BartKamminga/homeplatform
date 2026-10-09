@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 // Inklapbaar "Meer" in een blok-editor (item 1258): de minder gebruikte velden
 // staan eronder, standaard open zodat niets verstopt raakt.
-export default function MoreSection({ children, defaultOpen = true, label = 'More' }) {
+export default function MoreSection({ children, defaultOpen = true, label = 'Meer' }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ borderTop: '1px solid #eee', paddingTop: 8, marginBottom: 14 }}>

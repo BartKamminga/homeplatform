@@ -175,7 +175,7 @@ export default function PublicEntry({
                   {adminMode && editing === 'photos' && renderPhotoManager ? (
                     <div className="yof-card" style={{ marginBottom: 10 }}>
                       {renderPhotoManager(loadPhotos)}
-                      <button className="yof-btn" onClick={doneEditing} style={{ marginTop: 10 }}>Done</button>
+                      <button className="yof-btn" onClick={doneEditing} style={{ marginTop: 10 }}>Klaar</button>
                     </div>
                   ) : (
                   <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>

@@ -26,7 +26,7 @@ export default function InlineReportEditor({ report, matchRef, matchTitle, playe
     return (
       <div className="yof-card" style={{ marginBottom: 10 }}>
         <GoalsPanel matchRef={matchRef} players={players} />
-        <button className="yof-btn" onClick={onDone} style={{ marginTop: 10 }}>Done</button>
+        <button className="yof-btn" onClick={onDone} style={{ marginTop: 10 }}>Klaar</button>
       </div>
     )
   }

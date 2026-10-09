@@ -10,7 +10,7 @@ export const STATUS_FILTERS = [
 
 export const TYPE_LABEL = {
   wedstrijdverslag: 'Verslag', interview: 'Interview', nieuws: 'Bericht',
-  instagram: 'Instagram', wedstrijd_beelden: 'Wedstrijdbeelden', doelpunten: 'Goals',
+  instagram: 'Instagram', wedstrijd_beelden: 'Wedstrijdbeelden', doelpunten: 'Doelpunten',
 }
 
 // Pagina-filter: '' = alles, 'matches' = alle wedstrijden, anders een match_ref ("page:<id>")
