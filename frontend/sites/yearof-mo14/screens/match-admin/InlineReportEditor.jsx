@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { getReportsModeration, tagReport, untagReport } from '../../api.js'
 import { ReportForm } from '../ReportForm.jsx'
 import { LinksScreen } from './LinksScreen.jsx'
+import { GoalsPanel } from './GoalsPanel.jsx'
 
 // Editor die in het bewerkscherm tijdelijk de inhoud van een berichtblok
-// vervangt (item 1258): Instagram/Wedstrijdbeelden = linkjes, de rest = tekst.
+// vervangt (item 1258): Instagram/Wedstrijdbeelden = linkjes, Doelpunten =
+// spelerslijst, de rest = tekst.
 // Houdt een eigen verse kopie van het bericht bij (tags en linkjes slaan meteen op).
 export default function InlineReportEditor({ report, matchRef, matchTitle, players, allowNews, onDone }) {
   const [current, setCurrent] = useState(report)
@@ -20,6 +22,14 @@ export default function InlineReportEditor({ report, matchRef, matchTitle, playe
     await refresh()
   }
 
+  if (current.report_type === 'doelpunten') {
+    return (
+      <div className="yof-card" style={{ marginBottom: 10 }}>
+        <GoalsPanel matchRef={matchRef} players={players} />
+        <button className="yof-btn" onClick={onDone} style={{ marginTop: 10 }}>Done</button>
+      </div>
+    )
+  }
   if (current.report_type === 'instagram' || current.report_type === 'wedstrijd_beelden') {
     return <LinksScreen reportType={current.report_type} existingReport={current} onDone={onDone} onRefresh={refresh} />
   }

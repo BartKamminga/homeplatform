@@ -13,7 +13,6 @@ import ContributeReport from '../ContributeReport.jsx'
 import PublicEntry from '../PublicEntry.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import InlineReportEditor from './InlineReportEditor.jsx'
-import { GoalsPanel } from './GoalsPanel.jsx'
 import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
 import InviteCreateForm from '../InviteCreateForm.jsx'
 
@@ -27,7 +26,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
   const [error, setError] = useState('')
   const [view, setView] = useState('preview') // preview | invite | fill-invite
   const [activeInviteId, setActiveInviteId] = useState(null)
-  const [showGoals, setShowGoals] = useState(false)
   const [previewKey, setPreviewKey] = useState(0) // ophogen = wedstrijdpreview opnieuw laden
   const [showLinks, setShowLinks] = useState(false)
 
@@ -65,6 +63,8 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
       if (kind === 'self') await block(pinnedPage ? 'nieuws' : 'wedstrijdverslag', pinnedPage ? 'Nieuw bericht' : 'Nieuw verslag')
       else if (kind === 'instagram') await block('instagram', 'Instagram')
       else if (kind === 'footage') await block('wedstrijd_beelden', 'Wedstrijdbeelden')
+      // Doelpunten als blok: start als concept, invullen via Bewerken (spelerslijst)
+      else if (kind === 'goals') await block('doelpunten', 'Goals')
       else if (kind === 'invite_report') await createContributorLink({ match_ref: matchRef, report_type: 'wedstrijdverslag' })
       else if (kind === 'invite_photos') await createContributorLink({ match_ref: matchRef, report_type: 'foto' })
       setPreviewKey(k => k + 1)
@@ -136,16 +136,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
           />
 
           {!pinnedPage && <>
-          <button onClick={() => setShowGoals(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
-            {showGoals ? 'Verberg' : 'Toon'} doelpunten
-          </button>
-          {showGoals && (
-            <div style={{ marginBottom: 20 }}>
-              <GoalsPanel matchRef={matchRef} players={players} />
-            </div>
-          )}
-
-          <button onClick={() => setShowLinks(s => !s)} className="yof-btn-secondary" style={{ marginBottom: 8, display: 'block' }}>
+          <button onClick={() => setShowLinks(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
             {showLinks ? 'Verberg' : 'Toon'} linkjes &amp; bezoeken
           </button>
           {showLinks && (

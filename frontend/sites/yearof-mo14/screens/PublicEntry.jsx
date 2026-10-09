@@ -6,6 +6,7 @@ import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
 import EntryHeader from './EntryHeader.jsx'
 import ItemBar from '../features/blocks/ItemBar.jsx'
+import GoalsCard from '../features/goals/GoalsCard.jsx'
 import AddBar from '../features/blocks/AddBar.jsx'
 import ArchivedReports from '../features/blocks/ArchivedReports.jsx'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
@@ -217,7 +218,11 @@ export default function PublicEntry({
                     onEdit={renderReportEditor && editing !== r.id ? () => setEditing(r.id) : undefined}
                     onDelete={() => removeReport(r)} />
                 )}
-                {adminMode && editing === r.id && renderReportEditor ? renderReportEditor(r, doneEditing) : (
+                {adminMode && editing === r.id && renderReportEditor ? renderReportEditor(r, doneEditing)
+                  : r.report_type === 'doelpunten' ? (
+                    <GoalsCard matchRef={matchRef} title={r.title} adminMode={adminMode} dimmed={adminMode && r.status === 'concept'}
+                      onClick={adminMode && renderReportEditor ? () => setEditing(r.id) : undefined} />
+                  ) : (
                 <div className="yof-card"
                   onClick={adminMode && renderReportEditor ? () => setEditing(r.id) : undefined}
                   style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default', opacity: adminMode && r.status === 'concept' ? 0.5 : 1 }}>
