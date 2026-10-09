@@ -17,7 +17,8 @@
   min-height: 100vh;
 }
 
-/* Kop + menu blijven samen bovenaan staan bij scrollen. */
+/* Kop + menu blijven samen bovenaan staan bij scrollen; het menu loopt door
+   op een volgende regel i.p.v. horizontaal te scrollen (altijd alles zichtbaar). */
 .yof-top { position: sticky; top: 0; z-index: 20; }
 .yof-header {
   position: sticky; top: 0; z-index: 5; /* losse kop (wedstrijd-/spelerslink) blijft ook staan */
@@ -35,7 +36,8 @@
 }
 .yof-header .brand { font-weight: 700; font-size: 15px; }
 
-.yof-brand { display: flex; align-items: center; gap: 10px; outline: none; }
+.yof-brand { display: flex; align-items: center; justify-content: space-between; gap: 10px; outline: none; width: 100%; }
+.yof-brand-title { display: flex; align-items: center; gap: 10px; }
 .yof-brand-crest {
   width: 36px; height: 36px; border-radius: 50%; background: var(--accent);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -49,11 +51,9 @@
 .yof-brand-paris { font-style: italic; font-weight: 700; font-size: 18px; letter-spacing: .01em; }
 
 .yof-nav {
-  display: flex; gap: 6px; overflow-x: auto;
+  display: flex; flex-wrap: wrap; gap: 6px;
   padding: 12px 12px 8px; background: var(--navy-2);
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
-.yof-nav::-webkit-scrollbar { display: none; }
 .yof-nav button {
   flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06); color: white; font-size: 13px; cursor: pointer;
