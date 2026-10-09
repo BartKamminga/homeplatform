@@ -215,6 +215,11 @@ def _competition_timeline_items(session: Session) -> list[dict]:
                 "location": m.get("location"),
                 "home_club_logo": m.get("home_club_logo"),
                 "away_club_logo": m.get("away_club_logo"),
+                # Clubkleur + id voor de wedstrijdkop (A/B/C) en het aanpassen van de kleur
+                "home_club_id": m.get("home_club_id"),
+                "away_club_id": m.get("away_club_id"),
+                "home_club_color": m.get("home_club_color"),
+                "away_club_color": m.get("away_club_color"),
                 "opponent_club_logo": m.get("away_club_logo") if is_home else m.get("home_club_logo"),
                 "description": None,
                 "is_pinned": False,

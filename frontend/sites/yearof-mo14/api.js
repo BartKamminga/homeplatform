@@ -193,6 +193,8 @@ export const getInterviewCandidates = (matchRef) => api.get(withCode(`/api/yearo
 // Doelpunten per speler per wedstrijd
 export const getMatchGoals = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/goals`))
 export const setMatchGoal  = (matchRef, playerId, goals) => api.put(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/goals/${encodeURIComponent(playerId)}`, { goals })
+// Clubkleur voor de wedstrijdkop; color null = terug naar automatisch (uit het logo)
+export const setClubColor  = (clubId, color) => api.put(`/api/yearof-mo14/club-colors/${encodeURIComponent(clubId)}`, { color })
 
 // Positie van het foto-blok op de wedstrijdpagina (WYSIWYG-editor)
 export const getPhotoBlockPosition = (matchRef) => api.get(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block`)

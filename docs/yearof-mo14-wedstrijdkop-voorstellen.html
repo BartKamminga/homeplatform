@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MO14 - wedstrijdkop: 3 voorstellen</title>
+<style>
+  :root {
+    /* Clubkleuren - in het voorbeeld vast ingevuld; ink = leesbare tekstkleur op die kleur */
+    --home: #f5c400; --home-ink: #141414;   /* Victoria: geel/zwart */
+    --away: #1f3a7a; --away-ink: #ffffff;   /* Berkel-Rodenrijs (HBR): donkerblauw */
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 60px; background: #f4f2ee; font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1b1b1b; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .intro { color: #666; font-size: 14px; margin: 0 0 28px; max-width: 900px; }
+  .proposal { margin-bottom: 44px; }
+  .proposal h2 { font-size: 17px; margin: 0 0 4px; }
+  .proposal p.why { margin: 0 0 14px; color: #555; font-size: 13px; max-width: 760px; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .frame { width: 390px; max-width: 100%; }
+  .frame small { display: block; color: #999; font-size: 11px; margin-bottom: 6px; }
+
+  .logo { width: 56px; height: 56px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,.18); flex-shrink: 0; }
+  .logo img { width: 42px; height: 42px; object-fit: contain; }
+  .meta { font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+  .meta .type { text-transform: uppercase; letter-spacing: .08em; }
+  .loc { font-size: 12px; opacity: .85; }
+
+  /* ---------- Voorstel A: diagonaal vlak ---------- */
+  .a { border-radius: 18px; overflow: hidden; position: relative; color: #fff;
+       background: linear-gradient(115deg, var(--home) 0%, var(--home) 44%, var(--away) 56%, var(--away) 100%); }
+  .a::after { /* subtiele glans over de scheiding */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 46%, rgba(255,255,255,.25) 50%, transparent 54%); }
+  .a .top { position: relative; z-index: 1; display: flex; justify-content: center; padding: 12px 14px 0; }
+  .a .top .meta { background: rgba(0,0,0,.55); color: #fff; padding: 4px 12px; border-radius: 999px; }
+  .a .body { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 16px 14px 18px; }
+  .a .team { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+  .a .team span { font-weight: 800; font-size: 13px; line-height: 1.2; }
+  .a .team.home span { color: var(--home-ink); }
+  .a .team.away span { color: var(--away-ink); }
+  .a .score { background: #fff; color: #141414; font-weight: 900; font-size: 30px; padding: 6px 16px; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.25); white-space: nowrap; }
+  .a .score.time { font-size: 20px; padding: 8px 14px; }
+  .a .foot { position: relative; z-index: 1; text-align: center; padding: 0 14px 12px; }
+  .a .foot .loc { background: rgba(0,0,0,.45); color: #fff; padding: 3px 10px; border-radius: 999px; }
+
+  /* ---------- Voorstel B: scorebord met diagonale band ---------- */
+  .b { background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+  .b .band { height: 74px; position: relative;
+             background: linear-gradient(105deg, var(--home) 0 49.6%, #fff 49.6% 50.4%, var(--away) 50.4% 100%); }
+  .b .band .meta { position: absolute; left: 0; right: 0; top: 10px; text-align: center; }
+  .b .band .meta > span { background: rgba(255,255,255,.92); color: #141414; padding: 4px 12px; border-radius: 999px; }
+  .b .logos { display: flex; justify-content: space-between; padding: 0 34px; margin-top: -30px; position: relative; }
+  .b .board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 10px 14px 6px; }
+  .b .board .name { font-weight: 800; font-size: 14px; line-height: 1.2; }
+  .b .board .name.away { text-align: right; }
+  .b .board .score { font-weight: 900; font-size: 34px; letter-spacing: .02em; }
+  .b .board .score .sep { color: #bbb; margin: 0 4px; }
+  .b .board .score.time { font-size: 22px; color: #12203c; }
+  .b .foot { text-align: center; color: #666; padding: 2px 14px 14px; }
+
+  /* ---------- Voorstel C: zachte fade, compacte rij ---------- */
+  .c { border-radius: 18px; overflow: hidden; position: relative; border: 1px solid #ece8e0;
+       background:
+         linear-gradient(120deg, color-mix(in srgb, var(--home) 32%, #fff) 0%, #fff 48%, #fff 52%, color-mix(in srgb, var(--away) 28%, #fff) 100%); }
+  .c::before { /* dunne diagonale streep in beide clubkleuren */
+    content: ''; position: absolute; top: -20%; bottom: -20%; left: 50%; width: 10px; transform: translateX(-50%) rotate(20deg);
+    background: linear-gradient(90deg, var(--home) 0 50%, var(--away) 50% 100%); opacity: .9; }
+  .c .top { position: relative; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px 0; }
+  .c .top .meta .type { color: #12203c; }
+  .c .top .meta .date { color: #666; font-weight: 600; }
+  .c .row3 { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 14px 14px 6px; }
+  .c .team { display: flex; align-items: center; gap: 10px; }
+  .c .team.away { flex-direction: row-reverse; text-align: right; }
+  .c .team span { font-weight: 800; font-size: 13px; line-height: 1.2; }
+  .c .logo { width: 48px; height: 48px; }
+  .c .logo img { width: 36px; height: 36px; }
+  .c .score { font-weight: 900; font-size: 28px; background: #141414; color: #fff; border-radius: 12px; padding: 4px 12px; white-space: nowrap; position: relative; }
+  .c .score.time { font-size: 18px; padding: 7px 12px; }
+  .c .foot { position: relative; text-align: center; padding: 4px 14px 12px; color: #555; }
+  .c .foot span { background: rgba(255,255,255,.92); padding: 2px 10px; border-radius: 999px; }
+
+  .notes { max-width: 900px; background: #fff; border-radius: 14px; padding: 16px 18px; font-size: 13px; line-height: 1.55; }
+  .notes h3 { margin: 0 0 8px; font-size: 15px; }
+</style>
+</head>
+<body>
+
+<h1>Wedstrijdkop MO14 - 3 voorstellen</h1>
+<p class="intro">Voorbeeld: Victoria MO14-1 - Berkel-Rodenrijs MO14-1, za 19 september 2026, 10:45. Per voorstel links gespeeld, rechts nog te spelen
+(dan staat de aanvangstijd op de plek van de uitslag). Breedte = telefoon (390 px). De clubkleuren en de locatie zijn hier met de hand ingevuld.</p>
+
+<!-- ================= A ================= -->
+<section class="proposal">
+  <h2>A - Diagonaal vlak</h2>
+  <p class="why">De hele kaart is verdeeld in de twee clubkleuren met een schuine scheiding. Logo's in witte rondjes, uitslag groot in een wit blok in het midden.
+    Meest uitgesproken - voelt als een wedstrijdaffiche.</p>
+  <div class="row">
+    <div class="frame"><small>gespeeld</small>
+      <div class="a">
+        <div class="top"><span class="meta"><span class="type">Competitie</span> · za 19 sep 2026</span></div>
+        <div class="body">
+          <div class="team home"><div class="logo"><img src="https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png" alt=""></div><span>Victoria<br>MO14-1</span></div>
+          <div class="score">12 - 0</div>
+          <div class="team away"><div class="logo"><img src="https://images.static-hw.nl/vI3D11SVXCktxm4D_I4U4ooIKXc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BP2/23eeccd0-24b8-48af-bd67-f962e61b56a6/logo.jpg" alt=""></div><span>Berkel-Rodenrijs<br>MO14-1</span></div>
+        </div>
+        <div class="foot"><span class="loc">📍 Sportpark Victoria</span></div>
+      </div>
+    </div>
+    <div class="frame"><small>nog te spelen</small>
+      <div class="a">
+        <div class="top"><span class="meta"><span class="type">Competitie</span> · za 19 sep 2026</span></div>
+        <div class="body">
+          <div class="team home"><div class="logo"><img src="https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png" alt=""></div><span>Victoria<br>MO14-1</span></div>
+          <div class="score time">10:45</div>
+          <div class="team away"><div class="logo"><img src="https://images.static-hw.nl/vI3D11SVXCktxm4D_I4U4ooIKXc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BP2/23eeccd0-24b8-48af-bd67-f962e61b56a6/logo.jpg" alt=""></div><span>Berkel-Rodenrijs<br>MO14-1</span></div>
+        </div>
+        <div class="foot"><span class="loc">📍 Sportpark Victoria</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= B ================= -->
+<section class="proposal">
+  <h2>B - Scorebord met kleurband</h2>
+  <p class="why">Witte kaart (past bij de rest van de site) met bovenin een band in de twee clubkleuren met een schuine witte naad.
+    De logo's steken half uit de band; daaronder een scorebord: thuis links, uitslag in het midden, uit rechts. Rustig en goed leesbaar.</p>
+  <div class="row">
+    <div class="frame"><small>gespeeld</small>
+      <div class="b">
+        <div class="band"><div class="meta"><span><span class="type">Competitie</span> · za 19 sep 2026 · 10:45</span></div></div>
+        <div class="logos">
+          <div class="logo"><img src="https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png" alt=""></div>
+          <div class="logo"><img src="https://images.static-hw.nl/vI3D11SVXCktxm4D_I4U4ooIKXc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BP2/23eeccd0-24b8-48af-bd67-f962e61b56a6/logo.jpg" alt=""></div>
+        </div>
+        <div class="board">
+          <div class="name">Victoria<br>MO14-1</div>
+          <div class="score">12<span class="sep">-</span>0</div>
+          <div class="name away">Berkel-Rodenrijs<br>MO14-1</div>
+        </div>
+        <div class="foot loc">📍 Sportpark Victoria</div>
+      </div>
+    </div>
+    <div class="frame"><small>nog te spelen</small>
+      <div class="b">
+        <div class="band"><div class="meta"><span><span class="type">Competitie</span> · za 19 sep 2026</span></div></div>
+        <div class="logos">
+          <div class="logo"><img src="https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png" alt=""></div>
+          <div class="logo"><img src="https://images.static-hw.nl/vI3D11SVXCktxm4D_I4U4ooIKXc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BP2/23eeccd0-24b8-48af-bd67-f962e61b56a6/logo.jpg" alt=""></div>
+        </div>
+        <div class="board">
+          <div class="name">Victoria<br>MO14-1</div>
+          <div class="score time">10:45</div>
+          <div class="name away">Berkel-Rodenrijs<br>MO14-1</div>
+        </div>
+        <div class="foot loc">📍 Sportpark Victoria</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= C ================= -->
+<section class="proposal">
+  <h2>C - Zachte fade, compacte rij</h2>
+  <p class="why">Lichte achtergrond die van een zachte tint van de thuisclub via wit naar een tint van de uitclub loopt, met een dunne schuine streep
+    in beide kleuren als scheiding. Alles op een rij (logo + naam - uitslag - naam + logo): het compactst, de kleuren zijn een accent.</p>
+  <div class="row">
+    <div class="frame"><small>gespeeld</small>
+      <div class="c">
+        <div class="top"><span class="meta"><span class="type">Competitie</span></span><span class="meta"><span class="date">za 19 sep 2026 · 10:45</span></span></div>
+        <div class="row3">
+          <div class="team home"><div class="logo"><img src="https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png" alt=""></div><span>Victoria<br>MO14-1</span></div>
+          <div class="score">12 - 0</div>
+          <div class="team away"><div class="logo"><img src="https://images.static-hw.nl/vI3D11SVXCktxm4D_I4U4ooIKXc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BP2/23eeccd0-24b8-48af-bd67-f962e61b56a6/logo.jpg" alt=""></div><span>Berkel-<br>Rodenrijs MO14-1</span></div>
+        </div>
+        <div class="foot loc"><span>📍 Sportpark Victoria</span></div>
+      </div>
+    </div>
+    <div class="frame"><small>nog te spelen</small>
+      <div class="c">
+        <div class="top"><span class="meta"><span class="type">Competitie</span></span><span class="meta"><span class="date">za 19 sep 2026</span></span></div>
+        <div class="row3">
+          <div class="team home"><div class="logo"><img src="https://images.static-hw.nl/v5u0HRLAuXrBrULfQGixJR4RlAI=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11QW6/09ea54e8-7bf5-46f3-ae98-396361077f0f/logo.png" alt=""></div><span>Victoria<br>MO14-1</span></div>
+          <div class="score time">10:45</div>
+          <div class="team away"><div class="logo"><img src="https://images.static-hw.nl/vI3D11SVXCktxm4D_I4U4ooIKXc=/fit-in/80x80/filters:fill(fff):background_color(fff)/club/HH11BP2/23eeccd0-24b8-48af-bd67-f962e61b56a6/logo.jpg" alt=""></div><span>Berkel-<br>Rodenrijs MO14-1</span></div>
+        </div>
+        <div class="foot loc"><span>📍 Sportpark Victoria</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="notes">
+  <h3>Waar komen de clubkleuren vandaan?</h3>
+  Nu nergens opgeslagen. Opties: (1) per club een kleur (en tekstkleur) invullen in het beheer, met een standaardkleur zolang er niets is;
+  (2) automatisch de hoofdkleur uit het logo halen (gratis, maar soms mis - bv. wit of een kleine accentkleur); (3) automatisch als voorstel, handmatig te overschrijven.
+</div>
+
+</body>
+</html>

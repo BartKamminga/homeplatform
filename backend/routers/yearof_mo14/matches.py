@@ -2,15 +2,19 @@
 de positie van het foto-blok op de wedstrijdpagina (WYSIWYG-editor). Zie
 __init__.py voor hoe dit sub-router samengevoegd wordt onder /api/yearof-mo14."""
 
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
-from core.auth import get_current_user
+from core.auth import get_current_user, require_admin
 from core.crud import get_or_404
 from core.database import get_session
 from models.core import User
+from models.hockey_discovery import HockeyClub
 from models.yearof import YearOfMatchGoal, YearOfMatchPhotoBlock, YearOfReport
+from services.club_colors import HEX_RE, effective_color
 
 from ._shared import require_team_access
 
@@ -110,3 +114,30 @@ def set_match_goal(
     session.add(row)
     session.commit()
     return {"player_id": player_id, "goals": row.goals}
+
+
+# ---------------------------------------------------------------------------
+# Clubkleur voor de wedstrijdkop: automatisch uit het logo (services/club_colors),
+# hier handmatig te overschrijven. color None = terug naar automatisch.
+# ---------------------------------------------------------------------------
+
+class ClubColorIn(BaseModel):
+    color: Optional[str] = None
+
+
+@router.put("/club-colors/{club_id}")
+def set_club_color(
+    club_id: str,
+    body: ClubColorIn,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
+    club = session.exec(select(HockeyClub).where(HockeyClub.external_id == club_id)).first()
+    if not club:
+        raise HTTPException(status_code=404, detail="Club niet gevonden")
+    if body.color is not None and not HEX_RE.fullmatch(body.color):
+        raise HTTPException(status_code=422, detail="Kleur moet #rrggbb zijn")
+    club.primary_color_manual = body.color.lower() if body.color else None
+    session.add(club)
+    session.commit()
+    return {"club_id": club_id, "color": effective_color(club), "manual": club.primary_color_manual}

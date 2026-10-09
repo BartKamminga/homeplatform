@@ -3,6 +3,8 @@ import { getTimeline, getStandings } from '../api.js'
 import NationalQueries from './NationalQueries.jsx'
 import PageBlock from '../features/blocks/PageBlock.jsx'
 import PageTitle from '../features/pages/PageTitle.jsx'
+import MatchCard from '../features/matches/MatchCard.jsx'
+import { toCardModel } from '../features/matches/matchCardModel.js'
 
 function fmtDate(iso) {
   if (!iso) return '-'
@@ -45,6 +47,22 @@ export default function PublicTimeline({ onOpenEntry }) {
       {error && <p style={{ color: '#c23b3b' }}>{error}</p>}
       {items.map(it => {
         const isNext = it.match_ref === nextMatch?.match_ref
+        const icons = (it.has_photos || it.has_report || it.has_footage) ? (
+          <span style={{ display: 'inline-flex', gap: 4 }}>
+            {it.has_photos && <span title="Foto's beschikbaar">📷</span>}
+            {it.has_report && <span title="Verslag/interview beschikbaar">📝</span>}
+            {it.has_footage && <span title="Wedstrijdbeelden beschikbaar">▶️</span>}
+          </span>
+        ) : null
+        // Competitiewedstrijd: compacte kaart C met clubkleuren; andere items de gewone rij
+        const model = toCardModel(it)
+        if (model) return (
+          <a key={it.match_ref} ref={isNext ? nextRef : undefined} className={`yof-mc-link${isNext ? ' yof-next-match' : ''}`}
+            href="#" onClick={e => { e.preventDefault(); onOpenEntry(it.match_ref) }}>
+            {isNext && <div className="yof-next-match-label">Volgende wedstrijd</div>}
+            <MatchCard model={model} variant="C" footer={icons} />
+          </a>
+        )
         return (
         <a key={it.match_ref} ref={isNext ? nextRef : undefined} className={`yof-list-row${isNext ? ' yof-next-match' : ''}`}
           href="#" onClick={e => { e.preventDefault(); onOpenEntry(it.match_ref) }}>

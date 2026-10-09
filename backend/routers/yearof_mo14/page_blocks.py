@@ -60,9 +60,13 @@ CUSTOM_PAGE_BLOCK_RE = re.compile(r"(page|hero)\.[a-z0-9-]{1,40}")
 # (match_ref = "knhb:<id>", "custom:<uuid>" of "page:<naam>", bv. Parijs weekend).
 MATCH_PHOTOS_RE = re.compile(r"photos:(knhb|custom|page):[A-Za-z0-9_-]+")
 
+# Kopstijl (A/B/C) van 1 wedstrijdpagina: "header:<match_ref>" - alleen als instelling.
+MATCH_HEADER_RE = re.compile(r"header:(knhb|custom):[A-Za-z0-9_-]+")
+
 
 def is_known_block(block_id: str) -> bool:
     return (block_id in KNOWN_BLOCKS or MATCH_PHOTOS_RE.fullmatch(block_id) is not None
+            or MATCH_HEADER_RE.fullmatch(block_id) is not None
             or CUSTOM_PAGE_BLOCK_RE.fullmatch(block_id) is not None)
 
 
