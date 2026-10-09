@@ -13,8 +13,7 @@ import ContributeReport from '../ContributeReport.jsx'
 import PublicEntry from '../PublicEntry.jsx'
 import { InviteDetailScreen, INVITE_TYPE_LABEL as TYPE_LABEL } from './InviteDetailScreen.jsx'
 import InlineReportEditor from './InlineReportEditor.jsx'
-import LinkPanel, { CreateShortLinkButton } from '../LinkPanel.jsx'
-import InviteCreateForm from '../InviteCreateForm.jsx'
+import MatchHeader from './MatchHeader.jsx'
 
 // pinnedPage (Parijs weekend, item 1239): eigen pagina zonder wedstrijd/dag -
 // alleen berichten en foto's; geen doelpunten, wedstrijdlink of invullinks.
@@ -27,7 +26,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
   const [view, setView] = useState('preview') // preview | invite | fill-invite
   const [activeInviteId, setActiveInviteId] = useState(null)
   const [previewKey, setPreviewKey] = useState(0) // ophogen = wedstrijdpreview opnieuw laden
-  const [showLinks, setShowLinks] = useState(false)
 
   function loadReports() {
     getReportsModeration().then(rows => setReports(rows.filter(r => r.match_ref === matchRef))).catch(e => setError(e.message))
@@ -98,8 +96,7 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
     <div>
       {onBack && <button onClick={onBack} style={{ fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>&larr; terug naar de lijst</button>}
       {error && <p style={{ color: '#c23b3b', fontSize: 13 }}>{error}</p>}
-      {item && !pinnedPage && <h3 style={{ fontSize: 16, margin: '0 0 4px' }}>{item.title}</h3>}
-      {item && !pinnedPage && <p style={{ fontSize: 12, color: '#666', margin: '0 0 16px' }}>{item.date?.slice(0, 10)} &middot; {item.kind}</p>}
+      {item && !pinnedPage && view === 'preview' && <MatchHeader item={item} matchRef={matchRef} players={players} />}
 
       {view === 'invite' && (
         <InviteDetailScreen link={activeInvite} players={players}
@@ -135,23 +132,6 @@ export default function MatchAdminDetail({ matchRef, onBack, pinnedPage = false,
             onOpenInvites={id => { setActiveInviteId(id); setView('invite') }}
           />
 
-          {!pinnedPage && <>
-          <button onClick={() => setShowLinks(s => !s)} className="yof-btn-secondary" style={{ margin: '20px 0 8px', display: 'block' }}>
-            {showLinks ? 'Verberg' : 'Toon'} linkjes &amp; bezoeken
-          </button>
-          {showLinks && (
-            <div style={{ marginBottom: 20 }}>
-              <LinkPanel kinds={['match', 'contribute']} filter={l => l.match_ref === matchRef} actions={{
-                // Wedstrijdlink voor de Vrienden-van-groep (item 1186): eigen token, 10 dagen
-                // geldig. Kopieer/Bekijk/Intrekken staan in de rij van de link.
-                match: (rows, reload) => (
-                  <CreateShortLinkButton rows={rows} body={{ match_ref: matchRef }} label="Maak wedstrijdlink" onCreated={reload} />
-                ),
-                contribute: (_, reload) => <InviteCreateForm matchRef={matchRef} players={players} onCreated={reload} />,
-              }} />
-            </div>
-          )}
-          </>}
         </>
       )}
     </div>
