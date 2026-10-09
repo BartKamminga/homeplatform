@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getMatchGoals, getPlayers } from '../../api.js'
 import PlayerCard from '../players/PlayerCard.jsx'
+import HockeyBall from '../brand/HockeyBall.jsx'
 
 // Doelpuntenblok op een wedstrijdpagina: per scorer de spelerskaart (zoals op
 // de teampagina) met onder de naam het aantal doelpunten. Zonder doelpunten ziet een bezoeker niets; in het
@@ -30,7 +31,7 @@ export default function GoalsCard({ matchRef, title, adminMode = false, dimmed =
         <div className="yof-grid">
           {scorers.map(({ player, goals }) => (
             <PlayerCard key={player.id} player={player}
-              subtitle={<strong style={{ color: '#141414' }}>⚽ {goals} {goals === 1 ? 'doelpunt' : 'doelpunten'}</strong>} />
+              subtitle={<strong style={{ color: '#141414' }}><HockeyBall /> {goals} {goals === 1 ? 'doelpunt' : 'doelpunten'}</strong>} />
           ))}
         </div>
       )}

@@ -1,4 +1,6 @@
 import useClubLogo from '../brand/useClubLogo.js'
+import usePageBlocks from '../blocks/usePageBlocks.js'
+import HockeyBall from '../brand/HockeyBall.jsx'
 import { STAT_KEYS, positionCode } from './fifaCardModel.js'
 import './fifaCard.css'
 
@@ -10,6 +12,10 @@ export default function FifaCard({ player, card, style }) {
   const logo = useClubLogo()
   const variant = style || card.effective_style || 'nacht'
   const shirt = player.role_title ? null : player.shirt_number
+  // Doelpunten dit seizoen: aan/uit bij Pagina-instellingen van Team
+  const showGoals = usePageBlocks().setting('page.team', 'card_goals', true)
+  // Onderdelen zonder waarde komen niet op de kaart (en tellen niet mee in het gemiddelde)
+  const stats = STAT_KEYS.filter(k => card.stats?.[k] != null)
   return (
     <div className={`yof-fc yof-fc-${variant}`}>
       <div className="rim" />
@@ -23,16 +29,16 @@ export default function FifaCard({ player, card, style }) {
           <div className="pos">{positionCode(player)}</div>
           {logo && <div className="club"><img src={logo} alt="" /></div>}
           {shirt != null && <div className="shirtno">#{shirt}</div>}
-          {card.goals > 0 && <div className="goals" title="Doelpunten dit seizoen">⚽{card.goals}</div>}
+          {showGoals && card.goals > 0 && <div className="goals" title="Doelpunten dit seizoen"><HockeyBall /> {card.goals}</div>}
         </div>
         <div className="bottom">
           <div className="name">{player.nickname || player.name}</div>
-          <div className="divider" />
-          <div className="stats">
-            {STAT_KEYS.map(k => (
-              <div key={k}><span className="k">{k}</span><span className="v">{card.stats?.[k] ?? '-'}</span></div>
-            ))}
-          </div>
+          {stats.length > 0 && <>
+            <div className="divider" />
+            <div className="stats" style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}>
+              {stats.map(k => <div key={k}><span className="k">{k}</span><span className="v">{card.stats[k]}</span></div>)}
+            </div>
+          </>}
         </div>
       </div>
     </div>

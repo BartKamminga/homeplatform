@@ -29,7 +29,7 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
     if (open) setForm({
       label: current.label || '', icon: current.icon || '', title: current.title || '', subtitle: current.subtitle || '',
       ...(withHeaderStyle ? { match_header: setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE) } : {}),
-      ...(withCardStyle ? { card_style: setting('page.team', 'card_style', 'nacht') } : {}),
+      ...(withCardStyle ? { card_style: setting('page.team', 'card_style', 'nacht'), card_goals: setting('page.team', 'card_goals', true) } : {}),
     })
   }, [open])
 
@@ -68,6 +68,10 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
               <select value={form.card_style} onChange={set('card_style')} style={field}>
                 {CARD_STYLES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginTop: 8 }}>
+                <input type="checkbox" checked={form.card_goals !== false} onChange={e => setForm(f => ({ ...f, card_goals: e.target.checked }))} />
+                Doelpunten dit seizoen tonen op de spelerskaart
+              </label>
             </>
           )}
           {withHeaderStyle && (
