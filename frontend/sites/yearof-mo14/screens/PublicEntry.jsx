@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getTimelineItem, getTimelineItemModeration, getReports, getReportsModeration, getPhotos, getPhotosModeration, updateReport, deleteReport, restoreReport, getPhotoBlockPosition, likeReport, unlikeReport } from '../api.js'
 import { LinkTiles } from './ReportLinks.jsx'
-import { PhotoLightbox, PhotoThumb } from './PhotoLightbox.jsx'
+import PhotoGrid from '../features/photos/PhotoGrid.jsx'
 import { LikeButton } from './LikeButton.jsx'
 import FormattedText from './FormattedText.jsx'
 import EntryHeader from './EntryHeader.jsx'
@@ -20,9 +20,6 @@ export default function PublicEntry({
   const [reports, setReports] = useState([])
   const [photos, setPhotos] = useState([])
   const [photoBlockSortOrder, setPhotoBlockSortOrder] = useState(-500)
-  // Lightbox per blok (item 1243): alleen door de foto's van het blok waarin je klikte swipen.
-  const [lightbox, setLightbox] = useState(null) // { list, index }
-  const openLightbox = (list, photo) => setLightbox({ list, index: list.findIndex(x => x.id === photo.id) })
   const [error, setError] = useState('')
   // Eigen pagina (bv. 'page:pinksterweekend', item 1239): zelfde berichten/foto's,
   // maar zonder wedstrijd/dag erachter - geen kop en geen terug-link.
@@ -121,8 +118,6 @@ export default function PublicEntry({
       )}
       {!isPage && <EntryHeader item={item} />}
 
-      <PhotoLightbox photos={lightbox?.list || []} index={lightbox?.index ?? null} onClose={() => setLightbox(null)}
-        onNavigate={i => setLightbox(l => ({ ...l, index: i }))} />
       {confirmDialog}
 
       {(() => {
@@ -185,15 +180,7 @@ export default function PublicEntry({
                   ) : (
                   <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>
                   <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
-                  {unassignedPublished.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-                      {unassignedPublished.map(p => (
-                        <a key={p.id} href="#" onClick={e => { e.preventDefault(); openLightbox(unassignedPublished, p) }}>
-                          <PhotoThumb photo={p} />
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
+                  {unassignedPublished.length > 0 ? <PhotoGrid photos={unassignedPublished} /> : (
                     <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s{isPage ? '' : ' voor deze wedstrijd'}.</p>
                   )}
                   </div>
@@ -245,27 +232,8 @@ export default function PublicEntry({
                     </p>
                   )}
                   <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}><FormattedText text={r.body} /></p>
-                  {(() => {
-                    const reportPhotos = photos.filter(p => p.report_id === r.id)
-                    if (reportPhotos.length === 0) return null
-                    return (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6, marginTop: 8 }}>
-                        {reportPhotos.map(p => (
-                          <a key={p.id} href="#"
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); openLightbox(reportPhotos, p) }}
-                            style={{ position: 'relative', display: 'block' }}>
-                            <PhotoThumb photo={p} />
-                            {p.status === 'concept' && (
-                              <span style={{
-                                position: 'absolute', top: 3, left: 3, background: '#fde68a', color: '#92400e',
-                                fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 999,
-                              }}>concept</span>
-                            )}
-                          </a>
-                        ))}
-                      </div>
-                    )
-                  })()}
+                  {/* Foto's van een bericht: zelfde tonen-component als het fotoblok (item 1258) */}
+                  <PhotoGrid photos={photos.filter(p => p.report_id === r.id)} min={70} showConcept />
                   <LinkTiles links={r.links} />
                   {!adminMode && (
                     <div style={{ marginTop: 6 }}>

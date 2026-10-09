@@ -1,5 +1,5 @@
-// Foto's & filmpjes bij een bericht in het ReportForm: bestaande (met
-// verwijderknop) en nog te uploaden bestanden. Uit ReportForm gehaald (item 1258).
+// Foto's & filmpjes bij een NIEUW bericht in het ReportForm: nog te uploaden
+// bestanden (bestaand bericht: PhotoGrid + PhotoManager, item 1258).
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const removeBtn = {
   position: 'absolute', top: 2, right: 2, border: 'none', borderRadius: '50%',
@@ -10,25 +10,10 @@ const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(7
 const tile = { width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, display: 'block' }
 const videoTile = fontSize => ({ ...tile, background: '#12203c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize })
 
-export default function ReportPhotosField({ existingPhotos, photoFiles, onAddFiles, onRemoveFile, onRemoveExisting }) {
+export default function ReportPhotosField({ photoFiles, onAddFiles, onRemoveFile }) {
   return (
     <>
       <label style={labelStyle}>Foto&rsquo;s &amp; filmpjes (optioneel)</label>
-      {existingPhotos.length > 0 && (
-        <div style={grid}>
-          {existingPhotos.map(p => (
-            <div key={p.id} style={{ position: 'relative' }}>
-              {p.media_type === 'video'
-                ? <div style={videoTile(18)}>▶️</div>
-                : <img src={`/api/yearof-mo14/photos/${p.id}/thumb.jpg`} alt="" style={tile} />}
-              {p.status === 'concept' && (
-                <span style={{ position: 'absolute', top: 2, left: 2, background: '#fde68a', color: '#92400e', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 999 }}>concept</span>
-              )}
-              <button onClick={() => onRemoveExisting(p.id)} style={removeBtn}>&times;</button>
-            </div>
-          ))}
-        </div>
-      )}
       <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple
         onChange={e => { onAddFiles(Array.from(e.target.files || [])); e.target.value = '' }}
         style={{ display: 'block', marginBottom: 6, fontSize: 14 }} />

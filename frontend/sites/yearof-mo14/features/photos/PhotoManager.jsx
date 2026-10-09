@@ -83,9 +83,9 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
     players: activePlayers,
   }), [entries, players, activePlayers])
 
-  // compact: alleen de losse foto's - die van een bericht staan op (en bewerk je in) dat bericht
+  // compact op een wedstrijd: alleen de losse foto's - die van een bericht bewerk je in dat bericht
   const scoped = useMemo(() => (photos || []).filter(p => (reportId ? p.report_id === reportId : !matchRef || p.match_ref === matchRef)
-    && !(compact && p.report_id)), [photos, matchRef, reportId, compact])
+    && !(compact && !reportId && p.report_id)), [photos, matchRef, reportId, compact])
   const visible = useMemo(() => sortPhotos(filterPhotos(scoped, filters, ctx), sort, ctx), [scoped, filters, sort, ctx])
   const groups = useMemo(() => {
     const list = groupPhotos(visible, grouping, ctx)

@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
-import { createReportDirect, updateReport, deleteReport, uploadPhoto, deletePhoto, getPhotosModeration } from '../api.js'
+import { createReportDirect, updateReport, deleteReport, uploadPhoto, getPhotosModeration } from '../api.js'
 import { compressImage } from '../compressImage.js'
 import { useConfirm } from '@components/ConfirmDialog.jsx'
 import { NewLinksEditor, ExistingLinksEditor, LinkTiles } from './ReportLinks.jsx'
 import ReportPhotosField from './ReportPhotosField.jsx'
 import MoreSection from '../features/blocks/MoreSection.jsx'
+import EditableSection from '../features/blocks/EditableSection.jsx'
+import PhotoGrid from '../features/photos/PhotoGrid.jsx'
+import PhotoManager from '../features/photos/PhotoManager.jsx'
 
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }
 const wideFieldStyle = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #ddd', marginBottom: 14, fontSize: 15 }
@@ -55,11 +58,6 @@ export function ReportForm({
   }
   function removePhotoFile(index) {
     setPhotoFiles(prev => prev.filter((_, i) => i !== index))
-  }
-  async function removeExistingPhoto(id) {
-    if (!(await confirm('Deze foto/video verwijderen? Dit kan niet ongedaan gemaakt worden.'))) return
-    await deletePhoto(id)
-    loadExistingPhotos()
   }
 
   async function uploadStagedPhotos(reportId, reportMatchRef) {
@@ -193,14 +191,24 @@ export function ReportForm({
       <label style={labelStyle}>Door (naam, optioneel)</label>
       <input value={authorName} onChange={e => setAuthorName(e.target.value)} style={wideFieldStyle} />
 
-      <ReportPhotosField existingPhotos={existingPhotos} photoFiles={photoFiles}
-        onAddFiles={addPhotoFiles} onRemoveFile={removePhotoFile} onRemoveExisting={removeExistingPhoto} />
-
-      <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
+      {/* Bestaand bericht (item 1258): foto's en links tonen zoals op de site, Bewerken =
+          het standaard fotobeheer / de standaard linkeditor - zelfde componenten als de blokken */}
       {isEdit ? (
-        <ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />
+        <>
+          <EditableSection label="Foto's & filmpjes" isEmpty={existingPhotos.length === 0} empty="No photos yet."
+            onDone={loadExistingPhotos}
+            show={<PhotoGrid photos={existingPhotos} min={70} showConcept />}
+            edit={<PhotoManager compact reportId={existingReport.id} matchRef={existingReport.match_ref} onChanged={loadExistingPhotos} />} />
+          <EditableSection label="Links & artikelen" isEmpty={!existingReport.links?.length} empty="No links yet."
+            show={<LinkTiles links={existingReport.links} />}
+            edit={<ExistingLinksEditor reportId={existingReport.id} links={existingReport.links || []} onChanged={onRefresh} />} />
+        </>
       ) : (
-        <NewLinksEditor links={newLinks} onChange={setNewLinks} />
+        <>
+          <ReportPhotosField photoFiles={photoFiles} onAddFiles={addPhotoFiles} onRemoveFile={removePhotoFile} />
+          <label style={labelStyle}>Links &amp; artikelen (Instagram, wedstrijdbeelden, hockey.nl, sponsors, ...)</label>
+          <NewLinksEditor links={newLinks} onChange={setNewLinks} />
+        </>
       )}
 
       {isEdit && players?.length > 0 && (
