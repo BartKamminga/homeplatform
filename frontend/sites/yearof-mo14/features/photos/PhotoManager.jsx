@@ -30,7 +30,12 @@ function loadPrefs(scope) {
 
 export default function PhotoManager({ matchRef = null, reportId = null, onChanged, compact = false }) {
   const scope = reportId ? 'report' : matchRef ? 'match' : 'all'
-  const initial = useMemo(() => loadPrefs(scope), [scope])
+  // compact (fotoblok, item 1258): altijd openen op Alles per status, nieuwste eerst,
+  // Live bovenaan - zelfde foto's in dezelfde volgorde als net nog in het blok.
+  const initial = useMemo(() => {
+    const prefs = loadPrefs(scope)
+    return compact ? { ...prefs, filters: { ...prefs.filters, quick: 'all' }, grouping: 'status', sort: 'newest' } : prefs
+  }, [scope, compact])
   const [showUpload, setShowUpload] = useState(false)
   const [photos, setPhotos] = useState(null)
   const [matchEntries, setEntries] = useState([])
@@ -78,9 +83,14 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
     players: activePlayers,
   }), [entries, players, activePlayers])
 
-  const scoped = useMemo(() => (photos || []).filter(p => (reportId ? p.report_id === reportId : !matchRef || p.match_ref === matchRef)), [photos, matchRef, reportId])
+  // compact: alleen de losse foto's - die van een bericht staan op (en bewerk je in) dat bericht
+  const scoped = useMemo(() => (photos || []).filter(p => (reportId ? p.report_id === reportId : !matchRef || p.match_ref === matchRef)
+    && !(compact && p.report_id)), [photos, matchRef, reportId, compact])
   const visible = useMemo(() => sortPhotos(filterPhotos(scoped, filters, ctx), sort, ctx), [scoped, filters, sort, ctx])
-  const groups = useMemo(() => groupPhotos(visible, grouping, ctx), [visible, grouping, ctx])
+  const groups = useMemo(() => {
+    const list = groupPhotos(visible, grouping, ctx)
+    return compact && grouping === 'status' ? [...list].sort((a, b) => (b.key === 'live') - (a.key === 'live')) : list
+  }, [visible, grouping, ctx, compact])
   const counts = useMemo(() => quickCounts(scoped, filters, ctx), [scoped, filters, ctx])
   // Navigatievolgorde = zoals op het scherm (groepen achter elkaar, uniek).
   const ordered = useMemo(() => {
