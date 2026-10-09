@@ -8,6 +8,7 @@ import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 import PublicAction from './PublicAction.jsx'
 import CustomPage from '../features/pages/CustomPage.jsx'
 import BrandMark from '../features/brand/BrandMark.jsx'
+import { NAV_ICONS, customPageIcon } from '../features/brand/navIcons.js'
 import useCustomPages, { SPOTLIGHT_PAGE, viewForPageRef } from '../features/pages/useCustomPages.js'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
@@ -85,18 +86,22 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {/* Klik op het logo = Home (item 1245) - scheelt een tab in het menu */}
         <BrandMark onClick={() => nav('home')} />
       </div>
+      {/* Menu met Lucide-iconen; op een smalle site alleen het icoon (CSS-containerquery).
+          Volgorde: vaste pagina's, eigen pagina's, en Foto's toevoegen helemaal rechts. */}
       <div className="yof-nav">
         {[
-          'action', 'spotlight', 'team', 'timeline', 'competition', 'topklasse', 'upload',
-        ].map(key => ({ key, label: meta(key).label })).filter(t => pageLive(t.key)).map(t => (
-          <button key={t.key} className={view.name === t.key ? 'active' : ''} onClick={() => nav(t.key)}>
-            {t.label}
-          </button>
-        ))}
-        {customPages.filter(p => pageLive(p.id)).map(p => (
-          <button key={p.id} className={view.name === 'custom' && view.id === p.id ? 'active' : ''}
-            onClick={() => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) }}>
-            {p.label}
+          ...['action', 'spotlight', 'team', 'timeline', 'competition', 'topklasse']
+            .filter(key => pageLive(key))
+            .map(key => ({ id: key, label: meta(key).label, Icon: NAV_ICONS[key], active: view.name === key, go: () => nav(key) })),
+          ...customPages.filter(p => pageLive(p.id)).map(p => ({
+            id: `custom:${p.id}`, label: p.label, Icon: customPageIcon(p.id), active: view.name === 'custom' && view.id === p.id,
+            go: () => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) },
+          })),
+          ...(pageLive('upload') ? [{ id: 'upload', label: meta('upload').label, Icon: NAV_ICONS.upload, active: view.name === 'upload', go: () => nav('upload') }] : []),
+        ].map(t => (
+          <button key={t.id} className={t.active ? 'active' : ''} onClick={t.go} title={t.label} aria-label={t.label}>
+            <t.Icon aria-hidden="true" />
+            <span className="yof-nav-label">{t.label}</span>
           </button>
         ))}
       </div>

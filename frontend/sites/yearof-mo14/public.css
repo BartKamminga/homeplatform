@@ -55,9 +55,24 @@
   padding: 12px 12px 8px; background: var(--navy-2);
 }
 .yof-nav button {
-  flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12);
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06); color: white; font-size: 13px; cursor: pointer;
   white-space: nowrap;
+}
+.yof-nav button svg { width: 16px; height: 16px; stroke-width: 2.2; flex-shrink: 0; }
+
+/* Smalle site (telefoon, of de studio-preview in telefoonstand): alleen iconen,
+   verdeeld over de hele breedte. Containerquery i.p.v. mediaquery, zodat de
+   preview in de studio hetzelfde doet als een echte telefoon. */
+/* Alleen op kop+menu (niet op .yof): een container op de hele site zou fixed
+   vensters zoals de foto-lightbox aan de site i.p.v. het scherm vastzetten. */
+.yof-top { container-type: inline-size; }
+@container (max-width: 640px) {
+  .yof-nav { flex-wrap: nowrap; justify-content: space-between; gap: 4px; }
+  .yof-nav button { padding: 8px 10px; }
+  .yof-nav button svg { width: 20px; height: 20px; }
+  .yof-nav-label { display: none; }
 }
 .yof-nav button.active { background: var(--accent); color: var(--accent-ink); font-weight: 700; border-color: var(--accent); }
 
