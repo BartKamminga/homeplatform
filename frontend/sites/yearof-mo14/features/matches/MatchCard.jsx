@@ -10,7 +10,9 @@ export default function MatchCard({ model, variant = 'A', footer }) {
   const dateWithTime = model.played && model.timeLabel ? `${model.dateLabel} · ${model.timeLabel}` : model.dateLabel
   const center = model.played
     ? <div className="yof-mc-score">{model.scoreHome}<span className="sep"> - </span>{model.scoreAway}</div>
-    : <div className="yof-mc-score time">{model.timeLabel || 'vs'}</div>
+    : model.timeLabel
+      ? <div className="yof-mc-score time">{model.timeLabel}</div>
+      : <div className="yof-mc-vs">vs</div>
   const foot = footer !== undefined ? footer : model.location ? <span className="yof-mc-loc">📍 {model.location}</span> : null
   const logo = team => (
     <div className="yof-mc-logo">{team.logo ? <img src={team.logo} alt="" /> : <span>{team.name.slice(0, 1)}</span>}</div>

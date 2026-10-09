@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { setClubColor } from '../../api.js'
 import usePageBlocks from '../../features/blocks/usePageBlocks.js'
-import { toCardModel, headerSettingId, HEADER_STYLES, DEFAULT_HEADER_STYLE } from '../../features/matches/matchCardModel.js'
+import { toCardModel, headerSettingId, HEADER_STYLES, DEFAULT_HEADER_STYLE, DEFAULT_LIST_STYLE, DEFAULT_HOME_STYLE } from '../../features/matches/matchCardModel.js'
 
-// Weergave van de wedstrijdkop in Wedstrijd-instellingen: kopstijl A/B/C voor deze
-// wedstrijd (of de standaard van de pagina Wedstrijden) en de clubkleuren. Een
+// Weergave van de wedstrijd in Wedstrijd-instellingen: kopstijl (wedstrijdpagina) en
+// lijststijl (wedstrijdenlijst) en startpaginastijl A/B/C voor deze wedstrijd (of de standaard
+// van de pagina Wedstrijden) en de clubkleuren. Een
 // clubkleur geldt voor die club overal (alle wedstrijden), niet alleen hier.
 export default function MatchLookSettings({ item }) {
   const { setting, setSetting, isPlatformAdmin } = usePageBlocks()
@@ -14,9 +15,11 @@ export default function MatchLookSettings({ item }) {
   if (!model) return null
 
   const id = headerSettingId(item.match_ref)
-  const own = setting(id, 'style', null)
-  const pageDefault = setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE)
-  const choices = [{ value: null, label: `Standaard (${pageDefault})` }, ...HEADER_STYLES.map(s => ({ value: s.value, label: s.value }))]
+  const rows = [
+    { label: 'Kopstijl', key: 'style', pageDefault: setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE) },
+    { label: 'Lijststijl', key: 'list_style', pageDefault: setting('page.timeline', 'list_style', DEFAULT_LIST_STYLE) },
+    { label: 'Startpagina', key: 'home_style', pageDefault: setting('page.timeline', 'home_style', DEFAULT_HOME_STYLE) },
+  ]
 
   async function saveColor(sideKey, color) {
     const clubId = model[sideKey].clubId
@@ -32,13 +35,19 @@ export default function MatchLookSettings({ item }) {
 
   return (
     <div style={{ marginBottom: 14, fontSize: 13 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-        <strong style={{ marginRight: 4 }}>Kopstijl</strong>
-        {choices.map(c => (
-          <button key={String(c.value)} className="yof-btn-secondary" disabled={!isPlatformAdmin}
-            onClick={() => setSetting(id, 'style', c.value)} style={btn(own === c.value)}>{c.label}</button>
-        ))}
-      </div>
+      {rows.map(row => {
+        const own = setting(id, row.key, null)
+        const choices = [{ value: null, label: `Standaard (${row.pageDefault})` }, ...HEADER_STYLES.map(s => ({ value: s.value, label: s.value }))]
+        return (
+          <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            <strong style={{ marginRight: 4, minWidth: 70 }}>{row.label}</strong>
+            {choices.map(c => (
+              <button key={String(c.value)} className="yof-btn-secondary" disabled={!isPlatformAdmin}
+                onClick={() => setSetting(id, row.key, c.value)} style={btn(own === c.value)}>{c.label}</button>
+            ))}
+          </div>
+        )
+      })}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <strong>Clubkleuren</strong>
         {['home', 'away'].map(sideKey => (
