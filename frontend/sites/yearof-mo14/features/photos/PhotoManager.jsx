@@ -13,7 +13,7 @@ import useCustomPages, { SPOTLIGHT_PAGE } from '../pages/useCustomPages.js'
 // fotobeheer op de wedstrijdpagina. matchRef gezet = alleen die wedstrijd
 // (wedstrijdfilter vast); reportId gezet = alleen de foto's van dat bericht.
 // Uploaden gebeurt in dezelfde context (meteen aan wedstrijd/bericht gekoppeld). Filters/sortering/indeling worden per browser
-// onthouden, apart voor beide plekken. onChanged = na elke wijziging (bv.
+// onthouden, apart voor beide plekken. compact = in het fotoblok (item 1258). onChanged = na elke wijziging (bv.
 // zodat de wedstrijdpreview ververst).
 
 const storageKey = scope => `yof_photo_manager_${scope}`
@@ -28,7 +28,7 @@ function loadPrefs(scope) {
   }
 }
 
-export default function PhotoManager({ matchRef = null, reportId = null, onChanged }) {
+export default function PhotoManager({ matchRef = null, reportId = null, onChanged, compact = false }) {
   const scope = reportId ? 'report' : matchRef ? 'match' : 'all'
   const initial = useMemo(() => loadPrefs(scope), [scope])
   const [showUpload, setShowUpload] = useState(false)
@@ -153,7 +153,7 @@ export default function PhotoManager({ matchRef = null, reportId = null, onChang
         </button>
       )}
       <PhotoToolbar filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} grouping={grouping} setGrouping={setGrouping}
-        size={size} setSize={setSize} counts={counts} entries={entries} players={activePlayers} lockedMatch={matchRef} />
+        size={size} setSize={setSize} counts={counts} entries={entries} players={activePlayers} lockedMatch={matchRef} compact={compact} />
       <PhotoBulkBar selectedCount={selectedExisting.size} visibleCount={ordered.length}
         onSelectAll={() => selectGroup(ordered, true)} onDeselect={() => setSelected(new Set())}
         onBulk={(action, value) => bulk([...selectedExisting], action, value).finally(() => ['archive', 'restore', 'purge'].includes(action) && setSelected(new Set()))}

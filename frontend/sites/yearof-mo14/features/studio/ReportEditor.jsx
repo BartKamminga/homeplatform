@@ -47,7 +47,7 @@ export default function ReportEditor({ reportId, onDone }) {
   // Instagram/wedstrijdbeelden zijn linkjes-berichten met een eigen scherm.
   if (report.report_type === 'instagram' || report.report_type === 'wedstrijd_beelden') {
     return <LinksScreen reportType={report.report_type} existingReport={report}
-      onBack={onDone} onRefresh={reload} />
+      onDone={onDone} onRefresh={reload} />
   }
 
   return (

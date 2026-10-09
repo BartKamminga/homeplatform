@@ -13,7 +13,7 @@ import { useConfirm } from '@components/ConfirmDialog.jsx'
 
 export default function PublicEntry({
   matchRef, onBack, previewMode = false, adminMode = false, standalone = false,
-  onEditReport, onAddItem, addKinds, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
+  renderReportEditor, onAddItem, addKinds, renderPhotoManager, onMoveReport, onMovePhotoBlock, pendingInvites = [], onOpenInvites,
 }) {
   const [item, setItem] = useState(null)
   const [reports, setReports] = useState([])
@@ -27,7 +27,14 @@ export default function PublicEntry({
   // maar zonder wedstrijd/dag erachter - geen kop en geen terug-link.
   const isPage = matchRef.startsWith('page:')
   const [confirm, confirmDialog] = useConfirm()
-  const [showPhotoManager, setShowPhotoManager] = useState(false)
+  // Bewerken in het blok (item 1258): 1 blok tegelijk - 'photos' of het id van een bericht.
+  // De editor vervangt zolang de inhoud van dat blok.
+  const [editing, setEditing] = useState(null)
+  function doneEditing() {
+    setEditing(null)
+    loadReports()
+    loadPhotos()
+  }
   const [insertAfter, setInsertAfter] = useState(null) // tussen-keuzebalk open na dit blok
   // Keuze = meteen een (concept)blok aanmaken (item 1239), invullen via Bewerken.
   const add = (afterId, kind) => { setInsertAfter(null); onAddItem(afterId, kind) }
@@ -167,9 +174,14 @@ export default function PublicEntry({
                       onToggleLive={() => setBlockState(photosBlockId, !photosLive)}
                       onUp={atTop ? undefined : () => movePhotos('up')}
                       onDown={atBottom ? undefined : () => movePhotos('down')}
-                      onEdit={renderPhotoManager ? () => setShowPhotoManager(s => !s) : undefined}
-                      editLabel={showPhotoManager ? 'Fotobeheer sluiten' : 'Fotobeheer'} />
+                      onEdit={renderPhotoManager && editing !== 'photos' ? () => setEditing('photos') : undefined} />
                   )}
+                  {adminMode && editing === 'photos' && renderPhotoManager ? (
+                    <div className="yof-card" style={{ marginBottom: 10 }}>
+                      {renderPhotoManager(loadPhotos)}
+                      <button className="yof-btn" onClick={doneEditing} style={{ marginTop: 10 }}>Done</button>
+                    </div>
+                  ) : (
                   <div style={{ opacity: adminMode && !photosLive ? 0.5 : 1 }}>
                   <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>Foto&rsquo;s</h4>
                   {unassignedPublished.length > 0 ? (
@@ -184,8 +196,6 @@ export default function PublicEntry({
                     <p style={{ color: '#666', fontSize: 13, margin: 0 }}>Nog geen foto&rsquo;s{isPage ? '' : ' voor deze wedstrijd'}.</p>
                   )}
                   </div>
-                  {adminMode && showPhotoManager && renderPhotoManager && (
-                    <div style={{ marginTop: 12 }}>{renderPhotoManager(loadPhotos)}</div>
                   )}
                 </div>
               )
@@ -204,11 +214,12 @@ export default function PublicEntry({
                     onToggleFeatured={isPage ? () => changeReport(r, { featured: !r.featured }) : undefined}
                     onUp={atTop ? undefined : () => move(r.id, 'up')}
                     onDown={atBottom ? undefined : () => move(r.id, 'down')}
-                    onEdit={() => onEditReport(r)}
+                    onEdit={renderReportEditor && editing !== r.id ? () => setEditing(r.id) : undefined}
                     onDelete={() => removeReport(r)} />
                 )}
+                {adminMode && editing === r.id && renderReportEditor ? renderReportEditor(r, doneEditing) : (
                 <div className="yof-card"
-                  onClick={adminMode ? () => onEditReport(r) : undefined}
+                  onClick={adminMode && renderReportEditor ? () => setEditing(r.id) : undefined}
                   style={{ marginBottom: 10, position: 'relative', cursor: adminMode ? 'pointer' : 'default', opacity: adminMode && r.status === 'concept' ? 0.5 : 1 }}>
                   {r.status === 'concept' && !adminMode && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -257,6 +268,7 @@ export default function PublicEntry({
                     </div>
                   )}
                 </div>
+                )}
                 {adminMode && (insertAfter === r.id
                   ? <AddBar compact kinds={addKinds} onPick={kind => add(r.id, kind)} />
                   : (

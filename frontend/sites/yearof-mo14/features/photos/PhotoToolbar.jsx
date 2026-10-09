@@ -3,7 +3,8 @@ import { QUICK_FILTERS, SORTS, GROUPINGS, PHOTO_TYPES, DEFAULT_FILTERS } from '.
 
 // Werkbalk van de PhotoManager: snelfilters met aantallen, zoeken, filters,
 // sorteren, indeling en tegelgrootte. lockedMatch = op de wedstrijdpagina
-// (wedstrijdfilter vast, dus niet tonen).
+// (wedstrijdfilter vast, dus niet tonen). compact (fotoblok, item 1258): eerst
+// alleen snelfilters en zoeken, met een knop naar de hele werkbalk.
 
 const select = { fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid #ddd', background: 'white', maxWidth: 190 }
 
@@ -15,7 +16,8 @@ function Select({ value, onChange, children, title }) {
   )
 }
 
-export default function PhotoToolbar({ filters, setFilters, sort, setSort, grouping, setGrouping, size, setSize, counts, entries, players, lockedMatch }) {
+export default function PhotoToolbar({ filters, setFilters, sort, setSort, grouping, setGrouping, size, setSize, counts, entries, players, lockedMatch, compact = false }) {
+  const [full, setFull] = useState(!compact)
   const [showMore, setShowMore] = useState(
     () => ['highlight', 'favorite', 'attached', 'source', 'period'].some(k => filters[k]),
   )
@@ -40,7 +42,14 @@ export default function PhotoToolbar({ filters, setFilters, sort, setSort, group
         <input type="search" placeholder="Zoek wedstrijd, speelster, notitie..." value={filters.search}
           onChange={e => set('search')(e.target.value)}
           style={{ ...select, flex: '1 1 180px', maxWidth: 'none', padding: '5px 8px' }} />
+        {compact && (
+          <button onClick={() => setFull(f => !f)} className="yof-btn-secondary" style={{ fontSize: 12 }}>
+            {full ? '▾ Fewer filters' : `▸ All filters${activeCount ? ` (${activeCount})` : ''}`}
+          </button>
+        )}
       </div>
+
+      {full && <>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <Select value={filters.status} onChange={set('status')} title="Status">
@@ -119,6 +128,7 @@ export default function PhotoToolbar({ filters, setFilters, sort, setSort, group
           <input type="range" min={70} max={220} step={10} value={size} onChange={e => setSize(Number(e.target.value))} />
         </label>
       </div>
+      </>}
     </div>
   )
 }
