@@ -13,6 +13,8 @@ from models.settings import AppSetting
 
 DISC_TARGET_SEASON = "disc_target_season"
 NOTIFY_TEAM_IDS_KEY = "notify_team_ids"
+COMPETITION_SPONSOR_PREFIXES_KEY = "competition_sponsor_prefixes"
+DEFAULT_COMPETITION_SPONSOR_PREFIXES = "HelloFresh,Staatsloterij"
 
 ZAAL_WINDOW_START_DAY_KEY   = "zaal_window_start_day"
 ZAAL_WINDOW_START_MONTH_KEY = "zaal_window_start_month"
@@ -88,6 +90,22 @@ def get_notify_team_ids(session: Session) -> set:
     een afgeronde wedstrijd - komma-gescheiden setting, leeg = geen meldingen."""
     raw = _get_str_setting(session, NOTIFY_TEAM_IDS_KEY, "")
     return {p.strip() for p in raw.split(",") if p.strip()}
+
+
+def strip_competition_sponsor(session: Session, name: str) -> str:
+    """Item 1252: hockey.nl zet sinds 09-2026 een sponsornaam voor sommige
+    competitienamen ("HelloFresh Meisjes O18 3e klasse"). Die hoort niet in
+    onze naam en ook niet in de external_id (naam|klasse|district|seizoen),
+    anders levert elke sponsorwissel een nieuwe competitie-rij op en verhuizen
+    de poules weg van hun publicatie. Komma-gescheiden setting, zodat een
+    nieuwe sponsor zonder deploy toe te voegen is."""
+    if not name:
+        return name
+    raw = _get_str_setting(session, COMPETITION_SPONSOR_PREFIXES_KEY, DEFAULT_COMPETITION_SPONSOR_PREFIXES)
+    for prefix in (p.strip() for p in raw.split(",")):
+        if prefix and name.lower().startswith(prefix.lower() + " "):
+            return name[len(prefix):].strip()
+    return name
 
 
 def get_target_season(session: Session) -> str:
