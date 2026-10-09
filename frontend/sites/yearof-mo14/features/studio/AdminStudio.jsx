@@ -31,7 +31,7 @@ export default function AdminStudio({ me }) {
   const matchLink = useFanLink('match', entryRef)
   const playerLink = useFanLink('player', playerId)
   const fanLink = entryRef ? matchLink : playerLink
-  const fanLabel = entryRef ? 'Fans (wedstrijdlink)' : 'Fans (spelerslink)'
+  const fanLabel = entryRef ? 'Fans (wedstrijdlink)' : playerId ? 'Fans (spelerslink)' : 'Fans'
   const asFan = audience === 'fans' && !!fanLink
 
   useEffect(() => {
@@ -65,17 +65,26 @@ export default function AdminStudio({ me }) {
       <section style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '8px 12px', fontSize: 13, background: 'white', borderBottom: '1px solid #dde1ea' }}>
           <strong style={{ flex: 1 }}>Bekijk site</strong>
-          {fanLink && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 6 }}>
-              <span style={{ color: '#888', fontSize: 12 }}>Als:</span>
-              {[['team', 'Team (site)'], ['fans', fanLabel]].map(([key, text]) => (
-                <button key={key} className="yof-btn-secondary" onClick={() => setAudience(key)}
-                  style={audience === key ? { background: '#d97706', color: 'white', borderColor: '#d97706' } : undefined}>
-                  {text}
+          {/* Niveaus altijd zichtbaar (1237); grijs als er op deze pagina geen mogelijkheid is */}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 6 }}>
+            <span style={{ color: '#888', fontSize: 12 }}>Als:</span>
+            {[
+              { key: 'team', text: 'Team (site)', enabled: true },
+              { key: 'fans', text: fanLabel, enabled: !!fanLink,
+                why: entryRef || playerId ? 'Nog geen geldige fan-link - maak er een aan' : 'Voor deze pagina bestaat (nog) geen fan-link' },
+              { key: 'open', text: 'Openbaar', enabled: false, why: 'Openbaar (zonder code) bestaat nog niet' },
+            ].map(o => {
+              const active = o.enabled && (o.key === 'fans' ? asFan : o.key === 'team' && !asFan)
+              return (
+                <button key={o.key} className="yof-btn-secondary" disabled={!o.enabled} title={o.enabled ? undefined : o.why}
+                  onClick={() => setAudience(o.key)}
+                  style={active ? { background: '#d97706', color: 'white', borderColor: '#d97706' }
+                    : o.enabled ? undefined : { opacity: 0.4, cursor: 'not-allowed' }}>
+                  {o.text}
                 </button>
-              ))}
-            </span>
-          )}
+              )
+            })}
+          </span>
           {PRESETS.map(p => (
             <button key={p.label} className="yof-btn-secondary" onClick={() => preview.setWidth(p.width)}
               style={preview.width === p.width ? { background: '#12203c', color: 'white', borderColor: '#12203c' } : undefined}>
