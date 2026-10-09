@@ -9,7 +9,7 @@ import { stripFormatting } from './FormattedText.jsx'
 import usePageMeta from '../features/pages/pageMeta.js'
 import { PageIcon } from '../features/brand/navIcons.jsx'
 import MatchCard from '../features/matches/MatchCard.jsx'
-import { toCardModel } from '../features/matches/matchCardModel.js'
+import { toCardModel, matchStyle } from '../features/matches/matchCardModel.js'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -19,13 +19,14 @@ function fmtDate(iso) {
 }
 
 function MatchTeaser({ label, item, onOpen }) {
+  const { setting } = usePageBlocks()
   if (!item) return null
-  // Competitiewedstrijd: dezelfde compacte kaart C als in de wedstrijdenlijst
+  // Competitiewedstrijd: wedstrijdkaart in de startpaginastijl (standaard C)
   const model = toCardModel(item)
   if (model) return (
     <a href="#" onClick={e => { e.preventDefault(); onOpen(item.match_ref) }} className="yof-mc-link">
       <div className="yof-next-match-label" style={{ background: '#eef1f8', color: '#12203c' }}>{label}</div>
-      <MatchCard model={model} variant="C" footer={null} />
+      <MatchCard model={model} variant={matchStyle(setting, item.match_ref, 'home')} footer={null} />
     </a>
   )
   return (

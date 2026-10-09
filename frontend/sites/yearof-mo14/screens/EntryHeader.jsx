@@ -1,6 +1,6 @@
 import FormattedText from './FormattedText.jsx'
 import MatchCard from '../features/matches/MatchCard.jsx'
-import { toCardModel, headerSettingId, DEFAULT_HEADER_STYLE } from '../features/matches/matchCardModel.js'
+import { toCardModel, matchStyle } from '../features/matches/matchCardModel.js'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
 
 // Kop van een wedstrijd/bijzondere dag: soort, logo's, titel, datum, locatie,
@@ -10,7 +10,7 @@ export default function EntryHeader({ item }) {
   const model = toCardModel(item)
   if (model) {
     // Competitiewedstrijd: kaart A/B/C - per wedstrijd in te stellen, anders de standaard van de pagina Wedstrijden
-    const variant = setting(headerSettingId(item.match_ref), 'style', null) || setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE)
+    const variant = matchStyle(setting, item.match_ref, 'header')
     return (
       <>
         <MatchCard model={model} variant={variant} />
@@ -41,7 +41,7 @@ export default function EntryHeader({ item }) {
         {new Date(item.date).toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
         {(() => {
           const d = new Date(item.date)
-          const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(item.date)
+          const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) // 00:00 = tijd onbekend
           return hasTime ? ` · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}` : ''
         })()}
       </p>

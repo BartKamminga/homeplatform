@@ -8,7 +8,23 @@ export const HEADER_STYLES = [
   { value: 'C', label: 'C - Compact' },
 ]
 export const DEFAULT_HEADER_STYLE = 'A'
+export const DEFAULT_LIST_STYLE = 'C'
+export const DEFAULT_HOME_STYLE = 'C'
 export const headerSettingId = matchRef => `header:${matchRef}`
+
+// Stijl van een wedstrijd per plek: kop (wedstrijdpagina), lijst (wedstrijdenlijst) of
+// home (Laatste/Volgende wedstrijd op de startpagina). Per wedstrijd ("header:<ref>"
+// style / list_style / home_style), anders de standaard van de pagina Wedstrijden
+// (page.timeline match_header / list_style / home_style), anders A / C / C.
+const STYLE_KEYS = {
+  header: ['style', 'match_header', DEFAULT_HEADER_STYLE],
+  list: ['list_style', 'list_style', DEFAULT_LIST_STYLE],
+  home: ['home_style', 'home_style', DEFAULT_HOME_STYLE],
+}
+export function matchStyle(setting, matchRef, kind = 'header') {
+  const [key, pageKey, fallback] = STYLE_KEYS[kind]
+  return setting(headerSettingId(matchRef), key, null) || setting('page.timeline', pageKey, fallback)
+}
 
 // Zonder (bekende) clubkleur: neutraal grijsblauw
 const FALLBACK_COLOR = '#9aa5c0'
@@ -22,9 +38,10 @@ export function inkFor(hex) {
   return lum > 0.55 ? '#141414' : '#ffffff'
 }
 
+// Onbekende aanvangstijd komt binnen als middernacht (T00:00) - dan geen tijd tonen
 function hasTime(iso) {
   const d = new Date(iso)
-  return !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(iso)
+  return !(d.getHours() === 0 && d.getMinutes() === 0)
 }
 
 export function toCardModel(item) {

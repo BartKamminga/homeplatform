@@ -4,14 +4,15 @@ import NationalQueries from './NationalQueries.jsx'
 import PageBlock from '../features/blocks/PageBlock.jsx'
 import PageTitle from '../features/pages/PageTitle.jsx'
 import MatchCard from '../features/matches/MatchCard.jsx'
-import { toCardModel } from '../features/matches/matchCardModel.js'
+import { toCardModel, matchStyle } from '../features/matches/matchCardModel.js'
+import usePageBlocks from '../features/blocks/usePageBlocks.js'
 
 function fmtDate(iso) {
   if (!iso) return '-'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
   const datePart = d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
-  const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) || /T\d{2}:\d{2}/.test(iso)
+  const hasTime = !(d.getHours() === 0 && d.getMinutes() === 0) // 00:00 = tijd onbekend
   if (!hasTime) return datePart
   return `${datePart} · ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
 }
@@ -25,6 +26,7 @@ export default function PublicTimeline({ onOpenEntry }) {
   const [standings, setStandings] = useState(null)
   const [error, setError] = useState('')
   const nextRef = useRef(null)
+  const { setting } = usePageBlocks()
 
   useEffect(() => {
     getTimeline().then(setItems).catch(e => setError(e.message))
@@ -54,13 +56,13 @@ export default function PublicTimeline({ onOpenEntry }) {
             {it.has_footage && <span title="Wedstrijdbeelden beschikbaar">▶️</span>}
           </span>
         ) : null
-        // Competitiewedstrijd: compacte kaart C met clubkleuren; andere items de gewone rij
+        // Competitiewedstrijd: kaart in de lijststijl (standaard C, per wedstrijd in te stellen); andere items de gewone rij
         const model = toCardModel(it)
         if (model) return (
           <a key={it.match_ref} ref={isNext ? nextRef : undefined} className={`yof-mc-link${isNext ? ' yof-next-match' : ''}`}
             href="#" onClick={e => { e.preventDefault(); onOpenEntry(it.match_ref) }}>
             {isNext && <div className="yof-next-match-label">Volgende wedstrijd</div>}
-            <MatchCard model={model} variant="C" footer={icons} />
+            <MatchCard model={model} variant={matchStyle(setting, it.match_ref, 'list')} footer={icons} />
           </a>
         )
         return (

@@ -4,7 +4,7 @@ import usePageMeta, { pageMetaId } from './pageMeta.js'
 import IconPicker from '../brand/IconPicker.jsx'
 import { PageIcon } from '../brand/navIcons.jsx'
 import usePageBlocks from '../blocks/usePageBlocks.js'
-import { HEADER_STYLES, DEFAULT_HEADER_STYLE } from '../matches/matchCardModel.js'
+import { HEADER_STYLES, DEFAULT_HEADER_STYLE, DEFAULT_LIST_STYLE, DEFAULT_HOME_STYLE } from '../matches/matchCardModel.js'
 import { CARD_STYLES } from '../players/fifaCardModel.js'
 
 const field = { width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 8, border: '1px solid #ddd' }
@@ -28,7 +28,7 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
   useEffect(() => {
     if (open) setForm({
       label: current.label || '', icon: current.icon || '', title: current.title || '', subtitle: current.subtitle || '',
-      ...(withHeaderStyle ? { match_header: setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE) } : {}),
+      ...(withHeaderStyle ? { match_header: setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE), list_style: setting('page.timeline', 'list_style', DEFAULT_LIST_STYLE), home_style: setting('page.timeline', 'home_style', DEFAULT_HOME_STYLE) } : {}),
       ...(withCardStyle ? { card_style: setting('page.team', 'card_style', 'nacht'), card_goals: setting('page.team', 'card_goals', true) } : {}),
     })
   }, [open])
@@ -78,6 +78,14 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
             <>
               <label style={label}>Kop van een wedstrijdpagina (standaard, per wedstrijd aan te passen)</label>
               <select value={form.match_header} onChange={set('match_header')} style={field}>
+                {HEADER_STYLES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <label style={label}>Wedstrijd in de wedstrijdenlijst (standaard, per wedstrijd aan te passen)</label>
+              <select value={form.list_style} onChange={set('list_style')} style={field}>
+                {HEADER_STYLES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <label style={label}>Laatste/volgende wedstrijd op de startpagina (standaard, per wedstrijd aan te passen)</label>
+              <select value={form.home_style} onChange={set('home_style')} style={field}>
                 {HEADER_STYLES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </>

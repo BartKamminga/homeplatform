@@ -2,11 +2,14 @@
 .yof-mc { border-radius: 18px; overflow: hidden; position: relative; margin-bottom: 14px; }
 .yof-mc-logo { width: 56px; height: 56px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,.18); flex-shrink: 0; font-weight: 800; color: #12203c; }
 .yof-mc-logo img { width: 42px; height: 42px; object-fit: contain; }
-.yof-mc-name { font-weight: 800; font-size: 13px; line-height: 1.2; white-space: pre-line; }
+.yof-mc-name { font-weight: 800; font-size: 13px; line-height: 1.2; white-space: pre-line; min-width: 0; overflow-wrap: anywhere; }
 .yof-mc .meta { font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .yof-mc .meta .type, .yof-mc .meta.type { text-transform: uppercase; letter-spacing: .08em; }
 .yof-mc-score { font-weight: 900; white-space: nowrap; }
 .yof-mc-loc { font-size: 12px; }
+/* geen uitslag en geen aanvangstijd: alleen een bescheiden 'vs' */
+.yof-mc-vs { font-size: 13px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .08em; padding: 0 4px; }
+.yof-mc-a .yof-mc-vs { color: #fff; background: rgba(0,0,0,.45); border-radius: 999px; padding: 3px 10px; }
 
 /* A - diagonaal vlak */
 .yof-mc-a { color: #fff; background: linear-gradient(115deg, var(--home) 0%, var(--home) 44%, var(--away) 56%, var(--away) 100%); }
@@ -15,12 +18,12 @@
 .yof-mc-a > * { position: relative; z-index: 1; }
 .yof-mc-a .top { display: flex; justify-content: center; padding: 12px 14px 0; }
 .yof-mc-a .top .meta { background: rgba(0,0,0,.55); color: #fff; padding: 4px 12px; border-radius: 999px; }
-.yof-mc-a .body { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 16px 14px 18px; }
+.yof-mc-a .body { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 16px 14px 18px; }
 .yof-mc-a .team { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .yof-mc-a .team.home .yof-mc-name { color: var(--home-ink); }
 .yof-mc-a .team.away .yof-mc-name { color: var(--away-ink); }
-.yof-mc-a .yof-mc-score { background: #fff; color: #141414; font-size: 30px; padding: 6px 16px; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
-.yof-mc-a .yof-mc-score.time { font-size: 20px; padding: 8px 14px; }
+.yof-mc-a .yof-mc-score { background: #fff; color: #141414; font-size: 24px; padding: 5px 12px; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.yof-mc-a .yof-mc-score.time { font-size: 16px; padding: 6px 11px; }
 .yof-mc-a .foot { text-align: center; padding: 0 14px 12px; }
 .yof-mc-a .foot .yof-mc-loc { background: rgba(0,0,0,.45); color: #fff; padding: 3px 10px; border-radius: 999px; }
 
@@ -31,12 +34,12 @@
 .yof-mc-b .band .meta { position: absolute; left: 0; right: 0; top: 10px; text-align: center; }
 .yof-mc-b .band .meta > span { background: rgba(255,255,255,.92); color: #141414; padding: 4px 12px; border-radius: 999px; }
 .yof-mc-b .logos { display: flex; justify-content: space-between; padding: 0 34px; margin-top: -30px; position: relative; }
-.yof-mc-b .board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 10px 14px 6px; }
+.yof-mc-b .board { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 14px 6px; }
 .yof-mc-b .board .yof-mc-name { font-size: 14px; }
 .yof-mc-b .board .yof-mc-name.away { text-align: right; }
-.yof-mc-b .yof-mc-score { font-size: 34px; letter-spacing: .02em; }
+.yof-mc-b .yof-mc-score { font-size: 26px; letter-spacing: .02em; }
 .yof-mc-b .yof-mc-score .sep { color: #bbb; }
-.yof-mc-b .yof-mc-score.time { font-size: 22px; color: #12203c; }
+.yof-mc-b .yof-mc-score.time { font-size: 18px; color: #12203c; }
 .yof-mc-b .foot { text-align: center; color: #666; padding: 2px 14px 14px; }
 
 /* C - zachte fade, compacte rij */
@@ -49,13 +52,15 @@
 .yof-mc-c .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px 0; }
 .yof-mc-c .top .type { color: #12203c; }
 .yof-mc-c .top .date { color: #666; font-weight: 600; }
-.yof-mc-c .row3 { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 14px 14px 6px; }
+.yof-mc-c .row3 { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 14px 14px 6px; }
 .yof-mc-c .team { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .yof-mc-c .team.away { flex-direction: row-reverse; text-align: right; }
-.yof-mc-c .yof-mc-logo { width: 48px; height: 48px; }
-.yof-mc-c .yof-mc-logo img { width: 36px; height: 36px; }
-.yof-mc-c .yof-mc-score { font-size: 28px; background: #141414; color: #fff; border-radius: 12px; padding: 4px 12px; }
-.yof-mc-c .yof-mc-score.time { font-size: 18px; padding: 7px 12px; }
+.yof-mc-c .yof-mc-logo { width: 40px; height: 40px; }
+.yof-mc-c .yof-mc-logo img { width: 30px; height: 30px; }
+.yof-mc-c .yof-mc-name { font-size: 12px; }
+/* score/tijd bescheiden - het gaat om de wedstrijd, niet om een groot zwart blok */
+.yof-mc-c .yof-mc-score { font-size: 18px; background: #141414; color: #fff; border-radius: 9px; padding: 3px 9px; }
+.yof-mc-c .yof-mc-score.time { font-size: 14px; padding: 4px 8px; }
 .yof-mc-c .foot { text-align: center; padding: 4px 14px 12px; color: #555; font-size: 12px; }
 .yof-mc-c .foot > * { background: rgba(255,255,255,.92); padding: 2px 10px; border-radius: 999px; }
 
