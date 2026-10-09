@@ -7,6 +7,7 @@ import PublicEntry from './PublicEntry.jsx'
 import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 import PublicAction from './PublicAction.jsx'
 import CustomPage from '../features/pages/CustomPage.jsx'
+import BrandMark from '../features/brand/BrandMark.jsx'
 import useCustomPages, { SPOTLIGHT_PAGE, viewForPageRef } from '../features/pages/useCustomPages.js'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
@@ -78,10 +79,11 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
 
   return (
     <div className="yof">
+      {/* Kop + menu in 1 blok dat bij scrollen bovenaan blijft staan */}
+      <div className="yof-top">
       <div className="yof-header">
         {/* Klik op het logo = Home (item 1245) - scheelt een tab in het menu */}
-        <div className="brand" role="link" tabIndex={0} style={{ cursor: 'pointer' }}
-          onClick={() => nav('home')} onKeyDown={e => { if (e.key === 'Enter') nav('home') }}>🏑 MO14 à Paris</div>
+        <BrandMark onClick={() => nav('home')} />
       </div>
       <div className="yof-nav">
         {[
@@ -97,6 +99,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
             {p.label}
           </button>
         ))}
+      </div>
       </div>
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer}
