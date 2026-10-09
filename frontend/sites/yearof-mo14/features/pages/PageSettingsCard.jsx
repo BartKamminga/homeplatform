@@ -5,6 +5,7 @@ import IconPicker from '../brand/IconPicker.jsx'
 import { PageIcon } from '../brand/navIcons.jsx'
 import usePageBlocks from '../blocks/usePageBlocks.js'
 import { HEADER_STYLES, DEFAULT_HEADER_STYLE } from '../matches/matchCardModel.js'
+import { CARD_STYLES } from '../players/fifaCardModel.js'
 
 const field = { width: '100%', boxSizing: 'border-box', padding: 8, fontSize: 13, borderRadius: 8, border: '1px solid #ddd' }
 const label = { display: 'block', fontSize: 12, fontWeight: 700, margin: '8px 0 4px' }
@@ -17,6 +18,8 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
   const { setting } = usePageBlocks()
   // Wedstrijden: ook de standaard kopstijl (A/B/C) van een wedstrijdpagina
   const withHeaderStyle = view === 'timeline'
+  // Team: standaardstijl van de spelerskaart (speelster van de week = altijd goud tenzij anders gekozen)
+  const withCardStyle = view === 'team'
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -26,6 +29,7 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
     if (open) setForm({
       label: current.label || '', icon: current.icon || '', title: current.title || '', subtitle: current.subtitle || '',
       ...(withHeaderStyle ? { match_header: setting('page.timeline', 'match_header', DEFAULT_HEADER_STYLE) } : {}),
+      ...(withCardStyle ? { card_style: setting('page.team', 'card_style', 'nacht') } : {}),
     })
   }, [open])
 
@@ -58,6 +62,14 @@ export default function PageSettingsCard({ view, customPage, onDelete }) {
           <input value={form.title} onChange={set('title')} maxLength={80} style={field} />
           <label style={label}>Ondertitel</label>
           <input value={form.subtitle} onChange={set('subtitle')} maxLength={160} style={field} />
+          {withCardStyle && (
+            <>
+              <label style={label}>Spelerskaart - standaardstijl (speelster van de week: goud)</label>
+              <select value={form.card_style} onChange={set('card_style')} style={field}>
+                {CARD_STYLES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </>
+          )}
           {withHeaderStyle && (
             <>
               <label style={label}>Kop van een wedstrijdpagina (standaard, per wedstrijd aan te passen)</label>

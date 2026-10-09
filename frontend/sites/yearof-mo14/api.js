@@ -168,6 +168,10 @@ export const getPlayerFavorites  = (playerId) => api.get(withCode(`/api/yearof-m
 export const getPlayerPhotosForFavorites = (playerId) => api.get(`/api/yearof-mo14/players/${encodeURIComponent(playerId)}/photos/moderation`)
 // Speelster van de week (item 1200) - max 1; playerId null = niemand
 export const getPlayerSpotlight  = ()         => api.get(withCode('/api/yearof-mo14/player-spotlight'))
+// Spelerskaart in FIFA-stijl: publiek alleen live kaarten; beheer per speelster
+export const getPlayerCards           = ()               => api.get(withCode('/api/yearof-mo14/player-cards'))
+export const getPlayerCardModeration  = (playerId)       => api.get(`/api/yearof-mo14/player-cards/moderation/${encodeURIComponent(playerId)}`)
+export const savePlayerCard           = (playerId, body) => api.put(`/api/yearof-mo14/player-cards/${encodeURIComponent(playerId)}`, body)
 export const setPlayerSpotlight  = (playerId) => api.put('/api/yearof-mo14/player-spotlight', { player_id: playerId })
 export const setPlayerFavorite   = (playerId, photoId, favorite) =>
   api.put(`/api/yearof-mo14/players/${encodeURIComponent(playerId)}/favorites/${encodeURIComponent(photoId)}`, { favorite })

@@ -2,17 +2,23 @@
 // Gedeeld door de spelerspagina op de site en de spelerslink voor vrienden.
 // De profielfoto staat groot bovenaan, met het rugnummer (of de rol) erover.
 import FormattedText from './FormattedText.jsx'
+import FifaCard from '../features/players/FifaCard.jsx'
+import usePlayerCards from '../features/players/usePlayerCards.js'
 
 export default function PlayerProfileCard({ player }) {
   const badge = player.role_title || player.shirt_number
+  // Live FIFA-kaart: die i.p.v. de grote profielfoto
+  const card = usePlayerCards()[player.id]
   return (
     <div className="yof-card" style={{ textAlign: 'center' }}>
+      {card ? <div style={{ maxWidth: 280, margin: '0 auto 14px' }}><FifaCard player={player} card={card} /></div> : (
       <div className="yof-profile-photo">
         {player.photo_url
           ? <img src={player.photo_url} alt={player.nickname || player.name} />
           : <div className="no-photo">{badge ?? '?'}</div>}
         {player.photo_url && badge != null && <span className="shirt-badge">{badge}</span>}
       </div>
+      )}
       <h2 style={{ margin: '0 0 2px', fontSize: 20 }}>{player.nickname || player.name}</h2>
       {player.nickname && <p style={{ margin: '0 0 4px', fontSize: 13, color: '#666' }}>{player.name}</p>}
       <p style={{ margin: 0, color: '#666', fontSize: 13 }}>
