@@ -7,6 +7,7 @@ import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import { PouleCard } from './PouleCard.jsx'
 import { stripFormatting } from './FormattedText.jsx'
 import usePageMeta from '../features/pages/pageMeta.js'
+import { PageIcon } from '../features/brand/navIcons.jsx'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -86,7 +87,7 @@ export default function PublicHome({ onNavigate, onOpenMatch, onOpenPlayer, onOp
     <div>
       {block('home.hero', 'Kop', (
         <div className="yof-hero">
-          {home.icon && <div style={{ fontSize: 32 }}>{home.icon}</div>}
+          {home.icon && <div style={{ fontSize: 32, color: 'var(--accent)' }}><PageIcon value={home.icon} size={34} /></div>}
           <h1>{home.title}</h1>
           {home.subtitle && <p>{home.subtitle}</p>}
           <PageBlock id="action.thermometer">

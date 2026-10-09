@@ -1,13 +1,14 @@
 import PublicEntry from '../../screens/PublicEntry.jsx'
 import PageBlock from '../blocks/PageBlock.jsx'
 import { pageRef } from './useCustomPages.js'
+import { PageIcon } from '../brand/navIcons.jsx'
 
 // Kop van een eigen pagina (icoon, titel, ondertitel) - eigen blok "hero.<id>".
 export function PageHero({ page }) {
   if (!page.title && !page.subtitle && !page.icon) return null
   return (
     <div className="yof-hero" style={{ marginBottom: 14 }}>
-      {page.icon && <div style={{ fontSize: 28 }}>{page.icon}</div>}
+      {page.icon && <div style={{ fontSize: 28, color: 'var(--accent)' }}><PageIcon value={page.icon} size={30} /></div>}
       {page.title && <h1 style={{ fontSize: 18 }}>{page.title}</h1>}
       {page.subtitle && <p>{page.subtitle}</p>}
     </div>

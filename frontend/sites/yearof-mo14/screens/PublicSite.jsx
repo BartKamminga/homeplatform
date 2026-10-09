@@ -8,7 +8,7 @@ import PublicUploadPhotos from './PublicUploadPhotos.jsx'
 import PublicAction from './PublicAction.jsx'
 import CustomPage from '../features/pages/CustomPage.jsx'
 import BrandMark from '../features/brand/BrandMark.jsx'
-import { NAV_ICONS, customPageIcon } from '../features/brand/navIcons.js'
+import { ICONS, PageIcon } from '../features/brand/navIcons.jsx'
 import useCustomPages, { SPOTLIGHT_PAGE, viewForPageRef } from '../features/pages/useCustomPages.js'
 import CompetitionTab from '../features/competition/CompetitionTab.jsx'
 import TopklasseTab from '../features/competition/TopklasseTab.jsx'
@@ -92,15 +92,17 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
         {[
           ...['action', 'spotlight', 'team', 'timeline', 'competition', 'topklasse']
             .filter(key => pageLive(key))
-            .map(key => ({ id: key, label: meta(key).label, Icon: NAV_ICONS[key], active: view.name === key, go: () => nav(key) })),
+            .map(key => ({ id: key, label: meta(key).label, icon: meta(key).icon, active: view.name === key, go: () => nav(key) })),
           ...customPages.filter(p => pageLive(p.id)).map(p => ({
-            id: `custom:${p.id}`, label: p.label, Icon: customPageIcon(p.id), active: view.name === 'custom' && view.id === p.id,
+            // oude eigen pagina's hebben nog een emoji als icoon: dan vliegtuig (Parijs) of vlag
+            id: `custom:${p.id}`, label: p.label, icon: ICONS[p.icon] ? p.icon : (p.id === 'pinksterweekend' ? 'plane' : 'flag'),
+            active: view.name === 'custom' && view.id === p.id,
             go: () => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) },
           })),
-          ...(pageLive('upload') ? [{ id: 'upload', label: meta('upload').label, Icon: NAV_ICONS.upload, active: view.name === 'upload', go: () => nav('upload') }] : []),
+          ...(pageLive('upload') ? [{ id: 'upload', label: meta('upload').label, icon: meta('upload').icon, active: view.name === 'upload', go: () => nav('upload') }] : []),
         ].map(t => (
           <button key={t.id} className={t.active ? 'active' : ''} onClick={t.go} title={t.label} aria-label={t.label}>
-            <t.Icon aria-hidden="true" />
+            <PageIcon value={t.icon} />
             <span className="yof-nav-label">{t.label}</span>
           </button>
         ))}
