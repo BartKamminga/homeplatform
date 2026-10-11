@@ -20,6 +20,8 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      # /yearof/ los van de image, bijwerken met publish-yearof.ps1
+      - /home/bart/homeplatform/static/yearof:/srv/static/yearof:ro
     depends_on:
       - backend
     restart: unless-stopped

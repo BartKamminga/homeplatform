@@ -8,6 +8,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./frontend/dist:/srv/www
+      - ./static/yearof:/srv/static/yearof:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
