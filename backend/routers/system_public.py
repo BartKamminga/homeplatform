@@ -6,9 +6,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 from sqlmodel import Session, select
 
+from core.auth import decode_token
 from core.database import engine, get_session
 from core.settings import settings
 from models.core import Group, Site, SiteAccess, UserGroup
@@ -63,7 +63,7 @@ def public_sites(
     accessible_ids: set[str] = set()
     if token:
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = decode_token(token)
             user_id = payload.get("sub")
             if user_id:
                 group_ids = set(session.exec(
@@ -87,7 +87,7 @@ def public_sites(
                         ).all()
                     }
                     accessible_ids |= admin_site_ids
-        except (JWTError, Exception):
+        except Exception:  # ongeldige/verlopen token = anonieme bezoeker
             pass
 
     sites = session.exec(

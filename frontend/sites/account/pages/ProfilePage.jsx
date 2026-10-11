@@ -3,6 +3,7 @@ import AccountLayout from '../AccountLayout.jsx';
 import { api } from '@core/api.js';
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx';
 import { useConfirm } from '@components/ConfirmDialog.jsx';
+import LinkedLoginsSection from '../LinkedLoginsSection.jsx';
 
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
@@ -191,6 +192,8 @@ export default function ProfilePage() {
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Thema</div>
         <ThemeSwitcher />
       </div>
+
+      <LinkedLoginsSection card={card} />
 
       <ApiKeysSection />
 
