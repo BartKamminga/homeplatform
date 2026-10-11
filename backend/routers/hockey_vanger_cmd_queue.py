@@ -27,6 +27,7 @@ from services.hockey_vanger_ingest import (
     _parse_raw_poule, _parse_raw_club, _call_poule_capture, _call_club_detail,
     _call_clubs_list, _call_competition_detail, _call_competitions_list,
 )
+from services import hockey_contract_check as contract_check
 from services.hockey_poule_capture_core import notify_finished_matches
 from services.hockey_vanger_scan_history import record_scan_outcome
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, rebuild_schedule_for_target
@@ -666,6 +667,14 @@ def post_cmd_result(
     _target_type, _target_id = _target_for_cmd(cmd.cmd_type, params)
     record_scan_outcome(session, cmd.reason, success=True, when=now, target_type=_target_type, target_id=_target_id)
     session.commit()
+    # item 1257: vorm-check tegen de basislijn + melding bij parse_failed -
+    # na de commit en zelf-afvangend, mag het resultaat nooit beinvloeden.
+    try:
+        contract_check.on_cmd_result(session, cmd.cmd_type, params, body.raw,
+                                     bool(summary_data.get("parse_failed")), now)
+    except Exception:
+        session.rollback()
+        logger.exception("contract check na cmd %s mislukt", cmd_id)
     _maybe_rebuild_schedule_after_result(session, cmd, now)
     notify_finished_matches(session, newly_finished)
     _smart_scan_try_advance(session)

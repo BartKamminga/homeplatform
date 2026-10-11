@@ -4,6 +4,7 @@ van zijn competitie (zie DataShapeFlag/hockey_poule_capture_core.py). Los
 bestand i.p.v. toevoegen aan hockey_vanger_stats.py (al 290 regels)."""
 
 from datetime import datetime, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, col, select
@@ -11,6 +12,7 @@ from sqlmodel import Session, col, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.hockey_discovery import DataShapeFlag, HockeyCompetition, HockeyPoule
+from services import hockey_contract_check as contract_check
 
 router = APIRouter(prefix="/api/hockey/vanger", tags=["hockey-vanger"])
 
@@ -55,3 +57,32 @@ def list_data_shape_flags(
         })
 
     return {"since": since.date().isoformat(), "days": days, "total": len(rows), "rows": rows}
+
+
+# ── Item 1257: dagelijkse contract-check hockey.nl ────────────────────────────
+
+@router.get("/contract-check")
+def get_contract_check(session: Session = Depends(get_session), _=Depends(get_current_user)):
+    """Vaste testdoelen, laatste uitkomst per doel en recente parse-fouten."""
+    state = contract_check.load_state(session)
+    return {
+        "last_run": state.get("last_run"),
+        "targets": state["targets"],
+        "results": state["results"],
+        "parse_failed": state["parse_failed"],
+        "has_baseline": sorted(state["baselines"]),
+    }
+
+
+@router.post("/contract-check/run")
+def run_contract_check(session: Session = Depends(get_session), _=Depends(get_current_user)):
+    """Nu inplannen (los van de 24-uursdrempel)."""
+    added = contract_check.maybe_run_contract_check(session, datetime.utcnow(), force=True)
+    return {"queued": added}
+
+
+@router.post("/contract-check/accept")
+def accept_contract_check(cmd_type: Optional[str] = None, session: Session = Depends(get_session),
+                          _=Depends(get_current_user)):
+    """Bewuste wijziging bij hockey.nl: de laatst geziene vorm wordt de basislijn."""
+    return {"accepted": contract_check.accept_current_shape(session, cmd_type)}
