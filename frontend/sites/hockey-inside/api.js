@@ -84,6 +84,10 @@ export const getCompetitionStats = (competitionId, days = 30) => api.get(`/api/h
 
 // item 1167: signalering van scandata-vorm-afwijkingen (vervolg op 1166)
 export const getDataShapeFlags   = (days = 14, limit = 100) => api.get(`/api/hockey/vanger/data-shape-flags?days=${days}&limit=${limit}`)
+// item 1257: dagelijkse contract-check hockey.nl (vorm van de antwoorden)
+export const getContractCheck    = ()        => api.get('/api/hockey/vanger/contract-check')
+export const runContractCheck    = ()        => api.post('/api/hockey/vanger/contract-check/run')
+export const acceptContractShape = (cmdType) => api.post(`/api/hockey/vanger/contract-check/accept${cmdType ? `?cmd_type=${cmdType}` : ''}`)
 
 // item 1084: scan-plan preview (snel, illustratief, gefabriceerd object) en
 // shadow-run (traag, echte build_schedule_events-aanroep) - beide met
