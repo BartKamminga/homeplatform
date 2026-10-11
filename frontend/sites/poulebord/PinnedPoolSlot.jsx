@@ -18,8 +18,6 @@ export function PinnedPoolSlot({ pin, club, onUnpin }) {
   const isDisc    = pin.phaseId?.startsWith?.('disc_')
   const pid       = isDisc ? parseInt(String(pin.phaseId).replace('disc_', ''), 10) : null
   const poolRows  = standings
-    ? (isDisc ? standings : standings.filter(r => r.pool_name === pin.poolName))
-    : null
   const [modal, setModal] = useState(false)
   const [discMatches, setDiscMatches] = useState(null)
   const [scenarioTeam, setScenarioTeam] = useState(null)
@@ -48,8 +46,7 @@ export function PinnedPoolSlot({ pin, club, onUnpin }) {
           title={pin.poolName}
           subtitle={pin.tournamentName || ''}
           rows={poolRows || []}
-          matchSource={!isDisc ? { phaseId: pin.phaseId, poolName: pin.poolName } : undefined}
-          matches={isDisc ? discMatches : undefined}
+          matches={isDisc ? discMatches : { finished: [], scheduled: [] }}
           onClose={() => setModal(false)}
         />
       )}

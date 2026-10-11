@@ -2,12 +2,9 @@ import { api } from '../../core/api.js'
 
 export const getDiscoverySeason     = ()    => api.get('/api/hockey/public/season')
 export const getHockeyPublications  = ()    => api.get('/api/hockey/public/publications')
-export const getPhases         = (tid) => api.get(`/api/tournix/public/tournaments/${tid}/phases`)
-export const getPhaseStandings = (pid) => api.get(`/api/tournix/public/phases/${pid}/standings`)
-export const saveBoard         = (body) => api.post('/api/tournix/public/boards', body)
-export const getBoardByCode    = (code) => api.get(`/api/tournix/public/boards/${code}`)
-export const getPoolMatches    = (phaseId, poolName) =>
-  api.get(`/api/tournix/public/phases/${phaseId}/pool-matches?pool=${encodeURIComponent(poolName)}`)
+// Gedeelde boards - eigen Poulebord-endpoints sinds item 1268 (los van Tournix)
+export const saveBoard         = (body) => api.post('/api/poulebord/public/boards', body)
+export const getBoardByCode    = (code) => api.get(`/api/poulebord/public/boards/${code}`)
 export const searchDiscoveryPools = (q) =>
   api.get(`/api/hockey/public/search?q=${encodeURIComponent(q)}`)
 export const getTournamentCompetitionStandings = (tid) =>

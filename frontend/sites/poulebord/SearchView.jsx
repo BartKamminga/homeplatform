@@ -1,5 +1,5 @@
 import { C } from './constants.js'
-import { TournamentCard } from './TournixBrowseCards.jsx'
+import { TournamentCard } from './BrowseCards.jsx'
 import { PoolSearchCard } from './BrowseComponents.jsx'
 
 export function SearchView({ searchQ, visible, searchResults, club, pins, poolPins, onTogglePin, onTogglePoolPin, onOpenResult }) {
@@ -25,8 +25,6 @@ export function SearchView({ searchQ, visible, searchResults, club, pins, poolPi
                 <TournamentCard
                   key={t.id} tournament={t} club={club}
                   pinned={pins.has(t.id)} onPin={() => onTogglePin(t.id)}
-                  poolPins={poolPins}
-                  onPoolPin={(phaseId, poolName) => onTogglePoolPin(phaseId, poolName, t.name)}
                 />
               ))}
             </>

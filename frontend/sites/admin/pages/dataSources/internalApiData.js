@@ -63,7 +63,7 @@ export const INTERNAL_GROUPS = [
     rows: [
       { source: 'GET /tournix/tournaments/{tid}/standings|snapshots|predictions', purpose: 'Samenvattende toernooidata', file: 'routers/tournix_matches.py', verdict: 'yes', note: 'Uitstekende context.' },
       { source: 'GET /tournix/import/coverage(-detail), /log', purpose: 'Dekkingsrapportage van hockey.nl-import', file: 'routers/tournix_import.py', verdict: 'yes', note: 'Rapportage-achtig, goede context.' },
-      { source: 'GET /tournix/public/boards/{code}, /phases/{pid}/standings', purpose: 'Publiek scorebord (Poulebord)', file: 'routers/poulebord.py', verdict: 'yes', note: 'Publiek, read-only — exact wat de poulebord-agent gebruikt (ds_poule_standings).' },
+      { source: 'GET/POST /poulebord/public/boards, POST /poulebord/public/beacon', purpose: 'Publiek scorebord (Poulebord): gedeelde boards en bezoekteller', file: 'routers/poulebord.py', verdict: 'yes', note: 'Standen en wedstrijden komen uit /hockey/public (Hockey Discovery); los van Tournix sinds item 1268.' },
       { source: 'Generatie-acties (generate-schedule, auto-assign, resolve-placeholders)', purpose: 'Schema/poule-indeling genereren', file: 'routers/tournix_phases.py', verdict: 'no', note: 'Zware mutatie-acties.' },
     ],
   },

@@ -1,26 +1,57 @@
-"""Poulebord — publieke endpoints die op Tournix-data lezen (board-save/share,
-zoeken, fase-standings, pool-wedstrijden). Verplaatst uit tournix_teams.py
-(item 686): functioneel Poulebord-eigendom, ook al lezen sommige nog Tournix-
-modellen zolang die publicaties niet naar Hockey Discovery zijn overgezet.
-Zelfde URL-ruimte (/api/tournix/public/...) om de frontend niet te breken."""
+"""Poulebord - publieke endpoints: bezoekteller (beacon) en gedeelde boards
+(opslaan/openen via een korte code). De standen en wedstrijden zelf komen uit
+Hockey Discovery (/api/hockey/public/...).
+
+Item 1268: los van Tournix. Eigen URL-ruimte /api/poulebord/...; de oude paden
+/api/tournix/public/{beacon,boards} blijven tijdelijk bestaan (legacy_router)
+voor browsers die nog een oude Poulebord-build in de cache hebben. De
+Tournix-leesroutes (fases, fase-standen, poule-wedstrijden, zoeken) zijn weg -
+er staan geen Tournix-toernooien meer live (#685)."""
 
 import json
-import random
+import secrets
 import string
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from core.analytics import client_ip, hash_ip, log_site_event
 from core.database import get_session
-from models.tournix import TournixTeam, TournixPool, TournixPhase
-from models.tournix import TournixMatch, TournixPhaseTeam, Tournament, PoulebordBoard
+from models.poulebord import PoulebordBoard
 
-router = APIRouter(prefix="/api/tournix", tags=["poulebord"])
+router = APIRouter(prefix="/api/poulebord", tags=["poulebord"])
+# TODO(1269): weghalen samen met de Tournix-archivering.
+legacy_router = APIRouter(prefix="/api/tournix", tags=["poulebord"], include_in_schema=False)
+
+BOARD_CODE_CHARS = string.ascii_lowercase + string.digits
 
 
-@router.post("/public/beacon")
+class BoardCreate(BaseModel):
+    name:      str
+    club:      str       = ""
+    pins:      list      = []
+    pool_pins: list      = []
+
+
+def _board_out(board: PoulebordBoard) -> dict:
+    return {
+        "id":        board.id,
+        "name":      board.name,
+        "club":      board.club,
+        "pins":      json.loads(board.pins),
+        "pool_pins": json.loads(board.pool_pins),
+    }
+
+
+def _new_board_code(session: Session) -> str:
+    for _ in range(20):
+        code = "".join(secrets.choice(BOARD_CODE_CHARS) for _ in range(6))
+        if not session.get(PoulebordBoard, code):
+            return code
+    raise RuntimeError("Geen unieke code gevonden")
+
+
 def poulebord_beacon(request: Request):
     """Log a page view from the poulebord frontend."""
     log_site_event(
@@ -31,32 +62,11 @@ def poulebord_beacon(request: Request):
     return {"ok": True}
 
 
-# ── Poulebord boards ──────────────────────────────────────────────────────────
-
-BOARD_CODE_CHARS = string.ascii_lowercase + string.digits
-
-def _new_board_code(session: Session) -> str:
-    for _ in range(20):
-        code = "".join(random.choices(BOARD_CODE_CHARS, k=6))
-        if not session.get(PoulebordBoard, code):
-            return code
-    raise RuntimeError("Geen unieke code gevonden")
-
-
-class BoardCreate(BaseModel):
-    name:      str
-    club:      str       = ""
-    pins:      list      = []
-    pool_pins: list      = []
-
-
-@router.post("/public/boards", status_code=201)
 def create_board(body: BoardCreate, session: Session = Depends(get_session)):
     if not body.name.strip():
         raise HTTPException(400, "Naam is verplicht")
-    code = _new_board_code(session)
     board = PoulebordBoard(
-        id=code,
+        id=_new_board_code(session),
         name=body.name.strip(),
         club=body.club,
         pins=json.dumps(body.pins),
@@ -65,226 +75,17 @@ def create_board(body: BoardCreate, session: Session = Depends(get_session)):
     session.add(board)
     session.commit()
     session.refresh(board)
-    return {
-        "id":        board.id,
-        "name":      board.name,
-        "club":      board.club,
-        "pins":      json.loads(board.pins),
-        "pool_pins": json.loads(board.pool_pins),
-    }
+    return _board_out(board)
 
 
-@router.get("/public/boards/{code}")
 def get_board_by_code(code: str, session: Session = Depends(get_session)):
     board = session.get(PoulebordBoard, code)
     if not board:
         raise HTTPException(404, "Board niet gevonden")
-    return {
-        "id":        board.id,
-        "name":      board.name,
-        "club":      board.club,
-        "pins":      json.loads(board.pins),
-        "pool_pins": json.loads(board.pool_pins),
-    }
+    return _board_out(board)
 
 
-# ── Poulebord publieke fase- en standings-endpoints ───────────────────────────
-
-@router.get("/public/phases/{pid}/pool-matches")
-def get_pool_matches_public(pid: str, pool: str = "", session: Session = Depends(get_session)):
-    """Wedstrijden voor één poule binnen een fase — publiek, geen auth vereist."""
-    phase = session.get(TournixPhase, pid)
-    if not phase:
-        raise HTTPException(404, "Fase niet gevonden")
-
-    pool_obj = session.exec(
-        select(TournixPool).where(TournixPool.phase_id == pid, TournixPool.name == pool)
-    ).first()
-    if not pool_obj:
-        return {"finished": [], "scheduled": []}
-
-    pool_teams = session.exec(
-        select(TournixTeam).where(TournixTeam.pool_id == pool_obj.id)
-    ).all()
-    team_ids = {t.id for t in pool_teams}
-    team_names = {t.id: t.name for t in pool_teams}
-
-    all_matches = session.exec(
-        select(TournixMatch).where(TournixMatch.phase_id == pid)
-    ).all()
-    pool_matches = [m for m in all_matches if m.team_a_id in team_ids and m.team_b_id in team_ids]
-
-    def fmt(m):
-        return {
-            "id":           m.id,
-            "round":        m.round,
-            "team_a":       team_names.get(m.team_a_id, "?"),
-            "team_b":       team_names.get(m.team_b_id, "?"),
-            "score_a":      m.score_a,
-            "score_b":      m.score_b,
-            "status":       m.status,
-            "scheduled_at": m.scheduled_at.isoformat() if m.scheduled_at else None,
-        }
-
-    finished  = sorted([fmt(m) for m in pool_matches if m.status == "finished"],
-                       key=lambda x: -(x["round"] or 0))
-    scheduled = sorted([fmt(m) for m in pool_matches if m.status != "finished"],
-                       key=lambda x: (x["scheduled_at"] or "9999", x["round"] or 0))
-    return {"finished": finished, "scheduled": scheduled}
-
-
-@router.get("/public/search")
-def search_teams_pools(
-    q: str,
-    season: str = "2026-2027",
-    session: Session = Depends(get_session),
-):
-    """Zoek teams (en hun poule) op naam — publiek, geen auth vereist."""
-    q_norm = q.strip().lower()
-    if len(q_norm) < 2:
-        return []
-
-    teams = session.exec(
-        select(TournixTeam).where(TournixTeam.pool_id.isnot(None))
-    ).all()
-
-    results, seen = [], set()
-    for team in teams:
-        if team.is_placeholder or q_norm not in team.name.lower():
-            continue
-        pool = session.get(TournixPool, team.pool_id)
-        if not pool or not pool.phase_id:
-            continue
-        phase = session.get(TournixPhase, pool.phase_id)
-        if not phase or phase.phase_type != "pool":
-            continue
-        tournament = session.get(Tournament, team.tournament_id)
-        if not tournament or tournament.season != season:
-            continue
-        key = f"{pool.phase_id}::{pool.name}"
-        if key in seen:
-            continue
-        seen.add(key)
-        results.append({
-            "phase_id":        pool.phase_id,
-            "pool_name":       pool.name,
-            "tournament_name": tournament.name,
-            "tournament_id":   tournament.id,
-            "matched_team":    team.name,
-        })
-
-    return sorted(results, key=lambda x: (x["tournament_name"], x["pool_name"]))
-
-
-@router.get("/public/tournaments/{tid}/phases")
-def list_phases_public(tid: str, session: Session = Depends(get_session)):
-    """Publieke faselijst voor Poulebord — geen auth vereist."""
-    phases = session.exec(
-        select(TournixPhase)
-        .where(TournixPhase.tournament_id == tid)
-        .order_by(TournixPhase.order, TournixPhase.created_at)
-    ).all()
-    if not phases:
-        return []
-    phase_ids = [p.id for p in phases]
-    all_pools = session.exec(
-        select(TournixPool)
-        .where(TournixPool.phase_id.in_(phase_ids))
-        .order_by(TournixPool.order)
-    ).all()
-    pool_ids = [p.id for p in all_pools]
-    all_teams = session.exec(
-        select(TournixTeam).where(TournixTeam.pool_id.in_(pool_ids))
-    ).all() if pool_ids else []
-    pools_by_phase: dict = {}
-    for p in all_pools:
-        pools_by_phase.setdefault(p.phase_id, []).append(p)
-    team_count_by_pool: dict = {}
-    for t in all_teams:
-        team_count_by_pool[t.pool_id] = team_count_by_pool.get(t.pool_id, 0) + 1
-    first_pool_phase_id = next((p.id for p in phases if p.phase_type == "pool"), None)
-    return [
-        {
-            "id": phase.id,
-            "name": phase.name,
-            "order": phase.order,
-            "phase_type": phase.phase_type,
-            "is_main_phase": phase.id == first_pool_phase_id,
-            "pools": [
-                {"id": p.id, "name": p.name, "order": p.order, "team_count": team_count_by_pool.get(p.id, 0)}
-                for p in pools_by_phase.get(phase.id, [])
-            ],
-        }
-        for phase in phases
-    ]
-
-
-@router.get("/public/phases/{pid}/standings")
-def get_phase_standings_public(pid: str, session: Session = Depends(get_session)):
-    """Publieke standings per poulefase — geen auth vereist."""
-    phase = session.get(TournixPhase, pid)
-    if not phase:
-        raise HTTPException(404, "Fase niet gevonden")
-    phase_matches = session.exec(
-        select(TournixMatch).where(
-            TournixMatch.phase_id == pid,
-            TournixMatch.status == "finished",
-        )
-    ).all()
-    pools = session.exec(
-        select(TournixPool).where(TournixPool.phase_id == pid).order_by(TournixPool.order)
-    ).all()
-    if pools:
-        pools_by_id = {p.id: p.name for p in pools}
-        all_pool_teams = session.exec(
-            select(TournixTeam).where(TournixTeam.pool_id.in_([p.id for p in pools]))
-        ).all()
-        stats = {}
-        for t in all_pool_teams:
-            stats[t.id] = {
-                "id": t.id, "name": t.name,
-                "pts": 0, "gf": 0, "ga": 0, "w": 0, "d": 0, "l": 0,
-                "pool_id": t.pool_id,
-                "pool_name": pools_by_id.get(t.pool_id),
-            }
-        for m in phase_matches:
-            a = stats.get(m.team_a_id)
-            b = stats.get(m.team_b_id)
-            if not a or not b or m.score_a is None or m.score_b is None:
-                continue
-            a["gf"] += m.score_a; a["ga"] += m.score_b
-            b["gf"] += m.score_b; b["ga"] += m.score_a
-            if m.score_a > m.score_b:
-                a["w"] += 1; a["pts"] += 3; b["l"] += 1
-            elif m.score_a == m.score_b:
-                a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
-            else:
-                b["w"] += 1; b["pts"] += 3; a["l"] += 1
-        return sorted(stats.values(), key=lambda s: (s.get("pool_id", ""), -s["pts"], -(s["gf"] - s["ga"])))
-    # Fallback: geen pools
-    phase_team_rows = session.exec(
-        select(TournixPhaseTeam).where(TournixPhaseTeam.phase_id == pid)
-    ).all()
-    team_ids = {pt.team_id for pt in phase_team_rows}
-    teams = session.exec(select(TournixTeam).where(TournixTeam.id.in_(list(team_ids)))).all()
-    team_map = {t.id: t for t in teams}
-    stats2 = {
-        tid: {"id": tid, "name": team_map[tid].name, "pts": 0, "gf": 0, "ga": 0, "w": 0, "d": 0, "l": 0}
-        for tid in team_ids if tid in team_map
-    }
-    for m in phase_matches:
-        if m.score_a is None or m.score_b is None:
-            continue
-        a = stats2.get(m.team_a_id)
-        b = stats2.get(m.team_b_id)
-        if not a or not b:
-            continue
-        a["gf"] += m.score_a; a["ga"] += m.score_b
-        b["gf"] += m.score_b; b["ga"] += m.score_a
-        if m.score_a > m.score_b:
-            a["w"] += 1; a["pts"] += 3; b["l"] += 1
-        elif m.score_a == m.score_b:
-            a["d"] += 1; a["pts"] += 1; b["d"] += 1; b["pts"] += 1
-        else:
-            b["w"] += 1; b["pts"] += 3; a["l"] += 1
-    return sorted(stats2.values(), key=lambda s: (-s["pts"], -(s["gf"] - s["ga"]), -s["gf"]))
+for _r in (router, legacy_router):
+    _r.add_api_route("/public/beacon", poulebord_beacon, methods=["POST"])
+    _r.add_api_route("/public/boards", create_board, methods=["POST"], status_code=201)
+    _r.add_api_route("/public/boards/{code}", get_board_by_code, methods=["GET"])
