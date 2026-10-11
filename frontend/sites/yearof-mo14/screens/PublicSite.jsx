@@ -132,6 +132,10 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
           <p style={{ fontSize: 13, color: '#888', textAlign: 'center', marginTop: 40 }}>Deze pagina is (nog) niet beschikbaar.</p>
         )}
       </div>
+      {/* Onderaan elke pagina: link naar de YearOf-presentatie en roadmap (statische pagina /yearof/) */}
+      <footer className="yof-footer">
+        <a href="/yearof/" target="_blank" rel="noopener">Gemaakt met YearOf · bekijk de plannen</a>
+      </footer>
     </div>
   )
 }

@@ -219,3 +219,8 @@
   font-size: 20px; text-align: center; letter-spacing: .25em; margin: 16px 0;
   box-sizing: border-box;
 }
+
+/* Onderaan elke pagina: link naar de YearOf-presentatie */
+.yof-footer { text-align: center; padding: 28px 16px 36px; font-size: 12px; }
+.yof-footer a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted currentColor; }
+.yof-footer a:hover { color: var(--navy); }
