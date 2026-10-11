@@ -15,6 +15,8 @@ services:
     volumes:
       - caddy_acc_data:/data
       - caddy_acc_config:/config
+      # /yearof/ los van de image, bijwerken met publish-yearof.ps1
+      - /home/bart/homeplatform-acc/static/yearof:/srv/static/yearof:ro
     depends_on:
       - backend_acc
     restart: unless-stopped

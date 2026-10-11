@@ -116,10 +116,10 @@
         file_server
     }
 
-    # YearOf: presentatie- en roadmappagina (statisch, uit frontend/sites/public/yearof), niet in zoekmachines
+    # YearOf: presentatie- en roadmappagina (statisch, map op de server, zie publish-yearof.ps1), niet in zoekmachines
     redir /yearof /yearof/ 308
     handle /yearof/* {
-        root * /srv/www
+        root * /srv/static
         header X-Robots-Tag "noindex, nofollow"
         try_files {path} {path}index.html /yearof/index.html
         file_server

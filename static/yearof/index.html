@@ -74,6 +74,7 @@
   .phase .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   .phase h4 { margin:0 0 4px; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
   .phase ul { margin:0; padding-left:18px; font-size:14px; } .phase li { margin:2px 0; }
+  .phase ul.done { list-style:none; padding-left:0; } .phase ul.done li::before { content:"\2713"; color:var(--live); font-weight:700; margin-right:7px; }
   .phase .result { margin-top:10px; background:#f7f5f0; border-radius:10px; padding:8px 12px; font-size:14px; }
   .phase .result b { color:var(--navy); }
   @media (max-width:640px) { .phase { grid-template-columns:1fr; } .phase .num { width:auto; flex-direction:row; gap:10px; } .phase .cols { grid-template-columns:1fr; } }
@@ -183,8 +184,8 @@ De planning is indicatief; de volgorde staat vast.</p>
   <a href="#f2" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>2 · Eigen omgeving<small>okt - nov 2026</small></a>
   <a href="#f3" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>3 · Meerdere teamsites<small>november 2026</small></a>
   <a href="#f4" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2"/><path d="M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2"/><path d="M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3"/><path d="M4 22h16"/><path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/><path d="M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3"/></svg>4 · Zaalseizoen live<small>december 2026</small></a>
-  <a href="#f5" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>5 · Zelf samenstellen<small>jan - mrt 2027</small></a>
-  <a href="#f6" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>6 · Wie ziet wat<small>voorjaar 2027</small></a>
+  <a href="#f5" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>5 · Zelf samenstellen<small>jan - mrt 2027</small></a>
+  <a href="#f6" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>6 · Wie ziet wat<small>voorjaar 2027</small></a>
   <a href="#f7" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>7 · Netwerk en eigen hosting<small>2027</small></a>
 </div>
 
@@ -292,47 +293,48 @@ De planning is indicatief; de volgorde staat vast.</p>
 </div>
 
 <div class="phase" id="f5">
-  <div class="num" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg><b>5</b><small>jan - mrt</small></div>
+  <div class="num" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg><b>5</b><small>jan - mrt</small></div>
   <div class="body">
-    <div class="head"><h3>Je site zelf samenstellen</h3><span class="st idea">Verkenning</span></div>
+    <div class="head"><h3>Je site zelf samenstellen</h3><span class="st dev">In ontwikkeling</span></div>
     <p class="goal">Elke pagina bouw je op uit onderdelen die je zelf kiest, in de volgorde die je wilt.</p>
     <div class="cols">
-      <div><h4>Wat gebeurt er</h4><ul>
-        <li>Een catalogus van onderdelen: stand, wedstrijden, foto's, spelerskaarten, sponsors, tekst ...</li>
-        <li>Per onderdeel instellingen, zichtbaarheid en live of concept</li>
-        <li>Pagina's als sjabloon voor elke wedstrijd en elke speelster</li>
+      <div><h4>Al live op MO14</h4><ul class="done">
+        <li>Ruim twintig onderdelen per pagina live of concept zetten: stand, uitslagen, kansen, sponsors, actie ...</li>
+        <li>Per onderdeel instellingen, zoals hoeveel uitslagen je toont</li>
+        <li>Tot drie eigen pagina's</li>
+        <li>Vaste sjablonen voor elke wedstrijd en elke speelster, met spelerskaart</li>
+        <li>Bewerken in de site zelf: wat je ziet is wat bezoekers zien</li>
+      </ul></div>
+      <div><h4>Nog te doen</h4><ul>
+        <li>Een catalogus van onderdelen: zelf kiezen wat op een pagina komt en in welke volgorde</li>
         <li>Mogelijk slepen en neerzetten in een visuele editor</li>
         <li><b>Automatische schema's</b> voor team, ouders en coaches (rijden, wassen, fruit, zaaldienst ...)</li>
-      </ul></div>
-      <div><h4>Wat merk je ervan</h4><ul>
-        <li>Een site die past bij jouw team, zonder programmeren</li>
-        <li>Verbeteringen aan onderdelen komen automatisch op alle sites</li>
+        <li>Verbeteringen aan onderdelen komen automatisch op alle teamsites</li>
       </ul></div>
     </div>
-    <div class="result"><b>Resultaat:</b> volledig eigen teamsites, gebouwd uit vaste bouwstenen.</div>
+    <div class="result"><b>Resultaat:</b> volledig eigen teamsites, gebouwd uit vaste bouwstenen - zonder programmeren.</div>
   </div>
 </div>
-
 <div class="phase" id="f6">
-  <div class="num" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><b>6</b><small>voorjaar</small></div>
+  <div class="num" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><b>6</b><small>voorjaar</small></div>
   <div class="body">
-    <div class="head"><h3>Wie ziet wat, en inloggen voor ouders</h3><span class="st idea">Verkenning</span></div>
-    <p class="goal">Elke foto en elk bericht krijgt een niveau: voor wie is dit bedoeld?</p>
+    <div class="head"><h3>Wie ziet wat, en inloggen voor ouders</h3><span class="st dev">In ontwikkeling</span></div>
+    <p class="goal">Elke foto, elk bericht en elke speelster krijgt een niveau: voor wie is dit bedoeld?</p>
     <div class="cols">
-      <div><h4>Wat gebeurt er</h4><ul>
+      <div><h4>Al live op MO14</h4><ul class="done">
+        <li>Fans met een wedstrijd- of spelerslink zien alleen de gekozen hoogtepunten</li>
+        <li>Inloggen met Google of Microsoft, zonder extra wachtwoord</li>
+      </ul></div>
+      <div><h4>Nog te doen</h4><ul>
         <li>Vier niveaus: beheerder, team, fans en openbaar</li>
         <li>Per foto en bericht kiezen voor wie het is, ook per plek op de site</li>
-        <li>Ouders kunnen inloggen in plaats van een link te gebruiken</li>
-      </ul></div>
-      <div><h4>Wat merk je ervan</h4><ul>
-        <li>Teamfoto's blijven binnen het team, de mooiste actiefoto's mogen naar de fans</li>
-        <li>Duidelijk en voorspelbaar wat iedereen ziet</li>
+        <li><b>Per speelster</b> vastleggen wat er van haar gedeeld mag worden - bijvoorbeeld geen foto's of geen achternaam - en voor welk niveau</li>
+        <li>Ouders kunnen inloggen op de teamsite in plaats van een link te gebruiken</li>
       </ul></div>
     </div>
-    <div class="result"><b>Resultaat:</b> volledige controle over wat er gedeeld wordt.</div>
+    <div class="result"><b>Resultaat:</b> volledige controle over wat er gedeeld wordt - teamfoto's blijven binnen het team, de mooiste actiefoto's mogen naar de fans.</div>
   </div>
 </div>
-
 <div class="phase" id="f7">
   <div class="num" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg><b>7</b><small>2027</small></div>
   <div class="body">
