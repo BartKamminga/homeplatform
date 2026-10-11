@@ -16,7 +16,7 @@ from models.hockey_discovery import HockeyClub
 from models.yearof import YearOfMatchGoal, YearOfMatchPhotoBlock, YearOfReport
 from services.club_colors import HEX_RE, effective_color
 
-from ._shared import require_team_access
+from ._shared import require_match_access, require_team_access
 
 router = APIRouter(tags=["yearof-mo14"])
 
@@ -49,7 +49,11 @@ def _photo_block_sort_order(session: Session, match_ref: str) -> int:
 
 
 @router.get("/matches/{match_ref}/photo-block")
-def get_photo_block_position(match_ref: str, session: Session = Depends(get_session)):
+def get_photo_block_position(
+    match_ref: str,
+    session: Session = Depends(get_session),
+    _: str = Depends(require_match_access),  # ook de losse wedstrijdpagina (wedstrijdlink)
+):
     return {"sort_order": _photo_block_sort_order(session, match_ref)}
 
 

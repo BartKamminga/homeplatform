@@ -2,7 +2,7 @@
 gebruikt door 2 of meer van de domeinmodules in dit package (zie __init__.py
 voor hoe de sub-routers samengevoegd worden tot router/shortlink_router)."""
 
-import random
+import secrets
 import string
 from datetime import datetime
 from typing import Optional
@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from core.auth import decode_token, hash_api_key
 from core.database import get_session
 from models.core import User, UserApiKey
-from models.yearof import YearOfShortLink, YearOfTeamLink
+from models.yearof import YearOfContributorLink, YearOfProfileLink, YearOfShortLink, YearOfTeamLink
 
 TEAM_NAME = "Victoria MO14-1"
 POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 architectuurbeslissing)
@@ -27,13 +27,17 @@ POULE_ID = 551  # HockeyPoule.id, single-tenant hardcoded (zie item 1143 archite
 TEAM_LINK_CHARS = string.ascii_lowercase + string.digits
 
 
+CODE_TABLES = (YearOfTeamLink, YearOfShortLink, YearOfContributorLink, YearOfProfileLink)
+
+
 def new_link_code(session: Session) -> str:
-    """Unieke 6-char code voor een teamlinkje of korte link. Beide komen als
-    `code`-parameter binnen (zie check_match_access), dus de code mag in
-    geen van beide tabellen al bestaan."""
+    """Unieke 6-char code voor elk soort link (team, kort, invul, profiel).
+    Ze komen allemaal als `code`-parameter binnen, dus 1 gedeelde namespace:
+    de code mag in geen van de tabellen al bestaan (item 1203). secrets i.p.v.
+    random - codes zijn toegangstokens."""
     for _ in range(20):
-        code = "".join(random.choices(TEAM_LINK_CHARS, k=6))
-        if not session.get(YearOfTeamLink, code) and not session.get(YearOfShortLink, code):
+        code = "".join(secrets.choice(TEAM_LINK_CHARS) for _ in range(6))
+        if not any(session.get(table, code) for table in CODE_TABLES):
             return code
     raise RuntimeError("Geen unieke code gevonden")
 

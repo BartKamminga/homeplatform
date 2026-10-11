@@ -29,7 +29,7 @@ from models.yearof import (
 )
 from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
 
-from ._shared import POULE_ID, TEAM_NAME, require_match_access, require_team_access
+from ._shared import POULE_ID, TEAM_NAME, get_optional_user, require_match_access, require_team_access
 from .page_blocks import match_photos_concept
 from .photos import PHOTO_ROOT
 
@@ -67,8 +67,15 @@ class CustomEntryUpdate(BaseModel):
 
 
 @router.get("/entries")
-def list_entries(kind: Optional[str] = None, session: Session = Depends(get_session), _: None = Depends(require_team_access)):
+def list_entries(
+    kind: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_team_access),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     q = select(YearOfCustomEntry)
+    if current_user is None:  # gearchiveerde dagen alleen voor de beheerder (item 1203)
+        q = q.where(col(YearOfCustomEntry.archived_at).is_(None))
     if kind:
         q = q.where(YearOfCustomEntry.kind == kind)
     return session.exec(q.order_by(YearOfCustomEntry.date)).all()

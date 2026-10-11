@@ -201,7 +201,7 @@ export const setMatchGoal  = (matchRef, playerId, goals) => api.put(`/api/yearof
 export const setClubColor  = (clubId, color) => api.put(`/api/yearof-mo14/club-colors/${encodeURIComponent(clubId)}`, { color })
 
 // Positie van het foto-blok op de wedstrijdpagina (WYSIWYG-editor)
-export const getPhotoBlockPosition = (matchRef) => api.get(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block`)
+export const getPhotoBlockPosition = (matchRef) => api.get(withCode(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block`))
 export const movePhotoBlock        = (matchRef, direction) => api.post(`/api/yearof-mo14/matches/${encodeURIComponent(matchRef)}/photo-block/move`, { direction })
 
 // Verslagen & interviews

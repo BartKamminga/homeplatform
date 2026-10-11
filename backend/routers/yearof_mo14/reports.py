@@ -95,8 +95,11 @@ def _add_report_links(session: Session, report_id: str, links: Optional[list[Rep
     session.commit()
 
 
-def _report_out(session: Session, report: YearOfReport, player_ids: Optional[list[str]] = None) -> dict:
-    data = report.model_dump()
+def _report_out(session: Session, report: YearOfReport, player_ids: Optional[list[str]] = None,
+                public: bool = False) -> dict:
+    # Publiek nooit de contributor_code (invulcode) meegeven - daarmee kan
+    # iemand anders het verslag overschrijven (item 1203).
+    data = report.model_dump(exclude={"contributor_code"} if public else None)
     data["links"] = _report_links(session, report.id)
     if player_ids is not None:
         data["player_ids"] = player_ids
@@ -234,7 +237,7 @@ def list_reports(
         for t in session.exec(select(YearOfReportPlayerTag).where(col(YearOfReportPlayerTag.report_id).in_(report_ids))).all():
             tags_by_report.setdefault(t.report_id, []).append(t.player_id)
 
-    return [_report_out(session, r, tags_by_report.get(r.id, [])) for r in reports]
+    return [_report_out(session, r, tags_by_report.get(r.id, []), public=True) for r in reports]
 
 
 @router.get("/reports/home")
@@ -259,7 +262,7 @@ def get_home_reports(
         for t in session.exec(select(YearOfReportPlayerTag).where(col(YearOfReportPlayerTag.report_id).in_(report_ids))).all():
             tags_by_report.setdefault(t.report_id, []).append(t.player_id)
 
-    return [_report_out(session, r, tags_by_report.get(r.id, [])) for r in reports]
+    return [_report_out(session, r, tags_by_report.get(r.id, []), public=True) for r in reports]
 
 
 @router.get("/reports/moderation")

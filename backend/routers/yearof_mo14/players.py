@@ -4,7 +4,6 @@ Zie __init__.py voor hoe dit sub-router samengevoegd wordt onder
 /api/yearof-mo14."""
 
 import io
-import random
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -37,7 +36,7 @@ from ._shared import (
     PHOTO_ALLOWED_EXTENSIONS,
     PHOTO_ALLOWED_TYPES,
     PHOTO_MAX_SIZE_MB,
-    TEAM_LINK_CHARS,
+    new_link_code,
     require_team_access,
 )
 
@@ -234,16 +233,7 @@ def create_profile_link(
     if existing:
         return existing
 
-    code = None
-    for _ in range(20):
-        candidate = "".join(random.choices(TEAM_LINK_CHARS, k=6))
-        if not session.get(YearOfProfileLink, candidate):
-            code = candidate
-            break
-    if not code:
-        raise RuntimeError("Geen unieke code gevonden")
-
-    link = YearOfProfileLink(id=code, player_id=player_id)
+    link = YearOfProfileLink(id=new_link_code(session), player_id=player_id)
     session.add(link)
     session.commit()
     session.refresh(link)
@@ -381,6 +371,8 @@ def apply_player_edit(
 ):
     """Beheerder-only — zet de voorgestelde velden op de echte spelersrij."""
     edit = get_or_404(session, YearOfPlayerEdit, edit_id, "Wijziging")
+    if edit.status != "concept":
+        raise HTTPException(status_code=409, detail="Deze wijziging is al verwerkt of afgewezen")
     player = get_or_404(session, YearOfPlayer, edit.player_id, "Speler")
 
     for field in ("nickname", "position", "photo_url", "bio", "fun_facts"):
