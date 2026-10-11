@@ -3,8 +3,7 @@ import { C, cardStyle, badgeStyle, pinButtonStyle } from './constants.js'
 import { PoolTable } from './PoolTable.jsx'
 
 // Eén gedeelde kaart voor het tonen van een poulestand — gebruikt op de browse-
-// pagina (DiscPouleTable-context), het board (PinnedPoolSlot) en de
-// multi-poule Tournix-weergave (StandingsTable). Density regelt de dichtheid
+// pagina (DiscPouleTable-context) en het board (PinnedPoolSlot). Density regelt de dichtheid
 // van de tabel (compact = alleen #/Team/Pt), niet de kaart-chrome eromheen —
 // die is nu overal gelijk (item 665).
 //

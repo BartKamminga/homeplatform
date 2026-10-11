@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { C, pinRailButtonStyle } from './constants.js'
 import { useTournamentStandings } from './hooks.js'
 import { QueryCard } from './QueryCard.jsx'
-import { StandingsBody } from './TournixBrowseCards.jsx'
+import { StandingsBody } from './BrowseCards.jsx'
 import { PinnedCompetitionCard, PinnedBarePools } from './PinnedPoolSlot.jsx'
 
 // ── Empty board ────────────────────────────────────────────────────────────────
@@ -44,13 +44,11 @@ function PinnedFilterRow({ pin, onOpen, onUnpin }) {
   )
 }
 
-// ── Compact pinned tournament card (item 691: verhuisd uit BoardView.jsx,
-// dat nu alleen nog de Tournix-legacy browsekaarten bevat en is hernoemd
-// naar TournixBrowseCards.jsx) ────────────────────────────────────────────────
+// ── Compact pinned tournament card (item 691: verhuisd uit BoardView.jsx) ────
 
 function CompactPinnedCard({ tournament, club, onUnpin }) {
   const [open, setOpen] = useState(true)
-  const { fasesData, useDiscovery, phases, poolPhases } = useTournamentStandings(tournament.id)
+  const { fasesData, useDiscovery } = useTournamentStandings(tournament.id)
 
   return (
     <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
@@ -75,10 +73,7 @@ function CompactPinnedCard({ tournament, club, onUnpin }) {
       </div>
       {open && (
         <div style={{ padding: '0 12px 12px' }}>
-          <StandingsBody
-            useDiscovery={useDiscovery} fasesData={fasesData} phases={phases} poolPhases={poolPhases}
-            club={club} tournamentName={tournament.name} dense
-          />
+          <StandingsBody useDiscovery={useDiscovery} fasesData={fasesData} club={club} dense />
         </div>
       )}
     </div>

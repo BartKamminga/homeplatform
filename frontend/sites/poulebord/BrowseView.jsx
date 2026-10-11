@@ -1,5 +1,5 @@
 import { C, SEASON, categoryOf, pillStyle, pinButtonStyle } from './constants.js'
-import { SeizoenInfo } from './TournixBrowseCards.jsx'
+import { SeizoenInfo } from './BrowseCards.jsx'
 import { CompBrowseItem } from './BrowseComponents.jsx'
 import { QuerySlotsSection } from './QuerySlotsSection.jsx'
 
@@ -46,10 +46,10 @@ export function BrowseView({
         <div style={{ textAlign: 'center', padding: '48px 24px' }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>🏒</div>
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22,
-            letterSpacing: '0.06em', marginBottom: 10 }}>NOG GEEN TOERNOOIEN</div>
+            letterSpacing: '0.06em', marginBottom: 10 }}>NO COMPETITIONS YET</div>
           <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.7 }}>
-            Maak toernooien aan in Tournix<br />
-            met seizoen <span style={{ color: C.gold, fontWeight: 600 }}>{SEASON}</span>
+            No published competitions for season{' '}
+            <span style={{ color: C.gold, fontWeight: 600 }}>{SEASON}</span> yet
           </div>
         </div>
       )}

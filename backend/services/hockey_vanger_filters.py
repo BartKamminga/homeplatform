@@ -30,7 +30,7 @@ _AGE_RE_GENERIC = re.compile(r"[JMjm][OZoz](\d+)-")
 # handmatige toevoegingen, niet door het queue-filter. Vooral nodig voor de
 # zaal-indeling: die komt weken voor de zaalfase, als ZA nog buiten het
 # VE-filter valt.
-FILTER_EXEMPT_REASONS = {"phase_watch"}
+FILTER_EXEMPT_REASONS = {"phase_watch", "contract_check"}  # contract_check: item 1257, vaste testdoelen
 
 DISC_FILTER_CAT    = "disc_queue_category"
 DISC_FILTER_HT     = "disc_queue_hockey_type"

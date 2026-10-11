@@ -54,7 +54,7 @@ export default function App() {
   const saveNameRef                           = useRef(null)
 
   useEffect(() => {
-    fetch('/api/tournix/public/beacon', { method: 'POST' }).catch(() => {})
+    fetch('/api/poulebord/public/beacon', { method: 'POST' }).catch(() => {})
   }, [])
 
   useEffect(() => {

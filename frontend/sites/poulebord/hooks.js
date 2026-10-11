@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  getHockeyPouleStandings, getPhaseStandings, getTagRanking, getTagRoundScorers, getTagRoundMatches,
-  getUpcomingMatches, getClubRanking, getTournamentCompetitionStandings, getPhases,
+  getHockeyPouleStandings, getTagRanking, getTagRoundScorers, getTagRoundMatches,
+  getUpcomingMatches, getClubRanking, getTournamentCompetitionStandings,
   getHockeyPublications, getDiscoverySeason,
 } from './api.js'
 import { SEASON, PINS_KEY, POOL_PINS_KEY, QUERY_PINS_KEY, FILTER_PINS_KEY } from './constants.js'
@@ -44,33 +44,30 @@ export function useStandings(phaseId) {
     if (!phaseId) return
     const cached = getCached(phaseId)
     if (cached) { setData(cached); return }
-    if (String(phaseId).startsWith('disc_')) {
-      const pid = parseInt(String(phaseId).replace('disc_', ''), 10)
-      getHockeyPouleStandings(pid)
-        .then(d => {
-          const rows = (d.standings || []).map((r, i) => ({
-            id: i, team_id: r.team_id, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
-            played: r.played, streak: r.streak, w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
-          }))
-          rows.ai_note = d.ai_note  // poule-niveau notitie (item 957) - meegelift op de array, zie PinnedBoard.jsx
-          _standingsCache[phaseId] = { rows, ts: Date.now() }
-          setData(rows)
-        })
-        .catch(() => setData([]))
-    } else {
-      getPhaseStandings(phaseId)
-        .then(rows => { _standingsCache[phaseId] = { rows, ts: Date.now() }; setData(rows) })
-        .catch(() => setData([]))
-    }
+    // Alleen Hockey Discovery-poules (disc_<id>). Oude Tournix-pins (item 1268:
+    // Tournix uitgefaseerd) hebben geen bron meer en blijven leeg.
+    if (!String(phaseId).startsWith('disc_')) { setData([]); return }
+    const pid = parseInt(String(phaseId).replace('disc_', ''), 10)
+    getHockeyPouleStandings(pid)
+      .then(d => {
+        const rows = (d.standings || []).map((r, i) => ({
+          id: i, team_id: r.team_id, name: r.team_name, pts: r.pts, club_logo_url: r.club_logo_url,
+          played: r.played, streak: r.streak, w: r.won, d: r.drawn, l: r.lost, gf: r.gf, ga: r.ga, note: r.ai_note,
+        }))
+        rows.ai_note = d.ai_note  // poule-niveau notitie (item 957) - meegelift op de array, zie PinnedBoard.jsx
+        _standingsCache[phaseId] = { rows, ts: Date.now() }
+        setData(rows)
+      })
+      .catch(() => setData([]))
   }, [phaseId])
   return data
 }
 
-// Gedeeld door TournamentCard (TournixBrowseCards.jsx) en CompactPinnedCard
-// (PinnedBoard.jsx): haalt de discovery-competitiestandigen op, groepeert per
-// fase-tag, en valt terug op Tournix-fases als er geen discovery-koppeling is.
+// Gedeeld door TournamentCard (BrowseCards.jsx) en CompactPinnedCard
+// (PinnedBoard.jsx): haalt de discovery-competitiestanden op en groepeert per
+// fase-tag. useDiscovery false = geen gekoppelde competities (geen Tournix-
+// fallback meer, item 1268).
 export function useTournamentStandings(tournamentId) {
-  const [phases,       setPhases]       = useState(null)
   const [fasesData,    setFasesData]    = useState(null)
   const [useDiscovery, setUseDiscovery] = useState(null)
 
@@ -94,17 +91,7 @@ export function useTournamentStandings(tournamentId) {
       .catch(() => setUseDiscovery(false))
   }, [tournamentId])
 
-  useEffect(() => {
-    if (useDiscovery === false) {
-      getPhases(tournamentId).then(setPhases).catch(() => setPhases([]))
-    }
-  }, [useDiscovery, tournamentId])
-
-  const poolPhases = phases?.filter(p =>
-    p.phase_type === 'pool' && (p.is_main_phase || p.pools?.some(pool => pool.team_count > 0))
-  ) ?? []
-
-  return { fasesData, useDiscovery, phases, poolPhases }
+  return { fasesData, useDiscovery }
 }
 
 const _queryCache = {}

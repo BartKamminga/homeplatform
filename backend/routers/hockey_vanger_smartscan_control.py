@@ -14,6 +14,7 @@ from sqlmodel import Session
 from core.auth import get_current_user
 from core.database import engine, get_session
 from models.settings import AppSetting
+from services.hockey_contract_check import maybe_run_contract_check
 from services.hockey_vanger_scanplan import SKIP_HEALTHY_DAILY_FALLBACK_KEY, run_scan_plan_pass
 from services.hockey_vanger_schedule import DEFAULT_HORIZON_DAYS, promote_due_schedule_entries, rebuild_schedule
 from services.hockey_vanger_settings import _get_bool_setting, _get_int_setting
@@ -158,6 +159,15 @@ def _maybe_run_scan_plan_pass(session: Session):
     if promoted_after_rebuild > 0 and _ghost_enabled(session):
         _set_ghost_trigger(session, now)
         session.commit()
+
+    # item 1257: 1x per 24 uur de vaste hockey.nl-testcommando's inplannen
+    try:
+        if maybe_run_contract_check(session, now) > 0 and _ghost_enabled(session):
+            _set_ghost_trigger(session, now)
+            session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("contract check: inplannen mislukt")
 
 
 SCAN_PLAN_LOOP_INTERVAL_SEC = 15  # zelfde cadans als Ghost's eigen poll-interval (POLL_IDLE_SEC)

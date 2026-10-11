@@ -6,6 +6,7 @@ import { resolveHockeyType } from './hockeyTypeHelpers.js'
 import ScanEfficiencySection from './vanger/ScanEfficiencySection.jsx'
 import PouleRankingSection from './vanger/PouleRankingSection.jsx'
 import DataShapeFlagsSection from './vanger/DataShapeFlagsSection.jsx'
+import ContractCheckSection from './vanger/ContractCheckSection.jsx'
 import PhaseWatchSection from './vanger/PhaseWatchSection.jsx'
 
 export default function StatsTab() {
@@ -194,6 +195,8 @@ export default function StatsTab() {
       )}
 
       <PhaseWatchSection section={section} />
+
+      <ContractCheckSection section={section} />
 
       <DataShapeFlagsSection section={section} />
 
