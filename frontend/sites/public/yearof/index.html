@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>YearOf - de teamsite voor jouw hockeyseizoen · roadmap</title>
+<style>
+  :root { --navy:#12203c; --navy-2:#1b2f54; --accent:#f5c400; --paper:#f7f5f0; --muted:#6b7280;
+          --live:#16a34a; --dev:#d97706; --plan:#2563eb; --idea:#7c3aed; }
+  * { box-sizing:border-box; } html { scroll-behavior:smooth; }
+  body { margin:0; font-family:'Segoe UI', system-ui, -apple-system, sans-serif; background:var(--paper); color:var(--navy); line-height:1.55; }
+  main { max-width:1040px; margin:0 auto; padding:16px 16px 70px; }
+  a { color:var(--navy); }
+
+  .hero { background:linear-gradient(135deg, var(--navy), var(--navy-2)); color:#fff; border-radius:20px; padding:44px 30px 36px; position:relative; overflow:hidden; }
+  .hero::after { content:''; position:absolute; right:-60px; top:-60px; width:260px; height:260px; border-radius:50%; background:radial-gradient(circle, rgba(245,196,0,.35), transparent 70%); }
+  .hero .kicker { display:inline-block; background:var(--accent); color:#141414; font-weight:800; font-size:12px; letter-spacing:.08em; text-transform:uppercase; padding:3px 12px; border-radius:999px; }
+  .hero h1 { font-size:36px; line-height:1.15; margin:14px 0 10px; max-width:720px; }
+  .hero p { color:#c7cfe3; font-size:17px; max-width:680px; margin:0; }
+  .hero nav { margin-top:22px; display:flex; gap:8px; flex-wrap:wrap; position:relative; z-index:1; }
+  .hero nav a { color:#fff; text-decoration:none; font-size:13px; font-weight:600; border:1px solid rgba(255,255,255,.3); padding:6px 14px; border-radius:999px; }
+  .hero nav a:hover { background:rgba(255,255,255,.1); }
+
+  h2 { font-size:24px; margin:48px 0 6px; scroll-margin-top:12px; }
+  .lead { color:#475069; margin:0 0 18px; font-size:16px; max-width:760px; }
+
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
+  .feat { background:#fff; border-radius:16px; padding:16px; box-shadow:0 2px 10px rgba(18,32,60,.06); }
+  .feat .ico { width:42px; height:42px; border-radius:50%; background:var(--accent); color:#141414; display:flex; align-items:center; justify-content:center; }
+  svg.i { width:22px; height:22px; display:block; }
+  .phase .num svg.i { width:26px; height:26px; margin-bottom:6px; }
+  .lv svg.i { width:22px; height:22px; margin-bottom:6px; }
+  .tl-bar a svg.i { width:16px; height:16px; margin-bottom:4px; }
+  .org { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
+  .org .feat h3 { font-size:17px; } .org ul { margin:8px 0 0; padding-left:18px; font-size:14px; color:#334155; } .org li { margin:2px 0; }
+  .org .where { margin-top:10px; font-size:13px; color:var(--muted); }
+  .msg { margin-top:10px; background:#e7f8ec; border-radius:12px; padding:10px 12px; font-size:13px; white-space:pre-line; border-left:4px solid #25d366; color:#14361f; }
+  .effort { background:#fff; border-radius:16px; box-shadow:0 2px 10px rgba(18,32,60,.06); overflow:hidden; }
+  .effort table { width:100%; border-collapse:collapse; font-size:14px; }
+  .effort th { text-align:left; background:#eef1f8; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#475069; padding:9px 14px; }
+  .effort td { padding:8px 14px; border-top:1px solid #f0eee8; vertical-align:top; }
+  .effort td.t { white-space:nowrap; font-weight:700; text-align:right; }
+  .effort tr.sum td { background:#fff8d6; font-weight:700; }
+  .effort td .auto { color:var(--live); font-weight:700; }
+  .totals { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin:12px 0; }
+  .total { background:var(--navy); color:#fff; border-radius:16px; padding:14px 16px; }
+  .total b { display:block; font-size:26px; color:var(--accent); } .total span { font-size:13px; color:#c7cfe3; }
+  .note { font-size:13px; color:var(--muted); margin-top:8px; }
+  .feat h3 { margin:6px 0 4px; font-size:16px; }
+  .feat p { margin:0; font-size:14px; color:#475069; }
+
+  .legend { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; font-size:13px; }
+  .st { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; border-radius:999px; padding:2px 10px; white-space:nowrap; }
+  .st::before { content:''; width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .st.live { color:var(--live); background:#dcfce7; } .st.dev { color:var(--dev); background:#ffedd5; }
+  .st.plan { color:var(--plan); background:#dbeafe; } .st.idea { color:var(--idea); background:#ede9fe; }
+
+  /* tijdlijn */
+  .timeline { position:relative; margin:10px 0 0; padding-left:0; }
+  .tl-bar { display:grid; grid-template-columns:repeat(8, 1fr); gap:4px; margin:0 0 18px; }
+  .tl-bar a { text-decoration:none; color:#fff; border-radius:10px; padding:8px 8px; font-size:12px; font-weight:700; line-height:1.25; min-height:62px; display:flex; flex-direction:column; justify-content:space-between; }
+  .tl-bar a small { font-weight:500; opacity:.85; font-size:11px; }
+  @media (max-width:760px) { .tl-bar { grid-template-columns:repeat(4, 1fr); } .hero h1 { font-size:28px; } }
+
+  .phase { display:grid; grid-template-columns:92px 1fr; gap:16px; margin:0 0 14px; scroll-margin-top:12px; }
+  .phase .num { width:92px; border-radius:16px; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:12px 6px; text-align:center; }
+  .phase .num b { font-size:30px; line-height:1; } .phase .num small { font-size:11px; opacity:.9; margin-top:4px; }
+  .phase .body { background:#fff; border-radius:16px; padding:16px 18px; box-shadow:0 2px 10px rgba(18,32,60,.06); }
+  .phase .head { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
+  .phase h3 { margin:0; font-size:19px; }
+  .phase .when { color:var(--muted); font-size:13px; font-weight:600; }
+  .phase .goal { margin:6px 0 10px; color:#334155; }
+  .phase .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .phase h4 { margin:0 0 4px; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .phase ul { margin:0; padding-left:18px; font-size:14px; } .phase li { margin:2px 0; }
+  .phase .result { margin-top:10px; background:#f7f5f0; border-radius:10px; padding:8px 12px; font-size:14px; }
+  .phase .result b { color:var(--navy); }
+  @media (max-width:640px) { .phase { grid-template-columns:1fr; } .phase .num { width:auto; flex-direction:row; gap:10px; } .phase .cols { grid-template-columns:1fr; } }
+
+  .levels { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+  .lv { border-radius:14px; color:#fff; padding:14px; }
+  .lv b { display:block; font-size:16px; } .lv span { font-size:13px; opacity:.92; }
+  @media (max-width:760px) { .levels { grid-template-columns:1fr 1fr; } }
+
+  .faq { display:grid; gap:10px; }
+  .faq details { background:#fff; border-radius:14px; padding:12px 16px; box-shadow:0 2px 10px rgba(18,32,60,.06); }
+  .faq summary { cursor:pointer; font-weight:700; }
+  .faq p { margin:8px 0 0; color:#475069; font-size:14px; }
+
+  .cta { margin-top:44px; background:var(--accent); border-radius:20px; padding:26px 26px; display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  .cta h2 { margin:0; font-size:22px; } .cta p { margin:4px 0 0; }
+  .cta .btn { background:var(--navy); color:#fff; text-decoration:none; font-weight:700; padding:10px 20px; border-radius:999px; }
+
+  /* galerij */
+  .phones { display:flex; gap:16px; overflow-x:auto; padding:6px 2px 16px; scroll-snap-type:x mandatory; }
+  .phone { flex:0 0 232px; scroll-snap-align:start; text-decoration:none; color:var(--navy); }
+  .phone .frame { height:440px; border-radius:30px; background:#111; padding:10px; box-shadow:0 10px 26px rgba(18,32,60,.22); position:relative; }
+  .phone .frame::before { content:''; position:absolute; top:16px; left:50%; transform:translateX(-50%); width:64px; height:6px; border-radius:6px; background:#2a2a2a; z-index:2; }
+  .phone img { width:100%; height:100%; object-fit:cover; object-position:top center; border-radius:22px; display:block; background:#f7f5f0; }
+  .phone .cap { font-size:13px; margin-top:10px; line-height:1.4; }
+  .phone .cap b { display:block; font-size:14px; }
+  .phone:hover .frame { transform:translateY(-3px); transition:transform .15s; }
+  .wide { display:grid; gap:16px; grid-template-columns:1.65fr 1fr; align-items:start; }
+  @media (max-width:860px) { .wide { grid-template-columns:1fr; } }
+  .wide a { text-decoration:none; color:var(--navy); display:block; background:#fff; border-radius:16px; box-shadow:0 2px 10px rgba(18,32,60,.06); overflow:hidden; }
+  .wide .browser { background:#e9e6de; padding:8px 12px; display:flex; gap:6px; align-items:center; }
+  .wide .browser i { width:10px; height:10px; border-radius:50%; background:#d4cfc3; display:inline-block; }
+  .wide .browser span { margin-left:10px; font-size:12px; color:var(--muted); background:#fff; border-radius:999px; padding:2px 12px; }
+  .wide img { width:100%; display:block; }
+  .wide .cap { padding:12px 16px; font-size:14px; } .wide .cap b { font-size:15px; }
+  .privacy-note { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--muted); margin:6px 0 0; }
+  .privacy-note svg.i { width:16px; height:16px; }
+  /* lichtbak */
+  .lb { display:none; position:fixed; inset:0; background:rgba(10,15,30,.88); z-index:50; align-items:center; justify-content:center; padding:24px; }
+  .lb:target { display:flex; }
+  .lb img { max-width:96vw; max-height:90vh; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.5); background:#fff; }
+  .lb .close { position:absolute; top:14px; right:20px; color:#fff; font-size:30px; text-decoration:none; }
+  .lb .lbcap { position:absolute; bottom:14px; left:0; right:0; text-align:center; color:#e5e7eb; font-size:14px; }
+  footer { margin-top:30px; color:var(--muted); font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+
+<section class="hero">
+  <span class="kicker">Roadmap 2026 - 2027</span>
+  <h1>YearOf: een eigen website voor jouw hockeyteam, voor het hele seizoen</h1>
+  <p>Wedstrijden in clubkleuren, foto's en verslagen, spelerskaarten, de stand van je poule - samengebracht op één plek voor speelsters, ouders en fans.
+     Begonnen als de site van één meidenteam op weg naar Parijs, nu in ontwikkeling als platform voor elk team.</p>
+  <nav><a href="#nu">Wat er nu al kan</a><a href="#galerij">Zo ziet het eruit</a><a href="#niveaus">Wie ziet wat</a><a href="#privacy">Privacy</a><a href="#fases">De fases</a><a href="#organisatie">Team-organisatie</a><a href="#tijd">Hoeveel tijd kost het</a><a href="#vragen">Vragen</a></nav>
+</section>
+
+<h2 id="nu">Wat er nu al kan</h2>
+<p class="lead">Dit draait vandaag al op de site van een MO14-team en is de basis voor elke nieuwe teamsite.</p>
+<div class="grid">
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg></div><h3>Wedstrijden in clubkleuren</h3><p>Elke wedstrijd als kaart in de kleuren van beide clubs, met uitslag of aanvangstijd. Automatisch bijgewerkt vanuit de officiële competitiegegevens.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10"/><path d="M11 12h10"/><path d="M11 19h10"/><path d="M4 4h1v5"/><path d="M4 9h2"/><path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02"/></svg></div><h3>Stand en programma</h3><p>Pouletabel, uitslagen per ronde, kans per eindplek en wat de herindeling kan betekenen.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg></div><h3>Spelerskaarten</h3><p>Een eigen kaart per speelster in FIFA-stijl, met foto en waarden. De beheerder bepaalt wat erop staat en wanneer hij zichtbaar is.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg></div><h3>Foto's en verslagen</h3><p>Ouders uploaden foto's en schrijven verslagen via een eigen link; de beheerder zet ze klaar en publiceert.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13V2l8 4-8 4"/><path d="M20.561 10.222a9 9 0 1 1-12.55-5.29"/><path d="M8.002 9.997a5 5 0 1 0 8.9 2.02"/></svg></div><h3>Doelpunten en speelster van de week</h3><p>Wie scoorde er, en wie staat deze week in de schijnwerpers.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><h3>Links voor fans</h3><p>Opa, oma en vrienden kijken mee via een eigen link voor één wedstrijd of één speelster - zonder de rest van de site.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/></svg></div><h3>Actie en sponsors</h3><p>Een inzamelactie met thermometer en een plek voor sponsors van het team.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg></div><h3><a href="#beheer-galerij" style="text-decoration:none">Beheer zoals je de site ziet</a></h3><p>Links de site zoals bezoekers hem zien, rechts bewerken - in het blok zelf, met live of concept per onderdeel.</p></div>
+</div>
+
+<h2 id="galerij">Zo ziet het eruit</h2>
+<p class="lead">Schermen van de huidige MO14-site, zoals ouders en fans hem op hun telefoon zien. Klik op een scherm om het groot te bekijken.</p>
+<div class="phones"><a class="phone" href="#lb-home"><div class="frame"><img src="img/yearof-roadmap/home-mobiel.png" alt="Home" loading="lazy"></div><div class="cap"><b>Home</b>Actie, laatste en volgende wedstrijd, de stand en de speelster van de week.</div></a><a class="phone" href="#lb-in-de-kijker"><div class="frame"><img src="img/yearof-roadmap/in-de-kijker-mobiel.png" alt="In de kijker" loading="lazy"></div><div class="cap"><b>In de kijker</b>Verhalen, interviews en nieuws van het team, met foto's en likes.</div></a><a class="phone" href="#lb-team"><div class="frame"><img src="img/yearof-roadmap/team-mobiel.png" alt="Het team" loading="lazy"></div><div class="cap"><b>Het team</b>Elke speelster op een kaart - of als FIFA-kaart met eigen waarden.</div></a><a class="phone" href="#lb-wedstrijden"><div class="frame"><img src="img/yearof-roadmap/wedstrijden-mobiel.png" alt="Wedstrijden" loading="lazy"></div><div class="cap"><b>Wedstrijden</b>Het hele seizoen in clubkleuren; de volgende wedstrijd valt op.</div></a><a class="phone" href="#lb-poule"><div class="frame"><img src="img/yearof-roadmap/poule-mobiel.png" alt="Poule" loading="lazy"></div><div class="cap"><b>Poule</b>Stand, kans per eindplek en de uitslagen per ronde.</div></a></div>
+<h3 id="beheer-galerij" style="font-size:19px;margin:26px 0 6px">Zo beheer je het</h3>
+<p class="lead">De studio in teambeheer: links de site precies zoals bezoekers hem zien, rechts bewerk je - zonder te programmeren.</p>
+<div class="wide"><a href="#lb-studio-wedstrijd"><div class="browser"><i></i><i></i><i></i><span>teambeheer · studio</span></div><img src="img/yearof-roadmap/studio-wedstrijd.png" alt="Studio: een wedstrijdpagina bewerken" loading="lazy"><div class="cap"><b>Studio: een wedstrijdpagina bewerken</b><br>Links de site zoals bezoekers hem zien, rechts bewerken - hier een wedstrijdverslag, direct in het blok, met live of concept en de volgorde op de pagina.</div></a><a href="#lb-studio-speelster"><div class="browser"><i></i><i></i><i></i><span>teambeheer · studio</span></div><img src="img/yearof-roadmap/studio-speelster.png" alt="Studio: een speelster en haar spelerskaart" loading="lazy"><div class="cap"><b>Studio: een speelster en haar spelerskaart</b><br>Profiel, teksten van ouders, buddy en coaches, en de spelerskaart met stijl en waarden - met meteen een voorbeeld van de kaart.</div></a></div>
+<p class="privacy-note"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Namen zijn gewijzigd en foto's vervaagd ter bescherming van de speelsters.</p>
+<div class="lb" id="lb-home"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/home.png" alt="Home"><div class="lbcap">Home</div></div><div class="lb" id="lb-in-de-kijker"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/in-de-kijker.png" alt="In de kijker"><div class="lbcap">In de kijker</div></div><div class="lb" id="lb-team"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/team.png" alt="Het team"><div class="lbcap">Het team</div></div><div class="lb" id="lb-wedstrijden"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/wedstrijden.png" alt="Wedstrijden"><div class="lbcap">Wedstrijden</div></div><div class="lb" id="lb-poule"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/poule.png" alt="Poule"><div class="lbcap">Poule</div></div><div class="lb" id="lb-studio-wedstrijd"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/studio-wedstrijd.png" alt="Studio: een wedstrijdpagina bewerken"><div class="lbcap">Studio: een wedstrijdpagina bewerken</div></div><div class="lb" id="lb-studio-speelster"><a class="close" href="#galerij" aria-label="Sluiten">&times;</a><img src="img/yearof-roadmap/studio-speelster.png" alt="Studio: een speelster en haar spelerskaart"><div class="lbcap">Studio: een speelster en haar spelerskaart</div></div>
+
+<h2 id="niveaus">Wie ziet wat</h2>
+<p class="lead">Eén simpele regel: je ziet alles van jouw niveau en alles daaronder.</p>
+<div class="levels">
+  <div class="lv" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg><b>Beheerder</b><span>Teammanager of trainer: beheert alles op de eigen site.</span></div>
+  <div class="lv" style="background:#0f766e"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg><b>Team</b><span>Ouders en speelsters: de hele site, en foto's toevoegen.</span></div>
+  <div class="lv" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.414 14.414C21 12.828 22 11.5 22 9.5a5.5 5.5 0 0 0-9.591-3.676.6.6 0 0 1-.818.001A5.5 5.5 0 0 0 2 9.5c0 2.3 1.5 4 3 5.5l5.535 5.362a2 2 0 0 0 2.879.052 2.12 2.12 0 0 0-.004-3 2.124 2.124 0 1 0 3-3 2.124 2.124 0 0 0 3.004 0 2 2 0 0 0 0-2.828l-1.881-1.882a2.41 2.41 0 0 0-3.409 0l-1.71 1.71a2 2 0 0 1-2.828 0 2 2 0 0 1 0-2.828l2.823-2.762"/></svg><b>Fans</b><span>Familie en vrienden: één wedstrijd of één speelster, met wat voor fans bedoeld is.</span></div>
+  <div class="lv" style="background:#9ca3af"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><b>Openbaar</b><span>Iedereen, zonder link: alleen wat je bewust openbaar maakt.</span></div>
+</div>
+
+<h2 id="privacy">Privacy en veiligheid</h2>
+<p class="lead">Het gaat om jeugdteams. Daarom zijn dit vaste uitgangspunten, in elke fase:</p>
+<div class="grid">
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3>Alleen met een link of inlog</h3><p>Een teamsite is niet zomaar vindbaar. Wat openbaar is, kies je zelf.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></div><h3>Teams volledig gescheiden</h3><p>Elk team heeft zijn eigen opslag. Een link van het ene team geeft nooit toegang tot een ander team.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></div><h3>Accounts voor ouders</h3><p>Inloggen is voor beheerders en ouders, niet voor de speelsters zelf.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.414 14.414C21 12.828 22 11.5 22 9.5a5.5 5.5 0 0 0-9.591-3.676.6.6 0 0 1-.818.001A5.5 5.5 0 0 0 2 9.5c0 2.3 1.5 4 3 5.5l5.535 5.362a2 2 0 0 0 2.879.052 2.12 2.12 0 0 0-.004-3 2.124 2.124 0 1 0 3-3 2.124 2.124 0 0 0 3.004 0 2 2 0 0 0 0-2.828l-1.881-1.882a2.41 2.41 0 0 0-3.409 0l-1.71 1.71a2 2 0 0 1-2.828 0 2 2 0 0 1 0-2.828l2.823-2.762"/></svg></div><h3>Koppelen deelt geen gegevens</h3><p>Gekoppelde teams zien alleen naam, logo en de stand - nooit speelsters, foto's of berichten.</p></div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 16h.01"/><path d="M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M21.946 12.013H2.054"/><path d="M6 16h.01"/></svg></div><h3>Jouw seizoen, jouw data</h3><p>Een teamsite is als geheel te exporteren en te bewaren.</p></div>
+</div>
+
+<h2 id="fases">Van één teamsite naar een platform</h2>
+<p class="lead">In acht fases groeit YearOf van de site van één team naar een platform waarop elk team zijn eigen site maakt, beheert en koppelt.
+De planning is indicatief; de volgorde staat vast.</p>
+<div class="legend"><span class="st live">Live</span><span class="st dev">In ontwikkeling</span><span class="st plan">Gepland</span><span class="st idea">Verkenning</span></div>
+
+<div class="tl-bar">
+  <a href="#f0" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>0 · Veilig fundament<small>oktober 2026</small></a>
+  <a href="#f1" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>1 · Eén inlog<small>oktober 2026</small></a>
+  <a href="#f2" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>2 · Eigen omgeving<small>okt - nov 2026</small></a>
+  <a href="#f3" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>3 · Meerdere teamsites<small>november 2026</small></a>
+  <a href="#f4" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2"/><path d="M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2"/><path d="M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3"/><path d="M4 22h16"/><path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/><path d="M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3"/></svg>4 · Zaalseizoen live<small>december 2026</small></a>
+  <a href="#f5" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>5 · Zelf samenstellen<small>jan - mrt 2027</small></a>
+  <a href="#f6" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>6 · Wie ziet wat<small>voorjaar 2027</small></a>
+  <a href="#f7" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>7 · Netwerk en eigen hosting<small>2027</small></a>
+</div>
+
+<div class="phase" id="f0">
+  <div class="num" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><b>0</b><small>okt 2026</small></div>
+  <div class="body">
+    <div class="head"><h3>Veilig fundament</h3><span class="st dev">In ontwikkeling</span></div>
+    <p class="goal">Eerst de basis op orde: alles wat een teamsite deelt, moet goed afgeschermd zijn.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Links en codes alleen nog bruikbaar waarvoor ze bedoeld zijn</li>
+        <li>Foto's toevoegen alleen met een geldige teamlink of uitnodiging</li>
+        <li>Automatische tests die bewaken dat dat zo blijft</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Een nieuwe teamlink voor ouders en speelsters</li>
+        <li>Verder niets - en dat is precies de bedoeling</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> een veilige basis om meer teams op te bouwen.</div>
+  </div>
+</div>
+
+<div class="phase" id="f1">
+  <div class="num" style="background:#d97706"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg><b>1</b><small>okt 2026</small></div>
+  <div class="body">
+    <div class="head"><h3>Eén inlog, ook met Google en Microsoft</h3><span class="st dev">In ontwikkeling</span></div>
+    <p class="goal">Beheerders en teammanagers loggen in met het account dat ze al hebben.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Inloggen met Google of Microsoft (ook Hotmail en Outlook)</li>
+        <li>Eén account voor alle teamsites waar je toegang toe hebt</li>
+        <li>Nieuwe beheerders komen binnen via een uitnodiging</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Geen extra wachtwoord om te onthouden</li>
+        <li>Tweestapsverificatie via je eigen Google- of Microsoft-account</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> snel en veilig inloggen; de basis voor teammanagers en later ouders.</div>
+  </div>
+</div>
+
+<div class="phase" id="f2">
+  <div class="num" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><b>2</b><small>okt - nov</small></div>
+  <div class="body">
+    <div class="head"><h3>Een eigen omgeving voor hockey</h3><span class="st plan">Gepland</span></div>
+    <p class="goal">Alles wat met hockey te maken heeft, krijgt een eigen, opgeruimde plek - los van andere toepassingen.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Een eigen hockeyplatform: teamsites, competitiegegevens en het poule-overzicht</li>
+        <li>Oude, niet meer gebruikte hockeytoepassingen gaan als alleen-lezen archief online</li>
+        <li>Inloggen via één centrale inlogplek</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Niets bijzonders - alles blijft werken</li>
+        <li>Op de achtergrond: sneller, beter beheersbaar, makkelijker uit te breiden</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> een stevig platform dat klaar is voor meerdere teams.</div>
+  </div>
+</div>
+
+<div class="phase" id="f3">
+  <div class="num" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg><b>3</b><small>nov 2026</small></div>
+  <div class="body">
+    <div class="head"><h3>Meerdere teamsites</h3><span class="st plan">Gepland</span></div>
+    <p class="goal">Elk team krijgt zijn eigen site: eigen speelsters, foto's, kleuren en adres.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Een teamsite per team per seizoen</li>
+        <li>Eigen adres: een pad, een eigen subdomein of zelfs een eigen domeinnaam</li>
+        <li>Eigen uiterlijk: clubkleuren, logo en titel</li>
+        <li>Meerdere competities per seizoen (bijvoorbeeld najaar, voorjaar, eindrondes)</li>
+        <li>Volledig gescheiden: een link van het ene team geeft nooit toegang tot een ander team</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Een nieuwe teamsite staat klaar zonder technische ingreep</li>
+        <li>Beginnen vanuit een sjabloon van een andere site</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> YearOf is beschikbaar voor meer teams.</div>
+  </div>
+</div>
+
+<div class="phase" id="f4">
+  <div class="num" style="background:#2563eb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2"/><path d="M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2"/><path d="M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3"/><path d="M4 22h16"/><path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/><path d="M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3"/></svg><b>4</b><small>dec 2026</small></div>
+  <div class="body">
+    <div class="head"><h3>Zaalseizoen live, met teambeheer</h3><span class="st plan">Gepland</span></div>
+    <p class="goal">De eerste nieuwe teamsites gaan live voor het zaalhockeyseizoen, beheerd door de teammanagers zelf.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Teambeheer: één beheerwebsite waar managers alleen hun eigen site(s) zien</li>
+        <li>Nieuwe site aanmaken met een stappenplan</li>
+        <li>Sites aan elkaar koppelen: het veldteam toont de stand van zijn zaalteams</li>
+        <li><b>WhatsApp-berichten voorbereiden</b>: weekbericht en uitslag kant-en-klaar om te delen</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Managers beheren hun eigen team, zonder tussenkomst</li>
+        <li>Fans zien het hele seizoen, veld en zaal</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> meerdere teams draaien zelfstandig op YearOf.</div>
+  </div>
+</div>
+
+<div class="phase" id="f5">
+  <div class="num" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg><b>5</b><small>jan - mrt</small></div>
+  <div class="body">
+    <div class="head"><h3>Je site zelf samenstellen</h3><span class="st idea">Verkenning</span></div>
+    <p class="goal">Elke pagina bouw je op uit onderdelen die je zelf kiest, in de volgorde die je wilt.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Een catalogus van onderdelen: stand, wedstrijden, foto's, spelerskaarten, sponsors, tekst ...</li>
+        <li>Per onderdeel instellingen, zichtbaarheid en live of concept</li>
+        <li>Pagina's als sjabloon voor elke wedstrijd en elke speelster</li>
+        <li>Mogelijk slepen en neerzetten in een visuele editor</li>
+        <li><b>Automatische schema's</b> voor team, ouders en coaches (rijden, wassen, fruit, zaaldienst ...)</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Een site die past bij jouw team, zonder programmeren</li>
+        <li>Verbeteringen aan onderdelen komen automatisch op alle sites</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> volledig eigen teamsites, gebouwd uit vaste bouwstenen.</div>
+  </div>
+</div>
+
+<div class="phase" id="f6">
+  <div class="num" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><b>6</b><small>voorjaar</small></div>
+  <div class="body">
+    <div class="head"><h3>Wie ziet wat, en inloggen voor ouders</h3><span class="st idea">Verkenning</span></div>
+    <p class="goal">Elke foto en elk bericht krijgt een niveau: voor wie is dit bedoeld?</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Vier niveaus: beheerder, team, fans en openbaar</li>
+        <li>Per foto en bericht kiezen voor wie het is, ook per plek op de site</li>
+        <li>Ouders kunnen inloggen in plaats van een link te gebruiken</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Teamfoto's blijven binnen het team, de mooiste actiefoto's mogen naar de fans</li>
+        <li>Duidelijk en voorspelbaar wat iedereen ziet</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> volledige controle over wat er gedeeld wordt.</div>
+  </div>
+</div>
+
+<div class="phase" id="f7">
+  <div class="num" style="background:#7c3aed"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg><b>7</b><small>2027</small></div>
+  <div class="body">
+    <div class="head"><h3>Netwerk, archief en eigen hosting</h3><span class="st idea">Verkenning</span></div>
+    <p class="goal">Teamsites worden een netwerk, en een site gaat mee waar jij wilt.</p>
+    <div class="cols">
+      <div><h4>Wat gebeurt er</h4><ul>
+        <li>Vriendenteams: sites van andere teams of clubs koppelen (alleen na wederzijds akkoord)</li>
+        <li>"Ook op YearOf" bij een wedstrijd tegen een vriendenteam</li>
+        <li>Een seizoen exporteren en bewaren als archief - later terug te zetten</li>
+        <li>Een teamsite onder je eigen domein, of zelf hosten op eigen servers</li>
+      </ul></div>
+      <div><h4>Wat merk je ervan</h4><ul>
+        <li>Een levend netwerk van teams, zonder dat er iets van speelsters gedeeld wordt</li>
+        <li>Je seizoen blijft van jou</li>
+      </ul></div>
+    </div>
+    <div class="result"><b>Resultaat:</b> YearOf als open platform voor elk hockeyteam.</div>
+  </div>
+</div>
+
+<h2 id="organisatie">Team-organisatie: minder regelwerk</h2>
+<p class="lead">Naast de site zelf neemt YearOf het terugkerende regelwerk rond een team uit handen. Nieuw op de roadmap:</p>
+<div class="org">
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 14v2.2l1.6 1"/><path d="M16 2v3"/><path d="M21 7.338V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h2.338"/><path d="M3 9h5.859"/><path d="M8 2v3"/><circle cx="16" cy="16" r="6"/></svg></div><h3>Automatische schema's</h3>
+    <p>Uit het wedstrijdprogramma maakt YearOf zelf de schema's, eerlijk verdeeld over het seizoen.</p>
+    <ul>
+      <li><b>Ouders:</b> rijden naar uitwedstrijden, shirts wassen, fruit, bardienst of zaaldienst</li>
+      <li><b>Team:</b> wie neemt de bal en het materiaal mee, aanvoerdersband, opstellen en opruimen</li>
+      <li><b>Coaches:</b> wie coacht, wie fluit, wie is teammanager van dienst</li>
+      <li>Ruilen met één klik, met een herinnering een paar dagen vooraf</li>
+      <li>Iedereen ziet alleen zijn eigen beurten, en het schema op de teampagina</li>
+    </ul>
+    <div class="where"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/></svg> Fase 5 · januari - maart 2027</div>
+  </div>
+  <div class="feat"><div class="ico"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></svg></div><h3>WhatsApp-berichten voorbereiden</h3>
+    <p>De vaste berichten in de team- en oudergroepen staan kant-en-klaar klaar - kopiëren of direct delen via WhatsApp.</p>
+    <ul>
+      <li><b>Weekbericht:</b> tegenstander, tijd, verzamelen, adres met kaart, wie rijdt, wie wast</li>
+      <li><b>Na de wedstrijd:</b> uitslag, doelpuntenmakers en de link voor fans</li>
+      <li><b>Nieuwe foto's of verslag:</b> korte melding met link</li>
+      <li>Per groep een eigen variant: team, ouders, vrienden</li>
+    </ul>
+    <div class="msg">🏑 Zaterdag 17 okt: Derby MO14-1 - Victoria MO14-1
+Aanvang 10:25 · verzamelen 09:30 bij de club
+🚗 Rijden: Fien, Jip, Noor · 👕 Wassen: Pip
+👀 Fans kijken mee: webheaven.nl/l/ab12cd</div>
+    <div class="where"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/></svg> Fase 4 · december 2026</div>
+  </div>
+</div>
+
+<h2 id="tijd">Hoeveel tijd kost het een manager?</h2>
+<p class="lead">Een inschatting op basis van het bijhouden van de MO14-site. Hoeveel tijd het kost, hangt vooral af van hoe uitgebreid je het wilt maken - de basis is licht.</p>
+<div class="totals">
+  <div class="total"><b>15 - 30 min</b><span>per wedstrijdweek, met foto's en een verslag</span></div>
+  <div class="total"><b>± 10 min</b><span>per week in de lichte variant: links delen en foto's goedkeuren</span></div>
+  <div class="total"><b>1,5 - 2 uur</b><span>eenmalig bij de start van het seizoen</span></div>
+  <div class="total"><b>5 - 10 uur</b><span>per seizoen in totaal (± 20 speelweken)</span></div>
+</div>
+<div class="effort"><table>
+  <thead><tr><th>Wat</th><th>Wanneer</th><th style="text-align:right">Tijd</th></tr></thead>
+  <tbody>
+    <tr><td>Uitslag, stand, programma en wedstrijdkaarten</td><td>doorlopend</td><td class="t"><span class="auto">automatisch</span></td></tr>
+    <tr><td>Weekbericht voor de WhatsApp-groepen delen (vanaf fase 4 kant-en-klaar)</td><td>elke week</td><td class="t">2 min</td></tr>
+    <tr><td>Nieuwe teamlink delen in de oudergroep</td><td>elke week</td><td class="t">1 min</td></tr>
+    <tr><td>Link voor fans maken en delen</td><td>per wedstrijd</td><td class="t">1 min</td></tr>
+    <tr><td>Foto's goedkeuren die ouders hebben toegevoegd</td><td>per wedstrijd</td><td class="t">5 - 15 min</td></tr>
+    <tr><td>Verslag of interview: uitnodiging sturen en publiceren</td><td>per wedstrijd (optioneel)</td><td class="t">3 - 6 min</td></tr>
+    <tr><td>Doelpunten invullen</td><td>per wedstrijd</td><td class="t">2 min</td></tr>
+    <tr><td>Speelster van de week / spelerskaarten bijwerken</td><td>per week (optioneel)</td><td class="t">2 - 5 min</td></tr>
+    <tr class="sum"><td>Per wedstrijdweek</td><td></td><td class="t">15 - 30 min</td></tr>
+    <tr><td>Site aanmaken vanuit een sjabloon, kleuren en logo</td><td>start seizoen</td><td class="t">15 - 30 min</td></tr>
+    <tr><td>Speelsters toevoegen; profielen vullen ze zelf in via een eigen link</td><td>start seizoen</td><td class="t">30 - 60 min</td></tr>
+    <tr><td>Sponsors, actie en schema-instellingen</td><td>start seizoen</td><td class="t">20 - 30 min</td></tr>
+    <tr><td>Seizoen afsluiten en archiveren</td><td>einde seizoen</td><td class="t">10 min</td></tr>
+  </tbody>
+</table></div>
+<p class="note">Wat het licht houdt: de competitiegegevens komen automatisch, ouders en speelsters leveren foto's, verslagen en profielen zelf aan via een eigen link,
+een nieuwe site start vanuit een sjabloon, en vanaf fase 4 en 5 staan berichten en schema's klaar. Meerdere managers per team kunnen het werk verdelen.</p>
+
+<h2 id="vragen">Veelgestelde vragen</h2>
+<div class="faq">
+  <details><summary>Voor welke teams is YearOf bedoeld?</summary><p>Voor hockeyteams die hun seizoen willen delen met speelsters, ouders en fans - begonnen bij jeugdteams, maar niet daartoe beperkt. Competitiegegevens komen automatisch mee voor teams in de Nederlandse competities.</p></details>
+  <details><summary>Hoeveel tijd kost het bijhouden?</summary><p>Ongeveer 15 tot 30 minuten per wedstrijdweek, of zo'n 10 minuten in een lichte variant. Daarbij komt eenmalig 1,5 tot 2 uur bij de start van het seizoen. Zie <a href="#tijd">Hoeveel tijd kost het</a>.</p></details>
+  <details><summary>Hebben we technische kennis nodig?</summary><p>Nee. Een teamsite wordt aangemaakt en ingericht via de beheerwebsite; daarna beheer je alles zoals je de site ziet.</p></details>
+  <details><summary>Kan het onder onze eigen naam of domein?</summary><p>Ja, vanaf fase 3 kan een teamsite een eigen adres of een eigen domeinnaam krijgen, met de kleuren en het logo van jullie club.</p></details>
+  <details><summary>Wat gebeurt er met onze site na het seizoen?</summary><p>De site gaat in het archief en blijft terug te kijken. Vanaf fase 7 kun je een seizoen ook exporteren en zelf bewaren.</p></details>
+  <details><summary>Kunnen we de site zelf hosten?</summary><p>Dat onderzoeken we in fase 7. Tot die tijd draait elke teamsite op ons platform, eventueel onder je eigen domein.</p></details>
+</div>
+
+
+
+<footer>YearOf · roadmap, stand oktober 2026 · planning indicatief</footer>
+</main>
+</body>
+</html>
