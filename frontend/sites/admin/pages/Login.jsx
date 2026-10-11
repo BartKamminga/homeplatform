@@ -1,7 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "@core/api.js";
+import { readOidcFragment, storeOidcToken } from "@core/oidc.js";
 import Logo from "@core/Logo.jsx";
+import OidcButtons from "@components/OidcButtons.jsx";
+
+// Alleen relatieve paden als bestemming na Google/Microsoft-login.
+function relativePath(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.origin === window.location.origin ? u.pathname + u.search + u.hash : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -11,6 +24,18 @@ export default function Login() {
   const navigate = useNavigate();
   const params = new URLSearchParams(window.location.search);
   const redirect = params.get("redirect");
+
+  // Terug van Google/Microsoft (item 1271): token opslaan en door naar de bestemming.
+  useEffect(() => {
+    const result = readOidcFragment();
+    if (result.error) setError(result.error);
+    if (result.token) {
+      setLoading(true);
+      storeOidcToken(result.token).then(() => {
+        window.location.replace(relativePath(result.next) || "/admin/dashboard");
+      });
+    }
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -75,7 +100,7 @@ export default function Login() {
                 fontWeight: 500,
               }}
             >
-              Gebruikersnaam
+              Username
             </label>
             <input
               type="text"
@@ -94,7 +119,7 @@ export default function Login() {
                 fontWeight: 500,
               }}
             >
-              Wachtwoord
+              Password
             </label>
             <input
               type="password"
@@ -131,9 +156,10 @@ export default function Login() {
               fontSize: "var(--font-size-md)",
             }}
           >
-            {loading ? "Bezig..." : "Inloggen"}
+            {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
+        <OidcButtons next={relativePath(redirect && decodeURIComponent(redirect)) || "/admin/dashboard"} />
       </div>
     </div>
   );

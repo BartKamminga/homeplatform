@@ -7,6 +7,11 @@
         reverse_proxy backend_acc:8000
     }
 
+    # Publieke sleutels van onze eigen tokens (RS256, item 1271)
+    handle /.well-known/jwks.json {
+        reverse_proxy backend_acc:8000
+    }
+
     handle /l/* {
         reverse_proxy backend_acc:8000
     }

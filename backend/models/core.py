@@ -21,6 +21,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     email: str = Field(index=True, unique=True)
     password_hash: str
+    display_name: Optional[str] = Field(default=None)  # optioneel, bv. uit Google/Microsoft (item 1271)
     locale: str = Field(default="nl")
     is_active: bool = Field(default=True)
     active_group_id: Optional[str] = Field(default=None)
@@ -130,6 +131,22 @@ class UserApiKey(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_used_at: Optional[datetime] = Field(default=None)
     revoked_at: Optional[datetime] = Field(default=None)
+
+
+class UserIdentity(SQLModel, table=True):
+    """Externe login (Google/Microsoft via OIDC, item 1271) gekoppeld aan een
+    bestaande gebruiker. (provider, subject) is de vaste sleutel - niet het
+    e-mailadres, want persoonlijke Microsoft-accounts geven geen email_verified."""
+    __tablename__ = "user_identities"
+    __table_args__ = (Index("ux_user_identities_provider_subject", "provider", "subject", unique=True),)
+
+    id: str = Field(default_factory=new_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    provider: str                          # google | microsoft
+    subject: str                           # sub-claim van de provider
+    email: Optional[str] = Field(default=None)  # alleen ter herkenning in de UI
+    linked_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login_at: Optional[datetime] = Field(default=None)
 
 
 class AuditLog(SQLModel, table=True):

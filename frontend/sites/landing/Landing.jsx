@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isTokenValid, setToken } from "@core/api.js";
 import Logo from "@core/Logo.jsx";
+import OidcButtons from "@components/OidcButtons.jsx";
 
 function siteHref(site) {
   return `/${site.slug}/`;
@@ -22,7 +23,7 @@ function LoginForm({ onLogin }) {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body,
       });
-      if (!res.ok) throw new Error("Ongeldige inloggegevens");
+      if (!res.ok) throw new Error("Invalid username or password");
       const data = await res.json();
       setToken(data.access_token);
       localStorage.setItem("hp_user", JSON.stringify({ id: data.user_id, username: data.username }));
@@ -38,7 +39,7 @@ function LoginForm({ onLogin }) {
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div>
         <label style={{ display: "block", fontSize: "12px", color: "var(--color-text-muted)", marginBottom: "6px" }}>
-          Gebruikersnaam
+          Username
         </label>
         <input
           value={username} onChange={e => setUsername(e.target.value)}
@@ -48,7 +49,7 @@ function LoginForm({ onLogin }) {
       </div>
       <div>
         <label style={{ display: "block", fontSize: "12px", color: "var(--color-text-muted)", marginBottom: "6px" }}>
-          Wachtwoord
+          Password
         </label>
         <input
           type="password" value={password} onChange={e => setPassword(e.target.value)}
@@ -63,8 +64,9 @@ function LoginForm({ onLogin }) {
         type="submit" disabled={loading}
         style={{ padding: "10px", fontSize: "14px", fontWeight: 500, borderRadius: "var(--radius-md)", border: "none", background: "var(--color-primary)", color: "#fff", cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1, fontFamily: "inherit" }}
       >
-        {loading ? "Inloggen..." : "Inloggen"}
+        {loading ? "Signing in..." : "Sign in"}
       </button>
+      <OidcButtons next="/landing/" />
     </form>
   );
 }

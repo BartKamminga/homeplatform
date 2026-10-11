@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { setToken, loadTheme } from '@core/api.js';
+import { getOidcProviders, readOidcFragment } from '@core/oidc.js';
 import Logo from '@core/Logo.jsx';
 
 loadTheme();
@@ -19,41 +20,61 @@ const labelStyle = {
   color: 'var(--color-text-muted)', marginBottom: 6,
 };
 
+const optional = <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>;
+
+const providerButton = {
+  display: 'block', textAlign: 'center', padding: '11px', fontSize: 14, fontWeight: 500,
+  borderRadius: 'var(--radius-md, 8px)', border: '1px solid var(--color-border)',
+  color: 'var(--color-text)', textDecoration: 'none', fontFamily: 'inherit',
+};
+
 export default function InvitePage() {
   const { token } = useParams();
   const [status,    setStatus]    = useState('checking'); // checking | valid | invalid | success
   const [message,   setMessage]   = useState('');
   const [groupName, setGroupName] = useState(null);
+  const [providers, setProviders] = useState([]);
+  const [name,      setName]      = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [form,      setForm]      = useState({ username: '', password: '', confirm: '', email: '' });
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
 
   useEffect(() => {
+    // Terug van Google/Microsoft met een foutmelding (item 1271)
+    const result = readOidcFragment();
+    if (result.error) setError(result.error);
+    getOidcProviders().then(setProviders);
     fetch(`/api/auth/invite/${token}`)
-      .then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.detail || 'Ongeldig') }))
+      .then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.detail || 'Invalid invitation') }))
       .then(d => { setGroupName(d.group_name || null); setStatus('valid'); })
       .catch(e => { setStatus('invalid'); setMessage(e.message); });
   }, [token]);
 
+  const signupUrl = provider =>
+    `/api/auth/oidc/${provider}/signup?invite=${encodeURIComponent(token)}` +
+    (name.trim() ? `&name=${encodeURIComponent(name.trim())}` : '');
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!form.username.trim())             { setError('Gebruikersnaam is verplicht'); return; }
-    if (form.password.length < 8)         { setError('Wachtwoord minimaal 8 tekens'); return; }
-    if (form.password !== form.confirm)   { setError('Wachtwoorden komen niet overeen'); return; }
+    if (!form.username.trim())             { setError('Username is required'); return; }
+    if (form.password.length < 8)         { setError('Password must be at least 8 characters'); return; }
+    if (form.password !== form.confirm)   { setError('Passwords do not match'); return; }
     setSaving(true);
     try {
       const res = await fetch(`/api/auth/invite/${token}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: form.username.trim(),
-          password: form.password,
-          email:    form.email.trim() || undefined,
+          username:     form.username.trim(),
+          password:     form.password,
+          email:        form.email.trim() || undefined,
+          display_name: name.trim() || undefined,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Aanmelden mislukt');
+      if (!res.ok) throw new Error(data.detail || 'Sign-up failed');
       setToken(data.access_token);
       localStorage.setItem('hp_user', JSON.stringify({ id: data.user_id, username: data.username }));
       setStatus('success');
@@ -77,74 +98,93 @@ export default function InvitePage() {
         </div>
 
         {status === 'checking' && (
-          <p style={{ color: 'var(--color-text-muted)' }}>Uitnodiging controleren…</p>
+          <p style={{ color: 'var(--color-text-muted)' }}>Checking invitation…</p>
         )}
 
         {status === 'invalid' && (
           <>
-            <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 12 }}>Uitnodiging ongeldig</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 12 }}>Invalid invitation</h1>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: 24, lineHeight: 1.6 }}>{message}</p>
-            <a href="/landing/" style={{ color: 'var(--color-primary)', fontSize: 14 }}>← Terug naar home</a>
+            <a href="/landing/" style={{ color: 'var(--color-primary)', fontSize: 14 }}>← Back to home</a>
           </>
         )}
 
         {status === 'success' && (
           <>
-            <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 12 }}>Welkom!</h1>
-            <p style={{ color: 'var(--color-text-muted)' }}>Account aangemaakt. Je wordt doorgestuurd…</p>
+            <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 12 }}>Welcome!</h1>
+            <p style={{ color: 'var(--color-text-muted)' }}>Account created. Redirecting…</p>
           </>
         )}
 
         {status === 'valid' && (
           <>
             <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8, letterSpacing: '-0.5px' }}>
-              Account aanmaken
+              Create your account
             </h1>
             <p style={{ fontSize: 15, color: 'var(--color-text-muted)', marginBottom: '2rem', lineHeight: 1.6 }}>
-              Je bent uitgenodigd voor WebHeaven{groupName ? <> — groep <strong style={{ color: 'var(--color-text)' }}>{groupName}</strong></> : ''}.
-              Kies een gebruikersnaam en wachtwoord.
+              You have been invited to WebHeaven{groupName ? <> — group <strong style={{ color: 'var(--color-text)' }}>{groupName}</strong></> : ''}.
             </p>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={labelStyle}>Gebruikersnaam</label>
-                <input style={inputStyle} value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  autoFocus autoComplete="username" />
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Name {optional}</label>
+              <input style={inputStyle} value={name} onChange={e => setName(e.target.value)}
+                placeholder="How others see you" autoComplete="name" />
+            </div>
+
+            {providers.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                {providers.map(p => (
+                  <a key={p.id} href={signupUrl(p.id)} style={providerButton}>Continue with {p.label}</a>
+                ))}
               </div>
-              <div>
-                <label style={labelStyle}>
-                  E-mail{' '}
-                  <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optioneel)</span>
-                </label>
-                <input type="email" style={inputStyle} value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  autoComplete="email" />
-              </div>
-              <div>
-                <label style={labelStyle}>Wachtwoord</label>
-                <input type="password" style={inputStyle} value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  autoComplete="new-password" />
-              </div>
-              <div>
-                <label style={labelStyle}>Bevestig wachtwoord</label>
-                <input type="password" style={inputStyle} value={form.confirm}
-                  onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
-                  autoComplete="new-password" />
-              </div>
-              {error && (
-                <p style={{ fontSize: 13, color: 'var(--color-danger, #ef4444)', margin: 0 }}>{error}</p>
-              )}
-              <button type="submit" disabled={saving} style={{
-                padding: '11px', fontSize: 14, fontWeight: 500,
-                borderRadius: 'var(--radius-md, 8px)', border: 'none',
-                background: 'var(--color-primary)', color: '#fff',
-                cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1,
-                fontFamily: 'inherit',
+            )}
+
+            {error && <p style={{ fontSize: 13, color: 'var(--color-danger, #ef4444)', margin: '0 0 16px' }}>{error}</p>}
+
+            {providers.length > 0 && !showPassword ? (
+              <button onClick={() => setShowPassword(true)} style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                color: 'var(--color-text-muted)', fontSize: 13, textDecoration: 'underline', fontFamily: 'inherit',
               }}>
-                {saving ? 'Account aanmaken…' : 'Account aanmaken'}
+                Use a username and password instead
               </button>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={labelStyle}>Username</label>
+                  <input style={inputStyle} value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    autoComplete="username" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Email {optional}</label>
+                  <input type="email" style={inputStyle} value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    autoComplete="email" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Password</label>
+                  <input type="password" style={inputStyle} value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    autoComplete="new-password" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Confirm password</label>
+                  <input type="password" style={inputStyle} value={form.confirm}
+                    onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
+                    autoComplete="new-password" />
+                </div>
+                <button type="submit" disabled={saving} style={{
+                  padding: '11px', fontSize: 14, fontWeight: 500,
+                  borderRadius: 'var(--radius-md, 8px)', border: 'none',
+                  background: 'var(--color-primary)', color: '#fff',
+                  cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1,
+                  fontFamily: 'inherit',
+                }}>
+                  {saving ? 'Creating account…' : 'Create account'}
+                </button>
+              </form>
+            )}
           </>
         )}
       </div>

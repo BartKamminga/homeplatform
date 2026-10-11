@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from core.database import get_session
 from core.auth import verify_password, create_access_token, get_current_user, hash_password
 from core.crud import get_or_create_user_pref
+from core.invites import create_invited_user, open_invite
 from core.limiter import limiter
 from core.logging import log_action
 from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken, UserPreference, UserApiKey
@@ -35,6 +36,7 @@ class MeResponse(BaseModel):
     id: str
     username: str
     email: str
+    display_name: Optional[str] = None
     locale: str
     is_active: bool
     groups: list[str]
@@ -127,7 +129,7 @@ def me(
 
     return MeResponse(
         id=current_user.id, username=current_user.username,
-        email=current_user.email, locale=current_user.locale,
+        email=current_user.email, display_name=current_user.display_name, locale=current_user.locale,
         is_active=current_user.is_active, groups=[g.slug for g in groups],
         active_group=active_group, group_details=group_details,
         pref_group_dontforget=_group_slug(current_user.pref_group_dontforget),
@@ -278,6 +280,7 @@ class AcceptInviteIn(BaseModel):
     username: str
     password: str
     email: Optional[str] = None
+    display_name: Optional[str] = None
 
 
 @router.post("/invite")
@@ -335,8 +338,8 @@ def check_invite(token: str, session: Session = Depends(get_session)):
 
 @router.post("/invite/{token}/accept", response_model=TokenResponse)
 def accept_invite(token: str, body: AcceptInviteIn, session: Session = Depends(get_session)):
-    invite = session.exec(select(InviteToken).where(InviteToken.token == token)).first()
-    if not invite or invite.used_at or invite.expires_at < datetime.utcnow():
+    invite = open_invite(session, token)
+    if not invite:
         raise HTTPException(status_code=400, detail="Ongeldige of verlopen uitnodiging")
     if not body.username.strip():
         raise HTTPException(status_code=422, detail="Gebruikersnaam is verplicht")
@@ -345,24 +348,10 @@ def accept_invite(token: str, body: AcceptInviteIn, session: Session = Depends(g
     email = body.email.strip() if body.email else f"{body.username.strip()}@homeplatform.local"
     if body.email and session.exec(select(User).where(User.email == email)).first():
         raise HTTPException(status_code=409, detail="E-mailadres al in gebruik")
-    user = User(
-        username=body.username.strip(),
-        email=email,
-        password_hash=hash_password(body.password),
-        is_active=True,
+    user = create_invited_user(
+        session, invite, username=body.username.strip(), email=email,
+        password_hash=hash_password(body.password), display_name=(body.display_name or "").strip() or None,
     )
-    session.add(user)
-    session.flush()
-    members_group = session.exec(select(Group).where(Group.slug == "members")).first()
-    if members_group:
-        session.add(UserGroup(user_id=user.id, group_id=members_group.id))
-    if invite.group_id and invite.group_id != (members_group.id if members_group else None):
-        session.add(UserGroup(user_id=user.id, group_id=invite.group_id))
-        user.active_group_id = invite.group_id
-        session.add(user)
-    invite.used_at = datetime.utcnow()
-    invite.used_by_user_id = user.id
-    session.commit()
     log_action(session, "user.invite_accept", user_id=user.id, payload={"username": user.username})
     access_token = create_access_token({"sub": user.id})
     return TokenResponse(access_token=access_token, token_type="bearer",

@@ -7,6 +7,19 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-change-me"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    # Item 1271: tokens ondertekenen met RS256 zodra hier een sleutel staat
+    # (base64 van de PEM, 1 regel); public key via /.well-known/jwks.json.
+    # HS256-tokens (SECRET_KEY) blijven geldig tijdens de overgang.
+    JWT_PRIVATE_KEY_B64: str = ""
+    JWT_KEY_ID: str = "hp-1"
+    # Inloggen met Google/Microsoft (OIDC, item 1271) - provider staat aan
+    # zodra client-id en secret gezet zijn. OIDC_REDIRECT_BASE = publiek
+    # https-adres van deze omgeving (leeg = EXTERNAL_URL).
+    OIDC_GOOGLE_CLIENT_ID: str = ""
+    OIDC_GOOGLE_CLIENT_SECRET: str = ""
+    OIDC_MICROSOFT_CLIENT_ID: str = ""
+    OIDC_MICROSOFT_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_BASE: str = ""
     APP_VERSION: str = "1.0"
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite:///./db/homeplatform.sqlite"

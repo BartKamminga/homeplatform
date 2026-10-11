@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { login } from '@core/api.js'
 import ThemeSwitcher from './ThemeSwitcher.jsx'
 import Logo from '@core/Logo.jsx'
+import OidcButtons from './OidcButtons.jsx'
 
 export default function LoginScreen({ siteName = 'WebHeaven', onLogin }) {
   const [username, setUsername] = useState('')
@@ -16,7 +17,7 @@ export default function LoginScreen({ siteName = 'WebHeaven', onLogin }) {
       await login(username, password)
       onLogin()
     } catch (e) {
-      setError(e.message || 'Inloggen mislukt')
+      setError(e.message || 'Sign-in failed')
     } finally {
       setLoading(false)
     }
@@ -38,18 +39,18 @@ export default function LoginScreen({ siteName = 'WebHeaven', onLogin }) {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <Logo size={36} showName nameStyle={{ fontSize: 20, color: 'var(--text, #fff)' }} />
           </div>
-          <div style={{ fontSize: 12, color: 'var(--muted, #666)' }}>Log in om verder te gaan</div>
+          <div style={{ fontSize: 12, color: 'var(--muted, #666)' }}>Sign in to continue</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             value={username} onChange={e => setUsername(e.target.value)}
-            placeholder="Gebruikersnaam" autoFocus required
+            placeholder="Username" autoFocus required
             style={inputStyle}
           />
           <input
             type="password" value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="Wachtwoord" required
+            placeholder="Password" required
             style={inputStyle}
           />
           {error && <div style={{ fontSize: 12, color: '#ef4444' }}>{error}</div>}
@@ -59,9 +60,10 @@ export default function LoginScreen({ siteName = 'WebHeaven', onLogin }) {
             cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1,
             fontFamily: 'var(--font-body, sans-serif)',
           }}>
-            {loading ? 'Bezig...' : 'Inloggen'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+        <OidcButtons next={window.location.pathname + window.location.search} />
 
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
           <ThemeSwitcher compact />

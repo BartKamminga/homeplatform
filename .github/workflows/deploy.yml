@@ -80,6 +80,12 @@ jobs:
           BUGSINK_SECRET_KEY=${{ secrets.BUGSINK_SECRET_KEY }}
           BUGSINK_SUPERUSER=${{ secrets.BUGSINK_SUPERUSER }}
           INFRA_PEER_TOKEN=${{ secrets.INFRA_PEER_TOKEN }}
+          JWT_PRIVATE_KEY_B64=${{ secrets.JWT_PRIVATE_KEY_B64 }}
+          OIDC_GOOGLE_CLIENT_ID=${{ vars.OIDC_GOOGLE_CLIENT_ID }}
+          OIDC_GOOGLE_CLIENT_SECRET=${{ secrets.OIDC_GOOGLE_CLIENT_SECRET }}
+          OIDC_MICROSOFT_CLIENT_ID=${{ vars.OIDC_MICROSOFT_CLIENT_ID }}
+          OIDC_MICROSOFT_CLIENT_SECRET=${{ secrets.OIDC_MICROSOFT_CLIENT_SECRET }}
+          OIDC_REDIRECT_BASE=${{ vars.OIDC_REDIRECT_BASE }}
           EOF
           chmod 600 $PROD_REPO/.env
 
@@ -174,6 +180,12 @@ jobs:
           PROD_API_BASE=${{ secrets.PROD_API_BASE }}
           PROD_API_KEY=${{ secrets.PROD_API_KEY }}
           INFRA_PEER_TOKEN=${{ secrets.INFRA_PEER_TOKEN }}
+          JWT_PRIVATE_KEY_B64=${{ secrets.JWT_PRIVATE_KEY_B64 }}
+          OIDC_GOOGLE_CLIENT_ID=${{ vars.OIDC_GOOGLE_CLIENT_ID }}
+          OIDC_GOOGLE_CLIENT_SECRET=${{ secrets.OIDC_GOOGLE_CLIENT_SECRET }}
+          OIDC_MICROSOFT_CLIENT_ID=${{ vars.OIDC_MICROSOFT_CLIENT_ID }}
+          OIDC_MICROSOFT_CLIENT_SECRET=${{ secrets.OIDC_MICROSOFT_CLIENT_SECRET }}
+          OIDC_REDIRECT_BASE=${{ vars.OIDC_REDIRECT_BASE }}
           EOF
           chmod 600 $ACC_REPO/.env
 

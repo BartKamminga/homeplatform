@@ -3,6 +3,7 @@ import AccountLayout from '../AccountLayout.jsx';
 import { api } from '@core/api.js';
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx';
 import { useConfirm } from '@components/ConfirmDialog.jsx';
+import LinkedLoginsSection from '../LinkedLoginsSection.jsx';
 
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
@@ -178,7 +179,12 @@ export default function ProfilePage() {
     <AccountLayout title="Profiel">
       {/* Account info */}
       <div style={card}>
-        <Row label="Gebruikersnaam">
+        {me?.display_name && (
+          <Row label="Name">
+            <span style={{ fontSize: 16, fontWeight: 600 }}>{me.display_name}</span>
+          </Row>
+        )}
+        <Row label="Username">
           <span style={{ fontSize: 16, fontWeight: 600 }}>{me?.username ?? '…'}</span>
         </Row>
         <Row label="E-mail" style={{ marginBottom: 0 }}>
@@ -191,6 +197,8 @@ export default function ProfilePage() {
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Thema</div>
         <ThemeSwitcher />
       </div>
+
+      <LinkedLoginsSection card={card} />
 
       <ApiKeysSection />
 
