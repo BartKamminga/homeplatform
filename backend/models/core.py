@@ -21,6 +21,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     email: str = Field(index=True, unique=True)
     password_hash: str
+    display_name: Optional[str] = Field(default=None)  # optioneel, bv. uit Google/Microsoft (item 1271)
     locale: str = Field(default="nl")
     is_active: bool = Field(default=True)
     active_group_id: Optional[str] = Field(default=None)

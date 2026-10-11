@@ -179,7 +179,12 @@ export default function ProfilePage() {
     <AccountLayout title="Profiel">
       {/* Account info */}
       <div style={card}>
-        <Row label="Gebruikersnaam">
+        {me?.display_name && (
+          <Row label="Name">
+            <span style={{ fontSize: 16, fontWeight: 600 }}>{me.display_name}</span>
+          </Row>
+        )}
+        <Row label="Username">
           <span style={{ fontSize: 16, fontWeight: 600 }}>{me?.username ?? '…'}</span>
         </Row>
         <Row label="E-mail" style={{ marginBottom: 0 }}>

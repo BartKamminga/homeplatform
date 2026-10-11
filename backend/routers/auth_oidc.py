@@ -9,7 +9,8 @@ dat met die cookie moet kloppen (geen sessie-middleware nodig).
 Koppelen gaat alleen bewust: ingelogd (wachtwoord) -> "Koppel Google" in het
 account. Inloggen met een niet-gekoppelde identiteit geeft een nette melding,
 nooit automatisch koppelen op e-mail (Microsoft-privéaccounts geven geen
-email_verified). Na afloop gaat de browser terug naar de frontend met het
+email_verified). Nieuwe gebruikers alleen via een uitnodiging: /signup maakt
+het account aan zonder HP-wachtwoord en koppelt de login meteen. Na afloop gaat de browser terug naar de frontend met het
 eigen JWT in het URL-fragment (komt niet in serverlogs)."""
 
 import base64
@@ -27,15 +28,14 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from core.auth import create_access_token, get_current_user, public_jwks
+from core.auth import create_access_token, get_current_user, hash_password
 from core.database import get_session
+from core.invites import create_invited_user, open_invite, unique_username
 from core.logging import log_action
 from core.settings import settings
 from models.core import User, UserIdentity
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
-identities_router = APIRouter(prefix="/api/auth/identities", tags=["auth"])
-wellknown_router = APIRouter(tags=["auth"])
 
 PROVIDERS = {
     "google": {
@@ -57,6 +57,7 @@ STATE_COOKIE = "hp_oidc_state"
 STATE_TTL_SECONDS = 600
 LOGIN_PAGE = "/admin/login"
 LINK_PAGE = "/account/profile"
+INVITE_PAGE = "/account/invite"
 _CACHE_TTL_SECONDS = 3600
 _cache: dict[str, tuple[float, dict]] = {}
 
@@ -96,15 +97,16 @@ def _safe_next(next_path: Optional[str], default: str) -> str:
     return default
 
 
-def _authorize_url(provider: str, intent: str, next_path: str, user_id: Optional[str]) -> tuple[str, str]:
-    """(url naar de provider, ondertekende state-cookie)."""
+def _authorize_url(provider: str, intent: str, next_path: str, **extra) -> tuple[str, str]:
+    """(url naar de provider, ondertekende state-cookie). extra = user_id
+    (koppelen) of invite + display_name (aanmelden via uitnodiging)."""
     cfg = _provider_or_404(provider)
     meta = _fetch_json(cfg["discovery"])
     sid, nonce, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     cookie = jwt.encode({
         "sid": sid, "provider": provider, "nonce": nonce, "verifier": verifier, "intent": intent,
-        "user_id": user_id, "next": next_path, "aud": "hp-oidc-state",
+        "next": next_path, "aud": "hp-oidc-state", **extra,
         "exp": datetime.utcnow() + timedelta(seconds=STATE_TTL_SECONDS),
     }, settings.SECRET_KEY, algorithm="HS256")
     query = urlencode({
@@ -162,7 +164,7 @@ def list_providers():
 
 @router.get("/{provider}/login")
 def start_login(provider: str, next: Optional[str] = None):
-    url, cookie = _authorize_url(provider, "login", _safe_next(next, "/admin/dashboard"), None)
+    url, cookie = _authorize_url(provider, "login", _safe_next(next, "/admin/dashboard"))
     return _with_state_cookie(RedirectResponse(url, status_code=302), cookie)
 
 
@@ -174,8 +176,46 @@ class LinkIn(BaseModel):
 def start_link(provider: str, body: LinkIn, current_user: User = Depends(get_current_user)):
     """Ingelogd - geeft de URL terug waar de frontend naartoe navigeert (een
     navigatie kan geen Authorization-header meesturen, deze fetch wel)."""
-    url, cookie = _authorize_url(provider, "link", _safe_next(body.next, LINK_PAGE), current_user.id)
+    url, cookie = _authorize_url(provider, "link", _safe_next(body.next, LINK_PAGE), user_id=current_user.id)
     return _with_state_cookie(JSONResponse({"url": url}), cookie)
+
+
+@router.get("/{provider}/signup")
+def start_signup(provider: str, invite: str, name: Optional[str] = None,
+                 session: Session = Depends(get_session)):
+    """Publiek - nieuw account via een uitnodiging, zonder HP-wachtwoord.
+    name = optionele weergavenaam (anders de naam van Google/Microsoft)."""
+    if not open_invite(session, invite):
+        return _back(f"{INVITE_PAGE}/{invite}", oidc_error="This invitation is no longer valid.")
+    url, cookie = _authorize_url(provider, "invite", "/landing/", invite=invite,
+                                 display_name=(name or "").strip()[:80] or None)
+    return _with_state_cookie(RedirectResponse(url, status_code=302), cookie)
+
+
+def _accept_invite(session: Session, st: dict, provider: str, subject: str, email: Optional[str],
+                   claimed_name: Optional[str], fail_page: str) -> RedirectResponse:
+    invite = open_invite(session, st["invite"])
+    if not invite:
+        return _back(fail_page, oidc_error="This invitation is no longer valid.")
+    if session.exec(select(UserIdentity).where(UserIdentity.provider == provider,
+                                               UserIdentity.subject == subject)).first():
+        return _back(LOGIN_PAGE, oidc_error=f"This {PROVIDERS[provider]['label']} account already has an account here. "
+                                            "Sign in with it instead.")
+    if email and session.exec(select(User).where(User.email == email)).first():
+        return _back(fail_page, oidc_error="You already have an account with this email address. "
+                                           "Sign in and link it in your account.")
+    username = unique_username(session, email)
+    user = create_invited_user(
+        session, invite, username=username, email=email or f"{username}@homeplatform.local",
+        # Geen bruikbaar wachtwoord: inloggen alleen via de gekoppelde login.
+        password_hash=hash_password(secrets.token_urlsafe(32)),
+        display_name=st.get("display_name") or claimed_name,
+    )
+    session.add(UserIdentity(user_id=user.id, provider=provider, subject=subject, email=email,
+                             last_login_at=datetime.utcnow()))
+    session.commit()
+    log_action(session, "user.invite_accept", user_id=user.id, payload={"username": username, "provider": provider})
+    return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": user.id}), next=st["next"])
 
 
 @router.get("/{provider}/callback")
@@ -192,7 +232,7 @@ def callback(
                         algorithms=["HS256"], audience="hp-oidc-state")
     except JWTError:
         return _back(LOGIN_PAGE, oidc_error="Sign-in took too long or was started in another browser. Please try again.")
-    fail_page = LINK_PAGE if st["intent"] == "link" else LOGIN_PAGE
+    fail_page = {"link": LINK_PAGE, "invite": f"{INVITE_PAGE}/{st.get('invite')}"}.get(st["intent"], LOGIN_PAGE)
     if error or not code:
         return _back(fail_page, oidc_error="Sign-in was cancelled.")
     if state != st["sid"] or provider != st["provider"] or provider not in PROVIDERS:
@@ -209,6 +249,9 @@ def callback(
     identity = session.exec(
         select(UserIdentity).where(UserIdentity.provider == provider, UserIdentity.subject == subject)
     ).first()
+
+    if st["intent"] == "invite":
+        return _accept_invite(session, st, provider, subject, email, claims.get("name"), fail_page)
 
     if st["intent"] == "link":
         if identity and identity.user_id != st["user_id"]:
@@ -231,28 +274,3 @@ def callback(
     session.commit()
     log_action(session, "login", user_id=user.id, payload={"provider": provider})
     return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": user.id}), next=st["next"])
-
-
-@identities_router.get("")
-def list_identities(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    rows = session.exec(select(UserIdentity).where(UserIdentity.user_id == current_user.id)).all()
-    return [{"id": r.id, "provider": r.provider, "email": r.email, "linked_at": r.linked_at,
-             "last_login_at": r.last_login_at} for r in rows]
-
-
-@identities_router.delete("/{identity_id}", status_code=204)
-def unlink_identity(identity_id: str, current_user: User = Depends(get_current_user),
-                    session: Session = Depends(get_session)):
-    identity = session.get(UserIdentity, identity_id)
-    if not identity or identity.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Linked sign-in not found")
-    session.delete(identity)
-    session.commit()
-    log_action(session, "user.identity_unlink", user_id=current_user.id, payload={"provider": identity.provider})
-
-
-@wellknown_router.get("/.well-known/jwks.json")
-@wellknown_router.get("/api/auth/jwks.json")
-def jwks_endpoint():
-    """Publieke sleutel(s) waarmee onze eigen tokens (RS256) te controleren zijn."""
-    return public_jwks()

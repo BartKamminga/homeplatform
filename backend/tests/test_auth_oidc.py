@@ -10,6 +10,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
+from sqlmodel import select
 
 import core.auth as core_auth
 from core.settings import settings
@@ -176,3 +177,73 @@ def test_rs256_tokens_and_hs256_transition(client, admin_user, monkeypatch):
     finally:
         monkeypatch.undo()
         core_auth._rsa_keys.cache_clear()
+
+
+# -- Aanmelden via uitnodiging, zonder HP-wachtwoord ------------------------
+
+def _invite(session, admin_user, group_slug="team"):
+    from models.core import Group, InviteToken
+    group = Group(name=group_slug.title(), slug=group_slug)
+    session.add(group)
+    session.commit()
+    invite = InviteToken(token=f"inv-{group_slug}", created_by=admin_user.id,
+                         expires_at=datetime.utcnow() + timedelta(days=7), group_id=group.id)
+    session.add(invite)
+    session.commit()
+    return invite, group
+
+
+def _signup_url(client, invite_token, name=None):
+    q = f"invite={invite_token}" + (f"&name={name}" if name else "")
+    res = client.get(f"/api/auth/oidc/google/signup?{q}", follow_redirects=False)
+    assert res.status_code == 302
+    return res.headers["location"]
+
+
+def test_signup_via_invite_creates_linked_user(client, fake_idp, session, admin_user):
+    from models.core import InviteToken, UserGroup, UserIdentity
+    invite, group = _invite(session, admin_user)
+    fake_idp["email"] = "nieuw.lid@gmail.com"
+    path, fragment = _finish(client, fake_idp, _signup_url(client, invite.token, "Lid Een"))
+    assert path == "/admin/login" and fragment["next"] == ["/landing/"]
+
+    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {fragment['oidc_token'][0]}"}).json()
+    assert me["username"] == "nieuw.lid" and me["display_name"] == "Lid Een"
+    assert "team" in me["groups"] and me["active_group"] == "team"
+    session.expire_all()
+    assert session.get(InviteToken, invite.id).used_at is not None
+    assert session.exec(select(UserIdentity).where(UserIdentity.user_id == me["id"])).first().provider == "google"
+    # Geen bruikbaar wachtwoord: inloggen met iets geraden lukt niet
+    assert client.post("/api/auth/login", data={"username": "nieuw.lid", "password": ""}).status_code in (401, 422)
+    # En daarna gewoon inloggen met Google
+    _, fragment = _finish(client, fake_idp, _login_url(client))
+    assert "oidc_token" in fragment
+
+
+def test_signup_name_falls_back_to_provider_name(client, fake_idp, session, admin_user):
+    invite, _ = _invite(session, admin_user)
+    fake_idp.update(email="x@gmail.com", name="Naam Van Google")
+    _, fragment = _finish(client, fake_idp, _signup_url(client, invite.token))
+    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {fragment['oidc_token'][0]}"}).json()
+    assert me["display_name"] == "Naam Van Google"
+
+
+def test_signup_refused_for_used_invite_or_existing_email(client, fake_idp, session, admin_user):
+    invite, _ = _invite(session, admin_user)
+    fake_idp["email"] = admin_user.email
+    path, fragment = _finish(client, fake_idp, _signup_url(client, invite.token))
+    assert path == f"/account/invite/{invite.token}" and "already have an account" in fragment["oidc_error"][0]
+
+    invite.used_at = datetime.utcnow()
+    session.add(invite)
+    session.commit()
+    res = client.get(f"/api/auth/oidc/google/signup?invite={invite.token}", follow_redirects=False)
+    assert "no+longer+valid" in res.headers["location"]
+
+
+def test_password_invite_accepts_optional_display_name(client, session, admin_user):
+    invite, _ = _invite(session, admin_user)
+    res = client.post(f"/api/auth/invite/{invite.token}/accept",
+                      json={"username": "pwlid", "password": "geheim123", "display_name": "PW Lid"})
+    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {res.json()['access_token']}"}).json()
+    assert me["display_name"] == "PW Lid" and "team" in me["groups"]
