@@ -45,6 +45,8 @@ router = APIRouter(tags=["yearof-mo14"])
 
 PHOTO_ROOT = Path(settings.UPLOAD_ROOT).resolve() / "yearof-mo14" / "photos"
 PHOTO_VARIANT_MAX_DIM = {"thumb": 400, "medium": 1600}  # "full" = ongeschaald (client had al gecomprimeerd)
+# uploader_code is een teamcode of invulcode - nooit publiek teruggeven (item 1203).
+PUBLIC_PHOTO_EXCLUDE = {"uploader_code"}
 
 
 def _photo_safe_path(photo_id: str, filename: str) -> Path:
@@ -88,30 +90,37 @@ async def upload_photo(
     photo_type: str = Form("actie"),
     code: Optional[str] = Form(None),
     session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Publiek, open sinds de teamcode-eis is losgelaten (2026-09-13). code is
-    optioneel en dient alleen nog voor attributie (uploader_code) - kan een
-    teamlinkje OF een invullinkje (contributor-code) zijn, niet opnieuw
-    gevalideerd op geldigheid want het invulformulier heeft dat al gedaan bij
-    het aanmaken van het verslag. Accepteert zowel fotos als filmpjes -
-    media_type wordt afgeleid van het bestandstype/-extensie.
+    """Alleen met een geldige sitelink (teamcode), een geldige invullink of
+    als beheerder (item 1203) - code wordt ook de attributie (uploader_code).
+    Een invullink mag alleen bij zijn eigen wedstrijd en zijn eigen verslag
+    uploaden. Accepteert zowel fotos als filmpjes - media_type wordt afgeleid
+    van het bestandstype/-extensie.
 
     report_id (optioneel): koppelt de foto aan een specifiek verslag/
     interview/algemeen bericht i.p.v. alleen los aan een wedstrijd - match_ref
     wordt dan overschreven met het match_ref van dat verslag (kan None zijn
     bij een algemeen bericht) zodat beide altijd in sync blijven."""
     uploader_code = None
-    if code:
-        normalized = code.strip().lower()
+    contributor_link = None
+    if current_user is None:
+        normalized = (code or "").strip().lower()
         team_link = _valid_team_link(normalized, session)
-        if team_link:
-            uploader_code = team_link.id
-        elif session.get(YearOfContributorLink, normalized):
-            uploader_code = normalized
+        contributor_link = None if team_link else session.get(YearOfContributorLink, normalized)
+        if contributor_link and (contributor_link.revoked_at is not None or contributor_link.expires_at < datetime.utcnow()):
+            contributor_link = None
+        if not team_link and not contributor_link:
+            raise HTTPException(status_code=403, detail="Uploaden kan alleen met een geldige sitelink of invullink")
+        uploader_code = normalized
 
     report = get_or_404(session, YearOfReport, report_id, "Verslag") if report_id else None
     if report:
         match_ref = report.match_ref
+    if contributor_link:
+        if report and report.contributor_code != contributor_link.id:
+            raise HTTPException(status_code=403, detail="Deze invullink hoort niet bij dit verslag")
+        match_ref = contributor_link.match_ref
 
     ext = Path(file.filename or "upload").suffix.lower()
     base_type = (file.content_type or "").split(";")[0].strip()
@@ -137,10 +146,10 @@ async def upload_photo(
     if len(content) > max_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"Bestand te groot. Maximum is {max_size_mb}MB")
 
-    # Een foto bij een al-gepubliceerd verslag volgt meteen die status -
-    # anders blijft hij als concept hangen totdat iemand 'm los publiceert,
-    # ook al staat het verslag zelf al live.
-    status = "published" if (report and report.status == "published") else "concept"
+    # Een foto van de beheerder bij een al-gepubliceerd verslag volgt meteen
+    # die status - anders blijft hij als concept hangen totdat iemand 'm los
+    # publiceert. Uploads via een link gaan altijd eerst langs de moderatie.
+    status = "published" if (current_user and report and report.status == "published") else "concept"
 
     photo = YearOfPhoto(
         match_ref=match_ref, report_id=report_id, photo_type=photo_type, media_type=media_type,
@@ -162,7 +171,7 @@ async def upload_photo(
         session.commit()
         raise HTTPException(status_code=400, detail="Kon bestand niet verwerken (ongeldig bestand)")
 
-    return photo
+    return photo.model_dump(exclude=PUBLIC_PHOTO_EXCLUDE)
 
 
 @router.get("/photos/{photo_id}/{variant}.jpg")
@@ -216,7 +225,7 @@ def list_photos(
             session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.player_id == player_id)).all()
         ]
         q = q.where(col(YearOfPhoto.id).in_(tagged_ids))
-    return session.exec(q.order_by(YearOfPhoto.created_at.desc())).all()
+    return [p.model_dump(exclude=PUBLIC_PHOTO_EXCLUDE) for p in session.exec(q.order_by(YearOfPhoto.created_at.desc())).all()]
 
 
 @router.get("/photos/moderation")
@@ -349,5 +358,12 @@ def untag_photo(
 
 
 @router.get("/photos/{photo_id}/tags")
-def get_photo_tags(photo_id: str, session: Session = Depends(get_session)):
+def get_photo_tags(
+    photo_id: str,
+    code: Optional[str] = None,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    photo = get_or_404(session, YearOfPhoto, photo_id, "Foto")
+    check_match_access(session, current_user, code, photo.match_ref)
     return session.exec(select(YearOfPhotoPlayerTag).where(YearOfPhotoPlayerTag.photo_id == photo_id)).all()

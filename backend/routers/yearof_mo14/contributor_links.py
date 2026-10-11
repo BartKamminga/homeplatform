@@ -3,7 +3,6 @@ teamcode (de invullink zelf is het bewijs van toegang): create/list/context,
 en interview-candidates. Zie __init__.py voor hoe dit sub-router samengevoegd
 wordt onder /api/yearof-mo14."""
 
-import random
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -17,7 +16,7 @@ from core.database import get_session
 from models.core import User
 from models.yearof import YearOfContributorLink, YearOfPhoto, YearOfPlayer, YearOfReport
 
-from ._shared import TEAM_LINK_CHARS, require_team_access
+from ._shared import new_link_code, require_team_access
 from .entries_timeline import _competition_timeline_items, _custom_timeline_items
 
 router = APIRouter(tags=["yearof-mo14"])
@@ -44,17 +43,8 @@ def create_contributor_link(
     session: Session = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
-    code = None
-    for _ in range(20):
-        candidate = "".join(random.choices(TEAM_LINK_CHARS, k=6))
-        if not session.get(YearOfContributorLink, candidate):
-            code = candidate
-            break
-    if not code:
-        raise RuntimeError("Geen unieke code gevonden")
-
     link = YearOfContributorLink(
-        id=code,
+        id=new_link_code(session),
         match_ref=body.match_ref,
         player_id=body.player_id,
         report_type=body.report_type,
