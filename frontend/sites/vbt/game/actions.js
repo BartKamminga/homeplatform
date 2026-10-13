@@ -24,6 +24,7 @@ VBT.actions = (function () {
     pause: () => { if (VBT.game.state === 'ride') { VBT.bleBridge.pausedText('PAUSED'); VBT.game.setState('paused'); } },
     resume: () => { if (VBT.game.state === 'paused' && !VBT.game.autoPaused) VBT.game.setState('ride'); },
     toMenu: state => S().toMenu(state),
+    finishDone: () => S().finishDone(),
     downloadFit: ride => VBT.fit.download(ride || VBT.game.lastRide),
 
     // apparaten

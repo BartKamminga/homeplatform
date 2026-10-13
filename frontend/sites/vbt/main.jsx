@@ -36,7 +36,6 @@ import './game/traffic.js'
 import './game/hud.js'
 import './game/workout-hud.js'
 import './game/session.js'
-import './game/strava-ui.js'
 import './game/actions.js'
 import './game/main.js'
 

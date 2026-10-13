@@ -101,8 +101,7 @@ VBT.safety = (function () {
           VBT.store.log('outbox', 'Ride saved on server: ' + (ride.name || 'ride') + ' (' + ride.duration + ' s)');
           if (onSaved) onSaved(ride, saved);
           if (VBT.game && VBT.game.lastRide && VBT.game.lastRide.clientId === ride.clientId) {
-            VBT.game.lastRide.serverId = saved.serverId;
-            if (VBT.stravaUi) VBT.stravaUi.render();
+            VBT.game.lastRide.serverId = saved.serverId;      // finish-scherm: Strava-upload kan nu
           }
         } catch (e) {
           VBT.store.log('outbox', 'Saving ride failed: ' + e.message + ' - will retry', 'warn');

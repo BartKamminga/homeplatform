@@ -1,9 +1,8 @@
 // FTP-tests: herkennen (Ramp Test / FTP Test), het 20-min-blok vrij rijden (niet ERG), ramp test stopt als je
-// het doel niet meer haalt, en na afloop een nieuwe FTP voorstellen (ACCEPT / KEEP) + FTP-historie bijhouden.
+// het doel niet meer haalt, nieuwe FTP berekenen (het finish-scherm stelt hem voor: ACCEPT / KEEP) + FTP-historie.
 //   Ramp Test:  75% van het beste 1-minuut-gemiddelde
 //   FTP Test:   95% van het beste 20-minuten-gemiddelde
 VBT.ftp = (function () {
-  const $ = id => document.getElementById(id);
   const FAIL_RATIO = 0.6, FAIL_S = 5;
   let failFor = 0, finishing = false;
 
@@ -66,24 +65,5 @@ VBT.ftp = (function () {
     return ftp;
   }
 
-  // voorstel op het finish-scherm
-  function showProposal(ride) {
-    const box = $('ftpProposal');
-    if (!box) return;
-    const r = compute(ride), cur = VBT.cfg.rider.ftp;
-    box.hidden = !r || r.ftp < 50 || r.ftp === cur;
-    if (box.hidden) return;
-    const diff = r.ftp - cur;
-    box.innerHTML = '<small>' + (r.type === 'ramp' ? 'RAMP TEST' : 'FTP TEST') + ' RESULT · ' + r.label.toUpperCase() + ' ' + r.basis + ' W</small>' +
-      '<b>NEW FTP ' + r.ftp + ' W</b><span>was ' + cur + ' W (' + (diff > 0 ? '+' : '') + diff + ')</span>' +
-      '<div class="finishbtns"><button id="ftpAccept" class="ridebtn">ACCEPT ' + r.ftp + ' W</button>' +
-      '<button id="ftpKeep" class="ghostbtn">KEEP ' + cur + ' W</button></div>';
-    $('ftpAccept').onclick = () => {
-      setFtp(r.ftp, ride.name);
-      box.innerHTML = '<b>FTP SET TO ' + r.ftp + ' W</b><span>All workouts now use your new FTP.</span>';
-    };
-    $('ftpKeep').onclick = () => { box.hidden = true; VBT.store.log('save', 'FTP test result ' + r.ftp + ' W not applied'); };
-  }
-
-  return { testType, prepare, bestAvg, compute, monitor, setFtp, showProposal };
+  return { testType, prepare, bestAvg, compute, monitor, setFtp };
 })();

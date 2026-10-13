@@ -180,7 +180,7 @@
       if (game.state === 'title') S.startRide(null);
       else if (game.state === 'ride') { VBT.bleBridge.pausedText('PAUSED'); game.setState('paused'); }
       else if (game.state === 'paused' && !game.autoPaused) game.setState('ride');
-      else if (game.state === 'finished') document.getElementById('btnDone').click();
+      else if (game.state === 'finished') S.finishDone();
     }
     if (e.code === 'KeyT' && (game.state === 'title' || game.state === 'finished')) S.toMenu('plan');
     if (e.code === 'KeyR' && ['title', 'finished'].includes(game.state)) S.openRides();

@@ -41,20 +41,5 @@ VBT.workoutHud = (function () {
     VBT.workout.drawChart(c.getContext('2d'), run.wo, c.width, c.height, run.elapsed / run.total);
   }
 
-  // Eindscherm met de samenvatting van de opgeslagen rit
-  function showFinish(ride, heading, sub) {
-    if (VBT.ftp) setTimeout(() => VBT.ftp.showProposal(ride), 0);   // FTP-test: nieuwe FTP voorstellen
-    $('finishTitle').textContent = heading;
-    $('finishName').textContent = sub;
-    $('finishStats').innerHTML =
-      '<div><b>' + fmt(ride.duration) + '</b><small>TIME</small></div>' +
-      '<div><b>' + (ride.distance / 1000).toFixed(1) + '</b><small>KM</small></div>' +
-      '<div><b>' + ride.avgW + '</b><small>AVG W</small></div>' +
-      '<div><b>' + ride.kj + '</b><small>KJ</small></div>' +
-      '<div><b>' + ride.elevation + '</b><small>M UP</small></div>' +
-      (ride.score !== undefined ? '<div><b>' + ride.score + '%</b><small>CADENCE</small></div>' : '') +
-      (ride.lapTime ? '<div><b>' + fmt(ride.lapTime) + '</b><small>BEST LAP</small></div>' : '');
-  }
-
-  return { update, showFinish, stepText };
+  return { update, stepText };
 })();

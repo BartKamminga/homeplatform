@@ -7,6 +7,9 @@ import LeftPanel from './panels/LeftPanel.jsx'
 import RightPanel from './panels/RightPanel.jsx'
 import { useVbtValue } from './hooks/useVbt.js'
 import { ConfirmHost } from './common/ConfirmDialog.jsx'
+import ToastHost from './common/Toast.jsx'
+import FinishScreen from './screens/FinishScreen.jsx'
+import * as strava from './features/strava/strava.js'
 
 const LEFT_W = 340, RIGHT_W = 380
 const RIDING = ['ride', 'paused', 'countdown', 'confirm']
@@ -40,7 +43,7 @@ export default function VbtApp() {
     if (booted) return   // StrictMode draait effects in dev twee keer
     booted = true
     document.getElementById('vbt-app').hidden = false
-    window.VBT.boot().then(() => window.VBT.stravaUi.init())
+    window.VBT.boot().then(() => strava.init())
   }, [open, toggle])
 
   // rit gestart: menu dicht (de weg weer breed); rit klaar: NOW is er niet meer
@@ -97,6 +100,8 @@ export default function VbtApp() {
   return (
     <>
       <ConfirmHost />
+      <ToastHost />
+      <FinishScreen />
       {left.open
         ? <LeftPanel section={left.section} focus={left.focus} riding={riding} width={leftW}
             onSection={(section, focus) => setLeft({ open: true, section, focus: focus || null })}

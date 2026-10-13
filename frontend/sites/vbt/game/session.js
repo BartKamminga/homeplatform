@@ -105,8 +105,7 @@ VBT.session = (function () {
       : climbDone ? ride.name.toUpperCase() + ' · ' + Math.floor(ride.lapTime / 60) + ':' + String(Math.floor(ride.lapTime % 60)).padStart(2, '0')
         : ride.name.toUpperCase();
     VBT.bleBridge.release();
-    VBT.workoutHud.showFinish(ride, heading, sub);
-    if (VBT.stravaUi) VBT.stravaUi.render();
+    game.finishInfo = { heading, sub };      // het finish-scherm (React) leest dit + game.lastRide
     game.setState('finished');
   }
 
@@ -196,6 +195,9 @@ VBT.session = (function () {
   const openDevices = () => VBT.ui && VBT.ui.open('left', 'devices');
   const openHelp = focus => VBT.ui && VBT.ui.open('left', 'help', focus);
 
+  // CONTINUE op het finish-scherm: na een workout naar het plan, anders naar de titel
+  const finishDone = () => toMenu(game.lastRide && game.lastRide.kind === 'workout' ? 'plan' : 'title');
+
   function downloadFit() {
     if (game.lastRide) VBT.fit.download(game.lastRide);
   }
@@ -208,9 +210,6 @@ VBT.session = (function () {
     $('btnRides').onclick = openRides;
     $('btnKeepRiding').onclick = cancelStop;
     $('btnStopRide').onclick = confirmStop;
-    $('btnFit').onclick = downloadFit;
-    $('btnDone').onclick = () => toMenu(game.lastRide && game.lastRide.kind === 'workout' ? 'plan' : 'title');
-    $('btnFinishRides').onclick = openRides;
     const chart = $('wChart');
     const stepAt = e => VBT.workout.stepAtFraction(game.run.wo, e.offsetX / e.currentTarget.clientWidth);
     chart.onclick = e => { if (game.run && game.state === 'ride') jumpTo(stepAt(e)); };
@@ -219,5 +218,5 @@ VBT.session = (function () {
     };
   }
 
-  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, bindUi, openDevices };
+  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, bindUi, openDevices };
 })();
