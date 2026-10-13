@@ -44,6 +44,8 @@ body[data-state="title"] #hud { opacity: 0; }
 .chip { display: inline-block; padding: 1px 6px; margin-left: 6px; border-radius: 3px; background: var(--pink); color: #fff; }
 
 .power { top: 20px; left: 20px; width: 270px; }
+.heartpanel { top: 196px; left: 20px; width: 270px; border-color: rgba(255,61,90,.5); }
+.heartpanel .big { font-size: 46px; }
 .center { top: 20px; left: 50%; transform: translateX(-50%); text-align: center; border-color: rgba(36,232,255,.45); }
 .right { top: 20px; right: 20px; width: 230px; text-align: right; }
 .speedo { bottom: 20px; left: 20px; width: 300px; }
@@ -142,3 +144,10 @@ body[data-state="paused"] #paused { display: flex; font-size: 64px; background: 
   #profile { width: 184px; height: 60px; }
   .center { display: none; }
 }
+
+/* ploegleider-ballon */
+#coach { position: absolute; top: 250px; right: 20px; width: 320px; padding: 12px 14px; border-radius: 10px 10px 2px 10px;
+  background: rgba(255,255,255,.95); color: #07011a; font-family: Inter, Arial, sans-serif; font-size: 15px; font-weight: 700;
+  box-shadow: 0 0 24px rgba(255,46,136,.5); opacity: 0; transform: translateY(-8px); transition: opacity .3s, transform .3s; }
+#coach b { display: block; font-family: var(--pixel); font-size: 9px; color: var(--pink); margin-bottom: 6px; }
+#coach.show { opacity: 1; transform: none; }

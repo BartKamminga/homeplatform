@@ -28,6 +28,7 @@ class CamelModel(BaseModel):
 
 class ProfileIn(CamelModel):
     ftp: Optional[int] = None
+    settings: Optional[dict] = None
     plan_slug: Optional[str] = None
     plan_start: Optional[str] = None
     plan_done: Optional[dict] = None
@@ -87,7 +88,8 @@ DEFAULT_PLAN = "ftp-builder"
 
 
 def _profile_out(p: VbtProfile) -> dict:
-    return {"ftp": p.ftp, "planSlug": p.plan_slug or DEFAULT_PLAN, "planStart": p.plan_start, "planDone": p.plan_done or {}}
+    return {"ftp": p.ftp, "planSlug": p.plan_slug or DEFAULT_PLAN, "planStart": p.plan_start, "planDone": p.plan_done or {},
+            "settings": p.settings or {}}
 
 
 @router.get("/profile")
@@ -107,6 +109,10 @@ def put_profile(body: ProfileIn, current_user: User = Depends(get_current_user),
         if not session.exec(select(VbtPlan).where(VbtPlan.slug == body.plan_slug)).first():
             raise HTTPException(status_code=422, detail="Onbekend trainingsplan")
         p.plan_slug = body.plan_slug
+    if body.settings is not None:
+        if len(str(body.settings)) > 4000:
+            raise HTTPException(status_code=422, detail="Instellingen te groot")
+        p.settings = {**(p.settings or {}), **body.settings}     # samenvoegen: losse instellingen apart opslaan
     if body.plan_start is not None:
         p.plan_start = body.plan_start
     if body.plan_done is not None:

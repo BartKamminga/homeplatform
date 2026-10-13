@@ -58,6 +58,11 @@ VBT.util = {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   },
 
+  hrZoneFor(hr) {
+    const f = hr / ((VBT.settings && VBT.settings.values.hrMax) || 185);
+    return VBT.hrZones.find(z => f <= z.max) || VBT.hrZones[VBT.hrZones.length - 1];
+  },
+
   zoneFor(watts) {
     const f = watts / VBT.cfg.rider.ftp;
     return VBT.zones.find(z => f <= z.max) || VBT.zones[VBT.zones.length - 1];

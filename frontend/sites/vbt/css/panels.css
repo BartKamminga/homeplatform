@@ -94,3 +94,9 @@
 @media (max-width: 900px) {
   .vbt-panel-left, .vbt-panel-right { width: min(340px, 90vw); }
 }
+
+.pn-zones { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.pn-zones div { display: flex; flex-direction: column; align-items: center; padding: 5px 2px; border: 1px solid; border-radius: 4px; font-size: 8px; }
+.pn-zones b { font-family: var(--pixel); font-size: 9px; }
+.pn-zones i { font-style: normal; font-size: 10px; margin-top: 2px; }
+.pn-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: Inter, Arial, sans-serif; cursor: pointer; }

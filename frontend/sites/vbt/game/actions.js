@@ -14,6 +14,7 @@ VBT.actions = (function () {
     currentWorkout: () => (VBT.game.run ? VBT.game.run.wo : null),
     stepAt: (wo, frac) => VBT.workout.stepAtFraction(wo, frac),
     setFtp: watts => VBT.calendar.setFtp(watts),
+    saveSettings: patch => VBT.settings.save(patch),
     openPlan: () => S().toMenu('plan'),
     openRides: () => S().openRides(),
     stop: () => S().stop(),

@@ -1,0 +1,36 @@
+{
+ "title": "Hartslagpaneel met zones, ploegleider (teamwagen + tekst), rare voertuigen",
+ "query": "ride&coach",
+ "steps": [
+  {
+   "at": 3,
+   "name": "hartslagpaneel toont zone",
+   "assert": "/^Z[1-5]$/.test(document.getElementById('hrZoneName').textContent) && +document.getElementById('hrBig').textContent > 0"
+  },
+  {
+   "at": 3.5,
+   "run": "VBT.traffic.spawn('ferrari'); VBT.traffic.spawn('ufo')"
+  },
+  {
+   "at": 11,
+   "name": "teamwagen naast je + ploegleider zegt iets",
+   "assert": "VBT.traffic.list.some(c => c.kind === 'teamcar' && Math.abs(c.dist - VBT.game.player.dist - 3.5) < 3) && document.getElementById('coachText').textContent.length > 5",
+   "shot": "coach"
+  },
+  {
+   "at": 11.5,
+   "name": "voertuigen en ploegleider in de eventlog",
+   "assert": "['traffic', 'coach'].every(t => VBT.store.getEvents().some(e => e.type === t))"
+  },
+  {
+   "at": 12,
+   "name": "verkeer uit in Settings -> geen nieuwe rare voertuigen",
+   "run": "VBT.settings.save({ traffic: false }); VBT.traffic.schedule({ oddAt: 0 })"
+  },
+  {
+   "at": 14,
+   "name": "geen nieuw voertuig gespawned",
+   "assert": "VBT.store.getEvents().filter(e => e.type === 'traffic').length === 2"
+  }
+ ]
+}

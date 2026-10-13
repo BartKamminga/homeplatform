@@ -35,6 +35,8 @@ VBT.store = (function () {
       rideTime: game.rideTime,
       recording: VBT.recorder.active(),
       ftp: VBT.cfg.rider.ftp,
+      settings: Object.assign({}, VBT.settings.values),
+      hrZone: VBT.util.hrZoneFor(s.hr).name,
       watts: Math.round(s.watts), cadence: Math.round(s.cadence), hr: Math.round(s.hr),
       avg3s: s.avg3s.length ? Math.round(s.avg3s.reduce((a, b) => a + b, 0) / s.avg3s.length) : 0,
       speed: game.player.v * 3.6,

@@ -19,7 +19,7 @@ def _ride(**over):
 def test_profile_defaults_and_update(client, user_token):
     r = client.get("/api/vbt/profile", headers=_h(user_token))
     assert r.status_code == 200
-    assert r.json() == {"ftp": 180, "planSlug": "ftp-builder", "planStart": None, "planDone": {}}
+    assert r.json() == {"ftp": 180, "planSlug": "ftp-builder", "planStart": None, "planDone": {}, "settings": {}}
 
     r = client.put("/api/vbt/profile", headers=_h(user_token),
                    json={"ftp": 210, "planStart": "2026-10-12", "planDone": {"ftpb-w1d1": {"avgW": 120}}})
@@ -104,3 +104,10 @@ def test_delete_goes_to_trash_and_can_be_restored(client, user_token):
     client.post(f"/api/vbt/rides/{ride['id']}/restore", headers=_h(user_token))
     assert [r["id"] for r in client.get("/api/vbt/rides", headers=_h(user_token)).json()] == [ride["id"]]
     assert client.get("/api/vbt/rides-trash", headers=_h(user_token)).json() == []
+
+
+def test_profile_settings_merge(client, user_token):
+    client.put("/api/vbt/profile", headers=_h(user_token), json={"settings": {"hrMax": 186}})
+    r = client.put("/api/vbt/profile", headers=_h(user_token), json={"settings": {"voice": False}}).json()
+    assert r["settings"] == {"hrMax": 186, "voice": False}
+    assert client.get("/api/vbt/profile", headers=_h(user_token)).json()["settings"]["hrMax"] == 186

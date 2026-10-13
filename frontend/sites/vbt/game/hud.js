@@ -5,10 +5,11 @@ VBT.hud = (function () {
   let el = {};
   let profile, pctx;
   let lastText = 0;
+  const hrHist = [];
 
   function init() {
     ['watts', 'zoneName', 'zoneNeedle', 'speed', 'speedBar', 'cadence', 'hr', 'heart', 'time', 'dist', 'lap',
-      'gap', 'gapLabel', 'bunch', 'bunchLabel', 'alt', 'grade', 'message', 'avg'].forEach(id => { el[id] = $(id); });
+      'hrBig', 'hrZoneName', 'hrNeedle', 'hrAvg', 'hrZoneLabel', 'hrMaxLabel', 'gap', 'gapLabel', 'bunch', 'bunchLabel', 'alt', 'grade', 'message', 'avg'].forEach(id => { el[id] = $(id); });
     const zoneBar = $('zoneBar');
     VBT.zones.forEach(z => {
       const d = document.createElement('div');
@@ -16,6 +17,12 @@ VBT.hud = (function () {
       zoneBar.appendChild(d);
     });
     for (let i = 0; i < 24; i++) el.speedBar.appendChild(document.createElement('i'));
+    const hrBar = $('hrZoneBar');
+    VBT.hrZones.forEach(z => {
+      const d = document.createElement('div');
+      d.style.background = z.color;
+      hrBar.appendChild(d);
+    });
     profile = $('profile');
     pctx = profile.getContext('2d');
   }
@@ -92,6 +99,14 @@ VBT.hud = (function () {
     const lit = Math.round(util.clamp(kmh / 60, 0, 1) * 24);
     [...el.speedBar.children].forEach((c, i) => c.classList.toggle('on', i < lit));
     el.heart.style.animationDuration = (60 / Math.max(40, s.hr)) + 's';
+    // hartslag in zonekleur; de balk loopt van 50% tot 100% van de max-hartslag (5 gelijke zones)
+    const hrMax = VBT.settings.values.hrMax || 185;
+    const hz = VBT.util.hrZoneFor(s.hr);
+    el.hrNeedle.style.left = (VBT.util.clamp((s.hr / hrMax - 0.5) / 0.5, 0, 1) * 100) + '%';
+    el.hrBig.style.color = hz.color;
+    el.hrBig.style.textShadow = '0 0 18px ' + hz.color;
+    hrHist.push(s.hr);
+    if (hrHist.length > 1800) hrHist.shift();     // ~30 s bij 60 updates/s
 
     if (t - lastText > 0.1) {
       lastText = t;
@@ -102,6 +117,12 @@ VBT.hud = (function () {
       el.speed.textContent = kmh.toFixed(1);
       el.cadence.textContent = Math.round(s.cadence);
       el.hr.textContent = Math.round(s.hr);
+      el.hrBig.textContent = Math.round(s.hr);
+      el.hrZoneName.textContent = hz.name;
+      el.hrZoneName.style.background = hz.color;
+      el.hrZoneLabel.textContent = hz.label.toUpperCase();
+      el.hrMaxLabel.textContent = hrMax;
+      el.hrAvg.textContent = hrHist.length ? Math.round(hrHist.reduce((a, b) => a + b, 0) / hrHist.length) : 0;
       el.time.textContent = util.formatTime(game.rideTime);
       el.dist.textContent = (game.player.dist / 1000).toFixed(2);
       el.lap.textContent = 'LAP ' + (Math.floor(game.player.dist / VBT.track.lapMeters()) + 1);

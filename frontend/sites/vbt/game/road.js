@@ -64,6 +64,10 @@ VBT.road = (function () {
     const p = placeRider(r, w);
     const size = cfg.riderUnitsPerMeter * p.scale * w / 2;
     if (size > w) return;
+    if (r.vehicle) {
+      VBT.vehicles.draw(ctx, p.x, p.y, size, { vehicle: r.vehicle, time: r.time, speaking: r.speaking, alpha: fogAlpha });
+      return;
+    }
     VBT.rider.draw(ctx, p.x, p.y, size, {
       phase: r.phase, time: r.time, kit: r.kit, ghost: r.ghost, sprint: r.sprint, alpha: (r.alpha || 1) * fogAlpha,
     });

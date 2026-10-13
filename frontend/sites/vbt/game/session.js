@@ -14,6 +14,7 @@ VBT.session = (function () {
     VBT.track.build(course);
     game.run = wo ? VBT.workout.createRun(wo.free ? Object.assign({}, wo, { steps: [{ d: wo.duration, a: 65, b: 65 }] }) : wo, course) : null;
     game.resetRide();
+    VBT.traffic.reset();
     const courseKey = wo && !wo.free ? wo.id : FREE_COURSE;
     VBT.recorder.start({ kind: wo && !wo.free ? 'workout' : 'free', courseKey, name: wo ? wo.name : 'Free Ride', woId: wo ? wo.id : null, ftp: cfg.rider.ftp });
     game.ghostTrack = null;

@@ -26,6 +26,8 @@ VBT.storage = {
   },
   saveProfile: state => api.put('/api/vbt/profile', { ftp: state.ftp, planSlug: state.planSlug, planStart: state.startDate, planDone: state.done }),
   listPlans: () => api.get('/api/vbt/plans'),
+  async loadSettings() { return (await api.get('/api/vbt/profile')).settings || {} },
+  saveSettings: patch => api.put('/api/vbt/profile', { settings: patch }),
   loadPlan: slug => api.get('/api/vbt/plans/' + enc(slug)),
   listWorkouts: () => api.get('/api/vbt/workouts'),
   getWorkout: id => api.get('/api/vbt/workouts/' + enc(id)),

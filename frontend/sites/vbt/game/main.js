@@ -106,6 +106,7 @@
 
     if ((game.state === 'ride' || attract) && !game.run) S.updateGhost(dt, t, gapM);
     if (game.state === 'ride') { game.syncPosition(); S.record(dt); }
+    VBT.traffic.update(dt, game);
     if (game.state === 'ride' || attract) VBT.peloton.update(game.pack, dt, t, gradeAtDist, true, erg ? s.target : 0);
 
     // sturen: pijltjes, anders langzaam terug naar de rechterbaan
@@ -143,6 +144,7 @@
     const toRelZ = dist => game.playerZ + (dist - game.player.dist) * cfg.unitsPerMeter;
     const packClimb = gradeAtDist(game.pack.dist) > 0.07;
     game.riders = game.pack.bots.map(b => ({ relZ: toRelZ(b.dist), x: b.x, phase: b.phase, kit: b.kit, time: t, sprint: packClimb && b.col !== 1 }));
+    game.riders.push(...VBT.traffic.riders(game, toRelZ, t));
     if (!game.run) game.riders.push({ relZ: toRelZ(game.ghost.dist), x: game.ghost.x, phase: game.ghostPhase, kit: VBT.rider.KITS.ghost, ghost: true, alpha: 0.6, time: t });
     game.ghostAheadSeg = (game.ghost.dist - game.player.dist) * cfg.unitsPerMeter / cfg.segmentLength;
     game.packAheadSeg = (game.pack.dist - game.player.dist) * cfg.unitsPerMeter / cfg.segmentLength;
@@ -200,6 +202,7 @@
   async function start() {
     VBT.buildSprites && (VBT.sprites = VBT.buildSprites());
     await VBT.calendar.init((wo, step) => S.startRide(wo, step));
+    await VBT.settings.load();
     // achtergebleven rit van een crash/gesloten tab afronden + outbox legen
     VBT.safety.init().then(r => {
       if (r) VBT.store.log('save', 'Recovered an unfinished ride (' + r.duration + ' s)', 'warn');
@@ -231,6 +234,9 @@
     if (params.has('devices')) S.openDevices();
     if (params.has('help')) S.openHelp(params.get('help') || undefined);
     if (params.has('rides')) S.openRides();
+    // testhaakjes verkeer: ?traffic=ferrari (na 3 s) en ?coach (ploegleider na 4 s)
+    if (params.get('traffic')) setTimeout(() => VBT.traffic.spawn(params.get('traffic')), 3000);
+    if (params.has('coach')) VBT.traffic.schedule({ coachAt: 4 });
     const skip = parseFloat(params.get('t') || '0');
     for (let i = 0; i < skip / STEP; i++) update(STEP);
     if (params.has('end')) S.stop();   // testhaakje: rit direct afronden en opslaan

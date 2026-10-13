@@ -53,6 +53,10 @@ VBT.storage = (function () {
   async function loadProfile() { return get(PROFILE) || {}; }
   async function saveProfile(p) { set(PROFILE, p); }
 
+  const SETTINGS = 'vbt.settings.v1';
+  async function loadSettings() { return get(SETTINGS) || {}; }
+  async function saveSettings(patch) { set(SETTINGS, Object.assign(get(SETTINGS) || {}, patch)); }
+
   async function deleteRide(id) {
     set(IDX, (get(IDX) || []).filter(r => r.id !== id));
     try { localStorage.removeItem(SAMPLES(id)); } catch (e) { /* niets */ }
@@ -63,5 +67,5 @@ VBT.storage = (function () {
     return s ? Object.assign({}, s, { samples: get(SAMPLES(id)) || [] }) : null;
   }
 
-  return { saveRide, listRides, getSamples, getRide, deleteRide, bestLap, markPb, loadProfile, saveProfile };
+  return { loadSettings, saveSettings, saveRide, listRides, getSamples, getRide, deleteRide, bestLap, markPb, loadProfile, saveProfile };
 })();

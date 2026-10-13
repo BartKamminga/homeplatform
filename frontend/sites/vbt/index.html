@@ -23,6 +23,13 @@
       <div class="sub">3S AVG <b id="avg">0</b> W · FTP <span id="ftpLabel">180</span></div>
     </section>
 
+    <section class="panel heartpanel">
+      <label>HEART RATE <span id="hrZoneName" class="chip">Z1</span></label>
+      <div class="big"><span id="hrBig">0</span><small>BPM</small></div>
+      <div id="hrZoneBar" class="zonebar"><span id="hrNeedle"></span></div>
+      <div class="sub">30S AVG <b id="hrAvg">0</b> · <span id="hrZoneLabel">RECOVERY</span> · MAX <span id="hrMaxLabel">185</span></div>
+    </section>
+
     <section class="panel center">
       <div class="logo-mini">VBT</div>
       <div class="row"><span id="lap">LAP 1</span><span class="sep">·</span><span><b id="dist">0.00</b> KM</span></div>
@@ -65,6 +72,7 @@
       <canvas id="wChart" width="560" height="64"></canvas>
     </section>
 
+    <div id="coach"><b>&#128227; TEAM DIRECTOR</b><span id="coachText"></span></div>
     <div id="message"></div>
     <div id="draftFx"></div>
   </div>

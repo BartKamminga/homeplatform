@@ -19,6 +19,7 @@ class VbtProfile(SQLModel, table=True):
     plan_slug:  Optional[str] = Field(default=None)            # actief trainingsplan (vbt_plans.slug); leeg = ftp-builder
     plan_start: Optional[str] = Field(default=None)            # yyyy-mm-dd, start van het trainingsplan
     plan_done:  Optional[dict] = Field(default=None, sa_column=Column(JSON))   # workout-id -> resultaat
+    settings:   Optional[dict] = Field(default=None, sa_column=Column(JSON))   # hrMax, voice, traffic, ... (vrij uitbreidbaar)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
