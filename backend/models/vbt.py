@@ -48,6 +48,10 @@ class VbtRide(SQLModel, table=True):
     ftp:         Optional[int] = Field(default=None)
     samples:     Optional[list] = Field(default=None, sa_column=Column(JSON))
     in_progress: bool = Field(default=False)                  # live backup tijdens de rit, nog niet afgerond
+    elapsed:     int = Field(default=0)                       # klok-tijd van de rit (s), incl. pauzes
+    pauses:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # [{t, dur, reason}] - waar bleef de tijd
+    events:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # eventlog van de rit (zonder debug)
+    deleted_at:  Optional[datetime] = Field(default=None)     # prullenbak: niets wordt definitief verwijderd
     synced_at:   Optional[datetime] = Field(default=None)     # laatste live backup
     strava_upload_id:   Optional[str] = Field(default=None)
     strava_activity_id: Optional[str] = Field(default=None)

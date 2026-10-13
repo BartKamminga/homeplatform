@@ -4,7 +4,7 @@ VBT.rides = (function () {
   const $ = id => document.getElementById(id);
   const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  let items = [], selectedId = null;
+  let items = [], selectedId = null, trash = false;
 
   const fmtDur = s => {
     s = Math.round(s || 0);
@@ -20,6 +20,16 @@ VBT.rides = (function () {
   // server-ritten + ritten die nog in de outbox staan (nog niet gesynchroniseerd)
   async function load() {
     let server = [];
+    const canTrash = !!VBT.storage.listTrash;
+    $('ridesTrash').hidden = !canTrash;
+    $('ridesTrash').textContent = trash ? '\u2190 BACK TO RIDES' : '\u{1F5D1} TRASH';
+    if (trash) {
+      try { items = await VBT.storage.listTrash(); } catch (e) { items = []; }
+      renderList();
+      $('ridesCount').textContent = items.length + ' IN TRASH';
+      if (items[0]) select(items[0].id); else $('rideDetail').innerHTML = '<p class="hint">The trash is empty.</p>';
+      return;
+    }
     try { server = await VBT.storage.listRides(); } catch (e) { VBT.toast && VBT.toast('RIDES: ' + e.message, 6000); }
     const synced = new Set(server.map(r => r.clientId).filter(Boolean));
     const local = (await VBT.safety.pending())
@@ -59,24 +69,36 @@ VBT.rides = (function () {
     try { ride = id.startsWith('local:') ? items.find(r => r.id === id) : await VBT.storage.getRide(id); } catch (e) { box.innerHTML = '<p class="hint">Could not load ride: ' + e.message + '</p>'; return; }
     if (!ride || selectedId !== id) return;
     const stat = (v, l) => '<div><b>' + v + '</b><small>' + l + '</small></div>';
+    const paused = Math.max(0, (ride.elapsed || 0) - ride.duration);
+    const pauses = (ride.pauses || []).map(p => '<li>' + fmtDur(p.t) + ' &middot; ' + p.reason + ' &middot; ' + fmtDur(p.dur) + '</li>').join('');
+    const events = (ride.events || []).map(e => '<li data-level="' + e.level + '"><i>' + new Date(e.t).toTimeString().slice(0, 8) +
+      '</i> ' + e.type + ' &middot; ' + String(e.msg).replace(/</g, '&lt;') + '</li>').join('');
     box.innerHTML = '<div class="dhead"><div><small>' + fmtDate(ride.startedAt) + (ride.jumped ? ' · INTERVALS SKIPPED' : '') + '</small>' +
       '<h3>' + (ride.name || 'Ride').toUpperCase() + '</h3></div><div class="dbtns">' +
-      '<button id="rideDelete" class="ghostbtn">DELETE</button><button id="rideFit" class="ghostbtn">&#11015; .FIT</button>' +
+      (ride.deletedAt ? '<button id="rideRestore" class="ridebtn">&#8634; RESTORE</button>' : '<button id="rideDelete" class="ghostbtn">DELETE</button>') +
+      '<button id="rideFit" class="ghostbtn">&#11015; .FIT</button>' +
       '<button id="rideContinue" class="ridebtn">CONTINUE RIDE &#9654;</button></div></div>' +
       '<div class="ridestats">' + stat(fmtDur(ride.duration), 'TIME') + stat((ride.distance / 1000).toFixed(2), 'KM') +
       stat(ride.avgW, 'AVG W') + stat(ride.maxW, 'MAX W') + stat(ride.kj, 'KJ') + stat(ride.avgCad, 'AVG RPM') +
-      stat(ride.avgHr || '-', 'AVG BPM') + stat(ride.elevation, 'M UP') + (ride.lapTime ? stat(fmtDur(ride.lapTime), 'BEST LAP') : '') +
+      stat(ride.avgHr || '-', 'AVG BPM') + stat(ride.elevation, 'M UP') +
+      (ride.elapsed ? stat(fmtDur(ride.elapsed), 'ELAPSED') + stat(fmtDur(paused), 'PAUSED') : '') + (ride.lapTime ? stat(fmtDur(ride.lapTime), 'BEST LAP') : '') +
       (ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : '') + '</div>';
     const c = document.createElement('canvas');
     c.width = 1100; c.height = 220; c.className = 'ridechart';
     box.appendChild(c);
     drawChart(c, ride.samples || []);
+    if (pauses || events) {
+      box.insertAdjacentHTML('beforeend', '<div class="ridelogs">' +
+        (pauses ? '<details open><summary>PAUSES (' + ride.pauses.length + ')</summary><ul>' + pauses + '</ul></details>' : '') +
+        (events ? '<details><summary>EVENT LOG (' + ride.events.length + ')</summary><ul class="rideevents">' + events + '</ul></details>' : '') + '</div>');
+    }
     $('rideFit').onclick = () => VBT.fit.download(ride);
     $('rideFit').disabled = !(ride.samples && ride.samples.length);
-    $('rideDelete').onclick = () => remove(ride);
+    if ($('rideDelete')) $('rideDelete').onclick = () => remove(ride);
+    if ($('rideRestore')) $('rideRestore').onclick = () => restore(ride);
     $('rideContinue').onclick = () => VBT.session.resumeRide(ride);
     $('rideContinue').disabled = !(ride.clientId && ride.samples && ride.samples.length);
-    $('rideDelete').hidden = !!ride.pending;     // wat nog niet op de server staat, kun je niet weggooien
+    if ($('rideDelete')) $('rideDelete').hidden = !!ride.pending;     // wat nog niet op de server staat, kun je niet weggooien
   }
 
   // vermogen als staafjes in zonekleur, hoogte als vlak, hartslag als lijn
@@ -109,11 +131,21 @@ VBT.rides = (function () {
   }
 
   async function remove(ride) {
-    if (!window.confirm('Delete this ride (' + fmtDate(ride.startedAt) + ')? This cannot be undone.')) return;
+    if (!window.confirm('Move this ride (' + fmtDate(ride.startedAt) + ') to the trash? You can restore it from TRASH.')) return;
     try { await VBT.storage.deleteRide(ride.id); } catch (e) { VBT.toast && VBT.toast(e.message, 6000); return; }
     selectedId = null;
     load();
   }
 
-  return { load, select };
+  async function restore(ride) {
+    try { await VBT.storage.restoreRide(ride.id); } catch (e) { VBT.toast && VBT.toast(e.message, 6000); return; }
+    VBT.toast && VBT.toast('RIDE RESTORED');
+    trash = false;
+    selectedId = ride.id;
+    load();
+  }
+
+  function toggleTrash() { trash = !trash; selectedId = null; load(); }
+
+  return { load, select, toggleTrash };
 })();

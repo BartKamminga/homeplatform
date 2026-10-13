@@ -87,3 +87,20 @@ def test_ride_save_is_idempotent_by_client_id(client, user_token, admin_token):
 def test_zero_second_ride_is_saved(client, user_token):
     r = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(duration=0, distance=0, samples=[], lapTime=None))
     assert r.status_code == 200 and r.json()["duration"] == 0
+
+
+def test_delete_goes_to_trash_and_can_be_restored(client, user_token):
+    ride = client.post("/api/vbt/rides", headers=_h(user_token),
+                       json=_ride(elapsed=1500, pauses=[{"t": 600, "dur": 300, "reason": "trainer signal lost"}],
+                                  events=[{"type": "pause", "msg": "Auto-paused"}])).json()
+    assert ride["elapsed"] == 1500 and ride["pauses"][0]["reason"] == "trainer signal lost"
+    assert client.get(f"/api/vbt/rides/{ride['id']}", headers=_h(user_token)).json()["events"][0]["type"] == "pause"
+    assert client.delete(f"/api/vbt/rides/{ride['id']}", headers=_h(user_token)).json()["trash"] is True
+    assert client.get("/api/vbt/rides", headers=_h(user_token)).json() == []
+    trash = client.get("/api/vbt/rides-trash", headers=_h(user_token)).json()
+    assert [r["id"] for r in trash] == [ride["id"]] and trash[0]["deletedAt"]
+    # PB/ghost negeert de prullenbak
+    assert client.get("/api/vbt/rides/best-lap", params={"course": "free-v1"}, headers=_h(user_token)).json() is None
+    client.post(f"/api/vbt/rides/{ride['id']}/restore", headers=_h(user_token))
+    assert [r["id"] for r in client.get("/api/vbt/rides", headers=_h(user_token)).json()] == [ride["id"]]
+    assert client.get("/api/vbt/rides-trash", headers=_h(user_token)).json() == []

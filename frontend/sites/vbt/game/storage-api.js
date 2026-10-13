@@ -15,6 +15,8 @@ VBT.storage = {
   async getSamples(id) { return (await api.get('/api/vbt/rides/' + enc(id))).samples },
   getRide: id => api.get('/api/vbt/rides/' + enc(id)),
   deleteRide: id => api.delete('/api/vbt/rides/' + enc(id)),
+  listTrash: () => api.get('/api/vbt/rides-trash'),
+  restoreRide: id => api.post('/api/vbt/rides/' + enc(id) + '/restore'),
   liveSync: body => api.post('/api/vbt/rides/live', body),
   bestLap: course => api.get('/api/vbt/rides/best-lap?course=' + enc(course)),
   async markPb() { /* de server bepaalt zelf of een rit een PB is */ },

@@ -180,3 +180,12 @@ body[data-state="confirm"] #confirm { display: flex; }
 
 /* overlays schuiven mee met de zijpanelen (React zet --panel-left/--panel-right) */
 #title, #plan, #finish, #countdown, #paused, #confirm { left: var(--panel-left, 0px) !important; right: var(--panel-right, 0px) !important; }
+
+.ridelisthead { display: flex; justify-content: space-between; align-items: center; }
+.ridelisthead .ghostbtn { font-size: 8px; padding: 5px 8px; }
+.ridelogs { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 11px; }
+.ridelogs summary { cursor: pointer; font-family: var(--pixel); font-size: 9px; color: var(--cyan); }
+.ridelogs ul { margin: 6px 0 0; padding-left: 16px; max-height: 200px; overflow: auto; }
+.rideevents { list-style: none; padding-left: 0 !important; font: 11px/1.4 ui-monospace, Consolas, monospace; }
+.rideevents li[data-level="warn"] { color: var(--pink); }
+.rideevents i { opacity: .55; font-style: normal; }

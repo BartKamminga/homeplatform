@@ -30,6 +30,7 @@
 
   function update(dt) {
     t += dt;
+    VBT.recorder.tick(game, dt);      // klok-tijd + pauzes (ook als de rit stilstaat)
     const s = game.sensors;
     const playerSeg = game.segAtDist(game.player.dist) + Math.floor(game.playerZ / cfg.segmentLength);
     game.grade = VBT.track.gradeAt(playerSeg);

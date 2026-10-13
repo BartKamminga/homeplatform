@@ -1,0 +1,70 @@
+{
+ "title": "Pauzes + eventlog per rit, verwijderen = prullenbak, terugzetten",
+ "query": "ride",
+ "steps": [
+  {
+   "at": 5,
+   "key": "Space",
+   "name": "handmatige pauze",
+   "assert": "VBT.game.state === 'paused'"
+  },
+  {
+   "at": 9,
+   "key": "Space",
+   "name": "verder",
+   "assert": "VBT.game.state === 'ride'"
+  },
+  {
+   "at": 12,
+   "key": "Escape"
+  },
+  {
+   "at": 13,
+   "key": "KeyY",
+   "run": "window.__cid = VBT.game.lastRide.clientId; window.confirm = () => true"
+  },
+  {
+   "at": 16,
+   "name": "pauze met reden, klok-tijd > rijtijd, eventlog op de server",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.find(r => r.clientId === window.__cid)).then(r => { window.__id = r.id; return r.pauses.some(p => p.reason === 'paused' && p.dur >= 3) && r.elapsed >= r.duration + 3 }).then(ok => ok && fetch('/api/vbt/rides/' + window.__id, {headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r => r.json()).then(d => d.events.length > 0))"
+  },
+  {
+   "at": 17,
+   "click": "#btnFinishRides"
+  },
+  {
+   "at": 19,
+   "name": "detail toont ELAPSED/PAUSED en PAUSES",
+   "assert": "document.getElementById('rideDetail').textContent.includes('PAUSED') && document.getElementById('rideDetail').textContent.includes('PAUSES (')",
+   "shot": "detail"
+  },
+  {
+   "at": 19.5,
+   "click": "#rideDelete"
+  },
+  {
+   "at": 21.5,
+   "name": "weg uit de lijst, in de prullenbak",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => !a.some(r => r.clientId === window.__cid)).then(ok => ok && fetch('/api/vbt/rides-trash',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(t => t.some(r => r.clientId === window.__cid)))"
+  },
+  {
+   "at": 22,
+   "click": "#ridesTrash"
+  },
+  {
+   "at": 24,
+   "name": "TRASH toont de rit met RESTORE",
+   "assert": "!!document.getElementById('rideRestore')",
+   "shot": "trash"
+  },
+  {
+   "at": 24.5,
+   "click": "#rideRestore"
+  },
+  {
+   "at": 26.5,
+   "name": "teruggezet",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.some(r => r.clientId === window.__cid))"
+  }
+ ]
+}

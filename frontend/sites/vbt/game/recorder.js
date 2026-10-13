@@ -6,7 +6,8 @@ VBT.recorder = (function () {
 
   function start(meta) {
     const clientId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);   // zelfde id in journal en outbox
-    rec = Object.assign({ clientId, startedAt: new Date().toISOString(), samples: [], odo: 0, acc: 0, lapTime: null, jumped: false }, meta);
+    rec = Object.assign({ clientId, startedAt: new Date().toISOString(), samples: [], odo: 0, acc: 0, lapTime: null, jumped: false,
+      elapsed: 0, pauses: [] }, meta);
   }
 
   function sample(game, dt) {
@@ -43,8 +44,37 @@ VBT.recorder = (function () {
     rec = {
       clientId: r.clientId, startedAt: r.startedAt, kind: r.kind, courseKey: r.courseKey, name: r.name, woId: r.woId,
       ftp: r.ftp, samples: S.slice(), odo: last ? last[2] : 0, acc: 0, lapTime: r.lapTime || null, jumped: !!r.jumped,
+      elapsed: r.elapsed || S.length, pauses: (r.pauses || []).slice(),
     };
     return rec;
+  }
+
+  // elke update (ook in pauze): klok-tijd bijhouden en pauzes met reden vastleggen, zodat altijd
+  // terug te zien is waar tijd bleef (bv. 'trainer signal lost')
+  const REASONS = { paused: 'paused', confirm: 'stop question', countdown: 'countdown' };
+  function tick(game, dt) {
+    if (!rec) return;
+    rec.elapsed = (rec.elapsed || 0) + dt;
+    const riding = game.state === 'ride';
+    if (!riding && !rec.openPause) {
+      rec.openPause = { t: +game.rideTime.toFixed(1), at: Date.now(),
+        reason: game.autoPaused ? 'trainer signal lost' : REASONS[game.state] || game.state };
+      if (rec.openPause.reason !== 'countdown' && VBT.store) VBT.store.log('pause', 'Paused: ' + rec.openPause.reason, game.autoPaused ? 'warn' : 'info');
+    } else if (!riding && rec.openPause && game.autoPaused && rec.openPause.reason !== 'trainer signal lost') {
+      rec.openPause.reason = 'trainer signal lost';
+      if (VBT.store) VBT.store.log('pause', 'Paused: trainer signal lost', 'warn');
+    } else if (riding && rec.openPause) {
+      closePause();
+    }
+  }
+  function closePause() {
+    const p = rec.openPause;
+    rec.openPause = null;
+    const dur = Math.round((Date.now() - p.at) / 100) / 10;
+    if (p.reason !== 'countdown' && dur >= 1) {
+      rec.pauses.push({ t: p.t, dur, reason: p.reason });
+      if (VBT.store) VBT.store.log('resume', 'Resumed after ' + dur + ' s (' + p.reason + ')');
+    }
   }
 
   function markJump() { if (rec) rec.jumped = true; }
@@ -52,6 +82,7 @@ VBT.recorder = (function () {
   function stop(extra) {
     if (!rec) return null;
     const r = Object.assign(rec, extra || {});
+    if (r.openPause) { rec = r; closePause(); }
     rec = null;
     return finalize(r);
   }
@@ -74,8 +105,15 @@ VBT.recorder = (function () {
       elevation: Math.round(gain),
     });
     delete r.acc;
+    delete r.openPause;
+    r.elapsed = Math.round(r.elapsed || S.length);
+    r.pauses = r.pauses || [];
+    // eventlog van deze rit meenemen (zonder backup-ticks), zodat we later kunnen terugzien wat er gebeurde
+    const since = Date.parse(r.startedAt) - 5000;
+    r.events = VBT.store ? VBT.store.getEvents().filter(e => e.t >= since && e.level !== 'debug').slice(-500)
+      .map(e => ({ t: e.t, rideTime: e.rideTime, type: e.type, level: e.level, msg: e.msg })) : [];
     return r;
   }
 
-  return { start, resume, sample, flush, markJump, stop, finalize, current: () => rec, active: () => !!rec };
+  return { start, resume, tick, sample, flush, markJump, stop, finalize, current: () => rec, active: () => !!rec };
 })();

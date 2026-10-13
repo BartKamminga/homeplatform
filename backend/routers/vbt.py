@@ -52,11 +52,14 @@ class RideIn(CamelModel):
     jumped: bool = False
     score: Optional[int] = None
     ftp: Optional[int] = None
+    elapsed: int = 0
+    pauses: list = []
+    events: list = []
     samples: list = []
 
 
 SUMMARY_FIELDS = ["id", "client_id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
-                  "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp", "in_progress",
+                  "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp", "in_progress", "elapsed", "pauses",
                   "strava_activity_id", "strava_status", "strava_error"]
 
 
@@ -64,8 +67,10 @@ def _ride_out(ride: VbtRide, with_samples: bool = False) -> dict:
     out = {to_camel(f): getattr(ride, f) for f in SUMMARY_FIELDS}
     out["startedAt"] = ride.started_at.isoformat() + ("Z" if ride.started_at.tzinfo is None else "")
     out["syncedAt"] = ride.synced_at.isoformat() + "Z" if ride.synced_at else None
+    out["deletedAt"] = ride.deleted_at.isoformat() + "Z" if ride.deleted_at else None
     if with_samples:
         out["samples"] = ride.samples or []
+        out["events"] = ride.events or []
     return out
 
 
@@ -117,7 +122,7 @@ def put_profile(body: ProfileIn, current_user: User = Depends(get_current_user),
 @router.get("/rides")
 def list_rides(limit: int = 50, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     rides = session.exec(
-        select(VbtRide).where(VbtRide.user_id == current_user.id)
+        select(VbtRide).where(VbtRide.user_id == current_user.id, VbtRide.deleted_at.is_(None))
         .order_by(VbtRide.started_at.desc()).limit(min(limit, 200))
     ).all()
     return [_ride_out(r) for r in rides]
@@ -163,7 +168,7 @@ def save_ride(body: RideIn, request: Request, current_user: User = Depends(get_c
 
 def _best_lap(user_id: str, course_key: str, session: Session) -> Optional[VbtRide]:
     return session.exec(
-        select(VbtRide).where(VbtRide.user_id == user_id, VbtRide.course_key == course_key,
+        select(VbtRide).where(VbtRide.user_id == user_id, VbtRide.course_key == course_key, VbtRide.deleted_at.is_(None),
                               VbtRide.lap_time.is_not(None), VbtRide.jumped.is_(False))
         .order_by(VbtRide.lap_time.asc())
     ).first()
@@ -180,11 +185,30 @@ def get_ride(ride_id: str, current_user: User = Depends(get_current_user), sessi
     return _ride_out(_own_ride(ride_id, current_user, session), with_samples=True)
 
 
+# Verwijderen = naar de prullenbak (terug te zetten); er gaat nooit een rit definitief verloren
 @router.delete("/rides/{ride_id}")
 def delete_ride(ride_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    session.delete(_own_ride(ride_id, current_user, session))
+    ride = _own_ride(ride_id, current_user, session)
+    ride.deleted_at = datetime.utcnow()
+    session.add(ride)
     session.commit()
-    return {"ok": True}
+    return {"ok": True, "trash": True}
+
+
+@router.get("/rides-trash")
+def list_trash(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    rides = session.exec(select(VbtRide).where(VbtRide.user_id == current_user.id, VbtRide.deleted_at.is_not(None))
+                         .order_by(VbtRide.deleted_at.desc())).all()
+    return [_ride_out(r) for r in rides]
+
+
+@router.post("/rides/{ride_id}/restore")
+def restore_ride(ride_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    ride = _own_ride(ride_id, current_user, session)
+    ride.deleted_at = None
+    session.add(ride)
+    session.commit()
+    return _ride_out(ride)
 
 
 # ── Strava ───────────────────────────────────────────────────────────────────

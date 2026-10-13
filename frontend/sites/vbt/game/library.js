@@ -84,6 +84,7 @@ VBT.library = (function () {
     $('tabPlan').onclick = () => show('plan');
     $('tabLib').onclick = () => show('lib');
     $('tabRides').onclick = () => show('rides');
+    $('ridesTrash').onclick = () => VBT.rides.toggleTrash();
     $('libImport').onchange = e => { importFiles(e.target.files); e.target.value = ''; };
     const plan = $('plan');
     plan.addEventListener('dragover', e => { e.preventDefault(); plan.classList.add('dragover'); });
