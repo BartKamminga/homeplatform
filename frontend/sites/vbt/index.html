@@ -16,7 +16,8 @@
 
   <div id="hud">
     <section class="panel power">
-      <label>POWER <span id="zoneName" class="chip">Z2</span></label>
+      <label>POWER <span id="zoneName" class="chip">Z2</span>
+        <span id="chipTrainer" class="devchip" hidden>KICKR</span><span id="chipHr" class="devchip" hidden>&#9829; HR</span></label>
       <div class="big"><span id="watts">0</span><small>W</small></div>
       <div id="zoneBar" class="zonebar"><span id="zoneNeedle"></span></div>
       <div class="sub">3S AVG <b id="avg">0</b> W · FTP <span id="ftpLabel">180</span></div>
@@ -76,7 +77,7 @@
       <div class="menubtns">
         <button id="btnFree">&#9654; FREE RIDE <em>SPACE</em></button>
         <button id="btnPlan">&#9638; TRAINING PLAN <em>T</em></button>
-        <button disabled>&#9655; CONNECT KICKR <em>soon</em></button>
+        <button id="btnDevices">&#9655; CONNECT KICKR <em>K</em></button>
       </div>
       <span>FREE RIDE: &#8593;&#8595; POWER · SHIFT SPRINT &nbsp;|&nbsp; WORKOUT (ERG): &#8593;&#8595; CADENCE &nbsp;|&nbsp; &#8592;&#8594; STEER · SPACE PAUSE · ESC END RIDE</span>
     </div>
@@ -92,6 +93,7 @@
       </div>
       <label>FTP <input id="planFtp" type="number" min="50" max="600" step="1"> W</label>
       <label>START <input id="planStart" type="date"></label>
+      <button id="planDevices" class="ghostbtn">&#9655; DEVICES <em>K</em></button>
       <button id="planStrava" class="ghostbtn" hidden>&#8679; CONNECT STRAVA</button>
       <button id="planClose" class="ghostbtn">&#10005; CLOSE <em>ESC</em></button>
     </div>
@@ -123,7 +125,27 @@
   </div>
 
   <div id="countdown"></div>
-  <div id="paused">PAUSED</div>
+  <div id="paused"><b id="pausedTitle">PAUSED</b><small id="pausedSub"></small></div>
+
+  <div id="devices">
+    <div class="devpanel">
+      <div class="devhead"><h2>DEVICES</h2><button id="devClose" class="ghostbtn">&#10005; CLOSE <em>ESC</em></button></div>
+      <div class="devrow" id="dev-trainer">
+        <div><small>TRAINER</small><b class="devname"></b><span class="devlive" id="devLiveTrainer">-</span></div>
+        <span class="devstatus"></span><button class="ridebtn devbtn">CONNECT</button>
+      </div>
+      <div class="devrow" id="dev-hr">
+        <div><small>HEART RATE</small><b class="devname"></b><span class="devlive" id="devLiveHr">-</span></div>
+        <span class="devstatus"></span><button class="ridebtn devbtn">CONNECT</button>
+      </div>
+      <div class="devtools">
+        <button id="btnErgTest" class="ghostbtn">ERG TEST 100 W</button>
+        <button id="btnCopyLog" class="ghostbtn">COPY LOG</button>
+        <span class="hint">Chrome or Edge &middot; Bluetooth on &middot; close the Wahoo app and Zwift so the KICKR is free</span>
+      </div>
+      <pre id="bleLog"></pre>
+    </div>
+  </div>
   <div class="crt"></div>
   <div id="toast"></div>
   </div>

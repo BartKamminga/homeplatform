@@ -27,6 +27,7 @@ VBT.game = (function () {
     game.playerX = 0.667;
     game.sensors = VBT.physics.createSensors();
     game.countdown = 3.999;
+    game.autoPaused = false;
     document.getElementById('ftpLabel').textContent = cfg.rider.ftp;
     game.setState('countdown');
   };

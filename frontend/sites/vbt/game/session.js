@@ -93,6 +93,7 @@ VBT.session = (function () {
     if (run && completed && run.wo.week) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
     const heading = newPb ? 'NEW PB!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
     const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day : ride.name.toUpperCase();
+    VBT.bleBridge.release();
     VBT.workoutHud.showFinish(ride, heading, sub);
     if (VBT.stravaUi) VBT.stravaUi.render();
     game.setState('finished');
@@ -100,6 +101,8 @@ VBT.session = (function () {
 
   function toMenu(state) {
     if (VBT.recorder.active()) VBT.recorder.stop();
+    VBT.bleBridge.release();
+    game.autoPaused = false;
     const fromWorkout = !!game.run;
     game.run = null;
     game.ghostTrack = null;
@@ -115,6 +118,13 @@ VBT.session = (function () {
     else toMenu('title');
   }
 
+  // verbindingsscherm; sluiten brengt je terug naar waar je vandaan kwam
+  function openDevices() {
+    const back = game.state;
+    game.setState('devices');
+    VBT.devicesUi.open(() => game.setState(back === 'devices' ? 'title' : back));
+  }
+
   function downloadFit() {
     if (game.lastRide) VBT.fit.download(game.lastRide);
   }
@@ -122,6 +132,8 @@ VBT.session = (function () {
   function bindUi() {
     $('btnFree').onclick = () => startRide(null);
     $('btnPlan').onclick = () => toMenu('plan');
+    $('btnDevices').onclick = openDevices;
+    $('planDevices').onclick = openDevices;
     $('planClose').onclick = () => toMenu('title');
     $('btnFit').onclick = downloadFit;
     $('btnDone').onclick = () => toMenu(game.lastRide && game.lastRide.kind === 'workout' ? 'plan' : 'title');
@@ -133,5 +145,5 @@ VBT.session = (function () {
     };
   }
 
-  return { startRide, jumpTo, updateGhost, record, finish, toMenu, stop, downloadFit, bindUi };
+  return { startRide, jumpTo, updateGhost, record, finish, toMenu, stop, downloadFit, bindUi, openDevices };
 })();

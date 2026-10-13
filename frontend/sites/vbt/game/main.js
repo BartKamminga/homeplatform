@@ -29,8 +29,9 @@
     const playerSeg = game.segAtDist(game.player.dist) + Math.floor(game.playerZ / cfg.segmentLength);
     game.grade = VBT.track.gradeAt(playerSeg);
 
+    VBT.bleBridge.guard(game);
     if (game.state === 'paused') return;
-    const attract = ['title', 'plan', 'finished'].includes(game.state);
+    const attract = ['title', 'plan', 'finished', 'devices'].includes(game.state);
     if (attract) VBT.physics.autopilot(s, t, game.grade);
     if (game.state === 'countdown') {
       const before = Math.ceil(game.countdown);
@@ -40,7 +41,8 @@
       cd.textContent = now > 0 ? now : 'GO!';
       if (now !== before) { cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop'); }
       if (game.countdown <= 0) game.setState('ride');
-      VBT.physics.updateSensors(s, dt, t, game.grade);
+      if (!VBT.bleBridge.apply(game, null, false)) VBT.physics.updateSensors(s, dt, t, game.grade);
+      VBT.bleBridge.heartRate(game);
       VBT.peloton.update(game.pack, dt, t, gradeAtDist, false);
       return;
     }
@@ -72,7 +74,9 @@
       }
     }
 
-    VBT.physics.updateSensors(s, dt, t, game.grade, ergCad);
+    // echte trainer (Bluetooth) of de simulatie; hartslag van de band als die er is
+    if (!VBT.bleBridge.apply(game, cur, erg)) VBT.physics.updateSensors(s, dt, t, game.grade, ergCad);
+    VBT.bleBridge.heartRate(game);
 
     // slipstream: vlak achter de ghost in dezelfde baan
     const gapM = game.ghost.dist - game.player.dist;
@@ -155,13 +159,15 @@
     if (e.code === 'Space') {
       e.preventDefault();
       if (game.state === 'title') S.startRide(null);
-      else if (game.state === 'ride') game.setState('paused');
-      else if (game.state === 'paused') game.setState('ride');
+      else if (game.state === 'ride') { VBT.bleBridge.pausedText('PAUSED'); game.setState('paused'); }
+      else if (game.state === 'paused' && !game.autoPaused) game.setState('ride');
       else if (game.state === 'finished') document.getElementById('btnDone').click();
     }
     if (e.code === 'KeyT' && (game.state === 'title' || game.state === 'finished')) S.toMenu('plan');
+    if (e.code === 'KeyK' && ['title', 'plan', 'finished'].includes(game.state)) S.openDevices();
     if (e.code === 'KeyD' && game.state === 'finished') S.downloadFit();
-    if (e.code === 'Escape' && game.state !== 'title') S.stop();
+    if (e.code === 'Escape' && game.state === 'devices') VBT.devicesUi.close();
+    else if (e.code === 'Escape' && game.state !== 'title') S.stop();
     if (e.code.startsWith('Arrow')) e.preventDefault();
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -185,12 +191,18 @@
     game.setState('title');
     S.bindUi();
     VBT.library.init();
+    VBT.devicesUi.init();
+    if (VBT.bleMock.enabled) {           // testhaakjes nep-Kickr: ?mockble&autoconnect&mockdrop=30:15
+      VBT.bleMock.schedule(game);
+      if (params.has('autoconnect')) { VBT.ble.pick('trainer'); VBT.ble.pick('hr'); }
+    }
     started = true;
     // testhaakjes: ?ride (vrije rit), ?wo=ftpb-w1d2 (workout), ?step=n, ?plan (kalender), ?lib (bibliotheek), ?t=sec (vooruitspoelen), ?end
     const wo = params.get('wo') && VBT.calendar.find(params.get('wo'));
     if (wo || params.has('ride')) { S.startRide(wo || null, parseInt(params.get('step'), 10) || 0); game.countdown = 0; game.setState('ride'); }
     if (params.has('plan')) S.toMenu('plan');
     if (params.has('lib')) { S.toMenu('plan'); VBT.library.show('lib'); }
+    if (params.has('devices')) S.openDevices();
     const skip = parseFloat(params.get('t') || '0');
     for (let i = 0; i < skip / STEP; i++) update(STEP);
     if (params.has('end')) S.stop();   // testhaakje: rit direct afronden en opslaan
