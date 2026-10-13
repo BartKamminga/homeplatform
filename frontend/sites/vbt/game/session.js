@@ -90,7 +90,7 @@ VBT.session = (function () {
       if (newPb) VBT.storage.markPb(ride.id);
       if (VBT.stravaUi) VBT.stravaUi.render();
     });
-    if (run && completed && run.wo.id) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
+    if (run && completed && run.wo.week) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
     const heading = newPb ? 'NEW PB!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
     const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day : ride.name.toUpperCase();
     VBT.workoutHud.showFinish(ride, heading, sub);

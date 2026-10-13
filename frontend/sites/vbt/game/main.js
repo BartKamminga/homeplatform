@@ -45,12 +45,13 @@
       return;
     }
     let ergCad;
-    const erg = game.run && !game.run.wo.free;
+    // ERG behalve in een vrije rit of een vrij interval (FreeRide uit een .zwo)
+    const cur = game.run && !game.run.wo.free ? VBT.workout.current(game.run, cfg.rider.ftp) : null;
+    const erg = !!cur && !cur.step.free;
     if (game.state === 'ride') {
       game.rideTime += dt;
       if (erg) {
         // ERG: de trainer zet het vermogen, jij regelt de cadans
-        const cur = VBT.workout.current(game.run, cfg.rider.ftp);
         s.target = cur.watts;
         s.sprint = false;
         ergCad = cur.cadence || 88;
@@ -183,11 +184,13 @@
     resize();
     game.setState('title');
     S.bindUi();
+    VBT.library.init();
     started = true;
-    // testhaakjes: ?ride (vrije rit), ?wo=ftpb-w1d2 (workout), ?step=n, ?plan (kalender), ?t=sec (vooruitspoelen), ?end
-    const wo = params.get('wo') && VBT.plans.ftpBuilder.weeks.flat().find(x => x.id === params.get('wo'));
+    // testhaakjes: ?ride (vrije rit), ?wo=ftpb-w1d2 (workout), ?step=n, ?plan (kalender), ?lib (bibliotheek), ?t=sec (vooruitspoelen), ?end
+    const wo = params.get('wo') && VBT.calendar.find(params.get('wo'));
     if (wo || params.has('ride')) { S.startRide(wo || null, parseInt(params.get('step'), 10) || 0); game.countdown = 0; game.setState('ride'); }
     if (params.has('plan')) S.toMenu('plan');
+    if (params.has('lib')) { S.toMenu('plan'); VBT.library.show('lib'); }
     const skip = parseFloat(params.get('t') || '0');
     for (let i = 0; i < skip / STEP; i++) update(STEP);
     if (params.has('end')) S.stop();   // testhaakje: rit direct afronden en opslaan

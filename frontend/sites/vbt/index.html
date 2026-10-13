@@ -86,7 +86,8 @@
   <div id="plan">
     <div class="planhead">
       <div>
-        <h2>FTP BUILDER</h2>
+        <h2 id="planTitle">TRAINING PLAN</h2>
+        <div class="tabs"><button id="tabPlan" class="tab active">PLAN</button><button id="tabLib" class="tab">LIBRARY</button></div>
         <small>6-WEEK PLAN · <span id="planProgress">0 / 26 DONE</span> · <a id="planSource" target="_blank" rel="noopener">SOURCE: WHATSONZWIFT</a></small>
       </div>
       <label>FTP <input id="planFtp" type="number" min="50" max="600" step="1"> W</label>
@@ -97,6 +98,14 @@
     <div class="planbody">
       <div class="wrow wdays"><span class="wlabel"></span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div>
       <div id="planGrid"></div>
+    </div>
+    <div class="libbody">
+      <div class="libbar">
+        <label class="ghostbtn">&#8679; IMPORT .ZWO <input id="libImport" type="file" accept=".zwo" multiple hidden></label>
+        <span class="hint">or drop .zwo files anywhere on this screen</span>
+      </div>
+      <div id="libMsg"></div>
+      <div id="libGrid"></div>
     </div>
     <div id="planDetail"></div>
   </div>

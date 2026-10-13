@@ -1,9 +1,10 @@
-// Trainingskalender: 6 weken FTP Builder op echte datums, FTP + startdatum instelbaar, voltooide ritten afvinken.
-// Bewaard via VBT.storage (browser of, in HomePlatform, de server).
+// Trainingskalender: het plan (uit de database, /api/vbt/plans) op echte datums, FTP + startdatum instelbaar,
+// voltooide workouts afvinken. Toont ook de details van workouts uit de bibliotheek (library.js).
 VBT.calendar = (function () {
   const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const plan = VBT.plans.ftpBuilder;
+  const PLAN_SLUG = 'ftp-builder';
+  let plan = { weeks: [], dayOffsets: [] };
   const $ = id => document.getElementById(id);
   let state = {}, selected = null, onRide = null;
 
@@ -25,6 +26,7 @@ VBT.calendar = (function () {
     state.startDate = state.startDate || thisMonday();
     state.done = state.done || {};
     VBT.cfg.rider.ftp = state.ftp;
+    try { plan = await VBT.storage.loadPlan(PLAN_SLUG); } catch (e) { /* geen plan: lege kalender */ }
   }
 
   function save() {
@@ -75,6 +77,7 @@ VBT.calendar = (function () {
     });
     const done = Object.keys(state.done).length;
     const total = plan.weeks.flat().filter(w => !w.rest).length;
+    $('planTitle').textContent = (plan.name || 'TRAINING PLAN').toUpperCase();
     $('planProgress').textContent = done + ' / ' + total + ' DONE';
     renderDetail();
   }
@@ -82,8 +85,10 @@ VBT.calendar = (function () {
   function renderDetail() {
     const box = $('planDetail');
     if (!selected) { box.innerHTML = '<p class="hint">Pick a workout from the calendar.</p>'; return; }
-    const wo = selected, res = state.done[wo.id];
-    box.innerHTML = '<div class="dhead"><div><small>WEEK ' + wo.week + ' · DAY ' + wo.day + ' · ' + label(dateFor(wo)) + '</small>' +
+    const wo = selected, inPlan = !!wo.week, res = inPlan && state.done[wo.id];
+    const where = inPlan ? 'WEEK ' + wo.week + ' · DAY ' + wo.day + ' · ' + label(dateFor(wo))
+      : 'LIBRARY · ' + (wo.source === 'zwo' ? 'IMPORTED .ZWO' : String(wo.source || '').toUpperCase());
+    box.innerHTML = '<div class="dhead"><div><small>' + where + '</small>' +
       '<h3>' + wo.name.toUpperCase() + '</h3><span>' + minutes(wo.duration) + ' · TSS ' + VBT.workout.tss(wo) +
       (wo.free ? ' · FREE RIDE' : ' · ERG') + '</span>' +
       (res ? '<span class="dres">&#10003; ' + res.date + ' · ' + res.avgW + ' W AVG · CADENCE ' + res.score + '%</span>' : '') +
@@ -95,6 +100,7 @@ VBT.calendar = (function () {
       onRide(wo, VBT.workout.stepAtFraction(wo, e.offsetX / big.clientWidth));
     };
     box.appendChild(big);
+    $('planUndo').hidden = !inPlan;
     $('planUndo').textContent = res ? 'UNMARK' : 'MARK DONE';
     $('planUndo').onclick = () => {
       if (res) delete state.done[wo.id];
@@ -113,6 +119,7 @@ VBT.calendar = (function () {
   function preselect() {
     const today = iso(new Date());
     const all = plan.weeks.flat().filter(w => !w.rest);
+    if (!all.length) { selected = null; return; }
     selected = all.find(w => !state.done[w.id] && iso(dateFor(w)) >= today) || all.find(w => !state.done[w.id]) || all[0];
   }
 
@@ -128,11 +135,15 @@ VBT.calendar = (function () {
       save(); render();
     };
     $('planStart').onchange = e => { if (e.target.value) { state.startDate = e.target.value; save(); render(); } };
-    $('planSource').href = plan.source;
+    if (plan.source) $('planSource').href = plan.source;
     preselect();
   }
 
   function open() { preselect(); render(); }
 
-  return { init, open, markDone, ftp: () => state.ftp };
+  // workout uit de bibliotheek tonen in het detailpaneel
+  function select(wo) { selected = wo; renderDetail(); }
+  const find = id => plan.weeks.flat().find(w => w.id === id);
+
+  return { init, open, markDone, select, find, chart, minutes, ftp: () => state.ftp };
 })();

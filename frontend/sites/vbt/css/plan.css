@@ -112,3 +112,19 @@ body[data-state="finished"] #finish { display: flex; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #btnStrava:not([disabled]) { border-color: #fc4c02; box-shadow: 0 0 14px rgba(252,76,2,.45); }
 #planStrava { border-color: #fc4c02; }
+
+/* ---------- Tabs + bibliotheek ---------- */
+.tabs { display: flex; gap: 6px; margin: 8px 0 4px; }
+.tab { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: transparent; cursor: pointer;
+  border: 1px solid rgba(155,92,255,.5); border-radius: 4px; padding: 6px 12px; opacity: .7; }
+.tab.active { opacity: 1; border-color: var(--cyan); background: rgba(36,232,255,.12); }
+#plan[data-tab="lib"] .planbody { display: none; }
+#plan:not([data-tab="lib"]) .libbody { display: none; }
+#plan.dragover { outline: 3px dashed var(--cyan); outline-offset: -12px; }
+.libbar { display: flex; align-items: center; gap: 16px; }
+.libbar .hint { font-size: 11px; opacity: .6; }
+#libMsg { font-size: 11px; color: var(--yellow); margin: 6px 0; }
+.libhead { font-family: var(--pixel); font-size: 10px; color: var(--pink); margin: 16px 0 8px; }
+.libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.wdel { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 11px; opacity: .5; padding: 2px 4px; }
+.wdel:hover { opacity: 1; color: var(--pink); }

@@ -63,3 +63,43 @@ class VbtStravaLink(SQLModel, table=True):
     expires_at:    int                                          # unix-seconden
     scope:         Optional[str] = Field(default=None)
     created_at:    datetime = Field(default_factory=datetime.utcnow)
+
+
+class VbtWorkout(SQLModel, table=True):
+    """Een workout: lijst intervallen [{d: sec, a: %FTP start, b: %FTP eind, c: cadans?, free?}]."""
+    __tablename__ = "vbt_workouts"
+
+    id:          str = Field(default_factory=new_uuid, primary_key=True)
+    name:        str
+    description: Optional[str] = Field(default=None)
+    steps:       list = Field(default_factory=list, sa_column=Column(JSON))
+    duration:    int = Field(default=0)                         # seconden
+    source:      str = Field(default="custom", index=True)      # plan-slug, zwo of custom
+    source_url:  Optional[str] = Field(default=None)
+    owner_id:    Optional[str] = Field(default=None, foreign_key="users.id", index=True)   # None = voor iedereen
+    content_hash: Optional[str] = Field(default=None, index=True)                          # ontdubbelen bij seed/import
+    created_at:  datetime = Field(default_factory=datetime.utcnow)
+
+
+class VbtPlan(SQLModel, table=True):
+    __tablename__ = "vbt_plans"
+
+    id:          str = Field(default_factory=new_uuid, primary_key=True)
+    slug:        str = Field(index=True, unique=True)
+    name:        str
+    source_url:  Optional[str] = Field(default=None)
+    day_offsets: list = Field(default_factory=list, sa_column=Column(JSON))   # dag n van de week -> dagen na maandag
+    created_at:  datetime = Field(default_factory=datetime.utcnow)
+
+
+class VbtPlanItem(SQLModel, table=True):
+    """Een dag in een plan. key is stabiel (bv. ftpb-w2d4): daar hangen 'afgevinkt' en ritten aan."""
+    __tablename__ = "vbt_plan_items"
+
+    key:        str = Field(primary_key=True)
+    plan_id:    str = Field(foreign_key="vbt_plans.id", index=True)
+    week:       int
+    day:        int
+    kind:       str = Field(default="workout")                  # workout | rest | free
+    workout_id: Optional[str] = Field(default=None, foreign_key="vbt_workouts.id")
+    duration:   Optional[int] = Field(default=None)             # alleen voor free

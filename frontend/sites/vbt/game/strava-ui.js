@@ -113,5 +113,6 @@ VBT.stravaUi = (function () {
     refresh().then(handleReturn);
   }
 
+  VBT.toast = toast;
   return { init, render, refresh };
 })();

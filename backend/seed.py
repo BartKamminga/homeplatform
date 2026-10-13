@@ -123,6 +123,13 @@ def seed_admin(session: Session, username: str, password: str, email: str):
             print(f"  '{username}' is al lid van admins groep")
 
 
+def seed_vbt(session: Session):
+    """VBT-trainingsplannen (+ hun workouts) uit data/vbt; idempotent."""
+    from services.vbt_workouts import seed_plan
+    plan = seed_plan(session, "ftp_builder.json")
+    print(f"  OK   VBT-plan: {plan.name}")
+
+
 def seed(username: str, password: str, email: str):
     create_db_and_tables()
 
@@ -132,6 +139,9 @@ def seed(username: str, password: str, email: str):
 
         print("\n>> Sites...")
         seed_sites(session)
+
+        print("\n>> VBT-plannen...")
+        seed_vbt(session)
 
         print("\n>> Admin gebruiker...")
         seed_admin(session, username, password, email)

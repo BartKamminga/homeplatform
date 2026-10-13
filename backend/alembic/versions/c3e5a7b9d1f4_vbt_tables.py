@@ -1,10 +1,11 @@
-"""VBT (Virtual Bike Trainer): profiel, ritten, Strava-koppeling + site-registratie
+"""VBT (Virtual Bike Trainer): profiel, ritten, Strava-koppeling, workouts/plannen + site-registratie
 
 Revision ID: c3e5a7b9d1f4
 Revises: b8d0f2a4c6e3
 Create Date: 2026-10-13
 
 Met has-table-checks, omdat create_all in de deploy-pipeline voor de migratie draait.
+De plannen zelf (FTP Builder) komen via seed.py uit backend/data/vbt.
 """
 import uuid
 
@@ -76,6 +77,49 @@ def upgrade():
             sa.Column("created_at", sa.DateTime(), nullable=False),
         )
 
+    if "vbt_workouts" not in tables:
+        op.create_table(
+            "vbt_workouts",
+            sa.Column("id", sa.String(), primary_key=True),
+            sa.Column("name", sa.String(), nullable=False),
+            sa.Column("description", sa.String(), nullable=True),
+            sa.Column("steps", sa.JSON(), nullable=True),
+            sa.Column("duration", sa.Integer(), nullable=False),
+            sa.Column("source", sa.String(), nullable=False),
+            sa.Column("source_url", sa.String(), nullable=True),
+            sa.Column("owner_id", sa.String(), sa.ForeignKey("users.id"), nullable=True),
+            sa.Column("content_hash", sa.String(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=False),
+        )
+        op.create_index("ix_vbt_workouts_source", "vbt_workouts", ["source"])
+        op.create_index("ix_vbt_workouts_owner_id", "vbt_workouts", ["owner_id"])
+        op.create_index("ix_vbt_workouts_content_hash", "vbt_workouts", ["content_hash"])
+
+    if "vbt_plans" not in tables:
+        op.create_table(
+            "vbt_plans",
+            sa.Column("id", sa.String(), primary_key=True),
+            sa.Column("slug", sa.String(), nullable=False),
+            sa.Column("name", sa.String(), nullable=False),
+            sa.Column("source_url", sa.String(), nullable=True),
+            sa.Column("day_offsets", sa.JSON(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=False),
+        )
+        op.create_index("ix_vbt_plans_slug", "vbt_plans", ["slug"], unique=True)
+
+    if "vbt_plan_items" not in tables:
+        op.create_table(
+            "vbt_plan_items",
+            sa.Column("key", sa.String(), primary_key=True),
+            sa.Column("plan_id", sa.String(), sa.ForeignKey("vbt_plans.id"), nullable=False),
+            sa.Column("week", sa.Integer(), nullable=False),
+            sa.Column("day", sa.Integer(), nullable=False),
+            sa.Column("kind", sa.String(), nullable=False),
+            sa.Column("workout_id", sa.String(), sa.ForeignKey("vbt_workouts.id"), nullable=True),
+            sa.Column("duration", sa.Integer(), nullable=True),
+        )
+        op.create_index("ix_vbt_plan_items_plan_id", "vbt_plan_items", ["plan_id"])
+
     op.execute(
         "INSERT OR IGNORE INTO sites (id, name, slug, module, icon, is_active, created_at) "
         f"VALUES ('{uuid.uuid4()}', 'VBT', 'vbt', 'vbt', '🚴', 1, datetime('now'))"
@@ -84,6 +128,9 @@ def upgrade():
 
 def downgrade():
     op.execute("DELETE FROM sites WHERE slug = 'vbt'")
+    op.drop_table("vbt_plan_items")
+    op.drop_table("vbt_plans")
+    op.drop_table("vbt_workouts")
     op.drop_table("vbt_strava_links")
     op.drop_index("ix_vbt_rides_course_key", table_name="vbt_rides")
     op.drop_index("ix_vbt_rides_user_id", table_name="vbt_rides")

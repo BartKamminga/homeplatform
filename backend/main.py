@@ -84,7 +84,7 @@ from routers import mindbox_commands  # noqa: E402
 from routers import mindbox_links  # noqa: E402
 from routers import mindbox_deadlines  # noqa: E402
 from routers import yearof_mo14  # noqa: E402
-from routers import vbt  # noqa: E402
+from routers import vbt, vbt_workouts  # noqa: E402
 from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
@@ -242,6 +242,7 @@ app.include_router(dev_sessions.router)
 app.include_router(yearof_mo14.router)
 app.include_router(yearof_mo14.shortlink_router)
 app.include_router(vbt.router)
+app.include_router(vbt_workouts.router)
 
 
 @app.get("/")
