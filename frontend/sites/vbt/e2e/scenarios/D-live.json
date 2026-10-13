@@ -1,0 +1,26 @@
+{
+ "title": "Live backup tijdens de rit, daarna harde crash (laptop weg)",
+ "query": "ride",
+ "steps": [
+  {
+   "at": 5,
+   "name": "eerste server-backup direct",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.some(r => r.inProgress))"
+  },
+  {
+   "at": 12,
+   "name": "HUD: SERVER BACKUP UP TO DATE",
+   "assert": "document.getElementById('backup').textContent === 'UP TO DATE'",
+   "shot": "hud"
+  },
+  {
+   "at": 14,
+   "name": "snapshot toont backup ok",
+   "assert": "VBT.store.getSnapshot().backup.status === 'ok'"
+  },
+  {
+   "at": 15,
+   "crash": true
+  }
+ ]
+}

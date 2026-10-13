@@ -1,0 +1,51 @@
+{
+ "title": "Server onbereikbaar bij de finish -> NOT SYNCED -> na online precies 1x op de server",
+ "query": "ride",
+ "steps": [
+  {
+   "at": 5,
+   "block": [
+    "*/api/vbt/rides*"
+   ]
+  },
+  {
+   "at": 8,
+   "key": "Escape"
+  },
+  {
+   "at": 9,
+   "key": "KeyY",
+   "run": "window.__cid = VBT.game.lastRide.clientId"
+  },
+  {
+   "at": 12,
+   "name": "rit wacht in de outbox",
+   "assert": "VBT.safety.pending().then(p => p.length === 1)"
+  },
+  {
+   "at": 13,
+   "click": "#btnFinishRides"
+  },
+  {
+   "at": 15,
+   "name": "MY RIDES toont NOT SYNCED",
+   "assert": "[...document.querySelectorAll('.riderow')].some(e => e.textContent.includes('NOT SYNCED'))",
+   "shot": "notsynced"
+  },
+  {
+   "at": 16,
+   "unblock": true,
+   "run": "window.dispatchEvent(new Event('online'))"
+  },
+  {
+   "at": 20,
+   "name": "outbox leeg",
+   "assert": "VBT.safety.pending().then(p => p.length === 0)"
+  },
+  {
+   "at": 21,
+   "name": "precies 1x op de server",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.filter(r => r.clientId === window.__cid).length === 1)"
+  }
+ ]
+}

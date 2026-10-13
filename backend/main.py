@@ -42,6 +42,7 @@ from routers import system_public, system_admin, auth, users, groups, themes, si
 from routers import auth_oidc, auth_identities  # noqa: E402
 from routers import mixmusic, changelog, tracking, dontforget, uploads, bug_reports, push  # noqa: E402
 from routers import tournix, fiets, backup  # noqa: E402
+from routers import myhome, myhome_inputs, myhome_devices  # noqa: E402
 from routers import tournix_import  # noqa: E402
 from routers.backup import backup_router  # noqa: E402
 from routers import roadmap  # noqa: E402
@@ -70,6 +71,7 @@ from routers import hockey_publication  # noqa: E402
 from routers import hockey_query  # noqa: E402
 from routers import hockey_regrouping  # noqa: E402
 from routers import hockey_club_geo  # noqa: E402
+from routers import hockey_club_colors  # noqa: E402
 from routers import hockey_scenario  # noqa: E402
 from routers import poulebord  # noqa: E402
 from routers import infra  # noqa: E402
@@ -83,6 +85,7 @@ from routers import mindbox_commands  # noqa: E402
 from routers import mindbox_links  # noqa: E402
 from routers import mindbox_deadlines  # noqa: E402
 from routers import yearof_mo14  # noqa: E402
+from routers import vbt, vbt_workouts, vbt_live  # noqa: E402
 from routers.scrapster import router as scrapster_router, _background_refresh_loop  # noqa: E402
 
 logger = logging.getLogger("homeplatform")
@@ -199,6 +202,9 @@ app.include_router(push.router)
 app.include_router(tournix.router)
 app.include_router(tournix_import.router)
 app.include_router(fiets.router)
+app.include_router(myhome.router)
+app.include_router(myhome_inputs.router)
+app.include_router(myhome_devices.router)
 app.include_router(backup.router)
 app.include_router(backup_router)
 app.include_router(roadmap.router)
@@ -227,6 +233,7 @@ app.include_router(hockey_publication.router)
 app.include_router(hockey_query.router)
 app.include_router(hockey_regrouping.router)
 app.include_router(hockey_club_geo.router)
+app.include_router(hockey_club_colors.router)
 app.include_router(hockey_scenario.router)
 app.include_router(poulebord.router)
 app.include_router(poulebord.legacy_router)
@@ -238,6 +245,9 @@ app.include_router(agent_control.router)
 app.include_router(dev_sessions.router)
 app.include_router(yearof_mo14.router)
 app.include_router(yearof_mo14.shortlink_router)
+app.include_router(vbt.router)
+app.include_router(vbt_workouts.router)
+app.include_router(vbt_live.router)
 
 
 @app.get("/")

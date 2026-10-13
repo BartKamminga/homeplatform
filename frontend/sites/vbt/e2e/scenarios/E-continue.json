@@ -1,0 +1,38 @@
+{
+ "title": "Ander apparaat: INTERRUPTED rit hervatten -> zelfde rit, langer, afgerond",
+ "query": "rides",
+ "steps": [
+  {
+   "at": 5,
+   "run": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => { window.__r = a.find(r => r.inProgress) })"
+  },
+  {
+   "at": 5.5,
+   "name": "INTERRUPTED rit gevonden",
+   "assert": "!!window.__r && [...document.querySelectorAll('.riderow')].some(e => e.textContent.includes('INTERRUPTED'))",
+   "shot": "interrupted"
+  },
+  {
+   "at": 6,
+   "click": "#rideContinue"
+  },
+  {
+   "at": 13,
+   "name": "rijdt verder vanaf de oude tijd",
+   "assert": "VBT.game.state === 'ride' && VBT.game.rideTime > window.__r.duration"
+  },
+  {
+   "at": 16,
+   "key": "Escape"
+  },
+  {
+   "at": 17,
+   "key": "KeyY"
+  },
+  {
+   "at": 21,
+   "name": "zelfde rit, langer en afgerond",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => { const r = a.find(x => x.clientId === window.__r.clientId); return !!r && !r.inProgress && r.duration > window.__r.duration && a.filter(x => x.clientId === window.__r.clientId).length === 1 })"
+  }
+ ]
+}

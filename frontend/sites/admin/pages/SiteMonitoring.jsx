@@ -8,6 +8,7 @@ const SITE_LABELS = {
   'hockey-inside': 'Hockey Inside',
   fiets: 'Fiets',
   mindbox: 'Mindbox',
+  vbt: 'VBT',
 };
 
 export default function SiteMonitoring() {

@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""   # item 891: web push - publiek, mag naar de browser
     VAPID_PRIVATE_KEY: str = ""  # server-only, nooit naar de browser sturen
     VAPID_SUBJECT: str = "mailto:bartkamminga@hotmail.com"  # vereist contact-adres voor push-diensten
+    # VBT: uploaden naar Strava (api-app op strava.com/settings/api); redirect via OIDC_REDIRECT_BASE/EXTERNAL_URL
+    STRAVA_CLIENT_ID: str = ""
+    STRAVA_CLIENT_SECRET: str = ""
     FIETS_LAT: float = 51.9244  # MVP: vaste locatie (Rotterdam) — later instelbaar (roadmap-item)
     FIETS_LON: float = 4.4777
     FIETS_LOCATION_LABEL: str = "Rotterdam"

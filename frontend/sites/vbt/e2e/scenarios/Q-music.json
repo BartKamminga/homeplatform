@@ -1,0 +1,51 @@
+{
+ "title": "Muziek uit MixMusic: start bij de rit, N = volgende, B = uit/aan, filter volgt de inspanning",
+ "query": "",
+ "steps": [
+  {
+   "at": 4,
+   "name": "rekenregels: gedempt bij herstel, open vanaf drempel",
+   "assert": "VBT.music.cutoffFor(0.5) === 700 && VBT.music.cutoffFor(1) === 18000 && VBT.music.cutoffFor(0.75) > 2000 && VBT.music.cutoffFor(0.75) < 4500 && VBT.music.intensityOf({ state: 'ride', run: { target: { pct: 110 } } }) === 1.1 && VBT.music.intensityOf({ state: 'ride', run: null, avg3s: 90, ftp: 180 }) === 0.5",
+   "click": "#btnFree"
+  },
+  {
+   "at": 8,
+   "name": "rit gestart -> er speelt een mix uit MixMusic",
+   "assert": "VBT.music.getState().status === 'playing' && /WARMUP|HARD TECHNO|SUNDAY CHILL/.test(document.getElementById('music').textContent)",
+   "run": "window.__t1 = VBT.music.getState().title",
+   "shot": "playing"
+  },
+  {
+   "at": 8.5,
+   "key": "KeyN"
+  },
+  {
+   "at": 12,
+   "name": "N = andere mix",
+   "assert": "VBT.music.getState().status === 'playing' && VBT.music.getState().title !== window.__t1"
+  },
+  {
+   "at": 12.5,
+   "key": "KeyB"
+  },
+  {
+   "at": 13.5,
+   "name": "B = muziek uit (en onthouden)",
+   "assert": "VBT.music.getState().status === 'off' && VBT.settings.values.musicOn === false && VBT.game.state === 'ride'"
+  },
+  {
+   "at": 14,
+   "click": "#music button"
+  },
+  {
+   "at": 16,
+   "name": "weer aan via de balk",
+   "assert": "VBT.music.getState().status === 'playing' && VBT.settings.values.musicOn === true"
+  },
+  {
+   "at": 17,
+   "name": "MixMusic telt mee: afgespeeld + speeltijd",
+   "assert": "fetch('/api/mixmusic/metas',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(m => Object.values(m).reduce((a, x) => a + (x.play_count || 0), 0) >= 3 && Object.values(m).some(x => x.play_seconds > 0))"
+  }
+ ]
+}

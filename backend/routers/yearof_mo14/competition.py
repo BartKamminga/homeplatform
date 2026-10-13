@@ -12,13 +12,13 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from core.auth import require_admin
 from core.database import get_session
 from models.core import User
-from models.hockey_discovery import HockeyPoule, HockeyPouleStanding
 from models.settings import AppSetting
+from services import hockey_read
 
 from ._shared import POULE_ID, TEAM_NAME
 
@@ -41,20 +41,13 @@ def _flag(session: Session, key: str) -> bool:
 def get_competition_config(session: Session = Depends(get_session)):
     """Publiek - wat de Competitie-tab nodig heeft: of hij vrijgegeven is en
     welke poule/team/publicatie. Bevat alleen openbare competitiegegevens."""
-    poule = session.get(HockeyPoule, POULE_ID)
-    team_id = None
-    if poule:
-        standing = session.exec(
-            select(HockeyPouleStanding)
-            .where(HockeyPouleStanding.poule_id == poule.poule_id, HockeyPouleStanding.team_name == TEAM_NAME)
-        ).first()
-        team_id = standing.team_id if standing else None
+    poule = hockey_read.poule_info(session, POULE_ID)
     return {
         "public": _flag(session, COMPETITION_PUBLIC_KEY),
         "topklasse_public": _flag(session, TOPKLASSE_PUBLIC_KEY),
         "poule_id": POULE_ID,
-        "poule_name": poule.name if poule else None,
-        "team_id": team_id,
+        "poule_name": poule["name"] if poule else None,
+        "team_id": hockey_read.team_id_in_poule(session, POULE_ID, TEAM_NAME),
         "team_name": TEAM_NAME,
         "tournament_id": MO14_TOURNAMENT_ID,
     }

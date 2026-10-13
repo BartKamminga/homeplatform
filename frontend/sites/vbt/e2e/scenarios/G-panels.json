@@ -1,0 +1,98 @@
+{
+ "title": "Zijpanelen tijdens de rit: M/L, weg schuift mee, rit loopt door, Esc-volgorde, fps",
+ "query": "wo=ftpb-w1d1&mockble&autoconnect",
+ "steps": [
+  {
+   "at": 1.5,
+   "run": "new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(f); else r(Math.round(n / 3)); }; requestAnimationFrame(f); }).then(f => { window.__fps0 = f })"
+  },
+  {
+   "at": 5,
+   "run": "window.__w0 = document.getElementById('stage').clientWidth; window.__t0 = VBT.game.rideTime"
+  },
+  {
+   "at": 5.5,
+   "key": "KeyM"
+  },
+  {
+   "at": 6.5,
+   "key": "KeyL",
+   "name": "beide panelen open",
+   "assert": "!!document.querySelector('.vbt-panel-left') && !!document.querySelector('.vbt-panel-right')"
+  },
+  {
+   "at": 7.5,
+   "name": "speelveld smaller (canvas schuift mee)",
+   "assert": "document.getElementById('stage').clientWidth <= window.__w0 - 700 && document.getElementById('game').width > 0"
+  },
+  {
+   "at": 8,
+   "name": "NOW toont workout-doel",
+   "assert": "document.querySelector('.vbt-panel-left .vbt-chart') !== null && document.querySelector('.vbt-panel-left').textContent.includes('TARGET')",
+   "shot": "panels"
+  },
+  {
+   "at": 8.5,
+   "click": ".vbt-panel-right .pn-tabs button:nth-child(2)"
+  },
+  {
+   "at": 9.5,
+   "name": "EVENTS-tab toont events (ble/interval)",
+   "assert": "document.querySelectorAll('.pn-events li[data-level]').length > 0",
+   "shot": "events"
+  },
+  {
+   "at": 10,
+   "click": ".vbt-panel-right .pn-tabs button:nth-child(4)"
+  },
+  {
+   "at": 11,
+   "name": "BACKUP-tab: server up to date",
+   "assert": "document.querySelector('.vbt-panel-right').textContent.includes('UP TO DATE')"
+  },
+  {
+   "at": 11.5,
+   "click": ".vbt-panel-left .pn-tabs button[data-section=devices]"
+  },
+  {
+   "at": 12.5,
+   "name": "DEVICES-sectie: trainer verbonden",
+   "assert": "document.querySelector('.vbt-panel-left').textContent.includes('KICKR CORE (mock)')",
+   "shot": "devices"
+  },
+  {
+   "at": 13,
+   "name": "rit loopt door met panelen open",
+   "assert": "VBT.game.state === 'ride' && VBT.game.rideTime > window.__t0 + 6"
+  },
+  {
+   "at": 13.5,
+   "name": "fps met beide panelen >= 80% van zonder panelen",
+   "assert": "new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(f); else r(Math.round(n / 3)); }; requestAnimationFrame(f); }).then(f => f >= window.__fps0 * 0.8 ? true : ('fps ' + f + ' vs ' + window.__fps0))"
+  },
+  {
+   "at": 18,
+   "key": "Escape",
+   "name": "Esc 1: rechterpaneel dicht, geen stopvraag",
+   "assert": "!document.querySelector('.vbt-panel-right') && VBT.game.state === 'ride'"
+  },
+  {
+   "at": 19,
+   "key": "Escape",
+   "name": "Esc 2: linkerpaneel dicht, speelveld weer breed",
+   "assert": "!document.querySelector('.vbt-panel-left') && VBT.game.state === 'ride'"
+  },
+  {
+   "at": 20,
+   "key": "Escape",
+   "name": "Esc 3: stopvraag",
+   "assert": "VBT.game.state === 'confirm'"
+  },
+  {
+   "at": 21,
+   "key": "KeyY",
+   "name": "opgeslagen",
+   "assert": "VBT.game.state === 'finished'"
+  }
+ ]
+}

@@ -4,6 +4,7 @@ import { api } from '@core/api.js';
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx';
 import { useConfirm } from '@components/ConfirmDialog.jsx';
 import LinkedLoginsSection from '../LinkedLoginsSection.jsx';
+import ConnectedAppsSection from '../ConnectedAppsSection.jsx';
 
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
@@ -199,6 +200,8 @@ export default function ProfilePage() {
       </div>
 
       <LinkedLoginsSection card={card} />
+
+      <ConnectedAppsSection card={card} />
 
       <ApiKeysSection />
 

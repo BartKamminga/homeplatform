@@ -1,0 +1,162 @@
+/* Schermen en kaarten: workout-paneel, titelmenu, kalender/workoutkaarten, finish, toast, ritten, stopvraag */
+/* ---------- Workout-HUD ---------- */
+.wpanel { display: none; top: 20px; left: 50%; transform: translateX(-50%); width: 600px; border-color: rgba(255,230,109,.5); }
+body.workout .wpanel { display: block; }
+body.workout .center, body.workout #gapLabel, body.workout #gap { display: none; }
+.wtop { display: flex; justify-content: space-between; font-family: var(--pixel); font-size: 10px; letter-spacing: 1px; color: var(--cyan); }
+#wScore { color: var(--yellow); }
+.wtarget { display: flex; align-items: center; gap: 18px; margin: 8px 0 4px; }
+.wtarget .big { color: var(--yellow); text-shadow: 0 0 16px rgba(255,230,109,.6); }
+.wmid { display: flex; flex-direction: column; gap: 4px; font-size: 15px; letter-spacing: 2px; }
+.wcad { color: #5dff9e; }
+.wcad.off { color: var(--pink); animation: blink .6s steps(2) infinite; }
+.wremain { margin-left: auto; font-weight: 900; font-size: 40px; font-variant-numeric: tabular-nums; }
+.wnext { font-size: 11px; letter-spacing: 2px; opacity: .75; margin-bottom: 8px; }
+#wChart { width: 560px; height: 64px; display: block; border-radius: 3px; background: rgba(255,255,255,.04); pointer-events: auto; cursor: pointer; }
+#wChart:hover { outline: 1px solid var(--cyan); }
+
+/* ---------- Titelmenu ---------- */
+.menubtns { display: flex; gap: 12px; }
+.menubtns button:not([disabled]) { opacity: 1; cursor: pointer; pointer-events: auto; border-color: var(--yellow); box-shadow: 0 0 14px rgba(255,230,109,.35); }
+.menubtns button:not([disabled]):hover { background: rgba(255,230,109,.12); }
+.menu em { color: var(--pink); font-style: normal; margin-left: 6px; }
+
+/* ---------- Kalender en workoutkaarten (React: MY PLAN / WORKOUTS) ---------- */
+.ghostbtn, .ridebtn {
+  font-family: var(--pixel); font-size: 11px; color: var(--ink); background: transparent; cursor: pointer;
+  border: 1px solid var(--pink); border-radius: 4px; padding: 10px 14px;
+}
+.ghostbtn em { color: var(--pink); font-style: normal; margin-left: 6px; }
+.ridebtn { font-size: 16px; padding: 14px 26px; color: #07011a; background: var(--yellow); border-color: var(--yellow); box-shadow: 0 0 22px rgba(255,230,109,.6); }
+
+.wrow { display: grid; grid-template-columns: 70px repeat(7, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.wdays span { font-family: var(--pixel); font-size: 9px; color: var(--cyan); text-align: center; }
+.wlabel { font-family: var(--pixel); font-size: 9px; color: var(--pink); align-self: center; }
+.wempty { border-radius: 6px; background: rgba(255,255,255,.02); }
+.wcard {
+  position: relative; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left; min-height: 92px;
+  padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--ink); font-family: var(--hud);
+  background: rgba(255,255,255,.05); border: 1px solid rgba(155,92,255,.4);
+}
+.wcard:hover { border-color: var(--cyan); }
+.wcard b { font-size: 12px; letter-spacing: 1px; }
+.wdate, .wmeta { font-size: 9px; letter-spacing: 1px; opacity: .7; }
+.wmini { width: 100%; height: 26px; margin-top: auto; }
+.wcard.rest { cursor: default; opacity: .45; border-style: dashed; }
+.wcard.today { border-color: var(--yellow); box-shadow: 0 0 16px rgba(255,230,109,.35); }
+.wcard.selected { border-color: var(--cyan); background: rgba(36,232,255,.1); box-shadow: 0 0 18px rgba(36,232,255,.35); }
+.wcard.done { border-color: #5dff9e; }
+.wcard.missed { opacity: .65; }
+.wcheck {
+  position: absolute; top: 6px; right: 8px; font-style: normal; color: #07011a; background: #5dff9e;
+  border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px;
+}
+
+.dhead { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 10px; }
+.dhead h3 { margin: 4px 0; font-size: 22px; letter-spacing: 2px; }
+.dhead small, .dhead span { font-size: 11px; letter-spacing: 2px; opacity: .8; display: block; }
+.dres { color: #5dff9e; opacity: 1 !important; margin-top: 4px; }
+
+/* ---------- Finish ---------- */
+#finish {
+  position: fixed; inset: 0; z-index: 35; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgba(7,1,26,.6);
+}
+body[data-state="finished"] #finish { display: flex; }
+#finish h2 { margin: 0; font-family: var(--pixel); font-size: 44px; color: var(--yellow); text-shadow: 0 0 24px var(--pink), 6px 6px 0 #2a0750; }
+#finishName { font-size: 14px; letter-spacing: 3px; color: var(--cyan); }
+#finishStats { display: flex; gap: 34px; }
+#finishStats div { display: flex; flex-direction: column; align-items: center; }
+#finishStats b { font-size: 40px; font-weight: 900; }
+#finish .finishbtns { display: flex; gap: 12px; margin-top: 10px; }
+#finish .ghostbtn[disabled] { opacity: .4; cursor: default; }
+#finish .hint { font-size: 11px; letter-spacing: 1px; opacity: .6; }
+#finishStats small { font-family: var(--pixel); font-size: 9px; color: var(--cyan); margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .wpanel { width: calc(100% - 32px); top: auto; bottom: 20px; }
+  #wChart { width: 100%; }
+  .wrow { grid-template-columns: 40px repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .wcard b { font-size: 9px; }
+  .wmeta, .wmini { display: none; }
+}
+
+/* ---------- HomePlatform: login-overlay en meldingen ---------- */
+#vbt-gate { position: relative; z-index: 100; }
+#toast {
+  position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 20px); z-index: 60; opacity: 0; pointer-events: none;
+  padding: 12px 20px; border-radius: 6px; font-family: var(--pixel); font-size: 12px; letter-spacing: 1px; color: #07011a;
+  background: var(--yellow); box-shadow: 0 0 24px rgba(255,230,109,.6); transition: opacity .3s, transform .3s;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#btnStrava:not([disabled]) { border-color: #fc4c02; box-shadow: 0 0 14px rgba(252,76,2,.45); }
+
+/* ---------- Bibliotheek ---------- */
+.libhead { font-family: var(--pixel); font-size: 10px; color: var(--pink); margin: 16px 0 8px; }
+.libhead small { color: var(--cyan); opacity: .7; margin-left: 8px; font-size: 8px; }
+.libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.wdel { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 11px; opacity: .5; padding: 2px 4px; }
+.wdel:hover { opacity: 1; color: var(--pink); }
+
+.devchip { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 3px; font-size: 9px; color: #07011a; background: #8a8aa8; }
+.devchip[data-status="ok"] { background: #5dff9e; }
+.devchip[data-status="stale"] { background: var(--yellow); }
+.devchip[data-status="lost"] { background: var(--pink); color: #fff; animation: blink .6s steps(2) infinite; }
+#paused { flex-direction: column; gap: 16px; text-align: center; }
+#pausedSub { font-size: 12px; color: var(--cyan); text-shadow: none; letter-spacing: 2px; }
+#pausedTitle { font-size: min(44px, 5vw); }
+
+/* ---------- Ritoverzicht ---------- */
+.ridelistwrap { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+#rideList { display: flex; flex-direction: column; gap: 6px; overflow: auto; max-height: calc(100vh - 220px); padding-right: 4px; }
+.riderow { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 6px; cursor: pointer;
+  color: var(--ink); font-family: var(--hud); background: rgba(255,255,255,.05); border: 1px solid rgba(155,92,255,.4); }
+.riderow:hover { border-color: var(--cyan); }
+.riderow.selected { border-color: var(--cyan); background: rgba(36,232,255,.1); }
+.riderow b { font-size: 12px; letter-spacing: 1px; }
+.rdate, .rmeta { font-size: 9px; letter-spacing: 1px; opacity: .75; }
+.tag { font-style: normal; font-size: 8px; margin-left: 6px; padding: 1px 4px; border-radius: 3px; color: #07011a; vertical-align: middle; }
+.tag.pb { background: var(--yellow); }
+.tag.wo { background: var(--cyan); }
+.tag.pending { background: var(--pink); color: #fff; }
+.tag.strava { background: #fc4c02; color: #fff; }
+.ridestats { display: flex; flex-wrap: wrap; gap: 22px; margin: 6px 0 14px; }
+.ridestats div { display: flex; flex-direction: column; }
+.ridestats b { font-size: 24px; font-weight: 900; }
+.ridestats small { font-family: var(--pixel); font-size: 8px; color: var(--cyan); margin-top: 4px; }
+
+/* ---------- Stopvraag ---------- */
+#confirm { position: fixed; inset: 0; z-index: 38; display: none; align-items: center; justify-content: center; background: rgba(7,1,26,.6); }
+body[data-state="confirm"] #confirm { display: flex; }
+.confirmbox { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 34px; border-radius: 10px;
+  border: 1px solid var(--pink); background: rgba(12,2,32,.92); box-shadow: 0 0 30px rgba(255,46,136,.35); }
+.confirmbox h2 { margin: 0; font-family: var(--pixel); font-size: 30px; color: var(--yellow); text-shadow: 0 0 18px var(--pink); }
+.confirmbox p { margin: 0; font-size: 12px; letter-spacing: 1px; opacity: .85; }
+.confirmbtns { display: flex; gap: 12px; }
+.ridebtn em { font-style: normal; font-size: 9px; margin-left: 6px; opacity: .7; }
+
+#backup { font-size: 15px; margin-bottom: 0; }
+#backup.ahead { color: #5dff9e; text-shadow: none; }
+#backup.lag { color: var(--yellow); }
+#backup.behind { color: var(--pink); }
+
+
+/* overlays schuiven mee met de zijpanelen (React zet --panel-left/--panel-right) */
+#title, #finish, #countdown, #paused, #confirm { left: var(--panel-left, 0px) !important; right: var(--panel-right, 0px) !important; }
+
+.ridelisthead { display: flex; justify-content: space-between; align-items: center; }
+.ridelisthead .ghostbtn { font-size: 8px; padding: 5px 8px; }
+.ridelogs { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 11px; }
+.ridelogs summary { cursor: pointer; font-family: var(--pixel); font-size: 9px; color: var(--cyan); }
+.ridelogs ul { margin: 6px 0 0; padding-left: 16px; max-height: 200px; overflow: auto; }
+.rideevents { list-style: none; padding-left: 0 !important; font: 11px/1.4 ui-monospace, Consolas, monospace; }
+.rideevents li[data-level="warn"] { color: var(--pink); }
+.rideevents i { opacity: .55; font-style: normal; }
+
+/* FTP-test: voorstel op het finish-scherm */
+.ftpprop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 22px; border-radius: 10px;
+  border: 1px solid var(--yellow); background: rgba(255,230,109,.08); box-shadow: 0 0 22px rgba(255,230,109,.25); }
+.ftpprop small { font-family: var(--pixel); font-size: 9px; color: var(--cyan); }
+.ftpprop b { font-size: 30px; font-weight: 900; color: var(--yellow); }
+.ftpprop span { font-size: 12px; opacity: .8; }
+.ftpprop[hidden] { display: none; }

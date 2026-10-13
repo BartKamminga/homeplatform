@@ -63,6 +63,8 @@ def seed_sites(session: Session):
         ("Mix Music", "mixmusic", "mixmusic", "♫"),
         ("DontForget", "dontforget", "dontforget", "📋"),
         ("Poulebord", "poulebord", "poulebord", "🏒"),
+        ("VBT", "vbt", "vbt", "🚴"),
+        ("MyHome", "myhome", "myhome", "🏠"),
         ("BeatCrades", "beatcrades", "beatcrades", "🎵"),
         ("Scrapster", "scrapster", "scrapster", "📡"),
         ("Agent Control", "agent-control", "agent-control", "🤖"),
@@ -122,6 +124,14 @@ def seed_admin(session: Session, username: str, password: str, email: str):
             print(f"  '{username}' is al lid van admins groep")
 
 
+def seed_vbt(session: Session):
+    """VBT-trainingsplannen (+ hun workouts) uit data/vbt; idempotent."""
+    from services.vbt_workouts import seed_plan
+    for filename in ("ftp_builder.json", "build_me_up.json", "gran_fondo.json", "back_to_fitness.json"):
+        plan = seed_plan(session, filename)
+        print(f"  OK   VBT-plan: {plan.name}")
+
+
 def seed(username: str, password: str, email: str):
     create_db_and_tables()
 
@@ -131,6 +141,9 @@ def seed(username: str, password: str, email: str):
 
         print("\n>> Sites...")
         seed_sites(session)
+
+        print("\n>> VBT-plannen...")
+        seed_vbt(session)
 
         print("\n>> Admin gebruiker...")
         seed_admin(session, username, password, email)

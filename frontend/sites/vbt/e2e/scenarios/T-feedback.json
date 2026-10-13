@@ -1,0 +1,41 @@
+{
+ "title": "Feedback na de rit: RPE via toets 7 en klik, hoe voel je je, opgeslagen op de server en zichtbaar in MY RIDES",
+ "query": "ride&t=30&end",
+ "steps": [
+  {
+   "at": 4,
+   "key": "KeyY"
+  },
+  {
+   "at": 5.5,
+   "name": "finish-scherm vraagt hoe zwaar het was",
+   "assert": "VBT.game.state === 'finished' && !!document.querySelector('#finish #rideFeedback .rpe button[data-rpe=\"10\"]')",
+   "key": "Digit7"
+  },
+  {
+   "at": 5.6,
+   "click": "#finish .readiness button[data-readiness=tired]"
+  },
+  {
+   "at": 6.4,
+   "name": "RPE 7 (HARD) en TIRED gekozen",
+   "assert": "document.querySelector('#finish .rpe button.on').dataset.rpe === '7' && document.querySelector('#finish #rideFeedback').textContent.includes('HARD') && document.querySelector('#finish .readiness button.on').dataset.readiness === 'tired'",
+   "shot": "finish"
+  },
+  {
+   "at": 8,
+   "name": "op de server bij de rit",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => { const r = a.find(x => x.clientId === VBT.game.lastRide.clientId); return !!r && r.rpe === 7 && r.readiness === 'tired' })"
+  },
+  {
+   "at": 8.5,
+   "click": "#btnFinishRides"
+  },
+  {
+   "at": 10,
+   "name": "MY RIDES: tag RPE 7 en feedback in het detail (aan te passen)",
+   "assert": "[...document.querySelectorAll('.riderow')].some(r => r.textContent.includes('RPE 7')) && document.querySelector('#rideDetail #rideFeedback .rpe button.on')?.dataset.rpe === '7'",
+   "shot": "rides"
+  }
+ ]
+}

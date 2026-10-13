@@ -1,0 +1,27 @@
+{
+ "title": "Nep-Kickr: verbinding 6 s weg -> rit pauzeert en hervat",
+ "query": "wo=ftpb-w1d1&mockble&autoconnect&mockdrop=8:6",
+ "steps": [
+  {
+   "at": 6,
+   "name": "rit loopt met trainerdata",
+   "assert": "VBT.game.state === 'ride' && VBT.ble.trainerOk()"
+  },
+  {
+   "at": 12,
+   "name": "auto-pauze bij verlies",
+   "assert": "VBT.game.state === 'paused' && VBT.game.autoPaused",
+   "shot": "lost"
+  },
+  {
+   "at": 26,
+   "name": "hervat na reconnect",
+   "assert": "VBT.game.state === 'ride' && VBT.game.rideTime > 9"
+  },
+  {
+   "at": 26.5,
+   "name": "events gelogd (pause/resume)",
+   "assert": "['pause','resume'].every(t => VBT.store.getEvents().some(e => e.type === t))"
+  }
+ ]
+}
