@@ -208,3 +208,8 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 .pn-feedback .load { color: var(--yellow); }
 .pn-feedback .load i { font-style: normal; opacity: .6; }
 .tag.rpe { background: #ff9640; }
+.pn-tips { grid-column: 1 / -1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--yellow); background: rgba(255,230,109,.08);
+  font-family: Inter, Arial, sans-serif; font-size: 11px; line-height: 1.5; }
+.pn-tips b { color: var(--yellow); }
+.pn-tips ol { margin: 4px 0 0; padding-left: 16px; }
+.pn-tips code { font: 10px ui-monospace, Consolas, monospace; color: #9fe9ff; }

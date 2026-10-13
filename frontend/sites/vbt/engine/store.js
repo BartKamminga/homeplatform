@@ -28,7 +28,7 @@ VBT.store = (function () {
     const s = game.sensors, run = game.run, ble = VBT.ble, safety = VBT.safety;
     const cur = run && !run.wo.free && !run.done ? VBT.workout.current(run, VBT.cfg.rider.ftp) : null;
     const T = VBT.track;
-    const link = l => ({ status: l.status, name: l.name, protocol: l.protocol, wanted: l.wanted });
+    const link = l => ({ status: l.status, name: l.name, protocol: l.protocol, wanted: l.wanted, retries: l.retries || 0, lastError: l.lastError || '' });
     return {
       state: game.state,
       autoPaused: !!game.autoPaused,

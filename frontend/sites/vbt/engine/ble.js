@@ -74,6 +74,7 @@ VBT.ble = (function () {
       l.retries = 0;
       if (l.kind === 'trainer' && l.lastCmd) await write(l, l.lastCmd.bytes, l.lastCmd.label + ' (restored)');
     } catch (e) {
+      l.lastError = e.message;
       note(l.kind + ': connect failed - ' + e.message);
       scheduleRetry(l);
     }
