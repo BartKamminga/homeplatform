@@ -33,7 +33,8 @@ async function main() {
   catch (e) { if (e.message.startsWith('poort')) throw e }
 
   const db = path.join(out, 'e2e.sqlite')
-  const env = { ...process.env, DATABASE_URL: 'sqlite:///' + db.replace(/\\/g, '/'), SENTRY_DSN: '' }
+  // nep-Strava-config: alleen zodat de koppelknoppen verschijnen; de tests roepen Strava zelf nooit aan
+  const env = { STRAVA_CLIENT_ID: '1', STRAVA_CLIENT_SECRET: 'e2e', ...process.env, DATABASE_URL: 'sqlite:///' + db.replace(/\\/g, '/'), SENTRY_DSN: '' }
   const setup = spawnSync(PYTHON, [path.join(here, 'setup_db.py'), db], { cwd: backend, env, encoding: 'utf8' })
   const token = (setup.stdout.match(/TOKEN=(\S+)/) || [])[1]
   if (!token) throw new Error('setup_db mislukt:\n' + setup.stderr.slice(-2000))

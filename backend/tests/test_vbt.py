@@ -68,6 +68,26 @@ def test_strava_callback_rejects_bad_state(client):
     assert r.status_code == 400
 
 
+def test_strava_next_only_own_pages():
+    from services.vbt_strava import safe_next, with_result
+    assert safe_next("/account/profile") == "/account/profile"
+    assert safe_next("/vbt/") == "/vbt/"
+    for bad in [None, "", "https://evil.example/", "//evil.example/account/", "/admin/", "/account/\evil"]:
+        assert safe_next(bad) == "/vbt/"
+    assert with_result("/account/profile", "connected") == "/account/profile?strava=connected"
+    assert with_result("/vbt/?x=1", "denied") == "/vbt/?x=1&strava=denied"
+
+
+def test_strava_callback_returns_to_next(client, user_token):
+    from services.vbt_strava import STATE_PURPOSE
+    from core.auth import create_access_token, decode_token
+    from datetime import timedelta
+    sub = decode_token(user_token)["sub"]
+    state = create_access_token({"sub": sub, "purpose": STATE_PURPOSE, "next": "/account/profile"}, timedelta(minutes=5))
+    r = client.get("/api/vbt/strava/callback", params={"state": state, "error": "access_denied"}, follow_redirects=False)
+    assert r.status_code in (302, 307) and r.headers["location"] == "/account/profile?strava=denied"
+
+
 def test_strava_upload_requires_link(client, user_token):
     ride = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride()).json()
     r = client.post(f"/api/vbt/rides/{ride['id']}/strava", headers=_h(user_token),

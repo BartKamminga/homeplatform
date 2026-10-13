@@ -1,0 +1,31 @@
+{
+ "title": "Strava per gebruiker: status in VBT SETTINGS, koppelen vanuit Mijn account komt terug op Mijn account",
+ "query": "",
+ "steps": [
+  {
+   "at": 4,
+   "run": "VBT.ui.open('left', 'settings')"
+  },
+  {
+   "at": 5,
+   "name": "VBT SETTINGS toont STRAVA met koppelknop en Mijn account",
+   "assert": "!document.getElementById('stravaStatus') ? false : document.getElementById('stravaStatus').textContent.includes('NOT CONNECTED') && [...document.querySelectorAll('.vbt-panel a.ghostbtn')].some(a => a.getAttribute('href') === '/account/profile')",
+   "shot": "settings"
+  },
+  {
+   "at": 5.5,
+   "name": "connect met next=/account/profile -> Strava-URL met callback",
+   "assert": "fetch('/api/vbt/strava/connect?next=%2Faccount%2Fprofile',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(j => j.url.startsWith('https://www.strava.com/oauth/authorize') && j.url.includes('strava%2Fcallback') && j.url.includes('activity%3Awrite'))"
+  },
+  {
+   "at": 6,
+   "run": "location.href = '/account/profile?strava=denied'"
+  },
+  {
+   "at": 10,
+   "name": "Mijn account: Connected apps met Strava, resultaat getoond en uit de URL gehaald",
+   "assert": "document.body.textContent.includes('Connected apps') && [...document.querySelectorAll('button')].some(b => b.textContent.includes('Connect with Strava')) && document.body.textContent.includes('Strava was not connected') && !location.search.includes('strava=')",
+   "shot": "account"
+  }
+ ]
+}

@@ -48,9 +48,20 @@ def redirect_uri() -> str:
     return f"{base}/api/vbt/strava/callback"
 
 
-def authorize_url(user_id: str) -> str:
+# na het koppelen terug naar waar je vandaan kwam: alleen eigen pagina's (geen open redirect)
+ALLOWED_NEXT = ("/vbt/", "/account/")
+
+
+def safe_next(next_path: Optional[str]) -> str:
+    if next_path and next_path.startswith(ALLOWED_NEXT) and "//" not in next_path and "\\" not in next_path:
+        return next_path
+    return "/vbt/"
+
+
+def authorize_url(user_id: str, next_path: Optional[str] = None) -> str:
     # state = kortlevend ondertekend token, zodat de callback (zonder JWT-header) weet voor wie het is
-    state = create_access_token({"sub": user_id, "purpose": STATE_PURPOSE}, timedelta(minutes=10))
+    state = create_access_token({"sub": user_id, "purpose": STATE_PURPOSE, "next": safe_next(next_path)},
+                                timedelta(minutes=10))
     params = httpx.QueryParams({
         "client_id": settings.STRAVA_CLIENT_ID,
         "redirect_uri": redirect_uri(),
@@ -62,14 +73,19 @@ def authorize_url(user_id: str) -> str:
     return f"{AUTHORIZE_URL}?{params}"
 
 
-def user_from_state(state: str) -> str:
+def user_from_state(state: str) -> tuple[str, str]:
+    """Gebruiker en terugkeerpagina uit de ondertekende state."""
     try:
         payload = decode_token(state)
     except HTTPException:
         raise HTTPException(status_code=400, detail="Ongeldige of verlopen Strava-state")
     if payload.get("purpose") != STATE_PURPOSE or not payload.get("sub"):
         raise HTTPException(status_code=400, detail="Ongeldige Strava-state")
-    return payload["sub"]
+    return payload["sub"], safe_next(payload.get("next"))
+
+
+def with_result(next_path: str, result: str) -> str:
+    return next_path + ("&" if "?" in next_path else "?") + "strava=" + result
 
 
 async def _token_request(data: dict) -> dict:

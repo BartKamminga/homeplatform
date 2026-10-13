@@ -223,27 +223,31 @@ def restore_ride(ride_id: str, current_user: User = Depends(get_current_user), s
 def strava_status(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     link = session.get(VbtStravaLink, current_user.id)
     return {"configured": strava.configured(), "connected": bool(link),
-            "athleteName": link.athlete_name if link else None}
+            "athleteName": link.athlete_name if link else None,
+            "athleteId": link.athlete_id if link else None,
+            "connectedAt": link.created_at.isoformat() + "Z" if link else None,
+            "canUpload": bool(link and link.scope and "activity:write" in link.scope)}
 
 
 @router.get("/strava/connect")
-def strava_connect(current_user: User = Depends(get_current_user)):
+def strava_connect(next: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    # next = pagina om na het koppelen naar terug te gaan (VBT of Mijn account)
     if not strava.configured():
         raise HTTPException(status_code=503, detail="Strava is nog niet geconfigureerd (STRAVA_CLIENT_ID/SECRET)")
-    return {"url": strava.authorize_url(current_user.id)}
+    return {"url": strava.authorize_url(current_user.id, next)}
 
 
 @router.get("/strava/callback")
 async def strava_callback(state: str, code: Optional[str] = None, scope: Optional[str] = None,
                           error: Optional[str] = None, session: Session = Depends(get_session)):
     # Browser-redirect vanaf Strava: geen JWT-header, de gebruiker zit in de ondertekende state
-    user_id = strava.user_from_state(state)
+    user_id, back = strava.user_from_state(state)
     if error or not code:
-        return RedirectResponse("/vbt/?strava=denied")
+        return RedirectResponse(strava.with_result(back, "denied"))
     if not scope or "activity:write" not in scope:
-        return RedirectResponse("/vbt/?strava=scope")
+        return RedirectResponse(strava.with_result(back, "scope"))
     await strava.exchange_code(code, user_id, scope, session)
-    return RedirectResponse("/vbt/?strava=connected")
+    return RedirectResponse(strava.with_result(back, "connected"))
 
 
 @router.delete("/strava")

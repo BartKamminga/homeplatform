@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useVbt, actions } from '../../hooks/useVbt.js'
 import { copyText } from '../../common/clipboard.js'
 import { FLAG_CHROME, FLAG_EDGE } from '../help/helpContent.js'
+import StravaBlock from './StravaBlock.jsx'
 
 function NumberField({ label, value, unit, min, max, onSave }) {
   const [v, setV] = useState(value)
@@ -80,6 +81,8 @@ export default function SettingsSection() {
       ))}
 
       <FtpHistory history={settings.ftpHistory} />
+
+      <StravaBlock />
 
       <h4>REMEMBER BLUETOOTH DEVICES</h4>
       <p className="pn-hint">Set this to <b>Enabled</b> and restart the browser, then VBT reconnects your KICKR and strap by itself.</p>

@@ -156,3 +156,5 @@ body.menu-wide #title .menu, body.menu-wide #title .press { display: none; }
 .vbt-dialog .confirmbox { max-width: min(520px, 92vw); text-align: center; }
 .vbt-dialog .confirmbox h2 { font-size: 22px; }
 .ridebtn.danger { background: var(--pink); border-color: var(--pink); color: #fff; box-shadow: 0 0 22px rgba(255,46,136,.5); }
+.ghostbtn.strava { border-color: #fc4c02; }
+a.ghostbtn { text-decoration: none; display: inline-block; }
