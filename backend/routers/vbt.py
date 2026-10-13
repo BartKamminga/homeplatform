@@ -32,6 +32,7 @@ class ProfileIn(CamelModel):
 
 
 class RideIn(CamelModel):
+    client_id: Optional[str] = None
     started_at: datetime
     kind: str = "free"
     course_key: str
@@ -52,7 +53,7 @@ class RideIn(CamelModel):
     samples: list = []
 
 
-SUMMARY_FIELDS = ["id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
+SUMMARY_FIELDS = ["id", "client_id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
                   "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp",
                   "strava_activity_id", "strava_status", "strava_error"]
 
@@ -111,6 +112,13 @@ def list_rides(limit: int = 50, current_user: User = Depends(get_current_user), 
 @router.post("/rides")
 def save_ride(body: RideIn, request: Request, current_user: User = Depends(get_current_user),
               session: Session = Depends(get_session)):
+    # idempotent: dezelfde rit nog een keer (outbox-retry na een netwerkfout) -> de bestaande teruggeven
+    if body.client_id:
+        existing = session.exec(select(VbtRide).where(VbtRide.client_id == body.client_id)).first()
+        if existing:
+            if existing.user_id != current_user.id:
+                raise HTTPException(status_code=409, detail="client_id is al in gebruik")
+            return _ride_out(existing)
     data = body.model_dump()
     if data["started_at"].tzinfo:   # opslaan als naïeve UTC, net als de rest van de database
         data["started_at"] = data["started_at"].astimezone(timezone.utc).replace(tzinfo=None)

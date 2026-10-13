@@ -11,9 +11,10 @@ VBT.storage = {
     const saved = await api.post('/api/vbt/rides', body)
     return Object.assign({}, saved, { serverId: saved.id })
   },
-  listRides: () => api.get('/api/vbt/rides'),
+  listRides: () => api.get('/api/vbt/rides?limit=200'),
   async getSamples(id) { return (await api.get('/api/vbt/rides/' + enc(id))).samples },
   getRide: id => api.get('/api/vbt/rides/' + enc(id)),
+  deleteRide: id => api.delete('/api/vbt/rides/' + enc(id)),
   bestLap: course => api.get('/api/vbt/rides/best-lap?course=' + enc(course)),
   async markPb() { /* de server bepaalt zelf of een rit een PB is */ },
   async loadProfile() {

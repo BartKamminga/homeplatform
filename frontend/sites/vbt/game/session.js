@@ -3,13 +3,13 @@ VBT.session = (function () {
   const { cfg, util } = VBT;
   const game = VBT.game;
   const FREE_COURSE = 'free-v1';
-  const MIN_SAVE_S = 60;
   const $ = id => document.getElementById(id);
   let ghostIdx = 0;
 
   // wo = workout uit het plan (ERG, eigen parcours), wo.free = vrije rit met timer, null = vrije rit
   // startStep: optioneel interval om mee te beginnen (aangeklikt in een grafiek)
   function startRide(wo, startStep) {
+    if (VBT.recorder.active()) saveRide({});     // nooit een lopende rit overschrijven
     const course = wo && !wo.free ? VBT.workout.buildCourse(wo, cfg.rider.ftp) : undefined;
     VBT.track.build(course);
     game.run = wo ? VBT.workout.createRun(wo.free ? Object.assign({}, wo, { steps: [{ d: wo.duration, a: 65, b: 65 }] }) : wo, course) : null;
@@ -68,7 +68,10 @@ VBT.session = (function () {
 
   // per stap tijdens het rijden: opnemen + ronde/PB-meldingen
   function record(dt) {
+    const before = (VBT.recorder.current() || { samples: [] }).samples.length;
     const lap = VBT.recorder.sample(game, dt);
+    const rec = VBT.recorder.current();
+    if (rec && rec.samples.length !== before) VBT.safety.journal(rec);   // elke seconde (alleen de nieuwe samples)
     if (lap === null) return;
     const pb = game.ghostTrack && game.ghostTrack.lapTime;
     const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
@@ -80,16 +83,11 @@ VBT.session = (function () {
   function finish(completed) {
     const run = game.run;
     const extra = run && run.cadTotal > 0 ? { score: Math.round(run.cadOk / run.cadTotal * 100) } : {};
-    const ride = VBT.recorder.stop(extra);
-    if (!ride || ride.duration < MIN_SAVE_S) { toMenu('title'); return; }
-    game.lastRide = ride;
     const pbBefore = game.ghostTrack && game.ghostTrack.lapTime;
+    const ride = saveRide(extra);
+    if (!ride) { toMenu('title'); return; }
+    game.lastRide = ride;
     const newPb = ride.lapTime && !ride.jumped && (!pbBefore || ride.lapTime < pbBefore);
-    VBT.storage.saveRide(ride).then(saved => {
-      ride.serverId = saved && saved.serverId;
-      if (newPb) VBT.storage.markPb(ride.id);
-      if (VBT.stravaUi) VBT.stravaUi.render();
-    });
     if (run && completed && run.wo.week) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
     const heading = newPb ? 'NEW PB!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
     const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day : ride.name.toUpperCase();
@@ -99,8 +97,23 @@ VBT.session = (function () {
     game.setState('finished');
   }
 
+  // Rit afsluiten en bewaren: eerst lokaal in de outbox (IndexedDB), dan naar de server (met retry).
+  // Elke rit wordt bewaard, hoe kort ook (ook een rit die tijdens het aftellen gestopt is).
+  function saveRide(extra) {
+    if (game.rideTime > 0) VBT.recorder.flush(game);
+    const ride = VBT.recorder.stop(extra);
+    if (!ride) return null;
+    VBT.safety.enqueue(ride)
+      .then(() => VBT.safety.clearJournal())
+      .then(() => VBT.safety.flush())
+      .then(() => VBT.safety.pending())
+      .then(p => { if (p.some(r => r.clientId === ride.clientId)) VBT.toast && VBT.toast('SAVED ON THIS DEVICE - WILL SYNC WHEN ONLINE', 6000); })
+      .catch(e => VBT.toast && VBT.toast('SAVE PROBLEM: ' + e.message + ' - download the .FIT as backup', 9000));
+    return ride;
+  }
+
   function toMenu(state) {
-    if (VBT.recorder.active()) VBT.recorder.stop();
+    if (VBT.recorder.active()) saveRide({});      // nooit weggooien
     VBT.bleBridge.release();
     game.autoPaused = false;
     const fromWorkout = !!game.run;
@@ -112,10 +125,25 @@ VBT.session = (function () {
     game.setState(state);
   }
 
-  // Esc tijdens een rit: na een minuut rijden wordt de rit bewaard, anders gewoon terug
+  // Esc tijdens een rit: eerst vragen. De rit staat zolang stil (net als bij pauze).
+  let beforeConfirm = null;
   function stop() {
-    if (game.state === 'ride' || game.state === 'paused' || game.state === 'countdown') finish(false);
-    else toMenu('title');
+    if (['ride', 'paused', 'countdown'].includes(game.state)) {
+      beforeConfirm = game.state;
+      $('confirmSub').textContent = 'Your ride is always saved - find it under MY RIDES.';
+      game.setState('confirm');
+    } else if (game.state === 'confirm') {
+      cancelStop();
+    } else {
+      toMenu('title');
+    }
+  }
+  function cancelStop() { if (game.state === 'confirm') game.setState(beforeConfirm || 'paused'); }
+  function confirmStop() { if (game.state === 'confirm') finish(false); }
+
+  function openRides() {
+    toMenu('plan');
+    VBT.library.show('rides');
   }
 
   // verbindingsscherm; sluiten brengt je terug naar waar je vandaan kwam
@@ -133,10 +161,14 @@ VBT.session = (function () {
     $('btnFree').onclick = () => startRide(null);
     $('btnPlan').onclick = () => toMenu('plan');
     $('btnDevices').onclick = openDevices;
+    $('btnRides').onclick = openRides;
+    $('btnKeepRiding').onclick = cancelStop;
+    $('btnStopRide').onclick = confirmStop;
     $('planDevices').onclick = openDevices;
     $('planClose').onclick = () => toMenu('title');
     $('btnFit').onclick = downloadFit;
     $('btnDone').onclick = () => toMenu(game.lastRide && game.lastRide.kind === 'workout' ? 'plan' : 'title');
+    $('btnFinishRides').onclick = openRides;
     const chart = $('wChart');
     const stepAt = e => VBT.workout.stepAtFraction(game.run.wo, e.offsetX / e.currentTarget.clientWidth);
     chart.onclick = e => { if (game.run && game.state === 'ride') jumpTo(stepAt(e)); };
@@ -145,5 +177,5 @@ VBT.session = (function () {
     };
   }
 
-  return { startRide, jumpTo, updateGhost, record, finish, toMenu, stop, downloadFit, bindUi, openDevices };
+  return { startRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, bindUi, openDevices };
 })();

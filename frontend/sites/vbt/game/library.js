@@ -69,17 +69,21 @@ VBT.library = (function () {
     load();
   }
 
+  // tabs van het planscherm: plan | lib | rides
   function show(tab) {
     $('plan').dataset.tab = tab;
-    $('tabPlan').classList.toggle('active', tab !== 'lib');
+    $('tabPlan').classList.toggle('active', tab === 'plan');
     $('tabLib').classList.toggle('active', tab === 'lib');
+    $('tabRides').classList.toggle('active', tab === 'rides');
     if (tab === 'lib') load();
+    if (tab === 'rides') VBT.rides.load();
   }
 
   function init() {
     if (!VBT.storage.listWorkouts) { $('tabLib').hidden = true; return; }   // losse versie zonder server
     $('tabPlan').onclick = () => show('plan');
     $('tabLib').onclick = () => show('lib');
+    $('tabRides').onclick = () => show('rides');
     $('libImport').onchange = e => { importFiles(e.target.files); e.target.value = ''; };
     const plan = $('plan');
     plan.addEventListener('dragover', e => { e.preventDefault(); plan.classList.add('dragover'); });

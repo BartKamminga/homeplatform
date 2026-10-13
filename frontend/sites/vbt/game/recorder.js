@@ -5,7 +5,8 @@ VBT.recorder = (function () {
   let rec = null;
 
   function start(meta) {
-    rec = Object.assign({ startedAt: new Date().toISOString(), samples: [], odo: 0, acc: 0, lapTime: null, jumped: false }, meta);
+    const clientId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);   // zelfde id in journal en outbox
+    rec = Object.assign({ clientId, startedAt: new Date().toISOString(), samples: [], odo: 0, acc: 0, lapTime: null, jumped: false }, meta);
   }
 
   function sample(game, dt) {
@@ -29,18 +30,30 @@ VBT.recorder = (function () {
     return lap;   // eerste volle ronde net gereden -> rondetijd
   }
 
+  // laatste (deel)seconde ook bewaren, zodat zelfs een rit van een paar tellen data heeft
+  function flush(game) {
+    if (!rec || rec.acc < 0.05) return;
+    rec.acc = 1;
+    sample(game, 0);
+  }
+
   function markJump() { if (rec) rec.jumped = true; }
 
   function stop(extra) {
     if (!rec) return null;
     const r = Object.assign(rec, extra || {});
     rec = null;
+    return finalize(r);
+  }
+
+  // samenvatting berekenen; werkt ook op een rit uit het journal (na een crash)
+  function finalize(r) {
     const S = r.samples, n = Math.max(1, S.length);
     const sum = i => S.reduce((a, s) => a + s[i], 0);
     let gain = 0;
     for (let i = 1; i < S.length; i++) gain += Math.max(0, S[i][7] - S[i - 1][7]);
     Object.assign(r, {
-      id: 'r' + Date.now(),
+      id: r.clientId || 'r' + Date.now(),
       duration: S.length,
       distance: Math.round(r.odo),
       avgW: Math.round(sum(3) / n),
@@ -54,5 +67,5 @@ VBT.recorder = (function () {
     return r;
   }
 
-  return { start, sample, markJump, stop, active: () => !!rec };
+  return { start, sample, flush, markJump, stop, finalize, current: () => rec, active: () => !!rec };
 })();

@@ -30,7 +30,7 @@
     game.grade = VBT.track.gradeAt(playerSeg);
 
     VBT.bleBridge.guard(game);
-    if (game.state === 'paused') return;
+    if (game.state === 'paused' || game.state === 'confirm') return;
     const attract = ['title', 'plan', 'finished', 'devices'].includes(game.state);
     if (attract) VBT.physics.autopilot(s, t, game.grade);
     if (game.state === 'countdown') {
@@ -156,6 +156,13 @@
   window.addEventListener('keydown', e => {
     if (!started || e.target.tagName === 'INPUT') return;
     keys[e.code] = true;
+    // stopvraag: Esc = verder rijden, Enter/Y = stoppen en opslaan
+    if (game.state === 'confirm') {
+      if (e.code === 'Escape' || e.code === 'KeyN') S.cancelStop();
+      if (e.code === 'Enter' || e.code === 'KeyY') S.confirmStop();
+      e.preventDefault();
+      return;
+    }
     if (e.code === 'Space') {
       e.preventDefault();
       if (game.state === 'title') S.startRide(null);
@@ -165,6 +172,7 @@
     }
     if (e.code === 'KeyT' && (game.state === 'title' || game.state === 'finished')) S.toMenu('plan');
     if (e.code === 'KeyK' && ['title', 'plan', 'finished'].includes(game.state)) S.openDevices();
+    if (e.code === 'KeyR' && ['title', 'finished'].includes(game.state)) S.openRides();
     if (e.code === 'KeyD' && game.state === 'finished') S.downloadFit();
     if (e.code === 'Escape' && game.state === 'devices') VBT.devicesUi.close();
     else if (e.code === 'Escape' && game.state !== 'title') S.stop();
@@ -185,6 +193,15 @@
   async function start() {
     VBT.buildSprites && (VBT.sprites = VBT.buildSprites());
     await VBT.calendar.init((wo, step) => S.startRide(wo, step));
+    // achtergebleven rit van een crash/gesloten tab afronden + outbox legen
+    VBT.safety.init().then(r => {
+      if (r && VBT.toast) VBT.toast('RECOVERED AN UNFINISHED RIDE (' + Math.floor(r.duration / 60) + ' MIN) - SAVED TO MY RIDES', 8000);
+    }).catch(() => {});
+    // tab dicht/verborgen midden in een rit: meteen journal wegschrijven, en waarschuwen bij sluiten
+    const flushJournal = () => { if (VBT.recorder.active()) VBT.safety.journal(VBT.recorder.current()); };
+    document.addEventListener('visibilitychange', () => { if (document.hidden) flushJournal(); });
+    window.addEventListener('pagehide', flushJournal);
+    window.addEventListener('beforeunload', e => { if (VBT.recorder.active() && game.rideTime > 0) { flushJournal(); e.preventDefault(); e.returnValue = ''; } });
     VBT.track.build();
     VBT.hud.init();
     resize();
@@ -203,6 +220,7 @@
     if (params.has('plan')) S.toMenu('plan');
     if (params.has('lib')) { S.toMenu('plan'); VBT.library.show('lib'); }
     if (params.has('devices')) S.openDevices();
+    if (params.has('rides')) S.openRides();
     const skip = parseFloat(params.get('t') || '0');
     for (let i = 0; i < skip / STEP; i++) update(STEP);
     if (params.has('end')) S.stop();   // testhaakje: rit direct afronden en opslaan

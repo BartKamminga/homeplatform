@@ -73,3 +73,17 @@ def test_strava_upload_requires_link(client, user_token):
     r = client.post(f"/api/vbt/rides/{ride['id']}/strava", headers=_h(user_token),
                     files={"fit": ("ride.fit", b"\x0e\x10", "application/octet-stream")})
     assert r.status_code == 409
+
+
+def test_ride_save_is_idempotent_by_client_id(client, user_token, admin_token):
+    first = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-123")).json()
+    again = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-123")).json()
+    assert again["id"] == first["id"] and again["clientId"] == "c-123"
+    assert len(client.get("/api/vbt/rides", headers=_h(user_token)).json()) == 1
+    # een andere gebruiker kan niet met hetzelfde client_id een rit 'claimen'
+    assert client.post("/api/vbt/rides", headers=_h(admin_token), json=_ride(clientId="c-123")).status_code == 409
+
+
+def test_zero_second_ride_is_saved(client, user_token):
+    r = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(duration=0, distance=0, samples=[], lapTime=None))
+    assert r.status_code == 200 and r.json()["duration"] == 0

@@ -53,10 +53,15 @@ VBT.storage = (function () {
   async function loadProfile() { return get(PROFILE) || {}; }
   async function saveProfile(p) { set(PROFILE, p); }
 
+  async function deleteRide(id) {
+    set(IDX, (get(IDX) || []).filter(r => r.id !== id));
+    try { localStorage.removeItem(SAMPLES(id)); } catch (e) { /* niets */ }
+  }
+
   async function getRide(id) {
     const s = (get(IDX) || []).find(r => r.id === id);
     return s ? Object.assign({}, s, { samples: get(SAMPLES(id)) || [] }) : null;
   }
 
-  return { saveRide, listRides, getSamples, getRide, bestLap, markPb, loadProfile, saveProfile };
+  return { saveRide, listRides, getSamples, getRide, deleteRide, bestLap, markPb, loadProfile, saveProfile };
 })();

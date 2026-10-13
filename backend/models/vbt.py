@@ -26,6 +26,7 @@ class VbtRide(SQLModel, table=True):
 
     id:          str = Field(default_factory=new_uuid, primary_key=True)
     user_id:     str = Field(foreign_key="users.id", index=True)
+    client_id:   Optional[str] = Field(default=None, unique=True, index=True)   # id uit de browser: herhaald opslaan geeft geen dubbele rit
     started_at:  datetime
     kind:        str = Field(default="free")                   # free | workout
     course_key:  str = Field(index=True)                       # free-v1 of workout-id
