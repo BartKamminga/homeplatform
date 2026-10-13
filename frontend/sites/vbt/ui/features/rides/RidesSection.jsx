@@ -1,11 +1,16 @@
 // MY RIDES: alle ritten (ook nog niet gesynchroniseerde), detail met grafiek, pauzes, eventlog,
-// .FIT, CONTINUE RIDE en prullenbak (terugzetten).
+// .FIT, CONTINUE RIDE en prullenbak (terugzetten). Als lijst of per week (RidesWeeks).
 import { useCallback, useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
 import { fmtDur, fmtDateTime, startWithConfirm } from '../../common/format.js'
 import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
+import RidesWeeks from './RidesWeeks.jsx'
+
+// LIST of WEEKS onthouden (alleen gemak, per browser)
+const VIEW_KEY = 'vbt.ridesView'
+const readView = () => { try { return localStorage.getItem(VIEW_KEY) || 'list' } catch { return 'list' } }
 
 function Tags({ r }) {
   const current = window.VBT.recorder.current()
@@ -74,6 +79,8 @@ function RideDetail({ ride, onDeleted, onRestored }) {
 
 export default function RidesSection() {
   const [trash, setTrash] = useState(false)
+  const [view, setViewState] = useState(readView)
+  const setView = v => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* geen opslag */ } }
   const [items, setItems] = useState([])
   const [selected, setSelected] = useState(null)
   const [ride, setRide] = useState(null)
@@ -106,13 +113,35 @@ export default function RidesSection() {
     return () => { alive = false }
   }, [selected, items])
 
+  const head = (
+    <div className="ridelisthead">
+      <small className="hint">{items.length} {trash ? 'IN TRASH' : items.length === 1 ? 'RIDE' : 'RIDES'}</small>
+      {!trash && (
+        <span className="pn-viewtoggle">
+          <button id="ridesList" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>LIST</button>
+          <button id="ridesWeeks" className={view === 'weeks' ? 'active' : ''} onClick={() => setView('weeks')}>WEEKS</button>
+        </span>
+      )}
+      {window.VBT.storage.listTrash && <button id="ridesTrash" className="ghostbtn" onClick={() => setTrash(t => !t)}>{trash ? '← BACK TO RIDES' : '\u{1F5D1} TRASH'}</button>}
+    </div>
+  )
+  const detail = ride && <RideDetail ride={ride} onDeleted={() => load()} onRestored={id => { setTrash(false); load(id) }} />
+
+  // weekweergave: kalender over de volle breedte, detail vast onderaan (zoals MY PLAN)
+  if (view === 'weeks' && !trash) {
+    return (
+      <div className="pn-section">
+        {head}
+        <RidesWeeks items={items} selected={selected} onSelect={setSelected} />
+        {detail && <div className="pn-sticky">{detail}</div>}
+      </div>
+    )
+  }
+
   return (
     <div className="pn-section pn-split">
       <div className="ridelistwrap">
-        <div className="ridelisthead">
-          <small className="hint">{items.length} {trash ? 'IN TRASH' : items.length === 1 ? 'RIDE' : 'RIDES'}</small>
-          {window.VBT.storage.listTrash && <button id="ridesTrash" className="ghostbtn" onClick={() => setTrash(t => !t)}>{trash ? '← BACK TO RIDES' : '\u{1F5D1} TRASH'}</button>}
-        </div>
+        {head}
         <div id="rideList">
           {items.map(r => (
             <button key={r.id} className={'riderow' + (r.id === selected ? ' selected' : '')} onClick={() => setSelected(r.id)}>
@@ -124,7 +153,7 @@ export default function RidesSection() {
           {!items.length && <p className="pn-hint">{trash ? 'The trash is empty.' : 'No rides yet - every ride you start ends up here, however short.'}</p>}
         </div>
       </div>
-      {ride && <RideDetail ride={ride} onDeleted={() => load()} onRestored={id => { setTrash(false); load(id) }} />}
+      {detail}
     </div>
   )
 }

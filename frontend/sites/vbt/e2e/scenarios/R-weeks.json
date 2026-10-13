@@ -1,0 +1,38 @@
+{
+ "title": "MY RIDES in weekweergave: rit van vandaag in THIS WEEK met weektotalen, klik = detail, terug naar LIST",
+ "query": "ride&t=40&end",
+ "steps": [
+  {
+   "at": 6,
+   "run": "VBT.session.openRides()"
+  },
+  {
+   "at": 7.5,
+   "click": "#ridesWeeks"
+  },
+  {
+   "at": 8.5,
+   "name": "weekweergave met de rit van vandaag en weektotalen",
+   "assert": "!!document.querySelector('.pn-rideweeks .wrow.thisweek .wday.today .ridecard') && document.querySelector('.pn-rideweeks .wrow.thisweek .wtotals').textContent.includes('RIDE') && !!document.querySelector('#rideDetail')",
+   "shot": "weeks"
+  },
+  {
+   "at": 9,
+   "run": "document.querySelector('.ridecard').click()"
+  },
+  {
+   "at": 10,
+   "name": "klik op de rit -> detail, keuze onthouden",
+   "assert": "document.querySelector('.ridecard.selected') && document.getElementById('rideDetail').textContent.includes('FREE RIDE') && localStorage.getItem('vbt.ridesView') === 'weeks'"
+  },
+  {
+   "at": 10.5,
+   "click": "#ridesList"
+  },
+  {
+   "at": 11.5,
+   "name": "terug naar de lijst",
+   "assert": "document.querySelectorAll('.riderow').length >= 1 && !document.querySelector('.pn-rideweeks')"
+  }
+ ]
+}

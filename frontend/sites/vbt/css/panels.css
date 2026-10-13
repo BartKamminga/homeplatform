@@ -173,3 +173,21 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 #music.off button em { font-style: normal; color: var(--pink); margin-left: 4px; }
 #music.playing { border-color: var(--cyan); }
 .pn-field input[type="range"] { width: 160px; accent-color: var(--cyan); }
+
+/* MY RIDES: LIST / WEEKS en de weekweergave */
+.pn-viewtoggle { display: flex; gap: 2px; margin-left: auto; margin-right: 8px; }
+.pn-viewtoggle button { font-family: var(--pixel); font-size: 8px; color: var(--ink); background: transparent; cursor: pointer;
+  border: 1px solid rgba(155,92,255,.4); padding: 5px 8px; opacity: .7; }
+.pn-viewtoggle button:first-child { border-radius: 4px 0 0 4px; }
+.pn-viewtoggle button:last-child { border-radius: 0 4px 4px 0; }
+.pn-viewtoggle button.active { opacity: 1; border-color: var(--cyan); background: rgba(36,232,255,.12); }
+.pn-rideweeks .wrow { align-items: stretch; }
+.pn-rideweeks .wtotals { display: flex; flex-direction: column; gap: 4px; align-self: start; padding-top: 4px; }
+.pn-rideweeks .wtotals small { font-size: 7px; line-height: 1.5; color: var(--ink); opacity: .75; }
+.wday { display: flex; flex-direction: column; gap: 4px; min-height: 64px; padding: 4px; border-radius: 6px; background: rgba(255,255,255,.03); }
+.wday.empty { opacity: .5; }
+.wday.today { outline: 1px solid var(--yellow); }
+.wday > .wdate { font-size: 8px; }
+.ridecard.wcard { min-height: 0; padding: 5px 6px; gap: 2px; }
+.ridecard.wcard b { font-size: 8px; }
+.ridecard .wmeta { font-size: 7px; }
