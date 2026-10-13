@@ -39,3 +39,17 @@ export function roofHeight(roof, x) {
   }
   return pts[pts.length - 1][1]
 }
+
+// Live-status van een apparaat uit meta.live (gevuld door HA-events): aan, open, beweging.
+export function liveSummary(liveEntries) {
+  const out = { on: false, open: false, motion: false, any: false }
+  for (const [entity, v] of Object.entries(liveEntries || {})) {
+    const domain = entity.split('.')[0]
+    const on = ['on', 'open', 'unlocked', 'playing'].includes(v.state)
+    out.any = true
+    if (domain === 'light' || domain === 'switch' || domain === 'media_player') out.on ||= on
+    else if (domain === 'binary_sensor' && ['motion', 'occupancy', 'presence'].includes(v.device_class)) out.motion ||= on
+    else if (domain === 'binary_sensor' || domain === 'cover' || domain === 'lock') out.open ||= on
+  }
+  return out
+}

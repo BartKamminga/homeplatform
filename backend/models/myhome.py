@@ -56,6 +56,7 @@ class HomeRoom(SQLModel, table=True):
     link_status: str  = Field(default="none")         # linked, proposed, none
     notes:       Optional[str]  = Field(default=None)
     sort:        int  = Field(default=0)
+    meta:        Optional[dict] = Field(default=None, sa_column=Column(JSON))   # uiterlijk: wall_color, floor_color, ...
 
 
 class HomeSource(SQLModel, table=True):
@@ -67,6 +68,7 @@ class HomeSource(SQLModel, table=True):
     title:      str
     file_path:  str                                   # pad onder /api/uploads (categorie myhome)
     floor_key:  Optional[str] = Field(default=None)
+    room_id:    Optional[str] = Field(default=None)   # foto van een ruimte (muur, hoek, raam)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

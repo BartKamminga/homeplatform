@@ -26,6 +26,18 @@ def polygon_area(polygon: Optional[list]) -> float:
     return round(abs(total) / 2, 2)
 
 
+def adopt_area_devices(session: Session, room: HomeRoom) -> int:
+    """Apparaten zonder ruimte waarvan de HA-ruimte gelijk is aan die van deze ruimte, verhuizen mee."""
+    area = room.ha_area.lower()
+    moved = 0
+    for d in session.exec(select(HomeDevice).where(HomeDevice.home_id == room.home_id, HomeDevice.room_id.is_(None))).all():
+        if str((d.meta or {}).get("ha_area") or "").lower() == area:
+            d.room_id = room.id
+            session.add(d)
+            moved += 1
+    return moved
+
+
 def get_owned_home(session: Session, home_id: str, user_id: str) -> Home:
     home = session.get(Home, home_id)
     if not home or home.user_id != user_id:
@@ -54,6 +66,7 @@ def room_dict(room: HomeRoom, floor_key: str, devices: Optional[list] = None) ->
         "notes": room.notes,
         "polygon": room.polygon,
         "label_at": room.label_at,
+        "meta": room.meta or {},
         "devices": devices or [],
     }
 
@@ -92,6 +105,7 @@ def export_home(session: Session, home: Home) -> dict:
         "floors": out_floors,
         "unassigned_devices": by_room.get(None, []),
         "device_count": len(devices),
+        "review_count": sum(1 for d in devices if (d.meta or {}).get("review") == "new"),
     }
 
 
@@ -140,6 +154,7 @@ def replace_layout(session: Session, home: Home, floors: list[dict]) -> None:
                 ha_area=r.get("ha_area", prev.ha_area if prev else None),
                 link_status=status,
                 notes=r.get("notes", prev.notes if prev else None),
+                meta=r.get("meta", prev.meta if prev else None),
                 sort=r.get("sort", ri),
             ))
     home.updated_at = datetime.utcnow()

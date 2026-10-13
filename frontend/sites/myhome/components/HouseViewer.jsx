@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { ROOM_KINDS, fmtArea, roofHeight } from '../model.js'
+import { ROOM_KINDS, fmtArea, liveSummary, roofHeight } from '../model.js'
 
 // 3D-weergave van het huismodel. x = links→rechts op de plattegrond, z = tuin (min) → straat (plus).
 // Props: home (export uit de API), floor ('all' of floor-key), explode (m), highWalls, showRoof,
@@ -51,12 +51,15 @@ function roofMesh(roof, material) {
   return mesh
 }
 
-export default function HouseViewer({ home, floor, explode, highWalls, showRoof, selectedId, onSelect }) {
+export default function HouseViewer({ home, floor, explode, highWalls, showRoof, selectedId, onSelect, live = {} }) {
   const hostRef = useRef(null)
   const labelsRef = useRef(null)
   const stateRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  // Alleen opnieuw opbouwen als er echt een ruimte aan/uit gaat, niet bij elke poll van de live-status.
+  const litKey = (home?.floors || []).flatMap((f) => f.rooms)
+    .filter((r) => r.devices.some((d) => liveSummary(live[d.id]).on)).map((r) => r.id).join(',')
 
   // Renderer, camera en controls: eenmalig per mount.
   useEffect(() => {
@@ -135,8 +138,7 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
     const wallMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(bg).lerp(new THREE.Color('#d8d4cc'), 0.6), side: THREE.DoubleSide, roughness: 0.95 })
     const lineMat = new THREE.LineBasicMaterial({ color: fg })
     const roofMat = new THREE.MeshStandardMaterial({ color: '#6b4a3a', transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide })
-    const selMat = new THREE.MeshStandardMaterial({ color: cssVar('--color-primary', '#d9902b'), emissive: cssVar('--color-primary', '#d9902b'), emissiveIntensity: 0.3, side: THREE.DoubleSide })
-    const kindMats = Object.fromEntries(Object.entries(ROOM_KINDS).map(([k, v]) => [k, new THREE.MeshStandardMaterial({ color: v.color, roughness: 0.9, side: THREE.DoubleSide })]))
+    const selMat = new THREE.MeshStandardMaterial({ color: '#e0952f', emissive: '#e0952f', emissiveIntensity: 0.3, side: THREE.DoubleSide })
 
     const b = bounds(home)
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(b.size * 4, b.size * 4), new THREE.MeshStandardMaterial({ color: new THREE.Color(bg).offsetHSL(0, 0, -0.04) }))
@@ -161,13 +163,22 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       for (const room of f.rooms) {
         if (!room.polygon?.length) continue
         const shape = new THREE.Shape(room.polygon.map(([x, z]) => new THREE.Vector2(x, -z)))
-        const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), room.id === selectedId ? selMat : kindMats[room.kind] || kindMats.living)
+        const lit = litKey.split(',').includes(room.id)
+        const floorColor = room.meta?.floor_color || ROOM_KINDS[room.kind]?.color || '#dddddd'
+        const floorMat = room.id === selectedId ? selMat : new THREE.MeshStandardMaterial({
+          color: floorColor, roughness: 0.9, side: THREE.DoubleSide,
+          emissive: lit ? '#ffc35a' : '#000000', emissiveIntensity: lit ? 0.45 : 0,
+        })
+        const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMat)
         mesh.rotation.x = -Math.PI / 2
         mesh.position.y = 0.01
         mesh.userData.roomId = room.id
         s.floorMeshes.push(mesh)
         g.add(mesh)
-        g.add(wallsFor(room, f, highWalls, wallMat, lineMat))
+        const roomWallMat = room.meta?.wall_color
+          ? new THREE.MeshStandardMaterial({ color: room.meta.wall_color, side: THREE.DoubleSide, roughness: 0.95 })
+          : wallMat
+        g.add(wallsFor(room, f, highWalls, roomWallMat, lineMat))
         const [cx, cz] = room.label_at || centroid(room.polygon)
         const d = document.createElement('div')
         d.className = 'mh-lbl'
@@ -184,7 +195,7 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       s.controls.target.set(b.cx, 3, b.cz)
       s.framed = home.id
     }
-  }, [home, highWalls, showRoof, selectedId])
+  }, [home, highWalls, showRoof, selectedId, litKey])
 
   // Verdiepingfilter en uit-elkaar-schuiven.
   useEffect(() => {
@@ -196,7 +207,7 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       g.position.y = floor === 'all' ? g.userData.level + g.userData.index * explode : 0
       g.traverse((o) => { if (o.isCSS2DObject) o.element.hidden = !visible })
     }
-  }, [home, floor, explode, highWalls, showRoof, selectedId])
+  }, [home, floor, explode, highWalls, showRoof, selectedId, litKey])
 
   return (
     <div className="mh-viewer" ref={hostRef}>

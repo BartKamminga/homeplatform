@@ -1,14 +1,76 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { api } from '@core/api.js'
 import HouseViewer from '../components/HouseViewer.jsx'
-import { LINK_STATUS, ROOM_KINDS, allRooms, fmtArea } from '../model.js'
+import RoomPanel from '../components/RoomPanel.jsx'
+import PlanView from '../components/plan/PlanView.jsx'
+import PlanTray from '../components/plan/PlanTray.jsx'
+import { DEVICE_KINDS } from '../components/plan/symbols.jsx'
+import { allRooms } from '../model.js'
 
-export default function ModelPage({ home }) {
-  const [floor, setFloor] = useState('all')
+function useLive(homeId) {
+  const [live, setLive] = useState({})
+  useEffect(() => {
+    let stop = false
+    const tick = () => {
+      if (document.hidden) return
+      api.get(`/api/myhome/homes/${homeId}/live`).then((l) => { if (!stop) setLive(l) }).catch(() => {})
+    }
+    tick()
+    const t = setInterval(tick, 4000)
+    return () => { stop = true; clearInterval(t) }
+  }, [homeId])
+  return live
+}
+
+export default function ModelPage({ home, sources, onReload, onHomeChange }) {
+  const [view, setView] = useState('2d')
+  const [floorKey, setFloorKey] = useState(home.floors[0]?.key)
+  const [mode, setMode] = useState('view')
   const [explode, setExplode] = useState(1.6)
   const [highWalls, setHighWalls] = useState(false)
   const [showRoof, setShowRoof] = useState(true)
+  const [showLabels, setShowLabels] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
-  const room = allRooms(home).find((r) => r.id === selectedId)
+  const [deviceId, setDeviceId] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [armed, setArmed] = useState(null)
+  const [error, setError] = useState('')
+  const live = useLive(home.id)
+
+  const rooms = allRooms(home)
+  const room = rooms.find((r) => r.id === selectedId)
+  const floor = home.floors.find((f) => f.key === floorKey) || home.floors[0]
+  const floorRoomIds = new Set(floor?.rooms.map((r) => r.id))
+  const roomName = Object.fromEntries(rooms.map((r) => [r.id, r.name]))
+  const allDevices = [...rooms.flatMap((r) => r.devices), ...home.unassigned_devices]
+  const floorDevices = allDevices.filter((d) => floorRoomIds.has(d.room_id) || (!d.room_id && d.meta?.floor === floor?.key))
+  const toPlace = allDevices
+    .filter((d) => !d.meta?.position && (floorRoomIds.has(d.room_id) || !d.room_id) && d.meta?.review !== 'ignored')
+    .map((d) => ({ ...d, roomName: roomName[d.room_id] }))
+  const device = allDevices.find((d) => d.id === deviceId)
+
+  async function run(fn) {
+    setError('')
+    try { await fn() } catch (e) { setError(e.message) }
+  }
+
+  const place = (item, pos, target) => run(async () => {
+    const meta = { position: pos, floor: floor.key }
+    if (item.quickAdd) {
+      const label = DEVICE_KINDS[item.quickAdd].label
+      await api.post(`/api/myhome/homes/${home.id}/devices`, { name: target ? `${label} ${target.name}` : label, kind: item.quickAdd, room_id: target?.id || null, meta })
+    } else {
+      const review = item.meta?.review === 'new' ? 'done' : item.meta?.review
+      await api.patch(`/api/myhome/devices/${item.id}`, { room_id: target?.id || item.room_id || null, meta: { ...item.meta, ...meta, review } })
+    }
+    setArmed(null)
+    await onReload()
+  })
+
+  const saveWalls = () => run(async () => {
+    onHomeChange(await api.patch(`/api/myhome/rooms/${room.id}`, { polygon: draft }))
+    setDraft(null)
+  })
 
   if (!home.floors.length) {
     return <div className="mh-page"><p className="mh-muted">No floors yet. Add drawings under Inputs; the layout is created from them.</p></div>
@@ -17,35 +79,76 @@ export default function ModelPage({ home }) {
   return (
     <>
       <div className="mh-viewer-controls">
+        <div className="mh-seg" role="group" aria-label="View">
+          <button id="mh-view-2d" aria-pressed={view === '2d'} onClick={() => { setView('2d'); if (floorKey === 'all') setFloorKey(home.floors[0].key) }}>Plan</button>
+          <button id="mh-view-3d" aria-pressed={view === '3d'} onClick={() => { setView('3d'); setMode('view'); setDraft(null) }}>3D</button>
+        </div>
         <div className="mh-seg" role="group" aria-label="Floor">
-          <button id="mh-floor-all" aria-pressed={floor === 'all'} onClick={() => setFloor('all')}>All</button>
+          {view === '3d' && <button id="mh-floor-all" aria-pressed={floorKey === 'all'} onClick={() => setFloorKey('all')}>All</button>}
           {home.floors.map((f) => (
-            <button key={f.key} id={`mh-floor-${f.key}`} aria-pressed={floor === f.key} onClick={() => setFloor(f.key)}>{f.name}</button>
+            <button key={f.key} id={`mh-floor-${f.key}`} aria-pressed={floorKey === f.key} onClick={() => { setFloorKey(f.key); setDraft(null); setArmed(null) }}>{f.name}</button>
           ))}
         </div>
-        <label htmlFor="mh-explode">Spread
-          <input id="mh-explode" type="range" min="0" max="4" step="0.1" value={explode} onChange={(e) => setExplode(+e.target.value)} />
-        </label>
-        <label htmlFor="mh-walls"><input id="mh-walls" type="checkbox" checked={highWalls} onChange={(e) => setHighWalls(e.target.checked)} /> High walls</label>
-        <label htmlFor="mh-roof"><input id="mh-roof" type="checkbox" checked={showRoof} onChange={(e) => setShowRoof(e.target.checked)} /> Roof</label>
-      </div>
-      <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
-        <HouseViewer home={home} floor={floor} explode={explode} highWalls={highWalls} showRoof={showRoof}
-          selectedId={selectedId} onSelect={setSelectedId} />
-        {room && (
-          <div className="mh-room-card">
-            <div className="mh-row" style={{ justifyContent: 'space-between' }}>
-              <div><h3 style={{ margin: 0 }}>{room.floorName}</h3><h2>{room.name}</h2></div>
-              <button className="mh-btn ghost" onClick={() => setSelectedId(null)} aria-label="Close">×</button>
+        {view === '2d' ? (
+          <>
+            <div className="mh-seg" role="group" aria-label="Mode">
+              <button id="mh-mode-view" aria-pressed={mode === 'view'} onClick={() => { setMode('view'); setDraft(null); setArmed(null) }}>View</button>
+              <button id="mh-mode-walls" aria-pressed={mode === 'walls'} onClick={() => { setMode('walls'); setArmed(null) }}>Edit walls</button>
+              <button id="mh-mode-place" aria-pressed={mode === 'place'} onClick={() => { setMode('place'); setDraft(null) }}>Place items</button>
             </div>
-            <dl className="mh-dl">
-              <dt>Area</dt><dd className="mh-mono">{fmtArea(room.area_m2)}</dd>
-              <dt>Type</dt><dd><span className="mh-sw" style={{ background: ROOM_KINDS[room.kind]?.color }} />{ROOM_KINDS[room.kind]?.label}</dd>
-              <dt>HA area</dt><dd>{room.ha_area || '—'}</dd>
-              <dt>Status</dt><dd><span className={`mh-pill ${room.link_status}`}>{LINK_STATUS[room.link_status]}</span></dd>
-              <dt>Devices</dt><dd>{room.devices.length ? room.devices.map((d) => d.name).join(', ') : '—'}</dd>
-            </dl>
-            {room.notes && <p className="mh-muted">{room.notes}</p>}
+            <label htmlFor="mh-labels"><input id="mh-labels" type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Names</label>
+          </>
+        ) : (
+          <>
+            <label htmlFor="mh-explode">Spread <input id="mh-explode" type="range" min="0" max="4" step="0.1" value={explode} onChange={(e) => setExplode(+e.target.value)} /></label>
+            <label htmlFor="mh-walls"><input id="mh-walls" type="checkbox" checked={highWalls} onChange={(e) => setHighWalls(e.target.checked)} /> High walls</label>
+            <label htmlFor="mh-roof"><input id="mh-roof" type="checkbox" checked={showRoof} onChange={(e) => setShowRoof(e.target.checked)} /> Roof</label>
+          </>
+        )}
+      </div>
+      {mode === 'walls' && view === '2d' && (
+        <div className="mh-editbar">
+          {room ? (
+            <>
+              <span>Editing <strong>{room.name}</strong>: drag corners (5 cm grid), click a small dot to add a corner, double-click a corner to remove it.</span>
+              <span className="mh-spacer" />
+              <button className="mh-btn ghost" disabled={!draft} onClick={() => setDraft(null)}>Undo changes</button>
+              <button className="mh-btn" disabled={!draft} onClick={saveWalls}>Save walls</button>
+            </>
+          ) : <span>Click a room to edit its walls.</span>}
+        </div>
+      )}
+      {error && <p className="mh-error" style={{ padding: '6px 16px' }}>{error}</p>}
+      <div className="mh-stage">
+        {view === '2d' ? (
+          <div className="mh-plan-wrap">
+            <PlanView floor={floor} devices={floorDevices} live={live} mode={mode} selectedRoomId={selectedId}
+              onSelectRoom={(id) => { if (!draft) setSelectedId(id) }} draft={draft} onDraftChange={setDraft}
+              armed={armed} onPlace={place} selectedDeviceId={deviceId} onSelectDevice={setDeviceId} showLabels={showLabels} />
+            {mode === 'place' && <PlanTray toPlace={toPlace} armed={armed} onArm={setArmed} />}
+          </div>
+        ) : (
+          <HouseViewer home={home} floor={floorKey} explode={explode} highWalls={highWalls} showRoof={showRoof}
+            selectedId={selectedId} onSelect={setSelectedId} live={live} />
+        )}
+        {room && mode !== 'place' && (
+          <RoomPanel home={home} room={room} sources={sources} live={live} onHomeChange={onHomeChange} onReload={onReload}
+            onClose={() => { setSelectedId(null); setDraft(null) }} />
+        )}
+        {device && mode === 'place' && (
+          <div className="mh-room-card mh-device-card">
+            <div className="mh-row" style={{ justifyContent: 'space-between' }}>
+              <h2>{device.name}</h2>
+              <button className="mh-btn ghost" onClick={() => setDeviceId(null)} aria-label="Close">×</button>
+            </div>
+            <p className="mh-muted">{DEVICE_KINDS[device.kind]?.label || device.kind} · {roomName[device.room_id] || 'no room'} · {device.source}</p>
+            <button className="mh-btn ghost" onClick={() => run(async () => {
+              const rest = { ...device.meta }
+              delete rest.position
+              delete rest.floor
+              await api.patch(`/api/myhome/devices/${device.id}`, { meta: rest })
+              setDeviceId(null); await onReload()
+            })}>Remove from plan</button>
           </div>
         )}
       </div>

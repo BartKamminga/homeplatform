@@ -98,10 +98,10 @@ def test_devices_import_assign_and_survive_relayout(client, user_token):
         {"name": "Hall sensor", "kind": "sensor", "source": "home_assistant", "external_id": "binary_sensor.hall"},
     ]}
     res = client.put(f"/api/myhome/homes/{home_id}/devices/import", json=payload, headers=_h(user_token))
-    assert res.json() == {"created": 2, "updated": 1 - 1}
+    assert res.json() == {"created": 2, "updated": 0, "new": ["Kitchen panel", "Hall sensor"]}
     # tweede import = update, geen dubbelingen
     assert client.put(f"/api/myhome/homes/{home_id}/devices/import", json=payload,
-                      headers=_h(user_token)).json() == {"created": 0, "updated": 2}
+                      headers=_h(user_token)).json() == {"created": 0, "updated": 2, "new": []}
 
     data = client.get(f"/api/myhome/v1/homes/{home_id}", headers=_h(user_token)).json()
     kitchen = data["floors"][0]["rooms"][0]
@@ -121,3 +121,79 @@ def test_devices_import_assign_and_survive_relayout(client, user_token):
     smaller = {"floors": [LAYOUT["floors"][0]]}
     data = client.put(f"/api/myhome/homes/{home_id}/layout", json=smaller, headers=_h(user_token)).json()
     assert [d["name"] for d in data["unassigned_devices"]] == ["Hall sensor"]
+
+
+def test_sync_flags_new_keeps_user_edits_and_maps_ha_area(client, user_token):
+    home_id = _home(client, user_token)
+    data = client.put(f"/api/myhome/homes/{home_id}/layout", json=LAYOUT, headers=_h(user_token)).json()
+    kitchen_id = data["floors"][0]["rooms"][0]["id"]
+    client.patch(f"/api/myhome/rooms/{kitchen_id}", json={"ha_area": "Kitchen", "link_status": "linked"}, headers=_h(user_token))
+
+    sync = {"devices": [{"name": "Fridge plug", "kind": "plug", "source": "home_assistant", "external_id": "dev-1",
+                         "meta": {"ha_area": "Kitchen"}}]}
+    res = client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token)).json()
+    assert res["new"] == ["Fridge plug"]
+    home = client.get(f"/api/myhome/homes/{home_id}", headers=_h(user_token)).json()
+    assert home["review_count"] == 1
+    dev = home["floors"][0]["rooms"][0]["devices"][0]
+    assert dev["meta"]["review"] == "new"
+
+    # gebruiker hernoemt, plaatst en bevestigt; volgende sync laat dat staan
+    meta = {**dev["meta"], "review": "done", "position": [1.0, 2.0], "floor": "ground"}
+    client.patch(f"/api/myhome/devices/{dev['id']}", json={"name": "Koelkast", "meta": meta}, headers=_h(user_token))
+    sync["devices"][0]["meta"] = {"ha_area": "Kitchen", "entities": ["switch.fridge"]}
+    assert client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token)).json()["new"] == []
+    dev = client.get(f"/api/myhome/homes/{home_id}", headers=_h(user_token)).json()["floors"][0]["rooms"][0]["devices"][0]
+    assert dev["name"] == "Koelkast"
+    assert dev["meta"]["position"] == [1.0, 2.0] and dev["meta"]["review"] == "done"
+    assert dev["meta"]["entities"] == ["switch.fridge"]
+
+
+def test_edit_walls_appearance_and_room_photo(client, user_token, regular_user):
+    home_id = _home(client, user_token)
+    data = client.put(f"/api/myhome/homes/{home_id}/layout", json=LAYOUT, headers=_h(user_token)).json()
+    room_id = data["floors"][0]["rooms"][0]["id"]
+    bad = client.patch(f"/api/myhome/rooms/{room_id}", json={"polygon": [[0, 0], [1, 1]]}, headers=_h(user_token))
+    assert bad.status_code == 422
+    res = client.patch(f"/api/myhome/rooms/{room_id}", headers=_h(user_token), json={
+        "polygon": [[0, 0], [4, 0], [4, 4], [0, 4]], "meta": {"wall_color": "#e8e2d4"}}).json()
+    kitchen = res["floors"][0]["rooms"][0]
+    assert kitchen["area_m2"] == 16.0 and kitchen["meta"]["wall_color"] == "#e8e2d4"
+
+    photo = {"title": "Kitchen wall", "kind": "photo", "file_path": f"myhome/{regular_user.id}/w.jpg", "room_id": room_id}
+    assert client.post(f"/api/myhome/homes/{home_id}/sources", json=photo, headers=_h(user_token)).json()["room_id"] == room_id
+    photo["room_id"] = "not-a-room"
+    assert client.post(f"/api/myhome/homes/{home_id}/sources", json=photo, headers=_h(user_token)).status_code == 422
+
+
+def test_live_events(client, user_token):
+    home_id = _home(client, user_token)
+    sync = {"devices": [{"name": "Front door", "kind": "sensor", "source": "home_assistant", "external_id": "dev-door",
+                         "meta": {"entities": ["binary_sensor.front_door"]}}]}
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    events = {"events": [{"entity_id": "binary_sensor.front_door", "state": "on", "device_class": "door"},
+                         {"entity_id": "light.unknown", "state": "on"}]}
+    assert client.post(f"/api/myhome/homes/{home_id}/events", json=events, headers=_h(user_token)).json() == {"matched": 1}
+    live = client.get(f"/api/myhome/homes/{home_id}/live", headers=_h(user_token)).json()
+    (state,) = live.values()
+    assert state["binary_sensor.front_door"]["state"] == "on"
+    # een volgende sync laat de live-status staan
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    assert client.get(f"/api/myhome/homes/{home_id}/live", headers=_h(user_token)).json() == live
+
+
+def test_linking_room_to_ha_area_adopts_devices(client, user_token):
+    home_id = _home(client, user_token)
+    data = client.put(f"/api/myhome/homes/{home_id}/layout", json=LAYOUT, headers=_h(user_token)).json()
+    bed_id = data["floors"][1]["rooms"][0]["id"]
+    sync = {"ha_areas": ["Room Thom", "Kitchen"], "devices": [
+        {"name": "Thom lamp", "kind": "light", "source": "hue", "external_id": "h1", "meta": {"ha_area": "Room Thom"}},
+        {"name": "Thom speaker", "kind": "speaker", "source": "home_assistant", "external_id": "d1", "meta": {"ha_area": "Room Thom"}},
+    ]}
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    home = client.get(f"/api/myhome/homes/{home_id}", headers=_h(user_token)).json()
+    assert home["meta"]["ha_areas"] == ["Kitchen", "Room Thom"] and len(home["unassigned_devices"]) == 2
+    home = client.patch(f"/api/myhome/rooms/{bed_id}", json={"ha_area": "Room Thom", "link_status": "linked"},
+                        headers=_h(user_token)).json()
+    assert home["unassigned_devices"] == []
+    assert {d["name"] for d in home["floors"][1]["rooms"][0]["devices"]} == {"Thom lamp", "Thom speaker"}

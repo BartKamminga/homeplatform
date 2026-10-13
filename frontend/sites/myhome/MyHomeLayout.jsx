@@ -22,6 +22,7 @@ export default function MyHomeLayout() {
   const [tab, setTab] = useState(initialTab)
   const [error, setError] = useState('')
   const [newName, setNewName] = useState('')
+  const [devFilter, setDevFilter] = useState('all')
 
   useEffect(() => {
     api.get('/api/myhome/homes')
@@ -45,7 +46,7 @@ export default function MyHomeLayout() {
 
   useEffect(() => { reload() }, [reload])
 
-  const go = (key) => { setTab(key); window.history.replaceState(null, '', `#${key}`) }
+  const go = (key) => { if (key !== 'devices') setDevFilter('all'); setTab(key); window.history.replaceState(null, '', `#${key}`) }
 
   async function createHome(e) {
     e.preventDefault()
@@ -74,16 +75,19 @@ export default function MyHomeLayout() {
       </div>
     )
   } else if (!home) body = <div className="mh-page"><p className="mh-muted">Loading your home…</p></div>
-  else if (tab === 'model') body = <ModelPage home={home} />
+  else if (tab === 'model') body = <ModelPage home={home} sources={sources} onReload={reload} onHomeChange={setHome} />
   else if (tab === 'rooms') body = <RoomsPage home={home} onChange={setHome} />
-  else if (tab === 'devices') body = <DevicesPage home={home} onReload={reload} />
+  else if (tab === 'devices') body = <DevicesPage key={devFilter} home={home} onReload={reload} initialFilter={devFilter} />
   else if (tab === 'inputs') body = <InputsPage home={home} sources={sources} notes={notes} onReload={reload} onHomeChange={setHome} />
   else body = <ApiPage home={home} />
 
   return (
     <div className="mh">
       <header className="mh-bar">
-        <h1 className="mh-brand">MyHome<span>.io</span></h1>
+        <h1 className="mh-brand">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
+          MyHome<span>.io</span>
+        </h1>
         {homes?.length > 1 && (
           <select id="home-pick" value={homeId || ''} onChange={(e) => setHomeId(e.target.value)} aria-label="Home">
             {homes.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
@@ -100,6 +104,13 @@ export default function MyHomeLayout() {
         <span className="mh-spacer" />
         <a className="mh-link" href="/account/groups?back=/myhome/">Account</a>
       </header>
+      {home?.review_count > 0 && (
+        <div className="mh-banner" role="status">
+          <strong>{home.review_count} new device{home.review_count === 1 ? '' : 's'} found</strong>
+          <span>in Home Assistant / Hue. Tell us what and where they are.</span>
+          <button className="mh-btn" onClick={() => { setDevFilter('new'); go('devices') }}>Review</button>
+        </div>
+      )}
       <div className="mh-main">
         <main className="mh-content">{body}</main>
         <SourcesPanel home={home} sources={sources} />

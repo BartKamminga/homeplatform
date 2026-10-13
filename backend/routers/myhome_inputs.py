@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.core import User
-from models.myhome import HomeNote, HomeSource
+from models.myhome import HomeNote, HomeRoom, HomeSource
 from services.myhome import get_owned_home
 
 router = APIRouter(prefix="/api/myhome", tags=["myhome"])
@@ -26,6 +26,7 @@ class SourceIn(BaseModel):
     title: str
     file_path: str
     floor_key: Optional[str] = None
+    room_id: Optional[str] = None
 
 
 class NoteIn(BaseModel):
@@ -39,7 +40,7 @@ class NotePatch(BaseModel):
 
 def _source_dict(s: HomeSource) -> dict:
     return {
-        "id": s.id, "kind": s.kind, "title": s.title, "floor_key": s.floor_key,
+        "id": s.id, "kind": s.kind, "title": s.title, "floor_key": s.floor_key, "room_id": s.room_id,
         "file_path": s.file_path, "url": f"/api/uploads/{s.file_path}",
         "created_at": s.created_at.isoformat(),
     }
@@ -68,6 +69,10 @@ def add_source(home_id: str, body: SourceIn, user: User = Depends(get_current_us
     get_owned_home(session, home_id, user.id)
     if body.kind not in SOURCE_KINDS:
         raise HTTPException(status_code=422, detail=f"Unknown source kind: {body.kind}")
+    if body.room_id:
+        room = session.get(HomeRoom, body.room_id)
+        if not room or room.home_id != home_id:
+            raise HTTPException(status_code=422, detail="Room does not belong to this home")
     if not body.file_path.startswith(f"myhome/{user.id}/"):
         raise HTTPException(status_code=422, detail="Upload the file first via /api/uploads?category=myhome")
     src = HomeSource(home_id=home_id, **body.model_dump())

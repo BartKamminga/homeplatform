@@ -15,7 +15,7 @@ from core.database import get_session
 from models.core import User
 from models.myhome import Home, HomeDevice, HomeFloor, HomeNote, HomeRoom, HomeSource
 from services.myhome import (
-    LINK_STATUSES, ROOM_KINDS, export_home, get_owned_home, replace_layout,
+    LINK_STATUSES, ROOM_KINDS, adopt_area_devices, export_home, get_owned_home, replace_layout,
 )
 
 router = APIRouter(prefix="/api/myhome", tags=["myhome"])
@@ -41,6 +41,9 @@ class LayoutIn(BaseModel):
 
 class RoomPatch(BaseModel):
     name: Optional[str] = None
+    polygon: Optional[list[list[float]]] = None
+    label_at: Optional[list[float]] = None
+    meta: Optional[dict] = None
     kind: Optional[str] = None
     ha_area: Optional[str] = None
     link_status: Optional[str] = None
@@ -110,8 +113,12 @@ def update_room(room_id: str, body: RoomPatch, user: User = Depends(get_current_
         raise HTTPException(status_code=422, detail=f"Unknown room kind: {data['kind']}")
     if "link_status" in data and data["link_status"] not in LINK_STATUSES:
         raise HTTPException(status_code=422, detail=f"Unknown link status: {data['link_status']}")
+    if "polygon" in data and (len(data["polygon"]) < 3 or any(len(p) != 2 for p in data["polygon"])):
+        raise HTTPException(status_code=422, detail="A room needs at least 3 corner points [x, z]")
     for k, v in data.items():
         setattr(room, k, v)
+    if room.link_status == "linked" and room.ha_area and {"ha_area", "link_status"} & data.keys():
+        adopt_area_devices(session, room)
     home.updated_at = datetime.utcnow()
     session.add(room)
     session.add(home)

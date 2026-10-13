@@ -1,0 +1,129 @@
+# MyHome-adapter voor Home Assistant (items 1318, 1314).
+# Zet dit bestand in /config/packages/ en zorg dat configuration.yaml packages laadt:
+#   homeassistant:
+#     packages: !include_dir_named packages
+# Benodigde secrets (secrets.yaml):
+#   myhome_sync_url:   http(s)://<host>/api/myhome/homes/<home-id>/devices/import
+#   myhome_events_url: http(s)://<host>/api/myhome/homes/<home-id>/events
+#   myhome_auth:       "Bearer hp_..."     (persoonlijke API-key van de eigenaar van het huis)
+#
+# Wat het doet:
+# - Sync: alle apparaten (met HA-ruimte en entities) en de lijst HA-ruimtes naar MyHome; Hue-apparaten met hun
+#   Hue-id zodat ze niet dubbel binnenkomen. Bij start, elke nacht en kort na het toevoegen van een apparaat.
+#   Nieuwe apparaten -> melding in HA met de vraag om ze in MyHome aan te vullen.
+# - Live: lamp aan/uit, deur/raam open, beweging, schakelaars en media -> MyHome, voor weergave in het model.
+
+rest_command:
+  myhome_sync:
+    url: !secret myhome_sync_url
+    method: PUT
+    timeout: 60
+    headers:
+      Authorization: !secret myhome_auth
+      Content-Type: application/json
+    payload: >-
+      {%- set ns = namespace(devs=[], areas=[]) -%}
+      {%- for a in areas() -%}{%- set ns.areas = ns.areas + [area_name(a)] -%}{%- endfor -%}
+      {%- for d in states | map(attribute='entity_id') | map('device_id') | reject('none') | unique -%}
+        {%- set man = device_attr(d, 'manufacturer') or '' -%}
+        {#- geen HA-diensten (add-ons, HACS, Sun, ...), geen Hue-ruimtes/zones, geen servermonitoring -#}
+        {%- if device_attr(d, 'entry_type') is none and man not in ['Glances']
+              and device_attr(d, 'model') not in ['Room', 'Zone'] -%}
+          {%- set hue = device_attr(d, 'identifiers') | selectattr(0, 'eq', 'hue') | map(attribute=1) | list -%}
+          {%- set ents = device_entities(d) -%}
+          {%- set doms = ents | map('regex_replace', '\..*$', '') | unique | list -%}
+          {%- set kind = 'thermostat' if 'climate' in doms
+              else 'camera' if 'camera' in doms
+              else 'light' if 'light' in doms
+              else 'speaker' if 'media_player' in doms
+              else 'plug' if 'switch' in doms and man == 'TP-Link'
+              else 'switch' if 'switch' in doms or 'event' in doms
+              else 'sensor' if 'sensor' in doms or 'binary_sensor' in doms
+              else 'other' -%}
+          {%- set ns.devs = ns.devs + [{
+              'name': device_attr(d, 'name_by_user') or device_attr(d, 'name') or d,
+              'kind': kind,
+              'source': 'hue' if hue else 'home_assistant',
+              'external_id': hue[0] if hue else d,
+              'manufacturer': man or none,
+              'model': device_attr(d, 'model'),
+              'meta': {'ha_area': area_name(d), 'ha_device_id': d, 'entities': ents[:12]}
+            }] -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ {'ha_areas': ns.areas, 'devices': ns.devs} | to_json }}
+
+  myhome_event:
+    url: !secret myhome_events_url
+    method: POST
+    timeout: 10
+    headers:
+      Authorization: !secret myhome_auth
+      Content-Type: application/json
+    payload: >-
+      {{ {'events': [{'entity_id': entity_id, 'state': state, 'device_class': device_class or none}]} | to_json }}
+
+automation:
+  - id: myhome_sync_devices
+    alias: "MyHome: apparaten synchroniseren"
+    mode: restart
+    trigger:
+      - platform: homeassistant
+        event: start
+      - platform: time
+        at: "04:15:00"
+      - platform: event
+        event_type: device_registry_updated
+        event_data:
+          action: create
+    action:
+      - delay: "00:01:30"
+      - service: rest_command.myhome_sync
+        response_variable: result
+      - if:
+          - condition: template
+            value_template: "{{ result.status == 200 and (result.content.new | default([]) | length) > 0 }}"
+        then:
+          - service: persistent_notification.create
+            data:
+              notification_id: myhome_new_devices
+              title: "MyHome: {{ result.content.new | length }} nieuwe apparaten"
+              message: >-
+                Gevonden: {{ result.content.new[:10] | join(', ') }}{{ ' en meer' if result.content.new | length > 10 else '' }}.
+                Vul in MyHome (Devices, filter "new") aan wat ze zijn en waar ze staan.
+      - if:
+          - condition: template
+            value_template: "{{ result.status != 200 }}"
+        then:
+          - service: system_log.write
+            data:
+              level: warning
+              logger: myhome
+              message: "MyHome-sync mislukt: HTTP {{ result.status }}"
+
+  - id: myhome_live_events
+    alias: "MyHome: live-status doorgeven"
+    mode: queued
+    max: 100
+    trigger:
+      - platform: event
+        event_type: state_changed
+    condition:
+      - condition: template
+        value_template: >-
+          {%- set e = trigger.event.data -%}
+          {%- if e.new_state is none or e.old_state is none or e.new_state.state == e.old_state.state -%}false
+          {%- elif e.new_state.state in ['unavailable', 'unknown'] -%}false
+          {%- else -%}
+            {%- set domain = e.entity_id.split('.')[0] -%}
+            {%- set dc = e.new_state.attributes.device_class | default('') -%}
+            {{ domain in ['light', 'switch', 'cover', 'lock', 'media_player']
+               or (domain == 'binary_sensor' and dc in ['door', 'window', 'garage_door', 'opening', 'motion', 'occupancy', 'presence']) }}
+          {%- endif -%}
+    action:
+      - service: rest_command.myhome_event
+        data:
+          entity_id: "{{ trigger.event.data.entity_id }}"
+          state: "{{ trigger.event.data.new_state.state }}"
+          device_class: "{{ trigger.event.data.new_state.attributes.device_class | default('') }}"
+
