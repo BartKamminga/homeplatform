@@ -11,7 +11,9 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #07011a; color: var(--ink); font-family: var(--hud); }
-canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+/* het speelveld; de zijpanelen (React) zetten --panel-left/--panel-right */
+#stage { position: fixed; top: 0; bottom: 0; left: var(--panel-left, 0px); right: var(--panel-right, 0px); transition: left .25s, right .25s; }
+canvas#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 /* CRT: scanlines + vignet */
 .crt {
@@ -23,7 +25,7 @@ canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 }
 
 /* ---------- HUD ---------- */
-#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; transition: opacity .6s; }
+#hud { position: fixed; top: 0; bottom: 0; left: var(--panel-left, 0px); right: var(--panel-right, 0px); pointer-events: none; z-index: 10; transition: opacity .6s, left .25s, right .25s; }
 body[data-state="title"] #hud { opacity: 0; }
 
 .panel {

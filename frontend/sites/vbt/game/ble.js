@@ -22,6 +22,7 @@ VBT.ble = (function () {
     const t = new Date();
     log.push(t.toTimeString().slice(0, 8) + '  ' + msg);
     if (log.length > 300) log.shift();
+    if (VBT.store) VBT.store.log('ble', msg, /fail|lost|x |not available|timeout/.test(msg) ? 'warn' : 'info');
     emit();
   }
 

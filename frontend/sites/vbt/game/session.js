@@ -39,6 +39,7 @@ VBT.session = (function () {
     game.pack.dist += delta;
     game.pack.bots.forEach(b => { b.dist += delta; });
     VBT.recorder.markJump();
+    VBT.store.log('jump', 'Jumped to interval ' + (index + 1) + ': ' + VBT.workoutHud.stepText(run.wo.steps[index]));
     if (game.state === 'ride') VBT.hud.message('JUMP · ' + VBT.workoutHud.stepText(run.wo.steps[index]), VBT.palette.cyan);
   }
 
@@ -78,6 +79,7 @@ VBT.session = (function () {
     if (lap === null) return;
     const pb = game.ghostTrack && game.ghostTrack.lapTime;
     const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    VBT.store.log('lap', 'Lap ' + fmt(lap) + (pb ? ' (PB ' + fmt(pb) + ')' : ''));
     if (!pb || lap < pb) VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow);
     else VBT.hud.message('LAP ' + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
   }
@@ -106,6 +108,7 @@ VBT.session = (function () {
     if (game.rideTime > 0) VBT.recorder.flush(game);
     const ride = VBT.recorder.stop(extra);
     if (!ride) return null;
+    VBT.store.log('save', 'Ride finished: ' + ride.duration + ' s, ' + (ride.distance / 1000).toFixed(2) + ' km - saving');
     VBT.safety.enqueue(ride)
       .then(() => VBT.safety.clearJournal())
       .then(() => VBT.safety.flush())

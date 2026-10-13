@@ -14,12 +14,17 @@
   const game = VBT.game;
   const S = VBT.session;
 
+  // canvas volgt zijn container (#stage); de zijpanelen maken die smaller (ResizeObserver)
   function resize() {
+    const stage = document.getElementById('stage');
+    const cw = stage ? stage.clientWidth : innerWidth, ch = stage ? stage.clientHeight : innerHeight;
+    if (!cw || !ch) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    w = canvas.width = Math.round(innerWidth * dpr);
-    h = canvas.height = Math.round(innerHeight * dpr);
+    w = canvas.width = Math.round(cw * dpr);
+    h = canvas.height = Math.round(ch * dpr);
     VBT.background.resize(w, h);
   }
+  VBT.loop = { resize };
 
   const gradeAtDist = game.gradeAtDist;
 
@@ -69,6 +74,7 @@
         if (res && res.finished) { S.finish(true); return; }
         if (res && res.changed && erg) {
           VBT.hud.message(VBT.workoutHud.stepText(res.step), VBT.palette.yellow);
+          VBT.store.log('interval', 'Interval ' + (game.run.index + 1) + ': ' + VBT.workoutHud.stepText(res.step));
           if (res.step.c) s.cadOffset = (Math.random() - 0.5) * 24;   // nieuw interval: cadans opnieuw vinden
         }
       }
@@ -151,6 +157,7 @@
     VBT.road.renderNear(ctx, w, game);
     VBT.hud.update(game, t);
     VBT.workoutHud.update(game, t);
+    VBT.store.tick(game);
   }
 
   window.addEventListener('keydown', e => {
@@ -182,6 +189,7 @@
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
   window.addEventListener('resize', resize);
+  if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(document.getElementById('stage'));
 
   let last = performance.now(), acc = 0;
   function frame(now) {
@@ -197,6 +205,7 @@
     await VBT.calendar.init((wo, step) => S.startRide(wo, step));
     // achtergebleven rit van een crash/gesloten tab afronden + outbox legen
     VBT.safety.init().then(r => {
+      if (r) VBT.store.log('save', 'Recovered an unfinished ride (' + r.duration + ' s)', 'warn');
       if (r && VBT.toast) VBT.toast('RECOVERED AN UNFINISHED RIDE (' + Math.floor(r.duration / 60) + ' MIN) - SAVED TO MY RIDES', 8000);
     }).catch(() => {});
     // tab dicht/verborgen midden in een rit: meteen journal wegschrijven, en waarschuwen bij sluiten

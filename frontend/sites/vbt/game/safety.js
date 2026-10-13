@@ -97,12 +97,14 @@ VBT.safety = (function () {
         try {
           const saved = await VBT.storage.saveRide(ride);
           await del(OUTBOX + ride.clientId);
+          VBT.store.log('outbox', 'Ride saved on server: ' + (ride.name || 'ride') + ' (' + ride.duration + ' s)');
           if (onSaved) onSaved(ride, saved);
           if (VBT.game && VBT.game.lastRide && VBT.game.lastRide.clientId === ride.clientId) {
             VBT.game.lastRide.serverId = saved.serverId;
             if (VBT.stravaUi) VBT.stravaUi.render();
           }
         } catch (e) {
+          VBT.store.log('outbox', 'Saving ride failed: ' + e.message + ' - will retry', 'warn');
           failed = true;
           break;    // netwerk weg: later opnieuw, volgorde bewaren
         }
@@ -132,10 +134,13 @@ VBT.safety = (function () {
         resume: live.resume,
       });
       live.resume = false;
+      const added = res.received - live.sent;
       live.sent = res.received;          // server bepaalt waar de volgende batch begint (vangt gemiste batches op)
+      VBT.store.log('backup', 'Server backup: ' + res.received + ' s on server (+' + added + ')', 'debug');
       live.lastOk = performance.now();
       live.failing = false;
     } catch (e) {
+      if (!live.failing) VBT.store.log('backup', 'Server backup failed: ' + e.message + ' - kept locally, retrying', 'warn');
       live.failing = true;               // geen ramp: lokaal journal + outbox dekken dit, volgende tick opnieuw
     } finally {
       live.busy = false;
