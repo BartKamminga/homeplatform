@@ -5,14 +5,25 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlmodel import Session, select
 
+from core.analytics import client_ip, hash_ip, log_site_event
 from models.myhome import Home, HomeDevice, HomeFloor, HomeRoom
 
 ROOM_KINDS = {"living", "bedroom", "wet", "circulation", "storage", "outdoor"}
 LINK_STATUSES = {"linked", "proposed", "none"}
 API_VERSION = 1
+
+
+def log_call(request: Request, endpoint: str, count: Optional[int] = None) -> None:
+    """Gebruik van de open API en de HA-sync zichtbaar maken in admin > Site-monitoring.
+    Live-events worden bewust niet gelogd (elke lamp/deur zou een rij opleveren)."""
+    try:
+        log_site_event("myhome", "api_call", ip_hash=hash_ip(client_ip(request)),
+                       user_agent=request.headers.get("User-Agent", ""), endpoint=endpoint, result_count=count)
+    except Exception:
+        pass
 
 
 def polygon_area(polygon: Optional[list]) -> float:

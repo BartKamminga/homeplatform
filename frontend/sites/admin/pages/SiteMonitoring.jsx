@@ -9,6 +9,7 @@ const SITE_LABELS = {
   fiets: 'Fiets',
   mindbox: 'Mindbox',
   vbt: 'VBT',
+  myhome: 'MyHome',
 };
 
 export default function SiteMonitoring() {

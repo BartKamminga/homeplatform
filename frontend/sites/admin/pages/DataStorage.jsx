@@ -30,6 +30,12 @@ const DB_USER_ROWS = [
   { label: 'fiets_label_excellent/good/fair',                       where: 'user_preferences.extra', note: 'Fiets score-staffel voor "beste moment"-label (debug-pagina)' },
   { label: 'group_id, role',                                       where: 'user_groups',            note: 'Groepslidmaatschappen' },
   { label: 'Taken (group_id = NULL)',                              where: 'tasks',                  note: 'DontForget — persoonlijk' },
+  { label: 'name, garden_orientation, notes, meta (koppelingen, databronnen, ha_areas, BAG)', where: 'myhome_homes', note: 'MyHome — huizen per eigenaar' },
+  { label: 'key, name, level, ha_floor, roof',                     where: 'myhome_floors',          note: 'MyHome — verdiepingen' },
+  { label: 'name, kind, polygon, ha_area, link_status, meta (muur-/vloerkleur)', where: 'myhome_rooms', note: 'MyHome — ruimtes met plattegrond' },
+  { label: 'name, kind, source, external_id, room_id, meta (positie, review, entities, live)', where: 'myhome_devices', note: 'MyHome — apparaten (sync uit HA/Hue of handmatig)' },
+  { label: 'title, kind, file_path, floor_key, room_id',           where: 'myhome_sources',         note: "MyHome — tekeningen en foto's (bestanden onder uploads/myhome)" },
+  { label: 'text, status, response',                               where: 'myhome_notes',           note: 'MyHome — correcties in gewone taal' },
 ];
 
 const DB_GROUP_ROWS = [
