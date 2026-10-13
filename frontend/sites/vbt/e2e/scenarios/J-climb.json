@@ -9,6 +9,11 @@
    "shot": "library"
   },
   {
+   "at": 5.2,
+   "name": "FTP TESTS bovenaan met Ramp Test en FTP Test",
+   "assert": "document.querySelector('.libhead').textContent.includes('FTP TESTS') && [...document.querySelectorAll('.libcard')].filter(c => /RAMP · |20 MIN · /.test(c.querySelector('.wdate').textContent)).length === 2"
+  },
+  {
    "at": 5.5,
    "run": "[...document.querySelectorAll('.libcard')].find(c => c.textContent.includes('CAUBERG')).click()"
   },

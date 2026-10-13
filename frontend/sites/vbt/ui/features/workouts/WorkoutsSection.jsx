@@ -33,6 +33,11 @@ export default function WorkoutsSection() {
     const out = sources.map(src => ({ key: src, title: src === 'zwo' ? 'MY IMPORTS' : (planNames[src] || src).toUpperCase(), items: ws.filter(w => w.source === src) }))
     const cl = climbs.filter(c => match(c.name) && dur === 'all')
     if (cl.length) out.splice(sources[0] === 'zwo' ? 1 : 0, 0, { key: 'climbs', title: 'CLIMB TRAINING', climbs: true, items: cl })
+    // FTP-tests (Ramp Test / 20-min FTP Test) uit alle plannen bovenaan, ook als ze in een plan voorkomen;
+    // dezelfde test (naam + duur) maar één keer
+    const seen = new Set()
+    const tests = ws.filter(w => VBT.ftp.testType(w) && !seen.has(w.name + w.duration) && seen.add(w.name + w.duration))
+    if (tests.length) out.unshift({ key: 'ftptests', title: 'FTP TESTS', tests: true, items: tests })
     return out
   }, [workouts, climbs, q, dur])
 
@@ -76,8 +81,8 @@ export default function WorkoutsSection() {
                     <CanvasChart height={26} className="wmini" draw={(ctx, w, h) => VBT.climbs.drawProfile(ctx, it, w, h)} />
                   </button>
                 ) : (
-                  <button key={it.id} className={'wcard libcard' + (sel?.wo?.id === it.id ? ' selected' : '')} onClick={() => setSel({ wo: it })}>
-                    <span className="wdate">{g.title}</span><b>{it.name.toUpperCase()}</b>
+                  <button key={g.key + it.id} className={'wcard libcard' + (sel?.wo?.id === it.id ? ' selected' : '')} onClick={() => setSel({ wo: it })}>
+                    <span className="wdate">{g.tests ? (VBT.ftp.testType(it) === 'ramp' ? 'RAMP · 75% BEST 1 MIN' : '20 MIN · 95% BEST 20 MIN') : g.title}</span><b>{it.name.toUpperCase()}</b>
                     <span className="wmeta">{minutes(it.duration)} · TSS {VBT.workout.tss(it)}</span>
                     <CanvasChart height={26} className="wmini" draw={(ctx, w, h) => VBT.workout.drawChart(ctx, it, w, h)} />
                     {it.mine && <i className="wdel" title="Delete" onClick={e => remove(e, it)}>&#10005;</i>}
