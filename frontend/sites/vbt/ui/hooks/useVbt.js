@@ -1,4 +1,4 @@
-// React-hooks op de engine-brug (game/store.js). Snapshot max. 10x/s, dus geen re-render per frame.
+// React-hooks op de engine-brug (engine/store.js). Snapshot max. 10x/s, dus geen re-render per frame.
 import { useSyncExternalStore } from 'react'
 
 const store = () => window.VBT.store

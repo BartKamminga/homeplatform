@@ -1,3 +1,4 @@
+/* Schermen en kaarten: workout-paneel, titelmenu, kalender/workoutkaarten, finish, toast, ritten, stopvraag */
 /* ---------- Workout-HUD ---------- */
 .wpanel { display: none; top: 20px; left: 50%; transform: translateX(-50%); width: 600px; border-color: rgba(255,230,109,.5); }
 body.workout .wpanel { display: block; }

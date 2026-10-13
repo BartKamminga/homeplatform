@@ -22,25 +22,22 @@ VBT.settings = (function () {
   const show = key => values[key] !== false;
 
   // HUD-onderdelen: React zet body.off-<key> vanuit het snapshot (CSS verbergt ze); canvas-onderdelen lezen show() zelf
-  const apply = () => {};
 
   async function load() {
     try {
       const s = VBT.storage.loadSettings ? await VBT.storage.loadSettings() : {};
       Object.assign(values, s || {});
     } catch (e) { /* standaardwaarden */ }
-    apply();
     return values;
   }
 
   function save(patch) {
     Object.assign(values, patch);
-    apply();
     if (VBT.storage.saveSettings) VBT.storage.saveSettings(patch).catch(() => { /* blijft in geheugen */ });
     return values;
   }
 
   const setAll = on => save(Object.fromEntries(DISPLAY_KEYS.map(k => [k, on])));
 
-  return { values, load, save, show, setAll, apply, DEFAULTS, DISPLAY, DISPLAY_KEYS };
+  return { values, load, save, show, setAll, DEFAULTS, DISPLAY, DISPLAY_KEYS };
 })();
