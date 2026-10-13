@@ -7,6 +7,10 @@ import os
 # cascaderende 429's (i.p.v. de verwachte 200/4xx) zodra genoeg tests in
 # dezelfde sessie een gelimiteerd endpoint raakten (zie test_dontforget.py).
 os.environ["TESTING"] = "1"
+# Geen Sentry-events vanuit de tests: zonder dit pakt core.settings de DSN uit
+# .env op en stuurt main.py elke verwachte fout naar de monitoring (een run
+# gaf 101 events). Een omgevingsvariabele gaat voor op .env.
+os.environ["SENTRY_DSN"] = ""
 
 import pytest
 from fastapi.testclient import TestClient
