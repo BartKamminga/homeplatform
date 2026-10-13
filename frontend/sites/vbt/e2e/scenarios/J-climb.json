@@ -1,0 +1,43 @@
+{
+ "title": "Climb Training: climb uit de library rijden in SIM, finish op de top, tijd als PB per climb",
+ "query": "lib",
+ "steps": [
+  {
+   "at": 5,
+   "name": "library toont de groep CLIMB TRAINING met 54 climbs",
+   "assert": "[...document.querySelectorAll('.libhead')].some(h => h.textContent.includes('CLIMB TRAINING')) && [...document.querySelectorAll('.libcard')].filter(c => /CAT |CLIMB/.test(c.querySelector('.wdate').textContent)).length === 54",
+   "shot": "library"
+  },
+  {
+   "at": 5.5,
+   "run": "[...document.querySelectorAll('.libcard')].find(c => c.textContent.includes('CAUBERG')).click()"
+  },
+  {
+   "at": 7,
+   "name": "detail met profiel en RIDE",
+   "assert": "!!document.querySelector('#climbRide') && document.querySelector('#planDetail').textContent.includes('CAUBERG') && !!document.querySelector('#planDetail canvas')",
+   "shot": "detail"
+  },
+  {
+   "at": 7.5,
+   "click": "#climbRide"
+  },
+  {
+   "at": 12,
+   "name": "climb loopt in SIM (geen workout), eigen courseKey",
+   "assert": "VBT.game.state === 'ride' && VBT.game.climb && VBT.game.climb.slug === 'cauberg' && !VBT.game.run && VBT.recorder.current().kind === 'climb' && VBT.recorder.current().courseKey === 'climb-cauberg'",
+   "run": "VBT.game.player.dist = VBT.recorder.current().lapM - 3"
+  },
+  {
+   "at": 15,
+   "name": "op de top: rit afgerond met tijd tot de top",
+   "assert": "VBT.game.state === 'finished' && VBT.game.lastRide.lapTime > 0 && VBT.game.lastRide.courseKey === 'climb-cauberg'",
+   "shot": "summit"
+  },
+  {
+   "at": 18,
+   "name": "server kent de climb-tijd als beste tijd (ghost voor de volgende keer)",
+   "assert": "fetch('/api/vbt/rides/best-lap?course=climb-cauberg',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(b => !!b && b.lapTime > 0 && b.kind === 'climb')"
+  }
+ ]
+}

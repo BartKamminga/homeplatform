@@ -3,6 +3,7 @@ formaat dat de game verwacht. Stap = {d: seconden, a: %FTP begin, b: %FTP eind, 
 import hashlib
 import json
 import xml.etree.ElementTree as ET
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -163,3 +164,21 @@ def plan_out(session: Session, plan: VbtPlan) -> dict:
         weeks.setdefault(it.week, []).append(day)
     return {"slug": plan.slug, "name": plan.name, "source": plan.source_url, "dayOffsets": plan.day_offsets,
             "weeks": [weeks[w] for w in sorted(weeks)]}
+
+
+# ── Climb Training (Zwift climb portals) ─────────────────────────────────────
+# Vaste referentiedata uit data/vbt/climbs.json: per climb segmenten [meters, helling%], gereden in SIM.
+
+@lru_cache(maxsize=1)
+def _climbs() -> dict:
+    data = json.loads((DATA_DIR / "climbs.json").read_text(encoding="utf-8"))
+    return {c["slug"]: c for c in data["climbs"]}
+
+
+def list_climbs() -> list:
+    """Overzicht zonder segmenten, op naam."""
+    return sorted(({k: v for k, v in c.items() if k != "segments"} for c in _climbs().values()), key=lambda c: c["name"])
+
+
+def get_climb(slug: str) -> Optional[dict]:
+    return _climbs().get(slug)

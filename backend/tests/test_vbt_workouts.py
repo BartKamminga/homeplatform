@@ -80,6 +80,17 @@ def test_seed_back_to_fitness(client, session, user_token):
     assert plan["weeks"][0][0]["name"] == "No Nonsense" and plan["weeks"][1][0]["name"] == "The Beginning"
 
 
+def test_climbs(client, user_token):
+    climbs = client.get("/api/vbt/climbs", headers=_h(user_token)).json()
+    assert len(climbs) == 54 and "segments" not in climbs[0]
+    assert [c["name"] for c in climbs] == sorted(c["name"] for c in climbs)
+    madone = client.get("/api/vbt/climbs/col-de-la-madone", headers=_h(user_token)).json()
+    assert madone["category"] == "HC" and 880 <= madone["elevation"] <= 920
+    assert abs(sum(m for m, _ in madone["segments"]) - madone["distance"]) <= 1
+    assert client.get("/api/vbt/climbs/nope", headers=_h(user_token)).status_code == 404
+    assert client.get("/api/vbt/climbs").status_code == 401
+
+
 def test_parse_zwo():
     wo = svc.parse_zwo(ZWO)
     assert wo["name"] == "Sweet Spot Test"

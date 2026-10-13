@@ -13,7 +13,7 @@ VBT.cfg = {
   drawDistance: 320,
   fogDensity: 4,
   verticalExaggeration: 4, // hoogte visueel x4 overdrijven (arcade), fysica gebruikt de echte helling
-  maxGrade: 0.12,
+  maxGrade: 0.25,         // climbs (Stelvio, Bealach na Ba) gaan tot ~20%
   rider: { mass: 85, crr: 0.004, cda: 0.32, rho: 1.225, ftp: 180 },   // ftp: instelbaar in de kalender
   riderUnitsPerMeter: 330, // tekenschaal van de renners
   pelotonSize: 15,

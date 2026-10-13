@@ -15,7 +15,8 @@ VBT.recorder = (function () {
     rec.odo += game.player.v * dt;
     rec.acc += dt;
     let lap = null;
-    if (rec.kind === 'free' && rec.lapTime === null && game.player.dist >= VBT.track.lapMeters()) {
+    const lapKind = rec.kind === 'free' || rec.kind === 'climb';   // climb: lap = tijd tot de top (lapM)
+    if (lapKind && rec.lapTime === null && game.player.dist >= (rec.lapM || VBT.track.lapMeters())) {
       rec.lapTime = game.rideTime;
       lap = rec.lapTime;
     }
@@ -28,7 +29,7 @@ VBT.recorder = (function () {
         +T.altitude(game.playerY - T.heightRange()[0]).toFixed(1),
       ]);
     }
-    return lap;   // eerste volle ronde net gereden -> rondetijd
+    return lap;   // eerste volle ronde (of de top) net gereden -> rondetijd
   }
 
   // laatste (deel)seconde ook bewaren, zodat zelfs een rit van een paar tellen data heeft

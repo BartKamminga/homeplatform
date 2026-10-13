@@ -1,4 +1,5 @@
-"""VBT — workoutbibliotheek en trainingsplannen (/api/vbt/workouts, /api/vbt/plans), inclusief .zwo-import."""
+"""VBT — workoutbibliotheek, trainingsplannen en climbs (/api/vbt/workouts, /api/vbt/plans, /api/vbt/climbs),
+inclusief .zwo-import."""
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -26,6 +27,19 @@ def get_plan(slug: str, _: User = Depends(get_current_user), session: Session = 
     if not plan:
         raise HTTPException(status_code=404, detail="Plan niet gevonden")
     return svc.plan_out(session, plan)
+
+
+@router.get("/climbs")
+def list_climbs(_: User = Depends(get_current_user)):
+    return svc.list_climbs()
+
+
+@router.get("/climbs/{slug}")
+def get_climb(slug: str, _: User = Depends(get_current_user)):
+    climb = svc.get_climb(slug)
+    if not climb:
+        raise HTTPException(status_code=404, detail="Climb niet gevonden")
+    return climb
 
 
 def _visible(user: User):

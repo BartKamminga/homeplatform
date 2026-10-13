@@ -30,6 +30,8 @@ VBT.storage = {
   saveSettings: patch => api.put('/api/vbt/profile', { settings: patch }),
   loadPlan: slug => api.get('/api/vbt/plans/' + enc(slug)),
   listWorkouts: () => api.get('/api/vbt/workouts'),
+  listClimbs: () => api.get('/api/vbt/climbs'),
+  getClimb: slug => api.get('/api/vbt/climbs/' + enc(slug)),
   getWorkout: id => api.get('/api/vbt/workouts/' + enc(id)),
   deleteWorkout: id => api.delete('/api/vbt/workouts/' + enc(id)),
   async importZwo(files) {

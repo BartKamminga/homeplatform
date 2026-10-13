@@ -127,6 +127,7 @@ body[data-state="finished"] #finish { display: flex; }
 .libbar .hint { font-size: 11px; opacity: .6; }
 #libMsg { font-size: 11px; color: var(--yellow); margin: 6px 0; }
 .libhead { font-family: var(--pixel); font-size: 10px; color: var(--pink); margin: 16px 0 8px; }
+.libhead small { color: var(--cyan); opacity: .7; margin-left: 8px; font-size: 8px; }
 .libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .wdel { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 11px; opacity: .5; padding: 2px 4px; }
 .wdel:hover { opacity: 1; color: var(--pink); }

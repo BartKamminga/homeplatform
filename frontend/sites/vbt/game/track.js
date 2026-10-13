@@ -57,8 +57,9 @@ VBT.track = (function () {
     return g;
   }
 
-  // course: lijst secties; zonder argument het vaste vrije-rit-parcours
-  function build(course = COURSE) {
+  // course: lijst secties; zonder argument het vaste vrije-rit-parcours.
+  // loop: false = niet terug naar starthoogte (climb: anders kilometers afdaling achter de top)
+  function build(course = COURSE, { loop = true } = {}) {
     segments.length = 0;
     const marks = [];
     let grade = 0;
@@ -67,7 +68,7 @@ VBT.track = (function () {
       grade = addSection(sec, grade);
     }
     // slot: rustig terug naar startniveau, zodat de lus naadloos sluit
-    const startY = lastY(), closeN = Math.round(Math.max(400, Math.abs(altitude(startY)) / 0.06) / SEG_M());
+    const startY = lastY(), closeN = loop ? Math.round(Math.max(400, Math.abs(altitude(startY)) / 0.06) / SEG_M()) : 0;
     for (let i = 1; i <= closeN; i++) addSegment(0, util.easeInOut(startY, 0, i / closeN));
     marks.push({ at: segments.length, sec: { tag: 'end' } });
 

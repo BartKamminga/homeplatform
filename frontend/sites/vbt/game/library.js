@@ -1,14 +1,15 @@
-// Workoutbibliotheek (tab LIBRARY in het planscherm): alle workouts uit de database, .zwo importeren
+// Workoutbibliotheek (tab LIBRARY in het planscherm): alle workouts uit de database + Climb Training, .zwo importeren
 // (knop of bestanden op het scherm slepen), eigen imports verwijderen. Detail + RIDE via het kalenderpaneel.
 VBT.library = (function () {
   const $ = id => document.getElementById(id);
   const GROUPS = { zwo: 'MY IMPORTS', 'ftp-builder': 'FTP BUILDER' };
-  let items = [];
+  let items = [], climbs = [];
 
   const toast = (text, ms) => VBT.toast && VBT.toast(text, ms);
 
   async function load() {
     try { items = await VBT.storage.listWorkouts(); } catch (e) { items = []; }
+    climbs = await VBT.climbs.load();
     render();
   }
 
@@ -18,11 +19,7 @@ VBT.library = (function () {
     el.innerHTML = '<span class="wdate">' + (GROUPS[wo.source] || String(wo.source).toUpperCase()) + '</span><b>' +
       wo.name.toUpperCase() + '</b><span class="wmeta">' + VBT.calendar.minutes(wo.duration) + ' · TSS ' + VBT.workout.tss(wo) + '</span>';
     el.appendChild(VBT.calendar.chart(wo, 150, 32, 'wmini'));
-    el.onclick = () => {
-      document.querySelectorAll('.libcard.selected').forEach(c => c.classList.remove('selected'));
-      el.classList.add('selected');
-      VBT.calendar.select(wo);
-    };
+    el.onclick = () => { highlight(el); VBT.calendar.select(wo); };
     if (wo.mine) {
       const del = document.createElement('i');
       del.className = 'wdel';
@@ -34,10 +31,15 @@ VBT.library = (function () {
     return el;
   }
 
+  function highlight(el) {
+    document.querySelectorAll('.libcard.selected').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
   function render() {
     const grid = $('libGrid');
     grid.innerHTML = '';
-    if (!items.length) { grid.innerHTML = '<p class="hint">No workouts yet - import a .zwo file.</p>'; return; }
+    if (!items.length) grid.innerHTML = '<p class="hint">No workouts yet - import a .zwo file.</p>';
     // eigen imports eerst, daarna per bron
     const sources = [...new Set(items.map(w => w.source))].sort((a, b) => (a === 'zwo' ? -1 : b === 'zwo' ? 1 : a.localeCompare(b)));
     for (const src of sources) {
@@ -45,6 +47,13 @@ VBT.library = (function () {
       const row = document.createElement('div');
       row.className = 'libgrid';
       items.filter(w => w.source === src).forEach(w => row.appendChild(card(w)));
+      grid.appendChild(row);
+    }
+    if (climbs.length) {
+      grid.insertAdjacentHTML('beforeend', '<h4 class="libhead">CLIMB TRAINING <small>SIM · ZWIFT CLIMB PORTALS</small></h4>');
+      const row = document.createElement('div');
+      row.className = 'libgrid';
+      climbs.forEach(cl => row.appendChild(VBT.climbs.card(cl, (el, c) => { highlight(el); VBT.climbs.select(c); })));
       grid.appendChild(row);
     }
   }

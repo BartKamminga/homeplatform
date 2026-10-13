@@ -6,22 +6,25 @@ VBT.session = (function () {
   const $ = id => document.getElementById(id);
   let ghostIdx = 0;
 
-  // wo = workout uit het plan (ERG, eigen parcours), wo.free = vrije rit met timer, null = vrije rit
-  // startStep: optioneel interval om mee te beginnen (aangeklikt in een grafiek)
+  // wo = workout uit het plan (ERG, eigen parcours), wo.free = vrije rit met timer, wo.climb = climb (SIM, finish
+  // op de top), null = vrije rit. startStep: optioneel interval om mee te beginnen (aangeklikt in een grafiek)
   function startRide(wo, startStep) {
     if (VBT.recorder.active()) saveRide({});     // nooit een lopende rit overschrijven
-    const course = wo && !wo.free ? VBT.workout.buildCourse(wo, cfg.rider.ftp) : undefined;
-    VBT.track.build(course);
-    game.run = wo ? VBT.workout.createRun(wo.free ? Object.assign({}, wo, { steps: [{ d: wo.duration, a: 65, b: 65 }] }) : wo, course) : null;
+    const climb = wo && wo.climb ? wo : null;
+    const course = climb ? VBT.climbs.course(climb) : wo && !wo.free ? VBT.workout.buildCourse(wo, cfg.rider.ftp) : undefined;
+    VBT.track.build(course, { loop: !climb });
+    game.climb = climb;
+    game.run = wo && !climb ? VBT.workout.createRun(wo.free ? Object.assign({}, wo, { steps: [{ d: wo.duration, a: 65, b: 65 }] }) : wo, course) : null;
     game.resetRide();
     VBT.traffic.reset();
-    const courseKey = wo && !wo.free ? wo.id : FREE_COURSE;
-    VBT.recorder.start({ kind: wo && !wo.free ? 'workout' : 'free', courseKey, name: wo ? wo.name : 'Free Ride', woId: wo ? wo.id : null, ftp: cfg.rider.ftp });
+    const courseKey = climb ? 'climb-' + climb.slug : wo && !wo.free ? wo.id : FREE_COURSE;
+    VBT.recorder.start({ kind: climb ? 'climb' : wo && !wo.free ? 'workout' : 'free', courseKey, name: wo ? wo.name : 'Free Ride',
+      woId: wo && !climb ? wo.id : null, ftp: cfg.rider.ftp, lapM: climb ? VBT.climbs.summitMeters(climb) : null });
     game.ghostTrack = null;
     game.ghostLabel = 'PACER';
     ghostIdx = 0;
-    if (courseKey === FREE_COURSE) {
-      VBT.storage.bestLap(FREE_COURSE).then(best => {
+    if (courseKey === FREE_COURSE || climb) {
+      VBT.storage.bestLap(courseKey).then(best => {
         if (!best) return;
         game.ghostTrack = best;
         game.ghostLabel = 'PB';
@@ -82,7 +85,8 @@ VBT.session = (function () {
     const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
     VBT.store.log('lap', 'Lap ' + fmt(lap) + (pb ? ' (PB ' + fmt(pb) + ')' : ''));
     if (!pb || lap < pb) VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow);
-    else VBT.hud.message('LAP ' + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
+    else VBT.hud.message((game.climb ? 'SUMMIT ' : 'LAP ') + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
+    if (game.climb) finish(true);     // climb: de rit stopt op de top
   }
 
   // Rit afronden: opslaan, kalender bijwerken, eindscherm
@@ -95,8 +99,11 @@ VBT.session = (function () {
     game.lastRide = ride;
     const newPb = ride.lapTime && !ride.jumped && (!pbBefore || ride.lapTime < pbBefore);
     if (run && completed && run.wo.week) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
-    const heading = newPb ? 'NEW PB!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
-    const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day : ride.name.toUpperCase();
+    const climbDone = game.climb && completed && ride.lapTime;
+    const heading = newPb ? 'NEW PB!' : climbDone ? 'SUMMIT!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
+    const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day
+      : climbDone ? ride.name.toUpperCase() + ' · ' + Math.floor(ride.lapTime / 60) + ':' + String(Math.floor(ride.lapTime % 60)).padStart(2, '0')
+        : ride.name.toUpperCase();
     VBT.bleBridge.release();
     VBT.workoutHud.showFinish(ride, heading, sub);
     if (VBT.stravaUi) VBT.stravaUi.render();
@@ -123,8 +130,9 @@ VBT.session = (function () {
     if (VBT.recorder.active()) saveRide({});      // nooit weggooien
     VBT.bleBridge.release();
     game.autoPaused = false;
-    const fromWorkout = !!game.run;
+    const fromWorkout = !!game.run || !!game.climb;
     game.run = null;
+    game.climb = null;
     game.ghostTrack = null;
     game.ghostLabel = 'PACER';
     if (fromWorkout) { VBT.track.build(); game.resetRide(); }
@@ -154,7 +162,10 @@ VBT.session = (function () {
     const S = ride.samples || [];
     if (!ride.clientId || !S.length) { VBT.toast && VBT.toast('THIS RIDE CANNOT BE CONTINUED'); return; }
     let wo = null;
-    if (ride.courseKey !== FREE_COURSE) {
+    if (ride.courseKey.startsWith('climb-')) {
+      wo = await VBT.climbs.get(ride.courseKey.slice(6)).catch(() => null);
+      if (!wo) { VBT.toast && VBT.toast('CLIMB NOT FOUND - CANNOT CONTINUE', 6000); return; }
+    } else if (ride.courseKey !== FREE_COURSE) {
       wo = VBT.calendar.find(ride.courseKey);
       if (!wo && VBT.storage.getWorkout) wo = await VBT.storage.getWorkout(ride.courseKey).catch(() => null);
       if (!wo) { VBT.toast && VBT.toast('WORKOUT NOT FOUND - CANNOT CONTINUE', 6000); return; }
@@ -162,6 +173,7 @@ VBT.session = (function () {
     toMenu('title');
     startRide(wo);
     const rec = VBT.recorder.resume(ride);
+    if (wo && wo.climb) rec.lapM = VBT.climbs.summitMeters(wo);
     const last = S[S.length - 1];
     const delta = last[1] - game.player.dist;
     game.player.dist = last[1];
