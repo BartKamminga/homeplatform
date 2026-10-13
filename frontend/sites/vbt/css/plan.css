@@ -20,24 +20,7 @@ body.workout .center, body.workout #gapLabel, body.workout #gap { display: none;
 .menubtns button:not([disabled]):hover { background: rgba(255,230,109,.12); }
 .menu em { color: var(--pink); font-style: normal; margin-left: 6px; }
 
-/* ---------- Kalender ---------- */
-#plan {
-  position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 14px; padding: 24px 28px;
-  background: rgba(7,1,26,.9); backdrop-filter: blur(6px); overflow: auto;
-}
-body[data-state="plan"] #plan { display: flex; }
-body[data-state="plan"] #title { opacity: 0; visibility: hidden; }
-.planhead { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-.planhead h2 { margin: 0; font-family: var(--pixel); font-size: 24px; color: var(--yellow); text-shadow: 0 0 14px var(--pink); }
-.planhead small { font-size: 11px; letter-spacing: 2px; opacity: .8; }
-.planhead a { color: var(--cyan); }
-.planhead > div { margin-right: auto; }
-.planhead label { font-family: var(--pixel); font-size: 10px; color: var(--cyan); display: flex; align-items: center; gap: 8px; }
-.planhead input, .planhead select {
-  font-family: var(--hud); font-size: 16px; color: var(--ink); background: rgba(255,255,255,.06);
-  border: 1px solid var(--cyan); border-radius: 4px; padding: 6px 8px; color-scheme: dark;
-}
-.planhead input[type="number"] { width: 80px; }
+/* ---------- Kalender en workoutkaarten (React: MY PLAN / WORKOUTS) ---------- */
 .ghostbtn, .ridebtn {
   font-family: var(--pixel); font-size: 11px; color: var(--ink); background: transparent; cursor: pointer;
   border: 1px solid var(--pink); border-radius: 4px; padding: 10px 14px;
@@ -68,15 +51,10 @@ body[data-state="plan"] #title { opacity: 0; visibility: hidden; }
   border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px;
 }
 
-#planDetail { margin-top: auto; padding: 14px 18px; border-radius: 8px; border: 1px solid rgba(255,46,136,.45); background: rgba(12,2,32,.7); }
-#planDetail .hint { opacity: .6; }
 .dhead { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 10px; }
 .dhead h3 { margin: 4px 0; font-size: 22px; letter-spacing: 2px; }
 .dhead small, .dhead span { font-size: 11px; letter-spacing: 2px; opacity: .8; display: block; }
 .dres { color: #5dff9e; opacity: 1 !important; margin-top: 4px; }
-.dbtns { display: flex; gap: 12px; }
-.dchart { width: 100%; height: 110px; display: block; cursor: pointer; }
-.dchart:hover { outline: 1px solid var(--cyan); }
 
 /* ---------- Finish ---------- */
 #finish {
@@ -111,21 +89,8 @@ body[data-state="finished"] #finish { display: flex; }
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #btnStrava:not([disabled]) { border-color: #fc4c02; box-shadow: 0 0 14px rgba(252,76,2,.45); }
-#planStrava { border-color: #fc4c02; }
 
-/* ---------- Tabs + bibliotheek ---------- */
-.tabs { display: flex; gap: 6px; margin: 8px 0 4px; }
-.tab { font-family: var(--pixel); font-size: 10px; color: var(--ink); background: transparent; cursor: pointer;
-  border: 1px solid rgba(155,92,255,.5); border-radius: 4px; padding: 6px 12px; opacity: .7; }
-.tab.active { opacity: 1; border-color: var(--cyan); background: rgba(36,232,255,.12); }
-#plan[data-tab="lib"] .planbody, #plan[data-tab="rides"] .planbody { display: none; }
-#plan:not([data-tab="lib"]) .libbody { display: none; }
-#plan:not([data-tab="rides"]) .ridesbody { display: none; }
-#plan[data-tab="rides"] #planDetail { display: none; }
-#plan.dragover { outline: 3px dashed var(--cyan); outline-offset: -12px; }
-.libbar { display: flex; align-items: center; gap: 16px; }
-.libbar .hint { font-size: 11px; opacity: .6; }
-#libMsg { font-size: 11px; color: var(--yellow); margin: 6px 0; }
+/* ---------- Bibliotheek ---------- */
 .libhead { font-family: var(--pixel); font-size: 10px; color: var(--pink); margin: 16px 0 8px; }
 .libhead small { color: var(--cyan); opacity: .7; margin-left: 8px; font-size: 8px; }
 .libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
@@ -141,7 +106,6 @@ body[data-state="finished"] #finish { display: flex; }
 #pausedTitle { font-size: min(44px, 5vw); }
 
 /* ---------- Ritoverzicht ---------- */
-.ridesbody { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; min-height: 0; flex: 1; }
 .ridelistwrap { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 #rideList { display: flex; flex-direction: column; gap: 6px; overflow: auto; max-height: calc(100vh - 220px); padding-right: 4px; }
 .riderow { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 6px; cursor: pointer;
@@ -155,12 +119,10 @@ body[data-state="finished"] #finish { display: flex; }
 .tag.wo { background: var(--cyan); }
 .tag.pending { background: var(--pink); color: #fff; }
 .tag.strava { background: #fc4c02; color: #fff; }
-#rideDetail { padding: 14px 18px; border-radius: 8px; border: 1px solid rgba(255,46,136,.45); background: rgba(12,2,32,.7); min-width: 0; }
 .ridestats { display: flex; flex-wrap: wrap; gap: 22px; margin: 6px 0 14px; }
 .ridestats div { display: flex; flex-direction: column; }
 .ridestats b { font-size: 24px; font-weight: 900; }
 .ridestats small { font-family: var(--pixel); font-size: 8px; color: var(--cyan); margin-top: 4px; }
-.ridechart { width: 100%; height: 220px; display: block; background: rgba(255,255,255,.03); border-radius: 4px; }
 
 /* ---------- Stopvraag ---------- */
 #confirm { position: fixed; inset: 0; z-index: 38; display: none; align-items: center; justify-content: center; background: rgba(7,1,26,.6); }
@@ -171,7 +133,6 @@ body[data-state="confirm"] #confirm { display: flex; }
 .confirmbox p { margin: 0; font-size: 12px; letter-spacing: 1px; opacity: .85; }
 .confirmbtns { display: flex; gap: 12px; }
 .ridebtn em { font-style: normal; font-size: 9px; margin-left: 6px; opacity: .7; }
-@media (max-width: 900px) { .ridesbody { grid-template-columns: 1fr; } }
 
 #backup { font-size: 15px; margin-bottom: 0; }
 #backup.ahead { color: #5dff9e; text-shadow: none; }
@@ -180,7 +141,7 @@ body[data-state="confirm"] #confirm { display: flex; }
 
 
 /* overlays schuiven mee met de zijpanelen (React zet --panel-left/--panel-right) */
-#title, #plan, #finish, #countdown, #paused, #confirm { left: var(--panel-left, 0px) !important; right: var(--panel-right, 0px) !important; }
+#title, #finish, #countdown, #paused, #confirm { left: var(--panel-left, 0px) !important; right: var(--panel-right, 0px) !important; }
 
 .ridelisthead { display: flex; justify-content: space-between; align-items: center; }
 .ridelisthead .ghostbtn { font-size: 8px; padding: 5px 8px; }

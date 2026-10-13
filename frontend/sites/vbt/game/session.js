@@ -126,6 +126,7 @@ VBT.session = (function () {
     return ride;
   }
 
+  // naar het menu: 'title', of een sectie van het linkerpaneel ('plan', 'rides', 'workouts', 'today')
   function toMenu(state) {
     if (VBT.recorder.active()) saveRide({});      // nooit weggooien
     VBT.bleBridge.release();
@@ -136,8 +137,9 @@ VBT.session = (function () {
     game.ghostTrack = null;
     game.ghostLabel = 'PACER';
     if (fromWorkout) { VBT.track.build(); game.resetRide(); }
-    if (state === 'plan') VBT.calendar.open();
-    game.setState(state);
+    const section = state === 'title' || state === 'finished' ? null : state;
+    game.setState(section ? 'title' : state);
+    if (section && VBT.ui) VBT.ui.open('left', section);
   }
 
   // Esc tijdens een rit: eerst vragen. De rit staat zolang stil (net als bij pauze).
@@ -188,10 +190,7 @@ VBT.session = (function () {
     VBT.hud.message('CONTINUE · ' + Math.floor(last[0] / 60) + ':' + String(Math.floor(last[0] % 60)).padStart(2, '0'), VBT.palette.cyan);
   }
 
-  function openRides() {
-    toMenu('plan');
-    VBT.library.show('rides');
-  }
+  const openRides = () => toMenu('rides');
 
   // apparaten en help staan in het linkerpaneel (React registreert VBT.ui)
   const openDevices = () => VBT.ui && VBT.ui.open('left', 'devices');
@@ -209,8 +208,6 @@ VBT.session = (function () {
     $('btnRides').onclick = openRides;
     $('btnKeepRiding').onclick = cancelStop;
     $('btnStopRide').onclick = confirmStop;
-    $('planDevices').onclick = openDevices;
-    $('planClose').onclick = () => toMenu('title');
     $('btnFit').onclick = downloadFit;
     $('btnDone').onclick = () => toMenu(game.lastRide && game.lastRide.kind === 'workout' ? 'plan' : 'title');
     $('btnFinishRides').onclick = openRides;

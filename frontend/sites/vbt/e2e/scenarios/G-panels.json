@@ -52,7 +52,7 @@
   },
   {
    "at": 11.5,
-   "click": ".vbt-panel-left .pn-tabs button:nth-child(2)"
+   "click": ".vbt-panel-left .pn-tabs button[data-section=devices]"
   },
   {
    "at": 12.5,

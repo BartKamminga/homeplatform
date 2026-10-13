@@ -86,7 +86,7 @@
     <div class="menu">
       <div class="menubtns">
         <button id="btnFree">&#9654; FREE RIDE <em>SPACE</em></button>
-        <button id="btnPlan">&#9638; TRAINING PLAN <em>T</em></button>
+        <button id="btnPlan">&#9638; MY PLAN <em>T</em></button>
         <button id="btnRides">&#9776; MY RIDES <em>R</em></button>
         <button id="btnHelp">? HELP <em>H</em></button>
         <button id="btnDevices">&#9655; CONNECT KICKR <em>K</em></button>
@@ -94,39 +94,6 @@
       <span>FREE RIDE: &#8593;&#8595; POWER · SHIFT SPRINT &nbsp;|&nbsp; WORKOUT (ERG): &#8593;&#8595; CADENCE &nbsp;|&nbsp; &#8592;&#8594; STEER · SPACE PAUSE · ESC END RIDE</span>
     </div>
     <div class="credit">&copy; 2026 HOMEPLATFORM ARCADE &nbsp; INSERT COIN</div>
-  </div>
-
-  <div id="plan">
-    <div class="planhead">
-      <div>
-        <h2 id="planTitle">TRAINING PLAN</h2>
-        <div class="tabs"><button id="tabPlan" class="tab active">PLAN</button><button id="tabLib" class="tab">LIBRARY</button><button id="tabRides" class="tab">MY RIDES</button></div>
-        <small><span id="planWeeks">PLAN</span> · <span id="planProgress">0 / 0 DONE</span> · <a id="planSource" target="_blank" rel="noopener">SOURCE: WHATSONZWIFT</a></small>
-      </div>
-      <label>PLAN <select id="planSelect"></select></label>
-      <label>FTP <input id="planFtp" type="number" min="50" max="600" step="1"> W</label>
-      <label>START <input id="planStart" type="date"></label>
-      <button id="planDevices" class="ghostbtn">&#9655; DEVICES <em>K</em></button>
-      <button id="planStrava" class="ghostbtn" hidden>&#8679; CONNECT STRAVA</button>
-      <button id="planClose" class="ghostbtn">&#10005; CLOSE <em>ESC</em></button>
-    </div>
-    <div class="planbody">
-      <div class="wrow wdays"><span class="wlabel"></span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div>
-      <div id="planGrid"></div>
-    </div>
-    <div class="libbody">
-      <div class="libbar">
-        <label class="ghostbtn">&#8679; IMPORT .ZWO <input id="libImport" type="file" accept=".zwo" multiple hidden></label>
-        <span class="hint">or drop .zwo files anywhere on this screen</span>
-      </div>
-      <div id="libMsg"></div>
-      <div id="libGrid"></div>
-    </div>
-    <div class="ridesbody">
-      <div class="ridelistwrap"><div class="ridelisthead"><small id="ridesCount" class="hint"></small><button id="ridesTrash" class="ghostbtn" hidden>TRASH</button></div><div id="rideList"></div></div>
-      <div id="rideDetail"></div>
-    </div>
-    <div id="planDetail"></div>
   </div>
 
   <div id="finish">

@@ -2,7 +2,6 @@
 // Een climb is geen ERG-workout: je rijdt in SIM (de trainer volgt de helling) en de rit stopt op de top.
 // Tijd tot de top telt als 'lap' per climb (courseKey climb-<slug>), dus je beste tijd rijdt mee als ghost.
 VBT.climbs = (function () {
-  const $ = id => document.getElementById(id);
   const START_M = 150, RUNOUT_M = 300;
   let list = [];
   const cache = {};
@@ -43,12 +42,8 @@ VBT.climbs = (function () {
     return '#b44cff';
   }
 
-  // hoogteprofiel; zonder segmenten (lijst) een simpele helling van de gemiddelde steilheid
-  function chart(climb, W, H, cls) {
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    if (cls) c.className = cls;
-    const ctx = c.getContext('2d');
+  // hoogteprofiel (gekleurd per helling) op een bestaand canvas; zonder segmenten een rechte helling
+  function drawProfile(ctx, climb, W, H) {
     const segs = climb.segments || [[climb.distance, climb.avgGrade]];
     const total = segs.reduce((t, s) => t + s[0], 0);
     let x = 0, y = 0;
@@ -63,37 +58,9 @@ VBT.climbs = (function () {
       ctx.fill();
       px = mx; py = my;
     }
-    return c;
   }
 
-  const km = m => (m / 1000).toFixed(1) + ' KM';
-  const meta = cl => km(cl.distance) + ' · ' + cl.elevation + ' HM · ' + cl.avgGrade + '%';
-  const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  const meta = cl => (cl.distance / 1000).toFixed(1) + ' KM · ' + cl.elevation + ' HM · ' + cl.avgGrade + '%';
 
-  function card(cl, onSelect) {
-    const el = document.createElement('button');
-    el.className = 'wcard libcard';
-    el.innerHTML = '<span class="wdate">' + (cl.category ? 'CAT ' + cl.category : 'CLIMB') + '</span><b>' +
-      cl.name.toUpperCase() + '</b><span class="wmeta">' + meta(cl) + '</span>';
-    el.appendChild(chart(cl, 150, 32, 'wmini'));
-    el.onclick = () => onSelect(el, cl);
-    return el;
-  }
-
-  // detailpaneel (zelfde plek als bij workouts): profiel, beste tijd, RIDE
-  async function select(cl) {
-    const box = $('planDetail');
-    let climb;
-    try { climb = await get(cl.slug); } catch (e) { box.innerHTML = '<p class="hint">Climb not found.</p>'; return; }
-    box.innerHTML = '<div class="dhead"><div><small>LIBRARY · CLIMB TRAINING' + (climb.category ? ' · CAT ' + climb.category : '') +
-      '</small><h3>' + climb.name.toUpperCase() + '</h3><span>' + meta(climb) + ' · MAX ' + climb.maxGrade + '% · SIM</span>' +
-      '<span id="climbPb" class="dres"></span></div><div class="dbtns"><button id="climbRide" class="ridebtn">RIDE &#9654;</button></div></div>';
-    box.appendChild(chart(climb, 900, 110, 'dchart'));
-    $('climbRide').onclick = () => VBT.session.startRide(climb);
-    VBT.storage.bestLap('climb-' + climb.slug).then(best => {
-      if (best && best.lapTime && $('climbPb')) $('climbPb').textContent = 'PB ' + fmt(best.lapTime) + ' · ' + best.avgW + ' W AVG';
-    }).catch(() => { /* geen PB */ });
-  }
-
-  return { load, get, course, summitMeters, card, select, list: () => list };
+  return { load, get, course, summitMeters, drawProfile, gradeColor, meta, list: () => list };
 })();

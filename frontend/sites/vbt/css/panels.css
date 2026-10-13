@@ -107,3 +107,43 @@
 .pn-history li { display: grid; grid-template-columns: 80px 60px minmax(0, 1fr); gap: 6px; }
 .pn-history b { color: var(--yellow); }
 .pn-history i { font-style: normal; opacity: .65; }
+
+/* ---------- Menu buiten een rit: breed paneel met TODAY / MY PLAN / WORKOUTS / MY RIDES / PROGRESS ---------- */
+.pn-tabsep { flex-basis: 8px; }
+.pn-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.vbt-panel-left.wide .pn-split { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); align-items: start; }
+.vbt-panel-left.wide .pn-split > .pn-libcol { grid-column: 1 / -1; }
+.pn-libcol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pn-libscroll { max-height: 44vh; overflow: auto; padding-right: 4px; }
+.pn-filter input[type="search"] { flex: 1; min-width: 0; font-family: var(--hud); font-size: 11px; color: var(--ink); background: #05010f;
+  border: 1px solid rgba(155,92,255,.5); border-radius: 4px; padding: 6px 8px; }
+.pn-filter .ghostbtn { font-size: 9px; padding: 6px 8px; white-space: nowrap; }
+.libhead em { color: var(--cyan); font-style: normal; opacity: .7; margin-left: 6px; font-size: 8px; }
+.vbt-panel .libgrid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.vbt-panel .wcard { min-height: 84px; }
+.pn-detail { padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(255,46,136,.45); background: rgba(12,2,32,.7); min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; }
+.pn-detail .dhead { margin-bottom: 0; }
+.pn-detail .dhead h3 { font-size: 18px; }
+#rideList { max-height: 60vh; }
+
+.pn-today small, .pn-planhead small { font-family: var(--pixel); font-size: 8px; color: var(--cyan); letter-spacing: 1px; }
+.pn-today h3, .pn-planhead h3 { margin: 4px 0; font-family: var(--pixel); font-size: 18px; color: var(--yellow); text-shadow: 0 0 10px rgba(255,46,136,.6); }
+.pn-planhead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-end; }
+.pn-planhead a { color: var(--cyan); }
+.pn-planctl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pn-planctl label, .pn-switch label { font-family: var(--pixel); font-size: 9px; color: var(--cyan); display: flex; align-items: center; gap: 6px; }
+.pn-planctl input, .pn-switch input, .pn-switch select { font-family: var(--hud); font-size: 12px; color: var(--ink); background: #05010f;
+  border: 1px solid var(--cyan); border-radius: 4px; padding: 5px 6px; color-scheme: dark; }
+.pn-planctl .ghostbtn { font-size: 9px; padding: 7px 10px; }
+.pn-progress { height: 6px; margin: 6px 0; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; max-width: 320px; }
+.pn-progress i { display: block; height: 100%; background: #5dff9e; }
+.pn-switch { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 8px; border: 1px solid var(--cyan); background: rgba(36,232,255,.06); }
+.pn-plangrid { overflow-x: auto; }
+.pn-plangrid .wrow { grid-template-columns: 56px repeat(7, minmax(84px, 1fr)); gap: 6px; margin-bottom: 6px; }
+.pn-plangrid .wrow.thisweek .wlabel { color: var(--yellow); }
+.pn-plangrid .wcard { min-height: 74px; padding: 6px 7px; }
+.pn-plangrid .wcard b { font-size: 9px; }
+.pn-plangrid .wdate, .pn-plangrid .wmeta { font-size: 8px; }
+.pn-sticky { position: sticky; bottom: -12px; padding-bottom: 12px; background: rgb(9, 2, 26); }
+body.menu-wide #title .menu, body.menu-wide #title .press { display: none; }

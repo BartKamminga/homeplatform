@@ -1,25 +1,35 @@
 // VBT React-schil: start de engine (canvas/gameloop blijft plain JS) en beheert de zijpanelen:
 // links MENU (M), rechts LIVE (L). Open panelen maken het speelveld smaller via --panel-left/--panel-right;
 // de rit loopt gewoon door. Esc sluit eerst een open paneel, pas daarna komt de stopvraag.
+// Buiten een rit is het menu breed (plan, workouts, ritten); start je een rit, dan gaat het menu dicht.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LeftPanel from './panels/LeftPanel.jsx'
 import RightPanel from './panels/RightPanel.jsx'
+import { useVbtValue } from './hooks/useVbt.js'
 
 const LEFT_W = 340, RIGHT_W = 380
+const RIDING = ['ride', 'paused', 'countdown', 'confirm']
+const wideWidth = () => Math.min(900, Math.round(window.innerWidth * 0.6))
+// tijdens een rit staat NOW vooraan, daarbuiten TODAY
+const fitSection = (section, riding) => (riding ? section : section === 'now' ? 'today' : section)
 let booted = false
 
 export default function VbtApp() {
-  const [left, setLeft] = useState({ open: false, section: 'now', focus: null })
+  const [left, setLeft] = useState({ open: false, section: 'today', focus: null })
   const [right, setRight] = useState({ open: false, tab: 'telemetry' })
+  const riding = useVbtValue(s => RIDING.includes(s.state))
+  const [wide, setWide] = useState(wideWidth)
+  const leftW = riding ? LEFT_W : wide
   const state = useRef({ left, right })
   state.current = { left, right }
+  const isRiding = () => RIDING.includes(window.VBT.store.getSnapshot().state)
 
   const open = useCallback((side, section, focus) => {
-    if (side === 'left') setLeft(l => ({ open: true, section: section || l.section, focus: focus || null }))
+    if (side === 'left') setLeft(l => ({ open: true, section: section || fitSection(l.section, isRiding()), focus: focus || null }))
     else setRight(r => ({ open: true, tab: section || r.tab }))
   }, [])
   const toggle = useCallback(side => {
-    if (side === 'left') setLeft(l => ({ ...l, open: !l.open, focus: null }))
+    if (side === 'left') setLeft(l => ({ ...l, open: !l.open, section: l.open ? l.section : fitSection(l.section, isRiding()), focus: null }))
     else setRight(r => ({ ...r, open: !r.open }))
   }, [])
 
@@ -32,12 +42,27 @@ export default function VbtApp() {
     window.VBT.boot().then(() => window.VBT.stravaUi.init())
   }, [open, toggle])
 
+  // rit gestart: menu dicht (de weg weer breed); rit klaar: NOW is er niet meer
+  const wasRiding = useRef(riding)
+  useEffect(() => {
+    if (riding && !wasRiding.current) setLeft(l => ({ ...l, open: false, section: 'now' }))
+    if (!riding && wasRiding.current) setLeft(l => ({ ...l, section: fitSection(l.section, false) }))
+    wasRiding.current = riding
+  }, [riding])
+
+  useEffect(() => {
+    const onResize = () => setWide(wideWidth())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   // speelveld smaller maken (canvas/HUD/overlays lezen deze variabelen)
   useEffect(() => {
     const root = document.documentElement.style
-    root.setProperty('--panel-left', (left.open ? LEFT_W : 0) + 'px')
+    root.setProperty('--panel-left', (left.open ? leftW : 0) + 'px')
     root.setProperty('--panel-right', (right.open ? RIGHT_W : 0) + 'px')
-  }, [left.open, right.open])
+    document.body.classList.toggle('menu-wide', left.open && !riding)   // titelknoppen weg: het menu staat al open
+  }, [left.open, right.open, leftW, riding])
 
   // toetsen (capture: vóór de engine): M/L/K/H, Esc sluit eerst een paneel
   useEffect(() => {
@@ -70,7 +95,7 @@ export default function VbtApp() {
   return (
     <>
       {left.open
-        ? <LeftPanel section={left.section} focus={left.focus}
+        ? <LeftPanel section={left.section} focus={left.focus} riding={riding} width={leftW}
             onSection={(section, focus) => setLeft({ open: true, section, focus: focus || null })}
             onClose={() => setLeft(l => ({ ...l, open: false }))}
             onShowLog={() => open('right', 'bluetooth')} />

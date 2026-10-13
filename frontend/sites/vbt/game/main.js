@@ -203,7 +203,7 @@
 
   async function start() {
     VBT.buildSprites && (VBT.sprites = VBT.buildSprites());
-    await VBT.calendar.init((wo, step) => S.startRide(wo, step));
+    await VBT.calendar.init();
     await VBT.settings.load();
     // achtergebleven rit van een crash/gesloten tab afronden + outbox legen
     VBT.safety.init().then(r => {
@@ -220,7 +220,6 @@
     resize();
     game.setState('title');
     S.bindUi();
-    VBT.library.init();
     if (!navigator.bluetooth && !VBT.bleMock.enabled) VBT.ble.note('Web Bluetooth not available in this browser - use Chrome or Edge');
     VBT.ble.restore();
     if (VBT.bleMock.enabled) {           // testhaakjes nep-Kickr: ?mockble&autoconnect&mockdrop=30:15
@@ -228,11 +227,13 @@
       if (params.has('autoconnect')) { VBT.ble.pick('trainer'); VBT.ble.pick('hr'); }
     }
     started = true;
-    // testhaakjes: ?ride (vrije rit), ?wo=ftpb-w1d2 (workout), ?step=n, ?plan (kalender), ?lib (bibliotheek), ?t=sec (vooruitspoelen), ?end
+    // testhaakjes: ?ride (vrije rit), ?wo=ftpb-w1d2 (workout), ?step=n, ?today, ?plan, ?lib (workouts), ?progress, ?t=sec (vooruitspoelen), ?end
     const wo = params.get('wo') && VBT.calendar.find(params.get('wo'));
     if (wo || params.has('ride')) { S.startRide(wo || null, parseInt(params.get('step'), 10) || 0); game.countdown = 0; game.setState('ride'); }
     if (params.has('plan')) S.toMenu('plan');
-    if (params.has('lib')) { S.toMenu('plan'); VBT.library.show('lib'); }
+    if (params.has('lib')) S.toMenu('workouts');
+    if (params.has('today')) S.toMenu('today');
+    if (params.has('progress')) S.toMenu('progress');
     if (params.has('devices')) S.openDevices();
     if (params.has('help')) S.openHelp(params.get('help') || undefined);
     if (params.has('rides')) S.openRides();

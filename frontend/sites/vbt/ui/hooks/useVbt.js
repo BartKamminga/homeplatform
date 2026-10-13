@@ -14,6 +14,17 @@ export function useVbt(selector, { fast = false } = {}) {
   return selector ? selector(s) : s
 }
 
+// één waarde uit het snapshot; ververst alleen als die waarde verandert (primitief of stabiele referentie)
+export function useVbtValue(selector) {
+  return useSyncExternalStore(subSlow, () => selector(snap()))
+}
+
+// kalender (actief plan, afgevinkt, FTP): ververst alleen bij een wijziging (calendar.version)
+export function useCalendar() {
+  useSyncExternalStore(subSlow, () => window.VBT.calendar.version())
+  return window.VBT.calendar.getState()
+}
+
 // events-ringbuffer: geeft het aantal terug zodat het component bij elk nieuw event ververst
 export function useVbtEvents() {
   useSyncExternalStore(cb => store().subscribeEvents(cb), () => store().getEvents().length + ':' + (store().getEvents().at(-1)?.id ?? 0))
