@@ -131,3 +131,19 @@ def test_profile_settings_merge(client, user_token):
     r = client.put("/api/vbt/profile", headers=_h(user_token), json={"settings": {"voice": False}}).json()
     assert r["settings"] == {"hrMax": 186, "voice": False}
     assert client.get("/api/vbt/profile", headers=_h(user_token)).json()["settings"]["hrMax"] == 186
+
+
+def test_ride_feedback(client, user_token, admin_token):
+    ride = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-fb")).json()
+    assert ride["rpe"] is None and ride["readiness"] is None
+    r = client.patch(f"/api/vbt/rides/{ride['id']}/feedback", headers=_h(user_token), json={"rpe": 7})
+    assert r.status_code == 200 and r.json()["rpe"] == 7
+    r = client.patch(f"/api/vbt/rides/{ride['id']}/feedback", headers=_h(user_token), json={"readiness": "tired"})
+    assert r.json()["rpe"] == 7 and r.json()["readiness"] == "tired"     # los aan te passen
+    assert client.patch(f"/api/vbt/rides/{ride['id']}/feedback", headers=_h(user_token), json={"rpe": 11}).status_code == 422
+    assert client.patch(f"/api/vbt/rides/{ride['id']}/feedback", headers=_h(user_token), json={"readiness": "meh"}).status_code == 422
+    assert client.patch(f"/api/vbt/rides/{ride['id']}/feedback", headers=_h(admin_token), json={"rpe": 3}).status_code == 404
+    # opnieuw opslaan (outbox-retry) laat de feedback staan
+    client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-fb", duration=999, samples=[[i, 0, 0, 100, 80, 0, 5, 0] for i in range(5)]))
+    got = client.get(f"/api/vbt/rides/{ride['id']}", headers=_h(user_token)).json()
+    assert got["rpe"] == 7 and got["readiness"] == "tired"

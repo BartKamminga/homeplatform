@@ -41,6 +41,11 @@
    "at": 16,
    "name": "weer aan via de balk",
    "assert": "VBT.music.getState().status === 'playing' && VBT.settings.values.musicOn === true"
+  },
+  {
+   "at": 17,
+   "name": "MixMusic telt mee: afgespeeld + speeltijd",
+   "assert": "fetch('/api/mixmusic/metas',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(m => Object.values(m).reduce((a, x) => a + (x.play_count || 0), 0) >= 3 && Object.values(m).some(x => x.play_seconds > 0))"
   }
  ]
 }

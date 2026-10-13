@@ -18,6 +18,18 @@ const set = patch => { state = { ...state, ...patch }; listeners.forEach(fn => f
 const settings = () => window.VBT.settings.values
 const log = msg => window.VBT.store?.log('music', msg, 'debug')
 
+// speeltijd naar MixMusic, net als MixMusic zelf: elke 30 s en bij pauze / wisselen / tab dicht
+let playFile = null, playStart = null
+function flushPlaytime() {
+  if (playFile && playStart) {
+    const sec = Math.floor((Date.now() - playStart) / 1000)
+    if (sec >= 1) api.post('/api/mixmusic/playtime/' + encodeURIComponent(playFile), { seconds: sec }).catch(() => {})
+  }
+  playStart = state.status === 'playing' ? Date.now() : null
+}
+setInterval(() => { if (state.status === 'playing') flushPlaytime() }, 30000)
+window.addEventListener('pagehide', flushPlaytime)
+
 export function useMusic() {
   return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn) }, () => state)
 }
@@ -89,6 +101,8 @@ async function playTrack(track, why) {
   const t0 = ctx ? ctx.currentTime : 0
   if (gain && state.status === 'playing') gain.gain.setTargetAtTime(0, t0, FADE_S / 4)
   if (state.status === 'playing') await new Promise(r => setTimeout(r, FADE_S * 600))
+  flushPlaytime()
+  playFile = null
   lastIndex = tracks.indexOf(track)
   audio.src = '/api/mixmusic/stream/' + encodeURIComponent(track.file)
   audio.volume = 1
@@ -97,6 +111,8 @@ async function playTrack(track, why) {
   }, { once: true })
   try { await audio.play() } catch (e) { set({ status: 'blocked', error: 'Click PLAY to start the music' }); return }
   set({ status: 'playing', title: track.name, tier: tierOf(track.file), error: '' })
+  playFile = track.file
+  playStart = Date.now()
   if (gain) { gain.gain.cancelScheduledValues(ctx.currentTime); gain.gain.setTargetAtTime(volume(), ctx.currentTime, FADE_S / 3) }
   api.post('/api/mixmusic/play/' + encodeURIComponent(track.file)).catch(() => {})
   window.VBT.store?.log('music', 'Music: ' + track.name + (why ? ' (' + why + ')' : ''))
@@ -117,6 +133,7 @@ export function next() { return start('next') }
 export function stop() {
   if (audio) audio.pause()
   set({ status: 'off' })
+  flushPlaytime()
 }
 
 export function toggle() {
@@ -126,7 +143,7 @@ export function toggle() {
 
 async function resume() {
   if (ctx && ctx.state === 'suspended') await ctx.resume().catch(() => {})
-  try { await audio.play(); set({ status: 'playing' }) } catch { start() }
+  try { await audio.play(); set({ status: 'playing' }); playStart = Date.now() } catch { start() }
 }
 
 // 4x/s vanuit React: filter en volume volgen de inspanning; mix wisselen bij een zwaar/rustig blok

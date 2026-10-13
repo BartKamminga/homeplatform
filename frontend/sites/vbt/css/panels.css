@@ -191,3 +191,20 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 .ridecard.wcard { min-height: 0; padding: 5px 6px; gap: 2px; }
 .ridecard.wcard b { font-size: 8px; }
 .ridecard .wmeta { font-size: 7px; }
+
+/* feedback na de rit: RPE 1-10 en hoe je je voelt (finish-scherm + MY RIDES) */
+.pn-feedback { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.vbt-panel .pn-feedback { align-items: flex-start; margin: 4px 0 10px; }
+.pn-feedback small { font-family: var(--pixel); font-size: 9px; color: var(--cyan); letter-spacing: 1px; }
+.pn-feedback small em { font-style: normal; color: var(--pink); margin-left: 6px; font-size: 8px; }
+.pn-feedback .rpe, .pn-feedback .readiness { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.pn-feedback .rpe button { width: 34px; height: 34px; font-family: var(--pixel); font-size: 11px; cursor: pointer; border-radius: 6px;
+  color: var(--c); background: rgba(9,2,26,.8); border: 1px solid var(--c); opacity: .75; }
+.pn-feedback .rpe button.on { opacity: 1; color: #07011a; background: var(--c); box-shadow: 0 0 14px var(--c); }
+.pn-feedback .readiness button { font-family: var(--pixel); font-size: 9px; padding: 7px 10px; cursor: pointer; border-radius: 4px;
+  color: var(--ink); background: rgba(9,2,26,.8); border: 1px solid rgba(155,92,255,.5); }
+.pn-feedback .readiness button.on { border-color: var(--cyan); background: rgba(36,232,255,.18); color: var(--cyan); }
+.pn-feedback.compact .rpe button { width: 26px; height: 26px; font-size: 9px; }
+.pn-feedback .load { color: var(--yellow); }
+.pn-feedback .load i { font-style: normal; opacity: .6; }
+.tag.rpe { background: #ff9640; }

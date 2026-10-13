@@ -61,7 +61,7 @@ class RideIn(CamelModel):
 
 SUMMARY_FIELDS = ["id", "client_id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
                   "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp", "in_progress", "elapsed", "pauses",
-                  "strava_activity_id", "strava_status", "strava_error"]
+                  "strava_activity_id", "strava_status", "strava_error", "rpe", "readiness"]
 
 
 def _ride_out(ride: VbtRide, with_samples: bool = False) -> dict:
@@ -189,6 +189,31 @@ def best_lap(course: str, current_user: User = Depends(get_current_user), sessio
 @router.get("/rides/{ride_id}")
 def get_ride(ride_id: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     return _ride_out(_own_ride(ride_id, current_user, session), with_samples=True)
+
+
+# Feedback na de rit (item 1304): hoe zwaar (RPE 1-10) en hoe je je voelt; later basis voor het adaptieve plan
+READINESS = {"fresh", "ok", "tired", "wrecked"}
+
+
+class FeedbackIn(CamelModel):
+    rpe: Optional[int] = None
+    readiness: Optional[str] = None
+
+
+@router.patch("/rides/{ride_id}/feedback")
+def ride_feedback(ride_id: str, body: FeedbackIn, current_user: User = Depends(get_current_user),
+                  session: Session = Depends(get_session)):
+    ride = _own_ride(ride_id, current_user, session)
+    data = body.model_dump(exclude_unset=True)
+    if "rpe" in data and data["rpe"] is not None and not 1 <= data["rpe"] <= 10:
+        raise HTTPException(status_code=422, detail="RPE moet tussen 1 en 10 liggen")
+    if "readiness" in data and data["readiness"] is not None and data["readiness"] not in READINESS:
+        raise HTTPException(status_code=422, detail="Onbekende readiness")
+    for k, v in data.items():
+        setattr(ride, k, v)
+    session.add(ride)
+    session.commit()
+    return _ride_out(ride)
 
 
 # Verwijderen = naar de prullenbak (terug te zetten); er gaat nooit een rit definitief verloren

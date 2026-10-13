@@ -7,6 +7,7 @@ import { fmtDur, fmtDateTime, startWithConfirm } from '../../common/format.js'
 import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
 import RidesWeeks from './RidesWeeks.jsx'
+import Feedback from './Feedback.jsx'
 
 // LIST of WEEKS onthouden (alleen gemak, per browser)
 const VIEW_KEY = 'vbt.ridesView'
@@ -21,6 +22,7 @@ function Tags({ r }) {
       {r.inProgress && <i className={'tag ' + (live ? 'pending' : 'wo')}>{live ? 'INTERRUPTED' : 'IN PROGRESS'}</i>}
       {r.recovered && <i className="tag wo">RECOVERED</i>}
       {r.pb && <i className="tag pb">PB</i>}
+      {r.rpe && <i className="tag rpe" title="How hard (RPE 1-10)">RPE {r.rpe}</i>}
       {r.kind === 'workout' && <i className="tag wo">WORKOUT</i>}
       {r.kind === 'climb' && <i className="tag wo">CLIMB</i>}
       {r.stravaActivityId && <i className="tag strava">STRAVA</i>}
@@ -63,6 +65,7 @@ function RideDetail({ ride, onDeleted, onRestored }) {
         {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
         {ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : null}
       </div>
+      {!ride.deletedAt && !ride.pending && <Feedback key={'fb' + ride.id} ride={ride} compact />}
       <CanvasChart height={160} draw={(ctx, w, h) => drawRide(ctx, w, h, ride.samples)} />
       <div className="ridelogs">
         {!!(ride.pauses && ride.pauses.length) && (

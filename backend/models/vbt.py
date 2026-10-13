@@ -53,6 +53,8 @@ class VbtRide(SQLModel, table=True):
     pauses:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # [{t, dur, reason}] - waar bleef de tijd
     events:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # eventlog van de rit (zonder debug)
     deleted_at:  Optional[datetime] = Field(default=None)     # prullenbak: niets wordt definitief verwijderd
+    rpe:         Optional[int] = Field(default=None)          # feedback na de rit: hoe zwaar (1-10, Borg CR10)
+    readiness:   Optional[str] = Field(default=None)          # feedback: fresh | ok | tired | wrecked
     synced_at:   Optional[datetime] = Field(default=None)     # laatste live backup
     strava_upload_id:   Optional[str] = Field(default=None)
     strava_activity_id: Optional[str] = Field(default=None)
