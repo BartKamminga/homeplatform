@@ -4,6 +4,7 @@
 import { useEffect, useRef } from 'react'
 import CanvasChart from '../common/CanvasChart.jsx'
 import { useVbt, actions } from '../hooks/useVbt.js'
+import MusicBar from '../features/music/MusicBar.jsx'
 
 const ZoneBar = ({ id, zones, frac, needleId }) => (
   <div id={id} className="zonebar">
@@ -114,6 +115,7 @@ export default function Hud() {
       <div id="coach" className={s.coach?.show ? 'show' : ''}><b>&#128227; TEAM DIRECTOR</b><span id="coachText">{s.coach?.text}</span></div>
       <Message msg={s.message} />
       <div id="draftFx" />
+      <MusicBar />
     </div>
   )
 }

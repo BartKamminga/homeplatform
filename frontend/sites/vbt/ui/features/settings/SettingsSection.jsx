@@ -5,6 +5,7 @@ import { useVbt, actions } from '../../hooks/useVbt.js'
 import { copyText } from '../../common/clipboard.js'
 import { FLAG_CHROME, FLAG_EDGE } from '../help/helpContent.js'
 import StravaBlock from './StravaBlock.jsx'
+import MusicBlock from './MusicBlock.jsx'
 
 function NumberField({ label, value, unit, min, max, onSave }) {
   const [v, setV] = useState(value)
@@ -81,6 +82,8 @@ export default function SettingsSection() {
       ))}
 
       <FtpHistory history={settings.ftpHistory} />
+
+      <MusicBlock />
 
       <StravaBlock />
 

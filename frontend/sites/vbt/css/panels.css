@@ -158,3 +158,18 @@ body.menu-wide #title .menu, body.menu-wide #title .press { display: none; }
 .ridebtn.danger { background: var(--pink); border-color: var(--pink); color: #fff; box-shadow: 0 0 22px rgba(255,46,136,.5); }
 .ghostbtn.strava { border-color: #fc4c02; }
 a.ghostbtn { text-decoration: none; display: inline-block; }
+
+/* muziekbalk (MixMusic) onderin de HUD: B = aan/uit, N = volgende */
+#music { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+  max-width: min(460px, calc(100% - 720px)); min-width: 180px; padding: 6px 8px 6px 12px; border-radius: 20px; pointer-events: auto;
+  font-family: var(--pixel); font-size: 8px; color: var(--ink); background: rgba(9,2,26,.75); border: 1px solid rgba(155,92,255,.5); }
+#music .mtitle { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; letter-spacing: 1px; }
+#music .mtitle i { font-style: normal; margin-left: 6px; color: var(--yellow); }
+#music button { font-size: 13px; line-height: 1; color: var(--ink); background: transparent; border: 1px solid rgba(155,92,255,.5);
+  border-radius: 50%; width: 26px; height: 26px; cursor: pointer; padding: 0; }
+#music button:hover { border-color: var(--cyan); color: var(--cyan); }
+#music.off { min-width: 0; padding: 4px; opacity: .6; }
+#music.off button { width: auto; border-radius: 14px; padding: 4px 10px; font-family: var(--pixel); font-size: 8px; }
+#music.off button em { font-style: normal; color: var(--pink); margin-left: 4px; }
+#music.playing { border-color: var(--cyan); }
+.pn-field input[type="range"] { width: 160px; accent-color: var(--cyan); }

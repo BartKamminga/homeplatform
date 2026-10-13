@@ -26,6 +26,16 @@ async function waitFor(url, tries = 80) {
   throw new Error('niet bereikbaar: ' + url)
 }
 
+// mono 16-bit WAV met een sinustoon (8 kHz)
+function tone(hz, sec) {
+  const rate = 8000, n = rate * sec, buf = Buffer.alloc(44 + n * 2)
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write('WAVEfmt ', 8); buf.writeUInt32LE(16, 16)
+  buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 2, 28)
+  buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36); buf.writeUInt32LE(n * 2, 40)
+  for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(Math.sin(2 * Math.PI * hz * i / rate) * 8000), 44 + i * 2)
+  return buf
+}
+
 function stopAll() { for (const p of procs) { try { p.kill() } catch { /* al weg */ } } }
 
 async function main() {
@@ -33,8 +43,12 @@ async function main() {
   catch (e) { if (e.message.startsWith('poort')) throw e }
 
   const db = path.join(out, 'e2e.sqlite')
+  // muziek voor MixMusic: drie korte toontjes (WAV), zodat de muziekbalk iets kan afspelen
+  const music = path.join(out, 'music')
+  fs.mkdirSync(music)
+  for (const [name, hz] of [['Warmup Groove', 220], ['Hard Techno', 440], ['Sunday Chill', 330]]) fs.writeFileSync(path.join(music, name + '.wav'), tone(hz, 4))
   // nep-Strava-config: alleen zodat de koppelknoppen verschijnen; de tests roepen Strava zelf nooit aan
-  const env = { STRAVA_CLIENT_ID: '1', STRAVA_CLIENT_SECRET: 'e2e', ...process.env, DATABASE_URL: 'sqlite:///' + db.replace(/\\/g, '/'), SENTRY_DSN: '' }
+  const env = { STRAVA_CLIENT_ID: '1', STRAVA_CLIENT_SECRET: 'e2e', MUSIC_DIR: music, ...process.env, DATABASE_URL: 'sqlite:///' + db.replace(/\\/g, '/'), SENTRY_DSN: '' }
   const setup = spawnSync(PYTHON, [path.join(here, 'setup_db.py'), db], { cwd: backend, env, encoding: 'utf8' })
   const token = (setup.stdout.match(/TOKEN=(\S+)/) || [])[1]
   if (!token) throw new Error('setup_db mislukt:\n' + setup.stderr.slice(-2000))

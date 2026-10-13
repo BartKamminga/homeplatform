@@ -12,6 +12,8 @@ import FinishScreen from './screens/FinishScreen.jsx'
 import Hud from './hud/Hud.jsx'
 import { TitleScreen, Countdown, Paused, ConfirmStop, Crt } from './screens/Overlays.jsx'
 import useBodyState from './hooks/useBodyState.js'
+import { MusicController } from './features/music/MusicBar.jsx'
+import * as music from './features/music/music.js'
 import * as strava from './features/strava/strava.js'
 
 const LEFT_W = 340, RIGHT_W = 380
@@ -45,6 +47,7 @@ export default function VbtApp() {
 
   // engine-start + VBT.ui zodat de engine (titelknoppen, testhaakjes) panelen kan openen
   useEffect(() => {
+    window.VBT.music = music     // testhaakje + engine kan muziek bedienen
     window.VBT.ui = { open, toggle, close: side => (side === 'left' ? setLeft(l => ({ ...l, open: false })) : setRight(r => ({ ...r, open: false }))) }
     if (booted) return   // StrictMode draait effects in dev twee keer
     booted = true
@@ -92,6 +95,8 @@ export default function VbtApp() {
       else if (e.code === 'KeyL') toggle('right')
       else if (e.code === 'KeyK') open('left', 'devices')
       else if (e.code === 'KeyH') open('left', 'help')
+      else if (e.code === 'KeyB') music.toggle()          // muziek aan/uit
+      else if (e.code === 'KeyN') music.next()            // volgende mix
     }
     // na een klik op een knop in een paneel de focus loslaten, zodat spatie/pijltjes weer naar de game gaan
     const onClick = e => {
@@ -108,6 +113,7 @@ export default function VbtApp() {
       <ConfirmHost />
       <ToastHost />
       <BodyState />
+      <MusicController />
       <Hud />
       <TitleScreen />
       <Countdown />

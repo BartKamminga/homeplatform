@@ -8,7 +8,7 @@ export const SECTIONS = [
     { id: 'start', title: 'Getting started', html: `
       <p>VBT is an arcade bike trainer for your smart trainer. Use <b>Chrome or Edge</b> on Windows, Mac or Android
       (not iPhone/iPad - Safari has no Web Bluetooth).</p>
-      <ul><li><b>SPACE</b> free ride · <b>T</b> training plan · <b>R</b> my rides · <b>K</b> devices · <b>H</b> help</li>
+      <ul><li><b>SPACE</b> free ride · <b>T</b> my plan · <b>R</b> my rides · <b>K</b> devices · <b>H</b> help</li>
       <li>Without a trainer you can still ride with the keyboard (simulated power).</li></ul>` },
     { id: 'bluetooth', title: 'Connecting your KICKR and heart rate strap', html: `
       <ol><li>Close the Wahoo app, Zwift and other training apps - the KICKR can only be controlled by one app at a time.</li>
@@ -25,6 +25,7 @@ export const SECTIONS = [
       <ul><li><b>Free ride</b>: the hills set the resistance on your trainer (SIM). Ride in the middle lane to draft the bunch.</li>
       <li><b>Workout</b>: the trainer holds the target power (ERG); you choose your cadence. Click a block in the workout chart to jump to that interval.</li>
       <li><b>ESC</b> asks <i>Stop ride?</i> - YES stops, NO keeps riding. Your ride is always saved.</li>
+      <li><b>B</b> music on/off · <b>N</b> next mix. Music comes from MixMusic and follows your effort: muffled when it is easy, full and loud from threshold, and a high-energy mix on hard blocks (turn this off in SETTINGS).</li>
       <li>Lost the trainer signal? The ride and workout timer pause automatically and continue when the KICKR is back.</li></ul>` },
     { id: 'plan', title: 'Training plan and library', html: `
       <ul><li><b>T</b> opens the plan (FTP Builder, 6 weeks). Set your <b>FTP</b> and <b>start date</b> at the top; all targets scale with your FTP.</li>

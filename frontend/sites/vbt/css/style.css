@@ -154,5 +154,5 @@ body[data-state="paused"] #paused { display: flex; font-size: 64px; background: 
 
 /* weergave-instellingen (Settings): body.off-<onderdeel> verbergt het */
 body.off-hud_power .panel.power, body.off-hud_hr .heartpanel, body.off-hud_speed .speedo, body.off-hud_time .panel.right,
-body.off-hud_elevation .elev, body.off-hud_workout .wpanel, body.off-hud_top .panel.center, body.off-hud_chips .devchip,
+body.off-hud_elevation .elev, body.off-hud_workout .wpanel, body.off-hud_top .panel.center, body.off-hud_chips .devchip, body.off-hud_music #music,
 body.off-crt .crt, body.off-messages #message, body.off-coach #coach { display: none !important; }

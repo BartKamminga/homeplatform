@@ -12,7 +12,7 @@ export async function runScenario({ baseUrl, token, scenario, outDir, port = 933
   const prof = path.join(outDir, 'profile-' + scenario.name)
   fs.rmSync(prof, { recursive: true, force: true })
   const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${prof}`,
-    '--window-size=1600,900', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' })
+    '--window-size=1600,900', '--hide-scrollbars', '--autoplay-policy=no-user-gesture-required', '--mute-audio', 'about:blank'], { stdio: 'ignore' })
   const results = []
   try {
     let ws
