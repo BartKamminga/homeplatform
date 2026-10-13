@@ -1,0 +1,138 @@
+// Trainingskalender: 6 weken FTP Builder op echte datums, FTP + startdatum instelbaar, voltooide ritten afvinken.
+// Bewaard via VBT.storage (browser of, in HomePlatform, de server).
+VBT.calendar = (function () {
+  const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const plan = VBT.plans.ftpBuilder;
+  const $ = id => document.getElementById(id);
+  let state = {}, selected = null, onRide = null;
+
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const label = d => DAYS[(d.getDay() + 6) % 7] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
+  const minutes = s => Math.round(s / 60) + ' MIN';
+
+  function thisMonday() {
+    const d = new Date();
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    return iso(d);
+  }
+
+  async function load() {
+    try { state = (await VBT.storage.loadProfile()) || {}; } catch (e) { state = {}; }
+    state = { ftp: state.ftp, startDate: state.startDate || state.planStart, done: state.done || state.planDone };
+    state.ftp = state.ftp || 180;
+    state.startDate = state.startDate || thisMonday();
+    state.done = state.done || {};
+    VBT.cfg.rider.ftp = state.ftp;
+  }
+
+  function save() {
+    VBT.storage.saveProfile(state).catch(() => { /* offline: blijft in geheugen tot de volgende save */ });
+  }
+
+  function dateFor(wo) {
+    const d = parse(state.startDate);
+    d.setDate(d.getDate() + (wo.week - 1) * 7 + plan.dayOffsets[wo.day - 1]);
+    return d;
+  }
+
+  function chart(wo, W, H, cls) {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    if (cls) c.className = cls;
+    VBT.workout.drawChart(c.getContext('2d'), wo, W, H);
+    return c;
+  }
+
+  function card(wo) {
+    const el = document.createElement('button');
+    const date = dateFor(wo), today = iso(new Date());
+    el.className = 'wcard' + (wo.rest ? ' rest' : '') + (state.done[wo.id] ? ' done' : '') +
+      (iso(date) === today ? ' today' : '') + (selected === wo ? ' selected' : '') +
+      (!wo.rest && !state.done[wo.id] && iso(date) < today ? ' missed' : '');
+    el.innerHTML = '<span class="wdate">' + label(date) + '</span><b>' + wo.name.toUpperCase() + '</b>' +
+      (wo.rest ? '' : '<span class="wmeta">' + minutes(wo.duration) + ' · TSS ' + VBT.workout.tss(wo) + '</span>');
+    if (!wo.rest) el.appendChild(chart(wo, 150, 32, 'wmini'));
+    if (state.done[wo.id]) el.insertAdjacentHTML('beforeend', '<i class="wcheck">&#10003;</i>');
+    if (!wo.rest) el.onclick = () => { selected = wo; render(); };
+    return el;
+  }
+
+  function render() {
+    const grid = $('planGrid');
+    grid.innerHTML = '';
+    plan.weeks.forEach((days, wi) => {
+      const row = document.createElement('div');
+      row.className = 'wrow';
+      row.innerHTML = '<span class="wlabel">WEEK ' + (wi + 1) + '</span>';
+      for (let dow = 0; dow < 7; dow++) {
+        const di = plan.dayOffsets.indexOf(dow);
+        if (di >= 0) row.appendChild(card(days[di]));
+        else row.insertAdjacentHTML('beforeend', '<span class="wempty"></span>');
+      }
+      grid.appendChild(row);
+    });
+    const done = Object.keys(state.done).length;
+    const total = plan.weeks.flat().filter(w => !w.rest).length;
+    $('planProgress').textContent = done + ' / ' + total + ' DONE';
+    renderDetail();
+  }
+
+  function renderDetail() {
+    const box = $('planDetail');
+    if (!selected) { box.innerHTML = '<p class="hint">Pick a workout from the calendar.</p>'; return; }
+    const wo = selected, res = state.done[wo.id];
+    box.innerHTML = '<div class="dhead"><div><small>WEEK ' + wo.week + ' · DAY ' + wo.day + ' · ' + label(dateFor(wo)) + '</small>' +
+      '<h3>' + wo.name.toUpperCase() + '</h3><span>' + minutes(wo.duration) + ' · TSS ' + VBT.workout.tss(wo) +
+      (wo.free ? ' · FREE RIDE' : ' · ERG') + '</span>' +
+      (res ? '<span class="dres">&#10003; ' + res.date + ' · ' + res.avgW + ' W AVG · CADENCE ' + res.score + '%</span>' : '') +
+      '</div><div class="dbtns"><button id="planUndo" class="ghostbtn"></button><button id="planRide" class="ridebtn">RIDE &#9654;</button></div></div>';
+    const big = chart(wo, 900, 110, 'dchart');
+    big.title = 'Click an interval to start the ride there';
+    big.onclick = e => {
+      if (!wo.steps.length || !onRide) return;
+      onRide(wo, VBT.workout.stepAtFraction(wo, e.offsetX / big.clientWidth));
+    };
+    box.appendChild(big);
+    $('planUndo').textContent = res ? 'UNMARK' : 'MARK DONE';
+    $('planUndo').onclick = () => {
+      if (res) delete state.done[wo.id];
+      else state.done[wo.id] = { date: iso(new Date()), avgW: 0, score: 0 };
+      save(); render();
+    };
+    $('planRide').onclick = () => onRide && onRide(wo);
+  }
+
+  function markDone(id, result) {
+    state.done[id] = Object.assign({ date: iso(new Date()) }, result);
+    save();
+  }
+
+  // eerstvolgende niet-voltooide workout vanaf vandaag voorselecteren
+  function preselect() {
+    const today = iso(new Date());
+    const all = plan.weeks.flat().filter(w => !w.rest);
+    selected = all.find(w => !state.done[w.id] && iso(dateFor(w)) >= today) || all.find(w => !state.done[w.id]) || all[0];
+  }
+
+  async function init(rideHandler) {
+    onRide = rideHandler;
+    await load();
+    $('planFtp').value = state.ftp;
+    $('planStart').value = state.startDate;
+    $('planFtp').onchange = e => {
+      state.ftp = Math.max(50, Math.min(600, parseInt(e.target.value, 10) || 180));
+      e.target.value = state.ftp;
+      VBT.cfg.rider.ftp = state.ftp;
+      save(); render();
+    };
+    $('planStart').onchange = e => { if (e.target.value) { state.startDate = e.target.value; save(); render(); } };
+    $('planSource').href = plan.source;
+    preselect();
+  }
+
+  function open() { preselect(); render(); }
+
+  return { init, open, markDone, ftp: () => state.ftp };
+})();

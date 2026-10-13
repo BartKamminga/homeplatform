@@ -63,6 +63,7 @@ def seed_sites(session: Session):
         ("Mix Music", "mixmusic", "mixmusic", "♫"),
         ("DontForget", "dontforget", "dontforget", "📋"),
         ("Poulebord", "poulebord", "poulebord", "🏒"),
+        ("VBT", "vbt", "vbt", "🚴"),
         ("BeatCrades", "beatcrades", "beatcrades", "🎵"),
         ("Scrapster", "scrapster", "scrapster", "📡"),
         ("Agent Control", "agent-control", "agent-control", "🤖"),

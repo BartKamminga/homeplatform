@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VBT — Virtual Bike Trainer</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#07011a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body data-state="title">
+  <div id="vbt-gate"></div>
+  <div id="vbt-app" hidden>
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <section class="panel power">
+      <label>POWER <span id="zoneName" class="chip">Z2</span></label>
+      <div class="big"><span id="watts">0</span><small>W</small></div>
+      <div id="zoneBar" class="zonebar"><span id="zoneNeedle"></span></div>
+      <div class="sub">3S AVG <b id="avg">0</b> W · FTP <span id="ftpLabel">180</span></div>
+    </section>
+
+    <section class="panel center">
+      <div class="logo-mini">VBT</div>
+      <div class="row"><span id="lap">LAP 1</span><span class="sep">·</span><span><b id="dist">0.00</b> KM</span></div>
+    </section>
+
+    <section class="panel right">
+      <label>TIME</label>
+      <div class="mid" id="time">00:00.0</div>
+      <label id="gapLabel">GHOST</label>
+      <div class="mid" id="gap">+0.0s</div>
+      <label id="bunchLabel">BUNCH</label>
+      <div class="mid" id="bunch">0 M</div>
+    </section>
+
+    <section class="panel speedo">
+      <label>SPEED</label>
+      <div class="big"><span id="speed">0.0</span><small>KM/H</small></div>
+      <div id="speedBar" class="leds"></div>
+      <div class="row metrics">
+        <span><b id="cadence">0</b> RPM</span>
+        <span><i id="heart" class="heart">&#9829;</i> <b id="hr">0</b> BPM</span>
+      </div>
+    </section>
+
+    <section class="panel elev">
+      <label>ELEVATION <span id="alt" class="alt"></span> <span id="grade">+0.0%</span></label>
+      <canvas id="profile" width="340" height="96"></canvas>
+    </section>
+
+    <section class="panel wpanel">
+      <div class="wtop"><span id="wName">WORKOUT</span><span id="wScore">CADENCE 100%</span><span id="wLeft">0:00 LEFT</span></div>
+      <div class="wtarget">
+        <span class="big"><span id="wWatts">0</span><small>W</small></span>
+        <span class="wmid"><span id="wPct">0% FTP</span><span id="wCad" class="wcad">85 RPM</span></span>
+        <span class="wremain" id="wRemain">0:00</span>
+      </div>
+      <div class="wnext" id="wNext">NEXT</div>
+      <canvas id="wChart" width="560" height="64"></canvas>
+    </section>
+
+    <div id="message"></div>
+    <div id="draftFx"></div>
+  </div>
+
+  <div id="title">
+    <div class="logo">
+      <span class="v">V</span><span class="b">B</span><span class="t">T</span>
+    </div>
+    <div class="tagline">VIRTUAL&nbsp;BIKE&nbsp;TRAINER</div>
+    <div class="press">PRESS SPACE TO START</div>
+    <div class="menu">
+      <div class="menubtns">
+        <button id="btnFree">&#9654; FREE RIDE <em>SPACE</em></button>
+        <button id="btnPlan">&#9638; TRAINING PLAN <em>T</em></button>
+        <button disabled>&#9655; CONNECT KICKR <em>soon</em></button>
+      </div>
+      <span>FREE RIDE: &#8593;&#8595; POWER · SHIFT SPRINT &nbsp;|&nbsp; WORKOUT (ERG): &#8593;&#8595; CADENCE &nbsp;|&nbsp; &#8592;&#8594; STEER · SPACE PAUSE · ESC END RIDE</span>
+    </div>
+    <div class="credit">&copy; 2026 HOMEPLATFORM ARCADE &nbsp; INSERT COIN</div>
+  </div>
+
+  <div id="plan">
+    <div class="planhead">
+      <div>
+        <h2>FTP BUILDER</h2>
+        <small>6-WEEK PLAN · <span id="planProgress">0 / 26 DONE</span> · <a id="planSource" target="_blank" rel="noopener">SOURCE: WHATSONZWIFT</a></small>
+      </div>
+      <label>FTP <input id="planFtp" type="number" min="50" max="600" step="1"> W</label>
+      <label>START <input id="planStart" type="date"></label>
+      <button id="planStrava" class="ghostbtn" hidden>&#8679; CONNECT STRAVA</button>
+      <button id="planClose" class="ghostbtn">&#10005; CLOSE <em>ESC</em></button>
+    </div>
+    <div class="planbody">
+      <div class="wrow wdays"><span class="wlabel"></span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div>
+      <div id="planGrid"></div>
+    </div>
+    <div id="planDetail"></div>
+  </div>
+
+  <div id="finish">
+    <h2 id="finishTitle">WORKOUT COMPLETE</h2>
+    <div id="finishName"></div>
+    <div id="finishStats"></div>
+    <div class="finishbtns">
+      <button id="btnFit" class="ghostbtn">&#11015; DOWNLOAD .FIT <em>D</em></button>
+      <button id="btnStrava" class="ghostbtn" disabled>&#8679; STRAVA</button>
+      <button id="btnDone" class="ridebtn">CONTINUE &#9654;</button>
+    </div>
+    <div class="hint">Ride saved to your HomePlatform account.</div>
+  </div>
+
+  <div id="countdown"></div>
+  <div id="paused">PAUSED</div>
+  <div class="crt"></div>
+  <div id="toast"></div>
+  </div>
+
+  <script type="module" src="./main.jsx"></script>
+</body>
+</html>

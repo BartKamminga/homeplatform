@@ -68,6 +68,12 @@
         file_server
     }
 
+    handle /vbt/* {
+        root * /srv/www
+        try_files {path} /vbt/index.html
+        file_server
+    }
+
     handle /beatcrades/* {
         root * /srv/www
         try_files {path} /beatcrades/index.html
