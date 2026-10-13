@@ -6,7 +6,7 @@ een bestaande ruimtekoppeling blijft staan tenzij de import zelf een ruimte meeg
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -14,7 +14,7 @@ from core.auth import get_current_user
 from core.database import get_session
 from models.core import User
 from models.myhome import HomeDevice, HomeFloor, HomeRoom
-from services.myhome import device_dict, get_owned_home
+from services.myhome import device_dict, get_owned_home, log_call
 
 router = APIRouter(prefix="/api/myhome", tags=["myhome"])
 
@@ -136,7 +136,7 @@ def delete_device(device_id: str, user: User = Depends(get_current_user), sessio
 
 
 @router.put("/homes/{home_id}/devices/import")
-def import_devices(home_id: str, body: DeviceImport, user: User = Depends(get_current_user),
+def import_devices(home_id: str, body: DeviceImport, request: Request, user: User = Depends(get_current_user),
                    session: Session = Depends(get_session)):
     """Upsert op (source, external_id); verwijdert niets.
 
@@ -183,6 +183,7 @@ def import_devices(home_id: str, body: DeviceImport, user: User = Depends(get_cu
         device.updated_at = datetime.utcnow()
         session.add(device)
     session.commit()
+    log_call(request, "/api/myhome/homes/{id}/devices/import", created + updated)
     return {"created": created, "updated": updated, "new": new_names}
 
 
@@ -219,7 +220,9 @@ def get_live(home_id: str, user: User = Depends(get_current_user), session: Sess
 
 
 @router.get("/v1/homes/{home_id}/devices")
-def v1_list_devices(home_id: str, room_id: Optional[str] = None, source: Optional[str] = None,
+def v1_list_devices(home_id: str, request: Request, room_id: Optional[str] = None, source: Optional[str] = None,
                     unassigned: bool = False, user: User = Depends(get_current_user),
                     session: Session = Depends(get_session)):
-    return list_devices(home_id, room_id, source, unassigned, user, session)
+    devices = list_devices(home_id, room_id, source, unassigned, user, session)
+    log_call(request, "/api/myhome/v1/homes/{id}/devices", len(devices))
+    return devices

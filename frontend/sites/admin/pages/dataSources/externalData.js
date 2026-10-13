@@ -15,6 +15,15 @@ export const EXTERNAL_GROUPS = [
     ],
   },
   {
+    title: 'MyHome',
+    rows: [
+      { source: 'Home Assistant (thuis, 192.168.20.197)', purpose: 'Apparaten, HA-ruimtes en live-status; HA pusht zelf naar MyHome (servers kunnen HA niet bereiken door de VLANs)', file: 'tools/myhome/ha/myhome.yaml', verdict: 'yes', note: 'Bron voor apparaten en ruimtes; HA blijft leidend voor sturen.' },
+      { source: 'Philips Hue (via Home Assistant)', purpose: 'Lampen, sensoren en schakelaars met hun Hue-id', file: 'tools/myhome/ha/myhome.yaml', verdict: 'yes', note: 'Komt mee in de HA-sync; geen directe koppeling met de bridge.' },
+      { source: 'PDOK Luchtfoto RGB (Actueel_orthoHR)', purpose: 'Luchtfoto van het huis als bron bij het model', file: 'handmatig opgehaald (WMS)', verdict: 'partial', note: 'Open data van de overheid; eenmalig per huis.' },
+      { source: 'BAG (Kadaster, PDOK OGC API)', purpose: 'Bouwjaar, gebruiksoppervlak, pand-id als controle op het model', file: 'handmatig opgehaald', verdict: 'yes', note: 'Open data; klein en gestructureerd.' },
+    ],
+  },
+  {
     title: 'Hockey Inside — Vanger-ecosysteem',
     rows: [
       { source: 'hockey.nl', purpose: 'Inlogportaal + matchcenter (Chrome-extensie + Ghost/Playwright)', file: 'plugins/chrome/hockey-vanger, plugins/ghost/ghost.py', verdict: 'no', note: 'Vereist ingelogde sessie + DOM; te fragiel om rechtstreeks als agent-input te gebruiken.' },

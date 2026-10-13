@@ -85,6 +85,16 @@ export const INTERNAL_GROUPS = [
     ],
   },
   {
+    title: 'MyHome (digitale tweeling van het huis)',
+    rows: [
+      { source: 'GET /myhome/v1/homes/{id}', purpose: 'Open API: het hele huis - verdiepingen, ruimtes (polygon, m2, HA-ruimte), apparaten per ruimte', file: 'routers/myhome.py', verdict: 'yes', note: 'Stabiel contract (alleen toevoegen). Goede context over de indeling van het huis.' },
+      { source: 'GET /myhome/v1/homes/{id}/rooms, /devices', purpose: 'Open API: platte lijsten, te filteren op verdieping, soort, HA-ruimte, bron', file: 'routers/myhome.py, routers/myhome_devices.py', verdict: 'yes', note: 'Compact; handig voor vragen als "welke apparaten staan in de keuken".' },
+      { source: 'PUT /myhome/homes/{id}/devices/import', purpose: 'Sync vanuit Home Assistant (apparaten + HA-ruimtes); nieuwe apparaten krijgen review=new', file: 'routers/myhome_devices.py', verdict: 'no', note: 'Mutatie, aangeroepen door het HA-package (tools/myhome/ha/myhome.yaml).' },
+      { source: 'POST /myhome/homes/{id}/events, GET /live', purpose: 'Live-status uit HA (lamp aan, deur open, beweging)', file: 'routers/myhome_devices.py', verdict: 'partial', note: 'Momentopname; niet gelogd in site-monitoring (te veel events).' },
+      { source: 'PUT /layout, PATCH /rooms|/devices, /sources, /notes', purpose: 'Indeling, koppelingen, bronnen en correcties beheren', file: 'routers/myhome*.py', verdict: 'no', note: 'Mutaties.' },
+    ],
+  },
+  {
     title: 'BeatCrades & MixMusic',
     rows: [
       { source: 'GET /beatcrades/tree, /jobs, /tool-versions', purpose: 'Download-boomstructuur, actieve jobs, toolversies', file: 'routers/downloader.py', verdict: 'yes', note: 'Goede overzicht-context.' },

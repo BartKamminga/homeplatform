@@ -6,7 +6,7 @@ Invoer (bronnen en tekstuele verbeteringen) zit in routers/myhome_inputs.py.
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -15,7 +15,7 @@ from core.database import get_session
 from models.core import User
 from models.myhome import Home, HomeDevice, HomeFloor, HomeNote, HomeRoom, HomeSource
 from services.myhome import (
-    LINK_STATUSES, ROOM_KINDS, adopt_area_devices, export_home, get_owned_home, replace_layout,
+    LINK_STATUSES, ROOM_KINDS, adopt_area_devices, export_home, get_owned_home, log_call, replace_layout,
 )
 
 router = APIRouter(prefix="/api/myhome", tags=["myhome"])
@@ -131,17 +131,22 @@ def update_room(room_id: str, body: RoomPatch, user: User = Depends(get_current_
 # ---------------------------------------------------------------------------
 
 @router.get("/v1/homes")
-def v1_list_homes(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    return list_homes(user, session)
+def v1_list_homes(request: Request, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    homes = list_homes(user, session)
+    log_call(request, "/api/myhome/v1/homes", len(homes))
+    return homes
 
 
 @router.get("/v1/homes/{home_id}")
-def v1_get_home(home_id: str, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    return export_home(session, get_owned_home(session, home_id, user.id))
+def v1_get_home(home_id: str, request: Request, user: User = Depends(get_current_user),
+                session: Session = Depends(get_session)):
+    data = export_home(session, get_owned_home(session, home_id, user.id))
+    log_call(request, "/api/myhome/v1/homes/{id}", data["device_count"])
+    return data
 
 
 @router.get("/v1/homes/{home_id}/rooms")
-def v1_list_rooms(home_id: str, floor: Optional[str] = None, kind: Optional[str] = None,
+def v1_list_rooms(home_id: str, request: Request, floor: Optional[str] = None, kind: Optional[str] = None,
                   ha_area: Optional[str] = None, user: User = Depends(get_current_user),
                   session: Session = Depends(get_session)):
     """Platte lijst ruimtes, te filteren op verdieping (key), soort of HA-ruimte."""
@@ -153,4 +158,5 @@ def v1_list_rooms(home_id: str, floor: Optional[str] = None, kind: Optional[str]
         rooms = [r for r in rooms if r["kind"] == kind]
     if ha_area:
         rooms = [r for r in rooms if (r["ha_area"] or "").lower() == ha_area.lower()]
+    log_call(request, "/api/myhome/v1/homes/{id}/rooms", len(rooms))
     return rooms
