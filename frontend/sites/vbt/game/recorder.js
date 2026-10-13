@@ -53,9 +53,25 @@ VBT.recorder = (function () {
   // elke update (ook in pauze): klok-tijd bijhouden en pauzes met reden vastleggen, zodat altijd
   // terug te zien is waar tijd bleef (bv. 'trainer signal lost')
   const REASONS = { paused: 'paused', confirm: 'stop question', countdown: 'countdown' };
+  // waakhond: rit open, je trapt, maar er wordt niet opgenomen (geen 'ride') -> na 5 s melden, nooit stil
+  const STALL_S = 5, PEDAL_W = 40, PEDAL_RPM = 30;
+  function watch(game, dt) {
+    const pedaling = game.sensors.watts > PEDAL_W || game.sensors.cadence > PEDAL_RPM;
+    const known = game.state === 'confirm' || (game.state === 'paused' && game.autoPaused);
+    rec.stallFor = game.state !== 'ride' && !known && pedaling ? (rec.stallFor || 0) + dt : 0;
+    if (rec.stallFor < STALL_S || rec.stallWarned) { if (!rec.stallFor) rec.stallWarned = false; return; }
+    rec.stallWarned = true;
+    const manual = game.state === 'paused';
+    if (VBT.store) VBT.store.log('pause', manual ? 'Pedaling while paused - ride time is not counting'
+      : 'NOT RECORDING: pedaling while the game is in state "' + game.state + '"', 'warn');
+    if (VBT.hud) VBT.hud.message(manual ? 'PAUSED - PRESS SPACE TO CONTINUE' : 'NOT RECORDING!', VBT.palette.pink);
+    if (!manual && VBT.toast) VBT.toast('NOT RECORDING - state ' + game.state + '. Press Esc to save, or reload to recover.', 9000);
+  }
+
   function tick(game, dt) {
     if (!rec) return;
     rec.elapsed = (rec.elapsed || 0) + dt;
+    watch(game, dt);
     const riding = game.state === 'ride';
     if (!riding && !rec.openPause) {
       rec.openPause = { t: +game.rideTime.toFixed(1), at: Date.now(),
@@ -107,6 +123,8 @@ VBT.recorder = (function () {
     });
     delete r.acc;
     delete r.openPause;
+    delete r.stallFor;
+    delete r.stallWarned;
     r.elapsed = Math.round(r.elapsed || S.length);
     r.pauses = r.pauses || [];
     // eventlog van deze rit meenemen (zonder backup-ticks), zodat we later kunnen terugzien wat er gebeurde

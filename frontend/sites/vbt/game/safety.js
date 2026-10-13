@@ -157,10 +157,14 @@ VBT.safety = (function () {
   }
   const journalAge = () => (jLast ? (performance.now() - jLast) / 1000 : null);
   const liveAge = () => (live.lastOk ? (performance.now() - live.lastOk) / 1000 : null);
-  // hoeveel seconden rijden staan nog niet op de server
+  // hoeveel seconden rijtijd staan nog niet op de server: gemeten tegen de klok van de rit (niet tegen het aantal
+  // samples), zodat ook een opname die stilvalt als achterstand zichtbaar wordt
   function liveLag() {
     const rec = VBT.recorder.current();
-    return rec && rec.clientId === live.clientId ? Math.max(0, rec.samples.length - live.sent) : rec ? rec.samples.length : 0;
+    if (!rec) return 0;
+    const S = rec.samples, onServer = rec.clientId === live.clientId ? Math.min(live.sent, S.length) : 0;
+    const serverT = onServer ? S[onServer - 1][0] : 0;
+    return Math.max(0, Math.round((VBT.game ? VBT.game.rideTime : S.length ? S[S.length - 1][0] : 0) - serverT));
   }
 
   // hervatte rit: de server heeft deze samples al (of krijgt ze met resume opnieuw open gezet)

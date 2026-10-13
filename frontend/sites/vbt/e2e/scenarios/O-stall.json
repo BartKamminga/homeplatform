@@ -1,0 +1,28 @@
+{
+ "title": "Waakhond: rit open maar de game neemt niet op terwijl je trapt -> melding + event; handmatige pauze + trappen -> hint",
+ "query": "ride",
+ "steps": [
+  {
+   "at": 4,
+   "name": "rit neemt op",
+   "assert": "VBT.recorder.active()",
+   "run": "VBT.game.countdown = 1e9; VBT.game.state = 'countdown'; document.body.dataset.state = 'countdown'"
+  },
+  {
+   "at": 11,
+   "name": "NOT RECORDING gemeld en gelogd",
+   "assert": "VBT.store.getEvents().some(e => e.level === 'warn' && e.msg.startsWith('NOT RECORDING'))",
+   "run": "VBT.game.countdown = 0; VBT.game.setState('ride')",
+   "shot": "stall"
+  },
+  {
+   "at": 12,
+   "key": "Space"
+  },
+  {
+   "at": 19,
+   "name": "trappen in handmatige pauze: hint",
+   "assert": "VBT.game.state === 'paused' && VBT.store.getEvents().some(e => e.msg.startsWith('Pedaling while paused'))"
+  }
+ ]
+}

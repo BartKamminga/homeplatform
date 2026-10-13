@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import LeftPanel from './panels/LeftPanel.jsx'
 import RightPanel from './panels/RightPanel.jsx'
 import { useVbtValue } from './hooks/useVbt.js'
+import { ConfirmHost } from './common/ConfirmDialog.jsx'
 
 const LEFT_W = 340, RIGHT_W = 380
 const RIDING = ['ride', 'paused', 'countdown', 'confirm']
@@ -67,6 +68,7 @@ export default function VbtApp() {
   // toetsen (capture: vóór de engine): M/L/K/H, Esc sluit eerst een paneel
   useEffect(() => {
     const onKey = e => {
+      if (document.querySelector('.vbt-dialog')) return     // het bevestigingsvenster heeft de toetsen
       const tag = e.target.tagName
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
       const { left: l, right: r } = state.current
@@ -94,6 +96,7 @@ export default function VbtApp() {
 
   return (
     <>
+      <ConfirmHost />
       {left.open
         ? <LeftPanel section={left.section} focus={left.focus} riding={riding} width={leftW}
             onSection={(section, focus) => setLeft({ open: true, section, focus: focus || null })}

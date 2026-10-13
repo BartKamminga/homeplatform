@@ -112,9 +112,8 @@
 .pn-tabsep { flex-basis: 8px; }
 .pn-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .vbt-panel-left.wide .pn-split { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); align-items: start; }
-.vbt-panel-left.wide .pn-split > .pn-libcol { grid-column: 1 / -1; }
 .pn-libcol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.pn-libscroll { max-height: 44vh; overflow: auto; padding-right: 4px; }
+.pn-libscroll { padding-right: 4px; }
 .pn-filter input[type="search"] { flex: 1; min-width: 0; font-family: var(--hud); font-size: 11px; color: var(--ink); background: #05010f;
   border: 1px solid rgba(155,92,255,.5); border-radius: 4px; padding: 6px 8px; }
 .pn-filter .ghostbtn { font-size: 9px; padding: 6px 8px; white-space: nowrap; }
@@ -147,3 +146,13 @@
 .pn-plangrid .wdate, .pn-plangrid .wmeta { font-size: 8px; }
 .pn-sticky { position: sticky; bottom: -12px; padding-bottom: 12px; background: rgb(9, 2, 26); }
 body.menu-wide #title .menu, body.menu-wide #title .press { display: none; }
+.pn-plans button { font-size: 9px; padding: 6px 9px; }
+.pn-plans button.active { border-color: var(--cyan); background: rgba(36,232,255,.12); }
+.pn-plans button em { font-style: normal; color: #5dff9e; }
+.pn-planctl .ridebtn { font-size: 10px; padding: 9px 12px; }
+
+/* eigen bevestigingsvenster (ConfirmDialog) - boven panelen en game */
+.vbt-dialog { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(7,1,26,.7); }
+.vbt-dialog .confirmbox { max-width: min(520px, 92vw); text-align: center; }
+.vbt-dialog .confirmbox h2 { font-size: 22px; }
+.ridebtn.danger { background: var(--pink); border-color: var(--pink); color: #fff; box-shadow: 0 0 22px rgba(255,46,136,.5); }

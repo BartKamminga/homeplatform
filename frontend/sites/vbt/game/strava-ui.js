@@ -78,7 +78,7 @@ VBT.stravaUi = (function () {
 
   async function onPlanButton() {
     if (!status.connected) return connect();
-    if (window.confirm('Disconnect Strava?')) {
+    if (await (VBT.confirm ? VBT.confirm({ title: 'DISCONNECT STRAVA?', yes: 'DISCONNECT', danger: true }) : Promise.resolve(window.confirm('Disconnect Strava?')))) {
       await VBT.strava.disconnect();
       await refresh();
     }

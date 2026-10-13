@@ -35,12 +35,14 @@ export function ClimbDetail({ climb }) {
   )
 }
 
-export function WorkoutDetail({ wo }) {
+// preview = { name, dateFor }: workout uit een plan dat je bekijkt maar (nog) niet volgt - geen MARK DONE
+export function WorkoutDetail({ wo, preview }) {
   const VBT = window.VBT
   const cal = VBT.calendar
   const inPlan = !!wo.week
   const done = inPlan && cal.getState().done[wo.id]
-  const where = inPlan ? 'WEEK ' + wo.week + ' · DAY ' + wo.day + ' · ' + dayLabel(cal.dateFor(wo))
+  const where = preview ? preview.name.toUpperCase() + ' · WEEK ' + wo.week + ' · DAY ' + wo.day + ' · ' + dayLabel(preview.dateFor(wo))
+    : inPlan ? 'WEEK ' + wo.week + ' · DAY ' + wo.day + ' · ' + dayLabel(cal.dateFor(wo))
     : 'LIBRARY · ' + (wo.source === 'zwo' ? 'IMPORTED .ZWO' : String(wo.source || '').toUpperCase())
   const start = step => startWithConfirm(wo.name, () => actions().startWorkout(wo, step))
   return (
@@ -55,7 +57,7 @@ export function WorkoutDetail({ wo }) {
         draw={(ctx, w, h) => VBT.workout.drawChart(ctx, wo, w, h)}
         onClick={frac => start(VBT.workout.stepAtFraction(wo, frac))} />}
       <div className="pn-buttons">
-        {inPlan && <button id="planUndo" className="ghostbtn" onClick={() => cal.toggleDone(wo.id)}>{done ? 'UNMARK' : 'MARK DONE'}</button>}
+        {inPlan && !preview && <button id="planUndo" className="ghostbtn" onClick={() => cal.toggleDone(wo.id)}>{done ? 'UNMARK' : 'MARK DONE'}</button>}
         <button id="planRide" className="ridebtn" onClick={() => start()}>RIDE &#9654;</button>
       </div>
     </div>

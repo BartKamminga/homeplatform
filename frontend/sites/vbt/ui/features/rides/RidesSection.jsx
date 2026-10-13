@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
 import { fmtDur, fmtDateTime, startWithConfirm } from '../../common/format.js'
+import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
 
 function Tags({ r }) {
@@ -26,7 +27,7 @@ function RideDetail({ ride, onDeleted, onRestored }) {
   const stat = (v, l) => <div key={l}><b>{v}</b><small>{l}</small></div>
   const paused = Math.max(0, (ride.elapsed || 0) - ride.duration)
   const remove = async () => {
-    if (!window.confirm('Move this ride (' + fmtDateTime(ride.startedAt) + ') to the trash? You can restore it from TRASH.')) return
+    if (!(await confirmDialog({ title: 'MOVE TO TRASH?', text: 'Ride of ' + fmtDateTime(ride.startedAt) + '. You can restore it from TRASH.', yes: 'DELETE', danger: true }))) return
     try { await actions().deleteRide(ride.id); onDeleted() } catch (e) { window.VBT.toast?.(e.message, 6000) }
   }
   const restore = async () => {

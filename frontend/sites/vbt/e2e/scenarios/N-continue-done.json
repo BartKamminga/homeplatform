@@ -1,0 +1,57 @@
+{
+ "title": "Afgeronde workout hervatten (CONTINUE RIDE) -> nieuwe samples komen erbij, live backup loopt, opslaan = langer",
+ "query": "wo=ftpb-w1d1&t=60",
+ "steps": [
+  {
+   "at": 4,
+   "key": "Escape"
+  },
+  {
+   "at": 4.5,
+   "key": "KeyY"
+  },
+  {
+   "at": 7,
+   "name": "workout opgeslagen",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => { window.__r = a.find(r => r.courseKey === 'ftpb-w1d1'); return !!window.__r && !window.__r.inProgress && window.__r.duration >= 55 })"
+  },
+  {
+   "at": 7.5,
+   "run": "VBT.session.openRides()"
+  },
+  {
+   "at": 9,
+   "click": "#rideContinue"
+  },
+  {
+   "at": 15,
+   "name": "rijdt verder in dezelfde rit",
+   "assert": "VBT.game.state === 'ride' && VBT.recorder.current().clientId === window.__r.clientId && VBT.game.rideTime > window.__r.duration",
+   "run": "window.__n0 = VBT.recorder.current().samples.length"
+  },
+  {
+   "at": 27,
+   "name": "nieuwe samples in de opname",
+   "assert": "VBT.recorder.current().samples.length >= window.__n0 + 10",
+   "shot": "continued"
+  },
+  {
+   "at": 28,
+   "name": "live backup heeft de nieuwe samples",
+   "assert": "fetch('/api/vbt/rides/' + window.__r.id,{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(r => r.inProgress && r.samples.length > window.__r.duration)"
+  },
+  {
+   "at": 29,
+   "key": "Escape"
+  },
+  {
+   "at": 30,
+   "key": "KeyY"
+  },
+  {
+   "at": 34,
+   "name": "opgeslagen: zelfde rit, langer, afgerond",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => { const r = a.filter(x => x.clientId === window.__r.clientId); window.__dbg = JSON.stringify(r.map(x => [x.duration, x.inProgress])) + ' was ' + window.__r.duration; return r.length === 1 && !r[0].inProgress && r[0].duration >= window.__r.duration + 15 })"
+  }
+ ]
+}

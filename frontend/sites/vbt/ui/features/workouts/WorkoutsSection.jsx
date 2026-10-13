@@ -5,6 +5,7 @@ import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
 import { minutes } from '../../common/format.js'
 import { WorkoutDetail, ClimbDetail } from './WorkoutDetail.jsx'
+import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 
 const DURATIONS = [['all', 'ANY LENGTH'], ['30', '< 45 MIN'], ['60', '45-75 MIN'], ['90', '> 75 MIN']]
 const fitsDuration = (sec, f) => f === 'all' || (f === '30' ? sec < 2700 : f === '60' ? sec >= 2700 && sec <= 4500 : sec > 4500)
@@ -48,14 +49,14 @@ export default function WorkoutsSection() {
   }
   const remove = async (e, wo) => {
     e.stopPropagation()
-    if (!window.confirm('Delete "' + wo.name + '" from your library?')) return
+    if (!(await confirmDialog({ title: 'DELETE WORKOUT?', text: '"' + wo.name + '" is removed from your library.', yes: 'DELETE', danger: true }))) return
     try { await actions().deleteWorkout(wo.id) } catch (err) { VBT.toast?.(err.message, 6000); return }
     if (sel?.wo?.id === wo.id) setSel(null)
     load()
   }
 
   return (
-    <div className="pn-section pn-split" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); importFiles(e.dataTransfer.files) }}>
+    <div className="pn-section" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); importFiles(e.dataTransfer.files) }}>
       <div className="pn-libcol">
         <div className="pn-filter">
           <input type="search" placeholder="Search workouts and climbs" value={q} onChange={e => setQ(e.target.value)} />
@@ -88,8 +89,7 @@ export default function WorkoutsSection() {
           {!groups.length && <p className="pn-hint">Nothing found.</p>}
         </div>
       </div>
-      {sel?.wo && <WorkoutDetail wo={sel.wo} />}
-      {sel?.climb && <ClimbDetail climb={sel.climb} />}
+      {sel && <div className="pn-sticky">{sel.wo ? <WorkoutDetail wo={sel.wo} /> : <ClimbDetail climb={sel.climb} />}</div>}
       {!sel && <p className="pn-hint">Pick a workout or climb. Drop .zwo files here to import them.</p>}
     </div>
   )

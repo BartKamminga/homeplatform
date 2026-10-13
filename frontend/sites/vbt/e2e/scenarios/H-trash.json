@@ -43,6 +43,16 @@
    "click": "#rideDelete"
   },
   {
+   "at": 20.0,
+   "name": "eigen bevestigingsvenster (geen browser-confirm)",
+   "assert": "!!document.querySelector('.vbt-dialog #dlgYes') && document.querySelector('.vbt-dialog').textContent.includes('MOVE TO TRASH')",
+   "shot": "dialog"
+  },
+  {
+   "at": 20.2,
+   "click": "#dlgYes"
+  },
+  {
    "at": 21.5,
    "name": "weg uit de lijst, in de prullenbak",
    "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => !a.some(r => r.clientId === window.__cid)).then(ok => ok && fetch('/api/vbt/rides-trash',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(t => t.some(r => r.clientId === window.__cid)))"

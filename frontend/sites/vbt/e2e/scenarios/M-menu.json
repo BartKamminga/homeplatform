@@ -29,63 +29,77 @@
    "assert": "VBT.calendar.getState().doneCount === 1 && !!document.querySelector('.pn-plangrid .wcard.done')"
   },
   {
-   "at": 8,
+   "at": 7.7,
+   "click": ".pn-plans button[data-plan=back-to-fitness]"
+  },
+  {
+   "at": 8.6,
+   "name": "door een ander plan bladeren: voorbeeld, actief plan blijft",
+   "assert": "document.querySelector('.pn-planhead small').textContent.includes('PREVIEW') && document.querySelector('#planTitle').textContent.includes('BACK TO FITNESS') && document.querySelectorAll('.pn-plangrid .wcard').length > 20 && !!document.querySelector('#planStartThis') && !document.querySelector('#planUndo') && VBT.calendar.getState().planSlug === 'ftp-builder'",
+   "shot": "preview"
+  },
+  {
+   "at": 8.8,
+   "click": ".pn-plans button[data-plan=ftp-builder]"
+  },
+  {
+   "at": 9.5,
    "click": "#planSwitchOpen"
   },
   {
-   "at": 8.5,
+   "at": 10.0,
    "name": "SWITCH PLAN: startdatum standaard volgende maandag",
    "assert": "!!document.querySelector('#planSwitch') && document.querySelector('#planSwitch input[type=date]').value === VBT.calendar.nextMonday()",
    "run": "const sel = document.querySelector('#planSwitch select'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(sel, 'gran-fondo'); sel.dispatchEvent(new Event('change', { bubbles: true }))",
    "shot": "switch"
   },
   {
-   "at": 9,
+   "at": 10.5,
    "click": "#planSwitchGo"
   },
   {
-   "at": 10.5,
+   "at": 12.0,
    "name": "ander plan actief, oude startdatum bewaard",
    "assert": "VBT.calendar.getState().planSlug === 'gran-fondo' && document.querySelector('#planTitle').textContent.includes('GRAN FONDO') && VBT.settings.values.planStarts['ftp-builder'] === window.__start"
   },
   {
-   "at": 11,
+   "at": 12.5,
    "run": "VBT.calendar.switchPlan('ftp-builder')"
   },
   {
-   "at": 12,
+   "at": 13.5,
    "name": "terug naar FTP Builder: zelfde startdatum en afgevinkte workout",
    "assert": "VBT.calendar.getState().planSlug === 'ftp-builder' && VBT.calendar.getState().startDate === window.__start && VBT.calendar.getState().doneCount === 1"
   },
   {
-   "at": 12.5,
+   "at": 14.0,
    "click": ".vbt-panel-left .pn-tabs button[data-section=progress]"
   },
   {
-   "at": 13.5,
+   "at": 15.0,
    "name": "PROGRESS: FTP en minuten per week",
    "assert": "document.querySelector('.vbt-panel-left .pn-body').textContent.includes('MINUTES PER WEEK') && document.querySelectorAll('.vbt-panel-left .pn-body canvas').length >= 2",
    "shot": "progress"
   },
   {
-   "at": 14,
+   "at": 15.5,
    "click": ".vbt-panel-left .pn-tabs button[data-section=today]"
   },
   {
-   "at": 14.5,
+   "at": 16.0,
    "click": "#todayFree"
   },
   {
-   "at": 15.5,
+   "at": 17.0,
    "name": "rit gestart: menu dicht",
    "assert": "['countdown', 'ride'].includes(VBT.game.state) && !document.querySelector('.vbt-panel-left')"
   },
   {
-   "at": 16,
+   "at": 17.5,
    "key": "KeyM"
   },
   {
-   "at": 16.8,
+   "at": 18.3,
    "name": "tijdens de rit: smal menu met NOW vooraan",
    "assert": "document.querySelector('.vbt-panel-left') && !document.querySelector('.vbt-panel-left.wide') && document.querySelector('.vbt-panel-left .pn-tabs button.active').dataset.section === 'now'",
    "shot": "riding"

@@ -162,8 +162,8 @@ VBT.hud = (function () {
     // regel in het rechter HUD-paneel: hoeveel seconden rijden staan nog niet op de server
     const lag = VBT.safety.liveLag(), b = $('backup');
     $('backupLabel').hidden = b.hidden = st === 'off';
-    b.textContent = st === 'failing' ? 'OFFLINE · ' + lag + ' S LOCAL ONLY' : lag <= 10 && st === 'ok' ? 'UP TO DATE' : '+' + lag + ' S BEHIND';
-    b.className = 'mid ' + (st === 'failing' ? 'behind' : lag <= 10 && st === 'ok' ? 'ahead' : 'lag');
+    b.textContent = st === 'failing' ? 'OFFLINE · ' + lag + ' S LOCAL ONLY' : lag <= 15 && st === 'ok' ? 'UP TO DATE' : '+' + lag + ' S BEHIND';
+    b.className = 'mid ' + (st === 'failing' ? 'behind' : lag <= 15 && st === 'ok' ? 'ahead' : 'lag');
   }
 
   return { init, update, message, chips };
