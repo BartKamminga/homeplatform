@@ -42,6 +42,26 @@ def test_seed_plan_shape_and_idempotent(client, session, user_token):
     assert len(workouts) == 22   # dubbele dagen (bv. w3d1 = w3d3) delen één workout
 
 
+def test_seed_build_me_up_and_choose_plan(client, session, user_token):
+    svc.seed_plan(session, "ftp_builder.json")
+    svc.seed_plan(session, "build_me_up.json")
+    svc.seed_plan(session, "build_me_up.json")   # idempotent
+
+    plans = client.get("/api/vbt/plans", headers=_h(user_token)).json()
+    assert [p["slug"] for p in plans] == ["build-me-up", "ftp-builder"]
+
+    plan = client.get("/api/vbt/plans/build-me-up", headers=_h(user_token)).json()
+    assert len(plan["weeks"]) == 13 and all(len(w) == 5 for w in plan["weeks"])
+    days = [d for w in plan["weeks"] for d in w if not d["rest"]]
+    assert len(days) == 52
+    assert plan["weeks"][0][0]["name"] == "Ramp Test" and plan["weeks"][12][-2]["name"] == "FTP Test"
+    assert plan["weeks"][1][1]["name"] == "Devedeset" and plan["weeks"][1][1]["duration"] == 3600
+
+    r = client.put("/api/vbt/profile", headers=_h(user_token), json={"planSlug": "build-me-up"})
+    assert r.status_code == 200 and r.json()["planSlug"] == "build-me-up"
+    assert client.put("/api/vbt/profile", headers=_h(user_token), json={"planSlug": "nope"}).status_code == 422
+
+
 def test_parse_zwo():
     wo = svc.parse_zwo(ZWO)
     assert wo["name"] == "Sweet Spot Test"

@@ -19,7 +19,7 @@ def _ride(**over):
 def test_profile_defaults_and_update(client, user_token):
     r = client.get("/api/vbt/profile", headers=_h(user_token))
     assert r.status_code == 200
-    assert r.json() == {"ftp": 180, "planStart": None, "planDone": {}}
+    assert r.json() == {"ftp": 180, "planSlug": "ftp-builder", "planStart": None, "planDone": {}}
 
     r = client.put("/api/vbt/profile", headers=_h(user_token),
                    json={"ftp": 210, "planStart": "2026-10-12", "planDone": {"ftpb-w1d1": {"avgW": 120}}})

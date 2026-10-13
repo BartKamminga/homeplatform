@@ -20,9 +20,10 @@ VBT.storage = {
   async markPb() { /* de server bepaalt zelf of een rit een PB is */ },
   async loadProfile() {
     const p = await api.get('/api/vbt/profile')
-    return { ftp: p.ftp, startDate: p.planStart, done: p.planDone }
+    return { ftp: p.ftp, planSlug: p.planSlug, startDate: p.planStart, done: p.planDone }
   },
-  saveProfile: state => api.put('/api/vbt/profile', { ftp: state.ftp, planStart: state.startDate, planDone: state.done }),
+  saveProfile: state => api.put('/api/vbt/profile', { ftp: state.ftp, planSlug: state.planSlug, planStart: state.startDate, planDone: state.done }),
+  listPlans: () => api.get('/api/vbt/plans'),
   loadPlan: slug => api.get('/api/vbt/plans/' + enc(slug)),
   listWorkouts: () => api.get('/api/vbt/workouts'),
   getWorkout: id => api.get('/api/vbt/workouts/' + enc(id)),

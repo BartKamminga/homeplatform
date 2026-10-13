@@ -33,7 +33,7 @@ body[data-state="plan"] #title { opacity: 0; visibility: hidden; }
 .planhead a { color: var(--cyan); }
 .planhead > div { margin-right: auto; }
 .planhead label { font-family: var(--pixel); font-size: 10px; color: var(--cyan); display: flex; align-items: center; gap: 8px; }
-.planhead input {
+.planhead input, .planhead select {
   font-family: var(--hud); font-size: 16px; color: var(--ink); background: rgba(255,255,255,.06);
   border: 1px solid var(--cyan); border-radius: 4px; padding: 6px 8px; color-scheme: dark;
 }

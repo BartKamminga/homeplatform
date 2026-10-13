@@ -131,7 +131,8 @@ def seed_plan(session: Session, filename: str) -> VbtPlan:
     for it in data["items"]:
         workout_id = None
         if it["kind"] == "workout":
-            wo, _ = upsert_workout(session, it["name"], it["steps"], data["slug"], source_url=data.get("sourceUrl"))
+            wo, _ = upsert_workout(session, it["name"], it["steps"], data["slug"], description=it.get("description"),
+                                   source_url=it.get("sourceUrl") or data.get("sourceUrl"))
             workout_id = wo.id
         item = session.get(VbtPlanItem, it["key"]) or VbtPlanItem(key=it["key"], plan_id=plan.id, week=it["week"], day=it["day"])
         item.plan_id, item.week, item.day, item.kind = plan.id, it["week"], it["day"], it["kind"]

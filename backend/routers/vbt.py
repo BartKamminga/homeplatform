@@ -15,7 +15,7 @@ from core.analytics import client_ip, hash_ip, log_site_event
 from core.auth import get_current_user
 from core.database import get_session
 from models.core import User
-from models.vbt import VbtProfile, VbtRide, VbtStravaLink
+from models.vbt import VbtPlan, VbtProfile, VbtRide, VbtStravaLink
 from services import vbt_strava as strava
 from services.vbt_rides import naive_utc
 
@@ -28,6 +28,7 @@ class CamelModel(BaseModel):
 
 class ProfileIn(CamelModel):
     ftp: Optional[int] = None
+    plan_slug: Optional[str] = None
     plan_start: Optional[str] = None
     plan_done: Optional[dict] = None
 
@@ -77,10 +78,17 @@ def _own_ride(ride_id: str, user: User, session: Session) -> VbtRide:
 
 # ── Profiel + trainingsplan ──────────────────────────────────────────────────
 
+DEFAULT_PLAN = "ftp-builder"
+
+
+def _profile_out(p: VbtProfile) -> dict:
+    return {"ftp": p.ftp, "planSlug": p.plan_slug or DEFAULT_PLAN, "planStart": p.plan_start, "planDone": p.plan_done or {}}
+
+
 @router.get("/profile")
 def get_profile(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     p = session.get(VbtProfile, current_user.id) or VbtProfile(user_id=current_user.id)
-    return {"ftp": p.ftp, "planStart": p.plan_start, "planDone": p.plan_done or {}}
+    return _profile_out(p)
 
 
 @router.put("/profile")
@@ -90,6 +98,10 @@ def put_profile(body: ProfileIn, current_user: User = Depends(get_current_user),
         if not 50 <= body.ftp <= 600:
             raise HTTPException(status_code=422, detail="FTP moet tussen 50 en 600 W liggen")
         p.ftp = body.ftp
+    if body.plan_slug is not None:
+        if not session.exec(select(VbtPlan).where(VbtPlan.slug == body.plan_slug)).first():
+            raise HTTPException(status_code=422, detail="Onbekend trainingsplan")
+        p.plan_slug = body.plan_slug
     if body.plan_start is not None:
         p.plan_start = body.plan_start
     if body.plan_done is not None:
@@ -97,7 +109,7 @@ def put_profile(body: ProfileIn, current_user: User = Depends(get_current_user),
     p.updated_at = datetime.utcnow()
     session.add(p)
     session.commit()
-    return {"ftp": p.ftp, "planStart": p.plan_start, "planDone": p.plan_done or {}}
+    return _profile_out(p)
 
 
 # ── Ritten ───────────────────────────────────────────────────────────────────

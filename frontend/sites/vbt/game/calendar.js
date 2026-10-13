@@ -3,8 +3,8 @@
 VBT.calendar = (function () {
   const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const PLAN_SLUG = 'ftp-builder';
-  let plan = { weeks: [], dayOffsets: [] };
+  const DEFAULT_PLAN = 'ftp-builder';
+  let plan = { weeks: [], dayOffsets: [] }, plans = [];
   const $ = id => document.getElementById(id);
   let state = {}, selected = null, onRide = null;
 
@@ -21,12 +21,27 @@ VBT.calendar = (function () {
 
   async function load() {
     try { state = (await VBT.storage.loadProfile()) || {}; } catch (e) { state = {}; }
-    state = { ftp: state.ftp, startDate: state.startDate || state.planStart, done: state.done || state.planDone };
+    state = { ftp: state.ftp, planSlug: state.planSlug, startDate: state.startDate || state.planStart, done: state.done || state.planDone };
     state.ftp = state.ftp || 180;
+    state.planSlug = state.planSlug || DEFAULT_PLAN;
     state.startDate = state.startDate || thisMonday();
     state.done = state.done || {};
     VBT.cfg.rider.ftp = state.ftp;
-    try { plan = await VBT.storage.loadPlan(PLAN_SLUG); } catch (e) { /* geen plan: lege kalender */ }
+    try { plans = VBT.storage.listPlans ? await VBT.storage.listPlans() : []; } catch (e) { plans = []; }
+    await loadPlan(state.planSlug);
+  }
+
+  async function loadPlan(slug) {
+    try { plan = await VBT.storage.loadPlan(slug); } catch (e) { plan = { weeks: [], dayOffsets: [] }; /* geen plan: lege kalender */ }
+  }
+
+  // ander plan kiezen: voltooide workouts blijven bewaard (ids zijn per plan uniek), startdatum is gedeeld
+  async function switchPlan(slug) {
+    state.planSlug = slug;
+    save();
+    await loadPlan(slug);
+    $('planSource').href = plan.source || '#';
+    preselect(); render();
   }
 
   function save() {
@@ -75,8 +90,9 @@ VBT.calendar = (function () {
       }
       grid.appendChild(row);
     });
-    const done = Object.keys(state.done).length;
-    const total = plan.weeks.flat().filter(w => !w.rest).length;
+    const ids = plan.weeks.flat().filter(w => !w.rest).map(w => w.id);
+    const done = ids.filter(id => state.done[id]).length, total = ids.length;
+    $('planWeeks').textContent = plan.weeks.length + '-WEEK PLAN';
     $('planTitle').textContent = (plan.name || 'TRAINING PLAN').toUpperCase();
     $('planProgress').textContent = done + ' / ' + total + ' DONE';
     renderDetail();
@@ -130,6 +146,12 @@ VBT.calendar = (function () {
     $('planStart').value = state.startDate;
     $('planFtp').onchange = e => { e.target.value = setFtp(e.target.value); };
     $('planStart').onchange = e => { if (e.target.value) { state.startDate = e.target.value; save(); render(); } };
+    const sel = $('planSelect');
+    sel.innerHTML = '';
+    (plans.length ? plans : [{ slug: state.planSlug, name: plan.name || 'Training plan' }]).forEach(p => {
+      sel.add(new Option(p.name.toUpperCase(), p.slug, false, p.slug === state.planSlug));
+    });
+    sel.onchange = e => switchPlan(e.target.value);
     if (plan.source) $('planSource').href = plan.source;
     preselect();
   }
