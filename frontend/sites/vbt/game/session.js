@@ -180,19 +180,9 @@ VBT.session = (function () {
     VBT.library.show('rides');
   }
 
-  // verbindingsscherm; sluiten brengt je terug naar waar je vandaan kwam
-  function openDevices() {
-    const back = game.state;
-    game.setState('devices');
-    VBT.devicesUi.open(() => game.setState(back === 'devices' ? 'title' : back));
-  }
-
-  // help; sluiten brengt je terug naar waar je vandaan kwam (focus = sectie, bv. 'bluetooth')
-  function openHelp(focus) {
-    const back = game.state;
-    game.setState('help');
-    VBT.help.open(() => game.setState(back === 'help' ? 'title' : back), focus);
-  }
+  // apparaten en help staan in het linkerpaneel (React registreert VBT.ui)
+  const openDevices = () => VBT.ui && VBT.ui.open('left', 'devices');
+  const openHelp = focus => VBT.ui && VBT.ui.open('left', 'help', focus);
 
   function downloadFit() {
     if (game.lastRide) VBT.fit.download(game.lastRide);
@@ -203,7 +193,6 @@ VBT.session = (function () {
     $('btnPlan').onclick = () => toMenu('plan');
     $('btnDevices').onclick = openDevices;
     $('btnHelp').onclick = () => openHelp();
-    $('devHelp').onclick = () => openHelp('bluetooth');
     $('btnRides').onclick = openRides;
     $('btnKeepRiding').onclick = cancelStop;
     $('btnStopRide').onclick = confirmStop;

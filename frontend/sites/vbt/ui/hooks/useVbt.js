@@ -3,10 +3,15 @@ import { useSyncExternalStore } from 'react'
 
 const store = () => window.VBT.store
 
-// volledige snapshot (of een deel via selector; houd selectors primitief of memo ze zelf)
-export function useVbt(selector) {
-  const snap = useSyncExternalStore(cb => store().subscribe(cb), () => store().getSnapshot())
-  return selector ? selector(snap) : snap
+// Snapshot (of een deel via selector). Standaard 4x/s - genoeg voor panelen en spaart frames;
+// { fast: true } = 10x/s (voor de HUD).
+const subFast = cb => store().subscribe(cb)
+const subSlow = cb => store().subscribeSlow(cb)
+const snap = () => store().getSnapshot()
+
+export function useVbt(selector, { fast = false } = {}) {
+  const s = useSyncExternalStore(fast ? subFast : subSlow, snap)
+  return selector ? selector(s) : s
 }
 
 // events-ringbuffer: geeft het aantal terug zodat het component bij elk nieuw event ververst

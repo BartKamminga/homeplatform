@@ -36,7 +36,7 @@
 
     VBT.bleBridge.guard(game);
     if (game.state === 'paused' || game.state === 'confirm') return;
-    const attract = ['title', 'plan', 'finished', 'devices', 'help'].includes(game.state);
+    const attract = ['title', 'plan', 'finished'].includes(game.state);
     if (attract) VBT.physics.autopilot(s, t, game.grade);
     if (game.state === 'countdown') {
       const before = Math.ceil(game.countdown);
@@ -161,7 +161,7 @@
   }
 
   window.addEventListener('keydown', e => {
-    if (!started || e.target.tagName === 'INPUT') return;
+    if (!started || e.target.tagName === 'INPUT' || (e.target.closest && e.target.closest('.vbt-panel'))) return;
     keys[e.code] = true;
     // stopvraag: Esc = verder rijden, Enter/Y = stoppen en opslaan
     if (game.state === 'confirm') {
@@ -178,13 +178,9 @@
       else if (game.state === 'finished') document.getElementById('btnDone').click();
     }
     if (e.code === 'KeyT' && (game.state === 'title' || game.state === 'finished')) S.toMenu('plan');
-    if (e.code === 'KeyK' && ['title', 'plan', 'finished'].includes(game.state)) S.openDevices();
     if (e.code === 'KeyR' && ['title', 'finished'].includes(game.state)) S.openRides();
     if (e.code === 'KeyD' && game.state === 'finished') S.downloadFit();
-    if (e.code === 'KeyH' && ['title', 'plan', 'finished', 'devices'].includes(game.state)) S.openHelp(game.state === 'devices' ? 'bluetooth' : undefined);
-    if (e.code === 'Escape' && game.state === 'help') VBT.help.close();
-    else if (e.code === 'Escape' && game.state === 'devices') VBT.devicesUi.close();
-    else if (e.code === 'Escape' && game.state !== 'title') S.stop();
+    if (e.code === 'Escape' && game.state !== 'title') S.stop();
     if (e.code.startsWith('Arrow')) e.preventDefault();
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -219,8 +215,8 @@
     game.setState('title');
     S.bindUi();
     VBT.library.init();
-    VBT.devicesUi.init();
-    VBT.help.init();
+    if (!navigator.bluetooth && !VBT.bleMock.enabled) VBT.ble.note('Web Bluetooth not available in this browser - use Chrome or Edge');
+    VBT.ble.restore();
     if (VBT.bleMock.enabled) {           // testhaakjes nep-Kickr: ?mockble&autoconnect&mockdrop=30:15
       VBT.bleMock.schedule(game);
       if (params.has('autoconnect')) { VBT.ble.pick('trainer'); VBT.ble.pick('hr'); }

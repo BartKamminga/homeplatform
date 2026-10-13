@@ -131,27 +131,6 @@ body[data-state="finished"] #finish { display: flex; }
 .wdel { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 11px; opacity: .5; padding: 2px 4px; }
 .wdel:hover { opacity: 1; color: var(--pink); }
 
-/* ---------- Apparaten (Bluetooth) ---------- */
-#devices { position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(7,1,26,.85); }
-body[data-state="devices"] #devices { display: flex; }
-body[data-state="devices"] #title { opacity: 0; visibility: hidden; }
-.devpanel { width: min(860px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 12px; padding: 22px; border-radius: 10px;
-  border: 1px solid rgba(36,232,255,.5); background: rgba(12,2,32,.9); box-shadow: 0 0 30px rgba(36,232,255,.2); }
-.devhead { display: flex; justify-content: space-between; align-items: center; }
-.devhead h2 { margin: 0; font-family: var(--pixel); font-size: 20px; color: var(--yellow); }
-.devrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center; padding: 12px 14px;
-  border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid rgba(155,92,255,.35); }
-.devrow small { display: block; font-family: var(--pixel); font-size: 9px; color: var(--cyan); }
-.devrow b { display: block; font-size: 15px; letter-spacing: 1px; margin: 4px 0; }
-.devlive { font-size: 20px; font-weight: 900; color: var(--yellow); font-variant-numeric: tabular-nums; }
-.devstatus { font-family: var(--pixel); font-size: 10px; padding: 6px 8px; border-radius: 4px; color: #07011a; background: #8a8aa8; }
-.devstatus[data-status="connected"] { background: #5dff9e; }
-.devstatus[data-status="connecting"], .devstatus[data-status="reconnecting"] { background: var(--yellow); animation: blink .8s steps(2) infinite; }
-.devbtn { font-size: 12px; padding: 10px 16px; }
-.devtools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.devtools .hint { font-size: 10px; opacity: .6; }
-#bleLog { margin: 0; height: 180px; overflow: auto; padding: 10px; border-radius: 6px; background: #05010f; color: #9fe9ff;
-  font: 11px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
 .devchip { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 3px; font-size: 9px; color: #07011a; background: #8a8aa8; }
 .devchip[data-status="ok"] { background: #5dff9e; }
 .devchip[data-status="stale"] { background: var(--yellow); }
@@ -198,23 +177,6 @@ body[data-state="confirm"] #confirm { display: flex; }
 #backup.lag { color: var(--yellow); }
 #backup.behind { color: var(--pink); }
 
-/* ---------- Help ---------- */
-#help { position: fixed; inset: 0; z-index: 46; display: none; align-items: center; justify-content: center; background: rgba(7,1,26,.88); }
-body[data-state="help"] #help { display: flex; }
-body[data-state="help"] #title, body[data-state="help"] #devices { opacity: 0; visibility: hidden; }
-.helppanel { width: min(1000px, calc(100% - 32px)); height: min(760px, calc(100% - 48px)); display: flex; flex-direction: column; gap: 12px;
-  padding: 22px; border-radius: 10px; border: 1px solid rgba(36,232,255,.5); background: rgba(12,2,32,.94); }
-.helpwrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; min-height: 0; flex: 1; }
-#helpNav { display: flex; flex-direction: column; gap: 6px; }
-#helpNav button { text-align: left; font-family: var(--pixel); font-size: 9px; line-height: 1.5; color: var(--ink); background: transparent;
-  border: 1px solid rgba(155,92,255,.4); border-radius: 4px; padding: 8px 10px; cursor: pointer; }
-#helpNav button:hover { border-color: var(--cyan); }
-#helpBody { overflow: auto; padding-right: 8px; font-family: Inter, Arial, sans-serif; font-size: 14px; line-height: 1.6; }
-#helpBody section { margin-bottom: 22px; }
-#helpBody h3 { font-family: var(--pixel); font-size: 12px; color: var(--yellow); margin: 0 0 10px; }
-#helpBody h4 { font-family: var(--hud); font-size: 13px; color: var(--cyan); margin: 14px 0 6px; letter-spacing: 1px; }
-#helpBody p, #helpBody li { opacity: .9; }
-#helpBody .flag { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-#helpBody code { font: 12px ui-monospace, Consolas, monospace; color: #9fe9ff; background: #05010f; padding: 6px 8px; border-radius: 4px; }
-.copybtn { padding: 6px 10px; font-size: 9px; }
-@media (max-width: 900px) { .helpwrap { grid-template-columns: 1fr; } #helpNav { flex-direction: row; flex-wrap: wrap; } }
+
+/* overlays schuiven mee met de zijpanelen (React zet --panel-left/--panel-right) */
+#title, #plan, #finish, #countdown, #paused, #confirm { left: var(--panel-left, 0px) !important; right: var(--panel-right, 0px) !important; }

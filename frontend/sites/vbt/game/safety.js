@@ -7,7 +7,7 @@ VBT.safety = (function () {
   const DB = 'vbt', STORE = 'kv', J_META = 'journal:meta', J_CHUNK = 'journal:chunk:', OUTBOX = 'outbox:';
   const RETRY_MS = 30000;
   let dbp = null, flushing = false, retryTimer = null;
-  let jId = null, jWritten = 0, jBusy = Promise.resolve();
+  let jId = null, jWritten = 0, jBusy = Promise.resolve(), jLast = 0;
   // live backup naar de server tijdens de rit
   const LIVE_MS = 10000;
   const live = { clientId: null, sent: 0, lastOk: 0, lastTry: -Infinity, busy: false, failing: false, resume: false };
@@ -60,6 +60,7 @@ VBT.safety = (function () {
       const start = jWritten, chunk = rec.samples.slice(start);
       await put(J_META, JSON.parse(JSON.stringify(meta)));
       if (chunk.length) { await put(J_CHUNK + String(start).padStart(7, '0'), chunk); jWritten = start + chunk.length; }
+      jLast = performance.now();
     }).catch(e => VBT.ble && VBT.ble.note('journal: ' + e.message));
     return jBusy;
   }
@@ -154,6 +155,7 @@ VBT.safety = (function () {
     if (live.failing) return 'failing';
     return live.lastOk && performance.now() - live.lastOk < LIVE_MS * 2.5 ? 'ok' : 'behind';
   }
+  const journalAge = () => (jLast ? (performance.now() - jLast) / 1000 : null);
   const liveAge = () => (live.lastOk ? (performance.now() - live.lastOk) / 1000 : null);
   // hoeveel seconden rijden staan nog niet op de server
   function liveLag() {
@@ -189,5 +191,5 @@ VBT.safety = (function () {
     return recover().then(ride => { flush(); return ride; });
   }
 
-  return { init, journal, clearJournal, enqueue, flush, pending, liveSync, liveStatus, liveAge, liveLag, liveResume, dropFromOutbox, on: fn => listeners.add(fn) };
+  return { init, journal, clearJournal, enqueue, flush, pending, liveSync, liveStatus, liveAge, liveLag, journalAge, liveResume, dropFromOutbox, on: fn => listeners.add(fn) };
 })();

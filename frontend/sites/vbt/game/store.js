@@ -2,10 +2,13 @@
 // useSyncExternalStore, dus geen re-render per frame). Daarnaast een ringbuffer met getypte events
 // (interval, pause, resume, jump, lap, ble, erg, backup, outbox, save, error) en 2 min telemetrie (1 Hz).
 VBT.store = (function () {
-  const PUBLISH_MS = 100;
+  const PUBLISH_MS = 100;          // HUD
+  const SLOW_MS = 250;             // zijpanelen: 4x/s is genoeg en spaart frames
   const MAX_EVENTS = 500;
   const TELEMETRY_S = 120;
   const listeners = new Set();
+  const slowListeners = new Set();
+  let lastSlow = 0;
   const eventListeners = new Set();
   let snapshot = { state: 'boot', events: 0 };
   let lastPublish = 0, lastTelemetry = 0;
@@ -50,8 +53,10 @@ VBT.store = (function () {
         trainer: link(ble.links.trainer), hr: link(ble.links.hr),
         trainerOk: ble.trainerOk(), hrOk: ble.hrOk(), packets: ble.live.packets,
         dataAge: ble.live.tPower ? (performance.now() - ble.live.tPower) / 1000 : null,
+        live: { power: ble.live.power, cadence: Math.round(ble.live.cadence), speed: ble.live.speed, hr: ble.live.hr },
+        ergCapable: ble.ergCapable(),
       },
-      backup: { status: safety.liveStatus(), lag: safety.liveLag(), age: safety.liveAge() },
+      backup: { status: safety.liveStatus(), lag: safety.liveLag(), age: safety.liveAge(), journalAge: safety.journalAge() },
       lastRide: game.lastRide ? { clientId: game.lastRide.clientId, name: game.lastRide.name, duration: game.lastRide.duration } : null,
       events: eventSeq,
     };
@@ -71,12 +76,17 @@ VBT.store = (function () {
     lastPublish = now;
     snapshot = build(game);
     listeners.forEach(fn => { try { fn(); } catch (e) { /* UI */ } });
+    if (now - lastSlow >= SLOW_MS) {
+      lastSlow = now;
+      slowListeners.forEach(fn => { try { fn(); } catch (e) { /* UI */ } });
+    }
   }
 
   return {
     log, tick,
     getSnapshot: () => snapshot,
     subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn); },
+    subscribeSlow: fn => { slowListeners.add(fn); return () => slowListeners.delete(fn); },
     getEvents: () => events,
     subscribeEvents: fn => { eventListeners.add(fn); return () => eventListeners.delete(fn); },
     getTelemetry: () => telemetry,

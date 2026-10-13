@@ -2,6 +2,7 @@
 // worden in deze volgorde uitgevoerd. React wordt alleen gebruikt voor de HomePlatform-login (AuthGate).
 import './css/style.css'
 import './css/plan.css'
+import './css/panels.css'
 
 import './game/config.js'
 import './game/util.js'
@@ -28,8 +29,6 @@ import './game/ble-parse.js'
 import './game/ble.js'
 import './game/ble-mock.js'
 import './game/ble-bridge.js'
-import './game/devices-ui.js'
-import './game/help.js'
 import './game/hud.js'
 import './game/workout-hud.js'
 import './game/session.js'

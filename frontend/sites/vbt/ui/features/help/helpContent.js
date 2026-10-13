@@ -1,14 +1,10 @@
-// Help (toets H, knop HELP): korte uitleg per onderwerp. Teksten in het Engels (zelfde regime als de rest van de UI).
-// Chrome-instellingen staan als kopieerbare tekst: een webpagina mag chrome://-links niet zelf openen.
-VBT.help = (function () {
-  const $ = id => document.getElementById(id);
-  const FLAG_CHROME = 'chrome://flags/#enable-web-bluetooth-new-permissions-backend';
-  const FLAG_EDGE = 'edge://flags/#enable-web-bluetooth-new-permissions-backend';
-  let onClose = null;
+// Helpteksten (Engels, zelfde regime als de UI). HTML is statisch en van onszelf; COPY-knoppen via data-copy.
+export const FLAG_CHROME = 'chrome://flags/#enable-web-bluetooth-new-permissions-backend';
+export const FLAG_EDGE = 'edge://flags/#enable-web-bluetooth-new-permissions-backend';
 
-  const copy = text => '<code>' + text + '</code><button class="ghostbtn copybtn" data-copy="' + text + '">COPY</button>';
+const copy = text => '<code>' + text + '</code><button class="ghostbtn copybtn" data-copy="' + text + '">COPY</button>';
 
-  const SECTIONS = [
+export const SECTIONS = [
     { id: 'start', title: 'Getting started', html: `
       <p>VBT is an arcade bike trainer for your smart trainer. Use <b>Chrome or Edge</b> on Windows, Mac or Android
       (not iPhone/iPad - Safari has no Web Bluetooth).</p>
@@ -47,31 +43,3 @@ VBT.help = (function () {
       <li>Open <b>DEVICES</b> (K) and click <b>COPY LOG</b> - paste the log when you report a problem.</li></ul>` },
   ];
 
-  function render(focus) {
-    $('helpNav').innerHTML = SECTIONS.map(s => '<button data-sec="' + s.id + '">' + s.title.toUpperCase() + '</button>').join('');
-    $('helpBody').innerHTML = SECTIONS.map(s => '<section id="help-' + s.id + '"><h3>' + s.title.toUpperCase() + '</h3>' + s.html + '</section>').join('');
-    $('helpNav').querySelectorAll('button').forEach(b => { b.onclick = () => scrollTo(b.dataset.sec); });
-    $('helpBody').querySelectorAll('[data-copy]').forEach(b => { b.onclick = () => copyText(b.dataset.copy); });
-    if (focus) setTimeout(() => scrollTo(focus), 0);
-  }
-
-  function scrollTo(id) {
-    const el = $('help-' + id);
-    if (el) el.scrollIntoView({ block: 'start' });
-  }
-
-  async function copyText(text) {
-    try { await navigator.clipboard.writeText(text); } catch (e) {
-      const ta = document.createElement('textarea');   // terugval zonder clipboard-API
-      ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-    }
-    VBT.toast && VBT.toast('COPIED - PASTE IT IN THE ADDRESS BAR');
-  }
-
-  function open(closeHandler, focus) { onClose = closeHandler; render(focus); }
-  function close() { onClose && onClose(); }
-
-  function init() { $('helpClose').onclick = close; }
-
-  return { init, open, close };
-})();

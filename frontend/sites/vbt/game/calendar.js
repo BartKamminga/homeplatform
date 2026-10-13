@@ -128,15 +128,20 @@ VBT.calendar = (function () {
     await load();
     $('planFtp').value = state.ftp;
     $('planStart').value = state.startDate;
-    $('planFtp').onchange = e => {
-      state.ftp = Math.max(50, Math.min(600, parseInt(e.target.value, 10) || 180));
-      e.target.value = state.ftp;
-      VBT.cfg.rider.ftp = state.ftp;
-      save(); render();
-    };
+    $('planFtp').onchange = e => { e.target.value = setFtp(e.target.value); };
     $('planStart').onchange = e => { if (e.target.value) { state.startDate = e.target.value; save(); render(); } };
     if (plan.source) $('planSource').href = plan.source;
     preselect();
+  }
+
+  // FTP (50-600 W) instellen; ook vanuit het Settings-paneel. Geldt direct, ook midden in een workout.
+  function setFtp(value) {
+    state.ftp = Math.max(50, Math.min(600, parseInt(value, 10) || 180));
+    VBT.cfg.rider.ftp = state.ftp;
+    $('planFtp').value = state.ftp;
+    save();
+    if (document.body.dataset.state === 'plan') render();
+    return state.ftp;
   }
 
   function open() { preselect(); render(); }
@@ -145,5 +150,5 @@ VBT.calendar = (function () {
   function select(wo) { selected = wo; renderDetail(); }
   const find = id => plan.weeks.flat().find(w => w.id === id);
 
-  return { init, open, markDone, select, find, chart, minutes, ftp: () => state.ftp };
+  return { init, open, markDone, select, find, chart, minutes, setFtp, ftp: () => state.ftp };
 })();
