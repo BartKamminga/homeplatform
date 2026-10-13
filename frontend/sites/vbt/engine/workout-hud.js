@@ -1,6 +1,6 @@
 // Workout-paneel (geen DOM): doelwatt, doelcadans, resterende tijd en volgend interval als model voor het snapshot.
 VBT.workoutHud = (function () {
-  const fmt = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const fmt = s => VBT.util.mmss(s, true);
 
   function stepText(st) {
     if (!st) return 'FINISH';

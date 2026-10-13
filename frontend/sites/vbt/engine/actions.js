@@ -2,7 +2,7 @@
 // Dunne laag over bestaande functies (session, ble, storage, safety, calendar, library, rides, fit).
 VBT.actions = (function () {
   const S = () => VBT.session;
-  const riding = () => ['ride', 'paused', 'countdown', 'confirm'].includes(VBT.game.state);
+  const riding = () => VBT.game.isRiding();
 
   return {
     riding,

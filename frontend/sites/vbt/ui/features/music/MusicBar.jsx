@@ -1,15 +1,13 @@
 // Muziekbalk onderin de HUD (B = aan/uit, N = volgende) + de regelaar: start de muziek bij het begin van een rit
 // (als MUSIC aan staat) en laat filter/volume/mixkeuze 4x/s de inspanning volgen.
 import { useEffect, useRef } from 'react'
-import { useVbt } from '../../hooks/useVbt.js'
+import { useVbt, isRiding } from '../../hooks/useVbt.js'
 import { useMusic, start, next, toggle, follow, getState } from './music.js'
-
-const RIDING = ['countdown', 'ride', 'paused', 'confirm']
 
 export function MusicController() {
   const s = useVbt()
   const was = useRef(false)
-  const riding = RIDING.includes(s.state)
+  const riding = isRiding(s.state)
   useEffect(() => {
     if (riding && !was.current && s.settings?.musicOn !== false && getState().status !== 'playing') start('ride')
     was.current = riding

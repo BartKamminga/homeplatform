@@ -1,7 +1,7 @@
 // EVENTS: tijdlijn van alles wat de engine logt (intervallen, pauzes, Bluetooth, backup, outbox, opslaan).
 import { useState } from 'react'
 import { useVbtEvents } from '../../hooks/useVbt.js'
-import { fmtTime } from '../../common/clipboard.js'
+import { fmtDur } from '../../common/format.js'
 
 const TYPES = ['all', 'interval', 'pause', 'resume', 'ble', 'backup', 'outbox', 'save', 'jump', 'lap']
 
@@ -28,7 +28,7 @@ export default function EventsTab() {
             <time>{new Date(e.t).toTimeString().slice(0, 8)}</time>
             <span className="pn-type" data-type={e.type}>{e.type}</span>
             <span className="pn-msg">{e.msg}</span>
-            {e.rideTime > 0 && <em>{fmtTime(e.rideTime)}</em>}
+            {e.rideTime > 0 && <em>{fmtDur(e.rideTime)}</em>}
           </li>
         ))}
         {!shown.length && <li className="pn-hint">Nothing logged yet.</li>}

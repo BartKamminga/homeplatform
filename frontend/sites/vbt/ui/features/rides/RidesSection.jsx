@@ -1,13 +1,10 @@
 // MY RIDES: alle ritten (ook nog niet gesynchroniseerde), detail met grafiek, pauzes, eventlog,
 // .FIT, CONTINUE RIDE en prullenbak (terugzetten). Als lijst of per week (RidesWeeks).
 import { useCallback, useEffect, useState } from 'react'
-import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
-import { fmtDur, fmtDateTime, startWithConfirm } from '../../common/format.js'
-import { confirmDialog } from '../../common/ConfirmDialog.jsx'
-import { drawRide } from './rideChart.js'
+import { fmtDur, fmtDateTime } from '../../common/format.js'
 import RidesWeeks from './RidesWeeks.jsx'
-import Feedback from './Feedback.jsx'
+import RideDetail from './RideDetail.jsx'
 
 // LIST of WEEKS onthouden (alleen gemak, per browser)
 const VIEW_KEY = 'vbt.ridesView'
@@ -27,56 +24,6 @@ function Tags({ r }) {
       {r.kind === 'climb' && <i className="tag wo">CLIMB</i>}
       {r.stravaActivityId && <i className="tag strava">STRAVA</i>}
     </>
-  )
-}
-
-function RideDetail({ ride, onDeleted, onRestored }) {
-  const stat = (v, l) => <div key={l}><b>{v}</b><small>{l}</small></div>
-  const paused = Math.max(0, (ride.elapsed || 0) - ride.duration)
-  const remove = async () => {
-    if (!(await confirmDialog({ title: 'MOVE TO TRASH?', text: 'Ride of ' + fmtDateTime(ride.startedAt) + '. You can restore it from TRASH.', yes: 'DELETE', danger: true }))) return
-    try { await actions().deleteRide(ride.id); onDeleted() } catch (e) { window.VBT.toast?.(e.message, 6000) }
-  }
-  const restore = async () => {
-    try { await window.VBT.storage.restoreRide(ride.id); window.VBT.toast?.('RIDE RESTORED'); onRestored(ride.id) } catch (e) { window.VBT.toast?.(e.message, 6000) }
-  }
-  const canContinue = !!(ride.clientId && ride.samples && ride.samples.length)
-  return (
-    <div id="rideDetail" className="pn-detail">
-      <div className="dhead">
-        <div>
-          <small>{fmtDateTime(ride.startedAt)}{ride.jumped ? ' · INTERVALS SKIPPED' : ''}</small>
-          <h3>{(ride.name || 'Ride').toUpperCase()}</h3>
-        </div>
-      </div>
-      <div className="pn-buttons">
-        {ride.deletedAt
-          ? <button id="rideRestore" className="ridebtn" onClick={restore}>&#8634; RESTORE</button>
-          : !ride.pending && <button id="rideDelete" className="ghostbtn" onClick={remove}>DELETE</button>}
-        <button id="rideFit" className="ghostbtn" disabled={!(ride.samples && ride.samples.length)} onClick={() => actions().downloadFit(ride)}>&#11015; .FIT</button>
-        {!ride.deletedAt && <button id="rideContinue" className="ridebtn" disabled={!canContinue}
-          onClick={() => startWithConfirm('this ride again', () => actions().resumeRide(ride))}>CONTINUE RIDE &#9654;</button>}
-      </div>
-      <div className="ridestats">
-        {stat(fmtDur(ride.duration), 'TIME')}{stat((ride.distance / 1000).toFixed(2), 'KM')}{stat(ride.avgW, 'AVG W')}
-        {stat(ride.maxW, 'MAX W')}{stat(ride.kj, 'KJ')}{stat(ride.avgCad, 'AVG RPM')}{stat(ride.avgHr || '-', 'AVG BPM')}
-        {stat(ride.elevation, 'M UP')}
-        {ride.elapsed ? <>{stat(fmtDur(ride.elapsed), 'ELAPSED')}{stat(fmtDur(paused), 'PAUSED')}</> : null}
-        {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
-        {ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : null}
-      </div>
-      {!ride.deletedAt && !ride.pending && <Feedback key={'fb' + ride.id} ride={ride} compact />}
-      <CanvasChart height={160} draw={(ctx, w, h) => drawRide(ctx, w, h, ride.samples)} />
-      <div className="ridelogs">
-        {!!(ride.pauses && ride.pauses.length) && (
-          <details open><summary>PAUSES ({ride.pauses.length})</summary>
-            <ul>{ride.pauses.map((p, i) => <li key={i}>{fmtDur(p.t)} · {p.reason} · {fmtDur(p.dur)}</li>)}</ul></details>)}
-        {!!(ride.events && ride.events.length) && (
-          <details><summary>EVENT LOG ({ride.events.length})</summary>
-            <ul className="rideevents">{ride.events.map((e, i) => (
-              <li key={i} data-level={e.level}><i>{new Date(e.t).toTimeString().slice(0, 8)}</i> {e.type} · {e.msg}</li>))}</ul></details>)}
-      </div>
-    </div>
   )
 }
 

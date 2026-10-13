@@ -30,8 +30,6 @@ VBT.storage = (function () {
 
   async function listRides() { return get(IDX) || []; }
 
-  async function getSamples(id) { return get(SAMPLES(id)); }
-
   // Snelste volle ronde op een parcours (zonder sprongen) -> ghost
   async function bestLap(courseKey) {
     const best = (get(IDX) || [])
@@ -42,11 +40,6 @@ VBT.storage = (function () {
     return samples ? Object.assign({}, best, { samples }) : null;
   }
 
-  async function markPb(id) {
-    const index = get(IDX) || [];
-    index.forEach(r => { if (r.id === id) r.pb = true; });
-    set(IDX, index);
-  }
 
   // profiel = FTP, startdatum plan, voltooide workouts
   const PROFILE = 'vbt.plan.v1';
@@ -67,5 +60,5 @@ VBT.storage = (function () {
     return s ? Object.assign({}, s, { samples: get(SAMPLES(id)) || [] }) : null;
   }
 
-  return { loadSettings, saveSettings, saveRide, listRides, getSamples, getRide, deleteRide, bestLap, markPb, loadProfile, saveProfile };
+  return { loadSettings, saveSettings, saveRide, listRides, getRide, deleteRide, bestLap, loadProfile, saveProfile };
 })();

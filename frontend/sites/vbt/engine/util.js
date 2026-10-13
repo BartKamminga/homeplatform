@@ -34,6 +34,12 @@ VBT.util = {
     ctx.fill();
   },
 
+  // m:ss (afronden naar beneden; up = naar boven, voor 'nog ... te gaan')
+  mmss(sec, up) {
+    const s = Math.max(0, up ? Math.ceil(sec) : Math.floor(sec));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  },
+
   formatTime(sec) {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);

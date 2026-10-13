@@ -1,15 +1,15 @@
 // NOW: wat er nu gebeurt. Tijdens een workout: blokkengrafiek (klik = springen), interval en doelen.
 // Vrije rit: ritstand. Buiten een rit: snelstart.
 import CanvasChart from '../../common/CanvasChart.jsx'
-import { useVbt, actions } from '../../hooks/useVbt.js'
-import { fmtTime } from '../../common/clipboard.js'
+import { useVbt, actions, isRiding } from '../../hooks/useVbt.js'
+import { fmtDur } from '../../common/format.js'
 
 const stepText = st => !st ? 'FINISH'
-  : (st.a === st.b ? st.a + '%' : st.a + '-' + st.b + '%') + ' · ' + fmtTime(st.d) + (st.c ? ' · ' + st.c + ' RPM' : '')
+  : (st.a === st.b ? st.a + '%' : st.a + '-' + st.b + '%') + ' · ' + fmtDur(st.d) + (st.c ? ' · ' + st.c + ' RPM' : '')
 
 export default function NowSection() {
   const s = useVbt()
-  const riding = ['ride', 'paused', 'countdown', 'confirm'].includes(s.state)
+  const riding = isRiding(s.state)
   const wo = riding ? actions().currentWorkout() : null
 
   if (!riding) {
@@ -31,7 +31,7 @@ export default function NowSection() {
     <div className="pn-section">
       <div className="pn-kv">
         <span>{run && !run.free ? run.name.toUpperCase() : 'FREE RIDE'}</span>
-        <b>{fmtTime(s.rideTime)}</b>
+        <b>{fmtDur(s.rideTime)}</b>
       </div>
       {wo && !wo.free && (
         <>
@@ -42,11 +42,11 @@ export default function NowSection() {
             <div className="pn-grid">
               <div><small>TARGET</small><b>{run.target.watts} W</b><i>{Math.round(run.target.pct)}% FTP</i></div>
               <div><small>CADENCE</small><b>{run.target.cadence ? run.target.cadence + ' RPM' : 'ANY'}</b><i>score {run.cadScore}%</i></div>
-              <div><small>INTERVAL</small><b>{fmtTime(run.target.remaining)}</b><i>{run.index + 1} / {wo.steps.length}</i></div>
+              <div><small>INTERVAL</small><b>{fmtDur(run.target.remaining)}</b><i>{run.index + 1} / {wo.steps.length}</i></div>
               <div><small>NEXT</small><b className="pn-small">{stepText(run.target.next)}</b></div>
             </div>
           )}
-          <div className="pn-kv"><span>WORKOUT LEFT</span><b>{fmtTime(run.total - run.elapsed)}</b></div>
+          <div className="pn-kv"><span>WORKOUT LEFT</span><b>{fmtDur(run.total - run.elapsed)}</b></div>
         </>
       )}
       <div className="pn-grid">

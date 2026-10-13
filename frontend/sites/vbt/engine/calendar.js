@@ -104,6 +104,6 @@ VBT.calendar = (function () {
 
   async function init() { await load(); }
 
-  return { init, getState, version: () => version, switchPlan, setStartDate, dateFor, isoFor, markDone, toggleDone,
-    setFtp, today, find, nextMonday, iso, minutes: s => Math.round(s / 60) + ' MIN', ftp: () => state.ftp };
+  return { init, getState, version: () => version, switchPlan, setStartDate, dateFor, markDone, toggleDone,
+    setFtp, today, find, nextMonday, iso };
 })();

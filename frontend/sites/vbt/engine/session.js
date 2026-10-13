@@ -81,7 +81,7 @@ VBT.session = (function () {
     }
     if (lap === null) return;
     const pb = game.ghostTrack && game.ghostTrack.lapTime;
-    const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    const fmt = s => VBT.util.mmss(s);
     VBT.store.log('lap', 'Lap ' + fmt(lap) + (pb ? ' (PB ' + fmt(pb) + ')' : ''));
     if (!pb || lap < pb) VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow);
     else VBT.hud.message((game.climb ? 'SUMMIT ' : 'LAP ') + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);

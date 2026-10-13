@@ -1,11 +1,9 @@
 // MY RIDES in weekweergave (zoals de plankalender): per week een rij MA-ZO met de ritten van die dag,
 // links de weektotalen. Nieuwste week bovenaan; MORE WEEKS laadt oudere weken.
 import { useState } from 'react'
-import { fmtDur, dayLabel } from '../../common/format.js'
+import { fmtDur, dayLabel, mondayOf, WEEKDAYS as DAYS } from '../../common/format.js'
 
-const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 const WEEK_MS = 7 * 86400000
-const mondayOf = d => { const m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - (m.getDay() + 6) % 7); return m }
 const hhmm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
 
 export default function RidesWeeks({ items, selected, onSelect }) {

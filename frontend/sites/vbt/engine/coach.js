@@ -3,7 +3,6 @@
 VBT.coach = (function () {
   let speaking = false, seq = 0;
   const pick = a => a[Math.floor(Math.random() * a.length)];
-  const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
   // tekst bij de situatie van dit moment
   function line(game) {
@@ -11,7 +10,7 @@ VBT.coach = (function () {
     const cur = run && !run.wo.free && !run.done ? VBT.workout.current(run, VBT.cfg.rider.ftp) : null;
     const options = [];
     if (cur) {
-      options.push(`Hold ${cur.watts} watts - ${fmt(cur.remaining)} to go in this block!`);
+      options.push(`Hold ${cur.watts} watts - ${VBT.util.mmss(cur.remaining)} to go in this block!`);
       if (cur.cadence && s.cadence < cur.cadence - 6) options.push(`Cadence! Spin it up to ${cur.cadence} rpm!`);
       if (cur.cadence && s.cadence > cur.cadence + 6) options.push(`Easy on the cadence, settle at ${cur.cadence} rpm.`);
       if (cur.next && cur.next.a >= 95) options.push(`Next block is ${cur.next.a} percent. Breathe now, get ready!`);

@@ -62,5 +62,5 @@ VBT.climbs = (function () {
 
   const meta = cl => (cl.distance / 1000).toFixed(1) + ' KM · ' + cl.elevation + ' HM · ' + cl.avgGrade + '%';
 
-  return { load, get, course, summitMeters, drawProfile, gradeColor, meta, list: () => list };
+  return { load, get, course, summitMeters, drawProfile, meta };
 })();

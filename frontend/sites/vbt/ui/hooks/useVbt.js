@@ -32,3 +32,6 @@ export function useVbtEvents() {
 }
 
 export const actions = () => window.VBT.actions
+
+// loopt er een rit in deze toestand (ride / paused / countdown / confirm) - zelfde lijst als de engine
+export const isRiding = state => window.VBT.game.isRiding(state)

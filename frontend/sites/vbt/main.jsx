@@ -3,6 +3,7 @@
 import './css/style.css'
 import './css/screens.css'
 import './css/panels.css'
+import './css/features.css'
 
 import './engine/config.js'
 import './engine/util.js'

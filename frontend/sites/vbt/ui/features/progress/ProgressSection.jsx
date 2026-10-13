@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions, useVbtValue } from '../../hooks/useVbt.js'
-import { parseIso } from '../../common/format.js'
+import { parseIso, mondayOf } from '../../common/format.js'
 
 const WEEKS = 12
-const mondayOf = d => { const m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - (m.getDay() + 6) % 7); return m }
 
 function drawFtp(ctx, W, H, points) {
   if (points.length < 2) {

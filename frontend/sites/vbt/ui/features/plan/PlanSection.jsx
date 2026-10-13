@@ -4,10 +4,8 @@
 import { useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { useCalendar } from '../../hooks/useVbt.js'
-import { minutes, dayLabel, parseIso } from '../../common/format.js'
+import { minutes, dayLabel, parseIso, WEEKDAYS as DAYS } from '../../common/format.js'
 import { WorkoutDetail } from '../workouts/WorkoutDetail.jsx'
-
-const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
 function SwitchPlan({ cal, initial, onDone }) {
   const VBT = window.VBT

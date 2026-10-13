@@ -12,7 +12,6 @@ VBT.storage = {
     return Object.assign({}, saved, { serverId: saved.id })
   },
   listRides: () => api.get('/api/vbt/rides?limit=200'),
-  async getSamples(id) { return (await api.get('/api/vbt/rides/' + enc(id))).samples },
   getRide: id => api.get('/api/vbt/rides/' + enc(id)),
   deleteRide: id => api.delete('/api/vbt/rides/' + enc(id)),
   listTrash: () => api.get('/api/vbt/rides-trash'),
@@ -20,7 +19,6 @@ VBT.storage = {
   rideFeedback: (id, patch) => api.patch('/api/vbt/rides/' + enc(id) + '/feedback', patch),
   liveSync: body => api.post('/api/vbt/rides/live', body),
   bestLap: course => api.get('/api/vbt/rides/best-lap?course=' + enc(course)),
-  async markPb() { /* de server bepaalt zelf of een rit een PB is */ },
   async loadProfile() {
     const p = await api.get('/api/vbt/profile')
     return { ftp: p.ftp, planSlug: p.planSlug, startDate: p.planStart, done: p.planDone }

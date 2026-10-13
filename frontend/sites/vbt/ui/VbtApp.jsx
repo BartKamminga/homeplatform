@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LeftPanel from './panels/LeftPanel.jsx'
 import RightPanel from './panels/RightPanel.jsx'
-import { useVbtValue } from './hooks/useVbt.js'
+import { useVbtValue, isRiding } from './hooks/useVbt.js'
 import { ConfirmHost } from './common/ConfirmDialog.jsx'
 import ToastHost from './common/Toast.jsx'
 import FinishScreen from './screens/FinishScreen.jsx'
@@ -17,7 +17,6 @@ import * as music from './features/music/music.js'
 import * as strava from './features/strava/strava.js'
 
 const LEFT_W = 340, RIGHT_W = 380
-const RIDING = ['ride', 'paused', 'countdown', 'confirm']
 const wideWidth = () => Math.min(900, Math.round(window.innerWidth * 0.6))
 // tijdens een rit staat NOW vooraan, daarbuiten TODAY
 const fitSection = (section, riding) => (riding ? section : section === 'now' ? 'today' : section)
@@ -29,19 +28,19 @@ function BodyState() { useBodyState(); return null }
 export default function VbtApp() {
   const [left, setLeft] = useState({ open: false, section: 'today', focus: null })
   const [right, setRight] = useState({ open: false, tab: 'telemetry' })
-  const riding = useVbtValue(s => RIDING.includes(s.state))
+  const riding = useVbtValue(s => isRiding(s.state))
   const [wide, setWide] = useState(wideWidth)
   const leftW = riding ? LEFT_W : wide
   const state = useRef({ left, right })
   state.current = { left, right }
-  const isRiding = () => RIDING.includes(window.VBT.store.getSnapshot().state)
+  const ridingNow = () => isRiding(window.VBT.store.getSnapshot().state)
 
   const open = useCallback((side, section, focus) => {
-    if (side === 'left') setLeft(l => ({ open: true, section: section || fitSection(l.section, isRiding()), focus: focus || null }))
+    if (side === 'left') setLeft(l => ({ open: true, section: section || fitSection(l.section, ridingNow()), focus: focus || null }))
     else setRight(r => ({ open: true, tab: section || r.tab }))
   }, [])
   const toggle = useCallback(side => {
-    if (side === 'left') setLeft(l => ({ ...l, open: !l.open, section: l.open ? l.section : fitSection(l.section, isRiding()), focus: null }))
+    if (side === 'left') setLeft(l => ({ ...l, open: !l.open, section: l.open ? l.section : fitSection(l.section, ridingNow()), focus: null }))
     else setRight(r => ({ ...r, open: !r.open }))
   }, [])
 

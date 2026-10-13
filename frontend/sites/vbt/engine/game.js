@@ -18,6 +18,9 @@ VBT.game = (function () {
   game.playerZ = cfg.cameraHeight * game.cameraDepth * cfg.playerDepth;
 
   game.setState = s => { game.state = s; };
+  // toestanden waarin er een rit loopt (ook stil: pauze, aftellen, stopvraag) - ook voor de UI
+  game.RIDING = ['ride', 'paused', 'countdown', 'confirm'];
+  game.isRiding = (s = game.state) => game.RIDING.includes(s);
 
   game.resetRide = () => {
     game.player = { v: 0, dist: 0 };
