@@ -197,3 +197,24 @@ body[data-state="confirm"] #confirm { display: flex; }
 #backup.ahead { color: #5dff9e; text-shadow: none; }
 #backup.lag { color: var(--yellow); }
 #backup.behind { color: var(--pink); }
+
+/* ---------- Help ---------- */
+#help { position: fixed; inset: 0; z-index: 46; display: none; align-items: center; justify-content: center; background: rgba(7,1,26,.88); }
+body[data-state="help"] #help { display: flex; }
+body[data-state="help"] #title, body[data-state="help"] #devices { opacity: 0; visibility: hidden; }
+.helppanel { width: min(1000px, calc(100% - 32px)); height: min(760px, calc(100% - 48px)); display: flex; flex-direction: column; gap: 12px;
+  padding: 22px; border-radius: 10px; border: 1px solid rgba(36,232,255,.5); background: rgba(12,2,32,.94); }
+.helpwrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; min-height: 0; flex: 1; }
+#helpNav { display: flex; flex-direction: column; gap: 6px; }
+#helpNav button { text-align: left; font-family: var(--pixel); font-size: 9px; line-height: 1.5; color: var(--ink); background: transparent;
+  border: 1px solid rgba(155,92,255,.4); border-radius: 4px; padding: 8px 10px; cursor: pointer; }
+#helpNav button:hover { border-color: var(--cyan); }
+#helpBody { overflow: auto; padding-right: 8px; font-family: Inter, Arial, sans-serif; font-size: 14px; line-height: 1.6; }
+#helpBody section { margin-bottom: 22px; }
+#helpBody h3 { font-family: var(--pixel); font-size: 12px; color: var(--yellow); margin: 0 0 10px; }
+#helpBody h4 { font-family: var(--hud); font-size: 13px; color: var(--cyan); margin: 14px 0 6px; letter-spacing: 1px; }
+#helpBody p, #helpBody li { opacity: .9; }
+#helpBody .flag { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#helpBody code { font: 12px ui-monospace, Consolas, monospace; color: #9fe9ff; background: #05010f; padding: 6px 8px; border-radius: 4px; }
+.copybtn { padding: 6px 10px; font-size: 9px; }
+@media (max-width: 900px) { .helpwrap { grid-template-columns: 1fr; } #helpNav { flex-direction: row; flex-wrap: wrap; } }

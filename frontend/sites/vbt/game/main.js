@@ -31,7 +31,7 @@
 
     VBT.bleBridge.guard(game);
     if (game.state === 'paused' || game.state === 'confirm') return;
-    const attract = ['title', 'plan', 'finished', 'devices'].includes(game.state);
+    const attract = ['title', 'plan', 'finished', 'devices', 'help'].includes(game.state);
     if (attract) VBT.physics.autopilot(s, t, game.grade);
     if (game.state === 'countdown') {
       const before = Math.ceil(game.countdown);
@@ -174,7 +174,9 @@
     if (e.code === 'KeyK' && ['title', 'plan', 'finished'].includes(game.state)) S.openDevices();
     if (e.code === 'KeyR' && ['title', 'finished'].includes(game.state)) S.openRides();
     if (e.code === 'KeyD' && game.state === 'finished') S.downloadFit();
-    if (e.code === 'Escape' && game.state === 'devices') VBT.devicesUi.close();
+    if (e.code === 'KeyH' && ['title', 'plan', 'finished', 'devices'].includes(game.state)) S.openHelp(game.state === 'devices' ? 'bluetooth' : undefined);
+    if (e.code === 'Escape' && game.state === 'help') VBT.help.close();
+    else if (e.code === 'Escape' && game.state === 'devices') VBT.devicesUi.close();
     else if (e.code === 'Escape' && game.state !== 'title') S.stop();
     if (e.code.startsWith('Arrow')) e.preventDefault();
   });
@@ -209,6 +211,7 @@
     S.bindUi();
     VBT.library.init();
     VBT.devicesUi.init();
+    VBT.help.init();
     if (VBT.bleMock.enabled) {           // testhaakjes nep-Kickr: ?mockble&autoconnect&mockdrop=30:15
       VBT.bleMock.schedule(game);
       if (params.has('autoconnect')) { VBT.ble.pick('trainer'); VBT.ble.pick('hr'); }
@@ -220,6 +223,7 @@
     if (params.has('plan')) S.toMenu('plan');
     if (params.has('lib')) { S.toMenu('plan'); VBT.library.show('lib'); }
     if (params.has('devices')) S.openDevices();
+    if (params.has('help')) S.openHelp(params.get('help') || undefined);
     if (params.has('rides')) S.openRides();
     const skip = parseFloat(params.get('t') || '0');
     for (let i = 0; i < skip / STEP; i++) update(STEP);

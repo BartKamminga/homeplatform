@@ -80,6 +80,7 @@
         <button id="btnFree">&#9654; FREE RIDE <em>SPACE</em></button>
         <button id="btnPlan">&#9638; TRAINING PLAN <em>T</em></button>
         <button id="btnRides">&#9776; MY RIDES <em>R</em></button>
+        <button id="btnHelp">? HELP <em>H</em></button>
         <button id="btnDevices">&#9655; CONNECT KICKR <em>K</em></button>
       </div>
       <span>FREE RIDE: &#8593;&#8595; POWER · SHIFT SPRINT &nbsp;|&nbsp; WORKOUT (ERG): &#8593;&#8595; CADENCE &nbsp;|&nbsp; &#8592;&#8594; STEER · SPACE PAUSE · ESC END RIDE</span>
@@ -132,6 +133,13 @@
     <div class="hint">Ride saved - you can always find it under MY RIDES.</div>
   </div>
 
+  <div id="help">
+    <div class="helppanel">
+      <div class="devhead"><h2>HELP</h2><button id="helpClose" class="ghostbtn">&#10005; CLOSE <em>ESC</em></button></div>
+      <div class="helpwrap"><nav id="helpNav"></nav><div id="helpBody"></div></div>
+    </div>
+  </div>
+
   <div id="confirm">
     <div class="confirmbox">
       <h2>STOP RIDE?</h2>
@@ -160,6 +168,7 @@
       <div class="devtools">
         <button id="btnErgTest" class="ghostbtn">ERG TEST 100 W</button>
         <button id="btnCopyLog" class="ghostbtn">COPY LOG</button>
+        <button id="devHelp" class="ghostbtn">? HELP</button>
         <span class="hint">Chrome or Edge &middot; Bluetooth on &middot; close the Wahoo app and Zwift so the KICKR is free</span>
       </div>
       <pre id="bleLog"></pre>

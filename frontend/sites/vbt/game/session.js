@@ -184,6 +184,13 @@ VBT.session = (function () {
     VBT.devicesUi.open(() => game.setState(back === 'devices' ? 'title' : back));
   }
 
+  // help; sluiten brengt je terug naar waar je vandaan kwam (focus = sectie, bv. 'bluetooth')
+  function openHelp(focus) {
+    const back = game.state;
+    game.setState('help');
+    VBT.help.open(() => game.setState(back === 'help' ? 'title' : back), focus);
+  }
+
   function downloadFit() {
     if (game.lastRide) VBT.fit.download(game.lastRide);
   }
@@ -192,6 +199,8 @@ VBT.session = (function () {
     $('btnFree').onclick = () => startRide(null);
     $('btnPlan').onclick = () => toMenu('plan');
     $('btnDevices').onclick = openDevices;
+    $('btnHelp').onclick = () => openHelp();
+    $('devHelp').onclick = () => openHelp('bluetooth');
     $('btnRides').onclick = openRides;
     $('btnKeepRiding').onclick = cancelStop;
     $('btnStopRide').onclick = confirmStop;
@@ -208,5 +217,5 @@ VBT.session = (function () {
     };
   }
 
-  return { startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, bindUi, openDevices };
+  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, bindUi, openDevices };
 })();
