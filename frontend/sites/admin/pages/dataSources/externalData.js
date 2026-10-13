@@ -9,6 +9,12 @@ export const EXTERNAL_GROUPS = [
     ],
   },
   {
+    title: 'VBT',
+    rows: [
+      { source: 'Strava API (OAuth + /uploads)', purpose: 'Koppelen met Strava en ritten als FIT uploaden', file: 'backend/services/vbt_strava.py', verdict: 'no', note: 'Alleen schrijven (upload) en tokens; geen databron voor context.' },
+    ],
+  },
+  {
     title: 'Hockey Inside — Vanger-ecosysteem',
     rows: [
       { source: 'hockey.nl', purpose: 'Inlogportaal + matchcenter (Chrome-extensie + Ghost/Playwright)', file: 'plugins/chrome/hockey-vanger, plugins/ghost/ghost.py', verdict: 'no', note: 'Vereist ingelogde sessie + DOM; te fragiel om rechtstreeks als agent-input te gebruiken.' },

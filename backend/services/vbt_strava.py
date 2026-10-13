@@ -3,6 +3,7 @@
 Het client secret blijft op de server; de browser krijgt alleen de authorize-URL en de uploadstatus.
 """
 import time
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Optional
 
@@ -10,6 +11,7 @@ import httpx
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from core.analytics import log_site_event
 from core.auth import create_access_token, decode_token
 from core.settings import settings
 from models.vbt import VbtStravaLink
@@ -20,6 +22,21 @@ DEAUTHORIZE_URL = "https://www.strava.com/oauth/deauthorize"
 UPLOADS_URL = "https://www.strava.com/api/v3/uploads"
 SCOPE = "read,activity:write"
 STATE_PURPOSE = "vbt-strava"
+
+
+@asynccontextmanager
+async def _strava_call(url: str):
+    """httpx-client die elke Strava-call als source_call logt (admin > Site-monitoring)."""
+    t0, box = time.time(), {"status": 0}
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            yield client, box
+    finally:
+        try:
+            log_site_event("vbt", "source_call", source_url=url,
+                           duration_ms=int((time.time() - t0) * 1000), status_code=box["status"])
+        except Exception:
+            pass
 
 
 def configured() -> bool:
@@ -57,8 +74,9 @@ def user_from_state(state: str) -> str:
 
 async def _token_request(data: dict) -> dict:
     data = {"client_id": settings.STRAVA_CLIENT_ID, "client_secret": settings.STRAVA_CLIENT_SECRET, **data}
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with _strava_call(TOKEN_URL) as (client, box):
         r = await client.post(TOKEN_URL, data=data)
+        box["status"] = r.status_code
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Strava token-fout ({r.status_code})")
     return r.json()
@@ -106,7 +124,7 @@ async def deauthorize(link: VbtStravaLink, session: Session) -> None:
 async def upload_fit(link: VbtStravaLink, session: Session, fit: bytes, filename: str,
                      name: str, description: str, external_id: str) -> dict:
     token = await fresh_token(link, session)
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with _strava_call(UPLOADS_URL) as (client, box):
         r = await client.post(
             UPLOADS_URL,
             headers={"Authorization": f"Bearer {token}"},
@@ -114,6 +132,7 @@ async def upload_fit(link: VbtStravaLink, session: Session, fit: bytes, filename
                   "trainer": "1", "external_id": external_id},
             files={"file": (filename, fit, "application/octet-stream")},
         )
+        box["status"] = r.status_code
     if r.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail=f"Strava upload-fout ({r.status_code}): {r.text[:200]}")
     return r.json()
@@ -121,8 +140,9 @@ async def upload_fit(link: VbtStravaLink, session: Session, fit: bytes, filename
 
 async def upload_status(link: VbtStravaLink, session: Session, upload_id: str) -> dict:
     token = await fresh_token(link, session)
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with _strava_call(UPLOADS_URL) as (client, box):
         r = await client.get(f"{UPLOADS_URL}/{upload_id}", headers={"Authorization": f"Bearer {token}"})
+        box["status"] = r.status_code
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Strava status-fout ({r.status_code})")
     return r.json()

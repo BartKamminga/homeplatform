@@ -76,6 +76,15 @@ export const INTERNAL_GROUPS = [
     ],
   },
   {
+    title: 'VBT (Virtual Bike Trainer)',
+    rows: [
+      { source: 'GET/PUT /vbt/profile', purpose: 'FTP, startdatum en voortgang van het trainingsplan', file: 'routers/vbt.py', verdict: 'yes', note: 'Klein en gestructureerd.' },
+      { source: 'GET /vbt/rides, GET /vbt/rides/{id}', purpose: 'Gereden ritten (samenvatting; per rit ook samples per seconde)', file: 'routers/vbt.py', verdict: 'partial', note: 'Samenvattingen zijn goede context; de samples (1 Hz) zijn te groot voor een prompt.' },
+      { source: 'GET /vbt/rides/best-lap', purpose: 'Snelste ronde per parcours (ghost)', file: 'routers/vbt.py', verdict: 'no', note: 'Bevat de volledige samples, bedoeld voor de game.' },
+      { source: 'POST /vbt/rides, /vbt/rides/{id}/strava, /vbt/strava/*', purpose: 'Rit opslaan, Strava koppelen en uploaden', file: 'routers/vbt.py', verdict: 'no', note: 'Mutaties en OAuth-flow.' },
+    ],
+  },
+  {
     title: 'BeatCrades & MixMusic',
     rows: [
       { source: 'GET /beatcrades/tree, /jobs, /tool-versions', purpose: 'Download-boomstructuur, actieve jobs, toolversies', file: 'routers/downloader.py', verdict: 'yes', note: 'Goede overzicht-context.' },
