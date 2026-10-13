@@ -126,7 +126,7 @@ def seed_admin(session: Session, username: str, password: str, email: str):
 def seed_vbt(session: Session):
     """VBT-trainingsplannen (+ hun workouts) uit data/vbt; idempotent."""
     from services.vbt_workouts import seed_plan
-    for filename in ("ftp_builder.json", "build_me_up.json"):
+    for filename in ("ftp_builder.json", "build_me_up.json", "gran_fondo.json", "back_to_fitness.json"):
         plan = seed_plan(session, filename)
         print(f"  OK   VBT-plan: {plan.name}")
 

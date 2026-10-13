@@ -62,6 +62,24 @@ def test_seed_build_me_up_and_choose_plan(client, session, user_token):
     assert client.put("/api/vbt/profile", headers=_h(user_token), json={"planSlug": "nope"}).status_code == 422
 
 
+def test_seed_gran_fondo(client, session, user_token):
+    svc.seed_plan(session, "gran_fondo.json")
+    plan = client.get("/api/vbt/plans/gran-fondo", headers=_h(user_token)).json()
+    assert len(plan["weeks"]) == 8 and plan["dayOffsets"] == [0, 2, 3, 4]
+    days = [d for w in plan["weeks"] for d in w if not d["rest"]]
+    assert len(days) == 31 and sum(d["duration"] for d in days) == (36 * 60 + 39) * 60
+    assert plan["weeks"][0][0]["name"] == "Welcome Workout" and plan["weeks"][7][3]["rest"] is True
+
+
+def test_seed_back_to_fitness(client, session, user_token):
+    svc.seed_plan(session, "back_to_fitness.json")
+    plan = client.get("/api/vbt/plans/back-to-fitness", headers=_h(user_token)).json()
+    assert len(plan["weeks"]) == 13 and plan["dayOffsets"] == [0, 3]
+    days = [d for w in plan["weeks"] for d in w]
+    assert len(days) == 26 and sum(d["duration"] for d in days) == 60990
+    assert plan["weeks"][0][0]["name"] == "No Nonsense" and plan["weeks"][1][0]["name"] == "The Beginning"
+
+
 def test_parse_zwo():
     wo = svc.parse_zwo(ZWO)
     assert wo["name"] == "Sweet Spot Test"
