@@ -64,6 +64,7 @@ def seed_sites(session: Session):
         ("DontForget", "dontforget", "dontforget", "📋"),
         ("Poulebord", "poulebord", "poulebord", "🏒"),
         ("VBT", "vbt", "vbt", "🚴"),
+        ("MyHome", "myhome", "myhome", "🏠"),
         ("BeatCrades", "beatcrades", "beatcrades", "🎵"),
         ("Scrapster", "scrapster", "scrapster", "📡"),
         ("Agent Control", "agent-control", "agent-control", "🤖"),
