@@ -9,6 +9,9 @@ import { useVbtValue } from './hooks/useVbt.js'
 import { ConfirmHost } from './common/ConfirmDialog.jsx'
 import ToastHost from './common/Toast.jsx'
 import FinishScreen from './screens/FinishScreen.jsx'
+import Hud from './hud/Hud.jsx'
+import { TitleScreen, Countdown, Paused, ConfirmStop, Crt } from './screens/Overlays.jsx'
+import useBodyState from './hooks/useBodyState.js'
 import * as strava from './features/strava/strava.js'
 
 const LEFT_W = 340, RIGHT_W = 380
@@ -17,6 +20,9 @@ const wideWidth = () => Math.min(900, Math.round(window.innerWidth * 0.6))
 // tijdens een rit staat NOW vooraan, daarbuiten TODAY
 const fitSection = (section, riding) => (riding ? section : section === 'now' ? 'today' : section)
 let booted = false
+
+// los component: body-status volgt het snelle snapshot zonder de hele app 10x/s te renderen
+function BodyState() { useBodyState(); return null }
 
 export default function VbtApp() {
   const [left, setLeft] = useState({ open: false, section: 'today', focus: null })
@@ -101,7 +107,14 @@ export default function VbtApp() {
     <>
       <ConfirmHost />
       <ToastHost />
+      <BodyState />
+      <Hud />
+      <TitleScreen />
+      <Countdown />
+      <Paused />
+      <ConfirmStop />
       <FinishScreen />
+      <Crt />
       {left.open
         ? <LeftPanel section={left.section} focus={left.focus} riding={riding} width={leftW}
             onSection={(section, focus) => setLeft({ open: true, section, focus: focus || null })}

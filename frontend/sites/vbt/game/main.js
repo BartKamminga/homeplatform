@@ -40,12 +40,7 @@
     const attract = ['title', 'plan', 'finished'].includes(game.state);
     if (attract) VBT.physics.autopilot(s, t, game.grade);
     if (game.state === 'countdown') {
-      const before = Math.ceil(game.countdown);
-      game.countdown -= dt;
-      const now = Math.ceil(game.countdown);
-      const cd = document.getElementById('countdown');
-      cd.textContent = now > 0 ? now : 'GO!';
-      if (now !== before) { cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop'); }
+      game.countdown -= dt;           // React toont 3-2-1-GO! uit het snapshot
       if (game.countdown <= 0) game.setState('ride');
       if (!VBT.bleBridge.apply(game, null, false)) VBT.physics.updateSensors(s, dt, t, game.grade);
       VBT.bleBridge.heartRate(game);
@@ -98,7 +93,6 @@
     }
     game.drafting = drafting;
     game.inBunch = inBunch;
-    document.body.classList.toggle('drafting', drafting);
 
     const offroad = Math.abs(game.playerX) > 1;
     const cdaFactor = inBunch ? 0.6 : behindGhost ? 1 - cfg.draftBonus : 1;
@@ -160,8 +154,7 @@
       phase: game.phase, time: t, lean, sprint: game.sensors.sprint || game.grade > 0.07,
     });
     VBT.road.renderNear(ctx, w, game);
-    VBT.hud.update(game, t);
-    VBT.workoutHud.update(game, t);
+    VBT.hud.update(game);
     VBT.store.tick(game);
   }
 
@@ -216,10 +209,8 @@
     window.addEventListener('pagehide', flushJournal);
     window.addEventListener('beforeunload', e => { if (VBT.recorder.active() && game.rideTime > 0) { flushJournal(); e.preventDefault(); e.returnValue = ''; } });
     VBT.track.build();
-    VBT.hud.init();
     resize();
     game.setState('title');
-    S.bindUi();
     if (!navigator.bluetooth && !VBT.bleMock.enabled) VBT.ble.note('Web Bluetooth not available in this browser - use Chrome or Edge');
     VBT.ble.restore();
     if (VBT.bleMock.enabled) {           // testhaakjes nep-Kickr: ?mockble&autoconnect&mockdrop=30:15

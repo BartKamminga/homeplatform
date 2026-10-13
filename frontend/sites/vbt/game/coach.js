@@ -1,8 +1,7 @@
 // Ploegleider: rijdt af en toe naast je in de teamwagen en roept iets passends (ook gesproken via de
 // Web Speech API, uit te zetten in Settings). Teksten in het Engels (zelfde regime als de UI).
 VBT.coach = (function () {
-  const $ = id => document.getElementById(id);
-  let speaking = false, hideTimer = null;
+  let speaking = false, seq = 0;
   const pick = a => a[Math.floor(Math.random() * a.length)];
   const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
@@ -33,13 +32,7 @@ VBT.coach = (function () {
   }
 
   function say(text) {
-    const el = $('coach');
-    if (el) {
-      $('coachText').textContent = text;
-      el.classList.add('show');
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => el.classList.remove('show'), 6000);
-    }
+    VBT.game.coachMsg = { seq: ++seq, text, until: performance.now() + 6000 };    // tekstballon (React), 6 s
     if (VBT.store) VBT.store.log('coach', 'Team director: ' + text);
     const set = VBT.settings.values;
     if (set.voice === false || !('speechSynthesis' in window)) return;

@@ -3,7 +3,6 @@ VBT.session = (function () {
   const { cfg, util } = VBT;
   const game = VBT.game;
   const FREE_COURSE = 'free-v1';
-  const $ = id => document.getElementById(id);
   let ghostIdx = 0;
 
   // wo = workout uit het plan (ERG, eigen parcours), wo.free = vrije rit met timer, wo.climb = climb (SIM, finish
@@ -146,7 +145,6 @@ VBT.session = (function () {
   function stop() {
     if (['ride', 'paused', 'countdown'].includes(game.state)) {
       beforeConfirm = game.state;
-      $('confirmSub').textContent = 'Your ride is always saved - find it under MY RIDES.';
       VBT.safety.liveSync(VBT.recorder.current(), true);     // meteen een backup op de server
       game.setState('confirm');
     } else if (game.state === 'confirm') {
@@ -202,21 +200,5 @@ VBT.session = (function () {
     if (game.lastRide) VBT.fit.download(game.lastRide);
   }
 
-  function bindUi() {
-    $('btnFree').onclick = () => startRide(null);
-    $('btnPlan').onclick = () => toMenu('plan');
-    $('btnDevices').onclick = openDevices;
-    $('btnHelp').onclick = () => openHelp();
-    $('btnRides').onclick = openRides;
-    $('btnKeepRiding').onclick = cancelStop;
-    $('btnStopRide').onclick = confirmStop;
-    const chart = $('wChart');
-    const stepAt = e => VBT.workout.stepAtFraction(game.run.wo, e.offsetX / e.currentTarget.clientWidth);
-    chart.onclick = e => { if (game.run && game.state === 'ride') jumpTo(stepAt(e)); };
-    chart.onmousemove = e => {
-      if (game.run && !game.run.wo.free) e.currentTarget.title = 'Jump to: ' + VBT.workoutHud.stepText(game.run.wo.steps[stepAt(e)]);
-    };
-  }
-
-  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, bindUi, openDevices };
+  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, openDevices };
 })();

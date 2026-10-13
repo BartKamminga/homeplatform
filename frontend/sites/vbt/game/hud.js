@@ -1,49 +1,66 @@
-// HUD: DOM-overlay met vermogen, snelheid, hoogteprofiel en ghost-verschil
+// HUD-model (geen DOM): wat de HUD-panelen tonen, als klein object voor het snapshot (store.js); React tekent.
+// Plus pop-up-meldingen (DRAFT!, TRAINER BACK!, ...) en het hoogteprofiel als teken-functie.
 VBT.hud = (function () {
   const { cfg, util } = VBT;
-  const $ = id => document.getElementById(id);
-  let el = {};
-  let profile, pctx;
-  let lastText = 0;
   const hrHist = [];
-
-  function init() {
-    ['watts', 'zoneName', 'zoneNeedle', 'speed', 'speedBar', 'cadence', 'hr', 'heart', 'time', 'dist', 'lap',
-      'hrBig', 'hrZoneName', 'hrNeedle', 'hrAvg', 'hrZoneLabel', 'hrMaxLabel', 'gap', 'gapLabel', 'bunch', 'bunchLabel', 'alt', 'grade', 'message', 'avg'].forEach(id => { el[id] = $(id); });
-    const zoneBar = $('zoneBar');
-    VBT.zones.forEach(z => {
-      const d = document.createElement('div');
-      d.style.background = z.color;
-      zoneBar.appendChild(d);
-    });
-    for (let i = 0; i < 24; i++) el.speedBar.appendChild(document.createElement('i'));
-    const hrBar = $('hrZoneBar');
-    VBT.hrZones.forEach(z => {
-      const d = document.createElement('div');
-      d.style.background = z.color;
-      hrBar.appendChild(d);
-    });
-    profile = $('profile');
-    pctx = profile.getContext('2d');
-  }
+  let msgSeq = 0;
 
   function message(text, color) {
     if (!VBT.settings.show('messages')) return;
-    el.message.textContent = text;
-    el.message.style.color = color || '';
-    el.message.classList.remove('pop');
-    void el.message.offsetWidth;
-    el.message.classList.add('pop');
+    VBT.game.message = { seq: ++msgSeq, text, color: color || '' };
   }
 
-  function drawProfile(game) {
-    const W = profile.width, H = profile.height;
+  // elk frame: 30 s hartslaggemiddelde bijhouden (~60 updates/s)
+  function update(game) {
+    hrHist.push(game.sensors.hr);
+    if (hrHist.length > 1800) hrHist.shift();
+  }
+
+  function model(game) {
+    const s = game.sensors, ble = VBT.ble, safety = VBT.safety;
+    const zone = util.zoneFor(s.watts), hz = util.hrZoneFor(s.hr);
+    const hrMax = VBT.settings.values.hrMax || 185;
+    const kmh = game.player.v * 3.6;
+    const gapM = game.ghost.dist - game.player.dist, packGap = game.pack.dist - game.player.dist;
+    const st = safety.liveStatus(), age = safety.liveAge(), lag = safety.liveLag();
+    const T = VBT.track;
+    return {
+      watts: Math.round(s.watts), zone: zone.name, zoneColor: zone.color,
+      powerFrac: util.clamp(s.watts / (cfg.rider.ftp * 1.6), 0, 1),
+      avg3s: s.avg3s.length ? Math.round(s.avg3s.reduce((a, b) => a + b, 0) / s.avg3s.length) : 0,
+      ftp: cfg.rider.ftp,
+      hr: Math.round(s.hr), hrZone: hz.name, hrColor: hz.color, hrLabel: hz.label.toUpperCase(), hrMax,
+      hrFrac: util.clamp((s.hr / hrMax - 0.5) / 0.5, 0, 1),
+      hrAvg: hrHist.length ? Math.round(hrHist.reduce((a, b) => a + b, 0) / hrHist.length) : 0,
+      kmh, speedLeds: Math.round(util.clamp(kmh / 60, 0, 1) * 24), cadence: Math.round(s.cadence),
+      time: util.formatTime(game.rideTime), km: (game.player.dist / 1000).toFixed(2),
+      lap: Math.floor(game.player.dist / T.lapMeters()) + 1,
+      grade: game.grade * 100,
+      alt: T.segments.length ? Math.round(T.altitude(game.playerY - T.heightRange()[0])) : 0,
+      ghostLabel: game.ghostLabel, gapM, gapS: Math.abs(gapM) / Math.max(game.player.v, 3),
+      inBunch: !!game.inBunch, packGap, bunchSaved: s.watts * 0.6 | 0,
+      chips: {
+        trainer: ble.trainerActive() ? (ble.trainerOk() ? 'ok' : ble.links.trainer.status === 'connected' ? 'stale' : 'lost') : null,
+        hr: ble.links.hr.wanted ? (ble.hrOk() ? 'ok' : 'lost') : null,
+        backup: st === 'off' ? null : st === 'ok' ? 'ok' : st === 'behind' ? 'stale' : 'lost',
+        backupTitle: st === 'failing' ? 'Server backup failing - saved locally, retrying'
+          : age === null ? 'Waiting for first server backup' : 'Server backup ' + Math.round(age) + ' s ago',
+      },
+      backup: st === 'off' ? null : {
+        text: st === 'failing' ? 'OFFLINE · ' + lag + ' S LOCAL ONLY' : lag <= 15 && st === 'ok' ? 'UP TO DATE' : '+' + lag + ' S BEHIND',
+        cls: st === 'failing' ? 'behind' : lag <= 15 && st === 'ok' ? 'ahead' : 'lag',
+      },
+    };
+  }
+
+  // hoogteprofiel ~1,7 km vooruit met ghost (blauw), peloton (roze) en jij (geel)
+  function drawProfile(pctx, W, H, game) {
     const T = VBT.track, segs = T.segments, N = segs.length;
+    if (!N) return;
     const [minY, maxY] = T.heightRange();
     const base = Math.floor(game.position / cfg.segmentLength) + Math.floor(game.playerZ / cfg.segmentLength);
-    const behind = 200, ahead = 3400, step = 12;   // ~1,7 km vooruit
+    const behind = 200, ahead = 3400, step = 12;
     const yOf = v => H - 10 - ((v - minY) / (maxY - minY || 1)) * (H - 26);
-    pctx.clearRect(0, 0, W, H);
     pctx.beginPath();
     pctx.moveTo(0, H);
     for (let i = -behind; i <= ahead; i += step) {
@@ -88,83 +105,5 @@ VBT.hud = (function () {
     pctx.shadowBlur = 0;
   }
 
-  function update(game, t) {
-    const s = game.sensors;
-    const zone = util.zoneFor(s.watts);
-    const frac = util.clamp(s.watts / (cfg.rider.ftp * 1.6), 0, 1);
-    el.zoneNeedle.style.left = (frac * 100) + '%';
-    el.watts.style.color = zone.color;
-    el.watts.style.textShadow = '0 0 18px ' + zone.color;
-
-    const kmh = game.player.v * 3.6;
-    const lit = Math.round(util.clamp(kmh / 60, 0, 1) * 24);
-    [...el.speedBar.children].forEach((c, i) => c.classList.toggle('on', i < lit));
-    el.heart.style.animationDuration = (60 / Math.max(40, s.hr)) + 's';
-    // hartslag in zonekleur; de balk loopt van 50% tot 100% van de max-hartslag (5 gelijke zones)
-    const hrMax = VBT.settings.values.hrMax || 185;
-    const hz = VBT.util.hrZoneFor(s.hr);
-    el.hrNeedle.style.left = (VBT.util.clamp((s.hr / hrMax - 0.5) / 0.5, 0, 1) * 100) + '%';
-    el.hrBig.style.color = hz.color;
-    el.hrBig.style.textShadow = '0 0 18px ' + hz.color;
-    hrHist.push(s.hr);
-    if (hrHist.length > 1800) hrHist.shift();     // ~30 s bij 60 updates/s
-
-    if (t - lastText > 0.1) {
-      lastText = t;
-      el.watts.textContent = Math.round(s.watts);
-      el.zoneName.textContent = zone.name;
-      const avg = s.avg3s.length ? s.avg3s.reduce((a, b) => a + b, 0) / s.avg3s.length : 0;
-      el.avg.textContent = Math.round(avg);
-      el.speed.textContent = kmh.toFixed(1);
-      el.cadence.textContent = Math.round(s.cadence);
-      el.hr.textContent = Math.round(s.hr);
-      el.hrBig.textContent = Math.round(s.hr);
-      el.hrZoneName.textContent = hz.name;
-      el.hrZoneName.style.background = hz.color;
-      el.hrZoneLabel.textContent = hz.label.toUpperCase();
-      el.hrMaxLabel.textContent = hrMax;
-      el.hrAvg.textContent = hrHist.length ? Math.round(hrHist.reduce((a, b) => a + b, 0) / hrHist.length) : 0;
-      el.time.textContent = util.formatTime(game.rideTime);
-      el.dist.textContent = (game.player.dist / 1000).toFixed(2);
-      el.lap.textContent = 'LAP ' + (Math.floor(game.player.dist / VBT.track.lapMeters()) + 1);
-      const grade = game.grade * 100;
-      el.grade.textContent = (grade >= 0 ? '+' : '') + grade.toFixed(1) + '%';
-      el.alt.textContent = 'ALT ' + Math.round(VBT.track.altitude(game.playerY - VBT.track.heightRange()[0])) + ' M';   // boven het dal
-      el.grade.className = grade > 4 ? 'steep' : grade < -2 ? 'down' : '';
-
-      const gapM = game.ghost.dist - game.player.dist;
-      const gapS = Math.abs(gapM) / Math.max(game.player.v, 3);
-      el.gap.textContent = (gapM > 0 ? '-' : '+') + gapS.toFixed(1) + 's';
-      el.gap.className = 'mid ' + (gapM > 0 ? 'behind' : 'ahead');
-      el.gapLabel.textContent = gapM > 0 ? game.ghostLabel + ' +' + Math.round(gapM) + ' M' : 'YOU LEAD ' + game.ghostLabel + ' +' + Math.round(-gapM) + ' M';
-      const packGap = game.pack.dist - game.player.dist;
-      el.bunchLabel.textContent = game.inBunch ? 'IN THE BUNCH' : packGap > 0 ? 'BUNCH AHEAD' : 'BUNCH BEHIND';
-      el.bunch.textContent = game.inBunch ? (s.watts * 0.6 | 0) + ' W SAVED' : Math.round(Math.abs(packGap)) + ' M';
-      el.bunch.className = 'mid ' + (game.inBunch || packGap <= 0 ? 'ahead' : 'behind');
-      drawProfile(game);
-      chips();
-    }
-  }
-
-  // statuslampjes in de HUD
-  function chips() {
-    const ble = VBT.ble;
-    const t = $('chipTrainer'), h = $('chipHr');
-    if (!t) return;
-    t.hidden = !ble.trainerActive();
-    t.dataset.status = ble.trainerOk() ? 'ok' : ble.links.trainer.status === 'connected' ? 'stale' : 'lost';
-    h.hidden = !ble.links.hr.wanted;
-    h.dataset.status = ble.hrOk() ? 'ok' : 'lost';
-    const c = $('chipBackup'), st = VBT.safety.liveStatus(), age = VBT.safety.liveAge();
-    c.hidden = st === 'off';
-    c.dataset.status = st === 'ok' ? 'ok' : st === 'behind' ? 'stale' : 'lost';
-    c.title = st === 'failing' ? 'Server backup failing - saved locally, retrying' : age === null ? 'Waiting for first server backup' : 'Server backup ' + Math.round(age) + ' s ago';
-    // regel in het rechter HUD-paneel: hoeveel seconden rijden staan nog niet op de server
-    const lag = VBT.safety.liveLag(), b = $('backup');
-    $('backupLabel').hidden = b.hidden = st === 'off';
-    b.textContent = st === 'failing' ? 'OFFLINE · ' + lag + ' S LOCAL ONLY' : lag <= 15 && st === 'ok' ? 'UP TO DATE' : '+' + lag + ' S BEHIND';
-    b.className = 'mid ' + (st === 'failing' ? 'behind' : lag <= 15 && st === 'ok' ? 'ahead' : 'lag');
-  }
-
-  return { init, update, message, chips };
+  return { update, model, message, drawProfile };
 })();

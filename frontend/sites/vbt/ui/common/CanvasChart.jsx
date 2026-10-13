@@ -2,7 +2,7 @@
 // Wordt bij elke render opnieuw getekend; houd draw goedkoop (snapshot ververst max. 10x/s).
 import { useEffect, useRef } from 'react'
 
-export default function CanvasChart({ draw, height = 80, className = '', onClick, title }) {
+export default function CanvasChart({ draw, height = 80, className = '', onClick, title, id }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -26,5 +26,5 @@ export default function CanvasChart({ draw, height = 80, className = '', onClick
     onClick((e.clientX - r.left) / r.width)
   })
 
-  return <canvas ref={ref} className={'vbt-chart ' + className} style={{ height }} onClick={click} title={title} />
+  return <canvas ref={ref} id={id} className={'vbt-chart ' + className} style={{ height }} onClick={click} title={title} />
 }

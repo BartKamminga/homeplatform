@@ -4,12 +4,8 @@ VBT.bleBridge = (function () {
   const ble = VBT.ble;
   const RESUME_AFTER_MS = 1500;
   let stableSince = 0;
-  const $ = id => document.getElementById(id);
-
-  function pausedText(title, sub) {
-    $('pausedTitle').textContent = title;
-    $('pausedSub').textContent = sub || '';
-  }
+  // tekst op het pauzescherm (React leest game.pauseText)
+  function pausedText(title, sub) { VBT.game.pauseText = { title, sub: sub || '' }; }
 
   // Vóór de pauze-check in update(): pauzeren bij signaalverlies, hervatten als het weer stabiel is
   function guard(game) {

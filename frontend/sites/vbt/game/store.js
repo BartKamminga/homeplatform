@@ -60,6 +60,14 @@ VBT.store = (function () {
       },
       backup: { status: safety.liveStatus(), lag: safety.liveLag(), age: safety.liveAge(), journalAge: safety.journalAge() },
       lastRide: game.lastRide ? { clientId: game.lastRide.clientId, name: game.lastRide.name, duration: game.lastRide.duration } : null,
+      // HUD en overlays (React): panelen, workout-paneel, aftellen, pauzetekst, ploegleider, pop-up-melding
+      hud: VBT.hud.model(game),
+      workout: VBT.workoutHud.model(game),
+      countdown: Math.ceil(game.countdown),
+      pauseText: game.pauseText,
+      coach: game.coachMsg ? { text: game.coachMsg.text, show: game.coachMsg.until > performance.now() } : null,
+      message: game.message,
+      drafting: !!game.drafting,
       events: eventSeq,
     };
   }

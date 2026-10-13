@@ -21,10 +21,8 @@ VBT.settings = (function () {
 
   const show = key => values[key] !== false;
 
-  // HUD-onderdelen via body-klassen (CSS verbergt .off-<key>); canvas-onderdelen lezen show() zelf
-  function apply() {
-    DISPLAY_KEYS.forEach(k => document.body.classList.toggle('off-' + k, !show(k)));
-  }
+  // HUD-onderdelen: React zet body.off-<key> vanuit het snapshot (CSS verbergt ze); canvas-onderdelen lezen show() zelf
+  const apply = () => {};
 
   async function load() {
     try {

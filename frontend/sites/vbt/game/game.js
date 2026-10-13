@@ -1,4 +1,5 @@
-// Gedeelde spelstatus en toestandswissel (title / plan / countdown / ride / paused / finished)
+// Gedeelde spelstatus en toestandswissel (title / countdown / ride / paused / confirm / finished).
+// Geen DOM: React zet body[data-state] en de body-klassen vanuit het snapshot (ui/hooks/useBodyState.js).
 VBT.game = (function () {
   const { cfg } = VBT;
   const game = {
@@ -11,13 +12,12 @@ VBT.game = (function () {
     grade: 0, rideTime: 0, skyX: 0, phase: 0, ghostPhase: 0, countdown: 0,
     drafting: false, ghostAheadSeg: 0, packAheadSeg: 0,
     run: null, ghostTrack: null, ghostLabel: 'PACER', lastRide: null,
+    // voor de React-overlays: pauzetekst, ploegleider, pop-up-melding (seq = nieuwe melding)
+    pauseText: { title: 'PAUSED', sub: '' }, coachMsg: null, message: null,
   };
   game.playerZ = cfg.cameraHeight * game.cameraDepth * cfg.playerDepth;
 
-  game.setState = s => {
-    game.state = s;
-    document.body.dataset.state = s;
-  };
+  game.setState = s => { game.state = s; };
 
   game.resetRide = () => {
     game.player = { v: 0, dist: 0 };
@@ -28,7 +28,6 @@ VBT.game = (function () {
     game.sensors = VBT.physics.createSensors();
     game.countdown = 3.999;
     game.autoPaused = false;
-    document.getElementById('ftpLabel').textContent = cfg.rider.ftp;
     game.setState('countdown');
   };
 
