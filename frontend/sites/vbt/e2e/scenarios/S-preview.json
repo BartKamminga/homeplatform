@@ -1,0 +1,35 @@
+{
+ "title": "Extra aanzetten in SETTINGS -> meteen zichtbaar: voertuig rijdt langs, HUD-paneel licht op (ook op het titelscherm)",
+ "query": "",
+ "steps": [
+  {
+   "at": 4,
+   "run": "VBT.ui.open('left', 'settings')"
+  },
+  {
+   "at": 5,
+   "run": "{ const box = [...document.querySelectorAll('.pn-toggle')].find(l => l.textContent.trim() === 'Ferrari').querySelector('input'); box.click(); setTimeout(() => box.click(), 600) }"
+  },
+  {
+   "at": 6.6,
+   "name": "Ferrari aan -> rijdt meteen op de weg (titelscherm)",
+   "assert": "VBT.game.state === 'title' && VBT.traffic.list.some(c => c.kind === 'ferrari') && VBT.settings.values.veh_ferrari === true",
+   "shot": "ferrari"
+  },
+  {
+   "at": 7.5,
+   "run": "{ const box = [...document.querySelectorAll('.pn-toggle')].find(l => l.textContent.trim() === 'Power').querySelector('input'); box.click(); setTimeout(() => box.click(), 600) }"
+  },
+  {
+   "at": 8.6,
+   "name": "Power aan -> HUD even zichtbaar, POWER-paneel licht op",
+   "assert": "document.body.classList.contains('hud-preview') && document.querySelector('.panel.power').classList.contains('flash')",
+   "shot": "hud"
+  },
+  {
+   "at": 14.5,
+   "name": "na 5 s weer weg",
+   "assert": "!document.body.classList.contains('hud-preview')"
+  }
+ ]
+}

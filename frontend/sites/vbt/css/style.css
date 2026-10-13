@@ -156,3 +156,8 @@ body[data-state="paused"] #paused { display: flex; font-size: 64px; background: 
 body.off-hud_power .panel.power, body.off-hud_hr .heartpanel, body.off-hud_speed .speedo, body.off-hud_time .panel.right,
 body.off-hud_elevation .elev, body.off-hud_workout .wpanel, body.off-hud_top .panel.center, body.off-hud_chips .devchip, body.off-hud_music #music,
 body.off-crt .crt, body.off-messages #message, body.off-coach #coach { display: none !important; }
+
+/* SETTINGS: net aangezet onderdeel even tonen (ook buiten een rit) en laten oplichten */
+body.hud-preview #hud { opacity: 1 !important; }
+.flash { animation: flash 0.65s ease-in-out 4; }
+@keyframes flash { 50% { outline: 3px solid var(--yellow); outline-offset: 3px; box-shadow: 0 0 26px rgba(255,230,109,.75); } }

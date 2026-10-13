@@ -6,6 +6,7 @@ import { copyText } from '../../common/clipboard.js'
 import { FLAG_CHROME, FLAG_EDGE } from '../help/helpContent.js'
 import StravaBlock from './StravaBlock.jsx'
 import MusicBlock from './MusicBlock.jsx'
+import { previewExtra } from './previewExtra.js'
 
 function NumberField({ label, value, unit, min, max, onSave }) {
   const [v, setV] = useState(value)
@@ -24,10 +25,13 @@ function NumberField({ label, value, unit, min, max, onSave }) {
   )
 }
 
+// eigen stand direct bijwerken: het snapshot ververst maar 4x/s, anders 'vergeet' een snelle tweede klik de eerste
 function Toggle({ label, checked, onChange, indent }) {
+  const [on, setOn] = useState(!!checked)
+  useEffect(() => { setOn(!!checked) }, [checked])
   return (
     <label className={'pn-toggle' + (indent ? ' pn-indent' : '')}>
-      <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} /> {label}
+      <input type="checkbox" checked={on} onChange={e => { setOn(e.target.checked); onChange(e.target.checked) }} /> {label}
     </label>
   )
 }
@@ -76,7 +80,7 @@ export default function SettingsSection() {
           <small>{g.group.toUpperCase()}</small>
           {g.items.map(([key, label]) => (
             <Toggle key={key} label={label} checked={settings[key] !== false} indent={key.startsWith('veh_')}
-              onChange={v => save({ [key]: v })} />
+              onChange={v => { save({ [key]: v }); if (v) previewExtra(key) }} />
           ))}
         </div>
       ))}

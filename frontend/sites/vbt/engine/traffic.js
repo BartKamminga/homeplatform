@@ -27,8 +27,28 @@ VBT.traffic = (function () {
     VBT.store.log('traffic', kind.toUpperCase() + ' on the road');
   }
 
+  function spawnCoach(game) {
+    coach = { kind: 'teamcar', dist: game.player.dist - 30, v: game.player.v, x: -0.05, age: 0, ttl: 26, said: 0 };
+    list.push(coach);
+  }
+
+  // extra net aangezet in Settings: meteen laten zien (ook op het titelscherm, daar rijdt de weg ook)
+  function preview(key) {
+    const game = VBT.game;
+    if (key === 'coach') { if (!coach) spawnCoach(game); return true; }
+    if (key === 'traffic') { const k = ODD.filter(x => VBT.settings.show('veh_' + x)); spawnOdd(k.length ? k[Math.floor(Math.random() * k.length)] : 'ferrari', game); return true; }
+    if (key.startsWith('veh_') && ODD.includes(key.slice(4))) {
+      spawnOdd(key.slice(4), game);
+      const c = list[list.length - 1];
+      if (c.kind === 'ferrari' || c.kind === 'broom') { c.dist = game.player.dist - 8; c.v = game.player.v + 6; c.slow = true; }   // preview: meteen en rustig in beeld
+      return true;
+    }
+    return false;
+  }
+
   function update(dt, game) {
-    if (game.state !== 'ride') return;
+    // geplande voertuigen en ploegleider alleen tijdens het rijden; wat er al rijdt (bv. een preview) beweegt altijd
+    if (game.state !== 'ride') { if (list.length && ['title', 'finished'].includes(game.state)) move(dt, game); return; }
     const show = VBT.settings.show;
     const kinds = ODD.filter(k => show('veh_' + k));
     const on = show('traffic') && kinds.length > 0;
@@ -39,14 +59,17 @@ VBT.traffic = (function () {
     }
     // ploegleider: komt naast je rijden, roept 2x iets, laat zich dan zakken
     if (!coach && show('coach') && game.rideTime >= nextCoach) {
-      coach = { kind: 'teamcar', dist: game.player.dist - 30, v: game.player.v, x: -0.05, age: 0, ttl: 26, said: 0 };
-      list.push(coach);
+      spawnCoach(game);
       nextCoach = game.rideTime + rand(150, 260);
     }
+    move(dt, game);
+  }
+
+  function move(dt, game) {
     for (const c of list) {
       c.age += dt;
       c.ttl -= dt;
-      if (c.kind === 'ferrari') c.v += 2.5 * dt;
+      if (c.kind === 'ferrari') c.v += (c.slow ? 0.8 : 2.5) * dt;
       if (c.kind === 'ufo' && c.age > c.hover) c.v += 40 * dt;               // schiet weg
       if (c.kind === 'ufo' && c.age <= c.hover) c.v = game.player.v;
       if (c === coach) {
@@ -76,5 +99,5 @@ VBT.traffic = (function () {
   // testhaakjes: eerstvolgende ploegleider/voertuig vervroegen
   function schedule({ coachAt, oddAt } = {}) { if (coachAt !== undefined) nextCoach = coachAt; if (oddAt !== undefined) nextOdd = oddAt; }
 
-  return { reset, update, riders, schedule, spawn: kind => spawnOdd(kind, VBT.game), list };
+  return { reset, update, riders, schedule, preview, spawn: kind => spawnOdd(kind, VBT.game), list };
 })();
