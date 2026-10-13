@@ -1,0 +1,39 @@
+{
+ "title": "Ramp Test: opgeven stopt de test, nieuwe FTP voorstellen, ACCEPT -> FTP + historie",
+ "query": "",
+ "steps": [
+  {
+   "at": 3,
+   "run": "VBT.storage.loadPlan('build-me-up').then(p => { const wo = p.weeks.flat().find(w => w.name === 'Ramp Test'); VBT.actions.startWorkout(wo, 12) })"
+  },
+  {
+   "at": 12,
+   "name": "ramp test loopt in ERG boven FTP",
+   "assert": "VBT.game.state === 'ride' && VBT.ftp.testType(VBT.game.run.wo) === 'ramp' && VBT.workout.current(VBT.game.run, VBT.cfg.rider.ftp).pct > 100"
+  },
+  {
+   "at": 72,
+   "run": "VBT.physics.updateSensors = s => { s.watts = 0; s.cadence = 0; s.avg3s.push(0) }"
+  },
+  {
+   "at": 80,
+   "name": "test gestopt -> finish met FTP-voorstel",
+   "assert": "VBT.game.state === 'finished' && !document.getElementById('ftpProposal').hidden && document.getElementById('ftpProposal').textContent.includes('NEW FTP')",
+   "shot": "proposal"
+  },
+  {
+   "at": 81,
+   "click": "#ftpAccept"
+  },
+  {
+   "at": 82,
+   "name": "nieuwe FTP ingesteld + historie",
+   "assert": "VBT.cfg.rider.ftp > 200 && VBT.settings.values.ftpHistory.at(-1).source === 'Ramp Test' && VBT.settings.values.ftpHistory.at(-1).prev === 180"
+  },
+  {
+   "at": 84,
+   "name": "FTP op de server",
+   "assert": "fetch('/api/vbt/profile',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(p => p.ftp === VBT.cfg.rider.ftp && p.settings.ftpHistory.length >= 1)"
+  }
+ ]
+}

@@ -27,8 +27,8 @@ VBT.workoutHud = (function () {
       $('wNext').textContent = 'RIDE AS YOU LIKE';
     } else {
       const cur = VBT.workout.current(run, ftp);
-      $('wWatts').textContent = cur.watts;
-      $('wPct').textContent = Math.round(cur.pct) + '% FTP';
+      $('wWatts').textContent = cur.step.allOut ? 'MAX' : cur.watts;
+      $('wPct').textContent = cur.step.allOut ? 'ALL OUT - YOUR PACE' : Math.round(cur.pct) + '% FTP';
       const cad = $('wCad');
       cad.textContent = cur.cadence ? cur.cadence + ' RPM' : 'ANY RPM';
       cad.className = 'wcad' + (cur.cadence && Math.abs(s.cadence - cur.cadence) > 6 ? ' off' : '');
@@ -43,6 +43,7 @@ VBT.workoutHud = (function () {
 
   // Eindscherm met de samenvatting van de opgeslagen rit
   function showFinish(ride, heading, sub) {
+    if (VBT.ftp) setTimeout(() => VBT.ftp.showProposal(ride), 0);   // FTP-test: nieuwe FTP voorstellen
     $('finishTitle').textContent = heading;
     $('finishName').textContent = sub;
     $('finishStats').innerHTML =

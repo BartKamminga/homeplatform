@@ -24,5 +24,9 @@ with Session(engine) as s:
     s.add(Site(name="VBT", slug="vbt", module="vbt", icon="b", is_active=True))
     s.commit()
     s.refresh(u)
-    seed_plan(s, "ftp_builder.json")
+    import glob
+    for f in sorted(glob.glob('data/vbt/*.json')):
+        name = os.path.basename(f)
+        if name != 'climbs.json':
+            seed_plan(s, name)
     print("TOKEN=" + create_access_token({"sub": u.id}))

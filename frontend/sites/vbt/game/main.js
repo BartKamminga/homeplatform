@@ -107,6 +107,7 @@
     if ((game.state === 'ride' || attract) && !game.run) S.updateGhost(dt, t, gapM);
     if (game.state === 'ride') { game.syncPosition(); S.record(dt); }
     VBT.traffic.update(dt, game);
+    VBT.ftp.monitor(game, dt);
     if (game.state === 'ride' || attract) VBT.peloton.update(game.pack, dt, t, gradeAtDist, true, erg ? s.target : 0);
 
     // sturen: pijltjes, anders langzaam terug naar de rechterbaan
@@ -143,9 +144,10 @@
     const scaleP = game.cameraDepth / game.playerZ;
     const toRelZ = dist => game.playerZ + (dist - game.player.dist) * cfg.unitsPerMeter;
     const packClimb = gradeAtDist(game.pack.dist) > 0.07;
-    game.riders = game.pack.bots.map(b => ({ relZ: toRelZ(b.dist), x: b.x, phase: b.phase, kit: b.kit, time: t, sprint: packClimb && b.col !== 1 }));
+    const show = VBT.settings.show;
+    game.riders = !show('peloton') ? [] : game.pack.bots.map(b => ({ relZ: toRelZ(b.dist), x: b.x, phase: b.phase, kit: b.kit, time: t, sprint: packClimb && b.col !== 1 }));
     game.riders.push(...VBT.traffic.riders(game, toRelZ, t));
-    if (!game.run) game.riders.push({ relZ: toRelZ(game.ghost.dist), x: game.ghost.x, phase: game.ghostPhase, kit: VBT.rider.KITS.ghost, ghost: true, alpha: 0.6, time: t });
+    if (!game.run && show('ghost')) game.riders.push({ relZ: toRelZ(game.ghost.dist), x: game.ghost.x, phase: game.ghostPhase, kit: VBT.rider.KITS.ghost, ghost: true, alpha: 0.6, time: t });
     game.ghostAheadSeg = (game.ghost.dist - game.player.dist) * cfg.unitsPerMeter / cfg.segmentLength;
     game.packAheadSeg = (game.pack.dist - game.player.dist) * cfg.unitsPerMeter / cfg.segmentLength;
 

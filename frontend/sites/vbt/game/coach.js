@@ -42,7 +42,7 @@ VBT.coach = (function () {
     }
     if (VBT.store) VBT.store.log('coach', 'Team director: ' + text);
     const set = VBT.settings.values;
-    if (!set.voice || !('speechSynthesis' in window)) return;
+    if (set.voice === false || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);

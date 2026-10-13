@@ -28,6 +28,7 @@ VBT.hud = (function () {
   }
 
   function message(text, color) {
+    if (!VBT.settings.show('messages')) return;
     el.message.textContent = text;
     el.message.style.color = color || '';
     el.message.classList.remove('pop');

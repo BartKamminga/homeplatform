@@ -42,6 +42,7 @@ VBT.road = (function () {
     const s = seg.p1.screen;
     const alpha = Math.min(1, 0.25 + seg.fog);
     for (const sp of seg.sprites) {
+      if (sp.source.kind && !VBT.settings.show(sp.source.kind)) continue;     // decor uit in Settings
       const x = s.x + s.scale * sp.offset * cfg.roadWidth * w / 2;
       drawSprite(ctx, w, sp.source, s.scale, x, s.y, sp.offset < 0 ? -1 : 0, alpha);
     }

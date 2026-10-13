@@ -1,0 +1,39 @@
+{
+ "title": "Weergave-instellingen: ALL OFF / per onderdeel / ALL ON",
+ "query": "ride",
+ "steps": [
+  {
+   "at": 4,
+   "run": "VBT.actions.setAllDisplay(false)"
+  },
+  {
+   "at": 5,
+   "name": "ALL OFF: HUD-panelen weg, peloton weg, geen meldingen",
+   "assert": "!(getComputedStyle(document.querySelector('.panel.power')).display !== 'none') && !(getComputedStyle(document.querySelector('.heartpanel')).display !== 'none') && !(getComputedStyle(document.querySelector('.elev')).display !== 'none') && VBT.game.riders.length === 0 && !VBT.settings.show('messages')",
+   "shot": "off"
+  },
+  {
+   "at": 5.5,
+   "run": "VBT.actions.saveSettings({ hud_power: true })"
+  },
+  {
+   "at": 6.5,
+   "name": "POWER weer aan, rest blijft uit",
+   "assert": "getComputedStyle(document.querySelector('.panel.power')).display !== 'none' && !(getComputedStyle(document.querySelector('.heartpanel')).display !== 'none')"
+  },
+  {
+   "at": 7,
+   "run": "VBT.actions.setAllDisplay(true)"
+  },
+  {
+   "at": 8,
+   "name": "ALL ON: alles terug",
+   "assert": "getComputedStyle(document.querySelector('.heartpanel')).display !== 'none' && getComputedStyle(document.querySelector('.elev')).display !== 'none' && VBT.game.riders.length > 0"
+  },
+  {
+   "at": 8.5,
+   "name": "opgeslagen op de server",
+   "assert": "fetch('/api/vbt/profile',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(p => p.settings.hud_power === true && p.settings.peloton === true)"
+  }
+ ]
+}

@@ -100,3 +100,10 @@
 .pn-zones b { font-family: var(--pixel); font-size: 9px; }
 .pn-zones i { font-style: normal; font-size: 10px; margin-top: 2px; }
 .pn-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: Inter, Arial, sans-serif; cursor: pointer; }
+.pn-display { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 6px; background: rgba(255,255,255,.03); }
+.pn-display small { font-family: var(--pixel); font-size: 8px; color: var(--cyan); margin-bottom: 2px; }
+.pn-indent { padding-left: 22px; font-size: 11px; opacity: .85; }
+.pn-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.pn-history li { display: grid; grid-template-columns: 80px 60px minmax(0, 1fr); gap: 6px; }
+.pn-history b { color: var(--yellow); }
+.pn-history i { font-style: normal; opacity: .65; }

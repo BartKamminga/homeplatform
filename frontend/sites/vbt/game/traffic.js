@@ -29,14 +29,16 @@ VBT.traffic = (function () {
 
   function update(dt, game) {
     if (game.state !== 'ride') return;
-    const on = VBT.settings.values.traffic !== false;
+    const show = VBT.settings.show;
+    const kinds = ODD.filter(k => show('veh_' + k));
+    const on = show('traffic') && kinds.length > 0;
     const hard = game.run && !game.run.wo.free && VBT.workout.current(game.run, VBT.cfg.rider.ftp).pct >= 105;
     if (on && !hard && game.rideTime >= nextOdd) {
-      spawnOdd(ODD[Math.floor(Math.random() * ODD.length)], game);
+      spawnOdd(kinds[Math.floor(Math.random() * kinds.length)], game);
       nextOdd = game.rideTime + rand(70, 160);
     }
     // ploegleider: komt naast je rijden, roept 2x iets, laat zich dan zakken
-    if (!coach && game.rideTime >= nextCoach) {
+    if (!coach && show('coach') && game.rideTime >= nextCoach) {
       coach = { kind: 'teamcar', dist: game.player.dist - 30, v: game.player.v, x: -0.05, age: 0, ttl: 26, said: 0 };
       list.push(coach);
       nextCoach = game.rideTime + rand(150, 260);

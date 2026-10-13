@@ -190,3 +190,11 @@ body[data-state="confirm"] #confirm { display: flex; }
 .rideevents { list-style: none; padding-left: 0 !important; font: 11px/1.4 ui-monospace, Consolas, monospace; }
 .rideevents li[data-level="warn"] { color: var(--pink); }
 .rideevents i { opacity: .55; font-style: normal; }
+
+/* FTP-test: voorstel op het finish-scherm */
+.ftpprop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 22px; border-radius: 10px;
+  border: 1px solid var(--yellow); background: rgba(255,230,109,.08); box-shadow: 0 0 22px rgba(255,230,109,.25); }
+.ftpprop small { font-family: var(--pixel); font-size: 9px; color: var(--cyan); }
+.ftpprop b { font-size: 30px; font-weight: 900; color: var(--yellow); }
+.ftpprop span { font-size: 12px; opacity: .8; }
+.ftpprop[hidden] { display: none; }

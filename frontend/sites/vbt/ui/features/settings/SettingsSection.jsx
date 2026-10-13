@@ -22,11 +22,25 @@ function NumberField({ label, value, unit, min, max, onSave }) {
   )
 }
 
-function Toggle({ label, checked, onChange }) {
+function Toggle({ label, checked, onChange, indent }) {
   return (
-    <label className="pn-toggle">
+    <label className={'pn-toggle' + (indent ? ' pn-indent' : '')}>
       <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} /> {label}
     </label>
+  )
+}
+
+function FtpHistory({ history }) {
+  if (!history || !history.length) return null
+  return (
+    <>
+      <h4>FTP HISTORY</h4>
+      <ul className="pn-history">
+        {history.slice(-8).reverse().map((h, i) => (
+          <li key={i}><span>{h.date}</span><b>{h.ftp} W</b><i>{h.prev ? (h.ftp >= h.prev ? '+' : '') + (h.ftp - h.prev) + ' W · ' : ''}{h.source}</i></li>
+        ))}
+      </ul>
+    </>
   )
 }
 
@@ -50,9 +64,22 @@ export default function SettingsSection() {
         })}
       </div>
 
-      <h4>RIDE EXTRAS</h4>
-      <Toggle label="Team director speaks (voice)" checked={settings.voice} onChange={v => save({ voice: v })} />
-      <Toggle label="Strange vehicles on the road" checked={settings.traffic} onChange={v => save({ traffic: v })} />
+      <h4>DISPLAY</h4>
+      <div className="pn-buttons">
+        <button className="ghostbtn" onClick={() => actions().setAllDisplay(true)}>ALL ON</button>
+        <button className="ghostbtn" onClick={() => actions().setAllDisplay(false)}>ALL OFF</button>
+      </div>
+      {window.VBT.settings.DISPLAY.map(g => (
+        <div key={g.group} className="pn-display">
+          <small>{g.group.toUpperCase()}</small>
+          {g.items.map(([key, label]) => (
+            <Toggle key={key} label={label} checked={settings[key] !== false} indent={key.startsWith('veh_')}
+              onChange={v => save({ [key]: v })} />
+          ))}
+        </div>
+      ))}
+
+      <FtpHistory history={settings.ftpHistory} />
 
       <h4>REMEMBER BLUETOOTH DEVICES</h4>
       <p className="pn-hint">Set this to <b>Enabled</b> and restart the browser, then VBT reconnects your KICKR and strap by itself.</p>

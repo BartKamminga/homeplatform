@@ -116,11 +116,11 @@ VBT.background = (function () {
     ctx.beginPath();
     ctx.rect(0, 0, w, horizon);
     ctx.clip();
-    ctx.drawImage(sun, sx, horizon - sun.height / 2 - sun.R * 0.55);
+    if (VBT.settings.show('sky')) ctx.drawImage(sun, sx, horizon - sun.height / 2 - sun.R * 0.55);
     ctx.restore();
 
-    tile(ctx, mountFar, skyX * 0.25, horizon - mountFar.height + 6 + sink * mountFar.height * 0.45);
-    tile(ctx, mountNear, skyX * 0.5, horizon - mountNear.height + 8 + sink * mountNear.height * 0.75);
+    if (VBT.settings.show('sky')) tile(ctx, mountFar, skyX * 0.25, horizon - mountFar.height + 6 + sink * mountFar.height * 0.45);
+    if (VBT.settings.show('sky')) tile(ctx, mountNear, skyX * 0.5, horizon - mountNear.height + 8 + sink * mountNear.height * 0.75);
 
     // grond onder de horizon + gloeiende horizonlijn
     ctx.fillStyle = P.ground;

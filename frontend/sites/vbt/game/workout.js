@@ -50,6 +50,7 @@ VBT.workout = (function () {
   // Lopende workout: welke stap, doelwatt, doelcadans, cadansscore
   // course (optioneel): het gebouwde parcours, zodat we tijd -> afstand kunnen omrekenen (springen)
   function createRun(wo, course) {
+    if (VBT.ftp) wo = VBT.ftp.prepare(wo);      // FTP-test: 20-min blok vrij (geen ERG)
     const starts = stepStarts(wo);
     const total = wo.steps.reduce((t, st) => t + st.d, 0);
     const timeline = (course || []).filter(c => c.d);

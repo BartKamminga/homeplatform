@@ -23,19 +23,19 @@
    "click": "#climbRide"
   },
   {
-   "at": 12,
+   "at": 13.5,
    "name": "climb loopt in SIM (geen workout), eigen courseKey",
    "assert": "VBT.game.state === 'ride' && VBT.game.climb && VBT.game.climb.slug === 'cauberg' && !VBT.game.run && VBT.recorder.current().kind === 'climb' && VBT.recorder.current().courseKey === 'climb-cauberg'",
    "run": "VBT.game.player.dist = VBT.recorder.current().lapM - 3"
   },
   {
-   "at": 15,
+   "at": 16.5,
    "name": "op de top: rit afgerond met tijd tot de top",
    "assert": "VBT.game.state === 'finished' && VBT.game.lastRide.lapTime > 0 && VBT.game.lastRide.courseKey === 'climb-cauberg'",
    "shot": "summit"
   },
   {
-   "at": 18,
+   "at": 19.5,
    "name": "server kent de climb-tijd als beste tijd (ghost voor de volgende keer)",
    "assert": "fetch('/api/vbt/rides/best-lap?course=climb-cauberg',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(b => !!b && b.lapTime > 0 && b.kind === 'climb')"
   }

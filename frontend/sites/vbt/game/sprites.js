@@ -178,18 +178,18 @@ VBT.buildSprites = function () {
     });
   }
 
-  function sprite(canvas, worldW) { return { canvas, worldW }; }
+  function sprite(canvas, worldW, kind) { return { canvas, worldW, kind }; }
 
   return {
-    PALM_L: sprite(palm(false), 1500),
-    PALM_R: sprite(palm(true), 1500),
-    LAMP_L: sprite(lamp(-1), 700),
-    LAMP_R: sprite(lamp(1), 700),
-    BILL_WATT: sprite(billboard('WATT!', 'PUSH THE PEDALS', P.pink), 2600),
-    BILL_VBT: sprite(billboard('VBT', 'VIRTUAL BIKE TRAINER', P.cyan), 2600),
-    BILL_KOM: sprite(billboard('KOM', 'KING OF THE MOUNTAIN', P.yellow), 2600),
-    BILL_SPRINT: sprite(billboard('SPRINT', '200 M TO GO', P.purple), 2600),
-    gradeSign: text => sprite(gradeSign(text), 520),
-    GANTRY: sprite(gantry(), 5200),
+    PALM_L: sprite(palm(false), 1500, 'palms'),
+    PALM_R: sprite(palm(true), 1500, 'palms'),
+    LAMP_L: sprite(lamp(-1), 700, 'lamps'),
+    LAMP_R: sprite(lamp(1), 700, 'lamps'),
+    BILL_WATT: sprite(billboard('WATT!', 'PUSH THE PEDALS', P.pink), 2600, 'signs'),
+    BILL_VBT: sprite(billboard('VBT', 'VIRTUAL BIKE TRAINER', P.cyan), 2600, 'signs'),
+    BILL_KOM: sprite(billboard('KOM', 'KING OF THE MOUNTAIN', P.yellow), 2600, 'signs'),
+    BILL_SPRINT: sprite(billboard('SPRINT', '200 M TO GO', P.purple), 2600, 'signs'),
+    gradeSign: text => sprite(gradeSign(text), 520, 'signs'),
+    GANTRY: sprite(gantry(), 5200, 'signs'),
   };
 };
