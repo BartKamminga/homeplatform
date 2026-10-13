@@ -46,6 +46,8 @@ class VbtRide(SQLModel, table=True):
     score:       Optional[int] = Field(default=None)           # cadansscore (workout)
     ftp:         Optional[int] = Field(default=None)
     samples:     Optional[list] = Field(default=None, sa_column=Column(JSON))
+    in_progress: bool = Field(default=False)                  # live backup tijdens de rit, nog niet afgerond
+    synced_at:   Optional[datetime] = Field(default=None)     # laatste live backup
     strava_upload_id:   Optional[str] = Field(default=None)
     strava_activity_id: Optional[str] = Field(default=None)
     strava_status:      Optional[str] = Field(default=None)    # uploading | done | error

@@ -192,3 +192,8 @@ body[data-state="confirm"] #confirm { display: flex; }
 .confirmbtns { display: flex; gap: 12px; }
 .ridebtn em { font-style: normal; font-size: 9px; margin-left: 6px; opacity: .7; }
 @media (max-width: 900px) { .ridesbody { grid-template-columns: 1fr; } }
+
+#backup { font-size: 15px; margin-bottom: 0; }
+#backup.ahead { color: #5dff9e; text-shadow: none; }
+#backup.lag { color: var(--yellow); }
+#backup.behind { color: var(--pink); }

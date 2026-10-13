@@ -152,5 +152,21 @@ VBT.workout = (function () {
     }
   }
 
-  return { gradeFor, buildCourse, createRun, stepAtFraction, seek, update, current, tss, drawChart };
+  // workout-tijd op een plek van het parcours (voor het hervatten van een oude rit)
+  function timeAtDist(run, dist) {
+    const tl = run.timeline;
+    if (!tl.length) return 0;
+    let k = 0;
+    while (k < tl.length - 1 && tl[k + 1].dist <= dist) k++;
+    const c = tl[k];
+    return Math.min(run.total, c.t0 + util.clamp((dist - c.dist) / (c.m || 1), 0, 1) * c.d);
+  }
+
+  function seekTime(run, time) {
+    run.elapsed = util.clamp(time, 0, run.total);
+    run.index = 0;
+    while (run.index < run.wo.steps.length - 1 && run.elapsed >= run.starts[run.index + 1]) run.index++;
+  }
+
+  return { gradeFor, buildCourse, createRun, stepAtFraction, seek, seekTime, timeAtDist, update, current, tss, drawChart };
 })();

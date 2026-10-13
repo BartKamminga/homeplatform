@@ -17,7 +17,7 @@
   <div id="hud">
     <section class="panel power">
       <label>POWER <span id="zoneName" class="chip">Z2</span>
-        <span id="chipTrainer" class="devchip" hidden>KICKR</span><span id="chipHr" class="devchip" hidden>&#9829; HR</span></label>
+        <span id="chipTrainer" class="devchip" hidden>KICKR</span><span id="chipHr" class="devchip" hidden>&#9829; HR</span><span id="chipBackup" class="devchip" hidden>&#9729; BACKUP</span></label>
       <div class="big"><span id="watts">0</span><small>W</small></div>
       <div id="zoneBar" class="zonebar"><span id="zoneNeedle"></span></div>
       <div class="sub">3S AVG <b id="avg">0</b> W · FTP <span id="ftpLabel">180</span></div>
@@ -35,6 +35,8 @@
       <div class="mid" id="gap">+0.0s</div>
       <label id="bunchLabel">BUNCH</label>
       <div class="mid" id="bunch">0 M</div>
+      <label id="backupLabel" hidden>SERVER BACKUP</label>
+      <div class="mid" id="backup" hidden>-</div>
     </section>
 
     <section class="panel speedo">

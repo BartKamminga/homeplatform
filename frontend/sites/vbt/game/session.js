@@ -71,7 +71,10 @@ VBT.session = (function () {
     const before = (VBT.recorder.current() || { samples: [] }).samples.length;
     const lap = VBT.recorder.sample(game, dt);
     const rec = VBT.recorder.current();
-    if (rec && rec.samples.length !== before) VBT.safety.journal(rec);   // elke seconde (alleen de nieuwe samples)
+    if (rec && rec.samples.length !== before) {
+      VBT.safety.journal(rec);     // lokaal: elke seconde (alleen de nieuwe samples)
+      VBT.safety.liveSync(rec);    // server: direct en daarna elke 10 s
+    }
     if (lap === null) return;
     const pb = game.ghostTrack && game.ghostTrack.lapTime;
     const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
@@ -131,6 +134,7 @@ VBT.session = (function () {
     if (['ride', 'paused', 'countdown'].includes(game.state)) {
       beforeConfirm = game.state;
       $('confirmSub').textContent = 'Your ride is always saved - find it under MY RIDES.';
+      VBT.safety.liveSync(VBT.recorder.current(), true);     // meteen een backup op de server
       game.setState('confirm');
     } else if (game.state === 'confirm') {
       cancelStop();
@@ -140,6 +144,33 @@ VBT.session = (function () {
   }
   function cancelStop() { if (game.state === 'confirm') game.setState(beforeConfirm || 'paused'); }
   function confirmStop() { if (game.state === 'confirm') finish(false); }
+
+  // Oude rit hervatten: zelfde parcours/workout, verder op de plek en tijd waar je gebleven was, in dezelfde rit
+  async function resumeRide(ride) {
+    const S = ride.samples || [];
+    if (!ride.clientId || !S.length) { VBT.toast && VBT.toast('THIS RIDE CANNOT BE CONTINUED'); return; }
+    let wo = null;
+    if (ride.courseKey !== FREE_COURSE) {
+      wo = VBT.calendar.find(ride.courseKey);
+      if (!wo && VBT.storage.getWorkout) wo = await VBT.storage.getWorkout(ride.courseKey).catch(() => null);
+      if (!wo) { VBT.toast && VBT.toast('WORKOUT NOT FOUND - CANNOT CONTINUE', 6000); return; }
+    }
+    toMenu('title');
+    startRide(wo);
+    const rec = VBT.recorder.resume(ride);
+    const last = S[S.length - 1];
+    const delta = last[1] - game.player.dist;
+    game.player.dist = last[1];
+    game.rideTime = last[0];
+    game.pack.dist += delta;
+    game.pack.bots.forEach(b => { b.dist += delta; });
+    if (game.run && !game.run.wo.free) VBT.workout.seekTime(game.run, VBT.workout.timeAtDist(game.run, last[1]));
+    else if (game.run) VBT.workout.seekTime(game.run, last[0]);
+    VBT.safety.liveResume(rec);
+    VBT.safety.dropFromOutbox(rec.clientId);
+    VBT.safety.journal(rec);
+    VBT.hud.message('CONTINUE · ' + Math.floor(last[0] / 60) + ':' + String(Math.floor(last[0] % 60)).padStart(2, '0'), VBT.palette.cyan);
+  }
 
   function openRides() {
     toMenu('plan');
@@ -177,5 +208,5 @@ VBT.session = (function () {
     };
   }
 
-  return { startRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, bindUi, openDevices };
+  return { startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, bindUi, openDevices };
 })();

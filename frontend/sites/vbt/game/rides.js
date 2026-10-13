@@ -38,7 +38,9 @@ VBT.rides = (function () {
     for (const r of items) {
       const el = document.createElement('button');
       el.className = 'riderow' + (r.id === selectedId ? ' selected' : '');
-      const tags = (r.pending ? '<i class="tag pending">NOT SYNCED</i>' : '') + (r.recovered ? '<i class="tag wo">RECOVERED</i>' : '') +
+      const live = r.inProgress && !(VBT.recorder.current() && VBT.recorder.current().clientId === r.clientId);
+      const tags = (r.pending ? '<i class="tag pending">NOT SYNCED</i>' : '') +
+        (r.inProgress ? '<i class="tag ' + (live ? 'pending">INTERRUPTED' : 'wo">IN PROGRESS') + '</i>' : '') + (r.recovered ? '<i class="tag wo">RECOVERED</i>' : '') +
         (r.pb ? '<i class="tag pb">PB</i>' : '') + (r.kind === 'workout' ? '<i class="tag wo">WORKOUT</i>' : '') +
         (r.stravaActivityId ? '<i class="tag strava">STRAVA</i>' : '');
       el.innerHTML = '<span class="rdate">' + fmtDate(r.startedAt) + '</span><b>' + (r.name || 'Ride').toUpperCase() + tags + '</b>' +
@@ -59,7 +61,8 @@ VBT.rides = (function () {
     const stat = (v, l) => '<div><b>' + v + '</b><small>' + l + '</small></div>';
     box.innerHTML = '<div class="dhead"><div><small>' + fmtDate(ride.startedAt) + (ride.jumped ? ' · INTERVALS SKIPPED' : '') + '</small>' +
       '<h3>' + (ride.name || 'Ride').toUpperCase() + '</h3></div><div class="dbtns">' +
-      '<button id="rideDelete" class="ghostbtn">DELETE</button><button id="rideFit" class="ghostbtn">&#11015; .FIT</button></div></div>' +
+      '<button id="rideDelete" class="ghostbtn">DELETE</button><button id="rideFit" class="ghostbtn">&#11015; .FIT</button>' +
+      '<button id="rideContinue" class="ridebtn">CONTINUE RIDE &#9654;</button></div></div>' +
       '<div class="ridestats">' + stat(fmtDur(ride.duration), 'TIME') + stat((ride.distance / 1000).toFixed(2), 'KM') +
       stat(ride.avgW, 'AVG W') + stat(ride.maxW, 'MAX W') + stat(ride.kj, 'KJ') + stat(ride.avgCad, 'AVG RPM') +
       stat(ride.avgHr || '-', 'AVG BPM') + stat(ride.elevation, 'M UP') + (ride.lapTime ? stat(fmtDur(ride.lapTime), 'BEST LAP') : '') +
@@ -71,6 +74,8 @@ VBT.rides = (function () {
     $('rideFit').onclick = () => VBT.fit.download(ride);
     $('rideFit').disabled = !(ride.samples && ride.samples.length);
     $('rideDelete').onclick = () => remove(ride);
+    $('rideContinue').onclick = () => VBT.session.resumeRide(ride);
+    $('rideContinue').disabled = !(ride.clientId && ride.samples && ride.samples.length);
     $('rideDelete').hidden = !!ride.pending;     // wat nog niet op de server staat, kun je niet weggooien
   }
 

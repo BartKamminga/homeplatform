@@ -21,6 +21,7 @@ VBT.bleBridge = (function () {
       game.setState('paused');
       pausedText('TRAINER SIGNAL LOST', 'RECONNECTING… YOUR RIDE AND WORKOUT TIMER ARE PAUSED');
       ble.note('ride: auto-paused at ' + Math.round(game.rideTime) + ' s');
+      VBT.safety.liveSync(VBT.recorder.current(), true);     // tijdens de pauze alvast backup op de server
     } else if (game.state === 'paused' && game.autoPaused) {
       if (!ok) { stableSince = 0; return; }
       if (!stableSince) stableSince = performance.now();

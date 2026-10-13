@@ -44,6 +44,15 @@ VBT.devicesUi = (function () {
     t.dataset.status = ble.trainerOk() ? 'ok' : ble.links.trainer.status === 'connected' ? 'stale' : 'lost';
     h.hidden = !ble.links.hr.wanted;
     h.dataset.status = ble.hrOk() ? 'ok' : 'lost';
+    const c = $('chipBackup'), st = VBT.safety.liveStatus(), age = VBT.safety.liveAge();
+    c.hidden = st === 'off';
+    c.dataset.status = st === 'ok' ? 'ok' : st === 'behind' ? 'stale' : 'lost';
+    c.title = st === 'failing' ? 'Server backup failing - saved locally, retrying' : age === null ? 'Waiting for first server backup' : 'Server backup ' + Math.round(age) + ' s ago';
+    // regel in het rechter HUD-paneel: hoeveel seconden rijden staan nog niet op de server
+    const lag = VBT.safety.liveLag(), b = $('backup');
+    $('backupLabel').hidden = b.hidden = st === 'off';
+    b.textContent = st === 'failing' ? 'OFFLINE · ' + lag + ' S LOCAL ONLY' : lag <= 10 && st === 'ok' ? 'UP TO DATE' : '+' + lag + ' S BEHIND';
+    b.className = 'mid ' + (st === 'failing' ? 'behind' : lag <= 10 && st === 'ok' ? 'ahead' : 'lag');
   }
 
   async function toggle(kind) {

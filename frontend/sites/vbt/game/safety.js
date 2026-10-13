@@ -8,6 +8,9 @@ VBT.safety = (function () {
   const RETRY_MS = 30000;
   let dbp = null, flushing = false, retryTimer = null;
   let jId = null, jWritten = 0, jBusy = Promise.resolve();
+  // live backup naar de server tijdens de rit
+  const LIVE_MS = 10000;
+  const live = { clientId: null, sent: 0, lastOk: 0, lastTry: -Infinity, busy: false, failing: false, resume: false };
   const listeners = new Set();
 
   // ── mini-IndexedDB (key-value) ──
@@ -113,6 +116,54 @@ VBT.safety = (function () {
 
   const pending = () => all(OUTBOX).catch(() => []);
 
+  // ── live backup: direct bij de start en daarna elke 10 s (of direct met force) alleen de nieuwe samples naar de server ──
+  async function liveSync(rec, force) {
+    if (!rec || !VBT.storage.liveSync || live.busy) return;
+    if (rec.clientId !== live.clientId) Object.assign(live, { clientId: rec.clientId, sent: 0, lastOk: 0, lastTry: -Infinity, failing: false, resume: false });
+    const t = performance.now();
+    if (!force && t - live.lastTry < LIVE_MS) return;
+    if (rec.samples.length <= live.sent && live.lastOk) return;
+    live.busy = true;
+    live.lastTry = t;
+    try {
+      const res = await VBT.storage.liveSync({
+        clientId: rec.clientId, startedAt: rec.startedAt, kind: rec.kind, courseKey: rec.courseKey, name: rec.name,
+        woId: rec.woId, ftp: rec.ftp, jumped: rec.jumped, fromIndex: live.sent, samples: rec.samples.slice(live.sent),
+        resume: live.resume,
+      });
+      live.resume = false;
+      live.sent = res.received;          // server bepaalt waar de volgende batch begint (vangt gemiste batches op)
+      live.lastOk = performance.now();
+      live.failing = false;
+    } catch (e) {
+      live.failing = true;               // geen ramp: lokaal journal + outbox dekken dit, volgende tick opnieuw
+    } finally {
+      live.busy = false;
+      emit();
+    }
+  }
+
+  // status voor het BACKUP-lampje in de HUD: ok | behind | failing | off
+  function liveStatus() {
+    if (!VBT.storage.liveSync || !VBT.recorder.active()) return 'off';
+    if (live.failing) return 'failing';
+    return live.lastOk && performance.now() - live.lastOk < LIVE_MS * 2.5 ? 'ok' : 'behind';
+  }
+  const liveAge = () => (live.lastOk ? (performance.now() - live.lastOk) / 1000 : null);
+  // hoeveel seconden rijden staan nog niet op de server
+  function liveLag() {
+    const rec = VBT.recorder.current();
+    return rec && rec.clientId === live.clientId ? Math.max(0, rec.samples.length - live.sent) : rec ? rec.samples.length : 0;
+  }
+
+  // hervatte rit: de server heeft deze samples al (of krijgt ze met resume opnieuw open gezet)
+  function liveResume(rec) {
+    Object.assign(live, { clientId: rec.clientId, sent: rec.samples.length, lastOk: 0, lastTry: -Infinity, failing: false, resume: true });
+  }
+
+  // hervatte rit die nog in de outbox stond: eruit halen, bij de finish gaat de langere versie erin
+  const dropFromOutbox = clientId => del(OUTBOX + clientId).catch(() => {});
+
   // Bij opstarten: een achtergebleven journal (crash / tab dicht midden in een rit) afronden en bewaren
   async function recover() {
     let rec = null;
@@ -133,5 +184,5 @@ VBT.safety = (function () {
     return recover().then(ride => { flush(); return ride; });
   }
 
-  return { init, journal, clearJournal, enqueue, flush, pending, on: fn => listeners.add(fn) };
+  return { init, journal, clearJournal, enqueue, flush, pending, liveSync, liveStatus, liveAge, liveLag, liveResume, dropFromOutbox, on: fn => listeners.add(fn) };
 })();

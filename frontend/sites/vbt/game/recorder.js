@@ -37,6 +37,16 @@ VBT.recorder = (function () {
     sample(game, 0);
   }
 
+  // oude rit hervatten: verder opnemen in dezelfde rit (zelfde clientId, bestaande samples)
+  function resume(r) {
+    const S = r.samples || [], last = S[S.length - 1];
+    rec = {
+      clientId: r.clientId, startedAt: r.startedAt, kind: r.kind, courseKey: r.courseKey, name: r.name, woId: r.woId,
+      ftp: r.ftp, samples: S.slice(), odo: last ? last[2] : 0, acc: 0, lapTime: r.lapTime || null, jumped: !!r.jumped,
+    };
+    return rec;
+  }
+
   function markJump() { if (rec) rec.jumped = true; }
 
   function stop(extra) {
@@ -67,5 +77,5 @@ VBT.recorder = (function () {
     return r;
   }
 
-  return { start, sample, flush, markJump, stop, finalize, current: () => rec, active: () => !!rec };
+  return { start, resume, sample, flush, markJump, stop, finalize, current: () => rec, active: () => !!rec };
 })();

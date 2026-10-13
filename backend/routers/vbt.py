@@ -2,7 +2,7 @@
 
 De API spreekt camelCase, net als de ritobjecten in de game (frontend/sites/vbt).
 """
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -17,6 +17,7 @@ from core.database import get_session
 from models.core import User
 from models.vbt import VbtProfile, VbtRide, VbtStravaLink
 from services import vbt_strava as strava
+from services.vbt_rides import naive_utc
 
 router = APIRouter(prefix="/api/vbt", tags=["vbt"])
 
@@ -54,13 +55,14 @@ class RideIn(CamelModel):
 
 
 SUMMARY_FIELDS = ["id", "client_id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
-                  "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp",
+                  "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp", "in_progress",
                   "strava_activity_id", "strava_status", "strava_error"]
 
 
 def _ride_out(ride: VbtRide, with_samples: bool = False) -> dict:
     out = {to_camel(f): getattr(ride, f) for f in SUMMARY_FIELDS}
     out["startedAt"] = ride.started_at.isoformat() + ("Z" if ride.started_at.tzinfo is None else "")
+    out["syncedAt"] = ride.synced_at.isoformat() + "Z" if ride.synced_at else None
     if with_samples:
         out["samples"] = ride.samples or []
     return out
@@ -112,17 +114,26 @@ def list_rides(limit: int = 50, current_user: User = Depends(get_current_user), 
 @router.post("/rides")
 def save_ride(body: RideIn, request: Request, current_user: User = Depends(get_current_user),
               session: Session = Depends(get_session)):
-    # idempotent: dezelfde rit nog een keer (outbox-retry na een netwerkfout) -> de bestaande teruggeven
+    # idempotent: dezelfde rit nog een keer (outbox-retry na een netwerkfout) -> de bestaande teruggeven.
+    # Staat hij er als live backup (in_progress), dan wordt die nu afgerond met de volledige rit.
+    existing = None
     if body.client_id:
         existing = session.exec(select(VbtRide).where(VbtRide.client_id == body.client_id)).first()
         if existing:
             if existing.user_id != current_user.id:
                 raise HTTPException(status_code=409, detail="client_id is al in gebruik")
-            return _ride_out(existing)
+            # afgeronde rit: alleen bijwerken als dit een voortzetting is (meer samples), anders is het een herhaling
+            if not existing.in_progress and len(body.samples) <= len(existing.samples or []):
+                return _ride_out(existing)
     data = body.model_dump()
-    if data["started_at"].tzinfo:   # opslaan als naïeve UTC, net als de rest van de database
-        data["started_at"] = data["started_at"].astimezone(timezone.utc).replace(tzinfo=None)
-    ride = VbtRide(user_id=current_user.id, **data)
+    data["started_at"] = naive_utc(data["started_at"])
+    if existing:
+        ride = existing
+        for k, v in data.items():
+            setattr(ride, k, v)
+        ride.in_progress = False
+    else:
+        ride = VbtRide(user_id=current_user.id, **data)
     # PB = snelste volle ronde op dit parcours zonder sprongen
     if ride.lap_time and not ride.jumped:
         best = _best_lap(current_user.id, ride.course_key, session)
