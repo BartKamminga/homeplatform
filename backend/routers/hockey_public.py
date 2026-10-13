@@ -16,7 +16,8 @@ from models.hockey_discovery import (
 from models.hockey import HockeyPublicationTagCategory
 from services.hockey_query_scope import compute_win_streaks
 from services.hockey_scope import get_comp_link_tags_bulk, get_visible_comp_links, get_visible_comp_links_bulk
-from services.hockey_teams import club_logo_for_team, club_side_fields, ensure_club_colors, resolve_team_clubs
+from services.hockey_read import serialize_poule_matches, serialize_poule_standings
+from services.hockey_teams import club_logo_for_team, resolve_team_clubs
 
 router = APIRouter(prefix="/api/hockey", tags=["hockey-public"])
 
@@ -174,53 +175,6 @@ def get_tournament_competition_standings(
     return {"tournament_id": tid, "competitions": competitions}
 
 
-def _serialize_poule_matches(session: Session, poule: HockeyPoule) -> dict:
-    matches = session.exec(
-        select(HockeyPouleMatch)
-        .where(HockeyPouleMatch.poule_id == poule.poule_id)
-        .order_by(HockeyPouleMatch.match_date, HockeyPouleMatch.match_id)
-    ).all()
-    finished  = [m for m in matches if m.status == "final"]
-    scheduled = [m for m in matches if m.status != "final"]
-
-    team_ids = {m.home_team_id for m in matches if m.home_team_id} | {m.away_team_id for m in matches if m.away_team_id}
-    teams, clubs = resolve_team_clubs(session, list(team_ids))
-    ensure_club_colors(session, clubs)
-
-    def club_fields(m):
-        return {**club_side_fields(teams, clubs, m.home_team_id, "home"),
-                **club_side_fields(teams, clubs, m.away_team_id, "away")}
-
-    return {
-        "finished": [
-            {
-                "match_id":       m.match_id,
-                "home":           m.home_team_name,
-                "away":           m.away_team_name,
-                "home_score":     m.home_score,
-                "away_score":     m.away_score,
-                "date":           m.match_date,
-                "round":          m.round,
-                "location":       m.location_name,
-                **club_fields(m),
-            }
-            for m in finished
-        ],
-        "scheduled": [
-            {
-                "match_id":       m.match_id,
-                "home":           m.home_team_name,
-                "away":           m.away_team_name,
-                "date":           m.match_date,
-                "round":          m.round,
-                "location":       m.location_name,
-                **club_fields(m),
-            }
-            for m in scheduled
-        ],
-    }
-
-
 @router.get("/public/competitions/{cid}/matches")
 def get_competition_matches(cid: int, session: Session = Depends(get_session)):
     """Wedstrijden per poule voor een discovery-competitie."""
@@ -234,7 +188,7 @@ def get_competition_matches(cid: int, session: Session = Depends(get_session)):
     ).all()
     result = [
         {"id": poule.id, "name": poule.name, "poule_id": poule.poule_id,
-         **_serialize_poule_matches(session, poule)}
+         **serialize_poule_matches(session, poule)}
         for poule in poules
     ]
     return {"competition_id": cid, "name": comp.name, "poules": result}
@@ -246,7 +200,7 @@ def get_hockey_poule_matches(pid: int, session: Session = Depends(get_session)):
     poule = session.get(HockeyPoule, pid)
     if not poule:
         raise HTTPException(404, "Poule niet gevonden")
-    return _serialize_poule_matches(session, poule)
+    return serialize_poule_matches(session, poule)
 
 
 @router.get("/public/season")
@@ -326,22 +280,4 @@ def get_hockey_poule_standings(pid: int, session: Session = Depends(get_session)
     poule = session.get(HockeyPoule, pid)
     if not poule:
         raise HTTPException(404, "Poule niet gevonden")
-    rows = session.exec(
-        select(HockeyPouleStanding)
-        .where(HockeyPouleStanding.poule_id == poule.poule_id)
-        .order_by(HockeyPouleStanding.position, HockeyPouleStanding.points.desc())  # type: ignore[attr-defined]
-    ).all()
-    teams, clubs = resolve_team_clubs(session, [r.team_id for r in rows])
-    streaks = compute_win_streaks(session, [poule.poule_id])
-    return {
-        "pool_name": poule.name,
-        "ai_note":   poule.ai_note,
-        "standings": [
-            {"team_id": r.team_id, "team_name": r.team_name, "club_logo_url": club_logo_for_team(teams, clubs, r.team_id),
-             "pts": r.points, "played": r.played, "won": r.won,
-             "drawn": r.drawn, "lost": r.lost, "gf": r.goals_for, "ga": r.goals_against,
-             "streak": streaks.get((poule.poule_id, r.team_id), 0),
-             "ai_note": r.ai_note}
-            for r in rows
-        ],
-    }
+    return serialize_poule_standings(session, poule)

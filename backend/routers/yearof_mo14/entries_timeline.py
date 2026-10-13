@@ -15,7 +15,6 @@ from core.auth import get_current_user
 from core.crud import get_or_404
 from core.database import get_session
 from models.core import User
-from models.hockey_discovery import HockeyPoule
 from models.yearof import (
     YearOfContributorLink,
     YearOfCustomEntry,
@@ -27,7 +26,7 @@ from models.yearof import (
     YearOfReportLink,
     YearOfReportPlayerTag,
 )
-from routers.hockey_public import _serialize_poule_matches, get_hockey_poule_standings
+from services import hockey_read
 
 from ._shared import POULE_ID, TEAM_NAME, get_optional_user, require_match_access, require_team_access
 from .page_blocks import match_photos_concept
@@ -193,10 +192,9 @@ def delete_entry(
 # ---------------------------------------------------------------------------
 
 def _competition_timeline_items(session: Session) -> list[dict]:
-    poule = session.get(HockeyPoule, POULE_ID)
-    if not poule:
+    data = hockey_read.poule_matches(session, POULE_ID)
+    if data is None:
         return []
-    data = _serialize_poule_matches(session, poule)
     items = []
     for status_key, rows in (("finished", data["finished"]), ("scheduled", data["scheduled"])):
         for m in rows:
@@ -332,7 +330,9 @@ def get_standings(session: Session = Depends(get_session), _: None = Depends(req
     standings-endpoint 1-op-1, alleen achter het teamlinkje i.p.v. volledig open.
     Markeert onze eigen rij (is_us) zodat de frontend die niet zelf hoeft te
     matchen op teamnaam."""
-    data = get_hockey_poule_standings(POULE_ID, session)
+    data = hockey_read.poule_standings(session, POULE_ID)
+    if data is None:
+        raise HTTPException(404, "Poule niet gevonden")
     for row in data["standings"]:
         row["is_us"] = row["team_name"] == TEAM_NAME
     return data

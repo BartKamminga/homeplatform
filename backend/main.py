@@ -70,6 +70,7 @@ from routers import hockey_publication  # noqa: E402
 from routers import hockey_query  # noqa: E402
 from routers import hockey_regrouping  # noqa: E402
 from routers import hockey_club_geo  # noqa: E402
+from routers import hockey_club_colors  # noqa: E402
 from routers import hockey_scenario  # noqa: E402
 from routers import poulebord  # noqa: E402
 from routers import infra  # noqa: E402
@@ -227,6 +228,7 @@ app.include_router(hockey_publication.router)
 app.include_router(hockey_query.router)
 app.include_router(hockey_regrouping.router)
 app.include_router(hockey_club_geo.router)
+app.include_router(hockey_club_colors.router)
 app.include_router(hockey_scenario.router)
 app.include_router(poulebord.router)
 app.include_router(poulebord.legacy_router)
