@@ -8,7 +8,8 @@
 #   myhome_events_url: http(s)://<host>/api/myhome/homes/<home-id>/events
 #   myhome_auth:       "Bearer hp_..."     (persoonlijke API-key van de eigenaar van het huis)
 #   myhome_push_pending_url: <host>/api/myhome/homes/<home-id>/push?status=pending
-#   myhome_apply_cmd:  python3 /config/myhome/myhome_apply.py <host>/api/myhome/homes/<home-id> hp_...
+#   myhome_apply_cmd:  python3 /config/myhome/myhome_apply.py <host>/api/myhome/homes/<home-id> hp_... <HA long-lived token>
+#                      (long-lived token van een HA-admin: Profiel > Beveiliging; de eigen token van HA Core werkt niet)
 #                      (myhome_apply.py staat naast dit package in de repo; kopieer het naar /config/myhome/)
 #
 # Wat het doet:
@@ -29,7 +30,7 @@ rest:
       - name: MyHome wijzigingen klaar
         unique_id: myhome_pending_pushes
         icon: mdi:home-import-outline
-        value_template: "{{ value_json | length if value_json is list else 0 }}"
+        value_template: "{{ value_json | count }}"
 
 shell_command:
   myhome_apply: !secret myhome_apply_cmd
@@ -127,6 +128,12 @@ automation:
     mode: single
     trigger:
       - platform: numeric_state
+        entity_id: sensor.myhome_wijzigingen_klaar
+        above: 0
+      - platform: time_pattern     # opnieuw proberen zolang er nog iets klaarstaat
+        minutes: "/5"
+    condition:
+      - condition: numeric_state
         entity_id: sensor.myhome_wijzigingen_klaar
         above: 0
     action:

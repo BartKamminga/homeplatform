@@ -1,9 +1,10 @@
 """MyHome-applier: voert goedgekeurde wijzigingen uit MyHome uit in Home Assistant en op de Hue-bridge (item 1320).
 
 Draait in de HA Core-container via shell_command (zie myhome.yaml). Gebruik:
-  python3 /config/myhome/myhome_apply.py <MyHome-huis-url> <hp_-key> [<HA long-lived token>]
+  python3 /config/myhome/myhome_apply.py <MyHome-huis-url> <hp_-key> <HA long-lived token>
     <MyHome-huis-url> = http(s)://<host>/api/myhome/homes/<home-id>
-Zonder HA-token wordt de SUPERVISOR_TOKEN van de Core-container gebruikt via de Supervisor-proxy.
+De HA-token is nodig: de eigen SUPERVISOR_TOKEN van de Core-container wordt door de websocket geweigerd
+(getest 14-10-2026: auth_invalid). Zonder token wordt die route toch geprobeerd, met een duidelijke fout.
 
 - rename_device: Hue-apparaat -> naam op de bridge (Hue-app klopt dan ook) en name_by_user in HA leeg;
                  overige apparaten -> name_by_user in de HA-device-registry.
