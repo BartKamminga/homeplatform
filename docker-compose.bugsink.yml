@@ -1,8 +1,8 @@
 # docker-compose.bugsink.yml - Bugsink (error monitoring, poort 8090) op G4, los van de app-stacks.
 # Draaide tot 14-10 vanuit de oude prod-repo op G4 (project homeplatform-repo, item 1189). Het volume met
 # de data heet daarom homeplatform-repo_bugsink_db en wordt hier als extern volume overgenomen.
-# Start op G4 vanuit /home/bart/homeplatform-repo-acc, met de BUGSINK_*-waarden in .env.bugsink:
-#   docker compose -p bugsink -f docker-compose.bugsink.yml --env-file .env.bugsink up -d
+# Start op G4 vanuit /home/bart/homeplatform-repo-acc, met de BUGSINK_*-waarden in /home/bart/bugsink.env (600):
+#   docker compose -p bugsink -f docker-compose.bugsink.yml --env-file /home/bart/bugsink.env up -d
 
 services:
   bugsink_db:
