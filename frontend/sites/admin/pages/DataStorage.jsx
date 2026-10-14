@@ -67,6 +67,7 @@ const DB_GLOBAL_ROWS = [
   { label: 'link_type, team_code, match_ref, player_id, expires_at, revoked_at', where: 'yearof_short_links', note: 'MO14 a Paris — korte deel-links /l/<code>: sitelink, wedstrijdlink, spelerslink' },
   { label: 'photo_id, player_id, favorite', where: 'yearof_photo_player_tags', note: 'MO14 a Paris — foto-tags per speelster; favorite = max 6 favorieten, getoond op spelerslink en spelerspagina' },
   { label: 'player_id, started_at, ended_at', where: 'yearof_player_spotlights', note: 'MO14 a Paris — speelster van de week (max 1 actief: ended_at leeg)' },
+  { label: 'ui_variant_beatcrades, ui_variant_mixmusic, ui_variant_fiets', where: 'user_preferences.extra', note: 'Gekozen frontend per site: classic of arcade (items 1336-1339)' },
   { label: 'link_kind, link_code, visitor_id, visited_at', where: 'yearof_link_visits', note: 'MO14 a Paris — bezoeken per deelbare link (geen IP, beheerders niet geteld)' },
   { label: 'agent_status:{key}, agent_enabled:{key}',       where: 'app_settings',     note: 'Agent Control — status/heartbeat en aan/uit per agent' },
 ];
@@ -81,7 +82,8 @@ const LS_ROWS = [
   { label: 'mm_sort / mm_filter_genre / mm_filter_rating / mm_filter_hearts', note: 'Filterinstellingen — cache (via DB)', scope: 'MixMusic' },
   { label: 'mm_show_play_count / mm_show_hearts / mm_show_rating / mm_show_moments / mm_show_ext', note: 'Weergaveopties tracklist — cache (via DB)', scope: 'MixMusic' },
   { label: 'mm_resume', note: 'Laatste track + positie — lokale cache (gesynchroniseerd via mm_resume_server)', scope: 'MixMusic' },
-  { label: 'nk_club / nk_comp',                  note: 'Gekozen club en competitie',                     scope: 'NKHockey' },
+  { label: 'ui_variant_<site>', note: 'Gekozen frontend (classic/arcade) — cache (via DB), ?ui= in de URL overschrijft', scope: 'BeatCrades / MixMusic / Fiets' },
+  { label: 'nk_club / nk_comp',                 note: 'Gekozen club en competitie',                     scope: 'NKHockey' },
   { label: 'nk_form / nk_played / nk_focus',     note: 'Weergave-instellingen',                          scope: 'NKHockey' },
   { label: 'nk_sim_count',                       note: 'Simulatieaantal',                                scope: 'NKHockey' },
   { label: 'nk_disclaimer_seen',                 note: 'Disclaimer gezien',                              scope: 'NKHockey' },

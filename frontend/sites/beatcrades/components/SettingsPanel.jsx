@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getSettings, putSettings, syncPreview, syncExecute, getProvider, setProvider, getToolVersions } from '../api.js'
 import { FORMATS, FMT_LABEL } from '../helpers.js'
+import VariantSwitch from '@components/VariantSwitch.jsx'
 
 // ── Tabs definitie ────────────────────────────────────────────────────────────
 
@@ -41,6 +42,10 @@ export function SettingsPanel({ onClose, onDone, initialTab = 'naamformaat' }) {
               <span className="bc-panel-tab-lbl">{t.label}</span>
             </button>
           ))}
+        </div>
+
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--color-border)' }}>
+          <VariantSwitch site="beatcrades" current="classic" />
         </div>
 
         <div className="bc-panel-content">

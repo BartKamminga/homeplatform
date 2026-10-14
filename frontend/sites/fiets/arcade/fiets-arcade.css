@@ -1,0 +1,73 @@
+/* FietsPrognose arcade (item 1337). Bouwt op core/arcade/*.css; prefix fa-. */
+.fa-app { min-height: 100dvh; display: flex; flex-direction: column; }
+.fa-app > main { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; }
+.fa-head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; background: var(--ac-bg); border-bottom: 1px solid rgba(255,46,136,.45); }
+.ac-root .fa-brand { display: flex; align-items: baseline; gap: 10px; background: transparent; border: 0; padding: 0; cursor: pointer; }
+.fa-ver { font-family: var(--ac-pixel); font-size: 7px; color: var(--ac-muted); }
+.fa-nav { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.fa-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.fa-loc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fa-loc b { font-size: 14px; letter-spacing: 2px; }
+.fa-chart { padding: 10px 10px 8px; }
+.fa-info { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; padding: 8px 2px 2px; min-height: 40px; }
+.fa-info-left { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.fa-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 9px; letter-spacing: 1px; color: var(--ac-muted); }
+.fa-legend i { display: inline-block; width: 10px; height: 3px; margin-right: 5px; vertical-align: middle; background: var(--c); box-shadow: 0 0 6px var(--c); }
+
+.fa-window { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 14px 18px; }
+.fa-score { font-size: 46px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.fa-window-mid { min-width: 0; }
+.fa-when { font-size: 18px; font-weight: 700; color: var(--ac-yellow); text-shadow: 0 0 12px rgba(255,230,109,.5); }
+.fa-window-meta { font-size: 10px; letter-spacing: 1px; margin-top: 6px; opacity: .75; }
+
+.fa-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 10px; }
+.ac-root .fa-day { padding: 12px; display: flex; flex-direction: column; gap: 8px; text-align: left; cursor: pointer; color: var(--ac-ink);
+  border-left: 3px solid var(--c); font-family: var(--ac-hud); }
+.ac-root .fa-day:disabled { cursor: default; opacity: .7; }
+.ac-root .fa-day.sel { border-color: var(--ac-cyan); border-left-color: var(--c); background: rgba(36,232,255,.08); box-shadow: 0 0 16px rgba(36,232,255,.25); }
+.fa-day header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fa-day header b { font-family: var(--ac-pixel); font-size: 9px; color: var(--ac-cyan); font-weight: 400; }
+.fa-day header span { font-size: 22px; font-weight: 900; color: var(--c); text-shadow: 0 0 10px var(--c); font-variant-numeric: tabular-nums; }
+.fa-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.fa-stats small { display: block; font-family: var(--ac-pixel); font-size: 6px; color: var(--ac-muted); margin-bottom: 4px; }
+.fa-arrow { display: inline-block; color: var(--ac-cyan); }
+.fa-best { font-size: 10px; letter-spacing: 1px; color: var(--ac-muted); }
+.fa-best b { color: var(--ac-ink); }
+
+.fa-setup { max-width: 760px; }
+.fa-compass { display: grid; grid-template-columns: repeat(3, 36px); gap: 4px; }
+.ac-root .fa-compass button { height: 30px; padding: 0; border-radius: 3px; border: 1px solid var(--ac-line); background: var(--ac-tint); font-family: var(--ac-pixel);
+  font-size: 7px; cursor: pointer; color: var(--ac-ink); }
+.ac-root .fa-compass button.mid { color: var(--ac-muted); }
+.ac-root .fa-compass button.active { border-color: var(--ac-cyan); background: rgba(36,232,255,.16); color: var(--ac-cyan); box-shadow: 0 0 8px rgba(36,232,255,.4); }
+.fa-profiles { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 100%; }
+
+.fa-lab-intro { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.fa-weights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fa-weights > label { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.fa-pct { font-size: 11px; color: var(--ac-yellow); font-variant-numeric: tabular-nums; }
+.fa-lab-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.fa-thr { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.fa-thr-bar { display: flex; height: 26px; border-radius: 3px; overflow: hidden; border: 1px solid var(--ac-line-strong); }
+.fa-thr-bar div { display: grid; place-items: center; color: var(--ac-bg); font-family: var(--ac-pixel); font-size: 6px; overflow: hidden; white-space: nowrap; }
+.fa-thr-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.fa-table-wrap { overflow-x: auto; }
+.fa-table { width: 100%; border-collapse: collapse; font: 11px var(--ac-mono); font-variant-numeric: tabular-nums; }
+.fa-table th { font-family: var(--ac-pixel); font-size: 6px; font-weight: 400; color: var(--ac-cyan); text-align: right; padding: 6px; border-bottom: 1px solid var(--ac-line-strong); white-space: nowrap; }
+.fa-table th.g { color: var(--ac-purple); text-align: center; border-bottom-color: var(--ac-purple); }
+.fa-table td { padding: 5px 6px; text-align: right; border-bottom: 1px solid rgba(155,92,255,.12); white-space: nowrap; color: rgba(244,241,255,.82); }
+.fa-table td:first-child, .fa-table th:first-child { text-align: left; }
+.fa-table tr.dark td { color: var(--ac-muted); }
+.fa-table td.tot { font-weight: 700; }
+.fa-table td.warn { color: var(--ac-orange); }
+.fa-table td.muted { color: var(--ac-muted); }
+
+@media (max-width: 640px) {
+  .fa-window { grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .fa-window > .ac-btn { grid-column: 1 / -1; }
+  .fa-score { font-size: 36px; }
+  .fa-when { font-size: 14px; }
+  .fa-weights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fa-head .ac-logo { font-size: 11px; }
+}
