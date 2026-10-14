@@ -301,17 +301,17 @@ def create_invite(
     if body.group_slug:
         group = session.exec(select(Group).where(Group.slug == body.group_slug)).first()
         if not group:
-            raise HTTPException(status_code=404, detail="Groep niet gevonden")
+            raise HTTPException(status_code=404, detail="Group not found")
         if not is_admin and not is_member_of(group):
-            raise HTTPException(status_code=403, detail="Niet lid van deze groep")
+            raise HTTPException(status_code=403, detail="You are not a member of this group")
         group_id = group.id
     elif not is_admin:
-        raise HTTPException(status_code=403, detail="Kies een groep of gebruik een admin-account")
+        raise HTTPException(status_code=403, detail="Choose a group or use an admin account")
     if body.reusable and not group_id:
-        raise HTTPException(status_code=422, detail="Een groepslink hoort bij een groep")
+        raise HTTPException(status_code=422, detail="A group link needs a group")
     next_path = (body.next or "").strip() or None
     if next_path and (not next_path.startswith("/") or next_path.startswith("//") or "\\" in next_path):
-        raise HTTPException(status_code=422, detail="Startpagina moet een pad binnen de site zijn, bv. /vbt/")
+        raise HTTPException(status_code=422, detail="Start page must be a path on this site, e.g. /vbt/")
     token_str = secrets.token_urlsafe(32)
     expires = datetime.utcnow() + timedelta(days=30 if body.reusable else 7)
     session.add(InviteToken(token=token_str, created_by=current_user.id, expires_at=expires,
@@ -324,11 +324,11 @@ def create_invite(
 def check_invite(token: str, session: Session = Depends(get_session)):
     invite = session.exec(select(InviteToken).where(InviteToken.token == token)).first()
     if not invite:
-        raise HTTPException(status_code=404, detail="Uitnodiging niet gevonden")
+        raise HTTPException(status_code=404, detail="This invitation does not exist.")
     if invite.used_at and not invite.reusable:
-        raise HTTPException(status_code=410, detail="Deze uitnodiging is al gebruikt")
+        raise HTTPException(status_code=410, detail="This invitation has already been used.")
     if invite.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=410, detail="Uitnodiging verlopen")
+        raise HTTPException(status_code=410, detail="This invitation has expired.")
     group_name = None
     if invite.group_id:
         g = session.get(Group, invite.group_id)
@@ -342,14 +342,14 @@ def check_invite(token: str, session: Session = Depends(get_session)):
 def accept_invite(token: str, body: AcceptInviteIn, session: Session = Depends(get_session)):
     invite = open_invite(session, token)
     if not invite:
-        raise HTTPException(status_code=400, detail="Ongeldige of verlopen uitnodiging")
+        raise HTTPException(status_code=400, detail="This invitation is no longer valid.")
     if not body.username.strip():
-        raise HTTPException(status_code=422, detail="Gebruikersnaam is verplicht")
+        raise HTTPException(status_code=422, detail="Username is required")
     if session.exec(select(User).where(User.username == body.username.strip())).first():
-        raise HTTPException(status_code=409, detail="Gebruikersnaam al in gebruik")
+        raise HTTPException(status_code=409, detail="This username is already taken")
     email = body.email.strip() if body.email else f"{body.username.strip()}@homeplatform.local"
     if body.email and session.exec(select(User).where(User.email == email)).first():
-        raise HTTPException(status_code=409, detail="E-mailadres al in gebruik")
+        raise HTTPException(status_code=409, detail="This email address is already in use")
     user = create_invited_user(
         session, invite, username=body.username.strip(), email=email,
         password_hash=hash_password(body.password), display_name=(body.display_name or "").strip() or None,

@@ -1,0 +1,50 @@
+# docker-compose.bugsink.yml - Bugsink (error monitoring, poort 8090) op G4, los van de app-stacks.
+# Draaide tot 14-10 vanuit de oude prod-repo op G4 (project homeplatform-repo, item 1189). Het volume met
+# de data heet daarom homeplatform-repo_bugsink_db en wordt hier als extern volume overgenomen.
+# Start op G4 vanuit /home/bart/homeplatform-repo-acc, met de BUGSINK_*-waarden in /home/bart/bugsink.env (600):
+#   docker compose -p bugsink -f docker-compose.bugsink.yml --env-file /home/bart/bugsink.env up -d
+
+services:
+  bugsink_db:
+    image: postgres:17-alpine
+    container_name: bugsink_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=bugsink
+      - POSTGRES_PASSWORD=${BUGSINK_DB_PASSWORD:?BUGSINK_DB_PASSWORD niet gezet}
+      - POSTGRES_DB=bugsink
+    volumes:
+      - bugsink_db:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -h bugsink_db
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  bugsink:
+    image: bugsink/bugsink:2
+    container_name: bugsink
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - SECRET_KEY=${BUGSINK_SECRET_KEY:?BUGSINK_SECRET_KEY niet gezet}
+      - DATABASE_URL=postgresql://bugsink:${BUGSINK_DB_PASSWORD}@bugsink_db:5432/bugsink
+      - PORT=8090
+      - BEHIND_HTTPS_PROXY=false
+      - CREATE_SUPERUSER=${BUGSINK_SUPERUSER:-}
+    depends_on:
+      bugsink_db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:8090/health/ready\").raise_for_status()'"]
+      interval: 10s
+      timeout: 20s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  bugsink_db:
+    external: true
+    name: homeplatform-repo_bugsink_db

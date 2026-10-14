@@ -6,8 +6,7 @@ homeplatform/
   frontend/
     core/           Shared helpers (api.js, sentry.js, theme.css)
     sites/          Vite MPA: landing, admin, dontforget, tournix, nkhockey, mixmusic
-  docker-compose.g4.yml
-  docker-compose.acc.yml
+  docker-compose.base.yml  shared services; .prod.yml (g5) and .acc.yml (G4) extend it, .bugsink.yml (G4)
 ```
 
 ## Frontend

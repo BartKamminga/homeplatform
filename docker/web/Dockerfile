@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # homeplatform-web: Caddy + Caddyfile + gebouwde frontend in één image.
-# Build-context = repo-root (frontend/ en Caddyfile nodig), zie docker-compose.g4.yml / .acc.yml.
+# Build-context = repo-root (frontend/ en Caddyfile nodig), zie docker-compose.prod.yml / .acc.yml.
 # Eén Caddyfile voor prod en acc; verschillen via env en mounts in de compose-file (zie de Caddyfile).
 
 FROM node:22-slim AS build

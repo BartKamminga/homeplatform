@@ -100,7 +100,10 @@ homeplatform/
 │   └── sites/          ← één map per sub-site
 ├── db/                 ← SQLite database (lokaal)
 ├── .vscode/            ← VS Code configuratie
-├── docker-compose.yml          ← productie (NAS)
+├── docker-compose.base.yml     ← gedeelde services (via extends)
+├── docker-compose.prod.yml     ← productie (g5)
+├── docker-compose.acc.yml      ← acceptatie (G4)
+├── docker-compose.bugsink.yml  ← Bugsink op G4
 ├── docker-compose.dev.yml      ← development (laptop)
 └── homeplatform.code-workspace
 ```

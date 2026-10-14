@@ -1,7 +1,7 @@
 """Bug-report-widget (item 887) - schrijft ALTIJD naar de canonieke roadmap-
 database op prod, ongeacht vanuit welke omgeving de melding wordt gemaakt.
 Acc en prod hebben elk hun eigen, losse SQLite-database (aparte volumes,
-zie docker-compose.g4.yml/docker-compose.acc.yml) - een melding die je op
+zie docker-compose.prod.yml/docker-compose.acc.yml) - een melding die je op
 acc test zou anders in acc's eigen database belanden en nooit door Bart
 gezien worden (roadmap.ps1 zelf praat om diezelfde reden ook altijd
 rechtstreeks tegen prod's API, nooit tegen de lokale omgeving).
