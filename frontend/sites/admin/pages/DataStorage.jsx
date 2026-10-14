@@ -70,6 +70,10 @@ const DB_GLOBAL_ROWS = [
   { label: 'ui_variant_beatcrades, ui_variant_mixmusic, ui_variant_fiets', where: 'user_preferences.extra', note: 'Gekozen frontend per site: classic of arcade (items 1336-1339)' },
   { label: 'link_kind, link_code, visitor_id, visited_at', where: 'yearof_link_visits', note: 'MO14 a Paris — bezoeken per deelbare link (geen IP, beheerders niet geteld)' },
   { label: 'agent_status:{key}, agent_enabled:{key}',       where: 'app_settings',     note: 'Agent Control — status/heartbeat en aan/uit per agent' },
+  { label: 'key, name, kind, status, description, owner, meta', where: 'keelson_systems',  note: 'Keelson — systemen (sites, platform, tools), alleen beheerders' },
+  { label: 'kind, name, status, description, attributes',  where: 'keelson_elements', note: 'Keelson — elementen per dimensie; secrets alleen op naam, nooit de waarde' },
+  { label: 'from_id, to_id, verb',                         where: 'keelson_links',    note: 'Keelson — verbanden tussen elementen' },
+  { label: 'dimension, phase, title, done, notes',         where: 'keelson_checks',   note: 'Keelson — checklists opzetten/onderhouden/doorontwikkelen' },
 ];
 
 const LS_ROWS = [
