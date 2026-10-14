@@ -42,7 +42,8 @@
     if (game.state === 'countdown') {
       game.countdown -= dt;           // React toont 3-2-1-GO! uit het snapshot
       if (game.countdown <= 0) game.setState('ride');
-      if (!VBT.bleBridge.apply(game, null, false)) VBT.physics.updateSensors(s, dt, t, game.grade);
+      game.simulating = !VBT.bleBridge.apply(game, null, false);
+      if (game.simulating) VBT.physics.updateSensors(s, dt, t, game.grade);
       VBT.bleBridge.heartRate(game);
       VBT.peloton.update(game.pack, dt, t, gradeAtDist, false);
       return;
@@ -77,7 +78,9 @@
     }
 
     // echte trainer (Bluetooth) of de simulatie; hartslag van de band als die er is
-    if (!VBT.bleBridge.apply(game, cur, erg)) VBT.physics.updateSensors(s, dt, t, game.grade, ergCad);
+    // simulating = de game fietst zelf (geen Kickr): zo'n rit wordt niet bewaard en de HUD laat het zien
+    game.simulating = !VBT.bleBridge.apply(game, cur, erg);
+    if (game.simulating) VBT.physics.updateSensors(s, dt, t, game.grade, ergCad);
     VBT.bleBridge.heartRate(game);
 
     // slipstream: vlak achter de ghost in dezelfde baan
@@ -152,6 +155,7 @@
     const lean = game.steer * 0.12 + pseg.curve * 0.025;   // in de bocht naar binnen hangen
     VBT.rider.draw(ctx, w / 2, groundY, cfg.riderUnitsPerMeter * scaleP * w / 2, {
       phase: game.phase, time: t, lean, sprint: game.sensors.sprint || game.grade > 0.07,
+      windup: VBT.hud.simulating(game),     // opwindsleutel in de rug: de simulatie fietst
     });
     VBT.road.renderNear(ctx, w, game);
     VBT.hud.update(game);

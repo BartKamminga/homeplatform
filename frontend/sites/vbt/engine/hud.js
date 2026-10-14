@@ -16,6 +16,16 @@ VBT.hud = (function () {
     if (hrHist.length > 1800) hrHist.shift();
   }
 
+  // De game fietst zelf (geen Kickr) tijdens een rit: speels in beeld, zo'n rit wordt niet bewaard
+  const SIM_STATES = ['ride', 'countdown', 'paused', 'confirm'];
+  const SIM_QUIPS = ['ROBO-LEGS ENGAGED', 'THESE WATTS ARE PRETEND', 'NOT YOUR SWEAT · NOT SAVED',
+    'BEEP BOOP · 80% FTP', 'CONNECT A KICKR TO MAKE IT COUNT', 'WIND-UP MODE · ZERO CALORIES'];
+  const simulating = game => !!game.simulating && SIM_STATES.includes(game.state);
+  function simModel(game) {
+    if (!simulating(game)) return null;
+    return { quip: SIM_QUIPS[Math.floor(game.rideTime / 4) % SIM_QUIPS.length] };
+  }
+
   function model(game) {
     const s = game.sensors, ble = VBT.ble, safety = VBT.safety;
     const zone = util.zoneFor(s.watts), hz = util.hrZoneFor(s.hr);
@@ -39,6 +49,7 @@ VBT.hud = (function () {
       alt: T.segments.length ? Math.round(T.altitude(game.playerY - T.heightRange()[0])) : 0,
       ghostLabel: game.ghostLabel, gapM, gapS: Math.abs(gapM) / Math.max(game.player.v, 3),
       inBunch: !!game.inBunch, packGap, bunchSaved: s.watts * 0.6 | 0,
+      sim: simModel(game),
       chips: {
         trainer: ble.trainerActive() ? (ble.trainerOk() ? 'ok' : ble.links.trainer.status === 'connected' ? 'stale' : 'lost') : null,
         hr: ble.links.hr.wanted ? (ble.hrOk() ? 'ok' : 'lost') : null,
@@ -105,5 +116,5 @@ VBT.hud = (function () {
     pctx.shadowBlur = 0;
   }
 
-  return { update, model, message, drawProfile };
+  return { update, model, message, drawProfile, simulating };
 })();

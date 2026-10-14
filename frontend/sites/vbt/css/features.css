@@ -106,3 +106,22 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 .pn-tips b { color: var(--yellow); }
 .pn-tips ol { margin: 4px 0 0; padding-left: 16px; }
 .pn-tips code { font: 10px ui-monospace, Consolas, monospace; color: #9fe9ff; }
+
+/* Autopilot: geen Kickr, de game fietst zelf - speels badge boven de renner (rit wordt niet bewaard) */
+#simBadge {
+  position: absolute; left: 50%; top: 22%; transform: translateX(-50%) rotate(-2deg);
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 12px; pointer-events: auto;
+  background: rgba(20, 6, 46, .82); border: 2px dashed var(--yellow); border-radius: 14px;
+  box-shadow: 0 0 22px rgba(255,230,109,.35), 4px 4px 0 #2a0750; animation: simWobble 2.4s ease-in-out infinite;
+}
+#simBadge .bot { font-size: 34px; line-height: 1; animation: simBob .5s steps(2) infinite; }
+#simBadge .txt { display: flex; flex-direction: column; gap: 6px; font-family: var(--pixel); }
+#simBadge .txt b { font-size: 14px; color: var(--yellow); letter-spacing: 3px; text-shadow: 0 0 10px var(--yellow); }
+#simBadge .txt i { font-style: normal; font-size: 9px; color: var(--cyan); letter-spacing: 1px; animation: simType .4s steps(8); }
+#simBadge .stamp {
+  font-family: var(--pixel); font-size: 8px; color: var(--pink); border: 2px solid var(--pink); border-radius: 4px;
+  padding: 4px 6px; transform: rotate(8deg); opacity: .9; letter-spacing: 1px;
+}
+@keyframes simBob { 50% { transform: translateY(-4px) rotate(-8deg); } }
+@keyframes simWobble { 0%, 100% { transform: translateX(-50%) rotate(-2deg); } 50% { transform: translateX(-50%) rotate(2deg) translateY(-3px); } }
+@keyframes simType { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }

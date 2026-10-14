@@ -51,6 +51,18 @@ function WorkoutPanel({ w }) {
   )
 }
 
+// Autopilot: geen Kickr, de game fietst zelf - speels in beeld (en zo'n rit wordt niet bewaard)
+function SimBadge({ sim }) {
+  if (!sim) return null
+  return (
+    <div id="simBadge" title="No trainer connected - the game is riding for you. This ride will not be saved.">
+      <span className="bot">&#129302;</span>
+      <span className="txt"><b>AUTOPILOT</b><i key={sim.quip}>{sim.quip}</i></span>
+      <span className="stamp">NOT SAVED</span>
+    </div>
+  )
+}
+
 function Message({ msg }) {
   // nieuwe melding = nieuwe key, zodat de pop-animatie opnieuw start
   return <div id="message" key={msg ? msg.seq : 0} className={msg ? 'pop' : ''} style={{ color: msg?.color || undefined }}>{msg?.text}</div>
@@ -113,6 +125,7 @@ export default function Hud() {
       {s.workout && <WorkoutPanel w={s.workout} />}
 
       <div id="coach" className={s.coach?.show ? 'show' : ''}><b>&#128227; TEAM DIRECTOR</b><span id="coachText">{s.coach?.text}</span></div>
+      <SimBadge sim={h.sim} />
       <Message msg={s.message} />
       <div id="draftFx" />
       <MusicBar />

@@ -112,6 +112,13 @@ VBT.session = (function () {
   // Elke rit wordt bewaard, hoe kort ook (ook een rit die tijdens het aftellen gestopt is).
   function saveRide(extra) {
     if (game.rideTime > 0) VBT.recorder.flush(game);
+    if (VBT.recorder.isSimulated(VBT.recorder.current())) {
+      VBT.recorder.stop(extra);
+      VBT.safety.clearJournal();
+      VBT.store.log('save', 'Autopilot ride (no trainer data) - not saved');
+      if (game.rideTime >= 3 && VBT.toast) VBT.toast('THAT WAS THE AUTOPILOT - NO TRAINER, SO NOTHING SAVED', 6000);
+      return null;
+    }
     const ride = VBT.recorder.stop(extra);
     if (!ride) return null;
     VBT.store.log('save', 'Ride finished: ' + ride.duration + ' s, ' + (ride.distance / 1000).toFixed(2) + ' km - saving');

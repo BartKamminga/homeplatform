@@ -120,7 +120,7 @@ VBT.safety = (function () {
 
   // ── live backup: direct bij de start en daarna elke 10 s (of direct met force) alleen de nieuwe samples naar de server ──
   async function liveSync(rec, force) {
-    if (!rec || !VBT.storage.liveSync || live.busy) return;
+    if (!rec || !VBT.storage.liveSync || live.busy || VBT.recorder.isSimulated(rec)) return;
     if (rec.clientId !== live.clientId) Object.assign(live, { clientId: rec.clientId, sent: 0, lastOk: 0, lastTry: -Infinity, failing: false, resume: false });
     const t = performance.now();
     if (!force && t - live.lastTry < LIVE_MS) return;
@@ -150,7 +150,7 @@ VBT.safety = (function () {
 
   // status voor het BACKUP-lampje in de HUD: ok | behind | failing | off
   function liveStatus() {
-    if (!VBT.storage.liveSync || !VBT.recorder.active()) return 'off';
+    if (!VBT.storage.liveSync || !VBT.recorder.active() || VBT.recorder.isSimulated(VBT.recorder.current())) return 'off';
     if (live.failing) return 'failing';
     return live.lastOk && performance.now() - live.lastOk < LIVE_MS * 2.5 ? 'ok' : 'behind';
   }
@@ -182,6 +182,7 @@ VBT.safety = (function () {
       if (rec) rec.samples = (await all(J_CHUNK)).flat();    // stukjes op volgorde van de sleutel
     } catch (e) { return null; }
     if (!rec) return null;
+    if (VBT.recorder.isSimulated(rec)) { await clearJournal(); return null; }    // autopilot-rit: weg
     const ride = VBT.recorder.finalize(rec);
     ride.recovered = true;
     await enqueue(ride);
