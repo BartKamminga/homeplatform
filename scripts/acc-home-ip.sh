@@ -1,5 +1,5 @@
 #!/bin/bash
-# Houdt het publieke IP van thuis bij als toegestaan adres voor acc.webheaven.nl (Caddyfile.acc, item 1191).
+# Houdt het publieke IP van thuis bij als toegestaan adres voor acc.webheaven.nl (docker/web/acc-guard.caddy, item 1191).
 # G4 staat thuis, dus zijn eigen publieke IP is het thuis-IP (ook onderweg via Teleport-VPN). Wijzigt het,
 # dan schrijft dit script een nieuw allow-bestand en herlaadt het Caddy in de acc-container.
 # Status voor admin Infrastructuur: db/acc_access.json.

@@ -1,0 +1,14 @@
+# Alleen op acc (gemount via docker-compose.acc.yml, geïmporteerd door de Caddyfile, item 1191).
+# acc.webheaven.nl staat via de tunnel op internet. Toegestaan: het LAN, het thuis-IP (allow/home.caddy,
+# bijgehouden door scripts/acc-home-ip.sh op G4) en extra IP's uit ACC_ALLOWED_IPS
+# (spatiegescheiden, GitHub-variabele van de acceptance-environment). De rest krijgt 403.
+@acc_blocked {
+    not {
+        client_ip private_ranges {$ACC_ALLOWED_IPS}
+        import /etc/caddy/allow/*.caddy
+    }
+}
+handle @acc_blocked {
+    header X-Robots-Tag "noindex, nofollow"
+    respond "Acceptatie: geen toegang" 403
+}
