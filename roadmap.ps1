@@ -242,10 +242,13 @@ if ($Close -or $CloseMany) {
     }
 
     # Versie + commit registreren voor deploy-status
+    # Release = wat op main staat (en dus op prod draait), niet de lokale HEAD:
+    # die kan op develop staan met ongepushte commits van een andere sessie.
+    & git fetch -q origin main 2>$null
     $commit = $null; $short = $null
     try {
-        $commit = (& git rev-parse HEAD 2>$null).Trim()
-        $short  = (& git rev-parse --short HEAD 2>$null).Trim()
+        $commit = (& git rev-parse origin/main 2>$null).Trim()
+        $short  = (& git rev-parse --short origin/main 2>$null).Trim()
         if ($commit) {
             $vbody = [PSCustomObject]@{ version = $Version; commit = $commit; short = $short } | ConvertTo-Json -Compress
             Invoke-RestMethod -Uri "$HP_API_BASE/admin/deploy-versions" -Method POST `
@@ -260,7 +263,7 @@ if ($Close -or $CloseMany) {
     if ($tagExists) {
         Write-Host "[INFO] Git tag $Version bestaat al, overgeslagen"
     } else {
-        & git tag -a $Version -m "Release $Version" 2>$null
+        & git tag -a $Version origin/main -m "Release $Version" 2>$null
         if ($LASTEXITCODE -eq 0) {
             $prevEAP = $ErrorActionPreference; $ErrorActionPreference = "Continue"
             & git push origin $Version 2>$null
