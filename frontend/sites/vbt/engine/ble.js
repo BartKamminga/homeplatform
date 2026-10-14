@@ -11,7 +11,7 @@ VBT.ble = (function () {
   const log = [];
   const listeners = new Set();
   const link = kind => ({ kind, device: null, name: '', status: 'idle', protocol: '', control: false, controlChar: null,
-    wanted: false, retries: 0, timer: null, lastCmd: null, crankPrev: null });
+    wanted: false, retries: 0, timer: null, lastCmd: null, crankPrev: null, gen: 0, watch: null });
   const links = { trainer: link('trainer'), hr: link('hr') };
   let lastTarget = null, lastGrade = null, lastGradeAt = 0, lastErgAt = 0;
 
@@ -47,8 +47,12 @@ VBT.ble = (function () {
     attach(links[kind], device);
   }
 
+  // Nieuwe keuze (of opnieuw dezelfde): lopende pogingen, retry-timer en advertentie-wacht van de vorige vervallen
   function attach(l, device) {
     if (l.device && l.device !== device) disconnect(l.kind);
+    clearTimeout(l.timer);
+    stopWatch(l);
+    l.gen++;
     l.device = device;
     l.name = device.name || (l.kind === 'trainer' ? 'Trainer' : 'Heart rate');
     l.wanted = true;
@@ -62,20 +66,30 @@ VBT.ble = (function () {
     connect(l);
   }
 
+  // Elke poging hoort bij een generatie (l.gen); is er intussen opnieuw gekozen of losgekoppeld, dan doet
+  // een late afloop van een oude poging niets meer (anders twee pogingen door elkaar en dubbele retries).
   async function connect(l) {
     if (!l.wanted || !l.device) return;
+    const gen = l.gen;
     l.status = l.retries ? 'reconnecting' : 'connecting';
     emit();
     try {
       const server = await withTimeout(l.device.gatt.connect(), 12000, 'connect');
+      if (gen !== l.gen) return;
       if (l.kind === 'trainer') await setupTrainer(l, server); else await setupHr(l, server);
+      if (gen !== l.gen) return;
+      stopWatch(l);
       l.status = 'connected';
       note(l.kind + ': connected (' + l.protocol + ')' + (l.retries ? ' after ' + l.retries + ' retries' : ''));
       l.retries = 0;
       if (l.kind === 'trainer' && l.lastCmd) await write(l, l.lastCmd.bytes, l.lastCmd.label + ' (restored)');
     } catch (e) {
-      l.lastError = e.message;
-      note(l.kind + ': connect failed - ' + e.message);
+      if (gen !== l.gen) return;
+      l.lastError = (e.name && e.name !== 'Error' ? e.name + ': ' : '') + e.message;
+      note(l.kind + ': connect failed - ' + l.lastError);
+      // half opgezette of na timeout alsnog openstaande GATT-verbinding opruimen, anders blijft Chrome erin hangen
+      l.status = 'reconnecting';
+      try { if (l.device.gatt.connected) l.device.gatt.disconnect(); } catch (x) { /* al dicht */ }
       scheduleRetry(l);
     }
     emit();
@@ -85,6 +99,7 @@ VBT.ble = (function () {
     l.control = false;
     l.controlChar = null;
     if (!l.wanted) { l.status = 'idle'; emit(); return; }
+    if (l.status !== 'connected') return;     // tijdens een poging: connect() handelt de fout zelf af
     note(l.kind + ': connection lost');
     scheduleRetry(l);
   }
@@ -97,7 +112,37 @@ VBT.ble = (function () {
     l.status = 'reconnecting';
     note(l.kind + ': retry ' + l.retries + ' in ' + delay / 1000 + ' s');
     l.timer = setTimeout(() => connect(l), delay);
+    watchFor(l);
     emit();
+  }
+
+  // Een apparaat uit getDevices() (na herladen) of na 'no longer in range' kan Chrome pas verbinden als het
+  // weer advertenties gezien heeft. Daarom luisteren we mee en verbinden we zodra het apparaat zich meldt;
+  // de oplopende retry-timer blijft als vangnet.
+  function watchFor(l) {
+    const d = l.device;
+    if (!d || l.watch || typeof d.watchAdvertisements !== 'function') return;
+    const ac = new AbortController();
+    const onAd = () => {
+      stopWatch(l);
+      if (!l.wanted || l.status === 'connected') return;
+      clearTimeout(l.timer);
+      note(l.kind + ': seen again, connecting');
+      connect(l);
+    };
+    l.watch = { ac, onAd, device: d };
+    d.addEventListener('advertisementreceived', onAd);
+    d.watchAdvertisements({ signal: ac.signal }).catch(e => {
+      if (l.watch && l.watch.ac === ac) { note(l.kind + ': cannot watch advertisements - ' + e.message); stopWatch(l); }
+    });
+  }
+
+  function stopWatch(l) {
+    const w = l.watch;
+    if (!w) return;
+    l.watch = null;
+    try { w.ac.abort(); } catch (e) { /* oudere Chrome: watch loopt door, onschadelijk */ }
+    if (w.device.removeEventListener) w.device.removeEventListener('advertisementreceived', w.onAd);
   }
 
   async function setupTrainer(l, server) {
@@ -213,7 +258,9 @@ VBT.ble = (function () {
   function disconnect(kind) {
     const l = links[kind];
     l.wanted = false;
+    l.gen++;
     clearTimeout(l.timer);
+    stopWatch(l);
     if (l.device && l.device.gatt.connected) l.device.gatt.disconnect();
     l.status = 'idle';
     note(kind + ': disconnected by user');

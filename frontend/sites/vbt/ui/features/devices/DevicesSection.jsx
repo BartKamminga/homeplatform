@@ -27,14 +27,16 @@ function NotFoundTips({ kind }) {
 
 function DeviceRow({ kind, link, value }) {
   const [cancelled, setCancelled] = useState(false)
-  const toggle = async () => {
-    if (link.wanted) { actions().disconnect(kind); return }
+  const choose = async () => {
     try { await actions().connect(kind); setCancelled(false) } catch (e) {
       window.VBT.ble.note(kind + ': ' + e.message)
       if (/cancel/i.test(e.message)) setCancelled(true)     // keuzelijst leeg/gesloten: apparaat niet gezien
     }
   }
-  const lost = link.wanted && link.status !== 'connected' && link.retries >= 3 && /range|not found|unavailable/i.test(link.lastError)
+  const toggle = () => (link.wanted ? actions().disconnect(kind) : choose())
+  // blijft hij hangen (bv. onthouden apparaat na herladen), dan direct opnieuw kunnen kiezen zonder eerst te ontkoppelen
+  const stuck = link.wanted && link.status !== 'connected' && link.retries >= 1
+  const lost = link.wanted && link.status !== 'connected' && link.retries >= 3 && /range|not found|unavailable|network/i.test(link.lastError)
   return (
     <div className="pn-device">
       <div>
@@ -43,7 +45,10 @@ function DeviceRow({ kind, link, value }) {
         <span className="pn-live">{value}</span>
       </div>
       <span className="devstatus" data-status={link.status}>{LABEL[link.status] || link.status}</span>
-      <button className="ridebtn" onClick={toggle}>{link.wanted ? 'DISCONNECT' : 'CONNECT'}</button>
+      <span className="pn-devbtns">
+        {stuck && <button className="ridebtn" onClick={choose}>CHOOSE AGAIN</button>}
+        <button className={stuck ? 'ghostbtn' : 'ridebtn'} onClick={toggle}>{link.wanted ? (stuck ? 'STOP' : 'DISCONNECT') : 'CONNECT'}</button>
+      </span>
       {(lost || (cancelled && !link.wanted)) && <NotFoundTips kind={kind} />}
     </div>
   )
