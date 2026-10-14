@@ -51,7 +51,7 @@ class DeviceImport(BaseModel):
 
 class StateEvent(BaseModel):
     entity_id: str
-    state: str
+    state: str | int | float          # HA stuurt sensorwaarden soms als getal
     device_class: Optional[str] = None
     at: Optional[str] = None
 
@@ -204,7 +204,7 @@ def post_events(home_id: str, body: StateEvents, user: User = Depends(get_curren
             continue
         meta = dict(device.meta or {})
         live = dict(meta.get("live") or {})
-        live[ev.entity_id] = {"state": ev.state, "device_class": ev.device_class, "at": ev.at or datetime.utcnow().isoformat()}
+        live[ev.entity_id] = {"state": str(ev.state), "device_class": ev.device_class, "at": ev.at or datetime.utcnow().isoformat()}
         meta["live"] = live
         device.meta = meta
         session.add(device)

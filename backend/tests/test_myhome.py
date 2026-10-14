@@ -237,3 +237,15 @@ def test_changes_push_queue_and_result(client, user_token):
     client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
     left = {(c["kind"], c["target"]) for c in client.get(f"/api/myhome/homes/{home_id}/changes", headers=_h(user_token)).json()}
     assert ("rename_device", "dev-9") not in left
+
+
+def test_live_event_numeric_state(client, user_token):
+    home_id = _home(client, user_token)
+    sync = {"devices": [{"name": "Inverter 1", "kind": "energy", "source": "home_assistant", "external_id": "inv-1",
+                         "meta": {"entities": ["sensor.inverter_1"]}}]}
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    res = client.post(f"/api/myhome/homes/{home_id}/events", headers=_h(user_token),
+                      json={"events": [{"entity_id": "sensor.inverter_1", "state": 114, "device_class": "power"}]})
+    assert res.json() == {"matched": 1}
+    (live,) = client.get(f"/api/myhome/homes/{home_id}/live", headers=_h(user_token)).json().values()
+    assert live["sensor.inverter_1"]["state"] == "114"
