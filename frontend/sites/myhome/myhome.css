@@ -152,6 +152,13 @@
 .mh-lbl small { display: block; font: 400 10.5px var(--mh-mono); color: var(--color-text-muted); }
 .mh-lbl.compass { font: 600 15px var(--mh-display); letter-spacing: .3em; color: var(--color-text-muted); }
 
+/* Editable titles, differences, push list */
+.mh-title-input { font: 600 21px/1.15 var(--mh-display) !important; letter-spacing: .02em; width: 100%; border-color: transparent !important; background: transparent !important; padding: 2px 4px !important; margin-left: -4px; }
+.mh-title-input:hover, .mh-title-input:focus { border-color: var(--mh-line) !important; background: var(--color-background) !important; }
+.mh-diff { color: var(--mh-warn); font-weight: 500; }
+.mh-changes li { padding: 6px 8px; border: 1px solid var(--mh-line); border-radius: 6px; background: var(--color-background); }
+.mh-changes input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--mh-accent); }
+
 /* Floating cards, modal */
 .mh-room-card { position: absolute; right: 14px; top: 14px; width: min(320px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow-y: auto; background: var(--color-background); border: 1px solid var(--mh-line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.14); z-index: 5; }
 .mh-device-card { right: 304px; }

@@ -101,3 +101,18 @@ class HomeDevice(SQLModel, table=True):
     notes:        Optional[str] = Field(default=None)
     meta:         Optional[dict] = Field(default=None, sa_column=Column(JSON))
     updated_at:   datetime = Field(default_factory=datetime.utcnow)
+
+
+class HomePushJob(SQLModel, table=True):
+    """Een goedgekeurde wijziging die naar HA (en via HA naar Hue) moet; uitgevoerd door de applier in HA."""
+    __tablename__ = "myhome_push_jobs"
+
+    id:         str      = Field(default_factory=new_uuid, primary_key=True)
+    home_id:    str      = Field(foreign_key="myhome_homes.id", index=True)
+    kind:       str                                   # rename_device, move_device, rename_area
+    target:     str                                   # sleutel om dubbelingen te voorkomen, bv. ha_device_id of areanaam
+    payload:    Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    status:     str      = Field(default="pending", index=True)   # pending, applied, failed
+    result:     Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    applied_at: Optional[datetime] = Field(default=None)

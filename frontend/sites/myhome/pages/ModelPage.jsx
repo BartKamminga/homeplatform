@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@core/api.js'
 import HouseViewer from '../components/HouseViewer.jsx'
 import RoomPanel from '../components/RoomPanel.jsx'
+import DevicePanel from '../components/DevicePanel.jsx'
 import PlanView from '../components/plan/PlanView.jsx'
 import PlanTray from '../components/plan/PlanTray.jsx'
 import { DEVICE_KINDS } from '../components/plan/symbols.jsx'
@@ -35,6 +36,7 @@ export default function ModelPage({ home, sources, onReload, onHomeChange }) {
   const [draft, setDraft] = useState(null)
   const [armed, setArmed] = useState(null)
   const [error, setError] = useState('')
+  const [focusName, setFocusName] = useState(0)
   const live = useLive(home.id)
 
   const rooms = allRooms(home)
@@ -123,8 +125,13 @@ export default function ModelPage({ home, sources, onReload, onHomeChange }) {
         {view === '2d' ? (
           <div className="mh-plan-wrap">
             <PlanView floor={floor} devices={floorDevices} live={live} mode={mode} selectedRoomId={selectedId}
-              onSelectRoom={(id) => { if (!draft) setSelectedId(id) }} draft={draft} onDraftChange={setDraft}
-              armed={armed} onPlace={place} selectedDeviceId={deviceId} onSelectDevice={setDeviceId} showLabels={showLabels} />
+              onSelectRoom={(id) => { if (!draft) { setSelectedId(id); setDeviceId(null) } }} draft={draft} onDraftChange={setDraft}
+              armed={armed} onPlace={place} selectedDeviceId={deviceId} showLabels={showLabels}
+              onSelectDevice={(id) => { setDeviceId(id); setSelectedId(null) }}
+              onEditName={({ type, id }) => {
+                if (type === 'room') { setSelectedId(id); setDeviceId(null) } else { setDeviceId(id); setSelectedId(null) }
+                setFocusName((n) => n + 1)
+              }} />
             {mode === 'place' && <PlanTray toPlace={toPlace} armed={armed} onArm={setArmed} />}
           </div>
         ) : (
@@ -132,24 +139,11 @@ export default function ModelPage({ home, sources, onReload, onHomeChange }) {
             selectedId={selectedId} onSelect={setSelectedId} live={live} />
         )}
         {room && mode !== 'place' && (
-          <RoomPanel home={home} room={room} sources={sources} live={live} onHomeChange={onHomeChange} onReload={onReload}
+          <RoomPanel home={home} room={room} sources={sources} live={live} focusName={focusName} onHomeChange={onHomeChange} onReload={onReload}
             onClose={() => { setSelectedId(null); setDraft(null) }} />
         )}
-        {device && mode === 'place' && (
-          <div className="mh-room-card mh-device-card">
-            <div className="mh-row" style={{ justifyContent: 'space-between' }}>
-              <h2>{device.name}</h2>
-              <button className="mh-btn ghost" onClick={() => setDeviceId(null)} aria-label="Close">×</button>
-            </div>
-            <p className="mh-muted">{DEVICE_KINDS[device.kind]?.label || device.kind} · {roomName[device.room_id] || 'no room'} · {device.source}</p>
-            <button className="mh-btn ghost" onClick={() => run(async () => {
-              const rest = { ...device.meta }
-              delete rest.position
-              delete rest.floor
-              await api.patch(`/api/myhome/devices/${device.id}`, { meta: rest })
-              setDeviceId(null); await onReload()
-            })}>Remove from plan</button>
-          </div>
+        {device && (
+          <DevicePanel home={home} device={device} live={live} focusName={focusName} onReload={onReload} onClose={() => setDeviceId(null)} />
         )}
       </div>
     </>

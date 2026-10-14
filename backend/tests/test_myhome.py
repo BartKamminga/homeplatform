@@ -197,3 +197,43 @@ def test_linking_room_to_ha_area_adopts_devices(client, user_token):
                         headers=_h(user_token)).json()
     assert home["unassigned_devices"] == []
     assert {d["name"] for d in home["floors"][1]["rooms"][0]["devices"]} == {"Thom lamp", "Thom speaker"}
+
+
+def test_changes_push_queue_and_result(client, user_token):
+    home_id = _home(client, user_token)
+    data = client.put(f"/api/myhome/homes/{home_id}/layout", json=LAYOUT, headers=_h(user_token)).json()
+    kitchen_id = data["floors"][0]["rooms"][0]["id"]
+    client.patch(f"/api/myhome/rooms/{kitchen_id}", json={"ha_area": "Cooking", "link_status": "linked"}, headers=_h(user_token))
+    sync = {"devices": [
+        {"name": "Hue lamp 1", "kind": "light", "source": "hue", "external_id": "hue-9",
+         "meta": {"ha_device_id": "dev-9", "ha_area": "Hall"}},
+        {"name": "Tado kamer", "kind": "thermostat", "source": "home_assistant", "external_id": "dev-t",
+         "manufacturer": "tado", "meta": {"ha_device_id": "dev-t", "ha_area": "Cooking"}},
+    ]}
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    devs = {d["external_id"]: d for d in client.get(f"/api/myhome/homes/{home_id}/devices", headers=_h(user_token)).json()}
+    # in MyHome: lamp hernoemen en in de keuken zetten, tado hernoemen
+    client.patch(f"/api/myhome/devices/{devs['hue-9']['id']}", json={"name": "Keuken plafond", "room_id": kitchen_id}, headers=_h(user_token))
+    client.patch(f"/api/myhome/devices/{devs['dev-t']['id']}", json={"name": "Keuken thermostaat"}, headers=_h(user_token))
+
+    changes = client.get(f"/api/myhome/homes/{home_id}/changes", headers=_h(user_token)).json()
+    kinds = {(c["kind"], c["target"]): c for c in changes}
+    assert kinds[("rename_device", "dev-9")]["payload"]["hue_device_id"] == "hue-9"
+    assert kinds[("move_device", "dev-9")]["payload"]["to"] == "Cooking"
+    assert kinds[("rename_device", "dev-t")]["supported"] is False
+    assert kinds[("rename_area", "Cooking")]["payload"]["to"] == "Kitchen"
+
+    pick = [{k: kinds[key][k] for k in ("kind", "target", "payload")} for key in [("rename_device", "dev-9"), ("move_device", "dev-9")]]
+    assert client.post(f"/api/myhome/homes/{home_id}/push", json={"changes": pick}, headers=_h(user_token)).json() == {"queued": 2}
+    assert client.post(f"/api/myhome/homes/{home_id}/push", json={"changes": pick}, headers=_h(user_token)).json() == {"queued": 0}
+    jobs = client.get(f"/api/myhome/homes/{home_id}/push?status=pending", headers=_h(user_token)).json()
+    assert len(jobs) == 2
+    for j in jobs:
+        client.post(f"/api/myhome/push/{j['id']}/result", json={"status": "applied"}, headers=_h(user_token))
+    left = {(c["kind"], c["target"]) for c in client.get(f"/api/myhome/homes/{home_id}/changes", headers=_h(user_token)).json()}
+    assert ("rename_device", "dev-9") not in left and ("move_device", "dev-9") not in left
+    # volgende sync met de nieuwe HA-naam: geen verschil meer
+    sync["devices"][0]["name"] = "Keuken plafond"
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    left = {(c["kind"], c["target"]) for c in client.get(f"/api/myhome/homes/{home_id}/changes", headers=_h(user_token)).json()}
+    assert ("rename_device", "dev-9") not in left

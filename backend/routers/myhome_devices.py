@@ -162,7 +162,9 @@ def import_devices(home_id: str, body: DeviceImport, request: Request, user: Use
             HomeDevice.home_id == home_id, HomeDevice.source == item.source,
             HomeDevice.external_id == item.external_id,
         )).first()
-        incoming_meta = item.meta or {}
+        # De HA-naam altijd bewaren, ook als de gebruiker het apparaat in MyHome hernoemd heeft: zo blijft
+        # het verschil zichtbaar en kan het naar HA gepusht worden.
+        incoming_meta = {**(item.meta or {}), "ha_name": item.name}
         if device:
             updated += 1
             meta = dict(device.meta or {})
