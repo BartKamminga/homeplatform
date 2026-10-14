@@ -1,150 +1,87 @@
-import { useState } from 'react'
-import { api } from '@core/api.js'
 import useLive from '../useLive.js'
-import { allRooms } from '../model.js'
-import SolarRoof from '../components/solar/SolarRoof.jsx'
-import { arrayPanels, inverterIndex, newArrayId } from '../components/solar/solar.js'
+import { allRooms, panelWatt } from '../model.js'
+import { panelColor } from '../components/plan/SolarPanelShape.jsx'
 
-// Zonnepanelen inregelen: velden op het dak, elk paneel aan zijn micro-omvormer, live vermogen per paneel.
-export default function SolarPage({ home, onHomeChange }) {
+// Overzicht zonnepanelen. De panelen zelf zijn apparaten op de verdieping "Dak" (Model > Plan > Dak):
+// daar plaats, draai en wissel je ze. Hier: totaal, per dakvlak, per paneel, wat defect of nog onzeker is.
+const serialOf = (d) => (d.meta?.entities || []).find((e) => e.startsWith('sensor.inverter_'))?.replace('sensor.inverter_', '')
+
+export default function SolarPage({ home }) {
   const live = useLive(home.id)
-  const [selected, setSelected] = useState(null)
-  const [error, setError] = useState('')
-  const solar = home.meta?.solar || { arrays: [], panels: {} }
-  const devices = [...allRooms(home).flatMap((r) => r.devices), ...home.unassigned_devices]
-  const inverters = inverterIndex(devices, live)
-  const serials = Object.keys(inverters).sort()
-  const panels = (solar.arrays || []).flatMap(arrayPanels)
-  const linked = panels.filter((p) => solar.panels?.[p.key]?.serial)
-  const used = new Set(linked.map((p) => solar.panels[p.key].serial))
-  const totalW = Object.values(inverters).reduce((s, i) => s + (i.watt || 0), 0)
-  const kwp = (solar.arrays || []).reduce((s, a) => s + a.rows * a.cols * (a.wp || 0), 0) / 1000
-  const anyOn = Object.values(inverters).some((i) => (i.watt || 0) > 20)
-  const dead = Object.entries(inverters).filter(([, i]) => anyOn && (i.watt ?? 0) < 1).map(([s]) => s)
-
-  async function save(next) {
-    setError('')
-    try {
-      onHomeChange(await api.patch(`/api/myhome/homes/${home.id}`, { meta: { ...home.meta, solar: next } }))
-    } catch (e) { setError(e.message) }
-  }
-  const setArray = (id, patch) => save({ ...solar, arrays: solar.arrays.map((a) => (a.id === id ? { ...a, ...patch } : a)) })
-  const setPanel = (key, patch) => save({ ...solar, panels: { ...solar.panels, [key]: { ...(solar.panels?.[key] || {}), ...patch } } })
-  const addArray = () => {
-    const top = home.floors[home.floors.length - 1]
-    const pts = top.rooms.flatMap((r) => r.polygon || [])
-    const x = pts.length ? Math.min(...pts.map((p) => p[0])) + 0.5 : 0
-    const z = pts.length ? Math.min(...pts.map((p) => p[1])) + 0.5 : 0
-    const a = { id: newArrayId(), name: `Field ${(solar.arrays || []).length + 1}`, x, z, rotation: 0, orientation: 'portrait',
-      rows: 2, cols: 3, panel_w: 1.0, panel_h: 1.7, wp: 330, azimuth: null, tilt: null }
-    save({ ...solar, arrays: [...(solar.arrays || []), a] })
-    setSelected({ array: a.id })
-  }
-
-  const arr = solar.arrays?.find((a) => a.id === selected?.array)
-  const pinfo = selected?.panel ? solar.panels?.[selected.panel] || {} : null
-  // Suggesties: omvormers met een opbrengst (calibratie) die het dichtst bij de Wh uit de Enphase-app ligt.
-  const calib = solar.calib?.wh || {}
-  const scale = (() => {
-    const refs = Object.values(solar.panels || {}).filter((p) => p.ref_wh && p.serial && calib[p.serial])
-    const a = refs.reduce((s, p) => s + p.ref_wh, 0)
-    const b = refs.reduce((s, p) => s + calib[p.serial], 0)
-    return a && b ? a / b : 1
-  })()
-  const suggestions = pinfo?.ref_wh
-    ? serials.filter((s) => calib[s] != null).sort((x, y) => Math.abs(calib[x] * scale - pinfo.ref_wh) - Math.abs(calib[y] * scale - pinfo.ref_wh))
-    : serials
+  const rooms = allRooms(home)
+  const roomById = Object.fromEntries(rooms.map((r) => [r.id, r]))
+  const panels = [...rooms.flatMap((r) => r.devices), ...home.unassigned_devices].filter((d) => d.kind === 'solar_panel')
+  const watts = panels.map((d) => panelWatt(d, live))
+  const max = Math.max(1, ...watts.filter((w) => w != null))
+  const total = watts.reduce((s, w) => s + (w || 0), 0)
+  const anyOn = watts.some((w) => (w || 0) > 20)
+  const dead = panels.filter((d) => anyOn && (panelWatt(d, live) ?? 0) < 1)
+  const unsure = panels.filter((d) => d.meta?.solar_unsure)
+  const unplaced = panels.filter((d) => !d.meta?.position)
+  const planes = rooms.filter((r) => r.kind === 'roof')
+  const byPlane = planes.map((p) => ({ plane: p, list: panels.filter((d) => d.room_id === p.id) }))
 
   return (
-    <div className="mh-solar-page">
-      <div className="mh-viewer-controls">
-        <span><strong>{Math.round(totalW)} W</strong> now</span>
-        <span>{panels.length} panels{kwp ? ` · ${kwp.toFixed(2)} kWp` : ''}</span>
-        <span>{linked.length} of {panels.length} linked to an inverter</span>
-        {dead.length > 0 && <span className="mh-pill none">{dead.length} inverter{dead.length > 1 ? 's' : ''} without output: {dead.join(', ')}</span>}
-        <span className="mh-spacer" />
-        <button className="mh-btn" onClick={addArray}>Add panel field</button>
+    <div className="mh-page">
+      <div>
+        <h2>Solar</h2>
+        <p className="mh-muted">
+          Panels live on the floor <strong>Roof</strong>: go to Model → Plan → Roof to place, turn or swap them.
+          Each panel is one micro-inverter; its output comes live from Home Assistant.
+        </p>
       </div>
-      {error && <p className="mh-error" style={{ padding: '6px 16px' }}>{error}</p>}
-      <div className="mh-stage">
-        <div className="mh-plan-wrap">
-          <SolarRoof home={home} solar={solar} inverters={inverters} selected={selected} onSelect={setSelected}
-            onMove={(id, [x, z]) => setArray(id, { x, z })} />
+      <div className="mh-stats">
+        <div><span className="mh-mono">{Math.round(total)} W</span><small>now</small></div>
+        <div><span className="mh-mono">{panels.length}</span><small>panels</small></div>
+        <div className={dead.length ? 'bad' : ''}><span className="mh-mono">{dead.length}</span><small>without output</small></div>
+        <div className={unsure.length ? 'warn' : ''}><span className="mh-mono">{unsure.length}</span><small>place not sure</small></div>
+        <div className={unplaced.length ? 'warn' : ''}><span className="mh-mono">{unplaced.length}</span><small>not on the roof</small></div>
+      </div>
+      {dead.length > 0 && (
+        <p className="mh-banner" style={{ borderRadius: 8 }}>
+          No output while the sun is up: {dead.map(serialOf).join(', ')}. Usually a broken micro-inverter; worth a call to the installer.
+        </p>
+      )}
+      {byPlane.map(({ plane, list }) => (
+        <section key={plane.id}>
+          <h3>{plane.name} · {list.length} panels{plane.meta?.azimuth != null ? ` · facing ${plane.meta.azimuth}°` : ''}{plane.meta?.tilt != null ? ` · tilt ${plane.meta.tilt}°` : ''} · {Math.round(list.reduce((s, d) => s + (panelWatt(d, live) || 0), 0))} W</h3>
+          <div className="mh-solar-strip">
+            {list.map((d) => {
+              const w = panelWatt(d, live)
+              return (
+                <span key={d.id} className="mh-solar-chip" style={{ background: panelColor(w, max), color: w != null && w / max > 0.55 ? '#1d2629' : '#fff' }}
+                  title={`${d.name}${d.meta?.solar_unsure ? ' (place not sure)' : ''}`}>
+                  {w != null ? Math.round(w) : '–'}{d.meta?.solar_unsure ? '?' : ''}
+                </span>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+      <section>
+        <h3>All panels</h3>
+        <div className="mh-scroll">
+          <table className="mh-table">
+            <thead><tr><th>Inverter</th><th>Roof plane</th><th className="num">Now</th><th className="num">Enphase app</th><th className="num">HA history</th><th>Place</th></tr></thead>
+            <tbody>
+              {panels.slice().sort((a, b) => (panelWatt(b, live) || 0) - (panelWatt(a, live) || 0)).map((d) => {
+                const s = serialOf(d)
+                const w = panelWatt(d, live)
+                return (
+                  <tr key={d.id}>
+                    <td className="mh-mono">{s}</td>
+                    <td>{roomById[d.room_id]?.name || '—'}</td>
+                    <td className="num">{w != null ? `${Math.round(w)} W` : '—'}</td>
+                    <td className="num">{d.meta?.ref_wh != null ? `${d.meta.ref_wh} Wh` : '—'}</td>
+                    <td className="num">{home.meta?.solar?.calib?.wh?.[s] != null ? `${home.meta.solar.calib.wh[s]} Wh` : '—'}</td>
+                    <td>{!d.meta?.position ? <span className="mh-pill none">not placed</span> : d.meta?.solar_unsure ? <span className="mh-pill proposed">not sure</span> : <span className="mh-pill linked">ok</span>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-
-        {arr && !pinfo && (
-          <div className="mh-room-card">
-            <div className="mh-row" style={{ justifyContent: 'space-between' }}>
-              <input id={`arr-name-${arr.id}`} className="mh-title-input" defaultValue={arr.name} key={arr.id + arr.name} aria-label="Field name"
-                onBlur={(e) => e.target.value.trim() && e.target.value !== arr.name && setArray(arr.id, { name: e.target.value.trim() })} />
-              <button className="mh-btn ghost" onClick={() => setSelected(null)} aria-label="Close">×</button>
-            </div>
-            <dl className="mh-dl">
-              {[['rows', 'Rows'], ['cols', 'Columns'], ['wp', 'Watt-peak per panel'], ['azimuth', 'Azimuth (°, 180 = south)'], ['tilt', 'Tilt (°)']].map(([k, label]) => (
-                <FieldNum key={k} id={`arr-${k}-${arr.id}`} label={label} value={arr[k]} onSave={(v) => setArray(arr.id, { [k]: v })} />
-              ))}
-              <dt>Panels</dt>
-              <dd>
-                <select id={`arr-or-${arr.id}`} value={arr.orientation} aria-label="Orientation" onChange={(e) => setArray(arr.id, { orientation: e.target.value })}>
-                  <option value="portrait">Portrait</option><option value="landscape">Landscape</option>
-                </select>
-              </dd>
-              <dt>Rotation</dt>
-              <dd className="mh-row">
-                <button className="mh-btn ghost" onClick={() => setArray(arr.id, { rotation: (arr.rotation || 0) - 5 })}>−5°</button>
-                <span className="mh-mono">{arr.rotation || 0}°</span>
-                <button className="mh-btn ghost" onClick={() => setArray(arr.id, { rotation: (arr.rotation || 0) + 5 })}>+5°</button>
-              </dd>
-            </dl>
-            <p className="mh-muted">Drag the field to its place on the roof. Click a panel to link its inverter.</p>
-            <button className="mh-btn ghost" onClick={() => {
-              const keep = Object.fromEntries(Object.entries(solar.panels || {}).filter(([k]) => !k.startsWith(`${arr.id}:`)))
-              save({ ...solar, arrays: solar.arrays.filter((a) => a.id !== arr.id), panels: keep }); setSelected(null)
-            }}>Delete field</button>
-          </div>
-        )}
-
-        {pinfo && (
-          <div className="mh-room-card">
-            <div className="mh-row" style={{ justifyContent: 'space-between' }}>
-              <div><h3 style={{ margin: 0 }}>{arr?.name}</h3><h2>Panel {selected.panel.split(':').slice(1).map((n) => Number(n) + 1).join(' · ')}</h2></div>
-              <button className="mh-btn ghost" onClick={() => setSelected(null)} aria-label="Close">×</button>
-            </div>
-            <dl className="mh-dl">
-              <dt>Inverter</dt>
-              <dd>
-                <select id="panel-serial" value={pinfo.serial || ''} aria-label="Inverter" onChange={(e) => setPanel(selected.panel, { serial: e.target.value || null, unsure: false })}>
-                  <option value="">— not linked —</option>
-                  {suggestions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}{inverters[s]?.watt != null ? ` · ${Math.round(inverters[s].watt)} W` : ''}{calib[s] != null ? ` · ~${Math.round(calib[s] * scale)} Wh` : ''}{used.has(s) && s !== pinfo.serial ? ' (in use)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </dd>
-              <dt>Now</dt><dd className="mh-mono">{pinfo.serial && inverters[pinfo.serial]?.watt != null ? `${Math.round(inverters[pinfo.serial].watt)} W` : '—'}</dd>
-              <FieldNum id="panel-ref" label="Wh in Enphase app" value={pinfo.ref_wh} onSave={(v) => setPanel(selected.panel, { ref_wh: v })} />
-            </dl>
-            {pinfo.unsure && <p className="mh-diff">Not sure yet: two inverters had the same output on the reference day.</p>}
-            {pinfo.ref_wh && calib && Object.keys(calib).length > 0 && (
-              <p className="mh-muted">The list is sorted by how close each inverter's output on {solar.calib.date} is to {pinfo.ref_wh} Wh.</p>
-            )}
-          </div>
-        )}
-      </div>
+      </section>
     </div>
-  )
-}
-
-function FieldNum({ id, label, value, onSave }) {
-  return (
-    <>
-      <dt>{label}</dt>
-      <dd>
-        <input id={id} type="number" defaultValue={value ?? ''} key={`${id}-${value}`} style={{ width: 100 }} aria-label={label}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (value ?? null)) onSave(v) }} />
-      </dd>
-    </>
   )
 }

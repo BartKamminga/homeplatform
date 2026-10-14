@@ -6,7 +6,8 @@ export const DEVICE_KINDS = {
   power_outlet: { label: 'Power outlet', group: 'Power' },
   plug: { label: 'Smart plug', group: 'Power' },
   meter: { label: 'Meter / fuse box', group: 'Power', ports: true },
-  energy: { label: 'Energy (solar, battery)', group: 'Power' },
+  energy: { label: 'Energy (meter, battery)', group: 'Power' },
+  solar_panel: { label: 'Solar panel', group: 'Power' },
   network_outlet: { label: 'Network outlet', group: 'Internet' },
   access_point: { label: 'Wi-Fi access point', group: 'Internet' },
   router: { label: 'Router', group: 'Internet', ports: true },
@@ -43,6 +44,8 @@ function Glyph({ kind }) {
       return <><path d={`M${-R},0A${R},${R} 0 0 1 ${R},0Z`} {...s} fill="var(--plan-sym)" /><path d={`M0,0L0,${R}`} {...s} />{kind === 'plug' && <circle cy={-R * 0.45} r={0.035} fill={ink} />}</>
     case 'network_outlet':
       return <><path d={`M0,${-R}L${R},${R * 0.8}L${-R},${R * 0.8}Z`} {...s} fill="var(--plan-sym)" />{t('N', 0.12)}</>
+    case 'solar_panel':
+      return <><rect x={-R * 1.3} y={-R * 0.8} width={R * 2.6} height={R * 1.6} {...s} fill="#1f3c66" /><path d={`M0,${-R * 0.8}V${R * 0.8}M${-R * 1.3},0H${R * 1.3}`} stroke="#9fb3d4" strokeWidth={0.015} /></>
     case 'note':
       return <><path d={`M${-R},${-R}H${R}V${R * 0.5}H${-R * 0.2}L${-R * 0.6},${R}V${R * 0.5}H${-R}Z`} {...s} fill="var(--plan-note)" />{t('i', 0.16)}</>
     case 'switch':

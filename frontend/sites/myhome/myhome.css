@@ -20,9 +20,6 @@
   --plan-note: #fff3c4;
   --plan-lit: rgba(255, 196, 77, 0.28);
   --plan-glow: rgba(255, 196, 77, 0.55);
-  --solar-roof: rgba(107, 74, 58, 0.10);
-  --solar-none: #8e979a;
-  --solar-frame: #d6dadb;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -179,19 +176,15 @@
 .mh-tree-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; min-width: 0; }
 .mh-port { font: 12px var(--mh-mono); padding: 1px 6px; border-radius: 4px; background: var(--mh-accent-soft); color: var(--color-text); }
 
-/* Solar */
-.mh-solar-page { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.mh-solar-array { fill: transparent; stroke: var(--plan-grid-strong); stroke-width: 0.03; stroke-dasharray: 0.12 0.08; cursor: move; }
-.mh-solar-array.sel { stroke: var(--mh-accent); stroke-width: 0.05; }
-.mh-solar-panel { cursor: pointer; }
-
-/* Source cards (Inputs) */
-.mh-source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
-.mh-source-card { margin: 0; border: 1px solid var(--mh-line); border-radius: 10px; overflow: hidden; background: var(--color-background); display: flex; flex-direction: column; min-width: 0; }
-.mh-source-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--plan-paper); border-bottom: 1px solid var(--mh-line); }
-.mh-source-card figcaption { padding: 10px 12px; display: grid; gap: 4px; }
-.mh-source-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mh-source-card .mh-btn { justify-self: start; margin-top: 4px; }
+/* Solar overview */
+.mh-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.mh-stats > div { display: grid; padding: 10px 14px; border: 1px solid var(--mh-line); border-radius: 8px; min-width: 110px; background: var(--color-background); }
+.mh-stats span { font-size: 22px; }
+.mh-stats small { color: var(--color-text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.mh-stats .bad { border-color: var(--mh-bad); } .mh-stats .bad span { color: var(--mh-bad); }
+.mh-stats .warn { border-color: var(--mh-warn); }
+.mh-solar-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.mh-solar-chip { font: 12px var(--mh-mono); padding: 6px 8px; border-radius: 4px; min-width: 44px; text-align: center; }
 
 /* Floating cards, modal */
 .mh-room-card { position: absolute; right: 14px; top: 14px; width: min(320px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow-y: auto; background: var(--color-background); border: 1px solid var(--mh-line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.14); z-index: 5; }

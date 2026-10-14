@@ -249,3 +249,17 @@ def test_live_event_numeric_state(client, user_token):
     assert res.json() == {"matched": 1}
     (live,) = client.get(f"/api/myhome/homes/{home_id}/live", headers=_h(user_token)).json().values()
     assert live["sensor.inverter_1"]["state"] == "114"
+
+
+def test_roof_and_garden_floors_not_indoor(client, user_token):
+    home_id = _home(client, user_token)
+    layout = {"floors": LAYOUT["floors"] + [
+        {"key": "roof", "name": "Dak", "level": 8, "rooms": [
+            {"key": "plane", "name": "Dakvlak", "kind": "roof", "polygon": [[0, 0], [4, 0], [4, 5], [0, 5]]}]},
+        {"key": "garden", "name": "Tuin", "level": 0, "rooms": [
+            {"key": "back", "name": "Achtertuin", "kind": "garden", "polygon": [[0, -8], [4, -8], [4, 0], [0, 0]]}]},
+    ]}
+    data = client.put(f"/api/myhome/homes/{home_id}/layout", json=layout, headers=_h(user_token)).json()
+    assert data["area_m2"] == 17.0                          # dak en tuin tellen niet mee
+    roof = next(f for f in data["floors"] if f["key"] == "roof")
+    assert roof["rooms"][0]["area_m2"] == 20.0 and roof["area_m2"] == 0

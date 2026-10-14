@@ -83,7 +83,7 @@ export default function MyHomeLayout() {
   else if (tab === 'devices') body = <DevicesPage key={devFilter} home={home} onReload={reload} initialFilter={devFilter} />
   else if (tab === 'inputs') body = <InputsPage home={home} sources={sources} notes={notes} onReload={reload} onHomeChange={setHome} />
   else if (tab === 'network') body = <NetworkPage home={home} />
-  else if (tab === 'solar') body = <SolarPage home={home} onHomeChange={setHome} />
+  else if (tab === 'solar') body = <SolarPage home={home} />
   else if (tab === 'push') body = <PushPage home={home} onReload={reload} />
   else body = <ApiPage home={home} />
 

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { ROOM_KINDS, fmtArea, liveSummary, roofHeight } from '../model.js'
+import { ROOM_KINDS, fmtArea, isOpen, liveSummary, roofHeight } from '../model.js'
 
 // 3D-weergave van het huismodel. x = links→rechts op de plattegrond, z = tuin (min) → straat (plus).
 // Props: home (export uit de API), floor ('all' of floor-key), explode (m), highWalls, showRoof,
@@ -26,7 +26,7 @@ function bounds(home) {
 
 function wallsFor(room, floor, high, material, lineMat) {
   const g = new THREE.Group()
-  if (room.kind === 'outdoor' || !room.polygon) return g
+  if (isOpen(room.kind) || !room.polygon) return g
   const h = (x) => Math.min(high ? 2.6 : 1.0, floor.roof ? roofHeight(floor.roof, x) : Infinity)
   const pos = []
   room.polygon.forEach(([x1, z1], i) => {
@@ -155,9 +155,10 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       s.content.add(o)
     }
 
-    home.floors.forEach((f, i) => {
+    home.floors.filter((f) => !f.rooms.length || !f.rooms.every((r) => r.kind === 'roof')).forEach((f, i) => {
       const g = new THREE.Group()
-      g.userData = { key: f.key, level: f.level, index: i }
+      // Tuin blijft op maaiveld; alleen verdiepingen schuiven uit elkaar.
+      g.userData = { key: f.key, level: f.level, index: f.rooms.length && f.rooms.every((r) => r.kind === 'garden') ? 0 : i }
       s.groups[f.key] = g
       s.content.add(g)
       for (const room of f.rooms) {
