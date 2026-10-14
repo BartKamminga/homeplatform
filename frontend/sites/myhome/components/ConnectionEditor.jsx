@@ -26,7 +26,10 @@ export default function ConnectionEditor({ device, devices, onMeta }) {
   const setLink = (to, p) => onMeta({ ...meta, link: to ? { to, port: p || null } : undefined })
   const children = devices.filter((d) => d.meta?.link?.to === device.id)
   const usedPorts = new Set(children.map((d) => String(d.meta.link.port || '')))
-  const takenOnTarget = new Set(devices.filter((d) => d.meta?.link?.to === link.to && d.id !== device.id).map((d) => String(d.meta.link.port || '')))
+  // Alleen als dit apparaat ergens op aangesloten is; anders matcht "to === undefined" elk los apparaat.
+  const takenOnTarget = new Set(link.to
+    ? devices.filter((d) => d.id !== device.id && d.meta?.link?.to === link.to).map((d) => String(d.meta.link.port || ''))
+    : [])
   const freeOnTarget = target?.meta?.ports
     ? Array.from({ length: Number(target.meta.ports) }, (_, i) => String(i + 1)).filter((p) => !takenOnTarget.has(p))
     : []

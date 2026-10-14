@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useLive from '../useLive.js'
 import { api } from '@core/api.js'
 import HouseViewer from '../components/HouseViewer.jsx'
 import RoomPanel from '../components/RoomPanel.jsx'
@@ -7,21 +8,6 @@ import PlanView from '../components/plan/PlanView.jsx'
 import PlanTray from '../components/plan/PlanTray.jsx'
 import { DEVICE_KINDS } from '../components/plan/symbols.jsx'
 import { allRooms } from '../model.js'
-
-function useLive(homeId) {
-  const [live, setLive] = useState({})
-  useEffect(() => {
-    let stop = false
-    const tick = () => {
-      if (document.hidden) return
-      api.get(`/api/myhome/homes/${homeId}/live`).then((l) => { if (!stop) setLive(l) }).catch(() => {})
-    }
-    tick()
-    const t = setInterval(tick, 4000)
-    return () => { stop = true; clearInterval(t) }
-  }, [homeId])
-  return live
-}
 
 export default function ModelPage({ home, sources, onReload, onHomeChange }) {
   const [view, setView] = useState('2d')

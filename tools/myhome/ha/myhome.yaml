@@ -12,7 +12,8 @@
 # - Sync: alle apparaten (met HA-ruimte en entities) en de lijst HA-ruimtes naar MyHome; Hue-apparaten met hun
 #   Hue-id zodat ze niet dubbel binnenkomen. Bij start, elke nacht en kort na het toevoegen van een apparaat.
 #   Nieuwe apparaten -> melding in HA met de vraag om ze in MyHome aan te vullen.
-# - Live: lamp aan/uit, deur/raam open, beweging, schakelaars en media -> MyHome, voor weergave in het model.
+# - Live: lamp aan/uit, deur/raam open, beweging, schakelaars, media en vermogen per zonnepaneel (Enphase
+#   micro-omvormers) -> MyHome, voor weergave in het model.
 # - Push (wijzigingen uit MyHome uitvoeren in HA/Hue) staat in myhome_push.yaml en is bewust nog niet actief.
 
 rest_command:
@@ -63,7 +64,7 @@ rest_command:
       Authorization: !secret myhome_auth
       Content-Type: application/json
     payload: >-
-      {{ {'events': [{'entity_id': entity_id, 'state': state, 'device_class': device_class or none}]} | to_json }}
+      {{ {'events': [{'entity_id': entity_id, 'state': state | string, 'device_class': device_class or none}]} | to_json }}
 
 automation:
   - id: myhome_sync_devices
@@ -120,7 +121,8 @@ automation:
             {%- set domain = e.entity_id.split('.')[0] -%}
             {%- set dc = e.new_state.attributes.device_class | default('') -%}
             {{ domain in ['light', 'switch', 'cover', 'lock', 'media_player']
-               or (domain == 'binary_sensor' and dc in ['door', 'window', 'garage_door', 'opening', 'motion', 'occupancy', 'presence']) }}
+               or (domain == 'binary_sensor' and dc in ['door', 'window', 'garage_door', 'opening', 'motion', 'occupancy', 'presence'])
+               or e.entity_id.startswith('sensor.inverter_') }}
           {%- endif -%}
     action:
       # Een gemist event is geen fout: de volgende statuswijziging zet het weer goed.

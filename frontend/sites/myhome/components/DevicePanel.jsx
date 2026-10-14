@@ -3,6 +3,7 @@ import { api } from '@core/api.js'
 import { allRooms, liveSummary } from '../model.js'
 import { DEVICE_KINDS, SymbolIcon } from './plan/symbols.jsx'
 import ConnectionEditor from './ConnectionEditor.jsx'
+import SolarControls from './SolarControls.jsx'
 
 // Apparaat op de plattegrond: hernoemen, soort, ruimte; laat zien hoe het in HA heet en waar het daar staat.
 export default function DevicePanel({ home, device, devices, live, focusName, onReload, onClose }) {
@@ -63,7 +64,11 @@ export default function DevicePanel({ home, device, devices, live, focusName, on
           )}
         </div>
       )}
-      <ConnectionEditor device={device} devices={devices} onMeta={(m) => patch({ meta: m })} />
+      {device.kind === 'solar_panel' && (
+        <SolarControls home={home} device={device} devices={devices} live={live} patch={patch}
+          patchOther={async (id, data) => { await api.patch(`/api/myhome/devices/${id}`, data) }} />
+      )}
+      {device.kind !== 'solar_panel' && <ConnectionEditor device={device} devices={devices} onMeta={(m) => patch({ meta: m })} />}
       <div className="mh-row">
         {meta.position && (
           <button className="mh-btn ghost" onClick={() => {

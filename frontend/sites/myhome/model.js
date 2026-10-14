@@ -7,6 +7,20 @@ export const ROOM_KINDS = {
   circulation: { label: 'Hall / landing', color: '#c7b5a3' },
   storage: { label: 'Storage', color: '#d3d4d2' },
   outdoor: { label: 'Outdoor', color: '#b9c0bb' },
+  roof: { label: 'Roof plane', color: '#c9a48f' },
+  garden: { label: 'Garden', color: '#b7d3a3' },
+}
+
+// Ruimtes zonder muren en buiten het woonoppervlak: buiten, dakvlakken, tuin.
+export const OPEN_KINDS = ['outdoor', 'roof', 'garden']
+export const isOpen = (kind) => OPEN_KINDS.includes(kind)
+
+// Live vermogen (W) van een zonnepaneel: de sensor.inverter_<serie> van de micro-omvormer.
+export function panelWatt(device, live) {
+  const ent = (device.meta?.entities || []).find((e) => e.startsWith('sensor.inverter_'))
+  const st = ent && live[device.id]?.[ent]?.state
+  const w = st == null ? NaN : Number(st)
+  return Number.isFinite(w) ? w : null
 }
 
 export const LINK_STATUS = {

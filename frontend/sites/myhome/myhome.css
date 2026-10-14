@@ -110,11 +110,12 @@
 .mh-viewer-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px; border-bottom: 1px solid var(--mh-line); font-size: 13px; color: var(--color-text-muted); }
 .mh-viewer-controls label { display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
 .mh-editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; background: var(--mh-accent-soft); border-bottom: 1px solid var(--mh-line); font-size: 14px; }
-.mh-stage { position: relative; flex: 1; display: flex; min-height: 520px; }
+.mh-stage { position: relative; flex: 1; display: flex; min-height: 420px; }
 .mh-plan-wrap { flex: 1; display: flex; min-width: 0; }
 
 /* 2D plan */
-.mh-plan { flex: 1; width: 100%; min-height: 480px; background: var(--plan-paper); touch-action: none; cursor: grab; user-select: none; }
+/* Altijd binnen het scherm: de hele verdieping (of het hele dak) in een blik, zonder scrollen. */
+.mh-plan { flex: 1; width: 100%; height: calc(100dvh - 190px); min-height: 420px; background: var(--plan-paper); touch-action: none; cursor: grab; user-select: none; }
 .mh-plan:active { cursor: grabbing; }
 .mh-plan.armed { cursor: crosshair; }
 .mh-plan-room { cursor: pointer; transition: fill-opacity .15s; }
@@ -175,6 +176,16 @@
 .mh-tree-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; min-width: 0; }
 .mh-port { font: 12px var(--mh-mono); padding: 1px 6px; border-radius: 4px; background: var(--mh-accent-soft); color: var(--color-text); }
 
+/* Solar overview */
+.mh-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.mh-stats > div { display: grid; padding: 10px 14px; border: 1px solid var(--mh-line); border-radius: 8px; min-width: 110px; background: var(--color-background); }
+.mh-stats span { font-size: 22px; }
+.mh-stats small { color: var(--color-text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.mh-stats .bad { border-color: var(--mh-bad); } .mh-stats .bad span { color: var(--mh-bad); }
+.mh-stats .warn { border-color: var(--mh-warn); }
+.mh-solar-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.mh-solar-chip { font: 12px var(--mh-mono); padding: 6px 8px; border-radius: 4px; min-width: 44px; text-align: center; }
+
 /* Floating cards, modal */
 .mh-room-card { position: absolute; right: 14px; top: 14px; width: min(320px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow-y: auto; background: var(--color-background); border: 1px solid var(--mh-line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.14); z-index: 5; }
 .mh-device-card { right: 304px; }
@@ -193,5 +204,5 @@
   .mh-device-card { right: 14px; }
   .mh-room-card { position: static; width: auto; margin: 12px 16px; box-shadow: none; }
   .mh-stage { flex-direction: column; min-height: 0; }
-  .mh-plan { min-height: 420px; }
+  .mh-plan { height: 70dvh; min-height: 360px; }
 }

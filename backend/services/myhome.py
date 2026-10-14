@@ -11,7 +11,9 @@ from sqlmodel import Session, select
 from core.analytics import client_ip, hash_ip, log_site_event
 from models.myhome import Home, HomeDevice, HomeFloor, HomeRoom
 
-ROOM_KINDS = {"living", "bedroom", "wet", "circulation", "storage", "outdoor"}
+ROOM_KINDS = {"living", "bedroom", "wet", "circulation", "storage", "outdoor", "roof", "garden"}
+# Tellen niet mee in het woonoppervlak (buiten, dakvlakken, tuin).
+NOT_INDOOR = {"outdoor", "roof", "garden"}
 LINK_STATUSES = {"linked", "proposed", "none"}
 API_VERSION = 1
 
@@ -98,7 +100,7 @@ def export_home(session: Session, home: Home) -> dict:
     out_floors = []
     for f in floors:
         f_rooms = [room_dict(r, f.key, by_room.get(r.id)) for r in rooms if r.floor_id == f.id]
-        indoor = sum(r["area_m2"] for r in f_rooms if r["kind"] != "outdoor")
+        indoor = sum(r["area_m2"] for r in f_rooms if r["kind"] not in NOT_INDOOR)
         out_floors.append({
             "id": f.id, "key": f.key, "name": f.name, "level": f.level,
             "ha_floor": f.ha_floor, "roof": f.roof,

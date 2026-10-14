@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ROOM_KINDS, liveSummary } from '../../model.js'
+import { ROOM_KINDS, isOpen, liveSummary, panelWatt } from '../../model.js'
+import SolarPanelShape from './SolarPanelShape.jsx'
 import { DeviceSymbol } from './symbols.jsx'
 import { centroid, edgeDimensions, floorBounds, fmtLen, roomAt, snap, toSvgPoint } from './geometry.js'
 
@@ -81,6 +82,8 @@ export default function PlanView({
     acc[z] = { ...b, x1: Math.min(b.x1, ...xs), z1: Math.min(b.z1, ...zs), x2: Math.max(b.x2, ...xs), z2: Math.max(b.z2, ...zs) }
     return acc
   }, {})).map((b) => ({ name: b.name, x: b.x1 - 0.18, z: b.z1 - 0.18, w: b.x2 - b.x1 + 0.36, h: b.z2 - b.z1 + 0.36 }))
+  const solarMax = Math.max(1, ...devices.filter((d) => d.kind === 'solar_panel').map((d) => panelWatt(d, live) || 0))
+  const solarOn = devices.some((d) => d.kind === 'solar_panel' && (panelWatt(d, live) || 0) > 20)
   const placed = devices.filter((d) => d.meta?.position && (d.meta.floor ? d.meta.floor === floor.key : true))
 
   return (
@@ -113,8 +116,8 @@ export default function PlanView({
         const fill = r.kind === 'outdoor' ? 'url(#mh-hatch)' : r.meta?.floor_color || ROOM_KINDS[r.kind]?.color
         return (
           <g key={r.id}>
-            <polygon points={poly.map((p) => p.join(',')).join(' ')} fill={fill} fillOpacity={r.kind === 'outdoor' ? 1 : 0.55}
-              stroke={r.meta?.wall_color ? 'var(--plan-ink)' : 'var(--plan-ink)'} strokeWidth={r.kind === 'outdoor' ? 0.03 : 0.12}
+            <polygon points={poly.map((p) => p.join(',')).join(' ')} fill={fill} fillOpacity={r.kind === 'outdoor' ? 1 : isOpen(r.kind) ? 0.45 : 0.55}
+              stroke="var(--plan-ink)" strokeWidth={isOpen(r.kind) ? 0.03 : 0.12}
               strokeLinejoin="miter" className={`mh-plan-room ${r.id === selectedRoomId ? 'sel' : ''}`} />
             {lit && <polygon points={poly.map((p) => p.join(',')).join(' ')} fill="var(--plan-lit)" pointerEvents="none" />}
           </g>
@@ -183,6 +186,18 @@ export default function PlanView({
           <g key={d.id} data-dev={d.id} transform={`translate(${d.meta.position[0]},${d.meta.position[1]})`}>
             {s.on && <circle r={0.42} fill="var(--plan-glow)" pointerEvents="none" />}
             {s.motion && <circle r={0.3} className="mh-plan-pulse" pointerEvents="none" />}
+            {d.kind === 'solar_panel' ? (
+              <SolarPanelShape device={d} watt={panelWatt(d, live)} max={solarMax} dead={solarOn && (panelWatt(d, live) ?? 0) < 1}
+                selected={d.id === selectedDeviceId} showLabel={showLabels}
+                onClick={() => onSelectDevice(d.id)}
+                onDoubleClick={() => onEditName({ type: 'device', id: d.id })}
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  if (mode !== 'place') return
+                  drag.current = { type: 'device', device: d, pos: d.meta.position, moved: false }
+                  svgRef.current.setPointerCapture(e.pointerId)
+                }} />
+            ) : (
             <DeviceSymbol device={d} x={0} z={0} selected={d.id === selectedDeviceId} isNew={d.meta?.review === 'new'} showLabel={showLabels}
               onClick={() => onSelectDevice(d.id)}
               onDoubleClick={() => onEditName({ type: 'device', id: d.id })}
@@ -192,6 +207,7 @@ export default function PlanView({
                 drag.current = { type: 'device', device: d, pos: d.meta.position, moved: false }
                 svgRef.current.setPointerCapture(e.pointerId)
               }} />
+            )}
             {s.open && <text x={0.22} y={-0.2} fontSize={0.15} fontWeight="700" fill="var(--mh-bad)" className="mh-plan-halo" pointerEvents="none">OPEN</text>}
           </g>
         )
