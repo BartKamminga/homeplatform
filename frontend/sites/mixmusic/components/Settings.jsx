@@ -1,6 +1,7 @@
 import { clearToken } from '@core/api.js'
 import ThemeSwitcher from '@components/ThemeSwitcher.jsx'
 import AppGroupSwitcher from '@components/AppGroupSwitcher.jsx'
+import VariantSwitch from '@components/VariantSwitch.jsx'
 
 const MOBILE_OPTIONS = [
   { key: 'D', label: 'Minimal', desc: 'Top bar + transportbalk + tracks/details toggle' },
@@ -35,6 +36,10 @@ export default function Settings({ onClose, onOpenStats, onOpenDisplay, onOpenGe
         <div style={{ flex: 1, padding: '0 20px 24px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
           <section style={{ paddingTop: 20 }}>
+            <VariantSwitch site="mixmusic" current="classic" />
+          </section>
+
+          <section>
             <div style={sectionLabel}>Thema</div>
             <ThemeSwitcher />
           </section>
