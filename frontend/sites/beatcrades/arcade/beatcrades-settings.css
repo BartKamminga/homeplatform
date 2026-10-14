@@ -1,0 +1,37 @@
+/* BeatCrades arcade-instellingen (item 1338). */
+.bca-drawer { width: min(560px, 100vw); }
+.bca-tab { display: flex; flex-direction: column; gap: 12px; }
+.bca-field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.bca-field-head .ac-label { margin: 0; }
+.bca-tpl { display: flex; align-items: center; gap: 8px; }
+.bca-tpl .ac-input { font-family: var(--ac-mono); }
+.bca-tpl span { font-family: var(--ac-mono); font-size: 12px; color: var(--ac-muted); }
+.bca-tokens, .bca-tokens-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.ac-root .bca-tokens button { font-family: var(--ac-mono); font-size: 10px; padding: 4px 7px; border-radius: 3px; cursor: grab;
+  border: 1px solid rgba(36,232,255,.5); color: var(--ac-code); background: rgba(36,232,255,.06); }
+.ac-root .bca-tokens button.dir { border-color: rgba(155,92,255,.6); color: #cdb4ff; background: rgba(155,92,255,.08); }
+.bca-preview .muted { color: var(--ac-muted); }
+.bca-preview .dir { color: #cdb4ff; }
+.bca-preview .file { color: var(--ac-yellow); }
+.bca-preview .warn { color: var(--ac-orange); }
+.bca-tracklist { display: flex; flex-direction: column; }
+.bca-tracklist > div { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(155,92,255,.15);
+  font-family: var(--ac-mono); font-size: 11px; }
+.bca-tracklist span:first-child { font-family: var(--ac-pixel); font-size: 7px; color: var(--ac-yellow); align-self: center; }
+.bca-tracklist span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bca-tracklist span:last-child { font-family: var(--ac-pixel); font-size: 7px; color: var(--ac-muted); align-self: center; }
+.bca-code { font-family: var(--ac-mono); font-size: 11px; color: var(--ac-code); overflow-wrap: anywhere; }
+.bca-sync-group { display: flex; flex-direction: column; gap: 6px; }
+.ac-root .bca-sync-head { display: flex; justify-content: space-between; gap: 8px; background: transparent; border: 0; padding: 4px 0; cursor: pointer;
+  font-family: var(--ac-pixel); font-size: 8px; }
+.bca-sync-head span { color: var(--ac-muted); }
+.bca-sync-card { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 4px;
+  border: 1px solid var(--ac-line); background: var(--ac-tint); cursor: pointer; font-size: 12px; }
+.bca-sync-card.on { border-color: rgba(36,232,255,.5); }
+.bca-sync-card input { accent-color: #24e8ff; width: 14px; height: 14px; }
+.bca-sync-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bca-sync-body b { font-size: 11px; letter-spacing: .5px; }
+.bca-sync-body small { font-family: var(--ac-text); font-size: 11px; color: var(--ac-muted); }
+.ac-root .bca-prov { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 6px; cursor: pointer; color: var(--ac-ink);
+  border: 1px solid var(--ac-line); background: var(--ac-tint); font-size: 13px; letter-spacing: 1px; text-align: left; }
+.ac-root .bca-prov.on { border-color: var(--ac-ok); box-shadow: 0 0 14px rgba(93,255,158,.25); }
