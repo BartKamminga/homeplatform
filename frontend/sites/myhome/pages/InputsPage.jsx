@@ -60,15 +60,24 @@ export default function InputsPage({ home, sources, notes, onReload, onHomeChang
           </select>
           <input id="src-file" type="file" accept="image/*" onChange={upload} disabled={busy} aria-label="Image file" />
         </div>
-        <ul className="mh-list" style={{ marginTop: 10 }}>
-          {sources.map((s) => (
-            <li key={s.id} className="mh-row" style={{ justifyContent: 'space-between' }}>
-              <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a>
-              <span className="mh-muted">{s.kind}{s.floor_key ? ` · ${s.floor_key}` : ''}</span>
-              <button className="mh-btn ghost" onClick={() => run(async () => { await api.delete(`/api/myhome/sources/${s.id}`); await onReload() })}>Remove</button>
-            </li>
-          ))}
-        </ul>
+        <div className="mh-source-grid">
+          {sources.map((s) => {
+            const room = home.floors.flatMap((f) => f.rooms).find((r) => r.id === s.room_id)
+            const floor = home.floors.find((f) => f.key === s.floor_key)
+            return (
+              <figure key={s.id} className="mh-source-card">
+                <a href={s.url} target="_blank" rel="noreferrer" title="Open full size">
+                  <img src={s.url} alt={s.title} loading="lazy" />
+                </a>
+                <figcaption>
+                  <strong>{s.title}</strong>
+                  <span className="mh-muted">{s.kind}{room ? ` · ${room.name}` : floor ? ` · ${floor.name}` : ' · whole house'}</span>
+                  <button className="mh-btn ghost" onClick={() => run(async () => { await api.delete(`/api/myhome/sources/${s.id}`); await onReload() })}>Remove</button>
+                </figcaption>
+              </figure>
+            )
+          })}
+        </div>
       </section>
 
       <section>
