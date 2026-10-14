@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@core/api.js'
 import SettingsRow from '@components/SettingsRow.jsx'
+import VariantSwitch from '@components/VariantSwitch.jsx'
 import { t } from '../i18n.js'
 
 const DIRECTION_KEYS = [
@@ -75,6 +76,8 @@ export default function InstellingenPage({ lang, onLangChange }) {
   return (
     <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {error && <p style={{ fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>}
+
+      <div style={rowStyle}><div style={{ flex: 1 }}><VariantSwitch site="fiets" current="classic" /></div></div>
 
       <LocationSetting
         lang={lang}
