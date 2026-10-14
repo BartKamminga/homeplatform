@@ -190,6 +190,7 @@ jobs:
           OIDC_REDIRECT_BASE=${{ vars.OIDC_REDIRECT_BASE }}
           STRAVA_CLIENT_ID=${{ vars.STRAVA_CLIENT_ID }}
           STRAVA_CLIENT_SECRET=${{ secrets.STRAVA_CLIENT_SECRET }}
+          ACC_ALLOWED_IPS=${{ vars.ACC_ALLOWED_IPS }}
           EOF
           chmod 600 $ACC_REPO/.env
 
@@ -198,6 +199,7 @@ jobs:
           mkdir -p /home/bart/homeplatform-acc/db
           mkdir -p /home/bart/homeplatform-acc/uploads
           mkdir -p /home/bart/homeplatform-acc/nas-files
+          mkdir -p /home/bart/homeplatform-acc/caddy-allow
           cd $ACC_REPO && docker compose -f docker-compose.acc.yml build backend_acc ghost_acc agent_worker_acc caddy_acc
 
       - name: DB-snapshot (acc, voor migraties)

@@ -69,3 +69,32 @@ def test_overview_combines_self_peer_and_pipeline(client, admin_token, monkeypat
     assert body["peer"]["available"] is False
     assert body["pipeline"] == []
     assert body["links"]["acc_admin"].endswith(":8081/admin/infrastructure")
+
+
+# ── acc-toegang (item 1191) ──────────────────────────────────────────────────
+
+def test_summary_includes_acc_access_status(tmp_path, monkeypatch):
+    (tmp_path / "acc_access.json").write_text(
+        '{"status":"ok","home_ips":["217.62.160.125"],"extra_ips":[],"checked_at":"2026-10-14T10:00:00Z"}')
+    monkeypatch.setattr(host_info, "DB_DIR", str(tmp_path))
+    monkeypatch.setattr(host_info, "containers", lambda: None)
+    monkeypatch.setattr(host_info, "hardware", lambda: None)
+    assert host_info.summary()["acc_access"]["home_ips"] == ["217.62.160.125"]
+
+
+def test_summary_includes_crontab(tmp_path, monkeypatch):
+    (tmp_path / "crontab.json").write_text(
+        '{"checked_at":"2026-10-14T10:00:00Z","jobs":[{"schedule":"*/5 * * * *",'
+        '"command":"/home/bart/acc-home-ip.sh >> /home/bart/acc-home-ip.log 2>&1",'
+        '"log":"/home/bart/acc-home-ip.log","log_mtime":null}]}')
+    monkeypatch.setattr(host_info, "DB_DIR", str(tmp_path))
+    monkeypatch.setattr(host_info, "containers", lambda: None)
+    monkeypatch.setattr(host_info, "hardware", lambda: None)
+    assert host_info.summary()["cron"]["jobs"][0]["schedule"] == "*/5 * * * *"
+
+
+def test_summary_acc_access_none_without_status_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(host_info, "DB_DIR", str(tmp_path))
+    monkeypatch.setattr(host_info, "containers", lambda: None)
+    monkeypatch.setattr(host_info, "hardware", lambda: None)
+    assert host_info.summary()["acc_access"] is None

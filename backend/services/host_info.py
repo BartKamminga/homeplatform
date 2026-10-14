@@ -186,7 +186,11 @@ def summary() -> dict:
         "deploy": _read_json(os.path.join(DB_DIR, "deploy_info.json")),
         "runner": runner,
         "backup_cron_enabled": not os.path.exists(os.path.join(DB_DIR, "cron_disabled")),
+        # crontab van de host, elke minuut geschreven door services-watcher.sh
+        "cron": _read_json(os.path.join(DB_DIR, "crontab.json")),
         "backups": backups(),
         "tunnel_routes": tunnel_routes(clist),
+        # alleen op acc: wie mag via acc.webheaven.nl binnen (scripts/acc-home-ip.sh, item 1191)
+        "acc_access": _read_json(os.path.join(DB_DIR, "acc_access.json")),
         "collected_at": datetime.now(timezone.utc).isoformat(),
     }

@@ -61,11 +61,22 @@ huidige db bewaren als `.pre-restore.<tijd>`, backup terugzetten, backend starte
 
 ## services-watcher.sh
 
-Schrijft de runner-status naar `db/runner_status.json` (admin Infrastructuur) en herstart de
+Schrijft de runner-status naar `db/runner_status.json` en de crontab van de host naar
+`db/crontab.json` (beide in admin Infrastructuur, per machine) en herstart de
 GitHub Actions-runner op verzoek van de admin-UI. Vereist sudo zonder wachtwoord voor
 `systemctl restart actions.runner.*`.
 ```
 * * * * * /home/bart/services-watcher.sh >> /home/bart/services.log 2>&1
+```
+
+## acc-home-ip.sh
+
+Alleen op G4. Haalt het publieke thuis-IP op (via Cloudflare, zoals Caddy het in `Cf-Connecting-IP`
+ziet) en schrijft het naar `homeplatform-acc/caddy-allow/home.caddy`. Bij een wijziging herlaadt het
+Caddy in `homeplatform_caddy_acc`. Zo blijft acc.webheaven.nl bereikbaar vanaf thuis (en via
+Teleport-VPN) terwijl de rest van internet een 403 krijgt (item 1191).
+```
+*/5 * * * * /home/bart/acc-home-ip.sh >> /home/bart/acc-home-ip.log 2>&1
 ```
 
 ## Uitrollen

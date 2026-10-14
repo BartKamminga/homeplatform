@@ -17,6 +17,11 @@ services:
       - caddy_acc_config:/config
       # /yearof/ los van de image, bijwerken met publish-yearof.ps1
       - /home/bart/homeplatform-acc/static/yearof:/srv/static/yearof:ro
+      # Thuis-IP voor acc.webheaven.nl, bijgehouden door scripts/acc-home-ip.sh (item 1191)
+      - /home/bart/homeplatform-acc/caddy-allow:/etc/caddy/allow:ro
+    environment:
+      # Toegestane IP's voor acc.webheaven.nl naast het LAN (Caddyfile.acc, item 1191)
+      - ACC_ALLOWED_IPS=${ACC_ALLOWED_IPS:-}
     depends_on:
       - backend_acc
     restart: unless-stopped
