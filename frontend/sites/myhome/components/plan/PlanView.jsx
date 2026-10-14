@@ -8,7 +8,7 @@ import { centroid, edgeDimensions, floorBounds, fmtLen, roomAt, snap, toSvgPoint
 // armed: apparaat (of {quickAdd: kind}) dat bij de volgende klik op de plattegrond geplaatst wordt.
 export default function PlanView({
   floor, devices, live, mode, selectedRoomId, onSelectRoom, draft, onDraftChange,
-  armed, onPlace, selectedDeviceId, onSelectDevice, showLabels,
+  armed, onPlace, selectedDeviceId, onSelectDevice, showLabels, onEditName, allDevices = [],
 }) {
   const svgRef = useRef(null)
   const drag = useRef(null)
@@ -32,11 +32,11 @@ export default function PlanView({
     return () => el.removeEventListener('wheel', onWheel)
   })
 
+  // Hoekpunten en apparaten stoppen hun eigen pointerdown; al het andere (papier en ruimtes) is pannen,
+  // of - zonder te bewegen - een klik: ruimte kiezen of het gekozen item plaatsen.
   function onPointerDown(e) {
-    if (e.target === svgRef.current || e.target.dataset.bg) {
-      drag.current = { type: 'pan', start: toSvgPoint(svgRef.current, e), vb, moved: false }
-      svgRef.current.setPointerCapture(e.pointerId)
-    }
+    drag.current = { type: 'pan', start: toSvgPoint(svgRef.current, e), vb, moved: false }
+    svgRef.current.setPointerCapture(e.pointerId)
   }
   function onPointerMove(e) {
     const d = drag.current
@@ -71,11 +71,31 @@ export default function PlanView({
 
   const selected = rooms.find((r) => r.id === selectedRoomId)
   const editPoly = mode === 'walls' && selected ? draft || selected.polygon : null
+  // Zones (meta.zone): gestippelde omlijning om de ruimtes die erbij horen.
+  const zones = Object.values(rooms.reduce((acc, r) => {
+    const z = r.meta?.zone
+    if (!z || !r.polygon?.length) return acc
+    const xs = r.polygon.map((p) => p[0])
+    const zs = r.polygon.map((p) => p[1])
+    const b = acc[z] || { name: z, x1: Infinity, z1: Infinity, x2: -Infinity, z2: -Infinity }
+    acc[z] = { ...b, x1: Math.min(b.x1, ...xs), z1: Math.min(b.z1, ...zs), x2: Math.max(b.x2, ...xs), z2: Math.max(b.z2, ...zs) }
+    return acc
+  }, {})).map((b) => ({ name: b.name, x: b.x1 - 0.18, z: b.z1 - 0.18, w: b.x2 - b.x1 + 0.36, h: b.z2 - b.z1 + 0.36 }))
   const placed = devices.filter((d) => d.meta?.position && (d.meta.floor ? d.meta.floor === floor.key : true))
 
   return (
     <svg ref={svgRef} className={`mh-plan ${mode === 'place' && armed ? 'armed' : ''}`} viewBox={`${vb.x} ${vb.z} ${vb.w} ${vb.h}`}
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} role="img" aria-label={`Floor plan ${floor.name}`}>
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      onDoubleClick={(e) => {
+        const p = toSvgPoint(svgRef.current, e)
+        if (mode === 'walls' && editPoly?.length > 3) {
+          const i = editPoly.findIndex(([x, z]) => Math.hypot(x - p[0], z - p[1]) < 0.25)
+          if (i >= 0) onDraftChange(editPoly.filter((_, j) => j !== i))
+          return
+        }
+        const hit = mode === 'view' && roomAt(p, rooms)
+        if (hit) onEditName({ type: 'room', id: hit.id })
+      }} role="img" aria-label={`Floor plan ${floor.name}`}>
       <defs>
         <pattern id="mh-grid" width="1" height="1" patternUnits="userSpaceOnUse">
           <path d="M1,0H0V1" fill="none" stroke="var(--plan-grid)" strokeWidth="0.01" />
@@ -100,6 +120,13 @@ export default function PlanView({
           </g>
         )
       })}
+
+      {zones.map((z) => (
+        <g key={`z-${z.name}`} pointerEvents="none">
+          <rect x={z.x} y={z.z} width={z.w} height={z.h} fill="none" stroke="var(--mh-accent)" strokeWidth={0.04} strokeDasharray="0.18 0.12" rx={0.08} />
+          <text x={z.x + 0.12} y={z.z - 0.12} fontSize={0.2} fontFamily="var(--mh-display)" fontWeight="600" letterSpacing="0.04" fill="var(--mh-accent)" className="mh-plan-halo">{z.name.toUpperCase()}</text>
+        </g>
+      ))}
 
       {rooms.map((r) => {
         if (!r.polygon?.length) return null
@@ -126,11 +153,27 @@ export default function PlanView({
               <title>Add a corner</title>
             </circle>
             <circle cx={x} cy={z} r={0.13} className="mh-plan-vertex"
-              onPointerDown={(e) => { e.stopPropagation(); drag.current = { type: 'vertex', index: i }; svgRef.current.setPointerCapture(e.pointerId) }}
-              onDoubleClick={() => editPoly.length > 3 && onDraftChange(editPoly.filter((_, j) => j !== i))}>
+              onPointerDown={(e) => { e.stopPropagation(); drag.current = { type: 'vertex', index: i }; svgRef.current.setPointerCapture(e.pointerId) }}>
               <title>Drag to move · double-click to remove</title>
             </circle>
           </g>
+        )
+      })}
+
+      {placed.map((d) => {
+        // Kabel/verbinding naar het apparaat waar dit op aangesloten is (stippellijn, of pijl als het elders hangt).
+        const t = d.meta?.link?.to && allDevices.find((x) => x.id === d.meta.link.to)
+        if (!t) return null
+        const [x1, z1] = d.meta.position
+        const sameFloor = t.meta?.position && (t.meta.floor ? t.meta.floor === floor.key : placed.some((p) => p.id === t.id))
+        if (sameFloor) {
+          const [x2, z2] = t.meta.position
+          return <line key={`ln-${d.id}`} x1={x1} y1={z1} x2={x2} y2={z2} className={`mh-plan-link ${d.kind === 'power_outlet' || t.kind === 'meter' ? 'power' : ''}`} />
+        }
+        return (
+          <text key={`ln-${d.id}`} x={x1 + 0.24} y={z1 + 0.06} fontSize={0.12} fontFamily="var(--mh-body)" fill="var(--mh-accent)" className="mh-plan-halo" pointerEvents="none">
+            → {t.name}{d.meta.link.port ? ` (${d.meta.link.port})` : ''}
+          </text>
         )
       })}
 
@@ -142,9 +185,10 @@ export default function PlanView({
             {s.motion && <circle r={0.3} className="mh-plan-pulse" pointerEvents="none" />}
             <DeviceSymbol device={d} x={0} z={0} selected={d.id === selectedDeviceId} isNew={d.meta?.review === 'new'} showLabel={showLabels}
               onClick={() => onSelectDevice(d.id)}
+              onDoubleClick={() => onEditName({ type: 'device', id: d.id })}
               onPointerDown={(e) => {
-                if (mode !== 'place') return
                 e.stopPropagation()
+                if (mode !== 'place') return
                 drag.current = { type: 'device', device: d, pos: d.meta.position, moved: false }
                 svgRef.current.setPointerCapture(e.pointerId)
               }} />

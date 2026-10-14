@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@core/api.js'
 import { uploadImageFile } from '@core/uploadImage.js'
 import { LINK_STATUS, ROOM_KINDS, fmtArea, liveSummary } from '../model.js'
@@ -6,8 +6,13 @@ import PhotoColorPicker from './PhotoColorPicker.jsx'
 import HaAreaSelect from './HaAreaSelect.jsx'
 
 // Detailkaart van een ruimte: gegevens, uiterlijk (muur/vloer), foto's van de ruimte en apparaten.
-export default function RoomPanel({ home, room, sources, live, onHomeChange, onReload, onClose }) {
+export default function RoomPanel({ home, room, sources, live, focusName, onHomeChange, onReload, onClose }) {
   const [picker, setPicker] = useState(null)
+  const [name, setName] = useState(room.name)
+  const [zone, setZone] = useState(room.meta?.zone || '')
+  const nameRef = useRef(null)
+  useEffect(() => { setName(room.name); setZone(room.meta?.zone || '') }, [room.id, room.name, room.meta?.zone])
+  useEffect(() => { if (focusName) nameRef.current?.select() }, [focusName, room.id])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const photos = sources.filter((s) => s.room_id === room.id)
@@ -35,12 +40,30 @@ export default function RoomPanel({ home, room, sources, live, onHomeChange, onR
   return (
     <div className="mh-room-card">
       <div className="mh-row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div><h3 style={{ margin: 0 }}>{room.floorName}</h3><h2>{room.name}</h2></div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h3 style={{ margin: 0 }}>{room.floorName}{room.meta?.zone ? ` · ${room.meta.zone}` : ''}</h3>
+          <input ref={nameRef} id={`room-name-${room.id}`} className="mh-title-input" value={name} aria-label="Room name"
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            onBlur={() => name.trim() && name.trim() !== room.name && run(async () => onHomeChange(await api.patch(`/api/myhome/rooms/${room.id}`, { name: name.trim() })))} />
+        </div>
         <button className="mh-btn ghost" onClick={onClose} aria-label="Close">×</button>
       </div>
       <dl className="mh-dl">
         <dt>Area</dt><dd className="mh-mono">{fmtArea(room.area_m2)}</dd>
-        <dt>Type</dt><dd><span className="mh-sw" style={{ background: ROOM_KINDS[room.kind]?.color }} />{ROOM_KINDS[room.kind]?.label}</dd>
+        <dt>Type</dt>
+        <dd>
+          <select id={`room-kind-${room.id}`} value={room.kind} aria-label="Room type"
+            onChange={(e) => run(async () => onHomeChange(await api.patch(`/api/myhome/rooms/${room.id}`, { kind: e.target.value })))}>
+            {Object.entries(ROOM_KINDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </dd>
+        <dt>Zone</dt>
+        <dd>
+          <input id={`room-zone-${room.id}`} value={zone} placeholder="e.g. Tinyhouse" aria-label="Zone" list="mh-zones"
+            onChange={(e) => setZone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            onBlur={() => zone !== (room.meta?.zone || '') && setLook('zone', zone.trim() || null)} />
+          <datalist id="mh-zones">{[...new Set(home.floors.flatMap((f) => f.rooms.map((r) => r.meta?.zone)).filter(Boolean))].map((z) => <option key={z} value={z} />)}</datalist>
+        </dd>
         <dt>HA area</dt>
         <dd className="mh-row">
           <HaAreaSelect home={home} room={room} id={`panel-ha-${room.id}`}

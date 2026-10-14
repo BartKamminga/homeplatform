@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from core.auth import get_current_user
 from core.database import get_session
 from models.core import User
-from models.myhome import Home, HomeDevice, HomeFloor, HomeNote, HomeRoom, HomeSource
+from models.myhome import Home, HomeDevice, HomeFloor, HomeNote, HomePushJob, HomeRoom, HomeSource
 from services.myhome import (
     LINK_STATUSES, ROOM_KINDS, adopt_area_devices, export_home, get_owned_home, log_call, replace_layout,
 )
@@ -85,7 +85,7 @@ def update_home(home_id: str, body: HomePatch, user: User = Depends(get_current_
 @router.delete("/homes/{home_id}", status_code=204)
 def delete_home(home_id: str, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     home = get_owned_home(session, home_id, user.id)
-    for model in (HomeDevice, HomeRoom, HomeFloor, HomeSource, HomeNote):
+    for model in (HomePushJob, HomeDevice, HomeRoom, HomeFloor, HomeSource, HomeNote):
         for row in session.exec(select(model).where(model.home_id == home.id)).all():
             session.delete(row)
     session.delete(home)

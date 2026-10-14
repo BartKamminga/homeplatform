@@ -13,6 +13,7 @@
 #   Hue-id zodat ze niet dubbel binnenkomen. Bij start, elke nacht en kort na het toevoegen van een apparaat.
 #   Nieuwe apparaten -> melding in HA met de vraag om ze in MyHome aan te vullen.
 # - Live: lamp aan/uit, deur/raam open, beweging, schakelaars en media -> MyHome, voor weergave in het model.
+# - Push (wijzigingen uit MyHome uitvoeren in HA/Hue) staat in myhome_push.yaml en is bewust nog niet actief.
 
 rest_command:
   myhome_sync:
