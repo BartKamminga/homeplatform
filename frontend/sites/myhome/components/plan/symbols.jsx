@@ -5,11 +5,13 @@ export const DEVICE_KINDS = {
   switch: { label: 'Switch / button', group: 'Light' },
   power_outlet: { label: 'Power outlet', group: 'Power' },
   plug: { label: 'Smart plug', group: 'Power' },
-  meter: { label: 'Meter / fuse box', group: 'Power' },
+  meter: { label: 'Meter / fuse box', group: 'Power', ports: true },
   energy: { label: 'Energy (solar, battery)', group: 'Power' },
   network_outlet: { label: 'Network outlet', group: 'Internet' },
   access_point: { label: 'Wi-Fi access point', group: 'Internet' },
-  router: { label: 'Router / switch', group: 'Internet' },
+  router: { label: 'Router', group: 'Internet', ports: true },
+  network_switch: { label: 'Network switch', group: 'Internet', ports: true },
+  patch_panel: { label: 'Patch panel', group: 'Internet', ports: true },
   sensor: { label: 'Sensor', group: 'Devices' },
   thermostat: { label: 'Thermostat / radiator', group: 'Devices' },
   camera: { label: 'Camera', group: 'Devices' },
@@ -20,7 +22,10 @@ export const DEVICE_KINDS = {
   other: { label: 'Other', group: 'Devices' },
 }
 
-export const QUICK_ADD = ['power_outlet', 'network_outlet', 'access_point', 'light', 'switch', 'note']
+export const QUICK_ADD = ['power_outlet', 'network_outlet', 'access_point', 'network_switch', 'patch_panel', 'meter', 'light', 'switch', 'note']
+
+// Soorten met poorten/groepen waar andere apparaten op aangesloten worden.
+export const HAS_PORTS = Object.keys(DEVICE_KINDS).filter((k) => DEVICE_KINDS[k].ports)
 
 const R = 0.17
 
@@ -43,7 +48,7 @@ function Glyph({ kind }) {
     case 'switch':
       return <><circle r={R * 0.75} {...s} fill="var(--plan-sym)" /><path d={`M0,0L${R * 1.1},${-R * 1.1}`} {...s} /></>
     default: {
-      const letters = { access_point: 'AP', router: 'R', sensor: 'S', thermostat: 'T', camera: 'C', speaker: 'SP', media: 'TV', appliance: 'A', meter: 'kWh', energy: 'E', other: '•' }
+      const letters = { access_point: 'AP', router: 'R', network_switch: 'SW', patch_panel: 'PP', sensor: 'S', thermostat: 'T', camera: 'C', speaker: 'SP', media: 'TV', appliance: 'A', meter: 'kWh', energy: 'E', other: '•' }
       return <><rect x={-R} y={-R} width={R * 2} height={R * 2} rx={0.04} {...s} fill="var(--plan-sym)" />{t(letters[kind] || '•', (letters[kind] || '').length > 2 ? 0.1 : 0.14)}</>
     }
   }

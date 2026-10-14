@@ -126,7 +126,7 @@ export default function ModelPage({ home, sources, onReload, onHomeChange }) {
           <div className="mh-plan-wrap">
             <PlanView floor={floor} devices={floorDevices} live={live} mode={mode} selectedRoomId={selectedId}
               onSelectRoom={(id) => { if (!draft) { setSelectedId(id); setDeviceId(null) } }} draft={draft} onDraftChange={setDraft}
-              armed={armed} onPlace={place} selectedDeviceId={deviceId} showLabels={showLabels}
+              armed={armed} onPlace={place} selectedDeviceId={deviceId} showLabels={showLabels} allDevices={allDevices}
               onSelectDevice={(id) => { setDeviceId(id); setSelectedId(null) }}
               onEditName={({ type, id }) => {
                 if (type === 'room') { setSelectedId(id); setDeviceId(null) } else { setDeviceId(id); setSelectedId(null) }
@@ -143,7 +143,7 @@ export default function ModelPage({ home, sources, onReload, onHomeChange }) {
             onClose={() => { setSelectedId(null); setDraft(null) }} />
         )}
         {device && (
-          <DevicePanel home={home} device={device} live={live} focusName={focusName} onReload={onReload} onClose={() => setDeviceId(null)} />
+          <DevicePanel home={home} device={device} devices={allDevices} live={live} focusName={focusName} onReload={onReload} onClose={() => setDeviceId(null)} />
         )}
       </div>
     </>

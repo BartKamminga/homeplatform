@@ -8,7 +8,7 @@ import { centroid, edgeDimensions, floorBounds, fmtLen, roomAt, snap, toSvgPoint
 // armed: apparaat (of {quickAdd: kind}) dat bij de volgende klik op de plattegrond geplaatst wordt.
 export default function PlanView({
   floor, devices, live, mode, selectedRoomId, onSelectRoom, draft, onDraftChange,
-  armed, onPlace, selectedDeviceId, onSelectDevice, showLabels, onEditName,
+  armed, onPlace, selectedDeviceId, onSelectDevice, showLabels, onEditName, allDevices = [],
 }) {
   const svgRef = useRef(null)
   const drag = useRef(null)
@@ -157,6 +157,23 @@ export default function PlanView({
               <title>Drag to move · double-click to remove</title>
             </circle>
           </g>
+        )
+      })}
+
+      {placed.map((d) => {
+        // Kabel/verbinding naar het apparaat waar dit op aangesloten is (stippellijn, of pijl als het elders hangt).
+        const t = d.meta?.link?.to && allDevices.find((x) => x.id === d.meta.link.to)
+        if (!t) return null
+        const [x1, z1] = d.meta.position
+        const sameFloor = t.meta?.position && (t.meta.floor ? t.meta.floor === floor.key : placed.some((p) => p.id === t.id))
+        if (sameFloor) {
+          const [x2, z2] = t.meta.position
+          return <line key={`ln-${d.id}`} x1={x1} y1={z1} x2={x2} y2={z2} className={`mh-plan-link ${d.kind === 'power_outlet' || t.kind === 'meter' ? 'power' : ''}`} />
+        }
+        return (
+          <text key={`ln-${d.id}`} x={x1 + 0.24} y={z1 + 0.06} fontSize={0.12} fontFamily="var(--mh-body)" fill="var(--mh-accent)" className="mh-plan-halo" pointerEvents="none">
+            → {t.name}{d.meta.link.port ? ` (${d.meta.link.port})` : ''}
+          </text>
         )
       })}
 

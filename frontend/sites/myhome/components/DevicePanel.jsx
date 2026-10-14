@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '@core/api.js'
 import { allRooms, liveSummary } from '../model.js'
 import { DEVICE_KINDS, SymbolIcon } from './plan/symbols.jsx'
+import ConnectionEditor from './ConnectionEditor.jsx'
 
 // Apparaat op de plattegrond: hernoemen, soort, ruimte; laat zien hoe het in HA heet en waar het daar staat.
-export default function DevicePanel({ home, device, live, focusName, onReload, onClose }) {
+export default function DevicePanel({ home, device, devices, live, focusName, onReload, onClose }) {
   const [name, setName] = useState(device.name)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
   const nameRef = useRef(null)
   const rooms = allRooms(home).filter((r) => r.kind !== 'outdoor')
@@ -13,7 +15,7 @@ export default function DevicePanel({ home, device, live, focusName, onReload, o
   const meta = device.meta || {}
   const s = liveSummary(live[device.id])
 
-  useEffect(() => { setName(device.name) }, [device.id, device.name])
+  useEffect(() => { setName(device.name); setConfirmDelete(false) }, [device.id, device.name])
   useEffect(() => { if (focusName) nameRef.current?.select() }, [focusName, device.id])
 
   async function patch(data) {
@@ -61,14 +63,28 @@ export default function DevicePanel({ home, device, live, focusName, onReload, o
           )}
         </div>
       )}
-      {meta.position && (
-        <button className="mh-btn ghost" onClick={() => {
-          const rest = { ...meta }
-          delete rest.position
-          delete rest.floor
-          patch({ meta: rest }).then(onClose)
-        }}>Remove from plan</button>
-      )}
+      <ConnectionEditor device={device} devices={devices} onMeta={(m) => patch({ meta: m })} />
+      <div className="mh-row">
+        {meta.position && (
+          <button className="mh-btn ghost" onClick={() => {
+            const rest = { ...meta }
+            delete rest.position
+            delete rest.floor
+            patch({ meta: rest }).then(onClose)
+          }}>Remove from plan</button>
+        )}
+        {device.source === 'manual' && (confirmDelete ? (
+          <>
+            <span className="mh-muted">Delete for good?</span>
+            <button className="mh-btn danger" onClick={async () => {
+              try { await api.delete(`/api/myhome/devices/${device.id}`); await onReload(); onClose() } catch (e) { setError(e.message) }
+            }}>Delete</button>
+            <button className="mh-btn ghost" onClick={() => setConfirmDelete(false)}>Keep</button>
+          </>
+        ) : (
+          <button className="mh-btn ghost" onClick={() => setConfirmDelete(true)}>Delete…</button>
+        ))}
+      </div>
       {error && <p className="mh-error">{error}</p>}
     </div>
   )
