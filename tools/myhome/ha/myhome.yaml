@@ -64,7 +64,7 @@ rest_command:
       Authorization: !secret myhome_auth
       Content-Type: application/json
     payload: >-
-      {{ {'events': [{'entity_id': entity_id, 'state': state, 'device_class': device_class or none}]} | to_json }}
+      {{ {'events': [{'entity_id': entity_id, 'state': state | string, 'device_class': device_class or none}]} | to_json }}
 
 automation:
   - id: myhome_sync_devices
