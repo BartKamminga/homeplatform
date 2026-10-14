@@ -13,8 +13,9 @@ function ensureFonts() {
   document.head.appendChild(link)
 }
 
-// Basis voor elke arcade-frontend (item 1336): fonts, body-achtergrond, theme-color en CRT-overlay.
-export default function ArcadeShell({ children, crt = true }) {
+// Basis voor elke arcade-frontend (item 1336): fonts, body-achtergrond en theme-color.
+// CRT-scanlines staan standaard uit: leuk voor games (VBT), niet voor apps.
+export default function ArcadeShell({ children, crt = false }) {
   useEffect(() => {
     ensureFonts()
     document.body.classList.add('ac-body')
