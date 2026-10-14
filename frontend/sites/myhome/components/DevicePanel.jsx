@@ -60,7 +60,16 @@ export default function DevicePanel({ home, device, devices, live, focusName, on
             <dt>Source</dt><dd>{device.source}{device.manufacturer ? ` · ${device.manufacturer}` : ''}</dd>
           </dl>
           {((meta.ha_name && meta.ha_name !== device.name) || (room?.ha_area && meta.ha_area !== room.ha_area)) && (
-            <p className="mh-muted">Differs from Home Assistant (see <strong>vs HA</strong>).</p>
+            <p className="mh-muted">Proposed for Home Assistant (see <strong>vs HA</strong>).</p>
+          )}
+          {meta.ha_name && meta.ha_name !== device.name && meta.ha_device_id && (
+            <button className="mh-btn ghost" onClick={async () => {
+              setError('')
+              try {
+                await api.post(`/api/myhome/homes/${home.id}/changes/keep-ha`, { kind: 'rename_device', target: meta.ha_device_id })
+                await onReload()
+              } catch (e) { setError(e.message) }
+            }}>Use HA name</button>
           )}
         </div>
       )}

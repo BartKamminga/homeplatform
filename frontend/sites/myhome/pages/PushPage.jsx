@@ -47,6 +47,15 @@ export default function PushPage({ home, onReload }) {
     setPicked(next)
   }
 
+  // Andersom: MyHome neemt de HA-versie over, het voorstel vervalt.
+  async function keepHa(c) {
+    setError(''); setInfo('')
+    try {
+      setChanges(await api.post(`/api/myhome/homes/${home.id}/changes/keep-ha`, { kind: c.kind, target: c.target }))
+      await onReload()
+    } catch (e) { setError(e.message) }
+  }
+
   async function push() {
     setError(''); setInfo('')
     const list = changes.filter((c) => picked.has(keyOf(c))).map(({ kind, target, payload }) => ({ kind, target, payload }))
@@ -66,7 +75,7 @@ export default function PushPage({ home, onReload }) {
       <div>
         <h2>MyHome vs Home Assistant</h2>
         <p className="mh-muted">
-          MyHome is leading for names and layout. These are the differences with what Home Assistant reported at the last sync.
+          Every difference is a proposal from MyHome. Keep HA drops the proposal and takes over the Home Assistant version.
           {PUSH_ENABLED
             ? ' Pick what should change; Home Assistant applies it and reports back.'
             : ' Sending changes to Home Assistant comes later; for now this list shows where the two differ.'}
@@ -100,6 +109,8 @@ export default function PushPage({ home, onReload }) {
                     <span>{c.label}</span>
                     {c.queued && <span className="mh-pill proposed">waiting for HA</span>}
                     {!c.supported && <span className="mh-pill none">not possible from HA</span>}
+                    <button className="mh-btn ghost" style={{ marginLeft: 'auto' }} title="Use the Home Assistant version in MyHome"
+                      onClick={(e) => { e.preventDefault(); keepHa(c) }}>Keep HA</button>
                   </label>
                 </li>
               ))}
