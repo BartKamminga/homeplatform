@@ -24,7 +24,7 @@ Op volgorde van wat het meest scheelt. Alles hieronder werkt zonder AI.
 | 1 | **Ruimtes toevoegen, splitsen, samenvoegen, verwijderen** in de plan-modus | De walk-in closet, de gang van de Tinyhouse en het verdelen van de kasten kon niet in de app. |
 | 2 | **Gedeelde muren**: een hoekpunt verslepen schuift de buurruimte mee | Nu kan elke ruimte los bewegen, waardoor er kieren en overlap ontstaan. |
 | 3 | **Ongedaan maken** | Met echt tekenwerk moet je terug kunnen. Een versietijdlijn is niet nodig (besluit 14-10). |
-| 4 | **Inregel-checklist** met wat er nog openstaat | Bijvoorbeeld: twee ruimtes aan dezelfde HA-ruimte (Badkamer én Bedroom aan "Tinyhouse", nu bewust: beide in de suite), 93 apparaten zonder ruimte, ruimtes zonder HA-ruimte, apparaten niet op de plattegrond. |
+| 4 | **Inregel-checklist** met wat er nog openstaat | Bijvoorbeeld: twee ruimtes aan dezelfde HA-ruimte (Badkamer én Bedroom aan "Tinyhouse"; de Badkamer hoort niet bij de suite), 93 apparaten zonder ruimte, ruimtes zonder HA-ruimte, apparaten niet op de plattegrond. |
 | 5 | **Apparaten in bulk koppelen** (meerdere tegelijk, of "alles uit HA-ruimte X naar ruimte Y") | 93 apparaten één voor één slepen is te veel werk (jouw antwoord 7: weinig invoertijd). |
 | 6 | **Deuren en ramen** als onderdeel van een muur | Maakt de tekening leesbaar. Later is het ook de basis voor deur-/raamsensoren op de goede plek. |
 | 7 | **Verdiepingen beheren** (naam, niveau, HA-verdieping) | "First floor" in HA is de begane grond. Dat moet in MyHome goed staan, voordat het ooit naar HA gaat. |
@@ -77,7 +77,7 @@ de app, en blijft de agent een versneller in plaats van een voorwaarde.
 
 1. **Pilot:** ja, met 2–3 huizen van familie of vrienden (optie C, met D als experiment).
 2. **Versies:** ongedaan maken is genoeg; geen tijdlijn met versies.
-3. **Badkamer:** hoort bij de Tinyhouse-suite. De suite bestaat nu uit Study, Douche, Bedroom, Badkamer en Gang Tinyhouse.
+3. **Tinyhouse:** alleen Study, Gang Tinyhouse, Douche en Bedroom (rechterkolom 1e etage). De Badkamer hoort er niet bij (gecorrigeerd 14-10).
 4. **Zolder:** Kamer Lievelot is uitgebreid met de berging ernaast (17,2 m²).
 
 Roadmap: de stappen uit §5 staan als items onder site `myhome`.
