@@ -263,3 +263,34 @@ def test_roof_and_garden_floors_not_indoor(client, user_token):
     assert data["area_m2"] == 17.0                          # dak en tuin tellen niet mee
     roof = next(f for f in data["floors"] if f["key"] == "roof")
     assert roof["rooms"][0]["area_m2"] == 20.0 and roof["area_m2"] == 0
+
+
+def test_keep_ha_drops_proposals(client, user_token):
+    home_id = _home(client, user_token)
+    data = client.put(f"/api/myhome/homes/{home_id}/layout", json=LAYOUT, headers=_h(user_token)).json()
+    kitchen_id = data["floors"][0]["rooms"][0]["id"]
+    client.patch(f"/api/myhome/rooms/{kitchen_id}", json={"name": "Keuken", "ha_area": "Kitchen", "link_status": "linked"},
+                 headers=_h(user_token))
+    sync = {"devices": [{"name": "Hue lamp 1", "kind": "light", "source": "hue", "external_id": "hue-9",
+                         "meta": {"ha_device_id": "dev-9", "ha_area": "Kitchen"}}]}
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    dev = client.get(f"/api/myhome/homes/{home_id}/devices", headers=_h(user_token)).json()[0]
+    client.patch(f"/api/myhome/devices/{dev['id']}", json={"name": "Lamp keuken", "room_id": None}, headers=_h(user_token))
+    changes = client.get(f"/api/myhome/homes/{home_id}/changes", headers=_h(user_token)).json()
+    pick = [{k: c[k] for k in ("kind", "target", "payload")} for c in changes if c["kind"] == "rename_device"]
+    client.post(f"/api/myhome/homes/{home_id}/push", json={"changes": pick}, headers=_h(user_token))
+
+    keep = lambda kind, target: client.post(f"/api/myhome/homes/{home_id}/changes/keep-ha",  # noqa: E731
+                                            json={"kind": kind, "target": target}, headers=_h(user_token))
+    left = keep("rename_area", "Kitchen").json()
+    assert ("rename_area", "Kitchen") not in {(c["kind"], c["target"]) for c in left}
+    assert keep("rename_device", "dev-9").json() == []
+    dev = client.get(f"/api/myhome/homes/{home_id}/devices", headers=_h(user_token)).json()[0]
+    assert dev["name"] == "Hue lamp 1"
+    assert client.get(f"/api/myhome/homes/{home_id}/push?status=pending", headers=_h(user_token)).json() == []
+    # naam volgt HA weer bij de volgende sync
+    sync["devices"][0]["name"] = "Hue lamp keuken"
+    client.put(f"/api/myhome/homes/{home_id}/devices/import", json=sync, headers=_h(user_token))
+    assert client.get(f"/api/myhome/homes/{home_id}/devices", headers=_h(user_token)).json()[0]["name"] == "Hue lamp keuken"
+    assert keep("move_device", "nope").status_code == 404
+    assert keep("rename_floor", "x").status_code == 422

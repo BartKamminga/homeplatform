@@ -117,6 +117,51 @@ def push_changes(home_id: str, body: PushIn, user: User = Depends(get_current_us
     return {"queued": queued}
 
 
+class KeepIn(BaseModel):
+    kind: str
+    target: str
+
+
+@router.post("/homes/{home_id}/changes/keep-ha")
+def keep_ha(home_id: str, body: KeepIn, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """Andersom: MyHome neemt de versie van HA over, het voorstel vervalt (ook een nog wachtende push)."""
+    get_owned_home(session, home_id, user.id)
+    if body.kind == "rename_area":
+        rooms = session.exec(select(HomeRoom).where(HomeRoom.home_id == home_id, HomeRoom.ha_area == body.target)).all()
+        if not rooms:
+            raise HTTPException(status_code=404, detail="Room not found")
+        for r in rooms:
+            r.name = body.target
+            session.add(r)
+    elif body.kind in ("rename_device", "move_device"):
+        device = next((d for d in session.exec(select(HomeDevice).where(HomeDevice.home_id == home_id)).all()
+                       if (d.meta or {}).get("ha_device_id") == body.target), None)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        meta = device.meta or {}
+        if body.kind == "rename_device":
+            device.name = meta.get("ha_name") or device.name
+            device.meta = {**meta, "edited": False}     # volgende syncs houden de naam weer gelijk aan HA
+        else:
+            room = session.exec(select(HomeRoom).where(
+                HomeRoom.home_id == home_id, HomeRoom.link_status == "linked",
+                HomeRoom.ha_area == meta.get("ha_area"))).first()
+            if not room:
+                raise HTTPException(status_code=422, detail=f"No room in MyHome is linked to HA area {meta.get('ha_area')}")
+            device.room_id = room.id
+        device.updated_at = datetime.utcnow()
+        session.add(device)
+    else:
+        raise HTTPException(status_code=422, detail=f"Unknown change: {body.kind}")
+    for j in session.exec(select(HomePushJob).where(
+            HomePushJob.home_id == home_id, HomePushJob.kind == body.kind,
+            HomePushJob.target == body.target, HomePushJob.status == "pending")).all():
+        j.status, j.result, j.applied_at = "cancelled", "kept the Home Assistant version", datetime.utcnow()
+        session.add(j)
+    session.commit()
+    return compute_changes(session, home_id)
+
+
 @router.get("/homes/{home_id}/push")
 def list_jobs(home_id: str, status: Optional[str] = None, user: User = Depends(get_current_user),
               session: Session = Depends(get_session)):
