@@ -23,8 +23,8 @@ Op volgorde van wat het meest scheelt. Alles hieronder werkt zonder AI.
 |---|---|---|
 | 1 | **Ruimtes toevoegen, splitsen, samenvoegen, verwijderen** in de plan-modus | De walk-in closet, de gang van de Tinyhouse en het verdelen van de kasten kon niet in de app. |
 | 2 | **Gedeelde muren**: een hoekpunt verslepen schuift de buurruimte mee | Nu kan elke ruimte los bewegen, waardoor er kieren en overlap ontstaan. |
-| 3 | **Ongedaan maken + versies van de indeling** (snapshot bij elke wijziging) | Met echt tekenwerk moet je terug kunnen. Een verbouwing is ook een versie ("voor/na"). |
-| 4 | **Inregel-checklist** met wat er nog openstaat | Bijvoorbeeld: twee ruimtes aan dezelfde HA-ruimte (nu Badkamer én Bedroom → "Tinyhouse"), 93 apparaten zonder ruimte, ruimtes zonder HA-ruimte, apparaten niet op de plattegrond. |
+| 3 | **Ongedaan maken** | Met echt tekenwerk moet je terug kunnen. Een versietijdlijn is niet nodig (besluit 14-10). |
+| 4 | **Inregel-checklist** met wat er nog openstaat | Bijvoorbeeld: twee ruimtes aan dezelfde HA-ruimte (Badkamer én Bedroom aan "Tinyhouse", nu bewust: beide in de suite), 93 apparaten zonder ruimte, ruimtes zonder HA-ruimte, apparaten niet op de plattegrond. |
 | 5 | **Apparaten in bulk koppelen** (meerdere tegelijk, of "alles uit HA-ruimte X naar ruimte Y") | 93 apparaten één voor één slepen is te veel werk (jouw antwoord 7: weinig invoertijd). |
 | 6 | **Deuren en ramen** als onderdeel van een muur | Maakt de tekening leesbaar. Later is het ook de basis voor deur-/raamsensoren op de goede plek. |
 | 7 | **Verdiepingen beheren** (naam, niveau, HA-verdieping) | "First floor" in HA is de begane grond. Dat moet in MyHome goed staan, voordat het ooit naar HA gaat. |
@@ -67,14 +67,17 @@ de app, en blijft de agent een versneller in plaats van een voorwaarde.
 
 ## 5. Voorgestelde volgorde
 
-1. **Inregel-gereedschap**: §2.1 tot en met §2.5 (ruimtes bewerken, gedeelde muren, versies, checklist, bulk-koppelen).
+1. **Inregel-gereedschap**: §2.1 tot en met §2.5 (ruimtes bewerken, gedeelde muren, ongedaan maken, checklist, bulk-koppelen).
 2. **Eigen huis afmaken** met dat gereedschap. Klaar betekent: checklist leeg, of bewust geaccepteerd.
 3. **Start uit HA + overtrekken met schaal** (§3, stap 2–3): de route voor anderen zonder agent.
 4. **Pilot 2–3 huizen** met agent-sessie (C), en daarbij D testen.
 5. **Besluit** over de agent-module (B) en over de HA-app (onderzoek §5). Pas daarna push naar HA aanzetten.
 
-## 6. Vragen voor Bart
+## 6. Besluiten van Bart (14-10)
 
-1. Zijn er 2–3 huizen (familie, vrienden) voor de pilot, en mogen die mensen hun tekeningen met jou delen?
-2. Wil je versies van de indeling zichtbaar als tijdlijn ("voor de verbouwing / erna"), of alleen ongedaan maken?
-3. Hoort de **Badkamer** (nu gekoppeld aan HA "Tinyhouse") bij de suite? Dat is nu de eerste regel van de checklist.
+1. **Pilot:** ja, met 2–3 huizen van familie of vrienden (optie C, met D als experiment).
+2. **Versies:** ongedaan maken is genoeg; geen tijdlijn met versies.
+3. **Badkamer:** hoort bij de Tinyhouse-suite. De suite bestaat nu uit Study, Douche, Bedroom, Badkamer en Gang Tinyhouse.
+4. **Zolder:** Kamer Lievelot is uitgebreid met de berging ernaast (17,2 m²).
+
+Roadmap: de stappen uit §5 staan als items onder site `myhome`.
