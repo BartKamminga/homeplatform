@@ -3,7 +3,7 @@
 # G4 staat thuis, dus zijn eigen publieke IP is het thuis-IP (ook onderweg via Teleport-VPN). Wijzigt het,
 # dan schrijft dit script een nieuw allow-bestand en herlaadt het Caddy in de acc-container.
 # Status voor admin Infrastructuur: db/acc_access.json.
-# Alleen op G4 (acc): */5 * * * * /home/bart/acc-home-ip.sh >> /home/bart/acc-home-ip.log 2>&1
+# Alleen op G4 (acc): */30 * * * * /home/bart/acc-home-ip.sh >> /home/bart/acc-home-ip.log 2>&1
 ALLOW_DIR=/home/bart/homeplatform-acc/caddy-allow
 ALLOW_FILE=$ALLOW_DIR/home.caddy
 CHANGED_FILE=$ALLOW_DIR/home.changed

@@ -1,8 +1,8 @@
 import { Badge, Chip, OK, WARN, BAD, MUTED, StatCells, cardStyle, fmtAgo, labelStyle } from './ui.jsx';
 
 // Item 1191: acc.webheaven.nl staat via de tunnel op internet; Caddy laat alleen het LAN, het thuis-IP
-// (bijgehouden door scripts/acc-home-ip.sh op G4, elke 5 min) en extra IP's (GitHub-variabele) door.
-const STALE_S = 15 * 60;
+// (bijgehouden door scripts/acc-home-ip.sh op G4, elke 30 min) en extra IP's (GitHub-variabele) door.
+const STALE_S = 75 * 60;     // cron elke 30 min: twee gemiste runs = stale
 
 export default function AccAccessPanel({ access }) {
   const ageS = access?.checked_at ? (Date.now() - new Date(access.checked_at)) / 1000 : null;

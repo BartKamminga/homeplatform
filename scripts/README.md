@@ -73,10 +73,10 @@ GitHub Actions-runner op verzoek van de admin-UI. Vereist sudo zonder wachtwoord
 
 Alleen op G4. Haalt het publieke thuis-IP op (via Cloudflare, zoals Caddy het in `Cf-Connecting-IP`
 ziet) en schrijft het naar `homeplatform-acc/caddy-allow/home.caddy`. Bij een wijziging herlaadt het
-Caddy in `homeplatform_caddy_acc`. Zo blijft acc.webheaven.nl bereikbaar vanaf thuis (en via
+Caddy in `homeplatform_caddy_acc` (elke 30 min). Zo blijft acc.webheaven.nl bereikbaar vanaf thuis (en via
 Teleport-VPN) terwijl de rest van internet een 403 krijgt (item 1191).
 ```
-*/5 * * * * /home/bart/acc-home-ip.sh >> /home/bart/acc-home-ip.log 2>&1
+*/30 * * * * /home/bart/acc-home-ip.sh >> /home/bart/acc-home-ip.log 2>&1
 ```
 
 ## Uitrollen
