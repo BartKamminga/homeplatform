@@ -65,6 +65,7 @@ def seed_sites(session: Session):
         ("Poulebord", "poulebord", "poulebord", "🏒"),
         ("VBT", "vbt", "vbt", "🚴"),
         ("MyHome", "myhome", "myhome", "🏠"),
+        ("Keelson", "keelson", "keelson", "⚓"),
         ("BeatCrades", "beatcrades", "beatcrades", "🎵"),
         ("Scrapster", "scrapster", "scrapster", "📡"),
         ("Agent Control", "agent-control", "agent-control", "🤖"),
@@ -144,6 +145,10 @@ def seed(username: str, password: str, email: str):
 
         print("\n>> VBT-plannen...")
         seed_vbt(session)
+
+        print("\n>> Keelson (systemen, elementen, checklists)...")
+        from services.keelson import seed_keelson
+        seed_keelson(session)
 
         print("\n>> Admin gebruiker...")
         seed_admin(session, username, password, email)

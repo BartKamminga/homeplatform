@@ -43,6 +43,7 @@ from routers import auth_oidc, auth_identities  # noqa: E402
 from routers import mixmusic, changelog, tracking, dontforget, uploads, bug_reports, push  # noqa: E402
 from routers import tournix, fiets, backup  # noqa: E402
 from routers import myhome, myhome_inputs, myhome_devices, myhome_push  # noqa: E402
+from routers import keelson  # noqa: E402
 from routers import tournix_import  # noqa: E402
 from routers.backup import backup_router  # noqa: E402
 from routers import roadmap  # noqa: E402
@@ -206,6 +207,7 @@ app.include_router(myhome.router)
 app.include_router(myhome_inputs.router)
 app.include_router(myhome_devices.router)
 app.include_router(myhome_push.router)
+app.include_router(keelson.router)
 app.include_router(backup.router)
 app.include_router(backup_router)
 app.include_router(roadmap.router)
