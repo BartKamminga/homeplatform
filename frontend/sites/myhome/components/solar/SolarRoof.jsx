@@ -9,7 +9,14 @@ export default function SolarRoof({ home, solar, inverters, selected, onSelect, 
   const floors = home.floors
   const top = floors[floors.length - 1]
   const outline = floors.flatMap((f) => f.rooms.filter((r) => r.kind !== 'outdoor').map((r) => ({ ...r, floorKey: f.key })))
-  const vb = floorBounds(outline, 2)
+  // Kader om huis en alle panelenvelden (een veld kan buiten het huis liggen, bv. op de garage).
+  const fieldBoxes = (solar.arrays || []).map((a) => {
+    const [aw, ah] = arraySize(a)
+    const r = ((a.rotation || 0) * Math.PI) / 180
+    const corners = [[0, 0], [aw, 0], [aw, ah], [0, ah]].map(([x, z]) => [a.x + x * Math.cos(r) - z * Math.sin(r), a.z + x * Math.sin(r) + z * Math.cos(r)])
+    return { polygon: corners }
+  })
+  const vb = floorBounds([...outline, ...fieldBoxes], 1.2)
   const watts = Object.values(inverters).map((i) => i.watt).filter((w) => w != null)
   const max = Math.max(1, ...watts)
   const anyOn = watts.some((w) => w > 20)
