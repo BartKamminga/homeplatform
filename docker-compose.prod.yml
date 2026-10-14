@@ -1,0 +1,73 @@
+# docker-compose.prod.yml - productie op g5 (poort 8080). Gedeelde definities: docker-compose.base.yml.
+# Images komen uit GHCR, getagd met de korte commit-sha. IMAGE_TAG is verplicht - geen :latest-fallback,
+# want die startte stil een oud lokaal image:
+#   export IMAGE_TAG=<sha> && docker compose -f docker-compose.prod.yml up -d
+
+services:
+  caddy:
+    extends: { file: docker-compose.base.yml, service: caddy }
+    image: ghcr.io/bartkamminga/homeplatform-web:${IMAGE_TAG:?IMAGE_TAG niet gezet}
+    container_name: homeplatform_caddy
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      # /yearof/ los van de image, bijwerken met publish-yearof.ps1
+      - /home/bart/homeplatform/static/yearof:/srv/static/yearof:ro
+    depends_on:
+      - backend
+
+  backend:
+    extends: { file: docker-compose.base.yml, service: backend }
+    image: ghcr.io/bartkamminga/homeplatform-backend:${IMAGE_TAG:?IMAGE_TAG niet gezet}
+    container_name: homeplatform_backend
+    volumes:
+      - /home/bart/homeplatform/db:/app/db
+      - /mnt/extra-ssd/uploads:/app/uploads
+      - /mnt/extra-ssd/nas-files:/app/nas-files
+      - /home/bart/homeplatform/music:/app/music
+      - /home/bart/homeplatform/music/downloads:/app/downloads
+      - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
+      - /home/bart/homeplatform/plugins:/app/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./MindBox.ps1:/app/MindBox.ps1:ro
+      - /etc/hostname:/etc/host_hostname:ro
+    environment:
+      - ENVIRONMENT=production
+      - DEV_SESSION_DEPLOY_KEY_HOST_PATH=${DEV_SESSION_DEPLOY_KEY_HOST_PATH:-/home/bart/homeplatform/secrets/claude-agent-deploy-key}
+      - DEV_SESSION_UPLOADS_HOST_PATH=${DEV_SESSION_UPLOADS_HOST_PATH:-/mnt/extra-ssd/uploads}
+
+  ghost:
+    extends: { file: docker-compose.base.yml, service: ghost }
+    image: ghcr.io/bartkamminga/homeplatform-ghost:${IMAGE_TAG:?IMAGE_TAG niet gezet}
+    container_name: homeplatform_ghost
+    environment:
+      - GHOST_API_BASE=http://backend:8000
+    depends_on:
+      - backend
+
+  agent_worker:
+    extends: { file: docker-compose.base.yml, service: agent_worker }
+    image: ghcr.io/bartkamminga/homeplatform-agent-worker:${IMAGE_TAG:?IMAGE_TAG niet gezet}
+    container_name: homeplatform_agent_worker
+    environment:
+      - AGENT_API_BASE=http://backend:8000
+    depends_on:
+      - backend
+
+  cloudflared:
+    # Vaste versie (geen :latest): bijwerken = hier ophogen en deployen
+    image: cloudflare/cloudflared:2026.9.3
+    container_name: homeplatform_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
+volumes:
+  caddy_data:
+  caddy_config:

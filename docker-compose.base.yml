@@ -1,0 +1,77 @@
+# docker-compose.base.yml - gedeelde service-definities voor prod en acc (niet los starten).
+# docker-compose.prod.yml en docker-compose.acc.yml nemen deze over met `extends` en vullen per
+# omgeving aan: container-naam, image of build, poorten, mappen en de paar afwijkende variabelen.
+# Een nieuwe omgevingsvariabele hoort HIER, dan komt hij in beide omgevingen (en moet hij ook in
+# de .env-stappen van .github/workflows/deploy.yml).
+
+services:
+  caddy:
+    # Caddy + Caddyfile + gebouwde frontend in één image (docker/web/Dockerfile)
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
+      - SECRET_KEY=${SECRET_KEY}
+      - MUSIC_DIR=/app/music/music/mixes
+      - DOWNLOAD_DIR=/app/downloads
+      - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - NAS_URL=${NAS_URL:-}
+      - EXTERNAL_URL=${EXTERNAL_URL:-}
+      - PROD_LAN_IP=${PROD_LAN_IP:-192.168.30.49}
+      - ACC_LAN_IP=${ACC_LAN_IP:-192.168.30.232}
+      - INFRA_PEER_TOKEN=${INFRA_PEER_TOKEN:-}
+      - JWT_PRIVATE_KEY_B64=${JWT_PRIVATE_KEY_B64:-}
+      - OIDC_GOOGLE_CLIENT_ID=${OIDC_GOOGLE_CLIENT_ID:-}
+      - OIDC_GOOGLE_CLIENT_SECRET=${OIDC_GOOGLE_CLIENT_SECRET:-}
+      - OIDC_MICROSOFT_CLIENT_ID=${OIDC_MICROSOFT_CLIENT_ID:-}
+      - OIDC_MICROSOFT_CLIENT_SECRET=${OIDC_MICROSOFT_CLIENT_SECRET:-}
+      - OIDC_REDIRECT_BASE=${OIDC_REDIRECT_BASE:-}
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID:-}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET:-}
+      - WORKER_POLL_IDLE_SEC=300
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+      - DEV_SESSION_REPO_URL=${DEV_SESSION_REPO_URL:-git@github.com:BartKamminga/homeplatform.git}
+      - DEV_SESSION_GIT_USER_NAME=${DEV_SESSION_GIT_USER_NAME:-Claude Agent}
+      - DEV_SESSION_MEMORY_MB=${DEV_SESSION_MEMORY_MB:-2048}
+      - DEV_SESSION_MAX_CONCURRENT_GIT=${DEV_SESSION_MAX_CONCURRENT_GIT:-1}
+      - DEV_SESSION_MAX_CONCURRENT_OTHER=${DEV_SESSION_MAX_CONCURRENT_OTHER:-5}
+      - DEV_SESSION_CONFIG_HOST_PATH=${DEV_SESSION_CONFIG_HOST_PATH:-/home/bart/homeplatform-secrets/session-config}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  ghost:
+    build:
+      context: ./plugins/ghost
+      dockerfile: Dockerfile
+    shm_size: "1gb"
+    environment:
+      - GHOST_API_KEY=${GHOST_API_KEY}
+      - HOCKEY_EMAIL=${HOCKEY_EMAIL}
+      - HOCKEY_PASSWORD=${HOCKEY_PASSWORD}
+    restart: unless-stopped
+
+  agent_worker:
+    build:
+      context: ./plugins/agent-worker
+      dockerfile: Dockerfile
+    environment:
+      - AGENT_API_KEY=${AGENT_WORKER_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - WORKER_POLL_IDLE_SEC=300
+    restart: unless-stopped

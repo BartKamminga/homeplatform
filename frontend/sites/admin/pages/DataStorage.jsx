@@ -317,7 +317,7 @@ export default function DataStorage() {
 
         <p style={{ fontSize: '11px', color: 'var(--color-text-light)', marginTop: '14px', textAlign: 'center' }}>
           Active Beatport provider: <strong style={{ fontFamily: 'var(--font-mono)' }}>{beatportProvider ?? '…'}</strong>
-          {' '}— configurable via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in the prod compose file (docker-compose.g4.yml)
+          {' '}— configurable via env var <span style={{ fontFamily: 'var(--font-mono)' }}>BEATPORT_PROVIDER</span> in the prod compose file (docker-compose.prod.yml)
         </p>
       </SectionCard>
 

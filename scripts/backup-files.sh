@@ -19,7 +19,7 @@ backup_env() {
     local ENV=$1
     local UPLOADS="/home/bart/homeplatform${ENV}/uploads"
     local NASFILES="/home/bart/homeplatform${ENV}/nas-files"
-    # g5: prod-bestanden staan op de extra datadisk (docker-compose.g4.yml-volumes)
+    # g5: prod-bestanden staan op de extra datadisk (docker-compose.prod.yml-volumes)
     if [ -z "$ENV" ] && [ -d /mnt/extra-ssd/uploads ]; then
         UPLOADS="/mnt/extra-ssd/uploads"
         NASFILES="/mnt/extra-ssd/nas-files"

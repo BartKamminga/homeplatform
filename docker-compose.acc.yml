@@ -1,12 +1,11 @@
-# Acceptatie-stack — develop branch, poort 8081
-# Start vanuit /home/bart/homeplatform-repo-acc
+# docker-compose.acc.yml - acceptatie op G4 (develop-branch, poort 8081). Gedeelde definities: docker-compose.base.yml.
+# Start vanuit /home/bart/homeplatform-repo-acc; images worden hier lokaal gebouwd.
+# Alle data in /home/bart/homeplatform-acc, behalve de muziek: die NAS-share is op G4 nog gemount onder het oude
+# prod-pad /home/bart/homeplatform/music (verplaatsen vraagt sudo/fstab, item 1189).
 
 services:
   caddy_acc:
-    # Zelfde web-image en Caddyfile als prod (docker/web/Dockerfile), lokaal gebouwd; acc-verschillen hieronder
-    build:
-      context: .
-      dockerfile: docker/web/Dockerfile
+    extends: { file: docker-compose.base.yml, service: caddy }
     container_name: homeplatform_caddy_acc
     ports:
       - "8081:80"
@@ -25,12 +24,9 @@ services:
       - ACC_ALLOWED_IPS=${ACC_ALLOWED_IPS:-}
     depends_on:
       - backend_acc
-    restart: unless-stopped
 
   backend_acc:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    extends: { file: docker-compose.base.yml, service: backend }
     container_name: homeplatform_backend_acc
     volumes:
       - /home/bart/homeplatform-acc/db:/app/db
@@ -38,83 +34,33 @@ services:
       - /home/bart/homeplatform-acc/nas-files:/app/nas-files
       - /home/bart/homeplatform/music:/app/music
       - /home/bart/homeplatform/music/downloads:/app/downloads
-      - /home/bart/homeplatform/beatportdl-config:/app/beatportdl-config
-      - /home/bart/homeplatform/plugins:/app/plugins
+      - /home/bart/homeplatform-acc/beatportdl-config:/app/beatportdl-config
+      - /home/bart/homeplatform-acc/plugins:/app/plugins
       - /var/run/docker.sock:/var/run/docker.sock
       - ./MindBox.ps1:/app/MindBox.ps1:ro
       - /etc/hostname:/etc/host_hostname:ro
     environment:
-      - DATABASE_URL=sqlite:///./db/homeplatform.sqlite
-      - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=acceptatie
-      - MUSIC_DIR=/app/music/music/mixes
-      - DOWNLOAD_DIR=/app/downloads
-      - BEATPORTDL_CONFIG_DIR=/app/beatportdl-config
-      - SENTRY_DSN=${SENTRY_DSN:-}
-      - NAS_URL=${NAS_URL:-}
-      - EXTERNAL_URL=${EXTERNAL_URL:-}
-      - PROD_LAN_IP=${PROD_LAN_IP:-192.168.30.49}
-      - ACC_LAN_IP=${ACC_LAN_IP:-192.168.30.232}
-      - INFRA_PEER_TOKEN=${INFRA_PEER_TOKEN:-}
-      - JWT_PRIVATE_KEY_B64=${JWT_PRIVATE_KEY_B64:-}
-      - OIDC_GOOGLE_CLIENT_ID=${OIDC_GOOGLE_CLIENT_ID:-}
-      - OIDC_GOOGLE_CLIENT_SECRET=${OIDC_GOOGLE_CLIENT_SECRET:-}
-      - OIDC_MICROSOFT_CLIENT_ID=${OIDC_MICROSOFT_CLIENT_ID:-}
-      - OIDC_MICROSOFT_CLIENT_SECRET=${OIDC_MICROSOFT_CLIENT_SECRET:-}
-      - OIDC_REDIRECT_BASE=${OIDC_REDIRECT_BASE:-}
-      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID:-}
-      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET:-}
-      - WORKER_POLL_IDLE_SEC=300
       - PROD_API_BASE=${PROD_API_BASE:-}
       - PROD_API_KEY=${PROD_API_KEY:-}
-      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
-      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
-      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
-      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
-      - DEV_SESSION_REPO_URL=${DEV_SESSION_REPO_URL:-git@github.com:BartKamminga/homeplatform.git}
-      - DEV_SESSION_GIT_USER_NAME=${DEV_SESSION_GIT_USER_NAME:-Claude Agent}
-      - DEV_SESSION_DEPLOY_KEY_HOST_PATH=${DEV_SESSION_DEPLOY_KEY_HOST_PATH:-/home/bart/homeplatform/secrets/claude-agent-deploy-key}
-      - DEV_SESSION_MEMORY_MB=${DEV_SESSION_MEMORY_MB:-2048}
-      - DEV_SESSION_MAX_CONCURRENT_GIT=${DEV_SESSION_MAX_CONCURRENT_GIT:-1}
-      - DEV_SESSION_MAX_CONCURRENT_OTHER=${DEV_SESSION_MAX_CONCURRENT_OTHER:-5}
+      - DEV_SESSION_DEPLOY_KEY_HOST_PATH=${DEV_SESSION_DEPLOY_KEY_HOST_PATH:-/home/bart/homeplatform-acc/secrets/claude-agent-deploy-key}
       - DEV_SESSION_UPLOADS_HOST_PATH=${DEV_SESSION_UPLOADS_HOST_PATH:-/home/bart/homeplatform-acc/uploads}
-      - DEV_SESSION_CONFIG_HOST_PATH=${DEV_SESSION_CONFIG_HOST_PATH:-/home/bart/homeplatform-secrets/session-config}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   ghost_acc:
-    build:
-      context: ./plugins/ghost
-      dockerfile: Dockerfile
+    extends: { file: docker-compose.base.yml, service: ghost }
     container_name: homeplatform_ghost_acc
-    shm_size: "1gb"
     environment:
       - GHOST_API_BASE=http://backend_acc:8000
-      - GHOST_API_KEY=${GHOST_API_KEY}
-      - HOCKEY_EMAIL=${HOCKEY_EMAIL}
-      - HOCKEY_PASSWORD=${HOCKEY_PASSWORD}
     depends_on:
       - backend_acc
-    restart: unless-stopped
 
   agent_worker_acc:
-    build:
-      context: ./plugins/agent-worker
-      dockerfile: Dockerfile
+    extends: { file: docker-compose.base.yml, service: agent_worker }
     container_name: homeplatform_agent_worker_acc
     environment:
       - AGENT_API_BASE=http://backend_acc:8000
-      - AGENT_API_KEY=${AGENT_WORKER_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - WORKER_POLL_IDLE_SEC=300
     depends_on:
       - backend_acc
-    restart: unless-stopped
 
 volumes:
   caddy_acc_data:

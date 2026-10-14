@@ -68,7 +68,7 @@ export const EXTERNAL_GROUPS = [
   {
     title: 'Monitoring & infrastructuur',
     rows: [
-      { source: 'Bugsink (errortracking)', purpose: 'Crashes/foutmeldingen backend + Ghost-worker', file: 'docker-compose.g4.yml, backend/main.py', verdict: 'yes', note: 'Gestructureerd en kansrijk voor een toekomstige "ops-agent".' },
+      { source: 'Bugsink (errortracking)', purpose: 'Crashes/foutmeldingen backend + Ghost-worker', file: 'docker-compose.bugsink.yml, backend/main.py', verdict: 'yes', note: 'Gestructureerd en kansrijk voor een toekomstige "ops-agent".' },
       { source: 'Docker Engine API', purpose: 'Containerstatus voor het admin-infra-paneel', file: 'backend/routers/infra.py', verdict: 'yes', note: 'Direct bruikbaar als context.' },
       { source: 'Cloudflare Tunnel / analytics', purpose: 'Externe bereikbaarheid + dashboard-links', file: 'backend/routers/system.py', verdict: 'no', note: 'Nu alleen links, geen daadwerkelijke API-aanroep in code.' },
       { source: 'Synology NAS', purpose: 'Netwerkopslag/backup', file: 'backend/core/settings.py', verdict: 'no', note: 'Alleen volume-mount, geen actieve API-call.' },

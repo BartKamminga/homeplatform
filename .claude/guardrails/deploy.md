@@ -7,3 +7,5 @@
   → migrations + seed → only then web (Caddy + frontend in image `homeplatform-web`).
 - Compose commands on production require `IMAGE_TAG` (no `:latest` fallback):
   `export IMAGE_TAG=$(git rev-parse --short=7 HEAD)`.
+- New environment variable: add it to `docker-compose.base.yml` (both environments get it) and to the `.env` steps in
+  `.github/workflows/deploy.yml`. Only environment-specific values go in `.prod.yml` / `.acc.yml`.
