@@ -4,6 +4,7 @@
 #     packages: !include_dir_named packages
 # Benodigde secrets (secrets.yaml):
 #   myhome_sync_url:   http(s)://<host>/api/myhome/homes/<home-id>/devices/import
+#                      (bij voorkeur het lokale adres van de server, niet via een tunnel: sneller en geen DNS nodig)
 #   myhome_events_url: http(s)://<host>/api/myhome/homes/<home-id>/events
 #   myhome_auth:       "Bearer hp_..."     (persoonlijke API-key van de eigenaar van het huis)
 #
@@ -121,7 +122,9 @@ automation:
                or (domain == 'binary_sensor' and dc in ['door', 'window', 'garage_door', 'opening', 'motion', 'occupancy', 'presence']) }}
           {%- endif -%}
     action:
+      # Een gemist event is geen fout: de volgende statuswijziging zet het weer goed.
       - service: rest_command.myhome_event
+        continue_on_error: true
         data:
           entity_id: "{{ trigger.event.data.entity_id }}"
           state: "{{ trigger.event.data.new_state.state }}"
