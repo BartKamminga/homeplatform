@@ -30,7 +30,7 @@ from sqlmodel import Session, select
 
 from core.auth import create_access_token, get_current_user, hash_password
 from core.database import get_session
-from core.invites import create_invited_user, open_invite, unique_username
+from core.invites import create_invited_user, invite_next, join_invite_group, open_invite, unique_username
 from core.logging import log_action
 from core.settings import settings
 from models.core import User, UserIdentity
@@ -185,9 +185,10 @@ def start_signup(provider: str, invite: str, name: Optional[str] = None,
                  session: Session = Depends(get_session)):
     """Publiek - nieuw account via een uitnodiging, zonder HP-wachtwoord.
     name = optionele weergavenaam (anders de naam van Google/Microsoft)."""
-    if not open_invite(session, invite):
+    invite_row = open_invite(session, invite)
+    if not invite_row:
         return _back(f"{INVITE_PAGE}/{invite}", oidc_error="This invitation is no longer valid.")
-    url, cookie = _authorize_url(provider, "invite", "/landing/", invite=invite,
+    url, cookie = _authorize_url(provider, "invite", invite_next(invite_row), invite=invite,
                                  display_name=(name or "").strip()[:80] or None)
     return _with_state_cookie(RedirectResponse(url, status_code=302), cookie)
 
@@ -197,10 +198,19 @@ def _accept_invite(session: Session, st: dict, provider: str, subject: str, emai
     invite = open_invite(session, st["invite"])
     if not invite:
         return _back(fail_page, oidc_error="This invitation is no longer valid.")
-    if session.exec(select(UserIdentity).where(UserIdentity.provider == provider,
-                                               UserIdentity.subject == subject)).first():
-        return _back(LOGIN_PAGE, oidc_error=f"This {PROVIDERS[provider]['label']} account already has an account here. "
-                                            "Sign in with it instead.")
+    identity = session.exec(select(UserIdentity).where(UserIdentity.provider == provider,
+                                                       UserIdentity.subject == subject)).first()
+    existing = session.get(User, identity.user_id) if identity else None
+    if existing and existing.is_active:
+        # Heeft al een account (bv. groepslink in een app-groep): gewoon inloggen + lid van de groep
+        join_invite_group(session, invite, existing)
+        identity.last_login_at = datetime.utcnow()
+        session.add(identity)
+        session.commit()
+        log_action(session, "login", user_id=existing.id, payload={"provider": provider, "via": "invite"})
+        return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": existing.id}), next=st["next"])
+    if identity:
+        return _back(fail_page, oidc_error="This account is disabled.")
     if email and session.exec(select(User).where(User.email == email)).first():
         return _back(fail_page, oidc_error="You already have an account with this email address. "
                                            "Sign in and link it in your account.")

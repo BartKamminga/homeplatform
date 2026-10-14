@@ -6,12 +6,10 @@
 
 services:
   caddy:
-    # Caddy + Caddyfile.prod + gebouwde frontend (docker/web/Dockerfile)
+    # Caddy + Caddyfile + gebouwde frontend (docker/web/Dockerfile); upstream = backend:8000 (default)
     build:
       context: .
       dockerfile: docker/web/Dockerfile
-      args:
-        CADDYFILE: Caddyfile.prod
     image: ghcr.io/bartkamminga/homeplatform-web:${IMAGE_TAG:?IMAGE_TAG niet gezet}
     container_name: homeplatform_caddy
     ports:

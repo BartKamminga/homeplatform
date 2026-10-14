@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # homeplatform-web: Caddy + Caddyfile + gebouwde frontend in één image.
-# Build-context = repo-root (frontend/ en Caddyfile.* nodig), zie docker-compose.g4.yml / .acc.yml.
-# CADDYFILE kiest de omgeving: Caddyfile.prod (default) of Caddyfile.acc.
+# Build-context = repo-root (frontend/ en Caddyfile nodig), zie docker-compose.g4.yml / .acc.yml.
+# Eén Caddyfile voor prod en acc; verschillen via env en mounts in de compose-file (zie de Caddyfile).
 
 FROM node:22-slim AS build
 WORKDIR /src/frontend
@@ -16,6 +16,5 @@ COPY frontend/ ./
 RUN cd sites && npm run build
 
 FROM caddy:2
-ARG CADDYFILE=Caddyfile.prod
-COPY ${CADDYFILE} /etc/caddy/Caddyfile
+COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /src/frontend/dist /srv/www

@@ -1,134 +1,106 @@
+# Eén Caddyfile voor prod en acc (zit in de web-image, docker/web/Dockerfile).
+# Verschillen per omgeving komen uit de compose-file:
+#   BACKEND_UPSTREAM   backend:8000 (prod, default) of backend_acc:8000 (acc)
+#   /etc/caddy/guard/  alleen op acc gemount: docker/web/acc-guard.caddy (toegang acc.webheaven.nl, item 1191)
+#   /etc/caddy/allow/  alleen op acc: thuis-IP van scripts/acc-home-ip.sh
 {
+    auto_https off
     servers {
-        trusted_proxies static private_ranges
+        # Verkeer via de cloudflared-tunnel komt binnen vanaf een LAN/docker-adres; het echte bezoekers-IP
+        # staat in Cf-Connecting-IP. Alleen die header: X-Forwarded-For kan de bezoeker zelf aanvullen.
+        trusted_proxies static private_ranges 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 104.16.0.0/13 104.24.0.0/14 108.162.192.0/18 131.0.72.0/22 141.101.64.0/18 162.158.0.0/15 172.64.0.0/13 173.245.48.0/20 188.114.96.0/20 190.93.240.0/20 197.234.240.0/22 198.41.128.0/17 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+        client_ip_headers Cf-Connecting-IP
     }
 }
 
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Microfoon (dontforget), Bluetooth (vbt) en bewegingssensoren (YouTube-embed) blijven toegestaan
+        Permissions-Policy "camera=(), geolocation=(), payment=(), usb=()"
+        -Server
+    }
+}
+
+# SPA-site: /<site> -> /<site>/, onbekende paden -> index.html van die site
+(spa) {
+    @bare path_regexp ^/[^/]+$
+    redir @bare {path}/ 308
+    root * /srv/www
+    try_files {path} /{re.site.1}/index.html
+    file_server
+}
+
 :80 {
-    handle /api/* {
-        reverse_proxy backend:8000
-    }
+    import security_headers
 
-    # Publieke sleutels van onze eigen tokens (RS256, item 1271)
-    handle /.well-known/jwks.json {
-        reverse_proxy backend:8000
-    }
+    # Alleen op acc: handle die niet-toegestane bezoekers een 403 geeft. Een handle met matcher gaat
+    # vóór de handle zonder matcher hieronder, dus de guard werkt vóór alle routes.
+    import /etc/caddy/guard/*.caddy
 
-    handle /admin/* {
-        root * /srv/www
-        try_files {path} /admin/index.html
-        file_server
-    }
+    handle {
+        handle /api/* {
+            reverse_proxy {$BACKEND_UPSTREAM:backend:8000}
+        }
 
-    handle /landing/* {
-        root * /srv/www
-        try_files {path} /landing/index.html
-        file_server
-    }
+        # Publieke sleutels van onze eigen tokens (RS256, item 1271)
+        handle /.well-known/jwks.json {
+            reverse_proxy {$BACKEND_UPSTREAM:backend:8000}
+        }
 
-    handle /nkhockey/* {
-        root * /srv/www
-        try_files {path} /nkhockey/index.html
-        file_server
-    }
+        # Service workers nooit cachen (staat vóór de sites: named matchers houden hun volgorde)
+        @sw path_regexp ^/[^/]+/sw\.js$
+        handle @sw {
+            root * /srv/www
+            header Cache-Control "no-cache"
+            file_server
+        }
 
-    handle /mixmusic/* {
-        root * /srv/www
-        try_files {path} /mixmusic/index.html
-        file_server
-    }
+        # ── Hockeyplatform ── gaat na december als geheel naar een eigen container (#1288):
+        # dan wordt dit blok één reverse_proxy naar die container.
+        handle /l/* {
+            reverse_proxy {$BACKEND_UPSTREAM:backend:8000}
+        }
+        @hockey path_regexp site ^/(hockey-inside|poulebord|yearof-mo14)(/.*)?$
+        handle @hockey {
+            import spa
+        }
 
-    handle /dontforget/* {
-        root * /srv/www
-        try_files {path} /dontforget/index.html
-        file_server
-    }
+        # ── Persoonlijke apps en platform ──
+        # Gearchiveerd na #1269: tournix, nkhockey, scrapster
+        @sites path_regexp site ^/(admin|landing|account|dontforget|mixmusic|fiets|myhome|vbt|beatcrades|agent-control|mindbox|tournix|nkhockey|scrapster)(/.*)?$
+        handle @sites {
+            import spa
+        }
 
-    handle /account/* {
-        root * /srv/www
-        try_files {path} /account/index.html
-        file_server
-    }
+        # YearOf: presentatie- en roadmappagina (statisch, map op de server, zie publish-yearof.ps1), niet in zoekmachines
+        redir /yearof /yearof/ 308
+        handle /yearof/* {
+            root * /srv/static
+            header X-Robots-Tag "noindex, nofollow"
+            try_files {path} {path}index.html /yearof/index.html
+            file_server
+        }
 
-    handle /tournix/* {
-        root * /srv/www
-        try_files {path} /tournix/index.html
-        file_server
-    }
+        handle /assets/* {
+            root * /srv/www
+            file_server
+        }
 
-    handle /fiets/* {
-        root * /srv/www
-        try_files {path} /fiets/index.html
-        file_server
-    }
-    handle /myhome/* {
-        root * /srv/www
-        try_files {path} /myhome/index.html
-        file_server
-    }
+        handle /favicon.svg {
+            root * /srv/www
+            file_server
+        }
 
-    handle /poulebord/* {
-        root * /srv/www
-        try_files {path} /poulebord/index.html
-        file_server
-    }
+        handle / {
+            root * /srv/www
+            try_files {path} /landing/index.html
+            file_server
+        }
 
-    handle /vbt/* {
-        root * /srv/www
-        try_files {path} /vbt/index.html
-        file_server
+        respond 404
     }
-
-    handle /beatcrades/* {
-        root * /srv/www
-        try_files {path} /beatcrades/index.html
-        file_server
-    }
-
-    handle /scrapster/* {
-        root * /srv/www
-        try_files {path} /scrapster/index.html
-        file_server
-    }
-
-    handle /hockey-inside/* {
-        root * /srv/www
-        try_files {path} /hockey-inside/index.html
-        file_server
-    }
-
-    handle /agent-control/* {
-        root * /srv/www
-        try_files {path} /agent-control/index.html
-        file_server
-    }
-
-    handle /mindbox/* {
-        root * /srv/www
-        try_files {path} /mindbox/index.html
-        file_server
-    }
-
-    handle /yearof-mo14/* {
-        root * /srv/www
-        try_files {path} /yearof-mo14/index.html
-        file_server
-    }
-
-    # YearOf: presentatie- en roadmappagina (statisch, map op de server, zie publish-yearof.ps1), niet in zoekmachines
-    redir /yearof /yearof/ 308
-    handle /yearof/* {
-        root * /srv/static
-        header X-Robots-Tag "noindex, nofollow"
-        try_files {path} {path}index.html /yearof/index.html
-        file_server
-    }
-
-    handle / {
-        root * /srv/www
-        try_files {path} /landing/index.html
-        file_server
-    }
-
-    respond 404
 }

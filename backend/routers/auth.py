@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from core.database import get_session
 from core.auth import verify_password, create_access_token, get_current_user, hash_password
 from core.crud import get_or_create_user_pref
-from core.invites import create_invited_user, open_invite
+from core.invites import create_invited_user, invite_next, open_invite
 from core.limiter import limiter
 from core.logging import log_action
 from models.core import User, UserGroup, Group, Site, SiteAccess, InviteToken, UserPreference, UserApiKey
@@ -274,6 +274,8 @@ def update_me(
 
 class CreateInviteIn(BaseModel):
     group_slug: Optional[str] = None
+    reusable: bool = False        # groepslink: meerdere mensen, 30 dagen (item 1332)
+    next: Optional[str] = None    # startpagina na aanmelden, bv. /vbt/
 
 
 class AcceptInviteIn(BaseModel):
@@ -289,32 +291,31 @@ def create_invite(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    def is_member_of(group: Optional[Group]) -> bool:
+        return bool(group and session.exec(
+            select(UserGroup).where(UserGroup.user_id == current_user.id).where(UserGroup.group_id == group.id)
+        ).first())
+
+    is_admin = is_member_of(session.exec(select(Group).where(Group.slug == "admins")).first())
     group_id = None
     if body.group_slug:
         group = session.exec(select(Group).where(Group.slug == body.group_slug)).first()
         if not group:
             raise HTTPException(status_code=404, detail="Groep niet gevonden")
-        is_member = session.exec(
-            select(UserGroup)
-            .where(UserGroup.user_id == current_user.id)
-            .where(UserGroup.group_id == group.id)
-        ).first()
-        if not is_member:
+        if not is_admin and not is_member_of(group):
             raise HTTPException(status_code=403, detail="Niet lid van deze groep")
         group_id = group.id
-    else:
-        admin_group = session.exec(select(Group).where(Group.slug == "admins")).first()
-        is_admin = admin_group and session.exec(
-            select(UserGroup)
-            .where(UserGroup.user_id == current_user.id)
-            .where(UserGroup.group_id == admin_group.id)
-        ).first()
-        if not is_admin:
-            raise HTTPException(status_code=403, detail="Kies een groep of gebruik een admin-account")
+    elif not is_admin:
+        raise HTTPException(status_code=403, detail="Kies een groep of gebruik een admin-account")
+    if body.reusable and not group_id:
+        raise HTTPException(status_code=422, detail="Een groepslink hoort bij een groep")
+    next_path = (body.next or "").strip() or None
+    if next_path and (not next_path.startswith("/") or next_path.startswith("//") or "\\" in next_path):
+        raise HTTPException(status_code=422, detail="Startpagina moet een pad binnen de site zijn, bv. /vbt/")
     token_str = secrets.token_urlsafe(32)
-    expires = datetime.utcnow() + timedelta(days=7)
-    session.add(InviteToken(token=token_str, created_by=current_user.id,
-                             expires_at=expires, group_id=group_id))
+    expires = datetime.utcnow() + timedelta(days=30 if body.reusable else 7)
+    session.add(InviteToken(token=token_str, created_by=current_user.id, expires_at=expires,
+                            group_id=group_id, reusable=body.reusable, next_path=next_path))
     session.commit()
     return {"token": token_str, "expires_at": expires.isoformat()}
 
@@ -324,7 +325,7 @@ def check_invite(token: str, session: Session = Depends(get_session)):
     invite = session.exec(select(InviteToken).where(InviteToken.token == token)).first()
     if not invite:
         raise HTTPException(status_code=404, detail="Uitnodiging niet gevonden")
-    if invite.used_at:
+    if invite.used_at and not invite.reusable:
         raise HTTPException(status_code=410, detail="Deze uitnodiging is al gebruikt")
     if invite.expires_at < datetime.utcnow():
         raise HTTPException(status_code=410, detail="Uitnodiging verlopen")
@@ -333,7 +334,8 @@ def check_invite(token: str, session: Session = Depends(get_session)):
         g = session.get(Group, invite.group_id)
         if g:
             group_name = g.name
-    return {"valid": True, "expires_at": invite.expires_at.isoformat(), "group_name": group_name}
+    return {"valid": True, "expires_at": invite.expires_at.isoformat(), "group_name": group_name,
+            "next": invite_next(invite)}
 
 
 @router.post("/invite/{token}/accept", response_model=TokenResponse)

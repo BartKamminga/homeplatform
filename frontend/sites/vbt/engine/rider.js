@@ -65,6 +65,27 @@ VBT.rider = (function () {
     ctx.fill();
   }
 
+  // Opwindsleutel in de rug (speelgoedfietser): draait rond zolang de simulatie fietst
+  function windupKey(ctx, sway, time) {
+    const x = sway, y = sy(20, 108), spin = Math.cos(time * 7);
+    line(ctx, x, y, x, y - 13, 3, '#c9a227');                      // as uit de rug
+    ctx.save();
+    ctx.translate(x, y - 16);
+    ctx.scale(Math.max(0.15, Math.abs(spin)), 1);                   // vleugels draaien (3D-flip)
+    ctx.fillStyle = spin > 0 ? '#ffe66d' : '#e0b830';
+    ctx.strokeStyle = '#7a5a00';
+    ctx.lineWidth = 1.2;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(side * 7, 0, 7, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#7a5a00';
+    ctx.fillRect(-2, -3, 4, 6);
+    ctx.restore();
+  }
+
   function jersey(ctx, k, sway) {
     const hy = sy(-10, 100), shy = sy(45, 118);
     ctx.save();
@@ -147,6 +168,7 @@ VBT.rider = (function () {
     leg(ctx, 1, s.phase + Math.PI, k, sway);
 
     jersey(ctx, k, sway);
+    if (s.windup) windupKey(ctx, sway, s.time);
     // broek/zitvlak over het zadel
     ctx.fillStyle = k.shorts;
     ctx.beginPath();

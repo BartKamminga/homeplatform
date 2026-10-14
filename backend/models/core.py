@@ -117,6 +117,10 @@ class InviteToken(SQLModel, table=True):
     expires_at: datetime
     used_at: Optional[datetime] = Field(default=None)
     used_by_user_id: Optional[str] = Field(default=None)
+    # Groepslink (item 1332): meerdere mensen kunnen hem gebruiken tot hij verloopt
+    reusable: bool = Field(default=False)
+    use_count: int = Field(default=0)
+    next_path: Optional[str] = Field(default=None)  # waar je na aanmelden heen gaat, bv. /vbt/
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

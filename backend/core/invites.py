@@ -12,11 +12,28 @@ from models.core import Group, InviteToken, User, UserGroup
 
 
 def open_invite(session: Session, token: str) -> Optional[InviteToken]:
-    """De uitnodiging als hij bestaat, ongebruikt en niet verlopen is."""
+    """De uitnodiging als hij bestaat, niet verlopen is en (tenzij het een
+    herbruikbare groepslink is) nog niet gebruikt."""
     invite = session.exec(select(InviteToken).where(InviteToken.token == token)).first()
-    if not invite or invite.used_at or invite.expires_at < datetime.utcnow():
+    if not invite or (invite.used_at and not invite.reusable) or invite.expires_at < datetime.utcnow():
         return None
     return invite
+
+
+def invite_next(invite: InviteToken) -> str:
+    """Waar je na aanmelden via deze uitnodiging heen gaat."""
+    return invite.next_path or "/landing/"
+
+
+def join_invite_group(session: Session, invite: InviteToken, user: User) -> None:
+    """Bestaande gebruiker via een groepslink: alleen lid maken van de groep
+    (verbruikt de uitnodiging niet). Commit door de aanroeper."""
+    if not invite.group_id:
+        return
+    exists = session.exec(select(UserGroup).where(UserGroup.user_id == user.id,
+                                                  UserGroup.group_id == invite.group_id)).first()
+    if not exists:
+        session.add(UserGroup(user_id=user.id, group_id=invite.group_id))
 
 
 def unique_username(session: Session, email: Optional[str], fallback: str = "user") -> str:
@@ -54,6 +71,7 @@ def create_invited_user(
         session.add(user)
     invite.used_at = datetime.utcnow()
     invite.used_by_user_id = user.id
+    invite.use_count = (invite.use_count or 0) + 1
     session.add(invite)
     session.commit()
     return user

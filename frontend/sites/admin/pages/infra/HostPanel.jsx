@@ -1,4 +1,5 @@
 import ContainerList from './ContainerList.jsx';
+import CronList from './CronList.jsx';
 import { Badge, StatCells, cardStyle, labelStyle, fmtAgo, fmtUptime, pctColor, ROLE_COLOR, OK, BAD, WARN, MUTED } from './ui.jsx';
 
 const ROLE_LABEL = { production: 'production', acceptance: 'acceptance + management', development: 'development' };
@@ -72,6 +73,8 @@ export default function HostPanel({ host, isSelf, fallbackTitle, adminLink }) {
           <Badge color={host.backup_cron_enabled ? OK : BAD}>cron {host.backup_cron_enabled ? 'enabled' : 'disabled'}</Badge>
         </InfoLine>
       </div>
+
+      <CronList cron={host.cron} />
 
       <div>
         <div style={{ ...labelStyle, marginBottom: 4 }}>Containers ({host.containers.length})</div>

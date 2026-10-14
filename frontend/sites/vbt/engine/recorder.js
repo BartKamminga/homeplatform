@@ -7,7 +7,7 @@ VBT.recorder = (function () {
   function start(meta) {
     const clientId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);   // zelfde id in journal en outbox
     rec = Object.assign({ clientId, startedAt: new Date().toISOString(), samples: [], odo: 0, acc: 0, lapTime: null, jumped: false,
-      elapsed: 0, pauses: [] }, meta);
+      elapsed: 0, pauses: [], trainerSeen: false }, meta);
   }
 
   function sample(game, dt) {
@@ -46,6 +46,7 @@ VBT.recorder = (function () {
       clientId: r.clientId, startedAt: r.startedAt, kind: r.kind, courseKey: r.courseKey, name: r.name, woId: r.woId,
       ftp: r.ftp, samples: S.slice(), odo: last ? last[2] : 0, acc: 0, lapTime: r.lapTime || null, jumped: !!r.jumped,
       elapsed: r.elapsed || S.length, pauses: (r.pauses || []).slice(),
+      trainerSeen: r.trainerSeen !== false,                     // ritten van voor deze vlag: als echt beschouwen
     };
     return rec;
   }
@@ -71,6 +72,7 @@ VBT.recorder = (function () {
   function tick(game, dt) {
     if (!rec) return;
     rec.elapsed = (rec.elapsed || 0) + dt;
+    if (VBT.ble && VBT.ble.trainerActive()) rec.trainerSeen = true;     // ooit een trainer gekoppeld in deze rit
     watch(game, dt);
     const riding = game.state === 'ride';
     if (!riding && !rec.openPause) {
@@ -95,6 +97,9 @@ VBT.recorder = (function () {
   }
 
   function markJump() { if (rec) rec.jumped = true; }
+
+  // rit waarin nooit een trainer actief was = de simulatie fietste: niet bewaren (geen nep-ritten in My Rides)
+  const isSimulated = r => !!r && r.trainerSeen === false;
 
   function stop(extra) {
     if (!rec) return null;
@@ -134,5 +139,5 @@ VBT.recorder = (function () {
     return r;
   }
 
-  return { start, resume, tick, sample, flush, markJump, stop, finalize, current: () => rec, active: () => !!rec };
+  return { start, resume, tick, sample, flush, markJump, stop, finalize, isSimulated, current: () => rec, active: () => !!rec };
 })();

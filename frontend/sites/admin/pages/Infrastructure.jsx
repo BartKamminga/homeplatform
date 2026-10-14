@@ -6,6 +6,7 @@ import HostPanel from './infra/HostPanel.jsx';
 import BackupTable from './infra/BackupTable.jsx';
 import PipelinePanel from './infra/PipelinePanel.jsx';
 import NetworkPanel from './infra/NetworkPanel.jsx';
+import AccAccessPanel from './infra/AccAccessPanel.jsx';
 import { Section, fmtAgo } from './infra/ui.jsx';
 
 // Item 1190: prod (g5) en acc + beheer (G4) naast elkaar. De eigen machine komt lokaal,
@@ -72,6 +73,10 @@ export default function Infrastructure() {
 
         <Section title="Network">
           <NetworkPanel routes={routes} prodIp={data.ips?.prod} accIp={data.ips?.acc} />
+        </Section>
+
+        <Section title="Acceptance access">
+          <AccAccessPanel access={acc?.available === false ? null : acc?.acc_access} />
         </Section>
       </>)}
     </AdminLayout>

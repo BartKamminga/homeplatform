@@ -22,10 +22,11 @@ const labelStyle = {
 
 const optional = <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>;
 
+// Google/Microsoft is de hoofdroute (item 1332): groot en in de primaire kleur
 const providerButton = {
-  display: 'block', textAlign: 'center', padding: '11px', fontSize: 14, fontWeight: 500,
-  borderRadius: 'var(--radius-md, 8px)', border: '1px solid var(--color-border)',
-  color: 'var(--color-text)', textDecoration: 'none', fontFamily: 'inherit',
+  display: 'block', textAlign: 'center', padding: '14px', fontSize: 16, fontWeight: 600,
+  borderRadius: 'var(--radius-md, 8px)', border: 'none',
+  background: 'var(--color-primary)', color: '#fff', textDecoration: 'none', fontFamily: 'inherit',
 };
 
 export default function InvitePage() {
@@ -33,6 +34,7 @@ export default function InvitePage() {
   const [status,    setStatus]    = useState('checking'); // checking | valid | invalid | success
   const [message,   setMessage]   = useState('');
   const [groupName, setGroupName] = useState(null);
+  const [next,      setNext]      = useState('/landing/');
   const [providers, setProviders] = useState([]);
   const [name,      setName]      = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -47,13 +49,12 @@ export default function InvitePage() {
     getOidcProviders().then(setProviders);
     fetch(`/api/auth/invite/${token}`)
       .then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.detail || 'Invalid invitation') }))
-      .then(d => { setGroupName(d.group_name || null); setStatus('valid'); })
+      .then(d => { setGroupName(d.group_name || null); setNext(d.next || '/landing/'); setStatus('valid'); })
       .catch(e => { setStatus('invalid'); setMessage(e.message); });
   }, [token]);
 
-  const signupUrl = provider =>
-    `/api/auth/oidc/${provider}/signup?invite=${encodeURIComponent(token)}` +
-    (name.trim() ? `&name=${encodeURIComponent(name.trim())}` : '');
+  // Naam komt van Google/Microsoft; alleen het wachtwoordpad vraagt erom
+  const signupUrl = provider => `/api/auth/oidc/${provider}/signup?invite=${encodeURIComponent(token)}`;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -78,7 +79,7 @@ export default function InvitePage() {
       setToken(data.access_token);
       localStorage.setItem('hp_user', JSON.stringify({ id: data.user_id, username: data.username }));
       setStatus('success');
-      setTimeout(() => { window.location.href = '/landing/'; }, 1500);
+      setTimeout(() => { window.location.href = next; }, 1500);
     } catch(e) { setError(e.message); }
     finally { setSaving(false); }
   }
@@ -119,20 +120,15 @@ export default function InvitePage() {
         {status === 'valid' && (
           <>
             <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8, letterSpacing: '-0.5px' }}>
-              Create your account
+              {groupName ? <>Join {groupName}</> : 'Create your account'}
             </h1>
             <p style={{ fontSize: 15, color: 'var(--color-text-muted)', marginBottom: '2rem', lineHeight: 1.6 }}>
               You have been invited to WebHeaven{groupName ? <> — group <strong style={{ color: 'var(--color-text)' }}>{groupName}</strong></> : ''}.
+              {providers.length > 0 && ' One click with your existing account, no new password needed.'}
             </p>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Name {optional}</label>
-              <input style={inputStyle} value={name} onChange={e => setName(e.target.value)}
-                placeholder="How others see you" autoComplete="name" />
-            </div>
-
             {providers.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                 {providers.map(p => (
                   <a key={p.id} href={signupUrl(p.id)} style={providerButton}>Continue with {p.label}</a>
                 ))}
@@ -150,6 +146,11 @@ export default function InvitePage() {
               </button>
             ) : (
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={labelStyle}>Name {optional}</label>
+                  <input style={inputStyle} value={name} onChange={e => setName(e.target.value)}
+                    placeholder="How others see you" autoComplete="name" />
+                </div>
                 <div>
                   <label style={labelStyle}>Username</label>
                   <input style={inputStyle} value={form.username}
