@@ -8,7 +8,7 @@ import InputsPage from './pages/InputsPage.jsx'
 import ApiPage from './pages/ApiPage.jsx'
 import PushPage from './pages/PushPage.jsx'
 
-const TABS = [['model', 'Model'], ['rooms', 'Rooms'], ['devices', 'Devices'], ['inputs', 'Inputs'], ['push', 'Push to HA'], ['api', 'API']]
+const TABS = [['model', 'Model'], ['rooms', 'Rooms'], ['devices', 'Devices'], ['inputs', 'Inputs'], ['push', 'vs HA'], ['api', 'API']]
 const initialTab = () => {
   const h = window.location.hash.slice(1)
   return TABS.some(([k]) => k === h) ? h : 'model'

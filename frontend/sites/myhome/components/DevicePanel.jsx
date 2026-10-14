@@ -57,7 +57,7 @@ export default function DevicePanel({ home, device, live, focusName, onReload, o
             <dt>Source</dt><dd>{device.source}{device.manufacturer ? ` · ${device.manufacturer}` : ''}</dd>
           </dl>
           {((meta.ha_name && meta.ha_name !== device.name) || (room?.ha_area && meta.ha_area !== room.ha_area)) && (
-            <p className="mh-muted">Differs from Home Assistant. Send it under <strong>Push to HA</strong>.</p>
+            <p className="mh-muted">Differs from Home Assistant (see <strong>vs HA</strong>).</p>
           )}
         </div>
       )}

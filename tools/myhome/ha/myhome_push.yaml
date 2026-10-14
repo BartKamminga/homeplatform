@@ -1,0 +1,52 @@
+# MyHome push (item 1322) - NOG NIET ACTIEF (besluit Bart 14-10: eerst inregelen, pushen komt later).
+# Installeren: naast myhome.yaml in /config/packages/, myhome_apply.py naar /config/myhome/, en secrets:
+#   myhome_push_pending_url: <host>/api/myhome/homes/<home-id>/push?status=pending
+#   myhome_apply_cmd:  python3 /config/myhome/myhome_apply.py <host>/api/myhome/homes/<home-id> hp_... <HA long-lived token>
+#   (long-lived token van een HA-admin: Profiel > Beveiliging; de eigen token van HA Core wordt geweigerd)
+
+rest:
+  - resource: !secret myhome_push_pending_url
+    headers:
+      Authorization: !secret myhome_auth
+    scan_interval: 30
+    timeout: 10
+    sensor:
+      - name: MyHome wijzigingen klaar
+        unique_id: myhome_pending_pushes
+        icon: mdi:home-import-outline
+        value_template: "{{ value_json | count }}"
+
+shell_command:
+  myhome_apply: !secret myhome_apply_cmd
+
+
+automation:
+  - id: myhome_apply_pushes
+    alias: "MyHome: wijzigingen uitvoeren"
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.myhome_wijzigingen_klaar
+        above: 0
+      - platform: time_pattern     # opnieuw proberen zolang er nog iets klaarstaat
+        minutes: "/5"
+    condition:
+      - condition: numeric_state
+        entity_id: sensor.myhome_wijzigingen_klaar
+        above: 0
+    action:
+      - service: shell_command.myhome_apply
+        response_variable: run
+        continue_on_error: true
+      - service: homeassistant.update_entity
+        target:
+          entity_id: sensor.myhome_wijzigingen_klaar
+      - service: persistent_notification.create
+        data:
+          notification_id: myhome_push
+          title: "MyHome: wijzigingen doorgevoerd"
+          message: >-
+            {%- set r = (run.stdout | default('{}') | from_json) if run is defined and run.returncode | default(1) == 0 else {} -%}
+            {%- if r -%}Doorgevoerd: {{ r.applied }}, mislukt: {{ r.failed }}. Details in MyHome onder Push to HA.
+            {%- else -%}De applier gaf een fout: {{ (run.stderr | default('onbekend'))[-300:] if run is defined else 'geen uitvoer' }}{%- endif -%}
+

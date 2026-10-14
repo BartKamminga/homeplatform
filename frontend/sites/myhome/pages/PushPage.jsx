@@ -7,6 +7,8 @@ const GROUPS = [
   ['rename_device', 'Device names', 'Hue devices are renamed on the Hue bridge (so the Hue app matches too); others in Home Assistant.'],
 ]
 const keyOf = (c) => `${c.kind}|${c.target}`
+// Pushen naar HA staat bewust uit (besluit 14-10: eerst het huis inregelen). De lijst helpt wel bij het inregelen.
+const PUSH_ENABLED = false
 
 // Verschillen tussen MyHome en HA kiezen en versturen; de applier in HA voert ze uit en meldt terug.
 export default function PushPage({ home, onReload }) {
@@ -62,10 +64,12 @@ export default function PushPage({ home, onReload }) {
   return (
     <div className="mh-page">
       <div>
-        <h2>Push to Home Assistant</h2>
+        <h2>MyHome vs Home Assistant</h2>
         <p className="mh-muted">
           MyHome is leading for names and layout. These are the differences with what Home Assistant reported at the last sync.
-          Pick what should change; Home Assistant applies it and reports back.
+          {PUSH_ENABLED
+            ? ' Pick what should change; Home Assistant applies it and reports back.'
+            : ' Sending changes to Home Assistant comes later; for now this list shows where the two differ.'}
         </p>
       </div>
       {error && <p className="mh-error">{error}</p>}
@@ -79,7 +83,7 @@ export default function PushPage({ home, onReload }) {
           <section key={kind}>
             <div className="mh-row" style={{ justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0 }}>{title} · {list.length}</h3>
-              {open.length > 0 && (
+              {PUSH_ENABLED && open.length > 0 && (
                 <span className="mh-row">
                   <button className="mh-btn ghost" onClick={() => pickAll(kind, true)}>Select all</button>
                   <button className="mh-btn ghost" onClick={() => pickAll(kind, false)}>None</button>
@@ -91,8 +95,8 @@ export default function PushPage({ home, onReload }) {
               {list.map((c) => (
                 <li key={keyOf(c)}>
                   <label className="mh-row" htmlFor={`chg-${keyOf(c)}`} style={{ flexWrap: 'nowrap', opacity: c.supported ? 1 : 0.55 }}>
-                    <input id={`chg-${keyOf(c)}`} type="checkbox" disabled={!c.supported || c.queued}
-                      checked={picked.has(keyOf(c))} onChange={() => toggle(c)} />
+                    {PUSH_ENABLED && <input id={`chg-${keyOf(c)}`} type="checkbox" disabled={!c.supported || c.queued}
+                      checked={picked.has(keyOf(c))} onChange={() => toggle(c)} />}
                     <span>{c.label}</span>
                     {c.queued && <span className="mh-pill proposed">waiting for HA</span>}
                     {!c.supported && <span className="mh-pill none">not possible from HA</span>}
@@ -105,11 +109,13 @@ export default function PushPage({ home, onReload }) {
       })}
       {!changes.length && <p className="mh-muted">Everything matches Home Assistant.</p>}
 
-      <div className="mh-row">
-        <button className="mh-btn" disabled={!picked.size} onClick={push}>Push {picked.size || ''} to Home Assistant</button>
-      </div>
+      {PUSH_ENABLED && (
+        <div className="mh-row">
+          <button className="mh-btn" disabled={!picked.size} onClick={push}>Push {picked.size || ''} to Home Assistant</button>
+        </div>
+      )}
 
-      {jobs.length > 0 && (
+      {PUSH_ENABLED && jobs.length > 0 && (
         <section>
           <h3>History</h3>
           <div className="mh-scroll">

@@ -7,33 +7,13 @@
 #                      (bij voorkeur het lokale adres van de server, niet via een tunnel: sneller en geen DNS nodig)
 #   myhome_events_url: http(s)://<host>/api/myhome/homes/<home-id>/events
 #   myhome_auth:       "Bearer hp_..."     (persoonlijke API-key van de eigenaar van het huis)
-#   myhome_push_pending_url: <host>/api/myhome/homes/<home-id>/push?status=pending
-#   myhome_apply_cmd:  python3 /config/myhome/myhome_apply.py <host>/api/myhome/homes/<home-id> hp_... <HA long-lived token>
-#                      (long-lived token van een HA-admin: Profiel > Beveiliging; de eigen token van HA Core werkt niet)
-#                      (myhome_apply.py staat naast dit package in de repo; kopieer het naar /config/myhome/)
 #
 # Wat het doet:
 # - Sync: alle apparaten (met HA-ruimte en entities) en de lijst HA-ruimtes naar MyHome; Hue-apparaten met hun
 #   Hue-id zodat ze niet dubbel binnenkomen. Bij start, elke nacht en kort na het toevoegen van een apparaat.
 #   Nieuwe apparaten -> melding in HA met de vraag om ze in MyHome aan te vullen.
 # - Live: lamp aan/uit, deur/raam open, beweging, schakelaars en media -> MyHome, voor weergave in het model.
-# - Push: wijzigingen die in MyHome zijn goedgekeurd (namen, ruimtes) worden hier uitgevoerd door myhome_apply.py
-#   (HA-registers via de websocket, Hue-namen op de bridge). Melding in HA met het resultaat.
-
-rest:
-  - resource: !secret myhome_push_pending_url
-    headers:
-      Authorization: !secret myhome_auth
-    scan_interval: 30
-    timeout: 10
-    sensor:
-      - name: MyHome wijzigingen klaar
-        unique_id: myhome_pending_pushes
-        icon: mdi:home-import-outline
-        value_template: "{{ value_json | count }}"
-
-shell_command:
-  myhome_apply: !secret myhome_apply_cmd
+# - Push (wijzigingen uit MyHome uitvoeren in HA/Hue) staat in myhome_push.yaml en is bewust nog niet actief.
 
 rest_command:
   myhome_sync:
@@ -122,35 +102,6 @@ automation:
               level: warning
               logger: myhome
               message: "MyHome-sync mislukt: HTTP {{ result.status }}"
-
-  - id: myhome_apply_pushes
-    alias: "MyHome: wijzigingen uitvoeren"
-    mode: single
-    trigger:
-      - platform: numeric_state
-        entity_id: sensor.myhome_wijzigingen_klaar
-        above: 0
-      - platform: time_pattern     # opnieuw proberen zolang er nog iets klaarstaat
-        minutes: "/5"
-    condition:
-      - condition: numeric_state
-        entity_id: sensor.myhome_wijzigingen_klaar
-        above: 0
-    action:
-      - service: shell_command.myhome_apply
-        response_variable: run
-        continue_on_error: true
-      - service: homeassistant.update_entity
-        target:
-          entity_id: sensor.myhome_wijzigingen_klaar
-      - service: persistent_notification.create
-        data:
-          notification_id: myhome_push
-          title: "MyHome: wijzigingen doorgevoerd"
-          message: >-
-            {%- set r = (run.stdout | default('{}') | from_json) if run is defined and run.returncode | default(1) == 0 else {} -%}
-            {%- if r -%}Doorgevoerd: {{ r.applied }}, mislukt: {{ r.failed }}. Details in MyHome onder Push to HA.
-            {%- else -%}De applier gaf een fout: {{ (run.stderr | default('onbekend'))[-300:] if run is defined else 'geen uitvoer' }}{%- endif -%}
 
   - id: myhome_live_events
     alias: "MyHome: live-status doorgeven"
