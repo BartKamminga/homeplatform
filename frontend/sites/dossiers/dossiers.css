@@ -92,6 +92,10 @@ textarea.ds-input { resize: vertical; }
 .ds-seg button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 11px; border: 0; border-right: 1px solid var(--ds-line); background: var(--ds-surface); color: var(--ds-muted); cursor: pointer; }
 .ds-seg button:last-child { border-right: 0; }
 .ds-seg button[aria-pressed="true"] { background: var(--ds-ink); color: var(--ds-bg); }
+@media (max-width: 560px) {
+  .ds-seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
+  .ds-seg button { flex: none; }
+}
 
 .ds-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .ds-card { display: grid; gap: 6px; text-align: left; font: inherit; color: var(--ds-ink); background: var(--ds-surface); border: 1px solid var(--ds-line); border-radius: 8px; padding: 14px 16px; cursor: pointer; }

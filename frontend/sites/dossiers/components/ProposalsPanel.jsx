@@ -38,7 +38,7 @@ export default function ProposalsPanel({ proposals, onChanged }) {
           <li key={p.id} className="ds-proposal">
             <div className="ds-proposal-main">
               <strong>{p.title}</strong>
-              <span className="ds-muted ds-small"> · {formatDate(p.occurred_at)}</span>
+              {p.occurred_at && <span className="ds-muted ds-small"> · {formatDate(p.occurred_at)}</span>}
               {p.reason && <p className="ds-reason">Why: {p.reason}</p>}
               {p.body && <p className="ds-prose ds-small">{p.body}</p>}
               {p.source_url && <a className="ds-small" href={p.source_url} target="_blank" rel="noopener noreferrer">Open in Outlook</a>}
