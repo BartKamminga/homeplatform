@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { copyText } from '@components/CopyButton.jsx'
 import { updateDossier } from '../api.js'
 import { formatDate, mailRoundPrompt } from '../format.js'
@@ -6,8 +6,14 @@ import { formatDate, mailRoundPrompt } from '../format.js'
 export default function SummaryPanel({ dossier, onSaved }) {
   const [editing, setEditing] = useState(null) // 'summary' | 'mail_criteria' | 'name' | null
   const [draft, setDraft] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState('') // '' | 'ok' | 'manual'
+  const [env, setEnv] = useState(null)
   const [error, setError] = useState('')
+  const instructionRef = useRef(null)
+
+  useEffect(() => {
+    fetch('/api/config').then((r) => r.json()).then((d) => setEnv(d.environment)).catch(() => {})
+  }, [])
 
   function startEdit(field) {
     setDraft(dossier[field] || '')
@@ -27,12 +33,17 @@ export default function SummaryPanel({ dossier, onSaved }) {
     } catch (e) { setError(e.message) }
   }
 
+  // Op http (acc) faalt het klembord vaak stil; daarom staat de instructie ook zichtbaar in een vak.
   async function copyPrompt() {
     try {
-      await copyText(mailRoundPrompt(dossier))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
-    } catch { setError('Copying failed. Select the text in the mail criteria and copy it yourself.') }
+      await copyText(mailRoundPrompt(dossier, env))
+      setCopied('ok')
+    } catch {
+      instructionRef.current?.focus()
+      instructionRef.current?.select()
+      setCopied('manual')
+    }
+    setTimeout(() => setCopied(''), 4000)
   }
 
   const editor = (rows, placeholder) => (
@@ -77,13 +88,22 @@ export default function SummaryPanel({ dossier, onSaved }) {
           {editing === 'mail_criteria'
             ? editor(6, 'Search terms, senders or organisations, folders, period. For example: LCMS, LVCb, hosting migration, since September 2026.')
             : <div className="ds-prose">{dossier.mail_criteria || <span className="ds-muted">No criteria yet. Claude uses them to search Outlook Web for relevant mail.</span>}</div>}
-          <p className="ds-muted ds-small">
-            In Claude Desktop, open a session with the built-in browser and paste the instruction. Claude searches Outlook Web
-            (read only) and puts relevant mails here as proposals for you to accept or reject.
-          </p>
-          <button type="button" className="ds-btn ds-btn-primary" onClick={copyPrompt} disabled={!dossier.mail_criteria}>
-            {copied ? 'Copied, paste it in Claude Desktop' : 'Start mail round'}
-          </button>
+          {dossier.mail_criteria ? (
+            <>
+              <p className="ds-muted ds-small">
+                The mail round runs in Claude Desktop, not on this page: copy the instruction below and paste it in a Claude
+                Desktop session. Claude reads your Outlook in screenshot mode or in the built-in browser (read only). Relevant
+                mails appear here as proposals for you to accept or reject.
+              </p>
+              <textarea id="mail-round-instruction" ref={instructionRef} className="ds-input ds-instruction" rows={4} readOnly
+                value={mailRoundPrompt(dossier, env)} onFocus={(e) => e.target.select()} aria-label="Instruction for Claude Desktop" />
+              <button type="button" className="ds-btn ds-btn-primary" onClick={copyPrompt}>
+                {copied === 'ok' ? 'Copied, paste it in Claude Desktop' : copied === 'manual' ? 'Selected, press Ctrl+C' : 'Copy instruction'}
+              </button>
+            </>
+          ) : (
+            <p className="ds-muted ds-small">Add mail criteria first; Claude uses them to search Outlook Web for this dossier.</p>
+          )}
         </div>
       </div>
       {error && <p className="ds-error">{error}</p>}

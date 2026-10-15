@@ -17,10 +17,12 @@ export function formatSize(bytes) {
 }
 
 // Opdracht om in Claude Desktop te plakken voor een mailronde (skill dossier-mail).
-export function mailRoundPrompt(dossier) {
+// env: "production" | "acceptance" | ... (uit /api/config); buiten productie moet Dossier.ps1 -Env acc gebruiken.
+export function mailRoundPrompt(dossier, env) {
+  const target = env && env !== 'production' ? ' Use -Env acc for every Dossier.ps1 command (acceptance environment).' : ''
   return [
     `Start a mail round for dossier "${dossier.name}" (slug: ${dossier.slug}) with the skill dossier-mail.`,
-    'Open Outlook Web in the built-in browser, search with the dossier\'s mail criteria,',
+    'Read my Outlook in screenshot mode (computer use) or in the built-in browser, search with the dossier\'s mail criteria,',
     'and propose relevant mails to the dossier for review. Read only: never move, send or delete mail.',
-  ].join(' ')
+  ].join(' ') + target
 }

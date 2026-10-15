@@ -141,3 +141,5 @@ textarea.ds-input { resize: vertical; }
 .ds-kind-note { color: var(--ds-note); }
 .ds-kind-link { color: var(--ds-link); }
 .ds-kind-session { color: var(--ds-session); }
+
+.ds-instruction { font-family: var(--ds-mono); font-size: 12.5px; background: var(--ds-soft); }
