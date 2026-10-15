@@ -139,8 +139,8 @@ function FormatItem([object]$item) {
 # Setup — eenmalig API key aanmaken en opslaan
 # ---------------------------------------------------------------------------
 if ($Setup) {
-    $apiBase = Read-Host "API base URL [http://192.168.30.232:8080/api]"
-    if (-not $apiBase) { $apiBase = "http://192.168.30.232:8080/api" }
+    $apiBase = Read-Host "API base URL [http://192.168.30.49:8080/api]"
+    if (-not $apiBase) { $apiBase = "http://192.168.30.49:8080/api" }
 
     $user = Read-Host "Gebruikersnaam"
     $pass = Read-Host "Wachtwoord" -AsSecureString

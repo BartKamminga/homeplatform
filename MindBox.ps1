@@ -155,7 +155,7 @@ $ConfigFile = Join-Path $PSScriptRoot ".mindbox.config.$Env.ps1"
 $WorkDir    = Join-Path $PSScriptRoot "mindbox_work"
 
 $DefaultApiBase = @{
-    prod  = "http://192.168.30.232:8080/api"
+    prod  = "http://192.168.30.49:8080/api"
     acc   = "http://192.168.30.232:8081/api"
     local = "http://localhost:8000/api"
 }[$Env]
