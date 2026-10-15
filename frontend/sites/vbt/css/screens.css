@@ -65,7 +65,9 @@ body.workout .center, body.workout #gapLabel, body.workout #gap { display: none;
 body[data-state="finished"] #finish { display: flex; }
 #finish h2 { margin: 0; font-family: var(--pixel); font-size: 44px; color: var(--yellow); text-shadow: 0 0 24px var(--pink), 6px 6px 0 #2a0750; }
 #finishName { font-size: 14px; letter-spacing: 3px; color: var(--cyan); }
-#finishStats { display: flex; gap: 34px; }
+#finishStats { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 34px; }
+#finishStats .hrverdict, .ridestats .hrverdict { flex-basis: 100%; font-family: var(--pixel); font-size: 8px; letter-spacing: 1px; }
+#finishStats .hrverdict { text-align: center; }
 #finishStats div { display: flex; flex-direction: column; align-items: center; }
 #finishStats b { font-size: 40px; font-weight: 900; }
 #finish .finishbtns { display: flex; gap: 12px; margin-top: 10px; }

@@ -52,6 +52,7 @@ class VbtRide(SQLModel, table=True):
     elapsed:     int = Field(default=0)                       # klok-tijd van de rit (s), incl. pauzes
     pauses:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # [{t, dur, reason}] - waar bleef de tijd
     events:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # eventlog van de rit (zonder debug)
+    hr_metrics:  Optional[dict] = Field(default=None, sa_column=Column(JSON))   # EF, decoupling, HR/W-fit (services/vbt_hr.py)
     deleted_at:  Optional[datetime] = Field(default=None)     # prullenbak: niets wordt definitief verwijderd
     rpe:         Optional[int] = Field(default=None)          # feedback na de rit: hoe zwaar (1-10, Borg CR10)
     readiness:   Optional[str] = Field(default=None)          # feedback: fresh | ok | tired | wrecked

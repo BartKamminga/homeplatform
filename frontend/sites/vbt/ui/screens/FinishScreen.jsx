@@ -5,6 +5,7 @@ import { useVbt, actions } from '../hooks/useVbt.js'
 import { fmtDur } from '../common/format.js'
 import { useStrava, rideButton, buttonLabel } from '../features/strava/strava.js'
 import Feedback from '../features/rides/Feedback.jsx'
+import HrStats from '../features/rides/HrStats.jsx'
 import { saveFeedback, flushFeedback } from '../features/rides/feedback.js'
 
 function FtpProposal({ ride }) {
@@ -64,6 +65,7 @@ export default function FinishScreen() {
         {stat(ride.kj, 'KJ')}{stat(ride.elevation, 'M UP')}
         {ride.score !== undefined && ride.score !== null && stat(ride.score + '%', 'CADENCE')}
         {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
+        <HrStats ride={ride} stat={stat} />
       </div>
       <Feedback key={'fb' + ride.clientId} ride={ride} />
       <FtpProposal key={ride.clientId} ride={ride} />

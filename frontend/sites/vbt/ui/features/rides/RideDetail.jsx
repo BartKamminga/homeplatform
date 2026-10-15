@@ -6,6 +6,7 @@ import { fmtDur, fmtDateTime, startWithConfirm } from '../../common/format.js'
 import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
 import Feedback from './Feedback.jsx'
+import HrStats from './HrStats.jsx'
 
 // readOnly: tijdens een rit alleen bekijken (en .FIT) - geen verwijderen, terugzetten of CONTINUE RIDE
 export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
@@ -42,6 +43,7 @@ export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
         {ride.elapsed ? <>{stat(fmtDur(ride.elapsed), 'ELAPSED')}{stat(fmtDur(paused), 'PAUSED')}</> : null}
         {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
         {ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : null}
+        <HrStats ride={ride} stat={stat} />
       </div>
       {!readOnly && !ride.deletedAt && !ride.pending && <Feedback key={'fb' + ride.id} ride={ride} compact />}
       <CanvasChart height={160} draw={(ctx, w, h) => drawRide(ctx, w, h, ride.samples)} />
