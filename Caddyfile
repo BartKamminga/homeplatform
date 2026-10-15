@@ -71,7 +71,7 @@
 
         # ── Persoonlijke apps en platform ──
         # Gearchiveerd na #1269: tournix, nkhockey, scrapster
-        @sites path_regexp site ^/(admin|landing|account|dontforget|mixmusic|fiets|myhome|keelson|vbt|beatcrades|agent-control|mindbox|tournix|nkhockey|scrapster)(/.*)?$
+        @sites path_regexp site ^/(admin|landing|account|dontforget|mixmusic|fiets|myhome|keelson|dossiers|vbt|beatcrades|agent-control|mindbox|tournix|nkhockey|scrapster)(/.*)?$
         handle @sites {
             import spa
         }

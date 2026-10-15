@@ -1,6 +1,5 @@
 import difflib
 import hashlib
-import io
 import re
 import uuid
 from datetime import datetime
@@ -8,11 +7,6 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from pathlib import Path
 
-import docx
-import extract_msg
-import pymupdf
-import pytesseract
-from PIL import Image
 from sqlmodel import Session, col, select
 
 from core.exceptions import AppError
@@ -22,6 +16,7 @@ from models.mindbox import (
     MindboxCase, MindboxCaseEvent, MindboxContact, MindboxContext, MindboxItem, MindboxItemContact,
     MindboxItemLink, MindboxKnowledge,
 )
+from services import text_extract
 
 UPLOAD_ROOT = Path(settings.UPLOAD_ROOT).resolve()
 CATEGORY = "mindbox"
@@ -169,125 +164,23 @@ def _find_suggested_case(session: Session, user: User, item_id: str, filename: s
     return None
 
 
-_HTML_STYLE_SCRIPT_RE = re.compile(r"<(style|script)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
+# Item 1355: de extractie zelf staat in services/text_extract.py (gedeeld met
+# Dossiers). Deze aliassen houden de oude namen in stand, zodat monkeypatches
+# in test_mindbox.py (svc._extract_msg) via _auto_extract hieronder blijven werken.
+_html_to_text = text_extract.html_to_text
+_extract_pdf = text_extract.extract_pdf
+_extract_msg = text_extract.extract_msg_file
+_extract_docx = text_extract.extract_docx
+_extract_image_text = text_extract.extract_image_text
+_OCR_EXTENSIONS = text_extract.OCR_EXTENSIONS
 
 
-def _html_to_text(html: str) -> str:
-    """Ruwe HTML-body van een .msg naar leesbare platte tekst - puur voor
-    parsed_text (nooit als HTML gerenderd in de UI, zie ImageThumbnail/
-    item 1068: geen HTML-preview van mail-bodies i.v.m. trackingpixels/
-    misleidende links, ook niet gesandboxed)."""
-    text = _HTML_STYLE_SCRIPT_RE.sub("", html)
-    text = _HTML_TAG_RE.sub(" ", text)
-    text = text.replace("&nbsp;", " ")
-    text = re.sub(r"[ \t]+", " ", text)
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    return "\n".join(lines)
-
-
-def _extract_pdf(content: bytes) -> tuple[str | None, bytes | None]:
-    """Item 1068: mechanische tekst-extractie + pagina-1-preview via
-    PyMuPDF - geen LLM nodig. (None, None) bij een corrupt bestand; lege/
-    None tekst bij een gescande PDF zonder tekstlaag (dan blijft de
-    handmatige/LLM-stap in File.ParseToTekst nodig)."""
-    try:
-        doc = pymupdf.open(stream=content, filetype="pdf")
-    except Exception:
-        return None, None
-    try:
-        parts = [page.get_text() for page in doc]
-        text = "\n\n".join(p.strip() for p in parts if p.strip()) or None
-        preview = None
-        if len(doc) > 0:
-            try:
-                preview = doc[0].get_pixmap(dpi=150).tobytes("png")
-            except Exception:
-                preview = None
-        return text, preview
-    finally:
-        doc.close()
-
-
-def _extract_msg(content: bytes) -> tuple[str | None, list[tuple[str, bytes, str | None]], str | None]:
-    """Item 1068: mechanische extractie van mail-body + bijlagen via
-    extract-msg - geen LLM nodig. Bijlagen worden hier alleen VERZAMELD
-    (echt aanmaken als child-item gebeurt in save_upload, ná het committen
-    van het ouder-item, want daar is item.id voor nodig). Geeft ook het
-    ruwe onderwerp terug (item 1069: gebruikt om gerelateerde/eerdere
-    mails te detecteren en te linken)."""
-    try:
-        msg = extract_msg.openMsg(io.BytesIO(content))
-    except Exception:
-        return None, [], None
-    try:
-        body = msg.body
-        if not body and msg.htmlBody:
-            html = msg.htmlBody
-            if isinstance(html, bytes):
-                html = html.decode("utf-8", errors="replace")
-            body = _html_to_text(html)
-        header = f"Van: {msg.sender}\nAan: {msg.to}\nOnderwerp: {msg.subject}\nDatum: {msg.date}\n\n"
-        text = (header + (body or "")).strip() or None
-
-        attachments: list[tuple[str, bytes, str | None]] = []
-        for att in msg.attachments:
-            try:
-                # Outlook-bijlagenamen bevatten soms een trailing NULL-byte
-                # (bv. "factuur.pdf\x00", geen spatie zoals het er in een
-                # terminal uitziet) - Path(...).suffix neemt dat mee in de
-                # extensie (".pdf\x00"), wat nooit in ALLOWED_EXTENSIONS
-                # staat, dus de bijlage-upload faalde stil (opgevangen door
-                # de except AppError in save_upload's bijlagen-loop, geen
-                # foutmelding zichtbaar - bug gevonden na Bart's melding "zie
-                # ik niet"). .strip() alleen is NIET genoeg: NULL is geen
-                # whitespace voor Python's str.strip().
-                att_name = (att.getFilename() or "").replace("\x00", "").strip()
-                att_bytes = att.data
-                if att_name and isinstance(att_bytes, (bytes, bytearray)):
-                    attachments.append((att_name, bytes(att_bytes), getattr(att, "mimetype", None)))
-            except Exception:
-                continue
-        return text, attachments, msg.subject
-    except Exception:
-        return None, [], None
-    finally:
-        msg.close()
-
-
-def _extract_docx(content: bytes) -> str | None:
-    """Item 1068: mechanische tekst-extractie via python-docx - geen LLM nodig."""
-    try:
-        document = docx.Document(io.BytesIO(content))
-        text = "\n".join(p.text for p in document.paragraphs if p.text.strip())
-        return text or None
-    except Exception:
-        return None
-
-
-_OCR_EXTENSIONS = {".png", ".jpg", ".jpeg"}
-
-
-def _extract_image_text(content: bytes) -> str | None:
-    """Item 1068 (Bart): 'laten we ook kijken naar picture to tekst' - OCR
-    via pytesseract (Tesseract-binary, Nederlands + Engels), geen LLM nodig.
-    Vereist tesseract-ocr in de Docker-image (zie Dockerfile) - lokaal
-    zonder die binary faalt dit stil en blijft het manueel/LLM (bv. het
-    model dat de afbeelding zelf leest)."""
-    try:
-        image = Image.open(io.BytesIO(content))
-        text = pytesseract.image_to_string(image, lang="nld+eng")
-        return text.strip() or None
-    except Exception:
-        return None
-
-
-def _auto_extract(ext: str, content: bytes) -> tuple[str | None, bytes | None, list[tuple[str, bytes, str | None]]]:
+def _auto_extract(
+    ext: str, content: bytes,
+) -> tuple[str | None, bytes | None, list[tuple[str, bytes, str | None]], str | None]:
     """Item 1068 (Bart): 'minder tokens verbranden' - mechanische extractie
-    (geen LLM) voor bestandstypen waar dat kan, bij upload i.p.v. via een
-    losse manual/LLM-stap (File.ParseToTekst). Retourneert
-    (parsed_text, preview_png, bijlagen) - elk optioneel/leeg als extractie
-    niets oplevert of het bestandstype hier niet voor in aanmerking komt."""
+    (geen LLM) bij upload. Retourneert (parsed_text, preview_png, bijlagen,
+    mail-onderwerp) - elk optioneel/leeg als extractie niets oplevert."""
     if ext == ".pdf":
         text, preview = _extract_pdf(content)
         return text, preview, [], None

@@ -70,6 +70,7 @@ def seed_sites(session: Session):
         ("Scrapster", "scrapster", "scrapster", "📡"),
         ("Agent Control", "agent-control", "agent-control", "🤖"),
         ("Mindbox", "mindbox", "mindbox", "🧠"),
+        ("Dossiers", "dossiers", "dossiers", "🗂️"),
         ("MO14 à Paris", "yearof-mo14", "yearof", "🏑"),
     ]
 

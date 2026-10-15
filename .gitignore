@@ -5,6 +5,10 @@
 .mindbox.config.*.ps1
 mindbox_work/
 
+# Dossier CLI config (bevat API key, per omgeving) + lokale exportmap
+.dossier.config.*.ps1
+dossier_work/
+
 # Python
 .venv/
 __pycache__/
