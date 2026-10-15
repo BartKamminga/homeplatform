@@ -34,15 +34,33 @@ mail: then leave `-Url` out and put folder + date in the summary so Bart can fin
 5. For every candidate make a key: `.\Dossier.ps1 -MailRef -Subject "<subject>" -Date "<sent, ISO>" -From "<sender address>"`.
    Check all keys in one go: `.\Dossier.ps1 -CheckRefs -Name <slug> -Refs "ref1,ref2,..."`.
    Skip keys that are `added`, `proposed` or `rejected` (rejected = Bart said no before).
-6. Show Bart a short list of the new candidates (subject, date, sender as role, one line why relevant) and ask
-   which to propose. Bart may also say "all".
-7. Per chosen mail: write a summary of 3-8 lines (what is decided/asked/announced, what it means for the dossier) to a
+6. Do **not** ask Bart per mail in the chat: the dossier page is where he reviews. Every new mail that matches the
+   criteria goes to the dossier as a proposal. If the criteria name an Outlook folder (for example "map: LCMS"), take
+   **every** mail in that folder within the period, without judging relevance.
+7. Per mail: write a summary of 3-8 lines (what is decided/asked/announced, what it means for the dossier) to a
    temporary .md file, then:
    `.\Dossier.ps1 -AddMail -Name <slug> -Title "<subject>" -Date "<sent, ISO>" -Ref <key> -FilePath <summary.md> -Url "<outlook link to the mail>" -Reason "<why relevant>"`
    (without `-Direct`, so it lands as a proposal).
 8. Close with a session note:
    `.\Dossier.ps1 -AddNote -Name <slug> -Kind session -Title "Mail round <date>" -Text "<criteria used, n found, n proposed>"`
    and tell Bart how many proposals wait for him on the dossier page.
+
+## Mode: all dossiers (inbox + sent items)
+Used when the instruction says "for all dossiers" (the Inbox page of the site). Same rules as above.
+1. `.\Dossier.ps1 -List` and `-Get` for each active and suggested dossier, so you know their topics and criteria.
+2. Period: since the last session note titled "Mail round (all dossiers)" in any dossier; none yet → the last 30 days.
+   Bart may give another period.
+3. Read **Inbox** and **Sent Items** for that period. Skip newsletters, automatic notifications, calendar
+   auto-replies, private mail and HR matters.
+4. Make a key per mail (`-MailRef`) and check all keys at once **without** `-Name`:
+   `.\Dossier.ps1 -CheckRefs -Refs "ref1,ref2,..."` (over all dossiers). Skip keys that are already known anywhere.
+5. Group the remaining mails by topic. A topic that fits an existing dossier → that dossier. A topic without a dossier
+   and with real substance (a decision, a project, a question that returns) → create a suggested dossier:
+   `.\Dossier.ps1 -Create -Name "<short topic name>" -Proposed -Criteria "<search terms, senders as role, folders>"`.
+   One-off mails that fit nowhere and are not worth a dossier: leave them out (they are for the coming Outbox).
+6. Add each mail as a proposal (`-AddMail` without `-Direct`, summary only, `-Reason` = why it belongs there).
+7. Close with a session note "Mail round (all dossiers)" on every dossier you touched, listing period and counts,
+   and tell Bart: n mails proposed in n dossiers, n new dossiers suggested; review them on the Inbox page.
 
 ## Environment
 `-Env prod` is the default; use `-Env acc` for a trial round on acceptance. Without `.dossier.config.<env>.ps1`

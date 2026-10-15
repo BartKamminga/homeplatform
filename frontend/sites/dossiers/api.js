@@ -22,6 +22,7 @@ export const addEntry = (id, data) => api.post(`${BASE}/${enc(id)}/entries`, dat
 export const updateEntry = (entryId, data) => api.patch(`${BASE}/entries/${enc(entryId)}`, data)
 export const deleteEntry = (entryId) => api.delete(`${BASE}/entries/${enc(entryId)}`)
 export const reviewEntry = (entryId, decision) => api.post(`${BASE}/entries/${enc(entryId)}/review`, { decision })
+export const getInbox = () => api.get(`${BASE}/inbox`)
 export const searchAll = (q) => api.get(`${BASE}/search?q=${enc(q)}`)
 
 function authHeader() {

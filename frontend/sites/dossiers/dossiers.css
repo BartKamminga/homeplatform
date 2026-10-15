@@ -143,3 +143,13 @@ textarea.ds-input { resize: vertical; }
 .ds-kind-session { color: var(--ds-session); }
 
 .ds-instruction { font-family: var(--ds-mono); font-size: 12.5px; background: var(--ds-soft); }
+
+.ds-instr { display: grid; gap: 10px; }
+.ds-tabs { display: inline-flex; gap: 4px; }
+.ds-tabs button { font: inherit; font-size: 14px; font-weight: 600; padding: 6px 12px; border: 0; border-radius: 6px; background: none; color: var(--ds-muted); cursor: pointer; }
+.ds-tabs button[aria-pressed="true"] { background: var(--ds-soft); color: var(--ds-ink); }
+.ds-tabs button:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
+.ds-card-static { cursor: default; }
+.ds-card-static:hover { border-color: var(--ds-line); }
+.ds-move { width: auto; max-width: 200px; font-size: 13px; padding: 5px 8px; }
+@media (max-width: 560px) { .ds-proposal-actions { flex-wrap: wrap; } .ds-move { max-width: 100%; } }

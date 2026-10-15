@@ -10,7 +10,8 @@ from models.core import User
 from models.dossiers import Dossier, DossierEntry
 
 KINDS = {"note", "mail", "document", "link", "session"}
-STATUSES = {"active", "archived"}
+# proposed = door Claude aangemaakt in een mailronde; Bart accepteert (active) of wijst af (archived) in de Inbox.
+STATUSES = {"active", "archived", "proposed"}
 REVIEW_PROPOSED = "proposed"
 REVIEW_REJECTED = "rejected"
 
@@ -39,15 +40,20 @@ def get_dossier(session: Session, user: User, dossier_id: str) -> Dossier:
     return dossier
 
 
-def create_dossier(session: Session, user: User, name: str, summary: str | None = None) -> Dossier:
+def create_dossier(
+    session: Session, user: User, name: str, summary: str | None = None,
+    mail_criteria: str | None = None, status: str = "active",
+) -> Dossier:
     name = name.strip()
     if not name:
         raise AppError("Give the dossier a name")
+    if status not in ("active", "proposed"):
+        raise AppError("A new dossier is active or proposed")
     base = slugify(name)
     slug, n = base, 2
     while session.exec(select(Dossier).where(Dossier.user_id == user.id, Dossier.slug == slug)).first():
         slug, n = f"{base}-{n}", n + 1
-    dossier = Dossier(user_id=user.id, name=name, slug=slug, summary=summary)
+    dossier = Dossier(user_id=user.id, name=name, slug=slug, summary=summary, mail_criteria=mail_criteria, status=status)
     session.add(dossier)
     session.commit()
     session.refresh(dossier)
@@ -156,10 +162,53 @@ def check_refs(session: Session, user: User, dossier_id: str, refs: list[str]) -
     return {ref: known.get(ref) for ref in refs}
 
 
+def check_refs_all(session: Session, user: User, refs: list[str]) -> dict[str, dict | None]:
+    """Zoals check_refs, maar over alle dossiers: per sleutel None of {dossier, slug, state}."""
+    found = session.exec(
+        select(DossierEntry.external_ref, DossierEntry.review, Dossier.name, Dossier.slug)
+        .join(Dossier, Dossier.id == DossierEntry.dossier_id)
+        .where(DossierEntry.user_id == user.id, col(DossierEntry.external_ref).in_(refs))
+    ).all()
+    known = {ref: {"dossier": name, "slug": slug, "state": review or "added"} for ref, review, name, slug in found}
+    return {ref: known.get(ref) for ref in refs}
+
+
+def inbox(session: Session, user: User) -> dict:
+    """Alles wat op Bart wacht: voorgestelde dossiers en mailvoorstellen in alle dossiers."""
+    proposed_dossiers = session.exec(
+        select(Dossier).where(Dossier.user_id == user.id, Dossier.status == "proposed")
+        .order_by(col(Dossier.created_at).desc())
+    ).all()
+    rows = session.exec(
+        select(DossierEntry, Dossier)
+        .join(Dossier, Dossier.id == DossierEntry.dossier_id)
+        .where(DossierEntry.user_id == user.id, DossierEntry.review == REVIEW_PROPOSED)
+        .order_by(col(DossierEntry.occurred_at).desc(), col(DossierEntry.created_at).desc())
+    ).all()
+    return {
+        "dossiers": list(proposed_dossiers),
+        "entries": [{**entry_to_dict(e), "dossier_name": d.name, "dossier_slug": d.slug} for e, d in rows],
+    }
+
+
+def move_entry(session: Session, user: User, entry: DossierEntry, target_id: str) -> None:
+    """Een stuk (met zijn bijlagen) naar een ander dossier van dezelfde gebruiker verplaatsen."""
+    target = get_dossier(session, user, target_id)
+    if entry.external_ref and target.id != entry.dossier_id and find_by_ref(session, target, entry.external_ref):
+        raise AppError("This mail is already in the target dossier", status_code=409)
+    children = session.exec(select(DossierEntry).where(DossierEntry.parent_entry_id == entry.id)).all()
+    for item in [entry, *children]:
+        item.dossier_id = target.id
+        session.add(item)
+    touch(session, target)
+
+
 def update_entry(session: Session, user: User, entry_id: str, **fields) -> DossierEntry:
     entry = get_entry(session, user, entry_id)
     if fields.get("kind") is not None and fields["kind"] not in KINDS:
         raise AppError(f"Kind must be one of {sorted(KINDS)}")
+    if fields.get("dossier_id") and fields["dossier_id"] != entry.dossier_id:
+        move_entry(session, user, entry, fields["dossier_id"])
     for key in ("title", "body", "kind", "source_url", "occurred_at", "pinned"):
         if fields.get(key) is not None:
             setattr(entry, key, fields[key])
@@ -219,39 +268,3 @@ def search_all(session: Session, user: User, q: str) -> list[tuple[DossierEntry,
         .order_by(col(DossierEntry.created_at).desc())
         .limit(100)
     ).all())
-
-
-# --- Export voor Claude -----------------------------------------------------
-
-def _fmt_date(value: datetime | None) -> str:
-    return value.strftime("%Y-%m-%d") if value else "-"
-
-
-def export_markdown(session: Session, user: User, dossier_id: str) -> str:
-    """Eén markdown-document met alles wat een Claude-sessie nodig heeft."""
-    dossier = get_dossier(session, user, dossier_id)
-    entries = list_entries(session, user, dossier.id)
-    proposed = list_entries(session, user, dossier.id, review=REVIEW_PROPOSED)
-    lines = [
-        f"# Dossier: {dossier.name}", "",
-        f"Slug: `{dossier.slug}` · status: {dossier.status} · {len(entries)} stukken · "
-        f"bijgewerkt {_fmt_date(dossier.updated_at)}", "",
-        "## Stand van zaken", "", dossier.summary or "_Nog geen samenvatting._", "",
-        "## Zoekcriteria voor mail", "", dossier.mail_criteria or "_Nog geen criteria._", "",
-    ]
-    if proposed:
-        lines += ["## Openstaande mailvoorstellen", ""]
-        lines += [f"- {e.title} ({_fmt_date(e.occurred_at)})" for e in proposed]
-        lines.append("")
-    lines += ["## Stukken (vastgepind eerst, daarna nieuwste eerst)", ""]
-    for e in entries:
-        meta = [e.kind, _fmt_date(e.occurred_at or e.created_at)]
-        if e.pinned:
-            meta.append("vastgepind")
-        if e.original_filename:
-            meta.append(e.original_filename)
-        if e.parent_entry_id:
-            meta.append("bijlage")
-        lines += [f"### {e.title}", "", f"_{' · '.join(meta)}_" + (f" · {e.source_url}" if e.source_url else ""), ""]
-        lines += [(e.body or "_(geen tekst)_").strip(), ""]
-    return "\n".join(lines)

@@ -26,6 +26,7 @@ export default function DossierListPage({ onOpen }) {
     } catch (err) { setError(err.message) }
   }
 
+  // Voorgestelde dossiers (uit een mailronde) staan in de Inbox, niet hier.
   const active = (dossiers || []).filter((d) => d.status === 'active')
   const archived = (dossiers || []).filter((d) => d.status === 'archived')
 
@@ -58,7 +59,7 @@ export default function DossierListPage({ onOpen }) {
         </section>
       ) : !dossiers ? (
         <p className="ds-muted">Loading dossiers…</p>
-      ) : dossiers.length === 0 ? (
+      ) : active.length === 0 && archived.length === 0 ? (
         <div className="ds-empty">No dossiers yet. Give your first one a name above, for example “LCMS future”.</div>
       ) : (
         <>

@@ -160,3 +160,30 @@ def test_delete_entry_removes_attachments_and_files(client, user_token, tmp_path
     assert client.delete(f"/api/dossiers/entries/{mail['id']}", headers=_h(user_token)).status_code == 204
     assert client.get(f"/api/dossiers/{dossier['id']}/entries", headers=_h(user_token)).json() == []
     assert not any(p.is_file() for p in tmp_path.rglob("*"))
+
+
+def test_proposed_dossier_inbox_global_refs_and_move(client, user_token):
+    lcms = _dossier(client, user_token)
+    res = client.post("/api/dossiers", json={"name": "Inhuur hosting", "status": "proposed", "mail_criteria": "inhuur"},
+                      headers=_h(user_token))
+    assert res.status_code == 201 and res.json()["status"] == "proposed"
+    proposed = res.json()
+    assert client.post("/api/dossiers", json={"name": "X", "status": "archived"}, headers=_h(user_token)).status_code == 400
+
+    mail = {"kind": "mail", "title": "Offerte inhuur", "body": "Samenvatting", "external_ref": "ref-inhuur",
+            "review": "proposed", "reason": "Gaat over inhuur"}
+    entry = client.post(f"/api/dossiers/{lcms['id']}/entries", json=mail, headers=_h(user_token)).json()
+
+    inbox = client.get("/api/dossiers/inbox", headers=_h(user_token)).json()
+    assert [d["slug"] for d in inbox["dossiers"]] == ["inhuur-hosting"]
+    assert inbox["entries"][0]["dossier_slug"] == "lcms-toekomst"
+
+    refs = client.post("/api/dossiers/refs/check", json={"refs": ["ref-inhuur", "ref-nieuw"]}, headers=_h(user_token)).json()
+    assert refs == {"ref-inhuur": {"dossier": "LCMS toekomst", "slug": "lcms-toekomst", "state": "proposed"}, "ref-nieuw": None}
+
+    moved = client.patch(f"/api/dossiers/entries/{entry['id']}", json={"dossier_id": proposed["slug"]}, headers=_h(user_token))
+    assert moved.status_code == 200 and moved.json()["dossier_id"] == proposed["id"]
+    assert client.get("/api/dossiers/inbox", headers=_h(user_token)).json()["entries"][0]["dossier_slug"] == "inhuur-hosting"
+
+    accepted = client.patch(f"/api/dossiers/{proposed['id']}", json={"status": "active"}, headers=_h(user_token)).json()
+    assert accepted["status"] == "active" and client.get("/api/dossiers/inbox", headers=_h(user_token)).json()["dossiers"] == []

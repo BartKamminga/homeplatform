@@ -4,6 +4,8 @@
 #   .\Dossier.ps1 -Setup [-Env prod|acc|local]                     # eenmalig: config (API key) aanmaken
 #   .\Dossier.ps1 -List                                            # alle dossiers
 #   .\Dossier.ps1 -Create -Name "LCMS toekomst"                    # nieuw dossier
+#   .\Dossier.ps1 -Create -Name "Inhuur hosting" -Proposed -Criteria "..."   # voorgesteld dossier (mailronde), Bart accepteert in de Inbox
+#   .\Dossier.ps1 -Inbox                                           # wat wacht op Bart: voorgestelde dossiers + mailvoorstellen
 #   .\Dossier.ps1 -Get -Name lcms-toekomst                         # export -> dossier_work\<slug>.md (start van een sessie)
 #   .\Dossier.ps1 -AddNote -Name <dossier> -Title "..." -Text "..." [-Kind note|session|link] [-Url <url>]
 #   .\Dossier.ps1 -AddNote -Name <dossier> -Title "..." -FilePath notitie.md -Kind session   # sessienotitie uit bestand
@@ -12,6 +14,7 @@
 #   .\Dossier.ps1 -SetCriteria -Name <dossier> -Text "..."         # zoekcriteria voor de mailronde
 #   .\Dossier.ps1 -MailRef -Subject "..." -Date "2026-10-15T09:12" -From "afdeling@org.nl"   # stabiele sleutel per mail
 #   .\Dossier.ps1 -CheckRefs -Name <dossier> -Refs "ref1,ref2"     # welke mails zitten er al in (added/proposed/rejected)
+#   .\Dossier.ps1 -CheckRefs -Refs "ref1,ref2"                     # zonder -Name: over ALLE dossiers (mailronde voor alles)
 #   .\Dossier.ps1 -AddMail -Name <dossier> -Title <onderwerp> -Date <iso> -Ref <ref> -FilePath samenvatting.md `
 #                 [-Url <outlook-link>] [-Reason "waarom relevant"] [-Direct]
 #                 # standaard een VOORSTEL dat Bart op de dossierpagina accepteert/afwijst; -Direct voegt meteen toe
@@ -23,7 +26,7 @@
 param(
     [switch]$Setup, [switch]$List, [switch]$Create, [switch]$Get, [switch]$AddNote, [switch]$Upload,
     [switch]$SetSummary, [switch]$SetCriteria, [switch]$MailRef, [switch]$CheckRefs, [switch]$AddMail,
-    [switch]$Direct,
+    [switch]$Direct, [switch]$Proposed, [switch]$Inbox,
     [ValidateSet("prod", "acc", "local")]
     [string]$Env      = "prod",
     [string]$Name     = "",
@@ -38,7 +41,8 @@ param(
     [string]$Refs     = "",
     [string]$Reason   = "",
     [string]$Subject  = "",
-    [string]$From     = ""
+    [string]$From     = "",
+    [string]$Criteria = ""
 )
 
 $DefaultApiBase = @{
@@ -127,8 +131,31 @@ if ($List) {
 
 if ($Create) {
     if (-not $Name) { Write-Host "Geef -Name op"; exit 1 }
-    $d = Invoke-Api POST "/dossiers" @{ name = $Name }
-    Write-Host "[OK] Dossier '$($d.name)' aangemaakt (slug: $($d.slug))"; exit 0
+    $body = @{ name = $Name; status = $(if ($Proposed) { "proposed" } else { "active" }) }
+    if ($Criteria) { $body.mail_criteria = $Criteria }
+    $d = Invoke-Api POST "/dossiers" $body
+    Write-Host "[OK] Dossier '$($d.name)' aangemaakt (slug: $($d.slug), status: $($d.status))"; exit 0
+}
+
+if ($Inbox) {
+    $box = Invoke-Api GET "/dossiers/inbox"
+    $ds = @($box.dossiers | ForEach-Object { $_ }); $es = @($box.entries | ForEach-Object { $_ })
+    Write-Host "Voorgestelde dossiers: $($ds.Count)"
+    foreach ($d in $ds) { Write-Host ("  {0,-28} {1} ({2} mails)" -f $d.slug, $d.name, $d.proposed_count) }
+    Write-Host "Mailvoorstellen: $($es.Count)"
+    foreach ($e in $es) { Write-Host ("  {0,-28} {1}" -f $e.dossier_slug, $e.title) }
+    exit 0
+}
+
+if ($CheckRefs -and -not $Name) {
+    $refList = @($Refs -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if (-not $refList.Count) { Write-Host "Geef -Refs op (komma-gescheiden)"; exit 1 }
+    $res = Invoke-Api POST "/dossiers/refs/check" @{ refs = $refList }
+    foreach ($p in $res.PSObject.Properties) {
+        $v = $p.Value
+        Write-Host ("{0}  {1}" -f $p.Name, $(if ($v) { "$($v.state) in $($v.slug)" } else { "nieuw" }))
+    }
+    exit 0
 }
 
 $dossier = Resolve-Dossier
@@ -202,4 +229,4 @@ if ($AddMail) {
     exit 0
 }
 
-Write-Host "Gebruik: .\Dossier.ps1 -Setup | -List | -Create | -Get | -AddNote | -Upload | -SetSummary | -SetCriteria | -MailRef | -CheckRefs | -AddMail  (zie kop van dit bestand)"
+Write-Host "Gebruik: .\Dossier.ps1 -Setup | -List | -Inbox | -Create | -Get | -AddNote | -Upload | -SetSummary | -SetCriteria | -MailRef | -CheckRefs | -AddMail  (zie kop van dit bestand)"

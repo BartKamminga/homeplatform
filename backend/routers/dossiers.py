@@ -12,6 +12,7 @@ from core.database import get_session
 from core.exceptions import AppError
 from core.logging import log_action
 from models.core import User
+import services.dossier_export as export_svc
 import services.dossier_files as files
 import services.dossiers as svc
 
@@ -21,6 +22,8 @@ router = APIRouter(prefix="/api/dossiers", tags=["dossiers"])
 class DossierIn(BaseModel):
     name: str
     summary: Optional[str] = None
+    mail_criteria: Optional[str] = None
+    status: str = "active"  # "proposed" als Claude het dossier in een mailronde aanmaakt
 
 
 class DossierPatch(BaseModel):
@@ -42,6 +45,7 @@ class EntryIn(BaseModel):
 
 
 class EntryPatch(BaseModel):
+    dossier_id: Optional[str] = None  # verplaatsen naar een ander dossier
     kind: Optional[str] = None
     title: Optional[str] = None
     body: Optional[str] = None
@@ -76,9 +80,20 @@ def list_dossiers(session: Session = Depends(get_session), user: User = Depends(
 
 @router.post("", status_code=201)
 def create_dossier(body: DossierIn, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
-    dossier = svc.create_dossier(session, user, body.name, body.summary)
+    dossier = svc.create_dossier(session, user, body.name, body.summary, body.mail_criteria, body.status)
     log_action(session, "dossiers.create", site="dossiers", user_id=user.id, payload={"dossier_id": dossier.id})
     return _dossier_out(session, dossier)
+
+
+@router.get("/inbox")
+def inbox(session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    data = svc.inbox(session, user)
+    return {"dossiers": [_dossier_out(session, d) for d in data["dossiers"]], "entries": data["entries"]}
+
+
+@router.post("/refs/check")
+def check_refs_all(body: RefsIn, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    return svc.check_refs_all(session, user, body.refs)
 
 
 @router.get("/search")
@@ -104,7 +119,7 @@ def update_dossier(
 
 @router.get("/{dossier_id}/export", response_class=PlainTextResponse)
 def export(dossier_id: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
-    return svc.export_markdown(session, user, dossier_id)
+    return export_svc.export_markdown(session, user, dossier_id)
 
 
 # --- Entries ----------------------------------------------------------------
