@@ -1,6 +1,7 @@
 // Schermen boven de weg: titel (attract mode), aftellen, pauze, stopvraag en de CRT-scanlines.
 // Zichtbaarheid regelt de CSS via body[data-state] (useBodyState); deze componenten leveren de inhoud.
 import { useVbt, actions } from '../hooks/useVbt.js'
+import { fmtDur } from '../common/format.js'
 
 export function TitleScreen() {
   const a = () => actions()
@@ -32,19 +33,36 @@ export function Countdown() {
 }
 
 export function Paused() {
-  const p = useVbt(s => s.pauseText) || { title: 'PAUSED', sub: '' }
-  return <div id="paused"><b id="pausedTitle">{p.title}</b><small id="pausedSub">{p.sub}</small></div>
+  const s = useVbt()
+  const p = s.pauseText || { title: 'PAUSED', sub: '' }
+  return (
+    <div id="paused">
+      <b id="pausedTitle">{p.title}</b><small id="pausedSub">{p.sub}</small>
+      <div className="pausedbtns">
+        {!s.autoPaused && <button id="btnPausedResume" className="ghostbtn" onClick={e => { e.currentTarget.blur(); actions().resume() }}>&#9654; RESUME <em>SPACE</em></button>}
+        <button id="btnPausedEnd" className="ridebtn danger" onClick={e => { e.currentTarget.blur(); actions().stop() }}>&#9632; END RIDE <em>ESC</em></button>
+      </div>
+    </div>
+  )
 }
 
+// Stopvraag: wat je afsluit (tijd, afstand, wat er van de workout over is) en wat er met de rit gebeurt
 export function ConfirmStop() {
+  const s = useVbt()
+  const run = s.run && !s.run.free ? s.run : null
+  const left = run && run.total ? run.total - run.elapsed : 0
   return (
     <div id="confirm">
       <div className="confirmbox">
-        <h2>STOP RIDE?</h2>
-        <p id="confirmSub">Your ride is always saved - find it under MY RIDES.</p>
+        <h2>END RIDE?</h2>
+        <div className="confirmsum">
+          <b>{fmtDur(s.rideTime)}</b><span>{(s.dist / 1000).toFixed(2)} KM</span>
+          {run && <span>{run.name.toUpperCase()}{left > 1 ? ' · ' + fmtDur(left) + ' LEFT' : ''}</span>}
+        </div>
+        <p id="confirmSub">{left > 1 ? 'The workout is not finished yet. ' : ''}Your ride is saved under MY RIDES - you can continue it later.</p>
         <div className="confirmbtns">
-          <button id="btnKeepRiding" className="ghostbtn" onClick={() => actions().cancelStop()}>NO <em>N / ESC</em></button>
-          <button id="btnStopRide" className="ridebtn" onClick={() => actions().confirmStop()}>YES <em>Y / ENTER</em></button>
+          <button id="btnKeepRiding" className="ghostbtn" onClick={() => actions().cancelStop()}>&#9654; KEEP RIDING <em>ESC</em></button>
+          <button id="btnStopRide" className="ridebtn danger" onClick={() => actions().confirmStop()}>&#9632; STOP &amp; SAVE <em>ENTER</em></button>
         </div>
       </div>
     </div>

@@ -73,4 +73,15 @@ VBT.util = {
     const f = watts / VBT.cfg.rider.ftp;
     return VBT.zones.find(z => f <= z.max) || VBT.zones[VBT.zones.length - 1];
   },
+
+  // Positie (0-1) op een zonebalk met even brede segmenten: eerst het segment van de zone, daarna lineair
+  // binnen dat segment. Zo valt de marker altijd in het vak met dezelfde kleur als de cijfers.
+  // bottom = ondergrens van de eerste zone, top = bovengrens van de laatste (open) zone, als fractie.
+  zoneBarFrac(f, zones, bottom, top) {
+    const n = zones.length;
+    let i = zones.findIndex(z => f <= z.max);
+    if (i < 0) i = n - 1;
+    const lo = i ? zones[i - 1].max : bottom, hi = i === n - 1 ? top : zones[i].max;
+    return (i + VBT.util.clamp((f - lo) / (hi - lo), 0, 1)) / n;
+  },
 };

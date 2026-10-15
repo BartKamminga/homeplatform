@@ -50,6 +50,13 @@ import { initSentry } from '@core/sentry.js'
 initSentry()
 trackEvent('vbt', 'page.view', { path: window.location.pathname })
 
+// installeerbaar als app (PWA)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/vbt/sw.js', { scope: '/vbt/' }).catch(() => { /* geen app-installatie, verder geen probleem */ })
+  })
+}
+
 import VbtApp from './ui/VbtApp.jsx'
 
 createRoot(document.getElementById('vbt-gate')).render(

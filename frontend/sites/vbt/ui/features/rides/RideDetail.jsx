@@ -7,7 +7,8 @@ import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
 import Feedback from './Feedback.jsx'
 
-export default function RideDetail({ ride, onDeleted, onRestored }) {
+// readOnly: tijdens een rit alleen bekijken (en .FIT) - geen verwijderen, terugzetten of CONTINUE RIDE
+export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
   const stat = (v, l) => <div key={l}><b>{v}</b><small>{l}</small></div>
   const paused = Math.max(0, (ride.elapsed || 0) - ride.duration)
   const remove = async () => {
@@ -27,11 +28,11 @@ export default function RideDetail({ ride, onDeleted, onRestored }) {
         </div>
       </div>
       <div className="pn-buttons">
-        {ride.deletedAt
+        {!readOnly && (ride.deletedAt
           ? <button id="rideRestore" className="ridebtn" onClick={restore}>&#8634; RESTORE</button>
-          : !ride.pending && <button id="rideDelete" className="ghostbtn" onClick={remove}>DELETE</button>}
+          : !ride.pending && <button id="rideDelete" className="ghostbtn" onClick={remove}>DELETE</button>)}
         <button id="rideFit" className="ghostbtn" disabled={!(ride.samples && ride.samples.length)} onClick={() => actions().downloadFit(ride)}>&#11015; .FIT</button>
-        {!ride.deletedAt && <button id="rideContinue" className="ridebtn" disabled={!canContinue}
+        {!readOnly && !ride.deletedAt && <button id="rideContinue" className="ridebtn" disabled={!canContinue}
           onClick={() => startWithConfirm('this ride again', () => actions().resumeRide(ride))}>CONTINUE RIDE &#9654;</button>}
       </div>
       <div className="ridestats">
@@ -42,7 +43,7 @@ export default function RideDetail({ ride, onDeleted, onRestored }) {
         {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
         {ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : null}
       </div>
-      {!ride.deletedAt && !ride.pending && <Feedback key={'fb' + ride.id} ride={ride} compact />}
+      {!readOnly && !ride.deletedAt && !ride.pending && <Feedback key={'fb' + ride.id} ride={ride} compact />}
       <CanvasChart height={160} draw={(ctx, w, h) => drawRide(ctx, w, h, ride.samples)} />
       <div className="ridelogs">
         {!!(ride.pauses && ride.pauses.length) && (

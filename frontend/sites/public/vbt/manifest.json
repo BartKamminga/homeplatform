@@ -1,0 +1,20 @@
+{
+  "name": "VBT - Virtual Bike Trainer",
+  "short_name": "VBT",
+  "description": "Arcade bike trainer for the Wahoo KICKR",
+  "id": "/vbt/",
+  "start_url": "/vbt/",
+  "scope": "/vbt/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#07011a",
+  "theme_color": "#07011a",
+  "icons": [
+    {
+      "src": "/vbt/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
