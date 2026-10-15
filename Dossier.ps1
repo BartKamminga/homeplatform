@@ -111,14 +111,14 @@ function Read-TextArg {
 
 function Resolve-Dossier {
     if (-not $Name) { Write-Host "Geef -Name op (slug of naam)"; exit 1 }
-    $all = @(Invoke-Api GET "/dossiers")
+    $all = @(Invoke-Api GET "/dossiers" | ForEach-Object { $_ })  # PS 5.1 levert een JSON-lijst als 1 object
     $match = $all | Where-Object { $_.slug -eq $Name -or $_.id -eq $Name -or $_.name -eq $Name } | Select-Object -First 1
     if (-not $match) { Write-Host "[FOUT] Geen dossier '$Name'. Zie .\Dossier.ps1 -List"; exit 1 }
     return $match
 }
 
 if ($List) {
-    $all = @(Invoke-Api GET "/dossiers")
+    $all = @(Invoke-Api GET "/dossiers" | ForEach-Object { $_ })  # PS 5.1 levert een JSON-lijst als 1 object
     if (-not $all.Count) { Write-Host "Nog geen dossiers."; exit 0 }
     Write-Host ("{0,-28} {1,-30} {2,7} {3,9}  {4}" -f "SLUG", "NAAM", "STUKKEN", "VOORSTEL", "BIJGEWERKT")
     foreach ($d in $all) { Write-Host ("{0,-28} {1,-30} {2,7} {3,9}  {4}" -f $d.slug, $d.name, $d.entry_count, $d.proposed_count, $d.updated_at) }
@@ -161,7 +161,8 @@ if ($Upload) {
         $raw = & curl.exe -s -H "Authorization: Bearer $HP_API_KEY" -F "uploads=@$((Resolve-Path $FilePath).Path)" "$HP_API_BASE/dossiers/$($dossier.id)/upload"
         $res = $raw | ConvertFrom-Json
     }
-    foreach ($r in @($res)) {
+    if ($null -eq $res) { Write-Host "[FOUT] Upload mislukt (geen antwoord van de server)"; exit 1 }
+    foreach ($r in @($res | ForEach-Object { $_ })) {
         if ($r.error) { Write-Host "[FOUT] $($r.original_filename): $($r.error)" }
         elseif ($r.created -eq $false) { Write-Host "[--] $($r.original_filename) zat al in het dossier" }
         else { Write-Host "[OK] $($r.kind) '$($r.title)' toegevoegd" }
