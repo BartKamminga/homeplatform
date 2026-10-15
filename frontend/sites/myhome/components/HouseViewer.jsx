@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { ROOM_KINDS, fmtArea, isOpen, liveSummary, roofHeight } from '../model.js'
+import { ROOM_KINDS, fmtArea, isOpen, liveSummary, panelWatt, roofHeight } from '../model.js'
+import { panelColor } from './plan/SolarPanelShape.jsx'
+import { buildRoof, isRoofFloor, roofBase } from './roof3d.js'
 
 // 3D-weergave van het huismodel. x = links→rechts op de plattegrond, z = tuin (min) → straat (plus).
 // Props: home (export uit de API), floor ('all' of floor-key), explode (m), highWalls, showRoof,
@@ -110,7 +112,7 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       renderer.render(scene, camera)
       labelRenderer.render(scene, camera)
     })
-    stateRef.current = { scene, camera, controls, content, floorMeshes: [], groups: {}, framed: null }
+    stateRef.current = { scene, camera, controls, content, floorMeshes: [], groups: {}, panels: [], framed: null }
 
     return () => {
       renderer.setAnimationLoop(null)
@@ -131,6 +133,7 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
     if (labelsRef.current) labelsRef.current.innerHTML = ''
     s.floorMeshes = []
     s.groups = {}
+    s.panels = []
 
     const bg = cssVar('--color-background', '#f4f5f3')
     const fg = cssVar('--color-text-muted', '#5d6a6c')
@@ -155,7 +158,7 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       s.content.add(o)
     }
 
-    home.floors.filter((f) => !f.rooms.length || !f.rooms.every((r) => r.kind === 'roof')).forEach((f, i) => {
+    home.floors.filter((f) => !isRoofFloor(f)).forEach((f, i) => {
       const g = new THREE.Group()
       // Tuin blijft op maaiveld; alleen verdiepingen schuiven uit elkaar.
       g.userData = { key: f.key, level: f.level, index: f.rooms.length && f.rooms.every((r) => r.kind === 'garden') ? 0 : i }
@@ -191,6 +194,19 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
       if (f.roof?.line?.length && showRoof) g.add(roofMesh(f.roof, roofMat))
     })
 
+    // Dakvlakken + zonnepanelen; schuift mee met de verdieping waarvan het dakprofiel komt.
+    const base = roofBase(home)
+    const roofFloor = home.floors.find(isRoofFloor)
+    if (base && roofFloor) {
+      const roof = buildRoof(roofFloor, base, { selectedId, selMat, lineMat })
+      roof.group.userData = { key: roofFloor.key, level: 0, index: s.groups[base.key].userData.index, roof: true }
+      s.groups[roofFloor.key] = roof.group
+      s.content.add(roof.group)
+      s.floorMeshes.push(...roof.planes)
+      s.panels = roof.panels
+      s.paintPanels?.()
+    }
+
     if (s.framed !== home.id) {
       s.camera.position.set(b.cx - b.size * 1.3, b.size * 1.9, b.cz + b.size * 2.4)
       s.controls.target.set(b.cx, 3, b.cz)
@@ -203,12 +219,23 @@ export default function HouseViewer({ home, floor, explode, highWalls, showRoof,
     const s = stateRef.current
     if (!s) return
     for (const g of Object.values(s.groups)) {
-      const visible = floor === 'all' || floor === g.userData.key
+      const visible = g.userData.roof ? (floor === 'all' ? showRoof : floor === g.userData.key) : floor === 'all' || floor === g.userData.key
       g.visible = visible
       g.position.y = floor === 'all' ? g.userData.level + g.userData.index * explode : 0
       g.traverse((o) => { if (o.isCSS2DObject) o.element.hidden = !visible })
     }
   }, [home, floor, explode, highWalls, showRoof, selectedId, litKey])
+
+  // Panelen kleuren naar het live vermogen (zonder de scene opnieuw op te bouwen).
+  useEffect(() => {
+    const s = stateRef.current
+    if (!s) return
+    s.paintPanels = () => {
+      const max = Math.max(1, ...s.panels.map((m) => panelWatt(m.userData.device, live) || 0))
+      for (const m of s.panels) m.material.color.setStyle(panelColor(panelWatt(m.userData.device, live), max))
+    }
+    s.paintPanels()
+  }, [live])
 
   return (
     <div className="mh-viewer" ref={hostRef}>
