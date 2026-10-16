@@ -83,9 +83,9 @@ VBT.session = (function () {
     const pb = game.ghostTrack && game.ghostTrack.lapTime;
     const fmt = s => VBT.util.mmss(s);
     VBT.store.log('lap', 'Lap ' + fmt(lap) + (pb ? ' (PB ' + fmt(pb) + ')' : ''));
-    if (!pb || lap < pb) VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow);
-    else VBT.hud.message((game.climb ? 'SUMMIT ' : 'LAP ') + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
-    if (game.climb) finish(true);     // climb: de rit stopt op de top
+    if (!pb || lap < pb) { VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow); VBT.fx.fireworks(); }
+    else VBT.hud.message((game.climb ? (game.climb.route ? 'FINISH ' : 'SUMMIT ') : 'LAP ') + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
+    if (game.climb) { VBT.fx.fireworks(); finish(true); }     // climb: de rit stopt op de top
   }
 
   // Rit afronden: opslaan, kalender bijwerken, eindscherm
@@ -101,7 +101,7 @@ VBT.session = (function () {
     const newPb = ride.lapTime && !ride.jumped && (!pbBefore || ride.lapTime < pbBefore);
     if (run && completed && run.wo.week) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
     const climbDone = game.climb && completed && ride.lapTime;
-    const heading = newPb ? 'NEW PB!' : climbDone ? 'SUMMIT!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
+    const heading = newPb ? 'NEW PB!' : climbDone ? (game.climb.route ? 'FINISHED!' : 'SUMMIT!') : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
     const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day
       : climbDone ? ride.name.toUpperCase() + ' · ' + Math.floor(ride.lapTime / 60) + ':' + String(Math.floor(ride.lapTime % 60)).padStart(2, '0')
         : ride.name.toUpperCase();

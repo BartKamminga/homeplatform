@@ -30,3 +30,16 @@ def test_analyze_has_version_and_parts():
     a = analyze(ride(2000, lambda t: 150), 180)
     assert a["v"] == 2 and a["eligible"] and "zones" in a and "mmp" in a
     assert analyze([], 180) == {"v": 2, "eligible": False}
+
+
+def test_routes_crud_and_validation(client, user_token, admin_token):
+    h = {"Authorization": "Bearer " + user_token}
+    bad = client.post("/api/vbt/routes", headers=h, json={"name": "x", "segments": [[100, 45]]})
+    assert bad.status_code == 422
+    r = client.post("/api/vbt/routes", headers=h, json={"name": "Ronde Venen", "segments": [[100, 2], [100, -1], [200, 5]], "curves": [0, 1.5, -2]}).json()
+    assert r["distance"] == 400 and r["elevation"] == 12 and r["slug"] == "gpx-" + r["id"]
+    assert [x["id"] for x in client.get("/api/vbt/routes", headers=h).json()] == [r["id"]]
+    other = {"Authorization": "Bearer " + admin_token}
+    assert client.get("/api/vbt/routes/" + r["id"], headers=other).status_code == 404
+    assert client.get("/api/vbt/routes/" + r["id"], headers=h).json()["curves"] == [0, 1.5, -2]
+    assert client.delete("/api/vbt/routes/" + r["id"], headers=h).json() == {"ok": True}

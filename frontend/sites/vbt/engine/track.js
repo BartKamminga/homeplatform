@@ -102,6 +102,7 @@ VBT.track = (function () {
       if (sec.tag === 'sprint') addSprite(at + 40, S.BILL_SPRINT, -1.9);
     });
     addSprite(60, S.BILL_VBT, 1.9);
+    VBT.scenery.place(addSprite, segments, marks);     // publiek, km-bordjes, wereld-decor, tunnels/bruggen (1361)
   }
 
   function find(z) {
@@ -121,6 +122,7 @@ VBT.track = (function () {
   return {
     segments,
     build,
+    addSprite,
     find,
     gradeAt,
     altitude,

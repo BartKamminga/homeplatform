@@ -31,6 +31,10 @@ VBT.storage = {
   listWorkouts: () => api.get('/api/vbt/workouts'),
   listClimbs: () => api.get('/api/vbt/climbs'),
   getClimb: slug => api.get('/api/vbt/climbs/' + enc(slug)),
+  listRoutes: () => api.get('/api/vbt/routes'),
+  getRoute: id => api.get('/api/vbt/routes/' + enc(id)),
+  saveRoute: route => api.post('/api/vbt/routes', route),
+  deleteRoute: id => api.delete('/api/vbt/routes/' + enc(id)),
   getWorkout: id => api.get('/api/vbt/workouts/' + enc(id)),
   deleteWorkout: id => api.delete('/api/vbt/workouts/' + enc(id)),
   async importZwo(files) {

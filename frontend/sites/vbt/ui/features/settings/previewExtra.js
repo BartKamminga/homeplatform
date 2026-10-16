@@ -25,6 +25,7 @@ function showHud(selector, ms = PREVIEW_MS) {
 export function previewExtra(key) {
   const VBT = window.VBT
   VBT.store?.log('settings', 'Preview: ' + key, 'debug')
+  if (key === 'fireworks') { VBT.fx.fireworks(); return }
   if (key === 'hud_workout') { VBT.toast?.('WORKOUT PANEL: VISIBLE DURING A WORKOUT'); return }
   if (key === 'voice') VBT.coach.say('Team director here. This is how I sound during your ride!')
   else if (key === 'messages') VBT.hud.message('DRAFT!', VBT.palette.cyan)

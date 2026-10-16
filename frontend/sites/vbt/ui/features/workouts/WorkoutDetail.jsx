@@ -22,7 +22,7 @@ export function ClimbDetail({ climb }) {
   return (
     <div id="planDetail" className="pn-detail">
       <div className="dhead"><div>
-        <small>LIBRARY · CLIMB TRAINING{c.category ? ' · CAT ' + c.category : ''}</small>
+        <small>LIBRARY · {c.route ? 'ROUTE' : 'CLIMB TRAINING'}{c.category ? ' · CAT ' + c.category : ''}</small>
         <h3>{c.name.toUpperCase()}</h3>
         <span>{VBT.climbs.meta(c)}{c.maxGrade ? ' · MAX ' + c.maxGrade + '%' : ''} · SIM</span>
         {pb && pb.lapTime && <span className="dres">PB {fmtDur(pb.lapTime)} · {pb.avgW} W AVG</span>}

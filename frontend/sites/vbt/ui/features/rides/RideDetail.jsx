@@ -46,7 +46,7 @@ export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
         {stat(ride.maxW, 'MAX W')}{stat(ride.kj, 'KJ')}{stat(ride.avgCad, 'AVG RPM')}{stat(ride.avgHr || '-', 'AVG BPM')}
         {stat(ride.elevation, 'M UP')}
         {ride.elapsed ? <>{stat(fmtDur(ride.elapsed), 'ELAPSED')}{stat(fmtDur(paused), 'PAUSED')}</> : null}
-        {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
+        {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? (/^climb-g(en|px)-/.test(ride.courseKey || '') ? 'TO THE FINISH' : 'TO THE TOP') : 'BEST LAP') : null}
         {ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : null}
         <HrStats ride={ride} stat={stat} />
       </div>

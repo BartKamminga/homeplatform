@@ -6,6 +6,7 @@ import { copyText } from '../../common/clipboard.js'
 import { FLAG_CHROME, FLAG_EDGE } from '../help/helpContent.js'
 import StravaBlock from './StravaBlock.jsx'
 import MusicBlock from './MusicBlock.jsx'
+import WorldBlock from './WorldBlock.jsx'
 import { previewExtra } from './previewExtra.js'
 
 function NumberField({ label, value, unit, min, max, onSave }) {
@@ -69,6 +70,8 @@ export default function SettingsSection() {
           return <div key={z.name} style={{ borderColor: z.color }}><b style={{ color: z.color }}>{z.name}</b><span>{z.label}</span><i>{lo}-{hi}</i></div>
         })}
       </div>
+
+      <WorldBlock />
 
       <h4>DISPLAY</h4>
       <div className="pn-buttons">

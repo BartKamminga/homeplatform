@@ -3,21 +3,44 @@ VBT.road = (function () {
   const { cfg, util } = VBT;
   const P = VBT.palette;
 
+  // 1360: weg meekleuren met de vermogenszone. De kleur loopt in ~1 s over (16 stapjes, zodat de fog-cache
+  // eindig blijft); A = randen (instelling road_zone, standaard aan), B = wegdek 8% (road_tint, standaard uit).
+  let tint = {}, shown = null, step = 0, from = null, to = null;
+  const ROAD_TINT = 0.08;
+  function blend(a, b, f) {
+    const A = util.rgb(a), B = util.rgb(b);
+    return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * f).toString(16).padStart(2, '0')).join('');
+  }
+  function zoneTint(game) {
+    const showA = VBT.settings.show('road_zone'), showB = VBT.settings.values.road_tint === true;
+    if (!showA && !showB) return {};
+    const a3 = game.sensors.avg3s;
+    const target = util.zoneFor(a3 && a3.length ? a3.reduce((a, b) => a + b, 0) / a3.length : game.sensors.watts).color;
+    if (target !== to) { from = shown || target; to = target; step = 0; }
+    if (step < 64) step++;                                  // 64 frames ~ 1 s, in 16 kleurstapjes
+    shown = blend(from, to, Math.floor(step / 4) / 16);
+    return {
+      rumble: showA ? shown : null,
+      road: showB ? blend(P.road, shown, ROAD_TINT) : null, roadAlt: showB ? blend(P.roadAlt, shown, ROAD_TINT) : null,
+    };
+  }
+
   function drawRoad(ctx, w, seg) {
     const p1 = seg.p1.screen, p2 = seg.p2.screen;
     const c = hex => util.fogMix(hex, seg.fog);
     const light = Math.floor(seg.index / cfg.rumbleLength) % 2 === 0;
     const r1 = p1.w / 9, r2 = p2.w / 9;
-    util.polygon(ctx, p1.x - p1.w - r1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - r2, p2.y, c(light ? P.rumble : P.rumbleAlt));
-    util.polygon(ctx, p1.x + p1.w + r1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + r2, p2.y, c(light ? P.rumble : P.rumbleAlt));
+    const rumble = light ? (tint.rumble || P.rumble) : P.rumbleAlt;            // 1360 A: randen in de zonekleur
+    util.polygon(ctx, p1.x - p1.w - r1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - r2, p2.y, c(rumble));
+    util.polygon(ctx, p1.x + p1.w + r1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + r2, p2.y, c(rumble));
     // dunne cyaan rand tussen rumble en asfalt
     const e1 = p1.w / 60, e2 = p2.w / 60;
-    util.polygon(ctx, p1.x - p1.w, p1.y, p1.x - p1.w + e1, p1.y, p2.x - p2.w + e2, p2.y, p2.x - p2.w, p2.y, c(P.cyan));
-    util.polygon(ctx, p1.x + p1.w, p1.y, p1.x + p1.w - e1, p1.y, p2.x + p2.w - e2, p2.y, p2.x + p2.w, p2.y, c(P.cyan));
+    util.polygon(ctx, p1.x - p1.w, p1.y, p1.x - p1.w + e1, p1.y, p2.x - p2.w + e2, p2.y, p2.x - p2.w, p2.y, c(P.edge));
+    util.polygon(ctx, p1.x + p1.w, p1.y, p1.x + p1.w - e1, p1.y, p2.x + p2.w - e2, p2.y, p2.x + p2.w, p2.y, c(P.edge));
 
     const start = seg.index < 3;
     util.polygon(ctx, p1.x - p1.w + e1, p1.y, p1.x + p1.w - e1, p1.y, p2.x + p2.w - e2, p2.y, p2.x - p2.w + e2, p2.y,
-      start ? (seg.index % 2 ? '#eeeeee' : '#111111') : c(light ? P.road : P.roadAlt));
+      start ? (seg.index % 2 ? '#eeeeee' : '#111111') : c(light ? tint.road || P.road : tint.roadAlt || P.roadAlt));   // 1360 B: wegdek getint
 
     if (light && !start) {
       const l1 = p1.w / 40, l2 = p2.w / 40;
@@ -30,11 +53,15 @@ VBT.road = (function () {
   }
 
   function drawSprite(ctx, w, sprite, scale, x, y, anchorX, alpha) {
-    const dw = sprite.worldW * scale * w / 2;
+    // sprite van deze wereld: canvas, of { canvas, worldW } met een eigen breedte; null = niet in deze wereld
+    const v = VBT.worlds.canvasFor(sprite);
+    if (!v) return;
+    const cv = v.canvas || v;
+    const dw = (v.worldW || sprite.worldW) * scale * w / 2;
     if (dw < 2 || dw > w * 4) return;
-    const dh = dw * sprite.canvas.height / sprite.canvas.width;
+    const dh = dw * cv.height / cv.width;
     ctx.globalAlpha = alpha;
-    ctx.drawImage(sprite.canvas, x + dw * anchorX, y - dh, dw, dh);
+    ctx.drawImage(cv, x + dw * anchorX, y - dh, dw, dh);
     ctx.globalAlpha = 1;
   }
 
@@ -43,6 +70,7 @@ VBT.road = (function () {
     const alpha = Math.min(1, 0.25 + seg.fog);
     for (const sp of seg.sprites) {
       if (sp.source.kind && !VBT.settings.show(sp.source.kind)) continue;     // decor uit in Settings
+      if (seg.tunnel && VBT.settings.show('structures')) continue;             // in de tunnel geen decor
       const x = s.x + s.scale * sp.offset * cfg.roadWidth * w / 2;
       drawSprite(ctx, w, sp.source, s.scale, x, s.y, sp.offset < 0 ? -1 : 0, alpha);
     }
@@ -116,12 +144,20 @@ VBT.road = (function () {
 
     // eerst het dal (ook achter heuveltoppen), daarna flanken + weg + sprites
     for (let i = all.length - 1; i >= 0; i--) VBT.terrain.drawValley(ctx, w, all[i]);
+    tint = zoneTint(game);
+    ctx.imageSmoothingEnabled = VBT.worlds.get().sky.smooth;    // pixel-wereld: scherpe pixels
+    let prev = null;                                          // verder weg getekend segment (sluit tunnelwanden aan)
     for (let i = visible.length - 1; i >= 0; i--) {
       const seg = visible[i];
       VBT.terrain.drawFlanks(ctx, seg);
+      if (!seg.tunnel && prev && prev.tunnel) VBT.scenery.drawPortal(ctx, prev);     // ingang van de tunnel
       drawRoad(ctx, w, seg);
+      if (seg.tunnel) VBT.scenery.drawTunnel(ctx, w, h, seg, prev && prev.tunnel ? prev : null);
+      if (seg.bridge) VBT.scenery.drawRailing(ctx, seg, prev && prev.bridge ? prev : null);
       drawSprites(ctx, w, seg, game);
+      prev = seg;
     }
+    ctx.imageSmoothingEnabled = true;
   }
 
   // renners tussen camera en speler: na de speler tekenen, ver -> dichtbij

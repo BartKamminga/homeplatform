@@ -13,10 +13,14 @@ VBT.settings = (function () {
       ['hud_elevation', 'Elevation profile'], ['hud_workout', 'Workout panel'], ['hud_top', 'Lap / distance'], ['hud_chips', 'Status lights'], ['hud_music', 'Music bar']] },
     { group: 'Scenery', items: [['palms', 'Palm trees'], ['lamps', 'Street lamps'], ['signs', 'Billboards, signs, start gate'],
       ['sky', 'Sun and mountains'], ['crt', 'CRT scanlines']] },
+    { group: 'World', items: [['road_zone', 'Road edges in your power-zone colour'], ['road_tint', 'Road surface tinted with your zone (subtle)'],
+      ['daynight', 'Day turns to night on long rides'], ['weather', 'Weather (rain, mist)'], ['seasons', 'Seasons (leaves, snow, blossom)'],
+      ['structures', 'Tunnels and bridges'], ['fans', 'Fans on climbs'], ['kmsigns', 'Kilometre signs with your average'],
+      ['fireworks', 'Fireworks on a PB or summit'], ['feedzone', 'Feed zone on long rides']] },
   ];
   const DISPLAY_KEYS = DISPLAY.flatMap(g => g.items.map(i => i[0]));
-  const DEFAULTS = Object.assign({ hrMax: 185, voiceLang: 'en-US', ftpHistory: [] },
-    Object.fromEntries(DISPLAY_KEYS.map(k => [k, true])));
+  const DEFAULTS = Object.assign({ hrMax: 185, voiceLang: 'en-US', ftpHistory: [], world: 'outrun' },
+    Object.fromEntries(DISPLAY_KEYS.map(k => [k, true])), { road_tint: false });     // wegdek-tint (1360 B) standaard uit
   const values = Object.assign({}, DEFAULTS);
 
   const show = key => values[key] !== false;

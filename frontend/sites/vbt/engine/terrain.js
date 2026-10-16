@@ -6,7 +6,6 @@ VBT.terrain = (function () {
   const GRID_SPACING = 0.55;   // in halve wegbreedtes
   const GRID_LINES = 16;
   const FLANK_SLOPE = 1.3;     // horizontale uitloop per eenheid hoogte
-  const FLANK = '#170536';
 
   // schermhoogte van het dal onder een geprojecteerd wegpunt
   function valleyY(p, camY, baseY, h) {
@@ -25,6 +24,8 @@ VBT.terrain = (function () {
     if (seg.v1 <= seg.v2) return;
     ctx.fillStyle = util.fogMix(P.ground, seg.fog);
     ctx.fillRect(0, seg.v2, w, seg.v1 - seg.v2 + 1);
+    if (seg.bridge) { VBT.scenery.drawWater(ctx, w, seg); return; }
+    if (!VBT.worlds.get().sky.grid) return;           // wereld zonder grid (Alpen): alleen het dal
     const alpha = 0.12 + 0.7 * seg.fog;
     ctx.strokeStyle = P.grid;
     ctx.globalAlpha = alpha * 0.5;
@@ -49,7 +50,7 @@ VBT.terrain = (function () {
   function drawFlanks(ctx, seg) {
     if (seg.foot1 < 1.13 && seg.foot2 < 1.13) return;      // weg ligt op dalniveau
     const p1 = seg.p1.screen, p2 = seg.p2.screen;
-    const color = util.fogMix(FLANK, seg.fog);
+    const color = util.fogMix(P.flank, seg.fog);
     for (const side of [-1, 1]) {
       util.polygon(ctx,
         p1.x + side * p1.w * 1.1, p1.y,
@@ -59,7 +60,7 @@ VBT.terrain = (function () {
     }
     // contourlijnen langs de helling, zoals een wireframe-berg
     if (seg.index % 8 === 0) {
-      ctx.strokeStyle = P.purple;
+      ctx.strokeStyle = P.contour;
       ctx.globalAlpha = 0.15 + 0.5 * seg.fog;
       ctx.lineWidth = Math.max(1, p1.w / 500);
       ctx.beginPath();
