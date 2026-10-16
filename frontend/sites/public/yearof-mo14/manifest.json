@@ -1,0 +1,17 @@
+{
+  "name": "MO14 à Paris",
+  "short_name": "MO14",
+  "description": "Het seizoen van Victoria MO14-1, op weg naar Parijs",
+  "id": "/yearof-mo14/",
+  "start_url": "/yearof-mo14/",
+  "scope": "/yearof-mo14/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12203c",
+  "theme_color": "#12203c",
+  "icons": [
+    { "src": "/yearof-mo14/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/yearof-mo14/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/yearof-mo14/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
