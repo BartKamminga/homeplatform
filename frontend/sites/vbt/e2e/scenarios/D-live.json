@@ -1,6 +1,6 @@
 {
  "title": "Live backup tijdens de rit, daarna harde crash (laptop weg)",
- "query": "ride",
+ "query": "ride&mockble&autoconnect",
  "steps": [
   {
    "at": 5,

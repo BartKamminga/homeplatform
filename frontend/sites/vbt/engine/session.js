@@ -16,7 +16,7 @@ VBT.session = (function () {
     game.run = wo && !climb ? VBT.workout.createRun(wo.free ? Object.assign({}, wo, { steps: [{ d: wo.duration, a: 65, b: 65 }] }) : wo, course) : null;
     game.resetRide();
     VBT.traffic.reset();
-    const courseKey = climb ? 'climb-' + climb.slug : wo && !wo.free ? wo.id : FREE_COURSE;
+    const courseKey = climb ? 'climb-' + climb.slug : wo && !wo.free ? wo.courseKey || wo.id : FREE_COURSE;   // variant/geruild: eigen sleutel (1305)
     VBT.recorder.start({ kind: climb ? 'climb' : wo && !wo.free ? 'workout' : 'free', courseKey, name: wo ? wo.name : 'Free Ride',
       woId: wo && !climb ? wo.id : null, ftp: cfg.rider.ftp, lapM: climb ? VBT.climbs.summitMeters(climb) : null });
     game.ghostTrack = null;
@@ -83,15 +83,17 @@ VBT.session = (function () {
     const pb = game.ghostTrack && game.ghostTrack.lapTime;
     const fmt = s => VBT.util.mmss(s);
     VBT.store.log('lap', 'Lap ' + fmt(lap) + (pb ? ' (PB ' + fmt(pb) + ')' : ''));
-    if (!pb || lap < pb) VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow);
-    else VBT.hud.message((game.climb ? 'SUMMIT ' : 'LAP ') + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
-    if (game.climb) finish(true);     // climb: de rit stopt op de top
+    if (!pb || lap < pb) { VBT.hud.message('NEW PB! ' + fmt(lap), VBT.palette.yellow); VBT.fx.fireworks(); }
+    else VBT.hud.message((game.climb ? (game.climb.route ? 'FINISH ' : 'SUMMIT ') : 'LAP ') + fmt(lap) + ' (PB ' + fmt(pb) + ')', VBT.palette.cyan);
+    if (game.climb) { VBT.fx.fireworks(); finish(true); }     // climb: de rit stopt op de top
   }
 
   // Rit afronden: opslaan, kalender bijwerken, eindscherm
   function finish(completed) {
     const run = game.run;
     const extra = run && run.cadTotal > 0 ? { score: Math.round(run.cadOk / run.cadTotal * 100) } : {};
+    const review = run ? VBT.workoutReview.build(run, VBT.recorder.current() && VBT.recorder.current().jumped) : null;
+    if (review) extra.review = review;                // workout-score met uitleg (item 1307)
     const pbBefore = game.ghostTrack && game.ghostTrack.lapTime;
     const ride = saveRide(extra);
     if (!ride) { toMenu('title'); return; }
@@ -99,7 +101,7 @@ VBT.session = (function () {
     const newPb = ride.lapTime && !ride.jumped && (!pbBefore || ride.lapTime < pbBefore);
     if (run && completed && run.wo.week) VBT.calendar.markDone(run.wo.id, { avgW: ride.avgW, score: ride.score || 0, km: +(ride.distance / 1000).toFixed(1) });
     const climbDone = game.climb && completed && ride.lapTime;
-    const heading = newPb ? 'NEW PB!' : climbDone ? 'SUMMIT!' : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
+    const heading = newPb ? 'NEW PB!' : climbDone ? (game.climb.route ? 'FINISHED!' : 'SUMMIT!') : run && completed ? 'WORKOUT COMPLETE' : 'RIDE COMPLETE';
     const sub = run && run.wo.week ? run.wo.name.toUpperCase() + ' · WEEK ' + run.wo.week + ' DAY ' + run.wo.day
       : climbDone ? ride.name.toUpperCase() + ' · ' + Math.floor(ride.lapTime / 60) + ':' + String(Math.floor(ride.lapTime % 60)).padStart(2, '0')
         : ride.name.toUpperCase();
@@ -111,6 +113,7 @@ VBT.session = (function () {
   // Rit afsluiten en bewaren: eerst lokaal in de outbox (IndexedDB), dan naar de server (met retry).
   // Elke rit wordt bewaard, hoe kort ook (ook een rit die tijdens het aftellen gestopt is).
   function saveRide(extra) {
+    extra = Object.assign({ recovered: false }, extra);      // hier afgesloten = netjes afgesloten (ook na hervatten)
     if (game.rideTime > 0) VBT.recorder.flush(game);
     if (VBT.recorder.isSimulated(VBT.recorder.current())) {
       VBT.recorder.stop(extra);
@@ -163,17 +166,20 @@ VBT.session = (function () {
   function cancelStop() { if (game.state === 'confirm') game.setState(beforeConfirm || 'paused'); }
   function confirmStop() { if (game.state === 'confirm') finish(false); }
 
+  // Alleen een rit die niet netjes is afgesloten (live backup bleef staan, of na een crash hersteld) kan verder.
+  // Een rit die met STOP & SAVE of aan het eind van de workout is afgesloten, is klaar.
+  const canContinue = ride => !!(ride && ride.clientId && ride.samples && ride.samples.length && (ride.inProgress || ride.recovered));
+
   // Oude rit hervatten: zelfde parcours/workout, verder op de plek en tijd waar je gebleven was, in dezelfde rit
   async function resumeRide(ride) {
     const S = ride.samples || [];
-    if (!ride.clientId || !S.length) { VBT.toast && VBT.toast('THIS RIDE CANNOT BE CONTINUED'); return; }
+    if (!canContinue(ride)) { VBT.toast && VBT.toast('THIS RIDE CANNOT BE CONTINUED'); return; }
     let wo = null;
     if (ride.courseKey.startsWith('climb-')) {
       wo = await VBT.climbs.get(ride.courseKey.slice(6)).catch(() => null);
       if (!wo) { VBT.toast && VBT.toast('CLIMB NOT FOUND - CANNOT CONTINUE', 6000); return; }
     } else if (ride.courseKey !== FREE_COURSE) {
-      wo = VBT.calendar.find(ride.courseKey);
-      if (!wo && VBT.storage.getWorkout) wo = await VBT.storage.getWorkout(ride.courseKey).catch(() => null);
+      wo = await VBT.workoutVariants.restore(ride.courseKey);     // ook varianten en geruilde workouts (1305)
       if (!wo) { VBT.toast && VBT.toast('WORKOUT NOT FOUND - CANNOT CONTINUE', 6000); return; }
     }
     toMenu('title');
@@ -207,5 +213,5 @@ VBT.session = (function () {
     if (game.lastRide) VBT.fit.download(game.lastRide);
   }
 
-  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, openDevices };
+  return { openHelp, startRide, resumeRide, canContinue, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, openDevices };
 })();

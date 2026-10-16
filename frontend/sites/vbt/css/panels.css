@@ -108,3 +108,10 @@
 .pn-history li { display: grid; grid-template-columns: 80px 60px minmax(0, 1fr); gap: 6px; }
 .pn-history b { color: var(--yellow); }
 .pn-history i { font-style: normal; opacity: .65; }
+
+/* WORLD in SETTINGS (1366) */
+.pn-worlds { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.pn-worlds button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 8px 10px; }
+.pn-worlds button b { font-size: 10px; }
+.pn-worlds button small { font-family: Inter, Arial, sans-serif; font-size: 10px; opacity: .7; letter-spacing: 0; }
+.pn-worlds button.active { border-color: var(--cyan); color: var(--cyan); background: rgba(36,232,255,.1); }

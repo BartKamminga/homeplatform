@@ -10,7 +10,7 @@ import { api } from '@core/api.js'
 const HARD = ['Hard', 'Tech', 'Trance', 'Workout', 'Electronic']
 const EASY = ['Chillen', 'Klassiek']
 const FADE_S = 2.5
-let tracks = null, metas = {}, audio = null, ctx = null, filter = null, gain = null
+let tracks = null, metas = {}, audio = null, ctx = null, filter = null, gain = null, analyser = null
 let state = { status: 'off', title: '', tier: null, error: '' }
 let lastIntensity = 0.5, lastTier = null, lastIndex = -1, loading = null
 const listeners = new Set()
@@ -86,6 +86,11 @@ function graph() {
   gain = ctx.createGain()
   ctx.createMediaElementSource(audio).connect(filter)
   filter.connect(gain).connect(ctx.destination)
+  // equalizer in de muziekbalk: aftakking na het volume, dus wat je hoort (ook gedempt) is wat je ziet
+  analyser = ctx.createAnalyser()
+  analyser.fftSize = 64
+  analyser.smoothingTimeConstant = 0.75
+  gain.connect(analyser)
 }
 
 function pick(tier) {
@@ -167,3 +172,12 @@ export function follow(s) {
 const hasTier = tier => tracks && tracks.some(t => tierOf(t.file) === tier)
 
 export const getState = () => state
+export const getAnalyser = () => analyser
+
+// meelopen met de inspanning aan/uit (ook vanuit de muziekbalk)
+export function toggleFollow() {
+  const on = settings().musicFollow === false
+  window.VBT.settings.save({ musicFollow: on })
+  window.VBT.toast?.(on ? 'MUSIC FOLLOWS YOUR EFFORT' : 'MUSIC FOLLOW OFF - PLAIN PLAYBACK')
+  set({})
+}

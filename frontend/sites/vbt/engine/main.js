@@ -104,6 +104,8 @@
     if ((game.state === 'ride' || attract) && !game.run) S.updateGhost(dt, t, gapM);
     if (game.state === 'ride') { game.syncPosition(); S.record(dt); }
     VBT.traffic.update(dt, game);
+    VBT.scenery.update(game, dt);         // bevoorrading, km-gemiddelde, tunnel (1361)
+    VBT.fx.update(game);                  // weer per rit
     VBT.ftp.monitor(game, dt);
     if (game.state === 'ride' || attract) VBT.peloton.update(game.pack, dt, t, gradeAtDist, true, erg ? s.target : 0);
 
@@ -148,7 +150,10 @@
     game.ghostAheadSeg = (game.ghost.dist - game.player.dist) * cfg.unitsPerMeter / cfg.segmentLength;
     game.packAheadSeg = (game.pack.dist - game.player.dist) * cfg.unitsPerMeter / cfg.segmentLength;
 
-    VBT.background.render(ctx, game.skyX, t, T.altitude(game.playerY));
+    const now = performance.now(), fdt = Math.min(0.1, (now - (render.last || now)) / 1000);
+    render.last = now;
+    VBT.background.render(ctx, game.skyX, t, T.altitude(game.playerY), VBT.worlds.nightFactor(game));
+    VBT.fx.renderSky(ctx, w, h, fdt);
     VBT.road.render(ctx, w, h, game);
 
     const groundY = h / 2 + scaleP * cfg.cameraHeight * h / 2;
@@ -158,6 +163,7 @@
       windup: VBT.hud.simulating(game),     // opwindsleutel in de rug: de simulatie fietst
     });
     VBT.road.renderNear(ctx, w, game);
+    VBT.fx.renderOverlay(ctx, w, h, fdt, game);
     VBT.hud.update(game);
     VBT.store.tick(game);
   }
@@ -202,6 +208,7 @@
     VBT.buildSprites && (VBT.sprites = VBT.buildSprites());
     await VBT.calendar.init();
     await VBT.settings.load();
+    VBT.worlds.apply(params.get('world') || VBT.settings.values.world || 'outrun');   // ?world=tron|alps (testhaakje)
     // achtergebleven rit van een crash/gesloten tab afronden + outbox legen
     VBT.safety.init().then(r => {
       if (r) VBT.store.log('save', 'Recovered an unfinished ride (' + r.duration + ' s)', 'warn');

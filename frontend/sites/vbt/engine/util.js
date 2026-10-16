@@ -53,6 +53,7 @@ VBT.util = {
     const key = hex + k;
     const cache = VBT.util._fogCache || (VBT.util._fogCache = new Map());
     if (cache.has(key)) return cache.get(key);
+    if (cache.size > 6000) cache.clear();               // meekleurende weg (1360) maakt veel tussenkleuren
     const a = VBT.util.rgb(hex), b = VBT.util.rgb(VBT.palette.fog), t = k / 24;
     const c = 'rgb(' + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',') + ')';
     cache.set(key, c);

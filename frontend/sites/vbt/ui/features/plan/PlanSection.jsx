@@ -6,6 +6,7 @@ import CanvasChart from '../../common/CanvasChart.jsx'
 import { useCalendar } from '../../hooks/useVbt.js'
 import { minutes, dayLabel, parseIso, WEEKDAYS as DAYS } from '../../common/format.js'
 import { WorkoutDetail } from '../workouts/WorkoutDetail.jsx'
+import { AvailabilityEditor, MoveBar } from './PlanParts.jsx'
 
 function SwitchPlan({ cal, initial, onDone }) {
   const VBT = window.VBT
@@ -83,6 +84,12 @@ export default function PlanSection() {
   const ids = plan.weeks.flat().filter(w => !w.rest).map(w => w.id)
   const doneCount = ids.filter(id => cal.done[id]).length
   const pct = ids.length ? Math.round(doneCount / ids.length * 100) : 0
+  const byDate = {}
+  if (active) plan.weeks.flat().filter(w => !w.rest).forEach(w => { const k = VBT.calendar.iso(dateFor(w)); (byDate[k] = byDate[k] || []).push(w) })
+  const placed = (wi, dow) => {
+    const d = parseIso(start); d.setDate(d.getDate() + wi * 7 + dow)
+    return (byDate[VBT.calendar.iso(d)] || [])[0] || null
+  }
 
   return (
     <div className="pn-section">
@@ -111,6 +118,7 @@ export default function PlanSection() {
       </div>
       {switching && <SwitchPlan cal={cal} initial={active ? null : viewSlug} onDone={ok => { setSwitching(false); setSelId(null); if (ok) setViewSlug(VBT.calendar.getState().planSlug) }} />}
       {!active && !other && <p className="pn-hint">Loading plan...</p>}
+      {active && <AvailabilityEditor />}
 
       <div className="pn-plangrid">
         <div className="wrow wdays"><span className="wlabel"></span>{DAYS.map(d => <span key={d}>{d}</span>)}</div>
@@ -118,8 +126,8 @@ export default function PlanSection() {
           <div key={wi} className={'wrow' + (active && t.week === wi + 1 ? ' thisweek' : '')}>
             <span className="wlabel">WEEK {wi + 1}</span>
             {DAYS.map((_, dow) => {
-              const di = plan.dayOffsets.indexOf(dow)
-              const wo = di >= 0 && days[di]
+              // actief plan: op de echte datum (verplaatst = andere kolom, 1306); voorbeeld: volgens het plan
+              const wo = active ? placed(wi, dow) : (plan.dayOffsets.indexOf(dow) >= 0 && days[plan.dayOffsets.indexOf(dow)])
               return wo
                 ? <DayCard key={dow} wo={wo} date={dateFor(wo)} done={cal.done[wo.id]} selected={selected === wo} onSelect={w => setSelId(w.id)} />
                 : <span key={dow} className="wempty" />
@@ -127,7 +135,7 @@ export default function PlanSection() {
           </div>
         ))}
       </div>
-      {selected && <div className="pn-sticky"><WorkoutDetail wo={selected} preview={active ? null : { name: plan.name || viewSlug, dateFor }} /></div>}
+      {selected && <div className="pn-sticky"><WorkoutDetail wo={selected} preview={active ? null : { name: plan.name || viewSlug, dateFor }} />{active && <MoveBar wo={selected} />}</div>}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
 import { fmtDur, minutes, dayLabel, startWithConfirm } from '../../common/format.js'
+import VariantBar from './VariantBar.jsx'
 
 export function ClimbDetail({ climb }) {
   const VBT = window.VBT
@@ -21,7 +22,7 @@ export function ClimbDetail({ climb }) {
   return (
     <div id="planDetail" className="pn-detail">
       <div className="dhead"><div>
-        <small>LIBRARY · CLIMB TRAINING{c.category ? ' · CAT ' + c.category : ''}</small>
+        <small>LIBRARY · {c.route ? 'ROUTE' : 'CLIMB TRAINING'}{c.category ? ' · CAT ' + c.category : ''}</small>
         <h3>{c.name.toUpperCase()}</h3>
         <span>{VBT.climbs.meta(c)}{c.maxGrade ? ' · MAX ' + c.maxGrade + '%' : ''} · SIM</span>
         {pb && pb.lapTime && <span className="dres">PB {fmtDur(pb.lapTime)} · {pb.avgW} W AVG</span>}
@@ -36,8 +37,12 @@ export function ClimbDetail({ climb }) {
 }
 
 // preview = { name, dateFor }: workout uit een plan dat je bekijkt maar (nog) niet volgt - geen MARK DONE
-export function WorkoutDetail({ wo, preview }) {
+export function WorkoutDetail({ wo: planWo, preview }) {
   const VBT = window.VBT
+  // gekozen variant (1305): andere duur of geruilde workout; terug naar het origineel bij een andere workout
+  const [variant, setVariant] = useState(null)
+  useEffect(() => setVariant(null), [planWo.id, planWo.name, planWo.duration])
+  const wo = variant || planWo
   const cal = VBT.calendar
   const inPlan = !!wo.week
   const done = inPlan && cal.getState().done[wo.id]
@@ -50,12 +55,13 @@ export function WorkoutDetail({ wo, preview }) {
       <div className="dhead"><div>
         <small>{where}</small>
         <h3>{wo.name.toUpperCase()}</h3>
-        <span>{minutes(wo.duration)} · TSS {VBT.workout.tss(wo)} · {wo.free ? 'FREE RIDE' : VBT.ftp.testType(wo) ? 'FTP TEST' : 'ERG'}</span>
+        <span>{wo.variant ? 'VARIANT · ' : ''}{minutes(wo.duration)} · TSS {VBT.workout.tss(wo)} · {wo.free ? 'FREE RIDE' : VBT.ftp.testType(wo) ? 'FTP TEST' : 'ERG'}</span>
         {done && <span className="dres">&#10003; {done.date}{done.avgW ? ' · ' + done.avgW + ' W AVG' : ''}{done.score ? ' · CADENCE ' + done.score + '%' : ''}</span>}
       </div></div>
       {!wo.free && <CanvasChart height={110} title="Click an interval to start the ride there"
         draw={(ctx, w, h) => VBT.workout.drawChart(ctx, wo, w, h)}
         onClick={frac => start(VBT.workout.stepAtFraction(wo, frac))} />}
+      {!preview && <VariantBar wo={planWo} shown={wo} onChange={setVariant} />}
       <div className="pn-buttons">
         {inPlan && !preview && <button id="planUndo" className="ghostbtn" onClick={() => cal.toggleDone(wo.id)}>{done ? 'UNMARK' : 'MARK DONE'}</button>}
         <button id="planRide" className="ridebtn" onClick={() => start()}>RIDE &#9654;</button>

@@ -40,6 +40,14 @@ VBT.palette = {
   cyan: '#24e8ff',
   yellow: '#ffe66d',
   purple: '#9b5cff',
+  // per wereld te vervangen (worlds.js): wegrand, terrein, bergen, horizon
+  edge: '#24e8ff',
+  contour: '#9b5cff',
+  flank: '#170536',
+  sunGlow: '#ff2e88',
+  horizonGlow: 'rgba(255,122,61,0.55)',
+  mtnFar: ['#2b0b52', '#140330'], mtnFarLine: 'rgba(155,92,255,0.8)',
+  mtnNear: ['#1b0438', '#0b0120'], mtnNearLine: '#ff2e88',
 };
 
 // Hartslagzones als fractie van de max-hartslag (instelbaar in Settings)

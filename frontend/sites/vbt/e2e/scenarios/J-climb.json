@@ -1,6 +1,6 @@
 {
  "title": "Climb Training: climb uit de library rijden in SIM, finish op de top, tijd als PB per climb",
- "query": "lib",
+ "query": "lib&mockble&autoconnect",
  "steps": [
   {
    "at": 5,

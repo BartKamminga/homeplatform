@@ -1,4 +1,4 @@
-// WORKOUTS: de bibliotheek - eigen .zwo-imports, CLIMB TRAINING en de workouts per plan; zoeken, filter op
+// WORKOUTS: de bibliotheek - eigen .zwo-imports, CLIMB TRAINING, ROUTES (gegenereerd + eigen .gpx, 1365) en de workouts per plan; zoeken, filter op
 // duur, importeren via knop of bestanden op het paneel slepen, eigen imports verwijderen.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
@@ -14,6 +14,7 @@ export default function WorkoutsSection() {
   const VBT = window.VBT
   const [workouts, setWorkouts] = useState([])
   const [climbs, setClimbs] = useState([])
+  const [routes, setRoutes] = useState([])
   const [q, setQ] = useState('')
   const [dur, setDur] = useState('all')
   const [sel, setSel] = useState(null)
@@ -22,6 +23,7 @@ export default function WorkoutsSection() {
   const load = useCallback(async () => {
     try { setWorkouts(await actions().listWorkouts()) } catch { setWorkouts([]) }
     try { setClimbs(VBT.climbs ? await VBT.climbs.load() : []) } catch { setClimbs([]) }
+    try { setRoutes(await VBT.routes.list()) } catch { setRoutes([]) }
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -30,20 +32,28 @@ export default function WorkoutsSection() {
   const groups = useMemo(() => {
     const ws = workouts.filter(w => match(w.name) && fitsDuration(w.duration, dur))
     const sources = [...new Set(ws.map(w => w.source))].sort((a, b) => (a === 'zwo' ? -1 : b === 'zwo' ? 1 : a.localeCompare(b)))
-    const out = sources.map(src => ({ key: src, title: src === 'zwo' ? 'MY IMPORTS' : (planNames[src] || src).toUpperCase(), items: ws.filter(w => w.source === src) }))
+    const out = sources.map(src => ({ key: src, title: src === 'zwo' ? 'MY IMPORTS' : src === 'vbt' ? 'VBT WORKOUTS' : (planNames[src] || src).toUpperCase(), items: ws.filter(w => w.source === src) }))
     const cl = climbs.filter(c => match(c.name) && dur === 'all')
     if (cl.length) out.splice(sources[0] === 'zwo' ? 1 : 0, 0, { key: 'climbs', title: 'CLIMB TRAINING', climbs: true, items: cl })
+    const rt = routes.filter(r => match(r.name) && dur === 'all')
+    if (rt.length) out.splice(sources[0] === 'zwo' ? 1 : 0, 0, { key: 'routes', title: 'ROUTES', climbs: true, items: rt })
     // FTP-tests (Ramp Test / 20-min FTP Test) uit alle plannen bovenaan, ook als ze in een plan voorkomen;
     // dezelfde test (naam + duur) maar één keer
     const seen = new Set()
     const tests = ws.filter(w => VBT.ftp.testType(w) && !seen.has(w.name + w.duration) && seen.add(w.name + w.duration))
     if (tests.length) out.unshift({ key: 'ftptests', title: 'FTP TESTS', tests: true, items: tests })
     return out
-  }, [workouts, climbs, q, dur])
+  }, [workouts, climbs, routes, q, dur])
 
   const importFiles = async fileList => {
+    const gpx = [...fileList].filter(f => /\.gpx$/i.test(f.name))
+    for (const f of gpx) {
+      try { const r = await VBT.routes.importGpx(f); VBT.toast?.('ROUTE IMPORTED: ' + r.name.toUpperCase()); setSel({ climb: r }) }
+      catch (e) { VBT.toast?.(f.name + ': ' + e.message, 7000) }
+    }
+    if (gpx.length) await load()
     const files = [...fileList].filter(f => /\.zwo$/i.test(f.name))
-    if (!files.length) { VBT.toast?.('ONLY .ZWO FILES CAN BE IMPORTED'); return }
+    if (!files.length) { if (!gpx.length) VBT.toast?.('ONLY .ZWO AND .GPX FILES CAN BE IMPORTED'); return }
     try {
       const r = await actions().importZwo(files)
       setMsg(r.skipped)
@@ -60,13 +70,21 @@ export default function WorkoutsSection() {
     load()
   }
 
+  const removeRoute = async (e, r) => {
+    e.stopPropagation()
+    if (!(await confirmDialog({ title: 'DELETE ROUTE?', text: '"' + r.name + '" is removed from your routes.', yes: 'DELETE', danger: true }))) return
+    try { await VBT.routes.remove(r.id) } catch (err) { VBT.toast?.(err.message, 6000); return }
+    if (sel?.climb?.slug === r.slug) setSel(null)
+    load()
+  }
+
   return (
     <div className="pn-section" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); importFiles(e.dataTransfer.files) }}>
       <div className="pn-libcol">
         <div className="pn-filter">
-          <input type="search" placeholder="Search workouts and climbs" value={q} onChange={e => setQ(e.target.value)} />
+          <input type="search" placeholder="Search workouts, climbs and routes" value={q} onChange={e => setQ(e.target.value)} />
           <select value={dur} onChange={e => setDur(e.target.value)}>{DURATIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-          <label className="ghostbtn">&#8679; .ZWO<input type="file" accept=".zwo" multiple hidden onChange={e => { importFiles(e.target.files); e.target.value = '' }} /></label>
+          <label className="ghostbtn" title="Import .zwo workouts or .gpx routes">&#8679; .ZWO / .GPX<input type="file" accept=".zwo,.gpx" multiple hidden onChange={e => { importFiles(e.target.files); e.target.value = '' }} /></label>
         </div>
         {msg.length > 0 && <div className="pn-hint">{msg.map(s => <div key={s.file}>&#9888; {s.file}: {s.reason}</div>)}</div>}
         <div className="pn-libscroll">
@@ -76,9 +94,10 @@ export default function WorkoutsSection() {
               <div className="libgrid">
                 {g.items.map(it => g.climbs ? (
                   <button key={it.slug} className={'wcard libcard' + (sel?.climb?.slug === it.slug ? ' selected' : '')} onClick={() => setSel({ climb: it })}>
-                    <span className="wdate">{it.category ? 'CAT ' + it.category : 'CLIMB'}</span><b>{it.name.toUpperCase()}</b>
+                    <span className="wdate">{it.route ? (it.source === 'generated' ? 'GENERATED ROUTE' : 'MY ROUTE · GPX') : it.category ? 'CAT ' + it.category : 'CLIMB'}</span><b>{it.name.toUpperCase()}</b>
                     <span className="wmeta">{VBT.climbs.meta(it)}</span>
                     <CanvasChart height={26} className="wmini" draw={(ctx, w, h) => VBT.climbs.drawProfile(ctx, it, w, h)} />
+                    {it.mine && <i className="wdel" title="Delete" onClick={e => removeRoute(e, it)}>&#10005;</i>}
                   </button>
                 ) : (
                   <button key={g.key + it.id} className={'wcard libcard' + (sel?.wo?.id === it.id ? ' selected' : '')} onClick={() => setSel({ wo: it })}>
@@ -95,7 +114,7 @@ export default function WorkoutsSection() {
         </div>
       </div>
       {sel && <div className="pn-sticky">{sel.wo ? <WorkoutDetail wo={sel.wo} /> : <ClimbDetail climb={sel.climb} />}</div>}
-      {!sel && <p className="pn-hint">Pick a workout or climb. Drop .zwo files here to import them.</p>}
+      {!sel && <p className="pn-hint">Pick a workout, climb or route. Drop .zwo or .gpx files here to import them.</p>}
     </div>
   )
 }

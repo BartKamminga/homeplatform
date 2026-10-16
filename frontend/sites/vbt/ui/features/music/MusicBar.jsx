@@ -2,7 +2,8 @@
 // (als MUSIC aan staat) en laat filter/volume/mixkeuze 4x/s de inspanning volgen.
 import { useEffect, useRef } from 'react'
 import { useVbt, isRiding } from '../../hooks/useVbt.js'
-import { useMusic, start, next, toggle, follow, getState } from './music.js'
+import { useMusic, start, next, toggle, follow, getState, toggleFollow } from './music.js'
+import Equalizer from './Equalizer.jsx'
 
 export function MusicController() {
   const s = useVbt()
@@ -18,6 +19,7 @@ export function MusicController() {
 
 export default function MusicBar() {
   const m = useMusic()
+  const followOn = useVbt(s => s.settings?.musicFollow) !== false
   if (m.status === 'off' && !m.title) {
     return (
       <div id="music" className="off">
@@ -28,10 +30,13 @@ export default function MusicBar() {
   const tier = m.tier === 2 ? 'HIGH ENERGY' : m.tier === 0 ? 'CHILL' : ''
   return (
     <div id="music" className={m.status}>
+      <Equalizer playing={m.status === 'playing'} />
       <span className="mtitle">&#9835; {m.status === 'playing' ? m.title.toUpperCase() : m.error ? m.error.toUpperCase() : 'MUSIC OFF'}
         {tier && m.status === 'playing' && <i>{tier}</i>}</span>
       <button id="musicToggle" onClick={toggle} title="Music on/off (B)">{m.status === 'playing' ? '⏸' : '▶'}</button>
       <button id="musicNext" onClick={next} title="Next mix (N)">&#9197;</button>
+      <button id="musicFollow" className={followOn ? 'on' : ''} onClick={toggleFollow}
+        title={followOn ? 'Music follows your effort - click for plain playback' : 'Plain playback - click to let the music follow your effort'}>&#9889;</button>
     </div>
   )
 }

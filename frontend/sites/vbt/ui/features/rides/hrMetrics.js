@@ -44,9 +44,9 @@ export function computeHrMetrics(samples) {
   })
 }
 
-// van de server als die er is (en van deze rekenversie), anders zelf uitrekenen
+// van de server als die er is (de serveranalyse v2 bevat dezelfde velden plus zones/mmp), anders zelf uitrekenen
 export const hrMetricsOf = ride =>
-  ride.hrMetrics && ride.hrMetrics.v === VERSION ? ride.hrMetrics : computeHrMetrics(ride.samples)
+  ride.hrMetrics && ride.hrMetrics.v >= VERSION ? ride.hrMetrics : computeHrMetrics(ride.samples)
 
 // referentiehartslag voor 'watt bij vaste hartslag': 75% van de max-hartslag
 export const refHr = () => Math.round(0.75 * ((window.VBT.settings && window.VBT.settings.values.hrMax) || 185))

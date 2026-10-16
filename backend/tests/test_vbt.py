@@ -147,3 +147,12 @@ def test_ride_feedback(client, user_token, admin_token):
     client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-fb", duration=999, samples=[[i, 0, 0, 100, 80, 0, 5, 0] for i in range(5)]))
     got = client.get(f"/api/vbt/rides/{ride['id']}", headers=_h(user_token)).json()
     assert got["rpe"] == 7 and got["readiness"] == "tired"
+
+
+def test_recovered_flag_round_trip(client, user_token):
+    # item 1350: na een crash hersteld = recovered (mag verder), netjes afgesloten = niet
+    crashed = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-rec", recovered=True)).json()
+    clean = client.post("/api/vbt/rides", headers=_h(user_token), json=_ride(clientId="c-clean")).json()
+    assert crashed["recovered"] is True and clean["recovered"] is False
+    listed = {r["clientId"]: r for r in client.get("/api/vbt/rides", headers=_h(user_token)).json()}
+    assert listed["c-rec"]["recovered"] and not listed["c-clean"]["recovered"]

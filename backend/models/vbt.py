@@ -49,6 +49,8 @@ class VbtRide(SQLModel, table=True):
     ftp:         Optional[int] = Field(default=None)
     samples:     Optional[list] = Field(default=None, sa_column=Column(JSON))
     in_progress: bool = Field(default=False)                  # live backup tijdens de rit, nog niet afgerond
+    recovered:   bool = Field(default=False)                  # na een crash uit het journal hersteld (niet netjes afgesloten)
+    review:      Optional[dict] = Field(default=None, sa_column=Column(JSON))   # workout-score met uitleg: score, power, cadence, tips
     elapsed:     int = Field(default=0)                       # klok-tijd van de rit (s), incl. pauzes
     pauses:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # [{t, dur, reason}] - waar bleef de tijd
     events:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # eventlog van de rit (zonder debug)
@@ -115,3 +117,18 @@ class VbtPlanItem(SQLModel, table=True):
     kind:       str = Field(default="workout")                  # workout | rest | free
     workout_id: Optional[str] = Field(default=None, foreign_key="vbt_workouts.id")
     duration:   Optional[int] = Field(default=None)             # alleen voor free
+
+
+class VbtRoute(SQLModel, table=True):
+    """Eigen route (item 1365), bv. uit een GPX: secties van ~100 m met helling en bocht, gereden in SIM."""
+    __tablename__ = "vbt_routes"
+
+    id:         str = Field(default_factory=new_uuid, primary_key=True)
+    owner_id:   str = Field(foreign_key="users.id", index=True)
+    name:       str
+    source:     str = Field(default="gpx")
+    segments:   list = Field(default_factory=list, sa_column=Column(JSON))   # [[meter, helling%], ...]
+    curves:     list = Field(default_factory=list, sa_column=Column(JSON))   # bocht per sectie (game-eenheden)
+    distance:   int = Field(default=0)                                       # meter
+    elevation:  int = Field(default=0)                                       # hoogtemeters
+    created_at: datetime = Field(default_factory=datetime.utcnow)

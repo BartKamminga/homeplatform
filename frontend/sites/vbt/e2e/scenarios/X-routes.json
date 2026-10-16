@@ -1,0 +1,31 @@
+{
+ "title": "Routes (1365): gegenereerde parcoursen in WORKOUTS, GPX importeren (opslaan op de server), route rijden in SIM met finish-tijd",
+ "query": "lib&mockble&autoconnect",
+ "steps": [
+  {
+   "at": 4,
+   "name": "groep ROUTES met de gegenereerde parcoursen",
+   "assert": "[...document.querySelectorAll('.libhead')].some(h => h.textContent.startsWith('ROUTES')) && VBT.routes.generate('rolling').distance === 25000",
+   "shot": "routes"
+  },
+  {
+   "at": 5,
+   "run": "(() => { let gpx = '<?xml version=\"1.0\"?><gpx><trk><name>E2E Lus</name><trkseg>'; for (let i = 0; i < 300; i++) { const a = i / 300 * Math.PI * 2; gpx += '<trkpt lat=\"' + (52.1 + Math.sin(a) * 0.01) + '\" lon=\"' + (4.9 + Math.cos(a) * 0.016) + '\"><ele>' + (10 + Math.max(0, Math.sin(a * 3)) * 40) + '</ele></trkpt>' } gpx += '</trkseg></trk></gpx>'; const p = VBT.routes.parseGpx(gpx, 'x'); window.__p = p; return VBT.storage.saveRoute(p).then(r => { window.__r = r }) })()"
+  },
+  {
+   "at": 7,
+   "name": "GPX omgezet (secties van 100 m met bochten) en opgeslagen",
+   "assert": "window.__p.name === 'E2E Lus' && window.__p.segments.length > 50 && window.__p.curves.some(c => Math.abs(c) > 0.2) && window.__r && window.__r.slug === 'gpx-' + window.__r.id"
+  },
+  {
+   "at": 8,
+   "run": "VBT.climbs.get(window.__r.slug).then(r => VBT.actions.startWorkout(r))"
+  },
+  {
+   "at": 14,
+   "name": "route rijdt als climb (SIM) met eigen courseKey",
+   "assert": "VBT.game.isRiding() && VBT.game.climb && VBT.game.climb.route && VBT.recorder.current().courseKey === 'climb-' + window.__r.slug",
+   "shot": "route-ride"
+  }
+ ]
+}

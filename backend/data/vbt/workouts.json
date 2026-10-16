@@ -1,0 +1,14 @@
+{
+  "source": "vbt",
+  "workouts": [
+    {
+      "name": "Aerobic Check",
+      "description": "Controletraining (item 1352): 45 minuten ERG op 65% FTP na een rustige warming-up. Omdat het vermogen vastligt, zie je zuiver hoe je hartslag zich gedraagt: EF (watt per hartslag) en drift. Rij hem elke 2-4 weken onder vergelijkbare omstandigheden (uitgerust, zelfde tijd van de dag, ventilator aan) en vergelijk in PROGRESS. Drift onder 5% = goede aerobe basis.",
+      "steps": [
+        {"d": 600, "a": 40, "b": 65, "c": 90},
+        {"d": 2700, "a": 65, "b": 65, "c": 90},
+        {"d": 300, "a": 60, "b": 40, "c": 85}
+      ]
+    }
+  ]
+}

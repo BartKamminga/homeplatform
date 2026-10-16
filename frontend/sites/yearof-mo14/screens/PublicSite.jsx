@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import PublicHome from './PublicHome.jsx'
 import PublicTeam from './PublicTeam.jsx'
 import PublicPlayer from './PublicPlayer.jsx'
@@ -15,40 +14,25 @@ import TopklasseTab from '../features/competition/TopklasseTab.jsx'
 import useCompetitionAccess from '../features/competition/useCompetitionAccess.js'
 import usePageBlocks from '../features/blocks/usePageBlocks.js'
 import usePageMeta from '../features/pages/pageMeta.js'
+import useHashView from '../features/pages/useHashView.js'
 
-// Deeplinks (?match=<matchRef>) alleen op de echte publieke site syncen -
-// niet in de admin "Bekijk site"-preview, die leeft in de admin-URL. Bewust
-// een andere paramnaam dan de standalone wedstrijdlink (?entry=, zie
-// App.jsx/StandaloneMatchView) - anders herkent App.jsx bij een refresh of
-// het openen van deze deeplink-URL het per ongeluk als de kale, navbar-loze
-// wedstrijdlink-weergave i.p.v. de volledige site op deze wedstrijd.
+// Pagina in de URL-hash (item 1363, #team, #match/<ref>, ...) alleen op de
+// echte publieke site - niet in de admin "Bekijk site"-preview of de studio,
+// die leven in de admin-URL. Wedstrijden bewust als #match/ en niet als
+// ?entry= (standalone wedstrijdlink, zie App.jsx/StandaloneMatchView) - anders
+// toont App.jsx de kale, navbar-loze weergave i.p.v. de volledige site.
 const syncsUrl = (previewMode, adminMode) => !previewMode && !adminMode
 
 // studio (item 1239): de beheerstudio stuurt de view zelf aan (view +
 // onViewChange) zodat het bewerkpaneel ernaast meeloopt; klikken op een
 // wedstrijd/speler navigeert dan gewoon in de preview i.p.v. te bridgen.
 export default function PublicSite({ previewMode = false, adminMode = false, studio = false, view: controlledView, onViewChange, onEditMatch, onEditPlayer }) {
-  const [localView, setLocalView] = useState(() => {
-    if (!syncsUrl(previewMode, adminMode)) return { name: 'home' }
-    const entry = new URLSearchParams(window.location.search).get('match')
-    return entry ? { name: 'entry', ref: entry } : { name: 'home' }
-  })
+  const [localView, setLocalView] = useHashView(syncsUrl(previewMode, adminMode))
 
   const view = controlledView || localView
   const setView = onViewChange || setLocalView
 
-  function setUrlEntry(ref) {
-    if (!syncsUrl(previewMode, adminMode)) return
-    const url = new URL(window.location.href)
-    if (ref) url.searchParams.set('match', ref)
-    else url.searchParams.delete('match')
-    window.history.replaceState({}, '', url.toString())
-  }
-
-  function nav(name) {
-    setView({ name })
-    setUrlEntry(null)
-  }
+  const nav = name => setView({ name })
 
   // adminMode: klikken op een wedstrijd/speler stapt niet naar een lokale
   // preview-view, maar bridget meteen naar het echte wysiwyg-bewerkscherm
@@ -59,7 +43,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
   const controls = adminMode && !studio
   // Concepten (verslagen, foto's) alleen in het oude Bekijk site; de studio-preview toont wat bezoekers zien.
   const showConcepts = previewMode && !studio
-  const openMatch = bridge ? (ref => onEditMatch(ref)) : (ref => { setView({ name: 'entry', ref }); setUrlEntry(ref) })
+  const openMatch = bridge ? (ref => onEditMatch(ref)) : (ref => setView({ name: 'entry', ref }))
   const openPlayer = bridge ? (id => onEditPlayer(id)) : (id => setView({ name: 'player', id }))
   // Tabs Competitie (eigen team) en Topklasse (landelijk), items 1229-1232: elk
   // een eigen featureflag; op concept staan ze nergens in het menu (item 1239).
@@ -97,7 +81,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
             // oude eigen pagina's hebben nog een emoji als icoon: dan vliegtuig (Parijs) of vlag
             id: `custom:${p.id}`, label: p.label, icon: ICONS[p.icon] ? p.icon : (p.id === 'pinksterweekend' ? 'plane' : 'flag'),
             active: view.name === 'custom' && view.id === p.id,
-            go: () => { setView({ name: 'custom', id: p.id }); setUrlEntry(null) },
+            go: () => setView({ name: 'custom', id: p.id }),
           })),
           ...(pageLive('upload') ? [{ id: 'upload', label: meta('upload').label, icon: meta('upload').icon, active: view.name === 'upload', go: () => nav('upload') }] : []),
         ].map(t => (
@@ -110,7 +94,7 @@ export default function PublicSite({ previewMode = false, adminMode = false, stu
       </div>
       <div className="yof-main">
         {view.name === 'home' && <PublicHome onNavigate={nav} onOpenMatch={openMatch} onOpenPlayer={openPlayer}
-          onOpenPage={ref => { const v = viewForPageRef(ref); if (v) { setView(v); setUrlEntry(null) } }} />}
+          onOpenPage={ref => { const v = viewForPageRef(ref); if (v) setView(v) }} />}
         {show('action') && <PublicAction />}
         {show('spotlight') && <CustomPage page={{ ...SPOTLIGHT_PAGE, ...meta('spotlight') }} onBack={() => nav('home')} previewMode={showConcepts} />}
         {show('team') && <PublicTeam onOpenPlayer={openPlayer} />}

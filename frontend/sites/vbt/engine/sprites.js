@@ -178,18 +178,19 @@ VBT.buildSprites = function () {
     });
   }
 
-  function sprite(canvas, worldW, kind) { return { canvas, worldW, kind }; }
+  // key: naam waaronder een andere wereld (worlds.js / sprites-worlds.js) een eigen variant kan leveren
+  function sprite(canvas, worldW, kind, key) { return { canvas, worldW, kind, key }; }
 
   return {
-    PALM_L: sprite(palm(false), 1500, 'palms'),
-    PALM_R: sprite(palm(true), 1500, 'palms'),
-    LAMP_L: sprite(lamp(-1), 700, 'lamps'),
-    LAMP_R: sprite(lamp(1), 700, 'lamps'),
-    BILL_WATT: sprite(billboard('WATT!', 'PUSH THE PEDALS', P.pink), 2600, 'signs'),
-    BILL_VBT: sprite(billboard('VBT', 'VIRTUAL BIKE TRAINER', P.cyan), 2600, 'signs'),
-    BILL_KOM: sprite(billboard('KOM', 'KING OF THE MOUNTAIN', P.yellow), 2600, 'signs'),
-    BILL_SPRINT: sprite(billboard('SPRINT', '200 M TO GO', P.purple), 2600, 'signs'),
+    PALM_L: sprite(palm(false), 1500, 'palms', 'PALM_L'),
+    PALM_R: sprite(palm(true), 1500, 'palms', 'PALM_R'),
+    LAMP_L: sprite(lamp(-1), 700, 'lamps', 'LAMP_L'),
+    LAMP_R: sprite(lamp(1), 700, 'lamps', 'LAMP_R'),
+    BILL_WATT: sprite(billboard('WATT!', 'PUSH THE PEDALS', P.pink), 2600, 'signs', 'BILL_WATT'),
+    BILL_VBT: sprite(billboard('VBT', 'VIRTUAL BIKE TRAINER', P.cyan), 2600, 'signs', 'BILL_VBT'),
+    BILL_KOM: sprite(billboard('KOM', 'KING OF THE MOUNTAIN', P.yellow), 2600, 'signs', 'BILL_KOM'),
+    BILL_SPRINT: sprite(billboard('SPRINT', '200 M TO GO', P.purple), 2600, 'signs', 'BILL_SPRINT'),
     gradeSign: text => sprite(gradeSign(text), 520, 'signs'),
-    GANTRY: sprite(gantry(), 5200, 'signs'),
+    GANTRY: sprite(gantry(), 5200, 'signs', 'GANTRY'),
   };
 };

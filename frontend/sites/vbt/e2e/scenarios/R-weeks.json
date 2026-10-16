@@ -1,6 +1,6 @@
 {
  "title": "MY RIDES in weekweergave: rit van vandaag in THIS WEEK met weektotalen, klik = detail, terug naar LIST",
- "query": "ride&t=40&end",
+ "query": "ride&t=40&end&mockble&autoconnect",
  "steps": [
   {
    "at": 6,

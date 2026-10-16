@@ -1,6 +1,6 @@
 {
  "title": "Feedback na de rit: RPE via toets 7 en klik, hoe voel je je, opgeslagen op de server en zichtbaar in MY RIDES",
- "query": "ride&t=30&end",
+ "query": "ride&t=30&end&mockble&autoconnect",
  "steps": [
   {
    "at": 4,

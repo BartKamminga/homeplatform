@@ -15,7 +15,7 @@ from sqlmodel import Session, SQLModel  # noqa: E402
 from core.database import engine  # noqa: E402
 from core.auth import hash_password, create_access_token  # noqa: E402
 from models.core import User, Site  # noqa: E402
-from services.vbt_workouts import seed_plan  # noqa: E402
+from services.vbt_workouts import seed_library, seed_plan  # noqa: E402
 
 SQLModel.metadata.create_all(engine)
 with Session(engine) as s:
@@ -27,6 +27,7 @@ with Session(engine) as s:
     import glob
     for f in sorted(glob.glob('data/vbt/*.json')):
         name = os.path.basename(f)
-        if name != 'climbs.json':
+        if name not in ('climbs.json', 'workouts.json'):
             seed_plan(s, name)
+    seed_library(s)
     print("TOKEN=" + create_access_token({"sub": u.id}))

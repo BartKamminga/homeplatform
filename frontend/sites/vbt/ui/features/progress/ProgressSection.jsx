@@ -1,10 +1,12 @@
 // PROGRESS: FTP-verloop (uit settings.ftpHistory) en trainingsvolume per week (laatste 12 weken).
-// Plus de aerobe trend (EF en watt bij vaste hartslag, item 1351). Zones over tijd volgt later (item 1297).
+// Plus virtuele FTP (1302), tijd in zones per week (1297) en de aerobe trend (EF en watt bij vaste hartslag, 1351).
 import { useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions, useVbtValue } from '../../hooks/useVbt.js'
 import { parseIso, mondayOf } from '../../common/format.js'
 import AerobicTrend from './AerobicTrend.jsx'
+import ZoneTrend from './ZoneTrend.jsx'
+import VirtualFtp from './VirtualFtp.jsx'
 
 const WEEKS = 12
 
@@ -75,6 +77,7 @@ export default function ProgressSection() {
         <ul className="pn-history">{history.slice().reverse().slice(0, 8).map((h, i) => (
           <li key={i}><span>{h.date}</span><b>{h.ftp} W</b><i>{h.prev ? (h.ftp - h.prev > 0 ? '+' : '') + (h.ftp - h.prev) + ' · ' : ''}{h.source}</i></li>))}</ul>
       )}
+      <VirtualFtp rides={rides} />
       <h4>MINUTES PER WEEK</h4>
       {rides === null ? <p className="pn-hint">Loading rides...</p> : (
         <>
@@ -83,8 +86,8 @@ export default function ProgressSection() {
             Last {WEEKS} weeks: {weeks.reduce((a, w) => a + w.n, 0)} rides · {Math.round(weeks.reduce((a, w) => a + w.min, 0) / 60)} h.</p>
         </>
       )}
+      <ZoneTrend rides={rides} weeks={weeks} />
       <AerobicTrend rides={rides} weeks={weeks} />
-      <p className="pn-hint">Power and heart-rate zone trends over time are coming next.</p>
     </div>
   )
 }

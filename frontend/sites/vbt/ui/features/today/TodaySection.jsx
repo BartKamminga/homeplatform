@@ -1,9 +1,11 @@
-// TODAY: wat staat er vandaag op het plan. Rustdag/klaar/achter: de eerstvolgende workout plus alternatieven
-// (vrije rit, willekeurige klim, door de workouts bladeren) en je laatste rit.
+// TODAY = wat ga ik nu doen (item 1343): de workout van vandaag (passend gemaakt op je beschikbaarheid, met
+// varianten), gemiste workouts verplaatsen (voorstel), hoe voel je je (met voorstel), de weekstrook, en
+// alternatieven (vrije rit, willekeurige klim, workouts) plus je laatste rit.
 import { useEffect, useState } from 'react'
 import { actions, useCalendar } from '../../hooks/useVbt.js'
 import { fmtDur, fmtDateTime, dayLabel, startWithConfirm } from '../../common/format.js'
 import { WorkoutDetail, ClimbDetail } from '../workouts/WorkoutDetail.jsx'
+import { MissedProposal, ReadinessRow, Suggestion, WeekStrip } from './TodayParts.jsx'
 
 const HEADLINE = {
   workout: "TODAY'S WORKOUT",
@@ -20,11 +22,12 @@ export default function TodaySection({ onSection }) {
   const cal = useCalendar()
   const t = VBT.calendar.today()
   const [climb, setClimb] = useState(null)
-  const [lastRide, setLastRide] = useState(null)
+  const [rides, setRides] = useState([])
+  const [taken, setTaken] = useState(false)
 
   useEffect(() => {
     let alive = true
-    actions().listRides().then(list => { if (alive) setLastRide(list[0] || null) }).catch(() => {})
+    actions().listRides().then(list => { if (alive) setRides(list || []) }).catch(() => {})
     return () => { alive = false }
   }, [])
 
@@ -33,12 +36,20 @@ export default function TodaySection({ onSection }) {
     if (list.length) setClimb(list[Math.floor(Math.random() * list.length)])
   }
 
-  const wo = t.status === 'workout' ? t.today : t.next
+  const planned = t.status === 'workout' ? t.today : t.next
+  // beschikbaarheid (automatisch) en readiness/RPE (voorstel) - alleen voor de workout van vandaag
+  const isToday = planned && VBT.calendar.iso(VBT.calendar.dateFor(planned)) === VBT.calendar.iso(new Date())
+  const fitted = isToday ? VBT.planAdapt.fitted(planned) : null
+  const base = fitted || planned
+  const sug = isToday ? VBT.planAdapt.suggestion(base, rides) : null
+  const wo = taken && sug ? sug.variant : base
+  const lastRide = rides[0]
+
   const sub = {
     workout: 'Week ' + t.week + ' of ' + cal.plan.weeks.length + ' · ' + (cal.plan.name || ''),
     done: 'Nice work. Next up:',
     rest: 'Recover, or pick something light below. Next up:',
-    before: 'Your plan starts on ' + (wo ? dayLabel(VBT.calendar.dateFor(wo)) : cal.startDate) + '. First workout:',
+    before: 'Your plan starts on ' + (planned ? dayLabel(VBT.calendar.dateFor(planned)) : cal.startDate) + '. First workout:',
     behind: 'You missed some workouts. Pick up where you left off:',
     finished: 'All ' + cal.total + ' workouts done. Do an FTP test or pick a new plan under MY PLAN.',
     none: 'Choose a training plan under MY PLAN.',
@@ -51,6 +62,11 @@ export default function TodaySection({ onSection }) {
         <h3>{HEADLINE[t.status]}</h3>
         <p className="pn-hint">{sub}</p>
       </div>
+      <WeekStrip />
+      <MissedProposal />
+      {isToday && <ReadinessRow />}
+      {fitted && <p className="pn-hint" id="fittedNote">Fitted to the {VBT.planAdapt.minutesOn(new Date())} min you have today (set under MY PLAN).</p>}
+      <Suggestion s={sug} taken={taken} onTake={() => setTaken(true)} onKeep={() => setTaken(false)} />
       {wo && !climb && <WorkoutDetail wo={wo} />}
       {climb && <ClimbDetail climb={climb} />}
 

@@ -13,6 +13,7 @@ VBT.climbs = (function () {
   }
 
   async function get(slug) {
+    if (/^(gen|gpx)-/.test(slug)) return VBT.routes.get(slug);            // routes (1365) rijden als een climb
     if (!cache[slug]) cache[slug] = Object.assign({ climb: true }, await VBT.storage.getClimb(slug));
     return cache[slug];
   }
@@ -25,7 +26,8 @@ VBT.climbs = (function () {
       const bend = ((i * 7919) % 13) / 13 - 0.5;            // vast patroon, zelfde parcours bij elke rit
       const sign = g >= 4 && (lastSign === null || Math.abs(Math.round(g) - lastSign) >= 2);
       if (sign) lastSign = Math.round(g);
-      secs.push({ m, g, c: [bend * 6, -bend * 4], sign, tag: i === climb.segments.length - 1 ? 'finish' : '' });
+      const c = climb.curves ? [climb.curves[i]] : [bend * 6, -bend * 4];   // route: echte bochten (GPX)
+      secs.push({ m, g, c, sign, tag: i === climb.segments.length - 1 ? 'finish' : '' });
     });
     secs.push({ m: RUNOUT_M, g: 0, c: [0] });
     return secs;

@@ -1,0 +1,47 @@
+{
+ "title": "Werelden (1366) en omgeving (1361): Pixel Alps met herfst en regen, tunnel na ~1,2 km, km-bordje, wereld wisselen naar Grid",
+ "query": "world=alps&ride&mockble&autoconnect&season=autumn&weather=rain&t=150",
+ "steps": [
+  {
+   "at": 5,
+   "name": "Alpen-wereld actief, regen en herfst",
+   "assert": "VBT.worlds.current() === 'alps' && VBT.fx.weather() === 'rain' && VBT.fx.season() === 'autumn' && VBT.palette.road === '#5b5b66'",
+   "shot": "alps-rain-autumn"
+  },
+  {
+   "at": 6,
+   "name": "parcours heeft tunnels, bruggen, km-bordjes en Alpen-decor",
+   "assert": "VBT.track.segments.some(s => s.tunnel) && VBT.track.segments.some(s => s.bridge) && VBT.track.segments.some(s => s.sprites.some(p => p.source.kind === 'kmsigns')) && VBT.track.segments.some(s => s.sprites.some(p => p.source.world === 'alps'))"
+  },
+  {
+   "at": 7,
+   "run": "const T = VBT.track, i = T.segments.findIndex(s => s.tunnelStart); VBT.game.player.dist = Math.max(0, i * VBT.cfg.segmentLength / VBT.cfg.unitsPerMeter - 40)"
+  },
+  {
+   "at": 9,
+   "name": "tunnel voor je",
+   "assert": "VBT.track.segments.some(s => s.tunnelStart)",
+   "shot": "tunnel-ahead"
+  },
+  {
+   "at": 10,
+   "run": "VBT.worlds.apply('tron')"
+  },
+  {
+   "at": 11.5,
+   "name": "Grid-wereld: palet gewisseld, geen palmen",
+   "assert": "VBT.worlds.current() === 'tron' && VBT.palette.ground === '#000000' && VBT.worlds.canvasFor(VBT.sprites.PALM_L) === null",
+   "shot": "grid"
+  },
+  {
+   "at": 12,
+   "run": "VBT.worlds.apply('outrun'); VBT.fx.fireworks()"
+  },
+  {
+   "at": 13.5,
+   "name": "terug naar OutRun, vuurwerk",
+   "assert": "VBT.worlds.current() === 'outrun' && VBT.palette.ground === '#0e0123'",
+   "shot": "outrun-fireworks"
+  }
+ ]
+}

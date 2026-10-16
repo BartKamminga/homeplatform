@@ -1,6 +1,10 @@
 /* Schermen en kaarten: workout-paneel, titelmenu, kalender/workoutkaarten, finish, toast, ritten, stopvraag */
 /* ---------- Workout-HUD ---------- */
-.wpanel { display: none; top: 20px; left: 50%; transform: translateX(-50%); width: 600px; border-color: rgba(255,230,109,.5); }
+.wpanel { display: none; top: 20px; left: 50%; transform: translateX(-50%); width: min(600px, calc(100cqw - 600px)); border-color: rgba(255,230,109,.5); }
+/* smal speelveld (zijpanelen open): workout-paneel past niet meer tussen links en rechts -> onderin, boven snelheid/hoogte (item 1311) */
+@container (max-width: 1020px) {
+  .wpanel { width: calc(100cqw - 40px); max-width: 640px; top: auto; bottom: 180px; }
+}
 body.workout .wpanel { display: block; }
 body.workout .center, body.workout #gapLabel, body.workout #gap { display: none; }
 .wtop { display: flex; justify-content: space-between; font-family: var(--pixel); font-size: 10px; letter-spacing: 1px; color: var(--cyan); }
@@ -166,3 +170,12 @@ body[data-state="confirm"] #confirm { display: flex; }
 .ftpprop b { font-size: 30px; font-weight: 900; color: var(--yellow); }
 .ftpprop span { font-size: 12px; opacity: .8; }
 .ftpprop[hidden] { display: none; }
+
+/* workout-score met uitleg (item 1307): eindscherm en MY RIDES */
+.reviewbox { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border-radius: 8px; max-width: 560px;
+  border: 1px solid rgba(255,230,109,.4); background: rgba(12,2,32,.7); text-align: left; }
+.reviewbox .rvhead { display: flex; align-items: center; gap: 12px; }
+.reviewbox .rvhead b { font-size: 30px; font-weight: 900; }
+.reviewbox .rvhead span { display: flex; flex-direction: column; font-family: var(--pixel); font-size: 10px; color: var(--cyan); gap: 4px; }
+.reviewbox .rvhead small { font-size: 8px; color: var(--ink); opacity: .7; }
+.reviewbox ul { margin: 0; padding-left: 18px; font-family: Inter, Arial, sans-serif; font-size: 12px; line-height: 1.45; }

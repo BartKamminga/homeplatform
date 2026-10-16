@@ -32,9 +32,9 @@ VBT.bleMock = (function () {
     function tick() {
       if (!state.connected || performance.now() < state.stallUntil) return;
       if (kind === 'trainer') {
-        state.power += (state.target - state.power) * 0.35;      // ERG regelt naar het doel
-        const p = Math.round(state.power + (Math.random() - 0.5) * 8);
-        const cad = 88 + Math.round((Math.random() - 0.5) * 4);
+        state.power += ((state.quit ? 0 : state.target) - state.power) * 0.35;      // ERG regelt naar het doel
+        const p = state.quit ? 0 : Math.round(state.power + (Math.random() - 0.5) * 8);
+        const cad = state.quit ? 0 : 88 + Math.round((Math.random() - 0.5) * 4);
         const b = new DataView(new ArrayBuffer(8));
         b.setUint16(0, 0x0044, true);              // snelheid + cadans + vermogen
         b.setUint16(2, 3150, true);                // 31,5 km/u
@@ -76,6 +76,7 @@ VBT.bleMock = (function () {
         listeners.forEach(fn => fn());
       },
       stall(ms) { state.stallUntil = performance.now() + ms; },
+      quit() { state.quit = true; },                             // renner stopt met trappen (bv. opgeven bij de ramp test)
     };
     return device;
   }

@@ -144,6 +144,17 @@ def seed_plan(session: Session, filename: str) -> VbtPlan:
     return plan
 
 
+def seed_library(session: Session) -> list:
+    """Losse VBT-workouts uit data/vbt/workouts.json (bv. Aerobic Check, item 1352); idempotent via de content-hash."""
+    data = json.loads((DATA_DIR / "workouts.json").read_text(encoding="utf-8"))
+    out = []
+    for it in data["workouts"]:
+        wo, _ = upsert_workout(session, it["name"], it["steps"], data["source"], description=it.get("description"))
+        out.append(wo)
+    session.commit()
+    return out
+
+
 def workout_out(wo: VbtWorkout, user_id: Optional[str] = None) -> dict:
     return {"id": wo.id, "name": wo.name, "description": wo.description, "duration": wo.duration,
             "source": wo.source, "sourceUrl": wo.source_url, "steps": wo.steps or [],
