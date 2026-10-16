@@ -55,7 +55,8 @@ param(
     [ValidateSet("reply", "read", "forward", "none")]
     [string]$Action   = "reply",
     [string]$DraftFile = "",
-    [string]$Sender   = ""
+    [Alias("Sender")]
+    [string]$SenderRole = ""
 )
 
 $DefaultApiBase = @{
@@ -117,8 +118,11 @@ function Invoke-Api([string]$Method, [string]$Path, $Body = $null) {
         $params.ContentType = "application/json; charset=utf-8"
         $params.Body = [System.Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 6))
     }
-    try { return Invoke-RestMethod @params }
+    # PS 5.1 leest JSON zonder charset-header als Latin-1 (titels met - of e-accent raken verminkt): zelf als UTF-8 decoderen.
+    try { $resp = Invoke-WebRequest @params -UseBasicParsing }
     catch { Write-Host "[FOUT] $Method $Path - $($_.Exception.Message)"; exit 1 }
+    $text = [System.Text.Encoding]::UTF8.GetString($resp.RawContentStream.ToArray())
+    if ($text) { return ($text | ConvertFrom-Json) }
 }
 
 function Read-TextArg {
@@ -171,7 +175,7 @@ if ($AddOutbox) {
     if (-not $Title -or -not $Ref) { Write-Host "Geef -Title en -Ref op (maak -Ref met -MailRef)"; exit 1 }
     $body = @{ title = $Title; summary = (Read-TextArg); external_ref = $Ref; value = $Value; urgency = $Urgency; action = $Action }
     if ($Date) { $body.received_at = $Date }
-    if ($Sender) { $body.sender_role = $Sender }
+    if ($SenderRole) { $body.sender_role = $SenderRole }
     if ($Reason) { $body.reason = $Reason }
     if ($Url) { $body.source_url = $Url }
     if ($DraftFile) { $body.draft_reply = [System.IO.File]::ReadAllText((Resolve-Path $DraftFile), [System.Text.Encoding]::UTF8) }
