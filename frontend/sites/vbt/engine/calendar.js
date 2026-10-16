@@ -51,7 +51,10 @@ VBT.calendar = (function () {
 
   function setStartDate(date) { if (date) { state.startDate = date; save(); } }
 
+  // datum van een plan-workout; verplaatst (1306, settings.planMoves) gaat voor de plandatum
   const dateFor = wo => {
+    const moved = ((VBT.settings.values.planMoves || {})[state.planSlug] || {})[wo.id];
+    if (moved) return parse(moved);
     const d = parse(state.startDate);
     d.setDate(d.getDate() + (wo.week - 1) * 7 + plan.dayOffsets[wo.day - 1]);
     return d;
@@ -82,8 +85,11 @@ VBT.calendar = (function () {
     const t = iso(new Date());
     const items = plan.weeks.flat().filter(w => !w.rest);
     const todays = items.find(w => isoFor(w) === t) || null;
-    const next = items.find(w => !state.done[w.id] && isoFor(w) >= t && w !== todays) || null;
-    const firstOpen = items.find(w => !state.done[w.id]) || null;
+    // overgeslagen (1306, settings.planSkips) telt als afgehandeld, niet als gedaan
+    const skips = (VBT.settings.values.planSkips || {})[state.planSlug] || {};
+    const handled = w => state.done[w.id] || skips[w.id];
+    const next = items.filter(w => !handled(w) && isoFor(w) >= t && w !== todays).sort((a, b) => (isoFor(a) < isoFor(b) ? -1 : 1))[0] || null;
+    const firstOpen = items.find(w => !handled(w)) || null;
     let status = 'rest';
     if (!items.length) status = 'none';
     else if (todays) status = state.done[todays.id] ? 'done' : 'workout';
@@ -105,5 +111,5 @@ VBT.calendar = (function () {
   async function init() { await load(); }
 
   return { init, getState, version: () => version, switchPlan, setStartDate, dateFor, markDone, toggleDone,
-    setFtp, today, find, nextMonday, iso };
+    setFtp, today, find, nextMonday, iso, parse, touch: bump };
 })();

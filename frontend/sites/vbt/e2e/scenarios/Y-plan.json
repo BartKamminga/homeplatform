@@ -1,0 +1,45 @@
+{
+ "title": "Adaptief plan (1306/1343): verplaatsen naar vandaag, passend op je tijd, readiness-voorstel, gemist -> voorstel MOVE/SKIP, weekstrook",
+ "query": "today&mockble&autoconnect",
+ "steps": [
+  {
+   "at": 4,
+   "run": "const P = VBT.planAdapt, C = VBT.calendar, it = C.getState().plan.weeks.flat().filter(w => !w.rest && !w.free && !C.getState().done[w.id] && !P.isSkipped(w.id)); window.__a = it[1]; window.__b = it[2]; const y = new Date(); y.setDate(y.getDate() - 1); const wd = (new Date().getDay() + 6) % 7 + 1; P.moveTo(window.__a.id, C.iso(new Date())); P.moveTo(window.__b.id, C.iso(y)); P.setAvailability({ [wd]: 30 }); P.setReadiness('tired')"
+  },
+  {
+   "at": 6,
+   "name": "verplaatste workout staat vandaag, ingekort tot 30 min, gemiste workout gesignaleerd",
+   "assert": "VBT.calendar.today().today && VBT.calendar.today().today.id === window.__a.id && VBT.planAdapt.fitted(window.__a) && VBT.planAdapt.fitted(window.__a).variant === 30 && VBT.planAdapt.missed().some(w => w.id === window.__b.id)"
+  },
+  {
+   "at": 6.5,
+   "run": "VBT.ui.open('left', 'plan'); setTimeout(() => VBT.ui.open('left', 'today'), 300)"
+  },
+  {
+   "at": 8,
+   "name": "TODAY toont weekstrook, gemist-voorstel en de passend gemaakte workout",
+   "assert": "!!document.querySelector('.pn-weekstrip') && !!document.querySelector('#missedProposal') && !!document.querySelector('#fittedNote') && document.querySelector('#planDetail').textContent.includes('VARIANT')",
+   "shot": "today",
+   "run": "window.__m = VBT.planAdapt.missed()[0].id"
+  },
+  {
+   "at": 9,
+   "click": "#missedSkip"
+  },
+  {
+   "at": 10,
+   "name": "overgeslagen: geen gemist-voorstel meer",
+   "assert": "VBT.planAdapt.isSkipped(window.__m) && !VBT.planAdapt.missed().some(w => w.id === window.__m)"
+  },
+  {
+   "at": 10.5,
+   "run": "VBT.planAdapt.setAvailability({}); VBT.calendar.touch()"
+  },
+  {
+   "at": 11.5,
+   "name": "zonder tijdslimiet: readiness TIRED geeft een voorstel (alleen voorstel)",
+   "assert": "!!VBT.planAdapt.suggestion(window.__a, []) && (!!document.querySelector('#todaySuggestion') || window.__a.duration < 2400)",
+   "shot": "suggestion"
+  }
+ ]
+}

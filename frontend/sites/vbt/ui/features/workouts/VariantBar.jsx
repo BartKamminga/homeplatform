@@ -5,7 +5,8 @@ import { actions } from '../../hooks/useVbt.js'
 
 export default function VariantBar({ wo, shown, onChange }) {
   const V = window.VBT.workoutVariants
-  const base = wo, sizes = V.sizes(base)
+  // wo kan zelf al een variant zijn (TODAY past hem aan je tijd aan): maten en ORIGINAL gaan uit van het origineel
+  const base = wo.variantOf || wo, sizes = V.sizes(base)
   if (!sizes.length && wo.free) return null
   const cur = shown.variant || null
   const shorter = V.shorter(shown)
@@ -19,7 +20,7 @@ export default function VariantBar({ wo, shown, onChange }) {
     <div className="pn-variants">
       {sizes.length > 0 && (
         <span className="pn-viewtoggle">
-          <button className={!cur && !shown.swappedFrom ? 'active' : ''} onClick={() => onChange(null)}>ORIGINAL</button>
+          <button className={!cur && !shown.swappedFrom ? 'active' : ''} onClick={() => onChange(wo.variantOf ? base : null)}>ORIGINAL</button>
           {sizes.map(m => <button key={m} className={cur === m ? 'active' : ''} onClick={() => onChange(V.resize(shown.swappedFrom ? shown : base, m))}>{m} MIN</button>)}
         </span>
       )}

@@ -41,7 +41,7 @@ export function WorkoutDetail({ wo: planWo, preview }) {
   const VBT = window.VBT
   // gekozen variant (1305): andere duur of geruilde workout; terug naar het origineel bij een andere workout
   const [variant, setVariant] = useState(null)
-  useEffect(() => setVariant(null), [planWo.id, planWo.name])
+  useEffect(() => setVariant(null), [planWo.id, planWo.name, planWo.duration])
   const wo = variant || planWo
   const cal = VBT.calendar
   const inPlan = !!wo.week

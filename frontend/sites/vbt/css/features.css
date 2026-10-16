@@ -94,13 +94,13 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 .vbt-panel .pn-feedback { align-items: flex-start; margin: 4px 0 10px; }
 .pn-feedback small { font-family: var(--pixel); font-size: 9px; color: var(--cyan); letter-spacing: 1px; }
 .pn-feedback small em { font-style: normal; color: var(--pink); margin-left: 6px; font-size: 8px; }
-.pn-feedback .rpe, .pn-feedback .readiness { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.pn-feedback .rpe, .pn-feedback .readiness, .pn-readiness .readiness { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
 .pn-feedback .rpe button { width: 34px; height: 34px; font-family: var(--pixel); font-size: 11px; cursor: pointer; border-radius: 6px;
   color: var(--c); background: rgba(9,2,26,.8); border: 1px solid var(--c); opacity: .75; }
 .pn-feedback .rpe button.on { opacity: 1; color: #07011a; background: var(--c); box-shadow: 0 0 14px var(--c); }
-.pn-feedback .readiness button { font-family: var(--pixel); font-size: 9px; padding: 7px 10px; cursor: pointer; border-radius: 4px;
+.pn-feedback .readiness button, .pn-readiness .readiness button { font-family: var(--pixel); font-size: 9px; padding: 7px 10px; cursor: pointer; border-radius: 4px;
   color: var(--ink); background: rgba(9,2,26,.8); border: 1px solid rgba(155,92,255,.5); }
-.pn-feedback .readiness button.on { border-color: var(--cyan); background: rgba(36,232,255,.18); color: var(--cyan); }
+.pn-feedback .readiness button.on, .pn-readiness .readiness button.on { border-color: var(--cyan); background: rgba(36,232,255,.18); color: var(--cyan); }
 .pn-feedback.compact .rpe button { width: 26px; height: 26px; font-size: 9px; }
 .pn-feedback .load { color: var(--yellow); }
 .pn-feedback .load i { font-style: normal; opacity: .6; }
@@ -142,3 +142,26 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 .pn-variants .pn-viewtoggle { margin: 0; }
 .pn-variants .pn-viewtoggle button { font-size: 8px; padding: 5px 7px; }
 .pn-variants .ghostbtn { font-size: 8px; padding: 6px 8px; }
+
+/* TODAY / MY PLAN (1343/1306): voorstel gemist, readiness, weekstrook, beschikbaarheid, verplaatsen */
+.pn-notice { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--yellow); background: rgba(255,230,109,.07); }
+.pn-notice.soft { border-color: rgba(36,232,255,.5); background: rgba(36,232,255,.06); }
+.pn-notice small { font-family: var(--pixel); font-size: 8px; color: var(--yellow); }
+.pn-notice b { font-family: var(--pixel); font-size: 11px; }
+.pn-notice span { font-family: Inter, Arial, sans-serif; font-size: 12px; }
+.pn-readiness, .pn-avail, .pn-weekstrip { display: flex; flex-direction: column; gap: 6px; }
+.pn-readiness small, .pn-avail small, .pn-weekstrip small, .pn-movebar small { font-family: var(--pixel); font-size: 8px; color: var(--cyan); letter-spacing: 1px; }
+.pn-avail .ghostbtn { align-self: flex-start; font-size: 9px; padding: 6px 9px; }
+.pn-availgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.pn-availgrid label { display: flex; flex-direction: column; gap: 3px; font-family: var(--pixel); font-size: 8px; color: var(--cyan); }
+.pn-availgrid input { width: 100%; min-width: 0; font-family: var(--hud); font-size: 12px; color: var(--ink); background: #05010f; border: 1px solid var(--cyan); border-radius: 4px; padding: 4px; color-scheme: dark; }
+.wsdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.wsday { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px; border-radius: 5px; background: rgba(255,255,255,.04); border: 1px solid transparent; }
+.wsday i { font-style: normal; font-family: var(--pixel); font-size: 7px; opacity: .7; }
+.wsday b { font-size: 12px; }
+.wsday em { font-style: normal; font-size: 8px; opacity: .6; }
+.wsday.done b { color: #5dff9e; } .wsday.missed b { color: var(--pink); } .wsday.planned b { color: var(--yellow); } .wsday.skipped b { opacity: .5; }
+.wsday.today { border-color: var(--yellow); }
+.pn-movebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.pn-movebar .pn-viewtoggle { margin: 0; }
+.pn-movebar .pn-viewtoggle button, .pn-movebar .ghostbtn { font-size: 8px; padding: 5px 7px; }
