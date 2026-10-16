@@ -1,5 +1,5 @@
 export const KIND_LABELS = {
-  note: 'Note', mail: 'Mail', document: 'Document', link: 'Link', session: 'Session', page: 'Page', idea: 'Idea',
+  note: 'Note', mail: 'Mail', document: 'Document', link: 'Link', session: 'Session', page: 'Page', idea: 'Idea', transcript: 'Conversation',
 }
 
 export function formatDate(value) {

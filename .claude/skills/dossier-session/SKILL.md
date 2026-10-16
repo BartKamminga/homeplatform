@@ -26,6 +26,12 @@ easy to see on the Dossiers site (Pages open full screen, ideas and the current 
 - Keep the agreement: no confidential originals (no internal NIPV documents, no figures from the confidential risk
   analysis, no names), only own analyses, summaries and public sources.
 
+## Conversation recordings
+New entries of kind `transcript` (recorded on the site, transcribed by Whisper) appear in the export with timestamps.
+For each transcript without a summary yet: write a note `-Kind note -Title "Summary: <transcript title>"` with
+**summary** (5-10 lines), **decisions** and **actions** (who, what, when; people as role, not by name), and propose
+pages or ideas that follow from it. Mention it at the start of the session.
+
 ## End
 1. Update where things stand when the picture changed: write the new text to a .md file and
    `.\Dossier.ps1 -SetSummary -Name <slug> -FilePath <summary.md>`.

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     ACC_LAN_IP:  str = "192.168.30.232"   # G4: acc + beheertools
     # item 1190: prod en acc halen elkaars machine-info op via /api/infra/host met deze gedeelde token
     INFRA_PEER_TOKEN: str = ""
+    # Whisper-dienst op G4 (docker-compose.whisper.yml) voor gespreksopnames in Dossiers; leeg token = uit.
+    WHISPER_URL: str = "http://192.168.30.232:8095"
+    WHISPER_TOKEN: str = ""
     HOST_HOSTNAME_FILE: str = "/etc/host_hostname"  # read-only mount van /etc/hostname van de host
     UPLOAD_ROOT: str = "/app/uploads"
     DOWNLOAD_DIR: str = "/app/downloads"

@@ -53,6 +53,8 @@ class DossierEntry(SQLModel, table=True):
     review:            Optional[str] = Field(default=None)
     reason:            Optional[str] = Field(default=None)  # waarom Claude een mail voorstelt
     pinned:            bool     = Field(default=False)
+    # Gespreksopname (kind transcript): queued | transcribing | done | failed; None voor andere stukken.
+    processing:        Optional[str] = Field(default=None)
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
 

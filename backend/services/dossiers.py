@@ -10,7 +10,7 @@ from models.core import User
 from models.dossiers import Dossier, DossierEntry
 
 # page = HTML-uitwerking (analyse, tijdlijn, kaart) die op de site als pagina te openen is.
-KINDS = {"note", "mail", "document", "link", "session", "page", "idea"}
+KINDS = {"note", "mail", "document", "link", "session", "page", "idea", "transcript"}
 # proposed = door Claude aangemaakt in een mailronde; Bart accepteert (active) of wijst af (archived) in de Inbox.
 STATUSES = {"active", "archived", "proposed"}
 REVIEW_PROPOSED = "proposed"
@@ -253,7 +253,8 @@ def entry_to_dict(entry: DossierEntry) -> dict:
         "content_type": entry.content_type, "size_bytes": entry.size_bytes, "has_file": bool(entry.file_path),
         "parent_entry_id": entry.parent_entry_id, "occurred_at": entry.occurred_at,
         "external_ref": entry.external_ref, "review": entry.review, "reason": entry.reason,
-        "pinned": entry.pinned, "created_at": entry.created_at, "updated_at": entry.updated_at,
+        "pinned": entry.pinned, "processing": entry.processing,
+        "created_at": entry.created_at, "updated_at": entry.updated_at,
     }
 
 

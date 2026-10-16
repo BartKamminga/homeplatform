@@ -230,3 +230,48 @@ def test_outbox_sorting_dedup_refs_and_move(client, user_token):
     assert [i["title"] for i in client.get(base, headers=_h(user_token)).json()] == ["Nieuwsbericht"]
     done = client.patch(f"{base}/{items[1]['id']}", json={"status": "dismissed"}, headers=_h(user_token)).json()
     assert done["status"] == "dismissed" and client.get(base, headers=_h(user_token)).json() == []
+
+
+def test_recording_is_transcribed_in_background(client, user_token, engine, monkeypatch):
+    import services.dossier_transcripts as tr
+    from core.settings import settings
+
+    monkeypatch.setattr(tr, "engine", engine)
+    monkeypatch.setattr(settings, "WHISPER_TOKEN", "test-token")
+    calls = {}
+
+    class FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"text": "Hallo allemaal", "duration": 75.0,
+                    "segments": [{"start": 0.0, "end": 2.0, "text": "Hallo allemaal."}, {"start": 61.5, "end": 64, "text": "Besluit: pilot Plot."}]}
+
+    def fake_post(url, headers, files, data, timeout):
+        calls["url"], calls["token"] = url, headers["X-Whisper-Token"]
+        return FakeResp()
+
+    monkeypatch.setattr(tr.httpx, "post", fake_post)
+    dossier = _dossier(client, user_token)
+    no_consent = client.post(f"/api/dossiers/{dossier['id']}/recordings", data={"title": "Overleg"},
+                             files={"audio": ("rec.webm", io.BytesIO(b"audio"), "audio/webm")}, headers=_h(user_token))
+    assert no_consent.status_code == 400
+
+    res = client.post(f"/api/dossiers/{dossier['id']}/recordings", data={"title": "Overleg opdrachtgevers", "consent": "true"},
+                      files={"audio": ("rec.webm", io.BytesIO(b"audio"), "audio/webm")}, headers=_h(user_token))
+    assert res.status_code == 201 and res.json()["kind"] == "transcript"
+    entry = next(e for e in client.get(f"/api/dossiers/{dossier['id']}/entries", headers=_h(user_token)).json()
+                 if e["id"] == res.json()["id"])
+    assert entry["processing"] == "done" and calls["token"] == "test-token" and calls["url"].endswith("/transcribe")
+    assert "[00:00] Hallo allemaal." in entry["body"] and "[01:01] Besluit: pilot Plot." in entry["body"]
+    assert client.get("/api/dossiers/transcription", headers=_h(user_token)).json() == {"enabled": True}
+
+    def failing_post(*args, **kwargs):
+        raise RuntimeError("whisper down")
+
+    monkeypatch.setattr(tr.httpx, "post", failing_post)
+    retry = client.post(f"/api/dossiers/entries/{entry['id']}/transcribe", headers=_h(user_token))
+    assert retry.status_code == 200
+    failed = next(e for e in client.get(f"/api/dossiers/{dossier['id']}/entries", headers=_h(user_token)).json() if e["id"] == entry["id"])
+    assert failed["processing"] == "failed" and "whisper down" in failed["body"]

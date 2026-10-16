@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { addEntry, uploadFiles } from '../api.js'
+import Recorder from './Recorder.jsx'
 
 const ACCEPT = '.msg,.eml,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.html,.png,.jpg,.jpeg'
 
@@ -60,7 +61,7 @@ export default function AddPanel({ dossier, onAdded }) {
       <div className="ds-box-head">
         <h2>Add to dossier</h2>
         <div className="ds-seg" role="group" aria-label="What to add">
-          {[['files', 'Files'], ['text', 'Text'], ['link', 'Link']].map(([k, label]) => (
+          {[['files', 'Files'], ['text', 'Text'], ['link', 'Link'], ['record', 'Record']].map(([k, label]) => (
             <button key={k} type="button" aria-pressed={mode === k} onClick={() => setMode(k)}>{label}</button>
           ))}
         </div>
@@ -110,6 +111,8 @@ export default function AddPanel({ dossier, onAdded }) {
           <div className="ds-actions"><button className="ds-btn ds-btn-primary" type="submit" disabled={busy || !url.trim()}>Add link</button></div>
         </form>
       )}
+
+      {mode === 'record' && <Recorder dossier={dossier} onAdded={onAdded} />}
 
       <p className="ds-hint">No confidential originals: summaries and public sources only.</p>
       {status && <p className="ds-status" aria-live="polite">{status}</p>}

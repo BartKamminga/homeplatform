@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { deleteEntry, downloadEntry, listEntries, updateEntry } from '../api.js'
+import { deleteEntry, downloadEntry, listEntries, retryTranscription, updateEntry } from '../api.js'
 import { formatDate, formatSize, KIND_LABELS } from '../format.js'
 import PageViewer from './PageViewer.jsx'
 
-const FILTERS = [['', 'All'], ['page', 'Pages'], ['idea', 'Ideas'], ['mail', 'Mail'], ['document', 'Documents'], ['note', 'Notes'], ['link', 'Links'], ['session', 'Sessions']]
+const FILTERS = [['', 'All'], ['page', 'Pages'], ['idea', 'Ideas'], ['transcript', 'Conversations'], ['mail', 'Mail'], ['document', 'Documents'], ['note', 'Notes'], ['link', 'Links'], ['session', 'Sessions']]
 
 export default function EntryList({ dossier, version, onChanged }) {
   const [entries, setEntries] = useState(null)
@@ -20,6 +20,14 @@ export default function EntryList({ dossier, version, onChanged }) {
     }, q ? 250 : 0)
     return () => clearTimeout(t)
   }, [dossier.id, q, kind, version])
+
+  // Zolang er een opname wordt uitgeschreven: elke 15 s opnieuw kijken.
+  const busy = (entries || []).some((e) => e.processing === 'queued' || e.processing === 'transcribing')
+  useEffect(() => {
+    if (!busy) return undefined
+    const t = setInterval(() => onChanged(), 15000)
+    return () => clearInterval(t)
+  }, [busy, onChanged])
 
   const toggle = (id) => setOpen((prev) => {
     const next = new Set(prev)
@@ -63,6 +71,11 @@ export default function EntryList({ dossier, version, onChanged }) {
                 <button type="button" className="ds-entry-title" onClick={() => toggle(entry.id)} aria-expanded={open.has(entry.id)}>
                   {entry.title}
                 </button>
+                {entry.processing && entry.processing !== 'done' && (
+                  <span className={`ds-chip ${entry.processing === 'failed' ? 'ds-chip-today' : 'ds-chip-week'}`}>
+                    {entry.processing === 'failed' ? 'Transcription failed' : 'Transcribing…'}
+                  </span>
+                )}
                 <span className="ds-muted ds-small">{formatDate(entry.occurred_at || entry.created_at)}</span>
               </div>
               {open.has(entry.id) && (
@@ -82,6 +95,7 @@ export default function EntryList({ dossier, version, onChanged }) {
                 </div>
               )}
               <div className="ds-entry-actions">
+                {entry.processing === 'failed' && <button type="button" className="ds-btn ds-btn-small ds-btn-primary" onClick={() => retryTranscription(entry.id).then(onChanged).catch((e) => setError(e.message))}>Try again</button>}
                 {entry.kind === 'page' && <button type="button" className="ds-btn ds-btn-small ds-btn-primary" onClick={() => setViewing(entry)}>Open page</button>}
                 {entry.has_file && <button type="button" className="ds-btn ds-btn-small" onClick={() => downloadEntry(entry).catch((e) => setError(e.message))}>Download{entry.size_bytes ? ` (${formatSize(entry.size_bytes)})` : ''}</button>}
                 <button type="button" className="ds-btn ds-btn-small" onClick={() => togglePin(entry)}>{entry.pinned ? 'Unpin' : 'Pin'}</button>

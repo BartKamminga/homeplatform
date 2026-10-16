@@ -166,3 +166,12 @@ textarea.ds-input { resize: vertical; }
 .ds-entry-title-static { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ds-kind-page { color: var(--ds-document); }
 .ds-kind-idea { color: var(--ds-attention); }
+
+.ds-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
+.ds-check input { margin-top: 3px; }
+.ds-rec { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ds-rec-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ds-danger); }
+@media (prefers-reduced-motion: no-preference) { .ds-rec-dot { animation: ds-pulse 1.2s ease-in-out infinite; } }
+@keyframes ds-pulse { 50% { opacity: .3; } }
+.ds-rec-time { font-family: var(--ds-mono); font-size: 18px; font-variant-numeric: tabular-nums; }
+.ds-kind-transcript { color: var(--ds-mail); }

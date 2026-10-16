@@ -57,6 +57,23 @@ export const listOutbox = (status = 'open') => api.get(`${OUTBOX}?status=${enc(s
 export const updateOutbox = (id, data) => api.patch(`${OUTBOX}/${enc(id)}`, data)
 export const outboxToDossier = (id, dossierId) => api.post(`${OUTBOX}/${enc(id)}/to-dossier`, { dossier_id: dossierId })
 
+export async function uploadRecording(id, blob, filename, title, consent) {
+  const form = new FormData()
+  form.append('audio', blob, filename)
+  if (title) form.append('title', title)
+  form.append('consent', consent ? 'true' : 'false')
+  const path = `${BASE}/${enc(id)}/recordings`
+  const res = await fetch(path, { method: 'POST', headers: authHeader(), body: form })
+  if (!res.ok) {
+    let detail = 'Saving the recording failed'
+    try { detail = (await res.json()).detail || detail } catch { /* geen JSON */ }
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export const retryTranscription = (entryId) => api.post(`${BASE}/entries/${enc(entryId)}/transcribe`, {})
+
 export async function downloadEntry(entry) {
   const res = await fetch(`${BASE}/entries/${enc(entry.id)}/download`, { headers: authHeader() })
   if (!res.ok) throw new Error('Download failed')

@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 from sqlmodel import Session
@@ -15,6 +15,7 @@ from models.core import User
 import services.dossier_export as export_svc
 import services.dossier_files as files
 import services.dossier_outbox as outbox_svc
+import services.dossier_transcripts as transcripts
 import services.dossiers as svc
 
 router = APIRouter(prefix="/api/dossiers", tags=["dossiers"])
@@ -101,6 +102,12 @@ def check_refs_all(body: RefsIn, session: Session = Depends(get_session), user: 
     return result
 
 
+@router.get("/transcription")
+def transcription_status(_: User = Depends(get_current_user)):
+    """Of gespreksopnames uitgeschreven kunnen worden (Whisper-dienst geconfigureerd)."""
+    return {"enabled": transcripts.whisper_enabled()}
+
+
 @router.get("/search")
 def search(q: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     return [
@@ -174,6 +181,32 @@ async def upload(
     log_action(session, "dossiers.upload", site="dossiers", user_id=user.id,
                payload={"dossier_id": dossier_id, "files": [r.get("original_filename") for r in results]})
     return results
+
+
+@router.post("/{dossier_id}/recordings", status_code=201)
+async def add_recording(
+    dossier_id: str, background_tasks: BackgroundTasks,
+    audio: UploadFile = File(...), title: Optional[str] = Form(None), consent: bool = Form(False),
+    session: Session = Depends(get_session), user: User = Depends(get_current_user),
+):
+    """Gespreksopname opslaan; uitschrijven gebeurt op de achtergrond (Whisper op G4)."""
+    entry = transcripts.save_recording(
+        session, user, dossier_id, audio.filename, await audio.read(), audio.content_type, title, consent,
+    )
+    if entry.processing == "queued":
+        background_tasks.add_task(transcripts.transcribe, entry.id)
+    log_action(session, "dossiers.recording", site="dossiers", user_id=user.id, payload={"entry_id": entry.id})
+    return svc.entry_to_dict(entry)
+
+
+@router.post("/entries/{entry_id}/transcribe")
+def retry_transcription(
+    entry_id: str, background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session), user: User = Depends(get_current_user),
+):
+    entry = transcripts.requeue(session, user, entry_id)
+    background_tasks.add_task(transcripts.transcribe, entry.id)
+    return svc.entry_to_dict(entry)
 
 
 @router.put("/entries/{entry_id}/file")
