@@ -45,6 +45,18 @@ export async function uploadFiles(id, files) {
   return res.json()
 }
 
+// HTML-pagina (kind page) ophalen als blob-URL, voor de afgeschermde viewer.
+export async function pageUrl(entry) {
+  const res = await fetch(`${BASE}/entries/${enc(entry.id)}/download`, { headers: authHeader() })
+  if (!res.ok) throw new Error('Could not load the page')
+  return URL.createObjectURL(new Blob([await res.text()], { type: 'text/html' }))
+}
+
+const OUTBOX = '/api/dossier-outbox'
+export const listOutbox = (status = 'open') => api.get(`${OUTBOX}?status=${enc(status)}`)
+export const updateOutbox = (id, data) => api.patch(`${OUTBOX}/${enc(id)}`, data)
+export const outboxToDossier = (id, dossierId) => api.post(`${OUTBOX}/${enc(id)}/to-dossier`, { dossier_id: dossierId })
+
 export async function downloadEntry(entry) {
   const res = await fetch(`${BASE}/entries/${enc(entry.id)}/download`, { headers: authHeader() })
   if (!res.ok) throw new Error('Download failed')

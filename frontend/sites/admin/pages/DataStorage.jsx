@@ -76,6 +76,7 @@ const DB_GLOBAL_ROWS = [
   { label: 'dimension, phase, title, done, notes',         where: 'keelson_checks',   note: 'Keelson — checklists opzetten/onderhouden/doorontwikkelen' },
   { label: 'name, slug, summary, mail_criteria, status',     where: 'dossiers',         note: 'Dossiers — één dossier per vraagstuk, per gebruiker' },
   { label: 'kind, title, body, file, external_ref, review, pinned', where: 'dossier_entries', note: 'Dossiers — stukken, notities, links en mailvoorstellen (review proposed/rejected); bestanden onder uploads/dossiers/' },
+  { label: 'title, summary, sender_role, value, urgency, action, draft_reply, status', where: 'dossier_outbox', note: 'Dossiers — Outbox: mail zonder dossier die actie vraagt, met inschatting en conceptantwoord (geen originele tekst)' },
 ];
 
 const LS_ROWS = [

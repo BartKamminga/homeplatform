@@ -14,6 +14,7 @@ from core.logging import log_action
 from models.core import User
 import services.dossier_export as export_svc
 import services.dossier_files as files
+import services.dossier_outbox as outbox_svc
 import services.dossiers as svc
 
 router = APIRouter(prefix="/api/dossiers", tags=["dossiers"])
@@ -93,7 +94,11 @@ def inbox(session: Session = Depends(get_session), user: User = Depends(get_curr
 
 @router.post("/refs/check")
 def check_refs_all(body: RefsIn, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
-    return svc.check_refs_all(session, user, body.refs)
+    """Over alle dossiers én de outbox: per sleutel None (nieuw) of waar hij al staat."""
+    result = svc.check_refs_all(session, user, body.refs)
+    for ref, status in outbox_svc.refs_in_outbox(session, user, body.refs).items():
+        result[ref] = result[ref] or {"dossier": "Outbox", "slug": "outbox", "state": status}
+    return result
 
 
 @router.get("/search")
@@ -151,7 +156,7 @@ def check_refs(
 
 @router.post("/{dossier_id}/upload", status_code=201)
 async def upload(
-    dossier_id: str, uploads: list[UploadFile] = File(...),
+    dossier_id: str, uploads: list[UploadFile] = File(...), kind: Optional[str] = None,
     session: Session = Depends(get_session), user: User = Depends(get_current_user),
 ):
     """Meerdere bestanden tegelijk; per bestand een resultaat (een fout bij één
@@ -161,7 +166,7 @@ async def upload(
         content = await upload_file.read()
         try:
             entry, created = files.save_file(
-                session, user, dossier_id, upload_file.filename, content, upload_file.content_type,
+                session, user, dossier_id, upload_file.filename, content, upload_file.content_type, kind=kind,
             )
             results.append({**svc.entry_to_dict(entry), "created": created})
         except AppError as err:
@@ -169,6 +174,16 @@ async def upload(
     log_action(session, "dossiers.upload", site="dossiers", user_id=user.id,
                payload={"dossier_id": dossier_id, "files": [r.get("original_filename") for r in results]})
     return results
+
+
+@router.put("/entries/{entry_id}/file")
+async def replace_file(
+    entry_id: str, upload: UploadFile = File(...),
+    session: Session = Depends(get_session), user: User = Depends(get_current_user),
+):
+    """Nieuwe versie van een bestaand stuk (bv. een bijgewerkte HTML-pagina), zelfde link en plek."""
+    entry = files.replace_file(session, user, entry_id, upload.filename, await upload.read(), upload.content_type)
+    return svc.entry_to_dict(entry)
 
 
 @router.patch("/entries/{entry_id}")

@@ -55,3 +55,27 @@ class DossierEntry(SQLModel, table=True):
     pinned:            bool     = Field(default=False)
     created_at:        datetime = Field(default_factory=datetime.utcnow)
     updated_at:        datetime = Field(default_factory=datetime.utcnow)
+
+
+class OutboxItem(SQLModel, table=True):
+    """Outbox (item 1355): mail zonder dossier die actie vraagt. Claude schat waarde en
+    urgentie in en bereidt een antwoord voor; Bart kopieert het concept zelf naar Outlook
+    (Outlook blijft voor Claude alleen-lezen). Alleen samenvattingen, geen originele tekst."""
+    __tablename__ = "dossier_outbox"
+
+    id:           str      = Field(default_factory=new_uuid, primary_key=True)
+    user_id:      str      = Field(foreign_key="users.id", index=True)
+    title:        str                                   # onderwerp
+    summary:      Optional[str] = Field(default=None)   # samenvatting in eigen woorden
+    sender_role:  Optional[str] = Field(default=None)   # afzender als rol/organisatie, geen naam
+    received_at:  Optional[datetime] = Field(default=None)
+    value:        str      = Field(default="medium")    # high | medium | low
+    urgency:      str      = Field(default="week")      # today | week | later | none
+    action:       str      = Field(default="reply")     # reply | read | forward | none
+    draft_reply:  Optional[str] = Field(default=None)
+    reason:       Optional[str] = Field(default=None)   # onderbouwing van waarde/urgentie
+    source_url:   Optional[str] = Field(default=None)
+    external_ref: Optional[str] = Field(default=None, index=True)
+    status:       str      = Field(default="open")      # open | done | dismissed
+    created_at:   datetime = Field(default_factory=datetime.utcnow)
+    updated_at:   datetime = Field(default_factory=datetime.utcnow)

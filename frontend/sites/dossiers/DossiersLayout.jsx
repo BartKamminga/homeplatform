@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getInbox } from './api.js'
+import { getInbox, listOutbox } from './api.js'
 import DossierListPage from './pages/DossierListPage.jsx'
 import DossierPage from './pages/DossierPage.jsx'
 import InboxPage from './pages/InboxPage.jsx'
+import OutboxPage from './pages/OutboxPage.jsx'
 
-// Routes live in the hash: #  (list)  ·  #inbox  ·  #d/<slug>  (one dossier)
+// Routes live in the hash: #  (list)  ·  #inbox  ·  #outbox  ·  #d/<slug>  (one dossier)
 function readRoute() {
   const [view, slug] = window.location.hash.slice(1).split('/')
   if (view === 'd' && slug) return { view: 'dossier', slug: decodeURIComponent(slug) }
-  return { view: view === 'inbox' ? 'inbox' : 'list', slug: null }
+  return { view: ['inbox', 'outbox'].includes(view) ? view : 'list', slug: null }
 }
 
 export default function DossiersLayout() {
   const [route, setRoute] = useState(readRoute)
   const [pending, setPending] = useState(0)
+  const [outbox, setOutbox] = useState(0)
 
   const refreshPending = useCallback(() => {
     getInbox().then((b) => setPending(b.dossiers.length + b.entries.length)).catch(() => {})
+    listOutbox('open').then((l) => setOutbox(l.length)).catch(() => {})
   }, [])
   useEffect(() => { refreshPending() }, [refreshPending, route])
 
@@ -27,7 +30,7 @@ export default function DossiersLayout() {
   }, [])
 
   const open = (slug) => { window.location.hash = slug ? `d/${encodeURIComponent(slug)}` : '' }
-  const go = (view) => { window.location.hash = view === 'inbox' ? 'inbox' : '' }
+  const go = (view) => { window.location.hash = view === 'list' ? '' : view }
 
   return (
     <div className="ds">
@@ -39,9 +42,12 @@ export default function DossiersLayout() {
           Dossiers
         </a>
         <nav className="ds-tabs" aria-label="Sections">
-          <button type="button" aria-pressed={route.view !== 'inbox'} onClick={() => go('list')}>Dossiers</button>
+          <button type="button" aria-pressed={route.view === 'list' || route.view === 'dossier'} onClick={() => go('list')}>Dossiers</button>
           <button type="button" aria-pressed={route.view === 'inbox'} onClick={() => go('inbox')}>
             Inbox{pending > 0 && <span className="ds-badge">{pending}</span>}
+          </button>
+          <button type="button" aria-pressed={route.view === 'outbox'} onClick={() => go('outbox')}>
+            Outbox{outbox > 0 && <span className="ds-badge">{outbox}</span>}
           </button>
         </nav>
         <span className="ds-spacer" />
@@ -50,6 +56,7 @@ export default function DossiersLayout() {
       <main className="ds-main">
         {route.view === 'dossier' && <DossierPage key={route.slug} slug={route.slug} onBack={() => open(null)} />}
         {route.view === 'inbox' && <InboxPage onOpen={open} onChanged={setPending} />}
+        {route.view === 'outbox' && <OutboxPage onChanged={setOutbox} />}
         {route.view === 'list' && <DossierListPage onOpen={open} />}
       </main>
     </div>

@@ -86,6 +86,7 @@ export default function AddPanel({ dossier, onAdded }) {
           <div className="ds-row">
             <select id="text-kind" className="ds-input" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
               <option value="note">Note</option>
+              <option value="idea">Idea</option>
               <option value="mail">Mail (pasted)</option>
               <option value="session">Session note</option>
             </select>

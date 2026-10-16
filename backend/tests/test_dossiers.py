@@ -187,3 +187,46 @@ def test_proposed_dossier_inbox_global_refs_and_move(client, user_token):
 
     accepted = client.patch(f"/api/dossiers/{proposed['id']}", json={"status": "active"}, headers=_h(user_token)).json()
     assert accepted["status"] == "active" and client.get("/api/dossiers/inbox", headers=_h(user_token)).json()["dossiers"] == []
+
+
+def test_html_page_upload_title_and_replace(client, user_token):
+    dossier = _dossier(client, user_token)
+    html = b"<!doctype html><title>LCMS Koers</title><h1>Tijdlijn</h1><p>Hosting Q1 2027</p>"
+    res = client.post(f"/api/dossiers/{dossier['id']}/upload?kind=page",
+                      files=[("uploads", ("koers.html", io.BytesIO(html), "text/html"))], headers=_h(user_token))
+    page = res.json()[0]
+    assert page["kind"] == "page" and page["title"] == "LCMS Koers" and "Hosting Q1 2027" in page["body"]
+    bad = client.post(f"/api/dossiers/{dossier['id']}/upload?kind=page",
+                      files=[("uploads", ("x.md", io.BytesIO(b"x"), "text/markdown"))], headers=_h(user_token)).json()[0]
+    assert "error" in bad
+
+    new = b"<!doctype html><title>LCMS Koers</title><p>Versie 2: Plot naar GEO</p>"
+    replaced = client.put(f"/api/dossiers/entries/{page['id']}/file",
+                          files={"upload": ("koers.html", io.BytesIO(new), "text/html")}, headers=_h(user_token)).json()
+    assert replaced["id"] == page["id"] and "Versie 2" in replaced["body"]
+    assert client.get(f"/api/dossiers/entries/{page['id']}/download", headers=_h(user_token)).content == new
+
+
+def test_outbox_sorting_dedup_refs_and_move(client, user_token):
+    dossier = _dossier(client, user_token)
+    base = "/api/dossier-outbox"
+    low = {"title": "Nieuwsbericht", "value": "low", "urgency": "later", "action": "read", "external_ref": "o-1"}
+    hot = {"title": "Vraag directie", "value": "high", "urgency": "today", "action": "reply",
+           "draft_reply": "Concept: ik kom er vandaag op terug.", "sender_role": "directie", "external_ref": "o-2"}
+    client.post(base, json=low, headers=_h(user_token))
+    first = client.post(base, json=hot, headers=_h(user_token)).json()
+    assert client.post(base, json=hot, headers=_h(user_token)).json()["created"] is False
+    assert client.post(base, json={"title": "x", "urgency": "nu"}, headers=_h(user_token)).status_code == 400
+
+    items = client.get(base, headers=_h(user_token)).json()
+    assert [i["title"] for i in items] == ["Vraag directie", "Nieuwsbericht"]
+    refs = client.post("/api/dossiers/refs/check", json={"refs": ["o-2", "o-9"]}, headers=_h(user_token)).json()
+    assert refs == {"o-2": {"dossier": "Outbox", "slug": "outbox", "state": "open"}, "o-9": None}
+
+    moved = client.post(f"{base}/{first['id']}/to-dossier", json={"dossier_id": dossier["slug"]}, headers=_h(user_token)).json()
+    assert moved["status"] == "done"
+    entries = client.get(f"/api/dossiers/{dossier['id']}/entries", headers=_h(user_token)).json()
+    assert entries[0]["title"] == "Vraag directie" and "directie" in entries[0]["body"]
+    assert [i["title"] for i in client.get(base, headers=_h(user_token)).json()] == ["Nieuwsbericht"]
+    done = client.patch(f"{base}/{items[1]['id']}", json={"status": "dismissed"}, headers=_h(user_token)).json()
+    assert done["status"] == "dismissed" and client.get(base, headers=_h(user_token)).json() == []

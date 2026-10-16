@@ -57,7 +57,13 @@ Used when the instruction says "for all dossiers" (the Inbox page of the site). 
 5. Group the remaining mails by topic. A topic that fits an existing dossier → that dossier. A topic without a dossier
    and with real substance (a decision, a project, a question that returns) → create a suggested dossier:
    `.\Dossier.ps1 -Create -Name "<short topic name>" -Proposed -Criteria "<search terms, senders as role, folders>"`.
-   One-off mails that fit nowhere and are not worth a dossier: leave them out (they are for the coming Outbox).
+   One-off mails that fit nowhere: if they need action (an answer, a decision, reading something important), put them
+   in the **Outbox** with your assessment and a draft reply; otherwise leave them out.
+   - value `high|medium|low` (how much it matters for Bart's work), urgency `today|week|later|none`,
+     action `reply|read|forward|none`, a one-line `-Reason` for the assessment.
+   - Draft reply in Dutch unless the mail is in English, in Bart's tone (short, friendly, concrete), as a .md file.
+   - `.\Dossier.ps1 -AddOutbox -Title "<subject>" -Date "<sent, ISO>" -Ref <key> -FilePath <summary.md> -Value high -Urgency today -Action reply -DraftFile <draft.md> -Sender "<role>" -Reason "<why>"`
+   - Never put the draft in Outlook and never send anything: Bart copies the draft himself.
 6. Add each mail as a proposal (`-AddMail` without `-Direct`, summary only, `-Reason` = why it belongs there).
 7. Close with a session note "Mail round (all dossiers)" on every dossier you touched, listing period and counts,
    and tell Bart: n mails proposed in n dossiers, n new dossiers suggested; review them on the Inbox page.

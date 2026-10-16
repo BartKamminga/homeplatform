@@ -10,6 +10,11 @@
 #   .\Dossier.ps1 -AddNote -Name <dossier> -Title "..." -Text "..." [-Kind note|session|link] [-Url <url>]
 #   .\Dossier.ps1 -AddNote -Name <dossier> -Title "..." -FilePath notitie.md -Kind session   # sessienotitie uit bestand
 #   .\Dossier.ps1 -Upload -Name <dossier> -FilePath <pad>         # bestand (mail/pdf/...) met automatische tekstextractie
+#   .\Dossier.ps1 -AddPage -Name <dossier> -FilePath koers.html    # HTML-uitwerking; bestaande pagina met dezelfde <title> wordt vervangen
+#   .\Dossier.ps1 -AddNote -Name <dossier> -Kind idea -Title "..." -Text "..."   # idee
+#   .\Dossier.ps1 -AddOutbox -Title <onderwerp> -Date <iso> -Ref <ref> -FilePath samenvatting.md -Value high|medium|low `
+#                 -Urgency today|week|later|none -Action reply|read|forward|none [-DraftFile concept.md] [-Sender "rol"] [-Reason "..."] [-Url ...]
+#   .\Dossier.ps1 -Outbox                                          # open outbox-items (urgentie, waarde, titel)
 #   .\Dossier.ps1 -SetSummary -Name <dossier> -FilePath stand.md   # "stand van zaken" vervangen
 #   .\Dossier.ps1 -SetCriteria -Name <dossier> -Text "..."         # zoekcriteria voor de mailronde
 #   .\Dossier.ps1 -MailRef -Subject "..." -Date "2026-10-15T09:12" -From "afdeling@org.nl"   # stabiele sleutel per mail
@@ -26,14 +31,14 @@
 param(
     [switch]$Setup, [switch]$List, [switch]$Create, [switch]$Get, [switch]$AddNote, [switch]$Upload,
     [switch]$SetSummary, [switch]$SetCriteria, [switch]$MailRef, [switch]$CheckRefs, [switch]$AddMail,
-    [switch]$Direct, [switch]$Proposed, [switch]$Inbox,
+    [switch]$Direct, [switch]$Proposed, [switch]$Inbox, [switch]$AddPage, [switch]$AddOutbox, [switch]$Outbox,
     [ValidateSet("prod", "acc", "local")]
     [string]$Env      = "prod",
     [string]$Name     = "",
     [string]$Title    = "",
     [string]$Text     = "",
     [string]$FilePath = "",
-    [ValidateSet("note", "session", "link", "mail", "document")]
+    [ValidateSet("note", "session", "link", "mail", "document", "idea")]
     [string]$Kind     = "note",
     [string]$Url      = "",
     [string]$Date     = "",
@@ -42,7 +47,15 @@ param(
     [string]$Reason   = "",
     [string]$Subject  = "",
     [string]$From     = "",
-    [string]$Criteria = ""
+    [string]$Criteria = "",
+    [ValidateSet("high", "medium", "low")]
+    [string]$Value    = "medium",
+    [ValidateSet("today", "week", "later", "none")]
+    [string]$Urgency  = "week",
+    [ValidateSet("reply", "read", "forward", "none")]
+    [string]$Action   = "reply",
+    [string]$DraftFile = "",
+    [string]$Sender   = ""
 )
 
 $DefaultApiBase = @{
@@ -147,6 +160,27 @@ if ($Inbox) {
     exit 0
 }
 
+if ($Outbox) {
+    $items = @(Invoke-Api GET "/dossier-outbox" | ForEach-Object { $_ })
+    if (-not $items.Count) { Write-Host "Outbox is leeg."; exit 0 }
+    foreach ($i in $items) { Write-Host ("{0,-6} {1,-7} {2,-8} {3}" -f $i.urgency, $i.value, $i.action, $i.title) }
+    exit 0
+}
+
+if ($AddOutbox) {
+    if (-not $Title -or -not $Ref) { Write-Host "Geef -Title en -Ref op (maak -Ref met -MailRef)"; exit 1 }
+    $body = @{ title = $Title; summary = (Read-TextArg); external_ref = $Ref; value = $Value; urgency = $Urgency; action = $Action }
+    if ($Date) { $body.received_at = $Date }
+    if ($Sender) { $body.sender_role = $Sender }
+    if ($Reason) { $body.reason = $Reason }
+    if ($Url) { $body.source_url = $Url }
+    if ($DraftFile) { $body.draft_reply = [System.IO.File]::ReadAllText((Resolve-Path $DraftFile), [System.Text.Encoding]::UTF8) }
+    $o = Invoke-Api POST "/dossier-outbox" $body
+    if ($o.created -eq $false) { Write-Host "[--] '$($o.title)' stond al in de outbox ($($o.status))" }
+    else { Write-Host "[OK] Outbox: '$($o.title)' ($($o.urgency), $($o.value))" }
+    exit 0
+}
+
 if ($CheckRefs -and -not $Name) {
     $refList = @($Refs -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     if (-not $refList.Count) { Write-Host "Geef -Refs op (komma-gescheiden)"; exit 1 }
@@ -197,6 +231,28 @@ if ($Upload) {
     exit 0
 }
 
+if ($AddPage) {
+    if (-not $FilePath -or -not (Test-Path $FilePath) -or [IO.Path]::GetExtension($FilePath) -ne ".html") { Write-Host "Geef een bestaand .html -FilePath op"; exit 1 }
+    $full = (Resolve-Path $FilePath).Path
+    $html = [System.IO.File]::ReadAllText($full, [System.Text.Encoding]::UTF8)
+    $m = [regex]::Match($html, '<title[^>]*>(.*?)</title>', 'IgnoreCase,Singleline')
+    $pageTitle = if ($m.Success) { $m.Groups[1].Value.Trim() } else { [IO.Path]::GetFileNameWithoutExtension($full) }
+    $pages = @(Invoke-Api GET "/dossiers/$($dossier.id)/entries?kind=page" | ForEach-Object { $_ })
+    $existing = $pages | Where-Object { $_.title -eq $pageTitle } | Select-Object -First 1
+    if ($existing) {
+        $raw = & curl.exe -s -X PUT -H "Authorization: Bearer $HP_API_KEY" -F "upload=@$full;type=text/html" "$HP_API_BASE/dossiers/entries/$($existing.id)/file"
+        $r = $raw | ConvertFrom-Json
+        if ($r.id) { Write-Host "[OK] Pagina '$pageTitle' vervangen (nieuwe versie)" } else { Write-Host "[FOUT] Vervangen mislukt: $raw"; exit 1 }
+    } else {
+        $raw = & curl.exe -s -H "Authorization: Bearer $HP_API_KEY" -F "uploads=@$full;type=text/html" "$HP_API_BASE/dossiers/$($dossier.id)/upload?kind=page"
+        $r = @($raw | ConvertFrom-Json | ForEach-Object { $_ })[0]
+        if ($r.error) { Write-Host "[FOUT] $($r.error)"; exit 1 }
+        elseif ($r.created -eq $false) { Write-Host "[--] Deze pagina stond er al (zelfde inhoud)" }
+        else { Write-Host "[OK] Pagina '$($r.title)' toegevoegd" }
+    }
+    exit 0
+}
+
 if ($SetSummary) {
     $d = Invoke-Api PATCH "/dossiers/$($dossier.id)" @{ summary = (Read-TextArg) }
     Write-Host "[OK] Stand van zaken bijgewerkt voor '$($d.name)'"; exit 0
@@ -229,4 +285,4 @@ if ($AddMail) {
     exit 0
 }
 
-Write-Host "Gebruik: .\Dossier.ps1 -Setup | -List | -Inbox | -Create | -Get | -AddNote | -Upload | -SetSummary | -SetCriteria | -MailRef | -CheckRefs | -AddMail  (zie kop van dit bestand)"
+Write-Host "Gebruik: .\Dossier.ps1 -Setup | -List | -Inbox | -Outbox | -AddOutbox | -AddPage | -Create | -Get | -AddNote | -Upload | -SetSummary | -SetCriteria | -MailRef | -CheckRefs | -AddMail  (zie kop van dit bestand)"

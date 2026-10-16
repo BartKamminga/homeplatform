@@ -153,3 +153,16 @@ textarea.ds-input { resize: vertical; }
 .ds-card-static:hover { border-color: var(--ds-line); }
 .ds-move { width: auto; max-width: 200px; font-size: 13px; padding: 5px 8px; }
 @media (max-width: 560px) { .ds-proposal-actions { flex-wrap: wrap; } .ds-move { max-width: 100%; } }
+
+.ds-page-card { border-left: 3px solid var(--ds-document); }
+.ds-ideas { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.ds-viewer { position: fixed; inset: 0; z-index: 10000; background: var(--ds-bg); display: flex; flex-direction: column; }
+.ds-viewer-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); background: var(--ds-surface); border-bottom: 1px solid var(--ds-line); }
+.ds-viewer-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.ds-chip { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--ds-line); color: var(--ds-muted); white-space: nowrap; }
+.ds-chip-today { color: #fff; background: var(--ds-attention); border-color: var(--ds-attention); }
+.ds-chip-week { color: var(--ds-attention); border-color: var(--ds-attention); }
+.ds-outbox.ds-urgency-today { border-left: 3px solid var(--ds-attention); }
+.ds-entry-title-static { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ds-kind-page { color: var(--ds-document); }
+.ds-kind-idea { color: var(--ds-attention); }

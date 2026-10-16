@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { deleteEntry, downloadEntry, listEntries, updateEntry } from '../api.js'
 import { formatDate, formatSize, KIND_LABELS } from '../format.js'
+import PageViewer from './PageViewer.jsx'
 
-const FILTERS = [['', 'All'], ['mail', 'Mail'], ['document', 'Documents'], ['note', 'Notes'], ['link', 'Links'], ['session', 'Sessions']]
+const FILTERS = [['', 'All'], ['page', 'Pages'], ['idea', 'Ideas'], ['mail', 'Mail'], ['document', 'Documents'], ['note', 'Notes'], ['link', 'Links'], ['session', 'Sessions']]
 
 export default function EntryList({ dossier, version, onChanged }) {
   const [entries, setEntries] = useState(null)
@@ -10,6 +11,7 @@ export default function EntryList({ dossier, version, onChanged }) {
   const [kind, setKind] = useState('')
   const [open, setOpen] = useState(() => new Set())
   const [confirmId, setConfirmId] = useState(null)
+  const [viewing, setViewing] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export default function EntryList({ dossier, version, onChanged }) {
                 </div>
               )}
               <div className="ds-entry-actions">
+                {entry.kind === 'page' && <button type="button" className="ds-btn ds-btn-small ds-btn-primary" onClick={() => setViewing(entry)}>Open page</button>}
                 {entry.has_file && <button type="button" className="ds-btn ds-btn-small" onClick={() => downloadEntry(entry).catch((e) => setError(e.message))}>Download{entry.size_bytes ? ` (${formatSize(entry.size_bytes)})` : ''}</button>}
                 <button type="button" className="ds-btn ds-btn-small" onClick={() => togglePin(entry)}>{entry.pinned ? 'Unpin' : 'Pin'}</button>
                 {confirmId === entry.id ? (
@@ -96,6 +99,7 @@ export default function EntryList({ dossier, version, onChanged }) {
           ))}
         </ol>
       )}
+      {viewing && <PageViewer entry={viewing} onClose={() => setViewing(null)} />}
     </section>
   )
 }

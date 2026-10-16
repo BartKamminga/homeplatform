@@ -1,7 +1,9 @@
 """Bestanden in dossiers (item 1355): upload met automatische tekstextractie,
 bijlagen van mails als eigen entries, download en opruimen."""
 import hashlib
+import re
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -52,7 +54,7 @@ def _clean_name(filename: str) -> str:
 
 def save_file(
     session: Session, user: User, dossier_id: str, filename: str, content: bytes,
-    content_type: str | None, parent_entry_id: str | None = None,
+    content_type: str | None, parent_entry_id: str | None = None, kind: str | None = None,
 ) -> tuple[DossierEntry, bool]:
     """(entry, created). Hetzelfde bestand (hash) in hetzelfde dossier wordt niet
     opnieuw opgeslagen: (bestaande entry, False)."""
@@ -71,16 +73,14 @@ def save_file(
     if existing:
         return existing, False
 
-    if ext in TEXT_EXTENSIONS:
-        body = content.decode("utf-8", errors="replace")
-        attachments, subject = [], None
-    else:
-        body, _preview, attachments, subject = text_extract.auto_extract(ext, content)
+    if kind is not None and (kind != "page" or ext != ".html"):
+        raise AppError("Only .html files can be added as a page")
+    body, attachments, subject = _extract(ext, content)
 
     entry = DossierEntry(
         dossier_id=dossier.id, user_id=user.id,
-        kind="mail" if ext in MAIL_EXTENSIONS else "document",
-        title=(subject or Path(filename).stem).strip() or filename,
+        kind=kind or ("mail" if ext in MAIL_EXTENSIONS else "document"),
+        title=(subject or _html_title(ext, content) or Path(filename).stem).strip() or filename,
         body=body, file_path=_write(user.id, ext, content), original_filename=filename,
         content_type=content_type, size_bytes=len(content), content_hash=content_hash,
         parent_entry_id=parent_entry_id,
@@ -97,6 +97,49 @@ def save_file(
     touch(session, dossier)
     session.refresh(entry)
     return entry, True
+
+
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+
+
+def _html_title(ext: str, content: bytes) -> str | None:
+    if ext != ".html":
+        return None
+    match = _TITLE_RE.search(content[:20000].decode("utf-8", errors="replace"))
+    return match.group(1).strip() if match else None
+
+
+def _extract(ext: str, content: bytes) -> tuple[str | None, list, str | None]:
+    """(doorzoekbare tekst, bijlagen, mail-onderwerp)."""
+    if ext in TEXT_EXTENSIONS:
+        return content.decode("utf-8", errors="replace"), [], None
+    if ext == ".html":
+        return text_extract.html_to_text(content.decode("utf-8", errors="replace")), [], None
+    body, _preview, attachments, subject = text_extract.auto_extract(ext, content)
+    return body, attachments, subject
+
+
+def replace_file(
+    session: Session, user: User, entry_id: str, filename: str, content: bytes, content_type: str | None,
+) -> DossierEntry:
+    """Vervangt het bestand van een bestaand stuk; tekst opnieuw geëxtraheerd, bijlagen ongemoeid."""
+    entry = get_entry(session, user, entry_id)
+    ext = Path(_clean_name(filename)).suffix.lower()
+    if not entry.file_path or Path(entry.file_path).suffix.lower() != ext:
+        raise AppError("Replace a file with a file of the same type")
+    if len(content) > MAX_SIZE_MB * 1024 * 1024:
+        raise AppError(f"File is larger than {MAX_SIZE_MB} MB", status_code=413)
+    remove_file(entry)
+    entry.file_path = _write(user.id, ext, content)
+    entry.body, _attachments, _subject = _extract(ext, content)
+    entry.size_bytes = len(content)
+    entry.content_hash = hashlib.sha256(content).hexdigest()
+    entry.content_type = content_type or entry.content_type
+    entry.updated_at = datetime.utcnow()
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
 
 
 def file_for_download(session: Session, user: User, entry_id: str) -> tuple[Path, DossierEntry]:

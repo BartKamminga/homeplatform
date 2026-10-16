@@ -4,6 +4,7 @@ import SummaryPanel from '../components/SummaryPanel.jsx'
 import AddPanel from '../components/AddPanel.jsx'
 import ProposalsPanel from '../components/ProposalsPanel.jsx'
 import EntryList from '../components/EntryList.jsx'
+import OutputsPanel from '../components/OutputsPanel.jsx'
 
 export default function DossierPage({ slug, onBack }) {
   const [dossier, setDossier] = useState(null)
@@ -29,6 +30,7 @@ export default function DossierPage({ slug, onBack }) {
     <div className="ds-page">
       <button type="button" className="ds-link ds-back" onClick={onBack}>← All dossiers</button>
       <SummaryPanel dossier={dossier} onSaved={setDossier} />
+      <OutputsPanel dossier={dossier} version={version} />
       {proposals.length > 0 && <ProposalsPanel proposals={proposals} onChanged={reload} />}
       <AddPanel dossier={dossier} onAdded={reload} />
       <EntryList dossier={dossier} version={version} onChanged={reload} />

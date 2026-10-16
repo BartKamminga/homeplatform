@@ -9,7 +9,8 @@ from core.exceptions import AppError
 from models.core import User
 from models.dossiers import Dossier, DossierEntry
 
-KINDS = {"note", "mail", "document", "link", "session"}
+# page = HTML-uitwerking (analyse, tijdlijn, kaart) die op de site als pagina te openen is.
+KINDS = {"note", "mail", "document", "link", "session", "page", "idea"}
 # proposed = door Claude aangemaakt in een mailronde; Bart accepteert (active) of wijst af (archived) in de Inbox.
 STATUSES = {"active", "archived", "proposed"}
 REVIEW_PROPOSED = "proposed"
