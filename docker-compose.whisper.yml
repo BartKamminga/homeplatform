@@ -1,0 +1,28 @@
+# docker-compose.whisper.yml - Whisper (spraak naar tekst voor Dossiers, item 1355) op G4, poort 8095.
+# Los van de app-stacks, zodat prod (g5) en acc (G4) er allebei gebruik van maken zonder rekenlast op g5.
+# Start op G4 vanuit /home/bart/homeplatform-repo-acc, met WHISPER_TOKEN in /home/bart/whisper.env (600):
+#   docker compose -p whisper -f docker-compose.whisper.yml --env-file /home/bart/whisper.env up -d --build
+# Dezelfde token staat als GitHub-secret WHISPER_TOKEN en komt via deploy.yml in de .env van beide backends.
+
+services:
+  whisper:
+    build:
+      context: ./docker/whisper
+    container_name: whisper
+    restart: unless-stopped
+    ports:
+      - "8095:8095"
+    environment:
+      - WHISPER_TOKEN=${WHISPER_TOKEN:?WHISPER_TOKEN niet gezet}
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - WHISPER_THREADS=${WHISPER_THREADS:-3}
+    volumes:
+      - whisper_models:/models
+    deploy:
+      resources:
+        limits:
+          cpus: "3"
+          memory: 3g
+
+volumes:
+  whisper_models:

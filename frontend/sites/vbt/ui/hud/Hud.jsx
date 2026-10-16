@@ -77,7 +77,7 @@ export default function Hud() {
   return (
     <div id="hud">
       <section className="panel power">
-        <label>POWER <span id="zoneName" className="chip">{h.zone}</span>
+        <label>POWER <span id="zoneName" className="chip" style={{ background: h.zoneColor }}>{h.zone}</span>
           <Chip id="chipTrainer" status={h.chips.trainer}>KICKR</Chip><Chip id="chipHr" status={h.chips.hr}>&#9829; HR</Chip>
           <Chip id="chipBackup" status={h.chips.backup} title={h.chips.backupTitle}>&#9729; BACKUP</Chip></label>
         <div className="big"><span id="watts" style={{ color: h.zoneColor, textShadow: '0 0 18px ' + h.zoneColor }}>{h.watts}</span><small>W</small></div>
@@ -105,6 +105,7 @@ export default function Hud() {
         <label id="bunchLabel">{h.inBunch ? 'IN THE BUNCH' : h.packGap > 0 ? 'BUNCH AHEAD' : 'BUNCH BEHIND'}</label>
         <div className={'mid ' + (h.inBunch || h.packGap <= 0 ? 'ahead' : 'behind')} id="bunch">{h.inBunch ? h.bunchSaved + ' W SAVED' : Math.round(Math.abs(h.packGap)) + ' M'}</div>
         {h.backup && <><label id="backupLabel">SERVER BACKUP</label><div className={'mid ' + h.backup.cls} id="backup">{h.backup.text}</div></>}
+        {['ride', 'paused'].includes(s.state) && <button id="hudStop" className="ghostbtn danger" onClick={e => { e.currentTarget.blur(); actions().stop() }}>&#9632; END RIDE <em>ESC</em></button>}
       </section>
 
       <section className="panel speedo">

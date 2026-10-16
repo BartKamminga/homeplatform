@@ -6,7 +6,8 @@ SSH key for both: `%USERPROFILE%\.ssh\homeplatform`
   - Repo: `/home/bart/homeplatform-repo` (compose file, scripts and MindBox.ps1 only — no build)
   - Data: `/home/bart/homeplatform/db`, uploads/nas-files on `/mnt/extra-ssd/`
 - **G4 — acceptance + management**: `192.168.30.232`, acc port `8081`, bugsink `:8090`, portainer `:9000`,
-  cockpit `:9091`, sponsordeck `:8082` (mo14.webheaven.nl). Builds the production images.
+  cockpit `:9091`, sponsordeck `:8082` (mo14.webheaven.nl), whisper `:8095` (spraak naar tekst voor Dossiers,
+  `docker-compose.whisper.yml`, token in `/home/bart/whisper.env`; gebruikt door prod én acc). Builds the production images.
   - Repo acc: `/home/bart/homeplatform-repo-acc`, data acc: `/home/bart/homeplatform-acc`
   - The old production repo and data on G4 (`/home/bart/homeplatform-repo`, `/home/bart/homeplatform`) are no longer
     active — clean-up through item 1189. Bugsink still runs from that old repo.

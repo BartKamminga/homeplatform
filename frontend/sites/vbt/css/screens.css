@@ -65,7 +65,9 @@ body.workout .center, body.workout #gapLabel, body.workout #gap { display: none;
 body[data-state="finished"] #finish { display: flex; }
 #finish h2 { margin: 0; font-family: var(--pixel); font-size: 44px; color: var(--yellow); text-shadow: 0 0 24px var(--pink), 6px 6px 0 #2a0750; }
 #finishName { font-size: 14px; letter-spacing: 3px; color: var(--cyan); }
-#finishStats { display: flex; gap: 34px; }
+#finishStats { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 34px; }
+#finishStats .hrverdict, .ridestats .hrverdict { flex-basis: 100%; font-family: var(--pixel); font-size: 8px; letter-spacing: 1px; }
+#finishStats .hrverdict { text-align: center; }
 #finishStats div { display: flex; flex-direction: column; align-items: center; }
 #finishStats b { font-size: 40px; font-weight: 900; }
 #finish .finishbtns { display: flex; gap: 12px; margin-top: 10px; }
@@ -132,7 +134,11 @@ body[data-state="confirm"] #confirm { display: flex; }
   border: 1px solid var(--pink); background: rgba(12,2,32,.92); box-shadow: 0 0 30px rgba(255,46,136,.35); }
 .confirmbox h2 { margin: 0; font-family: var(--pixel); font-size: 30px; color: var(--yellow); text-shadow: 0 0 18px var(--pink); }
 .confirmbox p { margin: 0; font-size: 12px; letter-spacing: 1px; opacity: .85; }
-.confirmbtns { display: flex; gap: 12px; }
+.confirmbtns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.confirmsum { display: flex; flex-direction: column; align-items: center; gap: 4px; font-family: var(--pixel); font-size: 10px; letter-spacing: 2px; color: var(--cyan); }
+.confirmsum b { font-size: 26px; color: #fff; font-variant-numeric: tabular-nums; }
+.pausedbtns { display: flex; gap: 12px; pointer-events: auto; text-shadow: none; }
+#hudStop { margin-top: 12px; pointer-events: auto; font-size: 9px; padding: 7px 10px; }
 .ridebtn em { font-style: normal; font-size: 9px; margin-left: 6px; opacity: .7; }
 
 #backup { font-size: 15px; margin-bottom: 0; }

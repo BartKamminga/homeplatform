@@ -1,9 +1,10 @@
 // PROGRESS: FTP-verloop (uit settings.ftpHistory) en trainingsvolume per week (laatste 12 weken).
-// De trend van vermogens- en hartslagzones over tijd volgt later (eigen roadmap-item).
+// Plus de aerobe trend (EF en watt bij vaste hartslag, item 1351). Zones over tijd volgt later (item 1297).
 import { useEffect, useState } from 'react'
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions, useVbtValue } from '../../hooks/useVbt.js'
 import { parseIso, mondayOf } from '../../common/format.js'
+import AerobicTrend from './AerobicTrend.jsx'
 
 const WEEKS = 12
 
@@ -82,6 +83,7 @@ export default function ProgressSection() {
             Last {WEEKS} weeks: {weeks.reduce((a, w) => a + w.n, 0)} rides · {Math.round(weeks.reduce((a, w) => a + w.min, 0) / 60)} h.</p>
         </>
       )}
+      <AerobicTrend rides={rides} weeks={weeks} />
       <p className="pn-hint">Power and heart-rate zone trends over time are coming next.</p>
     </div>
   )

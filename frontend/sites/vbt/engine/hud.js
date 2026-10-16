@@ -36,11 +36,11 @@ VBT.hud = (function () {
     const T = VBT.track;
     return {
       watts: Math.round(s.watts), zone: zone.name, zoneColor: zone.color,
-      powerFrac: util.clamp(s.watts / (cfg.rider.ftp * 1.6), 0, 1),
+      powerFrac: util.zoneBarFrac(s.watts / cfg.rider.ftp, VBT.zones, 0, 2),
       avg3s: s.avg3s.length ? Math.round(s.avg3s.reduce((a, b) => a + b, 0) / s.avg3s.length) : 0,
       ftp: cfg.rider.ftp,
       hr: Math.round(s.hr), hrZone: hz.name, hrColor: hz.color, hrLabel: hz.label.toUpperCase(), hrMax,
-      hrFrac: util.clamp((s.hr / hrMax - 0.5) / 0.5, 0, 1),
+      hrFrac: util.zoneBarFrac(s.hr / hrMax, VBT.hrZones, 0.5, 1),
       hrAvg: hrHist.length ? Math.round(hrHist.reduce((a, b) => a + b, 0) / hrHist.length) : 0,
       kmh, speedLeds: Math.round(util.clamp(kmh / 60, 0, 1) * 24), cadence: Math.round(s.cadence),
       time: util.formatTime(game.rideTime), km: (game.player.dist / 1000).toFixed(2),

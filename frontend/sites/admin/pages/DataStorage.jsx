@@ -74,6 +74,9 @@ const DB_GLOBAL_ROWS = [
   { label: 'kind, name, status, description, attributes',  where: 'keelson_elements', note: 'Keelson — elementen per dimensie; secrets alleen op naam, nooit de waarde' },
   { label: 'from_id, to_id, verb',                         where: 'keelson_links',    note: 'Keelson — verbanden tussen elementen' },
   { label: 'dimension, phase, title, done, notes',         where: 'keelson_checks',   note: 'Keelson — checklists opzetten/onderhouden/doorontwikkelen' },
+  { label: 'name, slug, summary, mail_criteria, status',     where: 'dossiers',         note: 'Dossiers — één dossier per vraagstuk, per gebruiker' },
+  { label: 'kind, title, body, file, external_ref, review, pinned, processing', where: 'dossier_entries', note: 'Dossiers — stukken, notities, links, pagina’s, gespreksopnames (audio + transcript) en mailvoorstellen; bestanden onder uploads/dossiers/' },
+  { label: 'title, summary, sender_role, value, urgency, action, draft_reply, status', where: 'dossier_outbox', note: 'Dossiers — Outbox: mail zonder dossier die actie vraagt, met inschatting en conceptantwoord (geen originele tekst)' },
 ];
 
 const LS_ROWS = [

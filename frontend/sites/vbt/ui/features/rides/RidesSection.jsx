@@ -1,7 +1,8 @@
 // MY RIDES: alle ritten (ook nog niet gesynchroniseerde), detail met grafiek, pauzes, eventlog,
 // .FIT, CONTINUE RIDE en prullenbak (terugzetten). Als lijst of per week (RidesWeeks).
+// Tijdens een rit alleen-lezen: niets starten, verwijderen of terugzetten (alleen bekijken en .FIT).
 import { useCallback, useEffect, useState } from 'react'
-import { actions } from '../../hooks/useVbt.js'
+import { actions, isRiding, useVbtValue } from '../../hooks/useVbt.js'
 import { fmtDur, fmtDateTime } from '../../common/format.js'
 import RidesWeeks from './RidesWeeks.jsx'
 import RideDetail from './RideDetail.jsx'
@@ -34,6 +35,7 @@ export default function RidesSection() {
   const [items, setItems] = useState([])
   const [selected, setSelected] = useState(null)
   const [ride, setRide] = useState(null)
+  const riding = useVbtValue(s => isRiding(s.state))
 
   const load = useCallback(async (keep) => {
     let list = []
@@ -53,6 +55,7 @@ export default function RidesSection() {
   }, [trash])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { if (riding) setTrash(false) }, [riding])
 
   useEffect(() => {
     if (!selected) { setRide(null); return }
@@ -72,10 +75,11 @@ export default function RidesSection() {
           <button id="ridesWeeks" className={view === 'weeks' ? 'active' : ''} onClick={() => setView('weeks')}>WEEKS</button>
         </span>
       )}
-      {window.VBT.storage.listTrash && <button id="ridesTrash" className="ghostbtn" onClick={() => setTrash(t => !t)}>{trash ? '← BACK TO RIDES' : '\u{1F5D1} TRASH'}</button>}
+      {!riding && window.VBT.storage.listTrash && <button id="ridesTrash" className="ghostbtn" onClick={() => setTrash(t => !t)}>{trash ? '← BACK TO RIDES' : '\u{1F5D1} TRASH'}</button>}
+      {riding && <small className="hint" title="Finish your ride to continue, delete or restore rides">READ-ONLY DURING A RIDE</small>}
     </div>
   )
-  const detail = ride && <RideDetail ride={ride} onDeleted={() => load()} onRestored={id => { setTrash(false); load(id) }} />
+  const detail = ride && <RideDetail ride={ride} readOnly={riding} onDeleted={() => load()} onRestored={id => { setTrash(false); load(id) }} />
 
   // weekweergave: kalender over de volle breedte, detail vast onderaan (zoals MY PLAN)
   if (view === 'weeks' && !trash) {
