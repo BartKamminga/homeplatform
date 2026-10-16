@@ -72,8 +72,9 @@ def _format(result: dict) -> str:
         sec = int(sec or 0)
         return f"{sec // 3600:d}:{sec % 3600 // 60:02d}:{sec % 60:02d}" if sec >= 3600 else f"{sec // 60:02d}:{sec % 60:02d}"
     lines = [f"[{ts(s['start'])}] {s['text']}" for s in result.get("segments", []) if s.get("text")]
-    minutes = round((result.get("duration") or 0) / 60)
-    return f"Transcript ({minutes} min, Whisper)\n\n" + ("\n".join(lines) or result.get("text") or "(no speech found)")
+    seconds = int(result.get("duration") or 0)
+    length = f"{round(seconds / 60)} min" if seconds >= 90 else f"{seconds} s"
+    return f"Transcript ({length}, Whisper)\n\n" + ("\n".join(lines) or result.get("text") or "(no speech found)")
 
 
 def transcribe(entry_id: str) -> None:
