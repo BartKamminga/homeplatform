@@ -30,7 +30,7 @@ export default function WorkoutsSection() {
   const groups = useMemo(() => {
     const ws = workouts.filter(w => match(w.name) && fitsDuration(w.duration, dur))
     const sources = [...new Set(ws.map(w => w.source))].sort((a, b) => (a === 'zwo' ? -1 : b === 'zwo' ? 1 : a.localeCompare(b)))
-    const out = sources.map(src => ({ key: src, title: src === 'zwo' ? 'MY IMPORTS' : (planNames[src] || src).toUpperCase(), items: ws.filter(w => w.source === src) }))
+    const out = sources.map(src => ({ key: src, title: src === 'zwo' ? 'MY IMPORTS' : src === 'vbt' ? 'VBT WORKOUTS' : (planNames[src] || src).toUpperCase(), items: ws.filter(w => w.source === src) }))
     const cl = climbs.filter(c => match(c.name) && dur === 'all')
     if (cl.length) out.splice(sources[0] === 'zwo' ? 1 : 0, 0, { key: 'climbs', title: 'CLIMB TRAINING', climbs: true, items: cl })
     // FTP-tests (Ramp Test / 20-min FTP Test) uit alle plannen bovenaan, ook als ze in een plan voorkomen;

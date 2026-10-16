@@ -50,6 +50,7 @@ class VbtRide(SQLModel, table=True):
     samples:     Optional[list] = Field(default=None, sa_column=Column(JSON))
     in_progress: bool = Field(default=False)                  # live backup tijdens de rit, nog niet afgerond
     recovered:   bool = Field(default=False)                  # na een crash uit het journal hersteld (niet netjes afgesloten)
+    review:      Optional[dict] = Field(default=None, sa_column=Column(JSON))   # workout-score met uitleg: score, power, cadence, tips
     elapsed:     int = Field(default=0)                       # klok-tijd van de rit (s), incl. pauzes
     pauses:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # [{t, dur, reason}] - waar bleef de tijd
     events:      Optional[list] = Field(default=None, sa_column=Column(JSON))   # eventlog van de rit (zonder debug)

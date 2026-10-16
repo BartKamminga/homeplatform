@@ -2,7 +2,7 @@
 // voertuig/ploegleider rijdt meteen langs, de stem zegt iets, een voorbeeldmelding, of de HUD verschijnt 5 s
 // (ook buiten een rit) met het aangezette paneel oplichtend. Decor, peloton en ghost zie je al direct op de weg.
 const HUD = {
-  hud_power: '.panel.power', hud_hr: '.heartpanel', hud_speed: '.speedo', hud_time: '.panel.right',
+  hud_power: '.panel.power', hud_hr: '.heartpanel', hud_cadence: '.cadpanel', hud_speed: '.speedo', hud_time: '.panel.right',
   hud_elevation: '.elev', hud_top: '.panel.center', hud_chips: '.devchip', hud_music: '#music',
   messages: '#message', coach: '#coach', voice: '#coach',
 }

@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import CanvasChart from '../common/CanvasChart.jsx'
 import { useVbt, actions } from '../hooks/useVbt.js'
 import MusicBar from '../features/music/MusicBar.jsx'
+import CadencePanel from './CadencePanel.jsx'
 
 const ZoneBar = ({ id, zones, frac, needleId }) => (
   <div id={id} className="zonebar">
@@ -76,6 +77,7 @@ export default function Hud() {
   const grade = h.grade
   return (
     <div id="hud">
+      <div className="hudleft">
       <section className="panel power">
         <label>POWER <span id="zoneName" className="chip" style={{ background: h.zoneColor }}>{h.zone}</span>
           <Chip id="chipTrainer" status={h.chips.trainer}>KICKR</Chip><Chip id="chipHr" status={h.chips.hr}>&#9829; HR</Chip>
@@ -90,7 +92,12 @@ export default function Hud() {
         <div className="big"><span id="hrBig" style={{ color: h.hrColor, textShadow: '0 0 18px ' + h.hrColor }}>{h.hr}</span><small>BPM</small></div>
         <ZoneBar id="hrZoneBar" zones={VBT.hrZones} frac={h.hrFrac} needleId="hrNeedle" />
         <div className="sub">30S AVG <b id="hrAvg">{h.hrAvg}</b> · <span id="hrZoneLabel">{h.hrLabel}</span> · MAX <span id="hrMaxLabel">{h.hrMax}</span></div>
+        {h.wbpm !== null && <div className="sub" title="Power per heartbeat over the last 5 minutes - drops when your heart rate drifts up at the same power">
+          W/BPM <b id="wbpm">{h.wbpm.toFixed(2)}</b> · 5 MIN</div>}
       </section>
+
+      <CadencePanel c={h.cad} />
+      </div>
 
       <section className="panel center">
         <div className="logo-mini">VBT</div>

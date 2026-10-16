@@ -2,7 +2,7 @@
 // Plus pop-up-meldingen (DRAFT!, TRAINER BACK!, ...) en het hoogteprofiel als teken-functie.
 VBT.hud = (function () {
   const { cfg, util } = VBT;
-  const hrHist = [];
+  const hrHist = [], cadHist = [];
   let msgSeq = 0;
 
   function message(text, color) {
@@ -10,10 +10,25 @@ VBT.hud = (function () {
     VBT.game.message = { seq: ++msgSeq, text, color: color || '' };
   }
 
-  // elk frame: 30 s hartslaggemiddelde bijhouden (~60 updates/s)
+  // elk frame: 30 s hartslag- en cadansgemiddelde bijhouden (~60 updates/s), plus live W/BPM (hr-live.js)
   function update(game) {
     hrHist.push(game.sensors.hr);
     if (hrHist.length > 1800) hrHist.shift();
+    cadHist.push(game.sensors.cadence);
+    if (cadHist.length > 1800) cadHist.shift();
+    VBT.hrLive.update(game);
+  }
+
+  // cadanspaneel: doelcadans van het huidige workout-blok (als die er is) en of je ernaast zit
+  function cadModel(game) {
+    const run = game.run, s = game.sensors;
+    const cur = run && !run.wo.free && !run.done ? VBT.workout.current(run, cfg.rider.ftp) : null;
+    const target = cur && cur.cadence ? cur.cadence : null;
+    const off = target ? s.cadence - target : 0;
+    return {
+      rpm: Math.round(s.cadence), target, state: !target ? 'free' : Math.abs(off) <= 6 ? 'ok' : off < 0 ? 'low' : 'high',
+      avg: cadHist.length ? Math.round(cadHist.reduce((a, b) => a + b, 0) / cadHist.length) : 0,
+    };
   }
 
   // De game fietst zelf (geen Kickr) tijdens een rit: speels in beeld, zo'n rit wordt niet bewaard
@@ -42,6 +57,7 @@ VBT.hud = (function () {
       hr: Math.round(s.hr), hrZone: hz.name, hrColor: hz.color, hrLabel: hz.label.toUpperCase(), hrMax,
       hrFrac: util.zoneBarFrac(s.hr / hrMax, VBT.hrZones, 0.5, 1),
       hrAvg: hrHist.length ? Math.round(hrHist.reduce((a, b) => a + b, 0) / hrHist.length) : 0,
+      wbpm: VBT.hrLive.ratio(), cad: cadModel(game),
       kmh, speedLeds: Math.round(util.clamp(kmh / 60, 0, 1) * 24), cadence: Math.round(s.cadence),
       time: util.formatTime(game.rideTime), km: (game.player.dist / 1000).toFixed(2),
       lap: Math.floor(game.player.dist / T.lapMeters()) + 1,

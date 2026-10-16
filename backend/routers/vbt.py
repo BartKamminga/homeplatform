@@ -17,7 +17,7 @@ from core.database import get_session
 from models.core import User
 from models.vbt import VbtPlan, VbtProfile, VbtRide, VbtStravaLink
 from services import vbt_strava as strava
-from services.vbt_hr import VERSION as HR_VERSION, hr_metrics
+from services.vbt_analysis import VERSION as ANALYSIS_VERSION, analyze
 from services.vbt_rides import naive_utc
 
 router = APIRouter(prefix="/api/vbt", tags=["vbt"])
@@ -56,6 +56,7 @@ class RideIn(CamelModel):
     ftp: Optional[int] = None
     elapsed: int = 0
     recovered: bool = False
+    review: Optional[dict] = None
     pauses: list = []
     events: list = []
     samples: list = []
@@ -63,7 +64,7 @@ class RideIn(CamelModel):
 
 SUMMARY_FIELDS = ["id", "client_id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
                   "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp", "in_progress", "elapsed", "pauses",
-                  "strava_activity_id", "strava_status", "strava_error", "rpe", "readiness", "hr_metrics", "recovered"]
+                  "strava_activity_id", "strava_status", "strava_error", "rpe", "readiness", "hr_metrics", "recovered", "review"]
 
 
 def _ride_out(ride: VbtRide, with_samples: bool = False) -> dict:
@@ -133,10 +134,10 @@ def list_rides(limit: int = 50, current_user: User = Depends(get_current_user), 
         select(VbtRide).where(VbtRide.user_id == current_user.id, VbtRide.deleted_at.is_(None))
         .order_by(VbtRide.started_at.desc()).limit(min(limit, 200))
     ).all()
-    # oudere ritten (van voor item 1351) eenmalig aanvullen met de hartslag/vermogen-cijfers
-    stale = [r for r in rides if not r.in_progress and (r.hr_metrics or {}).get("v") != HR_VERSION]
+    # oudere ritten eenmalig (her)berekenen: hartslag/vermogen (1351), zones (1297), beste vermogens (1302)
+    stale = [r for r in rides if not r.in_progress and (r.hr_metrics or {}).get("v") != ANALYSIS_VERSION]
     for r in stale:
-        r.hr_metrics = hr_metrics(r.samples or [])
+        r.hr_metrics = analyze(r.samples or [], r.ftp)
         session.add(r)
     if stale:
         session.commit()
@@ -166,7 +167,7 @@ def save_ride(body: RideIn, request: Request, current_user: User = Depends(get_c
         ride.in_progress = False
     else:
         ride = VbtRide(user_id=current_user.id, **data)
-    ride.hr_metrics = hr_metrics(ride.samples or [])
+    ride.hr_metrics = analyze(ride.samples or [], ride.ftp)
     # PB = snelste volle ronde op dit parcours zonder sprongen
     if ride.lap_time and not ride.jumped:
         best = _best_lap(current_user.id, ride.course_key, session)

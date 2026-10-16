@@ -25,7 +25,7 @@ canvas#game { position: absolute; inset: 0; width: 100%; height: 100%; display: 
 }
 
 /* ---------- HUD ---------- */
-#hud { position: fixed; top: 0; bottom: 0; left: var(--panel-left, 0px); right: var(--panel-right, 0px); pointer-events: none; z-index: 10; transition: opacity .6s, left .25s, right .25s; }
+#hud { position: fixed; top: 0; bottom: 0; left: var(--panel-left, 0px); right: var(--panel-right, 0px); pointer-events: none; z-index: 10; container-type: inline-size; transition: opacity .6s, left .25s, right .25s; }
 body[data-state="title"] #hud { opacity: 0; }
 
 .panel {
@@ -43,7 +43,18 @@ body[data-state="title"] #hud { opacity: 0; }
 .sep { color: var(--pink); }
 .chip { display: inline-block; padding: 1px 6px; margin-left: 6px; border-radius: 3px; background: var(--pink); color: #fff; }
 
+/* linkerkolom: POWER, HEART RATE en CADENCE onder elkaar, schuiven op als er een uit staat (item 1347) */
+.hudleft { position: absolute; top: 20px; left: 20px; width: 270px; display: flex; flex-direction: column; gap: 10px; }
+.hudleft .panel { position: relative; top: auto; left: auto; width: auto; }
 .power { top: 20px; left: 20px; width: 270px; }
+.cadpanel { border-color: rgba(93,255,158,.45); }
+.cadpanel .big { font-size: 40px; }
+@media (max-height: 820px) {
+  .hudleft { gap: 6px; }
+  .hudleft .panel { padding: 10px 14px; }
+  .hudleft .big { font-size: 40px; }
+  .heartpanel .big, .cadpanel .big { font-size: 32px; }
+}
 .heartpanel { top: 196px; left: 20px; width: 270px; border-color: rgba(255,61,90,.5); }
 .heartpanel .big { font-size: 46px; }
 .center { top: 20px; left: 50%; transform: translateX(-50%); text-align: center; border-color: rgba(36,232,255,.45); }
@@ -153,7 +164,7 @@ body[data-state="paused"] #paused { display: flex; font-size: 64px; background: 
 #coach.show { opacity: 1; transform: none; }
 
 /* weergave-instellingen (Settings): body.off-<onderdeel> verbergt het */
-body.off-hud_power .panel.power, body.off-hud_hr .heartpanel, body.off-hud_speed .speedo, body.off-hud_time .panel.right,
+body.off-hud_power .panel.power, body.off-hud_hr .heartpanel, body.off-hud_cadence .cadpanel, body.off-hud_speed .speedo, body.off-hud_time .panel.right,
 body.off-hud_elevation .elev, body.off-hud_workout .wpanel, body.off-hud_top .panel.center, body.off-hud_chips .devchip, body.off-hud_music #music,
 body.off-crt .crt, body.off-messages #message, body.off-coach #coach { display: none !important; }
 

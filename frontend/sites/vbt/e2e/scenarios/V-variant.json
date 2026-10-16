@@ -1,0 +1,34 @@
+{
+ "title": "Workout-variant (1305): plan-workout als 30 min rijden, eigen courseKey, terug te vinden voor CONTINUE RIDE; varianten in TODAY",
+ "query": "today&mockble&autoconnect",
+ "steps": [
+  {
+   "at": 4,
+   "name": "TODAY toont de variantkeuze",
+   "assert": "!!document.querySelector('.pn-variants')",
+   "shot": "today-variants"
+  },
+  {
+   "at": 5,
+   "run": "window.__wo = VBT.workoutVariants.resize(VBT.calendar.find('ftpb-w1d2'), 30); VBT.actions.startWorkout(window.__wo)"
+  },
+  {
+   "at": 12,
+   "name": "variant rijdt: ~30 min en eigen sleutel",
+   "assert": "VBT.game.isRiding() && Math.abs(VBT.game.run.total - 1800) <= 60 && VBT.recorder.current().courseKey === 'ftpb-w1d2~30'"
+  },
+  {
+   "at": 13,
+   "key": "Escape"
+  },
+  {
+   "at": 13.5,
+   "key": "Enter"
+  },
+  {
+   "at": 17,
+   "name": "opgeslagen met de variant-sleutel; restore geeft dezelfde variant terug",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.some(r => r.courseKey === 'ftpb-w1d2~30')).then(ok => ok && VBT.workoutVariants.restore('ftpb-w1d2~30').then(w => !!w && w.duration === window.__wo.duration && w.id === 'ftpb-w1d2'))"
+  }
+ ]
+}

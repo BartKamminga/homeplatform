@@ -62,6 +62,10 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
   border-radius: 50%; width: 26px; height: 26px; cursor: pointer; padding: 0; }
 #music button:hover { border-color: var(--cyan); color: var(--cyan); }
 #music.off { min-width: 0; padding: 4px; opacity: .6; }
+#music .eq { flex: none; width: 112px; height: 26px; image-rendering: pixelated; }
+#music:not(.playing) .eq { display: none; }
+#music #musicFollow { opacity: .45; }
+#music #musicFollow.on { opacity: 1; color: var(--yellow); border-color: var(--yellow); box-shadow: 0 0 8px rgba(255,230,109,.5); }
 #music.off button { width: auto; border-radius: 14px; padding: 4px 10px; font-family: var(--pixel); font-size: 8px; }
 #music.off button em { font-style: normal; color: var(--pink); margin-left: 4px; }
 #music.playing { border-color: var(--cyan); }
@@ -125,3 +129,16 @@ a.ghostbtn { text-decoration: none; display: inline-block; }
 @keyframes simBob { 50% { transform: translateY(-4px) rotate(-8deg); } }
 @keyframes simWobble { 0%, 100% { transform: translateX(-50%) rotate(-2deg); } 50% { transform: translateX(-50%) rotate(2deg) translateY(-3px); } }
 @keyframes simType { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* PROGRESS: kop met schakelaar (zones POWER / HEART RATE) en virtuele FTP */
+.pn-headrow { display: flex; align-items: center; gap: 8px; }
+.pn-headrow .pn-viewtoggle button { font-size: 8px; padding: 4px 7px; }
+.pn-legend.zones i { height: 8px; width: 8px; border-radius: 2px; }
+.pn-vftp { display: flex; flex-direction: column; gap: 6px; }
+.pn-vftp .pn-kv { margin: 0; }
+
+/* workout-varianten (item 1305): duur kiezen, korter, shuffle */
+.pn-variants { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pn-variants .pn-viewtoggle { margin: 0; }
+.pn-variants .pn-viewtoggle button { font-size: 8px; padding: 5px 7px; }
+.pn-variants .ghostbtn { font-size: 8px; padding: 6px 8px; }

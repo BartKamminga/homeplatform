@@ -1,0 +1,44 @@
+{
+ "title": "Cadanspaneel links (1347), workout-paneel overlapt niet met beide zijpanelen open (1311), workout-score met uitleg (1307)",
+ "query": "wo=ftpb-w1d1&mockble&autoconnect",
+ "steps": [
+  {
+   "at": 8,
+   "name": "cadanspaneel in de linkerkolom, met doelcadans",
+   "assert": "!!document.querySelector('.hudleft .cadpanel #cadBig') && !!document.querySelector('#cadTarget')"
+  },
+  {
+   "at": 9,
+   "run": "VBT.ui.open('left', 'now'); VBT.ui.open('right')"
+  },
+  {
+   "at": 10.5,
+   "name": "beide zijpanelen open: workout-paneel raakt POWER, CADENCE en TIME niet",
+   "assert": "(() => { const r = s => document.querySelector(s).getBoundingClientRect(); const ov = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; const w = r('.wpanel'); return w.width > 0 && !ov(w, r('.panel.power')) && !ov(w, r('.cadpanel')) && !ov(w, r('.panel.right')) })()",
+   "shot": "narrow"
+  },
+  {
+   "at": 11,
+   "run": "VBT.ui.close('left'); VBT.ui.close('right')"
+  },
+  {
+   "at": 75,
+   "key": "Escape"
+  },
+  {
+   "at": 75.5,
+   "key": "Enter"
+  },
+  {
+   "at": 78,
+   "name": "eindscherm toont de workout-score met tips",
+   "assert": "!!document.querySelector('#finish .reviewbox li')",
+   "shot": "review"
+  },
+  {
+   "at": 79,
+   "name": "review staat bij de rit op de server",
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => !!a[0] && !!a[0].review && a[0].review.score >= 0 && a[0].review.tips.length >= 1)"
+  }
+ ]
+}

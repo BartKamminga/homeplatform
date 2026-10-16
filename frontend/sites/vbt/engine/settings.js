@@ -9,7 +9,7 @@ VBT.settings = (function () {
       ['traffic', 'Strange vehicles'], ['veh_ferrari', 'Ferrari'], ['veh_tractor', 'Tractor'], ['veh_icecream', 'Ice cream van'],
       ['veh_broom', 'Broom wagon'], ['veh_ufo', 'UFO']] },
     { group: 'HUD', items: [
-      ['hud_power', 'Power'], ['hud_hr', 'Heart rate'], ['hud_speed', 'Speed / cadence'], ['hud_time', 'Time / ghost / bunch / backup'],
+      ['hud_power', 'Power'], ['hud_hr', 'Heart rate'], ['hud_cadence', 'Cadence'], ['hud_speed', 'Speed / cadence'], ['hud_time', 'Time / ghost / bunch / backup'],
       ['hud_elevation', 'Elevation profile'], ['hud_workout', 'Workout panel'], ['hud_top', 'Lap / distance'], ['hud_chips', 'Status lights'], ['hud_music', 'Music bar']] },
     { group: 'Scenery', items: [['palms', 'Palm trees'], ['lamps', 'Street lamps'], ['signs', 'Billboards, signs, start gate'],
       ['sky', 'Sun and mountains'], ['crt', 'CRT scanlines']] },

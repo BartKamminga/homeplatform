@@ -93,6 +93,8 @@ VBT.workout = (function () {
       run.cadTotal += dt;
       if (Math.abs(cadence - st.c) <= 6) run.cadOk += dt;
     }
+    const into = run.elapsed - run.starts[run.index];
+    VBT.workoutReview.track(run, st, pctAt(st, util.clamp(into / st.d, 0, 1)), ftp, watts, cadence, dt);
     return { changed: run.index !== before, step: st };
   }
 

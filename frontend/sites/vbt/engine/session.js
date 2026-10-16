@@ -16,7 +16,7 @@ VBT.session = (function () {
     game.run = wo && !climb ? VBT.workout.createRun(wo.free ? Object.assign({}, wo, { steps: [{ d: wo.duration, a: 65, b: 65 }] }) : wo, course) : null;
     game.resetRide();
     VBT.traffic.reset();
-    const courseKey = climb ? 'climb-' + climb.slug : wo && !wo.free ? wo.id : FREE_COURSE;
+    const courseKey = climb ? 'climb-' + climb.slug : wo && !wo.free ? wo.courseKey || wo.id : FREE_COURSE;   // variant/geruild: eigen sleutel (1305)
     VBT.recorder.start({ kind: climb ? 'climb' : wo && !wo.free ? 'workout' : 'free', courseKey, name: wo ? wo.name : 'Free Ride',
       woId: wo && !climb ? wo.id : null, ftp: cfg.rider.ftp, lapM: climb ? VBT.climbs.summitMeters(climb) : null });
     game.ghostTrack = null;
@@ -92,6 +92,8 @@ VBT.session = (function () {
   function finish(completed) {
     const run = game.run;
     const extra = run && run.cadTotal > 0 ? { score: Math.round(run.cadOk / run.cadTotal * 100) } : {};
+    const review = run ? VBT.workoutReview.build(run, VBT.recorder.current() && VBT.recorder.current().jumped) : null;
+    if (review) extra.review = review;                // workout-score met uitleg (item 1307)
     const pbBefore = game.ghostTrack && game.ghostTrack.lapTime;
     const ride = saveRide(extra);
     if (!ride) { toMenu('title'); return; }
@@ -177,8 +179,7 @@ VBT.session = (function () {
       wo = await VBT.climbs.get(ride.courseKey.slice(6)).catch(() => null);
       if (!wo) { VBT.toast && VBT.toast('CLIMB NOT FOUND - CANNOT CONTINUE', 6000); return; }
     } else if (ride.courseKey !== FREE_COURSE) {
-      wo = VBT.calendar.find(ride.courseKey);
-      if (!wo && VBT.storage.getWorkout) wo = await VBT.storage.getWorkout(ride.courseKey).catch(() => null);
+      wo = await VBT.workoutVariants.restore(ride.courseKey);     // ook varianten en geruilde workouts (1305)
       if (!wo) { VBT.toast && VBT.toast('WORKOUT NOT FOUND - CANNOT CONTINUE', 6000); return; }
     }
     toMenu('title');

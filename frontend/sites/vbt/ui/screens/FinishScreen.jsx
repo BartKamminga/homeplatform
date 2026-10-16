@@ -6,6 +6,7 @@ import { fmtDur } from '../common/format.js'
 import { useStrava, rideButton, buttonLabel } from '../features/strava/strava.js'
 import Feedback from '../features/rides/Feedback.jsx'
 import HrStats from '../features/rides/HrStats.jsx'
+import ReviewBox from '../features/rides/ReviewBox.jsx'
 import { saveFeedback, flushFeedback } from '../features/rides/feedback.js'
 
 function FtpProposal({ ride }) {
@@ -67,6 +68,7 @@ export default function FinishScreen() {
         {ride.lapTime ? stat(fmtDur(ride.lapTime), ride.kind === 'climb' ? 'TO THE TOP' : 'BEST LAP') : null}
         <HrStats ride={ride} stat={stat} />
       </div>
+      <ReviewBox review={ride.review} />
       <Feedback key={'fb' + ride.clientId} ride={ride} />
       <FtpProposal key={ride.clientId} ride={ride} />
       <div className="finishbtns">

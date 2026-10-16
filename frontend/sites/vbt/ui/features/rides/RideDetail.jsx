@@ -8,6 +8,7 @@ import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
 import Feedback from './Feedback.jsx'
 import HrStats from './HrStats.jsx'
+import ReviewBox from './ReviewBox.jsx'
 import StravaRideButton from '../strava/StravaRideButton.jsx'
 
 // readOnly: tijdens een rit alleen bekijken (en .FIT) - geen verwijderen, terugzetten of CONTINUE RIDE
@@ -49,6 +50,7 @@ export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
         {ride.score !== null && ride.score !== undefined ? stat(ride.score + '%', 'CADENCE') : null}
         <HrStats ride={ride} stat={stat} />
       </div>
+      <ReviewBox review={ride.review} />
       {!readOnly && !ride.deletedAt && !ride.pending && <Feedback key={'fb' + ride.id} ride={ride} compact />}
       <CanvasChart height={160} draw={(ctx, w, h) => drawRide(ctx, w, h, ride.samples)} />
       <div className="ridelogs">
