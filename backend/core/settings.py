@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-change-me"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    # Item 1367: login via Google/Microsoft (claim amr=oidc) blijft langer geldig (7 dagen)
+    OIDC_TOKEN_EXPIRE_MINUTES: int = 10080
     # Item 1271: tokens ondertekenen met RS256 zodra hier een sleutel staat
     # (base64 van de PEM, 1 regel); public key via /.well-known/jwks.json.
     # HS256-tokens (SECRET_KEY) blijven geldig tijdens de overgang.

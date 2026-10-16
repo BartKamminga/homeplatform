@@ -46,12 +46,18 @@ def public_jwks() -> dict:
     return {"keys": [keys[1]] if keys else []}
 
 
+OIDC_AMR = "oidc"
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Tokens met amr=oidc (login via Google/Microsoft) krijgen OIDC_TOKEN_EXPIRE_MINUTES."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode.update({"exp": expire})
+    default_minutes = (settings.OIDC_TOKEN_EXPIRE_MINUTES if data.get("amr") == OIDC_AMR
+                       else settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    now = datetime.utcnow()
+    expire = now + (expires_delta or timedelta(minutes=default_minutes))
+    # iat: de frontend ververst zodra minder dan de helft van de geldigheid over is
+    to_encode.update({"exp": expire, "iat": now})
     keys = _rsa_keys()
     if keys:
         return jwt.encode(to_encode, keys[0], algorithm="RS256", headers={"kid": settings.JWT_KEY_ID})

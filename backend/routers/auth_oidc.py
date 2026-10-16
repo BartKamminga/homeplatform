@@ -28,7 +28,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from core.auth import create_access_token, get_current_user, hash_password
+from core.auth import OIDC_AMR, create_access_token, get_current_user, hash_password
 from core.database import get_session
 from core.invites import create_invited_user, invite_next, join_invite_group, open_invite, unique_username
 from core.logging import log_action
@@ -208,7 +208,7 @@ def _accept_invite(session: Session, st: dict, provider: str, subject: str, emai
         session.add(identity)
         session.commit()
         log_action(session, "login", user_id=existing.id, payload={"provider": provider, "via": "invite"})
-        return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": existing.id}), next=st["next"])
+        return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": existing.id, "amr": OIDC_AMR}), next=st["next"])
     if identity:
         return _back(fail_page, oidc_error="This account is disabled.")
     if email and session.exec(select(User).where(User.email == email)).first():
@@ -225,7 +225,7 @@ def _accept_invite(session: Session, st: dict, provider: str, subject: str, emai
                              last_login_at=datetime.utcnow()))
     session.commit()
     log_action(session, "user.invite_accept", user_id=user.id, payload={"username": username, "provider": provider})
-    return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": user.id}), next=st["next"])
+    return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": user.id, "amr": OIDC_AMR}), next=st["next"])
 
 
 @router.get("/{provider}/callback")
@@ -283,4 +283,4 @@ def callback(
     session.add(identity)
     session.commit()
     log_action(session, "login", user_id=user.id, payload={"provider": provider})
-    return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": user.id}), next=st["next"])
+    return _back(LOGIN_PAGE, oidc_token=create_access_token({"sub": user.id, "amr": OIDC_AMR}), next=st["next"])

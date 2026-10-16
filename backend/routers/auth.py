@@ -10,7 +10,9 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from core.database import get_session
-from core.auth import verify_password, create_access_token, get_current_user, hash_password
+from core.auth import (
+    verify_password, create_access_token, decode_token, get_current_user, hash_password, oauth2_scheme,
+)
 from core.crud import get_or_create_user_pref
 from core.invites import create_invited_user, invite_next, open_invite
 from core.limiter import limiter
@@ -83,8 +85,15 @@ def login(
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(
     current_user: User = Depends(get_current_user),
+    old_token: str = Depends(oauth2_scheme),
 ):
-    token = create_access_token({"sub": current_user.id})
+    # Inlogmethode (amr) behouden, anders valt een Google/MS-login terug naar 8 uur
+    claims = {"sub": current_user.id}
+    if not old_token.startswith("hp_"):
+        amr = decode_token(old_token).get("amr")
+        if amr:
+            claims["amr"] = amr
+    token = create_access_token(claims)
     return TokenResponse(access_token=token, token_type="bearer",
                          user_id=current_user.id, username=current_user.username)
 

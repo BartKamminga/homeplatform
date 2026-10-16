@@ -54,14 +54,19 @@ export function trackEvent(site, action, details = {}) {
   }).catch(() => {});
 }
 
-// Ververs token als het binnen 5 min verloopt (best-effort, stille fout)
+// Ververs token zodra minder dan de helft van de geldigheid over is (item 1367);
+// oude tokens zonder iat: binnen 5 min voor verlopen. Best-effort, stille fout.
+let refreshInFlight = null;
+
 async function maybeRefreshToken() {
   const token = localStorage.getItem("hp_token");
   if (!token) return;
   const payload = parseToken(token);
   if (!payload) return;
   const expiresInMs = payload.exp * 1000 - Date.now();
-  if (expiresInMs > 0 && expiresInMs < 5 * 60 * 1000) {
+  const thresholdMs = payload.iat ? ((payload.exp - payload.iat) * 1000) / 2 : 5 * 60 * 1000;
+  if (expiresInMs <= 0 || expiresInMs >= thresholdMs) return;
+  refreshInFlight ??= (async () => {
     try {
       const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
         method: "POST",
@@ -73,8 +78,11 @@ async function maybeRefreshToken() {
       }
     } catch {
       // Stille fout
+    } finally {
+      refreshInFlight = null;
     }
-  }
+  })();
+  await refreshInFlight;
 }
 
 async function request(method, path, body = null) {

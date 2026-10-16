@@ -120,6 +120,27 @@ def test_link_then_login(client, fake_idp, admin_token, admin_user):
                          headers={"Authorization": f"Bearer {admin_token}"}).status_code == 204
 
 
+def _lifetime_hours(token: str) -> float:
+    claims = jwt.get_unverified_claims(token)
+    return (claims["exp"] - claims["iat"]) / 3600
+
+
+def test_oidc_login_token_lasts_longer_and_survives_refresh(client, fake_idp, admin_token):
+    """Item 1367: Google/MS-login 7 dagen geldig, ook na refresh; wachtwoordlogin blijft 8 uur."""
+    _finish(client, fake_idp, _link(client, admin_token))
+    _, fragment = _finish(client, fake_idp, _login_url(client))
+    oidc_token = fragment["oidc_token"][0]
+    assert jwt.get_unverified_claims(oidc_token)["amr"] == "oidc"
+    assert _lifetime_hours(oidc_token) == 7 * 24
+
+    refreshed = client.post("/api/auth/refresh", headers={"Authorization": f"Bearer {oidc_token}"}).json()
+    assert _lifetime_hours(refreshed["access_token"]) == 7 * 24
+
+    refreshed = client.post("/api/auth/refresh", headers={"Authorization": f"Bearer {admin_token}"}).json()
+    assert "amr" not in jwt.get_unverified_claims(refreshed["access_token"])
+    assert _lifetime_hours(refreshed["access_token"]) == settings.ACCESS_TOKEN_EXPIRE_MINUTES / 60
+
+
 def test_rejects_wrong_state_nonce_audience_and_issuer(client, fake_idp, admin_token):
     url = _link(client, admin_token)
     res = client.get("/api/auth/oidc/google/callback?code=c&state=verkeerd", follow_redirects=False)
