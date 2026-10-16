@@ -1,6 +1,6 @@
 {
  "title": "Waakhond: rit open maar de game neemt niet op terwijl je trapt -> melding + event; handmatige pauze + trappen -> hint",
- "query": "ride",
+ "query": "ride&mockble&autoconnect",
  "steps": [
   {
    "at": 4,

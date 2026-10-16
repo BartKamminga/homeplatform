@@ -1,6 +1,6 @@
 {
  "title": "Ramp Test: opgeven stopt de test, nieuwe FTP voorstellen, ACCEPT -> FTP + historie",
- "query": "",
+ "query": "mockble&autoconnect",
  "steps": [
   {
    "at": 3,
@@ -13,7 +13,7 @@
   },
   {
    "at": 72,
-   "run": "VBT.physics.updateSensors = s => { s.watts = 0; s.cadence = 0; s.avg3s.push(0) }"
+   "run": "VBT.bleMock.device('trainer').quit()"
   },
   {
    "at": 80,

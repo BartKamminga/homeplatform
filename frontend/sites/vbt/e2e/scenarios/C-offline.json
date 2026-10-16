@@ -1,6 +1,6 @@
 {
  "title": "Server onbereikbaar bij de finish -> NOT SYNCED -> na online precies 1x op de server",
- "query": "ride",
+ "query": "ride&mockble&autoconnect",
  "steps": [
   {
    "at": 5,

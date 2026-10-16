@@ -1,6 +1,6 @@
 {
  "title": "Hartslagpaneel met zones, ploegleider (teamwagen + tekst), rare voertuigen",
- "query": "ride&coach",
+ "query": "ride&coach&mockble&autoconnect",
  "steps": [
   {
    "at": 3,

@@ -1,4 +1,5 @@
-// Detail van een rit in MY RIDES: knoppen (verwijderen/terugzetten, .FIT, CONTINUE RIDE), cijfers, feedback,
+// Detail van een rit in MY RIDES: knoppen (verwijderen/terugzetten, .FIT, Strava, CONTINUE RIDE alleen bij een
+// rit die niet netjes is afgesloten), cijfers, feedback,
 // grafiek (vermogen/hoogte/hartslag) en de pauzes en eventlog van die rit.
 import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
@@ -7,6 +8,7 @@ import { confirmDialog } from '../../common/ConfirmDialog.jsx'
 import { drawRide } from './rideChart.js'
 import Feedback from './Feedback.jsx'
 import HrStats from './HrStats.jsx'
+import StravaRideButton from '../strava/StravaRideButton.jsx'
 
 // readOnly: tijdens een rit alleen bekijken (en .FIT) - geen verwijderen, terugzetten of CONTINUE RIDE
 export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
@@ -19,7 +21,7 @@ export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
   const restore = async () => {
     try { await window.VBT.storage.restoreRide(ride.id); window.VBT.toast?.('RIDE RESTORED'); onRestored(ride.id) } catch (e) { window.VBT.toast?.(e.message, 6000) }
   }
-  const canContinue = !!(ride.clientId && ride.samples && ride.samples.length)
+  const canContinue = window.VBT.session.canContinue(ride)      // alleen niet netjes afgesloten ritten (item 1350)
   return (
     <div id="rideDetail" className="pn-detail">
       <div className="dhead">
@@ -33,7 +35,9 @@ export default function RideDetail({ ride, readOnly, onDeleted, onRestored }) {
           ? <button id="rideRestore" className="ridebtn" onClick={restore}>&#8634; RESTORE</button>
           : !ride.pending && <button id="rideDelete" className="ghostbtn" onClick={remove}>DELETE</button>)}
         <button id="rideFit" className="ghostbtn" disabled={!(ride.samples && ride.samples.length)} onClick={() => actions().downloadFit(ride)}>&#11015; .FIT</button>
-        {!readOnly && !ride.deletedAt && <button id="rideContinue" className="ridebtn" disabled={!canContinue}
+        {!readOnly && !ride.deletedAt && !ride.pending && !ride.inProgress && <StravaRideButton ride={ride} />}
+        {!readOnly && !ride.deletedAt && canContinue && <button id="rideContinue" className="ridebtn"
+          title="This ride was not finished properly - continue where it stopped"
           onClick={() => startWithConfirm('this ride again', () => actions().resumeRide(ride))}>CONTINUE RIDE &#9654;</button>}
       </div>
       <div className="ridestats">

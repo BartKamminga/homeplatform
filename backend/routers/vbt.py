@@ -55,6 +55,7 @@ class RideIn(CamelModel):
     score: Optional[int] = None
     ftp: Optional[int] = None
     elapsed: int = 0
+    recovered: bool = False
     pauses: list = []
     events: list = []
     samples: list = []
@@ -62,7 +63,7 @@ class RideIn(CamelModel):
 
 SUMMARY_FIELDS = ["id", "client_id", "started_at", "kind", "course_key", "name", "wo_id", "duration", "distance", "avg_w", "max_w",
                   "avg_cad", "avg_hr", "kj", "elevation", "lap_time", "jumped", "pb", "score", "ftp", "in_progress", "elapsed", "pauses",
-                  "strava_activity_id", "strava_status", "strava_error", "rpe", "readiness", "hr_metrics"]
+                  "strava_activity_id", "strava_status", "strava_error", "rpe", "readiness", "hr_metrics", "recovered"]
 
 
 def _ride_out(ride: VbtRide, with_samples: bool = False) -> dict:

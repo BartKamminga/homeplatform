@@ -1,6 +1,6 @@
 {
  "title": "Crash midden in een rit -> RECOVERED, niets kwijt",
- "query": "ride",
+ "query": "ride&mockble&autoconnect",
  "steps": [
   {
    "at": 15,
@@ -15,7 +15,7 @@
   {
    "at": 25,
    "name": "herstelde rit op de server met alle seconden",
-   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.some(r => !r.inProgress && r.duration >= +localStorage.getItem('__e2e_n')))"
+   "assert": "fetch('/api/vbt/rides?limit=200',{headers:{Authorization:'Bearer '+localStorage.getItem('hp_token')}}).then(r=>r.json()).then(a => a.some(r => !r.inProgress && r.recovered && r.duration >= +localStorage.getItem('__e2e_n')))"
   }
  ]
 }

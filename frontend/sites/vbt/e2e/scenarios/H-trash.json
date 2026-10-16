@@ -1,6 +1,6 @@
 {
  "title": "Pauzes + eventlog per rit, verwijderen = prullenbak, terugzetten",
- "query": "ride",
+ "query": "ride&mockble&autoconnect",
  "steps": [
   {
    "at": 5,

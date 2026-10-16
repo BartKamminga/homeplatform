@@ -111,6 +111,7 @@ VBT.session = (function () {
   // Rit afsluiten en bewaren: eerst lokaal in de outbox (IndexedDB), dan naar de server (met retry).
   // Elke rit wordt bewaard, hoe kort ook (ook een rit die tijdens het aftellen gestopt is).
   function saveRide(extra) {
+    extra = Object.assign({ recovered: false }, extra);      // hier afgesloten = netjes afgesloten (ook na hervatten)
     if (game.rideTime > 0) VBT.recorder.flush(game);
     if (VBT.recorder.isSimulated(VBT.recorder.current())) {
       VBT.recorder.stop(extra);
@@ -163,10 +164,14 @@ VBT.session = (function () {
   function cancelStop() { if (game.state === 'confirm') game.setState(beforeConfirm || 'paused'); }
   function confirmStop() { if (game.state === 'confirm') finish(false); }
 
+  // Alleen een rit die niet netjes is afgesloten (live backup bleef staan, of na een crash hersteld) kan verder.
+  // Een rit die met STOP & SAVE of aan het eind van de workout is afgesloten, is klaar.
+  const canContinue = ride => !!(ride && ride.clientId && ride.samples && ride.samples.length && (ride.inProgress || ride.recovered));
+
   // Oude rit hervatten: zelfde parcours/workout, verder op de plek en tijd waar je gebleven was, in dezelfde rit
   async function resumeRide(ride) {
     const S = ride.samples || [];
-    if (!ride.clientId || !S.length) { VBT.toast && VBT.toast('THIS RIDE CANNOT BE CONTINUED'); return; }
+    if (!canContinue(ride)) { VBT.toast && VBT.toast('THIS RIDE CANNOT BE CONTINUED'); return; }
     let wo = null;
     if (ride.courseKey.startsWith('climb-')) {
       wo = await VBT.climbs.get(ride.courseKey.slice(6)).catch(() => null);
@@ -207,5 +212,5 @@ VBT.session = (function () {
     if (game.lastRide) VBT.fit.download(game.lastRide);
   }
 
-  return { openHelp, startRide, resumeRide, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, openDevices };
+  return { openHelp, startRide, resumeRide, canContinue, jumpTo, updateGhost, record, finish, toMenu, stop, cancelStop, confirmStop, openRides, downloadFit, finishDone, openDevices };
 })();
