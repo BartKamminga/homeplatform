@@ -9,6 +9,7 @@ VBT.session = (function () {
   // op de top), null = vrije rit. startStep: optioneel interval om mee te beginnen (aangeklikt in een grafiek)
   function startRide(wo, startStep) {
     if (VBT.recorder.active()) saveRide({});     // nooit een lopende rit overschrijven
+    VBT.realride.stop();                         // Real Ride start (indien gekozen) na startRide opnieuw
     const climb = wo && wo.climb ? wo : null;
     const course = climb ? VBT.climbs.course(climb) : wo && !wo.free ? VBT.workout.buildCourse(wo, cfg.rider.ftp) : undefined;
     VBT.track.build(course, { loop: !climb });

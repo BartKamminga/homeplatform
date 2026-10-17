@@ -20,7 +20,8 @@ VBT.climbs = (function () {
 
   // vlakke aanloop, de climb zelf (haarspeldbochten), finish op de top, uitloop
   function course(climb) {
-    const secs = [{ m: START_M, g: 0, c: [0, 1], tag: 'start' }];
+    // echte GPX-route: geen verzonnen tunnels/bruggen (scenery.autoStructures kijkt naar real)
+    const secs = [{ m: START_M, g: 0, c: [0, 1], tag: 'start', real: climb.source === 'gpx' }];
     let lastSign = null;
     climb.segments.forEach(([m, g], i) => {
       const bend = ((i * 7919) % 13) / 13 - 0.5;            // vast patroon, zelfde parcours bij elke rit

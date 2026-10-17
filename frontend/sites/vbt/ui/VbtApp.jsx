@@ -11,6 +11,7 @@ import ToastHost from './common/Toast.jsx'
 import FinishScreen from './screens/FinishScreen.jsx'
 import Hud from './hud/Hud.jsx'
 import { TitleScreen, Countdown, Paused, ConfirmStop, Crt } from './screens/Overlays.jsx'
+import RealRideView from './screens/RealRideView.jsx'
 import useBodyState from './hooks/useBodyState.js'
 import { MusicController } from './features/music/MusicBar.jsx'
 import * as music from './features/music/music.js'
@@ -113,6 +114,7 @@ export default function VbtApp() {
       <ToastHost />
       <BodyState />
       <MusicController />
+      <RealRideView />
       <Hud />
       <TitleScreen />
       <Countdown />

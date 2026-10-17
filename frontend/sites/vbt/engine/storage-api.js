@@ -35,6 +35,9 @@ VBT.storage = {
   getRoute: id => api.get('/api/vbt/routes/' + enc(id)),
   saveRoute: route => api.post('/api/vbt/routes', route),
   deleteRoute: id => api.delete('/api/vbt/routes/' + enc(id)),
+  realrideStatus: () => api.get('/api/vbt/realride'),
+  findRoutePhotos: id => api.post('/api/vbt/routes/' + enc(id) + '/photos'),
+  routePhotos: id => api.get('/api/vbt/routes/' + enc(id) + '/photos'),
   getWorkout: id => api.get('/api/vbt/workouts/' + enc(id)),
   deleteWorkout: id => api.delete('/api/vbt/workouts/' + enc(id)),
   async importZwo(files) {

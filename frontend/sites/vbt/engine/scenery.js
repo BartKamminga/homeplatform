@@ -100,7 +100,7 @@ VBT.scenery = (function () {
       for (let n = mk.at; n < end; n++) { segments[n].tunnel = !!mk.sec.tunnel; segments[n].bridge = !!mk.sec.bridge; }
     });
     const m = n => n * SEG_M();
-    if (!tagged) segments.forEach((s, n) => {
+    if (!tagged && !marks.some(mk => mk.sec.real)) segments.forEach((s, n) => {
       const flat = Math.abs(VBT.track.gradeAt(n)) < 0.035;
       if (m(n) % 2500 >= 1200 && m(n) % 2500 < 1400) s.tunnel = true;
       else if (flat && m(n) % 3700 >= 600 && m(n) % 3700 < 750) s.bridge = true;

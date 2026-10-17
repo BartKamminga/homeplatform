@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     # VBT: uploaden naar Strava (api-app op strava.com/settings/api); redirect via OIDC_REDIRECT_BASE/EXTERNAL_URL
     STRAVA_CLIENT_ID: str = ""
     STRAVA_CLIENT_SECRET: str = ""
+    # VBT Real Ride: straatfoto's langs een route (client token van mapillary.com/dashboard/developers)
+    MAPILLARY_TOKEN: str = ""
     FIETS_LAT: float = 51.9244  # MVP: vaste locatie (Rotterdam) — later instelbaar (roadmap-item)
     FIETS_LON: float = 4.4777
     FIETS_LOCATION_LABEL: str = "Rotterdam"
