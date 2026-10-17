@@ -129,6 +129,8 @@ class VbtRoute(SQLModel, table=True):
     source:     str = Field(default="gpx")
     segments:   list = Field(default_factory=list, sa_column=Column(JSON))   # [[meter, helling%], ...]
     curves:     list = Field(default_factory=list, sa_column=Column(JSON))   # bocht per sectie (game-eenheden)
+    points:     Optional[list] = Field(default=None, sa_column=Column(JSON))   # [lat, lon] aan het begin van elke sectie (Real Ride)
+    photos:     Optional[list] = Field(default=None, sa_column=Column(JSON))   # [[sectie, mapillary-id, kompas], ...]
     distance:   int = Field(default=0)                                       # meter
     elevation:  int = Field(default=0)                                       # hoogtemeters
     created_at: datetime = Field(default_factory=datetime.utcnow)

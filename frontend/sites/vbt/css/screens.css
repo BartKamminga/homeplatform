@@ -179,3 +179,15 @@ body[data-state="confirm"] #confirm { display: flex; }
 .reviewbox .rvhead span { display: flex; flex-direction: column; font-family: var(--pixel); font-size: 10px; color: var(--cyan); gap: 4px; }
 .reviewbox .rvhead small { font-size: 8px; color: var(--ink); opacity: .7; }
 .reviewbox ul { margin: 0; padding-left: 18px; font-family: Inter, Arial, sans-serif; font-size: 12px; line-height: 1.45; }
+
+/* Real Ride (prototype): straatfoto over het speelveld, onder de HUD */
+#realride { position: fixed; top: 0; bottom: 0; left: var(--panel-left, 0px); right: var(--panel-right, 0px); z-index: 5; overflow: hidden; background: #000; pointer-events: none; transition: background .6s; }
+#realride img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 55%; transition: transform .25s linear, opacity .6s; }
+#realride img.in { animation: rrIn .7s ease-out; }
+#realride.gap { background: transparent; }
+#realride.gap img { opacity: 0; }
+#realride .rrcredit { position: absolute; left: 12px; bottom: 6px; font: 10px Inter, Arial, sans-serif; color: #fff; text-shadow: 0 1px 2px #000; opacity: .8; }
+#realride .rrnote { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); font-family: var(--pixel); font-size: 10px; color: var(--yellow); text-shadow: 0 1px 3px #000; }
+@keyframes rrIn { from { opacity: 0; } to { opacity: 1; } }
+.pn-realride { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid rgba(155,92,255,.3); }
+.pn-realride small { font-family: var(--pixel); font-size: 8px; color: var(--cyan); letter-spacing: 1px; }

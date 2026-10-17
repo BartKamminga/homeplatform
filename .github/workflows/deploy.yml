@@ -90,6 +90,7 @@ jobs:
           OIDC_TOKEN_EXPIRE_MINUTES=${{ vars.OIDC_TOKEN_EXPIRE_MINUTES || '10080' }}
           STRAVA_CLIENT_ID=${{ vars.STRAVA_CLIENT_ID }}
           STRAVA_CLIENT_SECRET=${{ secrets.STRAVA_CLIENT_SECRET }}
+          MAPILLARY_TOKEN=${{ secrets.MAPILLARY_TOKEN }}
           EOF
           chmod 600 $PROD_REPO/.env
 
@@ -194,6 +195,7 @@ jobs:
           OIDC_TOKEN_EXPIRE_MINUTES=${{ vars.OIDC_TOKEN_EXPIRE_MINUTES || '10080' }}
           STRAVA_CLIENT_ID=${{ vars.STRAVA_CLIENT_ID }}
           STRAVA_CLIENT_SECRET=${{ secrets.STRAVA_CLIENT_SECRET }}
+          MAPILLARY_TOKEN=${{ secrets.MAPILLARY_TOKEN }}
           ACC_ALLOWED_IPS=${{ vars.ACC_ALLOWED_IPS }}
           EOF
           chmod 600 $ACC_REPO/.env

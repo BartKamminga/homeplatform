@@ -37,7 +37,9 @@
 .pn-plangrid .wcard { min-height: 74px; padding: 6px 7px; }
 .pn-plangrid .wcard b { font-size: 9px; }
 .pn-plangrid .wdate, .pn-plangrid .wmeta { font-size: 8px; }
-.pn-sticky { position: sticky; bottom: -12px; padding-bottom: 12px; background: rgb(9, 2, 26); }
+/* detail vast onderin (weken, plan, workouts): nooit hoger dan ~55% van het scherm, anders bedekt hij de
+   kalender erboven; is hij langer, dan scrolt hij zelf */
+.pn-sticky { position: sticky; bottom: -12px; padding-bottom: 12px; background: rgb(9, 2, 26); max-height: 55vh; overflow-y: auto; }
 body.menu-wide #title { opacity: 0; visibility: hidden; }   /* brede menu = het menu; de weg blijft zichtbaar (previews) */
 .pn-plans button { font-size: 9px; padding: 6px 9px; }
 .pn-plans button.active { border-color: var(--cyan); background: rgba(36,232,255,.12); }

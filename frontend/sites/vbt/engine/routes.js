@@ -60,9 +60,10 @@ VBT.routes = (function () {
     pts.forEach((p, i) => { if (i) d += haversine(pts[i - 1], p); p.d = d; if (p.ele === null) p.ele = pts[i - 1].ele; });
     const smooth = pts.map((p, i) => { const w = pts.slice(Math.max(0, i - 3), i + 4); return w.reduce((t, q) => t + q.ele, 0) / w.length; });
     const at = m => { let i = pts.findIndex(p => p.d >= m); if (i < 1) i = Math.max(1, i < 0 ? pts.length - 1 : 1); return i; };
-    const segs = [], curves = [];
+    const segs = [], curves = [], points = [];
     for (let m = 0; m + SECTION_M <= d; m += SECTION_M) {
       const i = at(m), j = at(m + SECTION_M), k = at(Math.min(d, m + 2 * SECTION_M));
+      points.push([+pts[i].lat.toFixed(6), +pts[i].lon.toFixed(6)]);          // voor Real Ride (straatfoto's)
       const grade = (smooth[j] - smooth[i]) / Math.max(1, pts[j].d - pts[i].d) * 100;
       let turn = bearing(pts[j - 1], pts[j]) - bearing(pts[i - 1], pts[i]);
       if (k > j) turn = bearing(pts[j], pts[k]) - bearing(pts[i], pts[j]);
@@ -72,7 +73,7 @@ VBT.routes = (function () {
     }
     if (segs.length > 3000) throw new Error('Routes up to 300 km are supported');
     const name = (doc.querySelector('trk > name, rte > name, metadata > name')?.textContent || fallbackName || 'My route').trim().slice(0, 120);
-    return { name, segments: segs, curves };
+    return { name, segments: segs, curves, points };
   }
 
   async function importGpx(file) {

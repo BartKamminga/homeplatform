@@ -43,3 +43,24 @@ def test_routes_crud_and_validation(client, user_token, admin_token):
     assert client.get("/api/vbt/routes/" + r["id"], headers=other).status_code == 404
     assert client.get("/api/vbt/routes/" + r["id"], headers=h).json()["curves"] == [0, 1.5, -2]
     assert client.delete("/api/vbt/routes/" + r["id"], headers=h).json() == {"ok": True}
+
+
+def test_mapillary_pick_prefers_heading_and_distance():
+    from services.vbt_mapillary import pick
+    p = (52.1, 4.9)
+    near_wrong_way = {"id": "a", "computed_geometry": {"coordinates": [4.9, 52.1]}, "computed_compass_angle": 180}
+    near_right_way = {"id": "b", "computed_geometry": {"coordinates": [4.9002, 52.1001]}, "computed_compass_angle": 10}
+    far_right_way = {"id": "c", "computed_geometry": {"coordinates": [4.9006, 52.1004]}, "computed_compass_angle": 0}
+    assert pick([near_wrong_way, far_right_way, near_right_way], p, 0)["id"] == "b"
+    assert pick([near_wrong_way], p, 0) is None
+
+
+def test_route_points_and_photo_status(client, user_token):
+    h = {"Authorization": "Bearer " + user_token}
+    bad = client.post("/api/vbt/routes", headers=h, json={"name": "x", "segments": [[100, 1]], "points": [[52, 4], [52, 4]]})
+    assert bad.status_code == 422
+    r = client.post("/api/vbt/routes", headers=h, json={"name": "Lus", "segments": [[100, 1], [100, 0]], "points": [[52.1, 4.9], [52.101, 4.9]]}).json()
+    assert r["hasPoints"] and r["photoCount"] == 0
+    assert client.get("/api/vbt/realride", headers=h).json() == {"configured": False}
+    assert client.post("/api/vbt/routes/" + r["id"] + "/photos", headers=h).status_code == 503
+    assert client.get("/api/vbt/routes/" + r["id"] + "/photos", headers=h).json() == []

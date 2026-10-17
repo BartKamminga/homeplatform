@@ -13,7 +13,7 @@
   {
    "at": 8.5,
    "name": "weekweergave met de rit van vandaag en weektotalen",
-   "assert": "!!document.querySelector('.pn-rideweeks .wrow.thisweek .wday.today .ridecard') && document.querySelector('.pn-rideweeks .wrow.thisweek .wtotals').textContent.includes('RIDE') && !!document.querySelector('#rideDetail')",
+   "assert": "!!document.querySelector('.pn-rideweeks .wrow.thisweek .wday.today .ridecard') && document.querySelector('.pn-rideweeks .wrow.thisweek .wtotals').textContent.includes('RIDE') && !!document.querySelector('#rideDetail') && (() => { const r = document.querySelector('.pn-rideweeks .wrow.thisweek').getBoundingClientRect(); const el = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return !!el && !!el.closest('.pn-rideweeks') && document.querySelector('.pn-sticky').getBoundingClientRect().height <= innerHeight * 0.56 })()",
    "shot": "weeks"
   },
   {

@@ -5,6 +5,7 @@ import CanvasChart from '../../common/CanvasChart.jsx'
 import { actions } from '../../hooks/useVbt.js'
 import { fmtDur, minutes, dayLabel, startWithConfirm } from '../../common/format.js'
 import VariantBar from './VariantBar.jsx'
+import RealRideBlock from './RealRideBlock.jsx'
 
 export function ClimbDetail({ climb }) {
   const VBT = window.VBT
@@ -32,6 +33,7 @@ export function ClimbDetail({ climb }) {
         <button id="climbRide" className="ridebtn" disabled={!full}
           onClick={() => startWithConfirm(c.name, () => actions().startWorkout(full))}>RIDE &#9654;</button>
       </div>
+      {full && <RealRideBlock route={full} />}
     </div>
   )
 }
